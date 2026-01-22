@@ -2,22 +2,24 @@ import { BudgetGrid } from '@/components/BudgetGrid';
 import { getAuthUrl } from '@/lib/contaazul';
 import { prisma } from '@/lib/prisma';
 import Link from 'next/link';
+import { SyncButton } from '@/components/SyncButton';
 
 export default async function Home({ searchParams }: { searchParams: Promise<{ connected?: string }> }) {
   const params = await searchParams;
-  // Generate a random state for security (simulated for now)
   const state = Math.random().toString(36).substring(7);
   const authUrl = getAuthUrl(state);
 
-  // Check if we have any tenants
   const tenantCount = await prisma.tenant.count();
   const isConnected = tenantCount > 0 || params.connected === 'true';
 
   return (
     <main className="container" style={{ paddingTop: '2rem', paddingBottom: '4rem' }}>
-      <header style={{ marginBottom: '2rem' }}>
-        <h1 style={{ color: 'hsl(var(--primary))' }}>Dashboard Financeiro</h1>
-        <p className="text-muted">Visão Consolidada Orçado x Realizado</p>
+      <header style={{ marginBottom: '2rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <div>
+          <h1 style={{ color: 'hsl(var(--primary))' }}>Dashboard Financeiro</h1>
+          <p className="text-muted">Visão Consolidada Orçado x Realizado</p>
+        </div>
+        {isConnected && <SyncButton />}
       </header>
 
       {!isConnected ? (
@@ -61,17 +63,8 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ c
       <section style={{ marginBottom: '2rem' }}>
         <h2 style={{ marginBottom: '1rem' }}>Planejamento Orçamentário</h2>
         <div style={{ display: 'flex', gap: '1rem', marginBottom: '1rem' }}>
-          <select style={{ padding: '0.5rem', borderRadius: 'var(--radius)', borderColor: 'hsl(var(--border))' }}>
-            <option>Todas as Empresas (Consolidado)</option>
-            <option>Empresa A</option>
-            <option>Empresa B</option>
-          </select>
-          <select style={{ padding: '0.5rem', borderRadius: 'var(--radius)', borderColor: 'hsl(var(--border))' }}>
-            <option>2024</option>
-            <option>2025</option>
-          </select>
+          {/* Filters */}
         </div>
-
         <BudgetGrid />
       </section>
     </main>

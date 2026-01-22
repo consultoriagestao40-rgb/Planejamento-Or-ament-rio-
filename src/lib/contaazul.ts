@@ -44,3 +44,29 @@ export const exchangeCodeForToken = async (code: string): Promise<ContaAzulToken
 
     return response.json();
 };
+
+export const refreshAccessToken = async (refreshToken: string): Promise<ContaAzulTokenResponse> => {
+    const clientId = process.env.CONTA_AZUL_CLIENT_ID;
+    const clientSecret = process.env.CONTA_AZUL_CLIENT_SECRET;
+
+    const credentials = Buffer.from(`${clientId}:${clientSecret}`).toString('base64');
+
+    const response = await fetch(CA_TOKEN_URL, {
+        method: 'POST',
+        headers: {
+            'Authorization': `Basic ${credentials}`,
+            'Content-Type': 'application/x-www-form-urlencoded',
+        },
+        body: new URLSearchParams({
+            grant_type: 'refresh_token',
+            refresh_token: refreshToken,
+        }),
+    });
+
+    if (!response.ok) {
+        const errorBody = await response.text();
+        throw new Error(`Failed to refresh token: ${errorBody}`);
+    }
+
+    return response.json();
+};

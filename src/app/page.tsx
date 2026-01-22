@@ -7,7 +7,7 @@ import { SyncButton } from '@/components/SyncButton';
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
-export default async function Home({ searchParams }: { searchParams: Promise<{ connected?: string }> }) {
+export default async function Home({ searchParams }: { searchParams: Promise<{ connected?: string; error?: string }> }) {
   const params = await searchParams;
   const state = Math.random().toString(36).substring(7);
   const authUrl = getAuthUrl(state);
@@ -24,6 +24,19 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ c
         </div>
         {isConnected && <SyncButton />}
       </header>
+
+      {params.error && (
+        <div style={{
+          padding: '1rem',
+          border: '1px solid hsl(var(--destructive))',
+          borderRadius: 'var(--radius)',
+          backgroundColor: '#fef2f2',
+          color: '#991b1b',
+          marginBottom: '2rem'
+        }}>
+          <strong>Erro na Conexão:</strong> {params.error}
+        </div>
+      )}
 
       {!isConnected ? (
         <div style={{

@@ -31,11 +31,19 @@ export async function GET(request: NextRequest) {
 
         console.log('Tenant Created:', tenant.id);
 
-        // Redirect to home with a success flag
-        return NextResponse.redirect(new URL('/?connected=true', request.url));
+        // DEBUGGING: Show raw JSON instead of redirecting
+        return NextResponse.json({
+            status: 'SUCCESS',
+            message: 'Tenant created successfully',
+            tenantId: tenant.id,
+            tokenExpires: tenant.tokenExpiresAt
+        });
     } catch (error: any) {
         console.error('Auth Error:', error);
-        const errorMessage = error instanceof Error ? error.message : 'Unknown auth error';
-        return NextResponse.redirect(new URL(`/?error=${encodeURIComponent(errorMessage)}`, request.url));
+        return NextResponse.json({
+            status: 'ERROR',
+            message: error instanceof Error ? error.message : 'Unknown auth error',
+            details: JSON.stringify(error)
+        }, { status: 500 });
     }
 }

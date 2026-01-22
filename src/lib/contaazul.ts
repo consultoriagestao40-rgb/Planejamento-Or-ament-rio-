@@ -22,18 +22,17 @@ export const exchangeCodeForToken = async (code: string): Promise<ContaAzulToken
     const clientSecret = process.env.CONTA_AZUL_CLIENT_SECRET;
     const redirectUri = process.env.CONTA_AZUL_REDIRECT_URI;
 
-    const credentials = Buffer.from(`${clientId}:${clientSecret}`).toString('base64');
-
     const response = await fetch(CA_TOKEN_URL, {
         method: 'POST',
         headers: {
-            'Authorization': `Basic ${credentials}`,
             'Content-Type': 'application/x-www-form-urlencoded',
         },
         body: new URLSearchParams({
             grant_type: 'authorization_code',
             code,
             redirect_uri: redirectUri!,
+            client_id: clientId!,
+            client_secret: clientSecret!
         }),
     });
 

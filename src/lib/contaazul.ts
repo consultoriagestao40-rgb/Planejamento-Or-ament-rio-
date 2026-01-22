@@ -9,7 +9,7 @@ const CA_TOKEN_URL = 'https://api.contaazul.com/oauth2/token';
 
 export const getAuthUrl = (state: string) => {
     const clientId = process.env.CONTA_AZUL_CLIENT_ID;
-    const redirectUri = process.env.CONTA_AZUL_REDIRECT_URI;
+    const redirectUri = process.env.CONTA_AZUL_REDIRECT_URI + '?v=2';
 
     // Scopes based on requirements: Financial read
     const scope = 'sales'; // Adjust scope as needed based on specific endpoints
@@ -20,7 +20,7 @@ export const getAuthUrl = (state: string) => {
 export const exchangeCodeForToken = async (code: string): Promise<ContaAzulTokenResponse> => {
     const clientId = process.env.CONTA_AZUL_CLIENT_ID;
     const clientSecret = process.env.CONTA_AZUL_CLIENT_SECRET;
-    const redirectUri = process.env.CONTA_AZUL_REDIRECT_URI;
+    const redirectUri = process.env.CONTA_AZUL_REDIRECT_URI + '?v=2';
 
     const response = await fetch(CA_TOKEN_URL, {
         method: 'POST',

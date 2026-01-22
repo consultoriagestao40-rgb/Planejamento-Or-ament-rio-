@@ -8,9 +8,9 @@ const CA_AUTH_URL = 'https://api.contaazul.com/auth/authorize';
 const CA_TOKEN_URL = 'https://api.contaazul.com/oauth2/token';
 
 export const getAuthUrl = (state: string) => {
-    // HARDCODED DEBUGGING - TESTE DE ISOLAMENTO (GOOGLE)
+    // HARDCODED DEBUGGING - CREDENCIAIS NOVAS (APP V2)
     const clientId = '3umvfmnhich3uk9hql7am59jgq';
-    const redirectUri = 'https://www.google.com/';
+    const redirectUri = 'https://planejamento-or-ament-rio.vercel.app/api/auth/callback';
 
     // Scopes based on requirements: Financial read
     const scope = 'sales'; // Adjust scope as needed based on specific endpoints

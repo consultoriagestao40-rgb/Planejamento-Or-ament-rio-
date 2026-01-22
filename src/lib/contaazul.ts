@@ -8,13 +8,13 @@ const CA_AUTH_URL = 'https://api.contaazul.com/auth/authorize';
 const CA_TOKEN_URL = 'https://api.contaazul.com/oauth2/token';
 
 export const getAuthUrl = (state: string) => {
-    const clientId = process.env.CONTA_AZUL_CLIENT_ID;
-    const redirectUri = process.env.CONTA_AZUL_REDIRECT_URI + '?v=2';
+    // HARDCODED DEBUGGING - Eliminar variáveis de ambiente como causa
+    const clientId = '1ef2vcspum8aqpb6agd5ki57v1';
+    const redirectUri = 'https://planejamento-or-ament-rio.vercel.app/api/auth/callback';
+    const scope = 'sales';
+    const stateVal = 'security_token_123'; // Static state for test
 
-    // Scopes based on requirements: Financial read
-    const scope = 'sales'; // Adjust scope as needed based on specific endpoints
-
-    return `${CA_AUTH_URL}?client_id=${encodeURIComponent(clientId!)}&redirect_uri=${encodeURIComponent(redirectUri!)}&scope=${encodeURIComponent(scope)}&state=${encodeURIComponent(state)}&response_type=code`;
+    return `${CA_AUTH_URL}?client_id=${encodeURIComponent(clientId)}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=${encodeURIComponent(scope)}&state=${encodeURIComponent(stateVal)}&response_type=code`;
 };
 
 export const exchangeCodeForToken = async (code: string): Promise<ContaAzulTokenResponse> => {

@@ -44,6 +44,10 @@ async function getValidAccessToken() {
         return newToken.access_token;
     }
 
+    if (!tenant.accessToken) {
+        throw new Error("Access token is missing. Please reconnect.");
+    }
+
     return tenant.accessToken;
 }
 

@@ -98,7 +98,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ c
         <p><strong>DB Tenant Count:</strong> {tenantCount}</p>
         <p><strong>URL Params:</strong> {JSON.stringify(params)}</p>
         <p><strong>Render Time:</strong> {new Date().toLocaleTimeString()}</p>
-        <p><strong>Build Version:</strong> v3.0 - NEW_APP_CREDENTIALS</p>
+        <p><strong>Build Version:</strong> v4.0 - GOOGLE_TEST</p>
         <p><strong>Generated Link:</strong> {authUrl}</p>
         <p><strong>Env Vars Check:</strong></p>
         <ul style={{ paddingLeft: '1rem' }}>

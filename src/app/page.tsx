@@ -3,6 +3,7 @@ import { getAuthUrl } from '@/lib/contaazul';
 import { prisma } from '@/lib/prisma';
 import Link from 'next/link';
 import { SyncButton } from '@/components/SyncButton';
+import { TestDbButton } from '@/components/TestDbButton';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -98,6 +99,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ c
           <li>REDIRECT_URI: {process.env.CONTA_AZUL_REDIRECT_URI ? '✅' : '❌'}</li>
           <li>DB_URL: {process.env.POSTGRES_PRISMA_URL ? '✅' : '❌'}</li>
         </ul>
+        <TestDbButton />
       </div>
     </main>
   )

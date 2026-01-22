@@ -33,8 +33,9 @@ export async function GET(request: NextRequest) {
 
         // Redirect to home with a success flag
         return NextResponse.redirect(new URL('/?connected=true', request.url));
-    } catch (error) {
+    } catch (error: any) {
         console.error('Auth Error:', error);
-        return NextResponse.json({ error: 'Authentication failed' }, { status: 500 });
+        const errorMessage = error instanceof Error ? error.message : 'Unknown auth error';
+        return NextResponse.redirect(new URL(`/?error=${encodeURIComponent(errorMessage)}`, request.url));
     }
 }

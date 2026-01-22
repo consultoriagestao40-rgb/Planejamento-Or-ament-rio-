@@ -25,6 +25,10 @@ async function getValidAccessToken() {
     const tenant = await prisma.tenant.findFirst();
     if (!tenant) throw new Error("No connected tenant found");
 
+    if (tenant.accessToken === 'test-token') {
+        throw new Error("⚠️ MODO DE TESTE: Você usou o botão de teste. Limpe o banco e use o botão Azul para conectar de verdade.");
+    }
+
     // Check if expired (give 5 min buffer)
     if (tenant.tokenExpiresAt && new Date(tenant.tokenExpiresAt).getTime() < Date.now() + 5 * 60 * 1000) {
         if (!tenant.refreshToken) {

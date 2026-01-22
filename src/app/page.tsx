@@ -13,8 +13,10 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ c
   const state = Math.random().toString(36).substring(7);
   const authUrl = getAuthUrl(state);
 
-  const tenantCount = await prisma.tenant.count();
+  const tenant = await prisma.tenant.findFirst();
+  const tenantCount = tenant ? 1 : 0;
   const isConnected = tenantCount > 0 || params.connected === 'true';
+  const isTestMode = tenant?.accessToken === 'test-token';
 
   return (
     <main className="container" style={{ paddingTop: '2rem', paddingBottom: '4rem' }}>
@@ -66,14 +68,19 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ c
       ) : (
         <div style={{
           padding: '1rem',
-          border: '1px solid hsl(var(--green-500, #22c55e))',
+          border: '1px solid ' + (isTestMode ? '#eab308' : 'hsl(var(--green-500, #22c55e))'),
           borderRadius: 'var(--radius)',
-          backgroundColor: 'hsl(var(--green-50, #f0fdf4))',
+          backgroundColor: isTestMode ? '#fefce8' : 'hsl(var(--green-50, #f0fdf4))',
           marginBottom: '2rem',
-          color: '#15803d'
+          color: isTestMode ? '#854d0e' : '#15803d'
         }}>
-          <strong>✅ Empresa Conectada com Sucesso!</strong>
-          <p style={{ margin: 0, fontSize: '0.875rem' }}>Os dados estão prontos para serem sincronizados.</p>
+          <strong>{isTestMode ? '⚠️ Conexão de Teste (Fake)' : '✅ Empresa Conectada com Sucesso!'}</strong>
+          <p style={{ margin: 0, fontSize: '0.875rem' }}>
+            {isTestMode
+              ? 'Este é apenas um registro de teste. Para conectar na Conta Azul, clique em "Limpar Banco" e depois conecte a empresa real.'
+              : 'Os dados estão prontos para serem sincronizados.'
+            }
+          </p>
         </div>
       )}
 

@@ -14,7 +14,7 @@ export const getAuthUrl = (state: string) => {
     // Scopes based on requirements: Financial read
     const scope = 'sales'; // Adjust scope as needed based on specific endpoints
 
-    return `${CA_AUTH_URL}?client_id=${clientId}&redirect_uri=${redirectUri}&scope=${scope}&state=${state}&response_type=code`;
+    return `${CA_AUTH_URL}?client_id=${encodeURIComponent(clientId!)}&redirect_uri=${encodeURIComponent(redirectUri!)}&scope=${encodeURIComponent(scope)}&state=${encodeURIComponent(state)}&response_type=code`;
 };
 
 export const exchangeCodeForToken = async (code: string): Promise<ContaAzulTokenResponse> => {

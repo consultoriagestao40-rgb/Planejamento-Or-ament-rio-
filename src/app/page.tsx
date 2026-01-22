@@ -111,7 +111,9 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ c
               ? <span>{process.env.CONTA_AZUL_CLIENT_SECRET.substring(0, 4)}...{process.env.CONTA_AZUL_CLIENT_SECRET.slice(-4)} ✅</span>
               : '❌'}
           </li>
-          <li>REDIRECT_URI: {process.env.CONTA_AZUL_REDIRECT_URI ? '✅' : '❌'}</li>
+          <li>
+            REDIRECT_URI: "{process.env.CONTA_AZUL_REDIRECT_URI}"
+          </li>
           <li>DB_URL: {process.env.POSTGRES_PRISMA_URL ? '✅' : '❌'}</li>
         </ul>
         <TestDbButton />

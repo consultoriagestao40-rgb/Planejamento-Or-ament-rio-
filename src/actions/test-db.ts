@@ -19,3 +19,12 @@ export async function testDatabaseConnection() {
         return { success: false, error: error.message };
     }
 }
+
+export async function resetDatabase() {
+    try {
+        await prisma.tenant.deleteMany({});
+        return { success: true, message: "Banco limpo com sucesso!" };
+    } catch (error: any) {
+        return { success: false, error: error.message };
+    }
+}

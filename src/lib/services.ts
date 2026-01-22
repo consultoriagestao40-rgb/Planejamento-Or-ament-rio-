@@ -27,6 +27,9 @@ async function getValidAccessToken() {
 
     // Check if expired (give 5 min buffer)
     if (tenant.tokenExpiresAt && new Date(tenant.tokenExpiresAt).getTime() < Date.now() + 5 * 60 * 1000) {
+        if (!tenant.refreshToken) {
+            throw new Error("Refreh token is missing, please reconnect.");
+        }
         console.log("Token expired, refreshing...");
         const newToken = await refreshAccessToken(tenant.refreshToken);
 

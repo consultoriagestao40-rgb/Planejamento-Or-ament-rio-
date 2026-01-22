@@ -101,8 +101,16 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ c
         <p><strong>Generated Link:</strong> {authUrl}</p>
         <p><strong>Env Vars Check:</strong></p>
         <ul style={{ paddingLeft: '1rem' }}>
-          <li>CLIENT_ID: {process.env.CONTA_AZUL_CLIENT_ID ? '✅' : '❌'}</li>
-          <li>CLIENT_SECRET: {process.env.CONTA_AZUL_CLIENT_SECRET ? '✅' : '❌'}</li>
+          <li>
+            CLIENT_ID: {process.env.CONTA_AZUL_CLIENT_ID
+              ? <span title={process.env.CONTA_AZUL_CLIENT_ID}>{process.env.CONTA_AZUL_CLIENT_ID.substring(0, 4)}...{process.env.CONTA_AZUL_CLIENT_ID.slice(-4)} ✅</span>
+              : '❌'}
+          </li>
+          <li>
+            CLIENT_SECRET: {process.env.CONTA_AZUL_CLIENT_SECRET
+              ? <span>{process.env.CONTA_AZUL_CLIENT_SECRET.substring(0, 4)}...{process.env.CONTA_AZUL_CLIENT_SECRET.slice(-4)} ✅</span>
+              : '❌'}
+          </li>
           <li>REDIRECT_URI: {process.env.CONTA_AZUL_REDIRECT_URI ? '✅' : '❌'}</li>
           <li>DB_URL: {process.env.POSTGRES_PRISMA_URL ? '✅' : '❌'}</li>
         </ul>

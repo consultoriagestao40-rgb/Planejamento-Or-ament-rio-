@@ -4,6 +4,9 @@ import { prisma } from '@/lib/prisma';
 import Link from 'next/link';
 import { SyncButton } from '@/components/SyncButton';
 
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+
 export default async function Home({ searchParams }: { searchParams: Promise<{ connected?: string }> }) {
   const params = await searchParams;
   const state = Math.random().toString(36).substring(7);

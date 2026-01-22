@@ -83,6 +83,14 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ c
         </div>
         <BudgetGrid />
       </section>
+
+      {/* DEBUG PANEL - REMOVER DEPOIS */}
+      <div style={{ marginTop: '4rem', padding: '1rem', background: '#f5f5f5', fontSize: '0.8rem', border: '1px dashed #999', opacity: 0.8 }}>
+        <h3>🔧 Painel de Diagnóstico</h3>
+        <p><strong>DB Tenant Count:</strong> {tenantCount}</p>
+        <p><strong>URL Params:</strong> {JSON.stringify(params)}</p>
+        <p><strong>Render Time:</strong> {new Date().toLocaleTimeString()}</p>
+      </div>
     </main>
   )
 }

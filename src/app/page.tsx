@@ -98,7 +98,11 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ c
         <p><strong>DB Tenant Count:</strong> {tenantCount}</p>
         <p><strong>URL Params:</strong> {JSON.stringify(params)}</p>
         <p><strong>Render Time:</strong> {new Date().toLocaleTimeString()}</p>
-        <p><strong>Build Version:</strong> v6.0 - AUTO_REDIRECT_TEST</p>
+        <div style={{ backgroundColor: '#ffebee', padding: '10px', border: '2px solid red', borderRadius: '4px', margin: '10px 0' }}>
+          <p style={{ color: 'red', fontWeight: 'bold', fontSize: '1.2em' }}>
+            Build Version: v10.0 - NOW_IT_UPDATED 🚀
+          </p>
+        </div>
         <p><strong>Generated Link:</strong> {authUrl}</p>
         <p><strong>Env Vars Check:</strong></p>
         <ul style={{ paddingLeft: '1rem' }}>

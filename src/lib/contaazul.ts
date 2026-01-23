@@ -8,21 +8,19 @@ const CA_AUTH_URL = 'https://api.contaazul.com/auth/authorize';
 const CA_TOKEN_URL = 'https://api.contaazul.com/oauth2/token';
 
 export const getAuthUrl = (state: string) => {
-    // HARDCODED DEBUGGING - CREDENCIAIS NOVAS (APP V2)
-    const clientId = '3umvfmnhich3uk9hql7am59jgq';
-    const redirectUri = 'https://planejamento-or-ament-rio.vercel.app/api/auth/callback';
+    const clientId = process.env.CONTA_AZUL_CLIENT_ID;
+    const redirectUri = process.env.CONTA_AZUL_REDIRECT_URI;
 
     // Scopes based on requirements: Financial read
     const scope = 'sales'; // Adjust scope as needed based on specific endpoints
 
-    // v7.0: Voltando a enviar o redirect_uri explicitamente para garantir match
-    return `${CA_AUTH_URL}?client_id=${encodeURIComponent(clientId)}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=${encodeURIComponent(scope)}&state=test_manual_v7&response_type=code`;
+    return `${CA_AUTH_URL}?client_id=${encodeURIComponent(clientId!)}&redirect_uri=${encodeURIComponent(redirectUri!)}&scope=${encodeURIComponent(scope)}&state=${encodeURIComponent(state)}&response_type=code`;
 };
 
 export const exchangeCodeForToken = async (code: string): Promise<ContaAzulTokenResponse> => {
-    const clientId = '3umvfmnhich3uk9hql7am59jgq';
-    const clientSecret = '1cviq3vpls9telc4pm89dilldm9o2fo7ac9pvnarr4lg6201see0';
-    const redirectUri = 'https://planejamento-or-ament-rio.vercel.app/api/auth/callback';
+    const clientId = process.env.CONTA_AZUL_CLIENT_ID;
+    const clientSecret = process.env.CONTA_AZUL_CLIENT_SECRET;
+    const redirectUri = process.env.CONTA_AZUL_REDIRECT_URI;
 
     const response = await fetch(CA_TOKEN_URL, {
         method: 'POST',

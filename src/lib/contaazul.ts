@@ -15,9 +15,8 @@ export const getAuthUrl = (state: string) => {
     // Scopes based on requirements: Financial read
     const scope = 'sales'; // Adjust scope as needed based on specific endpoints
 
-    // SIMPLIFICAÇÃO EXTREMA: Omitir redirect_uri para usar o default do portal
-    // Também simplifiquei o state
-    return `${CA_AUTH_URL}?client_id=${encodeURIComponent(clientId)}&scope=${encodeURIComponent(scope)}&state=simple_test&response_type=code`;
+    // v7.0: Voltando a enviar o redirect_uri explicitamente para garantir match
+    return `${CA_AUTH_URL}?client_id=${encodeURIComponent(clientId)}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=${encodeURIComponent(scope)}&state=test_manual_v7&response_type=code`;
 };
 
 export const exchangeCodeForToken = async (code: string): Promise<ContaAzulTokenResponse> => {

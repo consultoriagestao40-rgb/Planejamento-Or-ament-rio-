@@ -8,12 +8,10 @@ const CA_AUTH_URL = 'https://api.contaazul.com/auth/authorize';
 const CA_TOKEN_URL = 'https://api.contaazul.com/oauth2/token';
 
 export const getAuthUrl = (state: string) => {
-    // HARDCODED v9.0: Garantia de funcionamento imediato com credenciais novas
+    // HARDCODED: Credenciais inseridas diretamente via código conforme solicitado
     const clientId = '3umvfmnhich3uk9hql7am59jgq';
     const redirectUri = 'https://planejamento-or-ament-rio.vercel.app/api/auth/callback';
-
-    // Scopes based on requirements: Financial read
-    const scope = 'sales'; // Adjust scope as needed based on specific endpoints
+    const scope = 'sales';
 
     return `${CA_AUTH_URL}?client_id=${encodeURIComponent(clientId)}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=${encodeURIComponent(scope)}&state=${encodeURIComponent(state)}&response_type=code`;
 };

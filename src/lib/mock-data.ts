@@ -21,4 +21,11 @@ export const MOCK_CATEGORIES: Category[] = [
     { id: '3.2.2', name: 'Energia', level: 3, parentId: '3.2' },
 ];
 
+export const MOCK_COST_CENTERS = [
+    { id: 'DEFAULT', name: 'Geral (Sem Centro de Custo)' },
+    { id: 'CC1', name: 'Comercial' },
+    { id: 'CC2', name: 'Administrativo' },
+    { id: 'CC3', name: 'Operacional' },
+];
+
 export const MONTHS = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];

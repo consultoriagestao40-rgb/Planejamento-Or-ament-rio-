@@ -1,12 +1,42 @@
 'use client';
 
 import React, { useState } from 'react';
-import { MOCK_CATEGORIES, MONTHS } from '@/lib/mock-data';
+import { MOCK_CATEGORIES, MONTHS, MOCK_COST_CENTERS } from '@/lib/mock-data';
 
 export function BudgetGrid() {
     // State to store budget values: { "categoryId-monthIndex": value }
     const [budgetValues, setBudgetValues] = useState<Record<string, number>>({});
+    const [realizedValues, setRealizedValues] = useState<Record<string, number>>({});
     const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set(['1', '2', '3', '3.1', '3.2']));
+    const [loading, setLoading] = useState(true);
+    const [selectedCostCenter, setSelectedCostCenter] = useState('DEFAULT');
+
+    // Fetch on mount and when cost center changes
+    React.useEffect(() => {
+        setLoading(true);
+        Promise.all([
+            fetch(`/api/budgets?costCenterId=${selectedCostCenter}`).then(res => res.json()),
+            fetch(`/api/sync?costCenterId=${selectedCostCenter}`).then(res => res.json())
+        ]).then(([budgetData, syncData]) => {
+            if (budgetData.success) {
+                const values: Record<string, number> = {};
+                budgetData.data.forEach((item: any) => {
+                    values[`${item.categoryId}-${item.month}`] = item.amount;
+                });
+                setBudgetValues(values);
+            } else {
+                setBudgetValues({}); // Clear if error or empty
+            }
+
+            if (syncData.success && syncData.realizedValues) {
+                setRealizedValues(syncData.realizedValues);
+            } else {
+                setRealizedValues({});
+            }
+        })
+            .catch(err => console.error(err))
+            .finally(() => setLoading(false));
+    }, [selectedCostCenter]);
 
     const toggleRow = (id: string) => {
         const newExpanded = new Set(expandedRows);
@@ -18,12 +48,32 @@ export function BudgetGrid() {
         setExpandedRows(newExpanded);
     };
 
-    const handleBudgetChange = (categoryId: string, monthIndex: number, value: string) => {
+    const handleBudgetChange = async (categoryId: string, monthIndex: number, value: string, categoryName: string) => {
         const numericValue = parseFloat(value.replace(/\D/g, '')) / 100;
+
+        // Optimistic update
         setBudgetValues(prev => ({
             ...prev,
             [`${categoryId}-${monthIndex}`]: numericValue
         }));
+
+        try {
+            await fetch('/api/budgets', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    categoryId,
+                    categoryName,
+                    costCenterId: selectedCostCenter,
+                    month: monthIndex,
+                    year: new Date().getFullYear(), // Default current year for now
+                    amount: numericValue
+                })
+            });
+        } catch (error) {
+            console.error('Failed to save', error);
+            // Optionally revert state here if needed
+        }
     };
 
     const formatCurrency = (val: number) =>
@@ -37,7 +87,27 @@ export function BudgetGrid() {
     });
 
     return (
-        <div style={{ overflowX: 'auto', border: '1px solid var(--border)', borderRadius: 'var(--radius)' }}>
+        <div style={{ overflowX: 'auto', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '1rem' }}>
+
+            <div style={{ marginBottom: '1.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <label style={{ fontWeight: 500, color: 'hsl(var(--foreground))' }}>Centro de Custo:</label>
+                <select
+                    value={selectedCostCenter}
+                    onChange={(e) => setSelectedCostCenter(e.target.value)}
+                    style={{
+                        padding: '0.5rem',
+                        borderRadius: 'var(--radius)',
+                        border: '1px solid var(--border)',
+                        minWidth: '200px'
+                    }}
+                >
+                    {MOCK_COST_CENTERS.map(cc => (
+                        <option key={cc.id} value={cc.id}>{cc.name}</option>
+                    ))}
+                </select>
+                {loading && <span style={{ fontSize: '0.8rem', color: 'hsl(var(--muted-foreground))', marginLeft: 'auto' }}>Carregando dados...</span>}
+            </div>
+
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.875rem' }}>
                 <thead>
                     <tr style={{ background: 'hsl(var(--muted))' }}>
@@ -95,7 +165,7 @@ export function BudgetGrid() {
                                 {MONTHS.map((_, idx) => {
                                     const key = `${cat.id}-${idx}`;
                                     const budgetVal = budgetValues[key] || 0;
-                                    const realizedVal = 0; // Mock realized value
+                                    const realizedVal = realizedValues[key] || 0;
 
                                     return (
                                         <React.Fragment key={idx}>
@@ -105,7 +175,7 @@ export function BudgetGrid() {
                                                     placeholder="0,00"
                                                     // Display formatted, simplify edit logic for prototype
                                                     // value={budgetVal ? formatCurrency(budgetVal) : ''} 
-                                                    onChange={(e) => handleBudgetChange(cat.id, idx, e.target.value)}
+                                                    onChange={(e) => handleBudgetChange(cat.id, idx, e.target.value, cat.name)}
                                                     style={{
                                                         width: '100%',
                                                         padding: '0.75rem',

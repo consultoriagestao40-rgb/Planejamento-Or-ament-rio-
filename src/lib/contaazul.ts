@@ -9,7 +9,7 @@ const CA_TOKEN_URL = 'https://api.contaazul.com/oauth2/token';
 
 export const getAuthUrl = (state: string) => {
     // HARDCODED: Credenciais inseridas diretamente via código conforme solicitado
-    const clientId = '3umvfmnhich3uk9hql7am59jgq';
+    const clientId = '4obnij6ehp1q45oecojivdta7n'.trim();
     const redirectUri = 'https://planejamento-or-ament-rio.vercel.app/api/auth/callback';
     // Adicionando offline_access para permitir refresh token e garantir compatibilidade
     const scope = 'sales offline_access';
@@ -18,8 +18,8 @@ export const getAuthUrl = (state: string) => {
 };
 
 export const exchangeCodeForToken = async (code: string): Promise<ContaAzulTokenResponse> => {
-    const clientId = '3umvfmnhich3uk9hql7am59jgq';
-    const clientSecret = '1cviq3vpls9telc4pm89dilldm9o2fo7ac9pvnarr4lg6201see0';
+    const clientId = '4obnij6ehp1q45oecojivdta7n'.trim();
+    const clientSecret = '1nhd3b2mu9hoo6o2qkhr7unn376m5lets1gvfdcd7lkie5vpoo49'.trim();
     const redirectUri = 'https://planejamento-or-ament-rio.vercel.app/api/auth/callback';
 
     const response = await fetch(CA_TOKEN_URL, {
@@ -46,8 +46,8 @@ export const exchangeCodeForToken = async (code: string): Promise<ContaAzulToken
 
 export const refreshAccessToken = async (refreshToken: string): Promise<ContaAzulTokenResponse> => {
     // HARDCODED: Garantindo consistência com o restante do arquivo
-    const clientId = '3umvfmnhich3uk9hql7am59jgq'.trim();
-    const clientSecret = '1cviq3vpls9telc4pm89dilldm9o2fo7ac9pvnarr4lg6201see0'.trim();
+    const clientId = '4obnij6ehp1q45oecojivdta7n'.trim();
+    const clientSecret = '1nhd3b2mu9hoo6o2qkhr7unn376m5lets1gvfdcd7lkie5vpoo49'.trim();
 
     const credentials = Buffer.from(`${clientId}:${clientSecret}`).toString('base64');
 

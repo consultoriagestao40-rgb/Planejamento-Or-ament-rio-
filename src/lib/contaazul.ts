@@ -11,7 +11,8 @@ export const getAuthUrl = (state: string) => {
     // HARDCODED: Credenciais inseridas diretamente via código conforme solicitado
     const clientId = '3umvfmnhich3uk9hql7am59jgq';
     const redirectUri = 'https://planejamento-or-ament-rio.vercel.app/api/auth/callback';
-    const scope = 'sales';
+    // Adicionando offline_access para permitir refresh token e garantir compatibilidade
+    const scope = 'sales offline_access';
 
     return `${CA_AUTH_URL}?client_id=${encodeURIComponent(clientId)}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=${encodeURIComponent(scope)}&state=${encodeURIComponent(state)}&response_type=code`;
 };

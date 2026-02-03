@@ -45,8 +45,9 @@ export const exchangeCodeForToken = async (code: string): Promise<ContaAzulToken
 };
 
 export const refreshAccessToken = async (refreshToken: string): Promise<ContaAzulTokenResponse> => {
-    const clientId = process.env.CONTA_AZUL_CLIENT_ID;
-    const clientSecret = process.env.CONTA_AZUL_CLIENT_SECRET;
+    // HARDCODED: Garantindo consistência com o restante do arquivo
+    const clientId = '3umvfmnhich3uk9hql7am59jgq'.trim();
+    const clientSecret = '1cviq3vpls9telc4pm89dilldm9o2fo7ac9pvnarr4lg6201see0'.trim();
 
     const credentials = Buffer.from(`${clientId}:${clientSecret}`).toString('base64');
 

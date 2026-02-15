@@ -20,8 +20,8 @@ export const getAuthUrl = (state: string) => {
     const baseUrl = isDev ? 'http://127.0.0.1:3000' : 'https://planejamento-or-ament-rio.vercel.app';
     const redirectUri = `${baseUrl}/api/auth/callback`;
 
-    // Scope atualizado conforme portal (incluindo sales para garantir acesso a vendas)
-    const scope = 'openid profile aws.cognito.signin.user.admin sales';
+    // Scope atualizado: Voltando para 'sales' pois 'openid...' deu erro de escopo inválido.
+    const scope = 'sales';
 
     return `${CA_AUTH_URL}?client_id=${encodeURIComponent(clientId)}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=${encodeURIComponent(scope)}&state=${encodeURIComponent(state)}&response_type=code`;
 };

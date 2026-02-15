@@ -100,7 +100,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ c
         <p><strong>Render Time:</strong> {new Date().toLocaleTimeString()}</p>
         <div style={{ backgroundColor: '#ffebee', padding: '10px', border: '2px solid red', borderRadius: '4px', margin: '10px 0' }}>
           <p style={{ color: 'red', fontWeight: 'bold', fontSize: '1.2em' }}>
-            Build Version: v13.0 - SCOPE FIX 🚀
+            Build Version: v14.0 - COGNITO SCOPES 🚀
           </p>
         </div>
         <p><strong>Generated Link:</strong> <a href={authUrl} style={{ wordBreak: 'break-all' }}>{authUrl}</a></p>

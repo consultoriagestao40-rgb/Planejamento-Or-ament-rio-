@@ -1,3 +1,4 @@
+
 interface ContaAzulTokenResponse {
     access_token: string;
     refresh_token: string;
@@ -8,26 +9,27 @@ const CA_AUTH_URL = 'https://api.contaazul.com/auth/authorize';
 const CA_TOKEN_URL = 'https://api.contaazul.com/oauth2/token';
 
 export const getAuthUrl = (state: string) => {
-    const clientId = process.env.CONTA_AZUL_CLIENT_ID;
-    const redirectUri = process.env.CONTA_AZUL_REDIRECT_URI;
-    // Voltando para escopo simples para testar se o espaço estava quebrando o Java da Conta Azul
-    const scope = 'sales';
+    // Configuração Hardcoded (Prioridade sobre Env Vars para evitar conflitos na Vercel)
+    const clientId = '4obnij6ehp1q45oecojivdta7n'.trim();
+    // const clientSecret não é usado aqui
 
-    if (!clientId || !redirectUri) {
-        throw new Error('Missing Conta Azul credentials in environment variables');
-    }
+    // Define a URL de callback dinamicamente baseada no ambiente
+    const isDev = process.env.NODE_ENV === 'development';
+    // Conta Azul pode rejeitar 'localhost', então usamos 127.0.0.1
+    const baseUrl = isDev ? 'http://127.0.0.1:3000' : 'https://planejamento-or-ament-rio.vercel.app';
+    const redirectUri = `${baseUrl}/api/auth/callback`;
+    const scope = 'sales';
 
     return `${CA_AUTH_URL}?client_id=${encodeURIComponent(clientId)}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=${encodeURIComponent(scope)}&state=${encodeURIComponent(state)}&response_type=code`;
 };
 
 export const exchangeCodeForToken = async (code: string): Promise<ContaAzulTokenResponse> => {
-    const clientId = process.env.CONTA_AZUL_CLIENT_ID;
-    const clientSecret = process.env.CONTA_AZUL_CLIENT_SECRET;
-    const redirectUri = process.env.CONTA_AZUL_REDIRECT_URI;
+    const clientId = '4obnij6ehp1q45oecojivdta7n'.trim();
+    const clientSecret = '1nhd3b2mu9hoo6o2qkhr7unn376m5lets1gvfdcd7lkie5vpoo49'.trim();
 
-    if (!clientId || !clientSecret || !redirectUri) {
-        throw new Error('Missing Conta Azul credentials in environment variables');
-    }
+    const isDev = process.env.NODE_ENV === 'development';
+    const baseUrl = isDev ? 'http://127.0.0.1:3000' : 'https://planejamento-or-ament-rio.vercel.app';
+    const redirectUri = `${baseUrl}/api/auth/callback`;
 
     const response = await fetch(CA_TOKEN_URL, {
         method: 'POST',
@@ -53,12 +55,8 @@ export const exchangeCodeForToken = async (code: string): Promise<ContaAzulToken
 
 export const refreshAccessToken = async (refreshToken: string): Promise<ContaAzulTokenResponse> => {
     // HARDCODED: Garantindo consistência com o restante do arquivo
-    const clientId = process.env.CONTA_AZUL_CLIENT_ID;
-    const clientSecret = process.env.CONTA_AZUL_CLIENT_SECRET;
-
-    if (!clientId || !clientSecret) {
-        throw new Error('Missing Conta Azul credentials in environment variables');
-    }
+    const clientId = '4obnij6ehp1q45oecojivdta7n'.trim();
+    const clientSecret = '1nhd3b2mu9hoo6o2qkhr7unn376m5lets1gvfdcd7lkie5vpoo49'.trim();
 
     const credentials = Buffer.from(`${clientId}:${clientSecret}`).toString('base64');
 

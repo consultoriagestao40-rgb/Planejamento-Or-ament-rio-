@@ -12,6 +12,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ c
   const params = await searchParams;
   const state = Math.random().toString(36).substring(7);
   const authUrl = getAuthUrl(state);
+  const isDev = process.env.NODE_ENV === 'development';
 
   const tenant = await prisma.tenant.findFirst();
   const tenantCount = tenant ? 1 : 0;

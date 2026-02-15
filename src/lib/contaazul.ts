@@ -5,9 +5,10 @@ interface ContaAzulTokenResponse {
     expires_in: number;
 }
 
-// URL atualizada conforme portal do desenvolvedor da Conta Azul
-const CA_AUTH_URL = 'https://auth.contaazul.com/login';
-const CA_TOKEN_URL = 'https://api.contaazul.com/oauth2/token'; // Manteremos este por enquanto
+// Retornando para a URL antiga pois a 'auth' rejeitou todos os escopos.
+// O erro original 'invalid_client' aqui indica URI de redirecionamento errada.
+const CA_AUTH_URL = 'https://api.contaazul.com/auth/authorize';
+const CA_TOKEN_URL = 'https://api.contaazul.com/oauth2/token';
 
 export const getAuthUrl = (state: string) => {
     // Configuração Hardcoded (Prioridade sobre Env Vars para evitar conflitos na Vercel)
@@ -16,12 +17,13 @@ export const getAuthUrl = (state: string) => {
 
     // Define a URL de callback dinamicamente baseada no ambiente
     const isDev = process.env.NODE_ENV === 'development';
-    // Conta Azul pode rejeitar 'localhost', então usamos 127.0.0.1
+    // Em produção na Vercel, a URL deve ser EXATAMENTE esta.
+    // O usuário deve cadastrar: https://planejamento-or-ament-rio.vercel.app/api/auth/callback
     const baseUrl = isDev ? 'http://127.0.0.1:3000' : 'https://planejamento-or-ament-rio.vercel.app';
     const redirectUri = `${baseUrl}/api/auth/callback`;
 
-    // Scope atualizado: Novo padrão da Conta Azul (Cognito)
-    const scope = 'openid profile email offline_access aws.cognito.signin.user.admin';
+    // Voltando para o escopo padrão da API legado
+    const scope = 'sales';
 
     return `${CA_AUTH_URL}?client_id=${encodeURIComponent(clientId)}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=${encodeURIComponent(scope)}&state=${encodeURIComponent(state)}&response_type=code`;
 };

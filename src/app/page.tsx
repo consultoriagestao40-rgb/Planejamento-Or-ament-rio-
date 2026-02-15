@@ -100,8 +100,13 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ c
         <p><strong>Render Time:</strong> {new Date().toLocaleTimeString()}</p>
         <div style={{ backgroundColor: '#ffebee', padding: '10px', border: '2px solid red', borderRadius: '4px', margin: '10px 0' }}>
           <p style={{ color: 'red', fontWeight: 'bold', fontSize: '1.2em' }}>
-            Build Version: v14.0 - COGNITO SCOPES 🚀
+            Build Version: v15.0 - REVERT TO API + URI CHECK 🚀
           </p>
+        </div>
+        <div style={{ padding: '10px', border: '1px solid orange', backgroundColor: '#fff7ed', marginBottom: '10px' }}>
+          <strong>Atenção:</strong> Verifique se a URL abaixo está cadastrada no Portal:
+          <br />
+          <code style={{ userSelect: 'all', background: '#eee', padding: '2px' }}>{isDev ? 'http://127.0.0.1:3000/api/auth/callback' : 'https://planejamento-or-ament-rio.vercel.app/api/auth/callback'}</code>
         </div>
         <p><strong>Generated Link:</strong> <a href={authUrl} style={{ wordBreak: 'break-all' }}>{authUrl}</a></p>
         <p><strong>Env Vars Check (SHOULD BE IGNORED BY CODE):</strong></p>

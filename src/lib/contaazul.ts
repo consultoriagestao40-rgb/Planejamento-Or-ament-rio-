@@ -5,8 +5,9 @@ interface ContaAzulTokenResponse {
     expires_in: number;
 }
 
-const CA_AUTH_URL = 'https://api.contaazul.com/auth/authorize';
-const CA_TOKEN_URL = 'https://api.contaazul.com/oauth2/token';
+// URL atualizada conforme portal do desenvolvedor da Conta Azul
+const CA_AUTH_URL = 'https://auth.contaazul.com/login';
+const CA_TOKEN_URL = 'https://api.contaazul.com/oauth2/token'; // Manteremos este por enquanto
 
 export const getAuthUrl = (state: string) => {
     // Configuração Hardcoded (Prioridade sobre Env Vars para evitar conflitos na Vercel)
@@ -18,7 +19,9 @@ export const getAuthUrl = (state: string) => {
     // Conta Azul pode rejeitar 'localhost', então usamos 127.0.0.1
     const baseUrl = isDev ? 'http://127.0.0.1:3000' : 'https://planejamento-or-ament-rio.vercel.app';
     const redirectUri = `${baseUrl}/api/auth/callback`;
-    const scope = 'sales';
+
+    // Scope atualizado conforme portal (incluindo sales para garantir acesso a vendas)
+    const scope = 'openid profile aws.cognito.signin.user.admin sales';
 
     return `${CA_AUTH_URL}?client_id=${encodeURIComponent(clientId)}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=${encodeURIComponent(scope)}&state=${encodeURIComponent(state)}&response_type=code`;
 };

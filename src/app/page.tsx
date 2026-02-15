@@ -100,20 +100,20 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ c
         <p><strong>Render Time:</strong> {new Date().toLocaleTimeString()}</p>
         <div style={{ backgroundColor: '#ffebee', padding: '10px', border: '2px solid red', borderRadius: '4px', margin: '10px 0' }}>
           <p style={{ color: 'red', fontWeight: 'bold', fontSize: '1.2em' }}>
-            Build Version: v10.0 - NOW_IT_UPDATED 🚀
+            Build Version: v12.0 - NEW AUTH URL 🚀
           </p>
         </div>
-        <p><strong>Generated Link:</strong> {authUrl}</p>
-        <p><strong>Env Vars Check:</strong></p>
+        <p><strong>Generated Link:</strong> <a href={authUrl} style={{ wordBreak: 'break-all' }}>{authUrl}</a></p>
+        <p><strong>Env Vars Check (SHOULD BE IGNORED BY CODE):</strong></p>
         <ul style={{ paddingLeft: '1rem' }}>
           <li>
-            CLIENT_ID: {process.env.CONTA_AZUL_CLIENT_ID
-              ? <span title={process.env.CONTA_AZUL_CLIENT_ID}>{process.env.CONTA_AZUL_CLIENT_ID.substring(0, 4)}...{process.env.CONTA_AZUL_CLIENT_ID.slice(-4)} ✅</span>
+            CLIENT_ID (Env): {process.env.CONTA_AZUL_CLIENT_ID
+              ? <span title={process.env.CONTA_AZUL_CLIENT_ID}>{process.env.CONTA_AZUL_CLIENT_ID.substring(0, 4)}...{process.env.CONTA_AZUL_CLIENT_ID.slice(-4)}</span>
               : '❌'}
           </li>
           <li>
-            CLIENT_SECRET: {process.env.CONTA_AZUL_CLIENT_SECRET
-              ? <span>{process.env.CONTA_AZUL_CLIENT_SECRET.substring(0, 4)}...{process.env.CONTA_AZUL_CLIENT_SECRET.slice(-4)} ✅</span>
+            CLIENT_SECRET (Env): {process.env.CONTA_AZUL_CLIENT_SECRET
+              ? <span>{process.env.CONTA_AZUL_CLIENT_SECRET.substring(0, 4)}...{process.env.CONTA_AZUL_CLIENT_SECRET.slice(-4)}</span>
               : '❌'}
           </li>
           <li>

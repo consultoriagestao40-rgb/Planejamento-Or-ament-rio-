@@ -8,19 +8,26 @@ const CA_AUTH_URL = 'https://api.contaazul.com/auth/authorize';
 const CA_TOKEN_URL = 'https://api.contaazul.com/oauth2/token';
 
 export const getAuthUrl = (state: string) => {
-    // HARDCODED: Credenciais inseridas diretamente via código conforme solicitado
-    const clientId = '4obnij6ehp1q45oecojivdta7n'.trim();
-    const redirectUri = 'https://planejamento-or-ament-rio.vercel.app/api/auth/callback';
+    const clientId = process.env.CONTA_AZUL_CLIENT_ID;
+    const redirectUri = process.env.CONTA_AZUL_REDIRECT_URI;
     // Voltando para escopo simples para testar se o espaço estava quebrando o Java da Conta Azul
     const scope = 'sales';
+
+    if (!clientId || !redirectUri) {
+        throw new Error('Missing Conta Azul credentials in environment variables');
+    }
 
     return `${CA_AUTH_URL}?client_id=${encodeURIComponent(clientId)}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=${encodeURIComponent(scope)}&state=${encodeURIComponent(state)}&response_type=code`;
 };
 
 export const exchangeCodeForToken = async (code: string): Promise<ContaAzulTokenResponse> => {
-    const clientId = '4obnij6ehp1q45oecojivdta7n'.trim();
-    const clientSecret = '1nhd3b2mu9hoo6o2qkhr7unn376m5lets1gvfdcd7lkie5vpoo49'.trim();
-    const redirectUri = 'https://planejamento-or-ament-rio.vercel.app/api/auth/callback';
+    const clientId = process.env.CONTA_AZUL_CLIENT_ID;
+    const clientSecret = process.env.CONTA_AZUL_CLIENT_SECRET;
+    const redirectUri = process.env.CONTA_AZUL_REDIRECT_URI;
+
+    if (!clientId || !clientSecret || !redirectUri) {
+        throw new Error('Missing Conta Azul credentials in environment variables');
+    }
 
     const response = await fetch(CA_TOKEN_URL, {
         method: 'POST',
@@ -46,8 +53,12 @@ export const exchangeCodeForToken = async (code: string): Promise<ContaAzulToken
 
 export const refreshAccessToken = async (refreshToken: string): Promise<ContaAzulTokenResponse> => {
     // HARDCODED: Garantindo consistência com o restante do arquivo
-    const clientId = '4obnij6ehp1q45oecojivdta7n'.trim();
-    const clientSecret = '1nhd3b2mu9hoo6o2qkhr7unn376m5lets1gvfdcd7lkie5vpoo49'.trim();
+    const clientId = process.env.CONTA_AZUL_CLIENT_ID;
+    const clientSecret = process.env.CONTA_AZUL_CLIENT_SECRET;
+
+    if (!clientId || !clientSecret) {
+        throw new Error('Missing Conta Azul credentials in environment variables');
+    }
 
     const credentials = Buffer.from(`${clientId}:${clientSecret}`).toString('base64');
 

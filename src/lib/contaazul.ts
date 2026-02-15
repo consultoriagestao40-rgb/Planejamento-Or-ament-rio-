@@ -7,7 +7,8 @@ interface ContaAzulTokenResponse {
 
 // Retornando para a URL antiga pois a 'auth' rejeitou todos os escopos.
 // O erro original 'invalid_client' aqui indica URI de redirecionamento errada.
-const CA_AUTH_URL = 'https://api.contaazul.com/auth/authorize';
+// URL V16: Usando a URL nova do portal, mas sem escopo.
+const CA_AUTH_URL = 'https://auth.contaazul.com/login';
 const CA_TOKEN_URL = 'https://api.contaazul.com/oauth2/token';
 
 export const getAuthUrl = (state: string) => {
@@ -22,10 +23,10 @@ export const getAuthUrl = (state: string) => {
     const baseUrl = isDev ? 'http://127.0.0.1:3000' : 'https://planejamento-or-ament-rio.vercel.app';
     const redirectUri = `${baseUrl}/api/auth/callback`;
 
-    // Voltando para o escopo padrão da API legado
-    const scope = 'sales';
+    // V16: Removendo o parâmetro scope da URL, pois o portal sugere que não é obrigatório ou pode estar causando conflito.
+    // const scope = '...'; 
 
-    return `${CA_AUTH_URL}?client_id=${encodeURIComponent(clientId)}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=${encodeURIComponent(scope)}&state=${encodeURIComponent(state)}&response_type=code`;
+    return `${CA_AUTH_URL}?client_id=${encodeURIComponent(clientId)}&redirect_uri=${encodeURIComponent(redirectUri)}&state=${encodeURIComponent(state)}&response_type=code`;
 };
 
 export const exchangeCodeForToken = async (code: string): Promise<ContaAzulTokenResponse> => {

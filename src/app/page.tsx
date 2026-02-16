@@ -101,7 +101,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ c
         <p><strong>Render Time:</strong> {new Date().toLocaleTimeString()}</p>
         <div style={{ backgroundColor: '#ffebee', padding: '10px', border: '2px solid red', borderRadius: '4px', margin: '10px 0' }}>
           <p style={{ color: 'red', fontWeight: 'bold', fontSize: '1.2em' }}>
-            Build Version: v19.1 - REGRESSION FIX 🛠️
+            Build Version: v19.2 - SYNC ROUTE FIXED 🔧
           </p>
         </div>
         <div style={{ padding: '10px', border: '1px solid orange', backgroundColor: '#fff7ed', marginBottom: '10px' }}>

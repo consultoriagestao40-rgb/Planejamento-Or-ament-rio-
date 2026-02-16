@@ -255,12 +255,13 @@ async function fetchRealizedValues(accessToken: string): Promise<Record<string, 
     // We fetch everything DUE/COMPETENT in the current year.
     // We no longer iterate 3 years blindly; we focus on getting the correct 2026 dataset.
 
-    // Range for the current year DRE
-    const start = `${currentYear}-01-01`;
-    const end = `${currentYear}-12-31`;
+    // V47.9.6: Widen the Search Window!
+    // Issues matching Competence Jan 2026 likely due to Vencimento being in Dec 2025 or Feb 2026.
+    // We fetch a 3-year buffer to ensure we catch ALL competence-2026 items.
+    const start = `${currentYear - 1}-01-01`; // 2025
+    const end = `${currentYear + 1}-12-31`;   // 2027
 
-    // 1. Fetch Receivables (Competence/Due in Current Year)
-    // Removing data_pagamento filter to include Open items (A receber)
+    // 1. Fetch Receivables (Competence/Due in Window)
     await aggregateTransactions(
         accessToken,
         `https://api-v2.contaazul.com/v1/financeiro/eventos-financeiros/contas-a-receber/buscar?data_vencimento_de=${start}&data_vencimento_ate=${end}&tamanho_pagina=100`,

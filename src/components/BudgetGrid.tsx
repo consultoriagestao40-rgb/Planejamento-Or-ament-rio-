@@ -362,7 +362,7 @@ export default function BudgetGrid({ refreshKey = 0 }: BudgetGridProps) {
         const dFinanc = sumByRoots(DRE_LAYOUT[5].patterns, DRE_LAYOUT[5].excludes);
         const oReceitas = sumByRoots(DRE_LAYOUT[6].patterns, DRE_LAYOUT[6].excludes);
         const oDespesas = sumByRoots(DRE_LAYOUT[7].patterns, DRE_LAYOUT[7].excludes);
-        const lLiquido = ebitda.map((v, i) => v - Math.abs(dFinanc[i]) + oReceitas[i] - Math.abs(oDespesas[i]));
+        const lLiquido = ebitda.map((v, i) => v + dFinanc[i] + oReceitas[i] - Math.abs(oDespesas[i]));
 
         return { rBruta, tributos, rLiquida, custos, mBruta, dOperacionais, mContrib, dAdmins, ebitda, dFinanc, oReceitas, oDespesas, lLiquido, getRecursiveVal };
     };
@@ -413,9 +413,7 @@ export default function BudgetGrid({ refreshKey = 0 }: BudgetGridProps) {
                 )}
             </div>
 
-            <p style={{ color: 'red', fontWeight: 'bold', fontSize: '1.2em' }}>
-                Build Version: v47.9.5 - COMPETENCE VIEW (DRE MATCH) 📊🦁
-            </p>
+            {/* Build Version Text Removed for Cleaner UI */}
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8rem' }}>
                 <thead>
                     <tr style={{ background: '#f8fafc', borderBottom: '2px solid #cbd5e1' }}>

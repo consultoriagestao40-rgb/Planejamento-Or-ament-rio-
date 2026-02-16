@@ -139,14 +139,29 @@ export function BudgetGrid() {
         }
     };
 
-    // DRE Logic and Calculations
+    // DRE Logic and Calculations (V47.0 - Recursive Summing)
     const calculateTotals = (list: any[], values: Record<string, number>) => {
-        const getVal = (catId: string, month: number) => values[`${catId}-${month}`] || 0;
+        // Recursive helper to get total for a category AND its children
+        const getRecursiveVal = (catId: string, month: number): number => {
+            let total = values[`${catId}-${month}`] || 0;
+            const children = list.filter(c => c.parentId === catId);
+            children.forEach(child => {
+                total += getRecursiveVal(child.id, month);
+            });
+            return total;
+        };
 
         const sumBySection = (section: string) => {
             const totals = new Array(12).fill(0);
+            // We only sum ROOT categories for the section to avoid double counting 
+            // if both parent and child have the metadata (inherited).
+            // Actually, we sum everything that has the metadata but ONLY if they are 'leaf' 
+            // OR we just sum all direct entries.
+            // Simplified: Sum all direct values for categories that belong to this section.
             list.filter(c => c.entradaDre === section).forEach(c => {
-                for (let i = 0; i < 12; i++) totals[i] += getVal(c.id, i);
+                for (let i = 0; i < 12; i++) {
+                    totals[i] += values[`${c.id}-${i}`] || 0;
+                }
             });
             return totals;
         };
@@ -165,7 +180,7 @@ export function BudgetGrid() {
         const oDespesas = sumBySection('OUTRAS_DESPESAS_NAO_OPERACIONAIS');
         const lLiquido = ebitda.map((v, i) => v - Math.abs(dFinanc[i]) + oReceitas[i] - Math.abs(oDespesas[i]));
 
-        return { rBruta, tributos, rLiquida, custos, mBruta, dComerciais, mContrib, dAdmins, ebitda, dFinanc, oReceitas, oDespesas, lLiquido };
+        return { rBruta, tributos, rLiquida, custos, mBruta, dComerciais, mContrib, dAdmins, ebitda, dFinanc, oReceitas, oDespesas, lLiquido, getRecursiveVal };
     };
 
     const budgetDRE = calculateTotals(categories, budgetValues);
@@ -286,7 +301,7 @@ export function BudgetGrid() {
                                     />
                                 </td>
                                 <td style={{ textAlign: 'right', padding: '0.5rem', color: '#3b82f6', fontSize: '0.75rem', fontWeight: 500 }}>
-                                    {formatCurrency(realizedValues[`${cat.id}-${i}`])}
+                                    {formatCurrency(realizedDRE.getRecursiveVal(cat.id, i))}
                                 </td>
                             </React.Fragment>
                         ))}
@@ -319,7 +334,7 @@ export function BudgetGrid() {
             </div>
 
             <p style={{ color: 'red', fontWeight: 'bold', fontSize: '1.2em' }}>
-                Build Version: v46.9 - API DATA FLOW FIX 🏆🚀
+                Build Version: v47.0 - RECURSIVE TOTALS FIX 🏆🚀
             </p>
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8rem' }}>
                 <thead>
@@ -385,7 +400,7 @@ export function BudgetGrid() {
             </table>
 
             {loading && <div style={{ padding: '3rem', textAlign: 'center', color: '#64748b' }}>Sincronizando dados com Conta Azul...</div>}
-            <div style={{ padding: '0.5rem', fontSize: '0.7rem', color: '#ccc', textAlign: 'right' }}>Build v46.9 - API DATA FLOW FIX</div>
+            <div style={{ padding: '0.5rem', fontSize: '0.7rem', color: '#ccc', textAlign: 'right' }}>Build v47.0 - RECURSIVE TOTALS FIX</div>
         </div>
     );
 }

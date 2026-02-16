@@ -139,18 +139,34 @@ export async function syncData() {
     for (const cat of categories) {
         try {
             const catId = cat.id;
-            const catName = cat.nome || cat.name;
+            const catName = (cat.nome || cat.name || '').trim();
             if (!catId || !catName) continue;
 
             const parentId = cat.categoria_pai || cat.parent_id || null;
             const typeValue = cat.tipo || cat.type || 'EXPENSE';
-            let entradaDre = cat.entrada_dre || cat.entry_dre || null;
 
-            // V46.5: Inherit metadata from parent if missing (crucial for summing children)
-            if (!entradaDre && parentId) {
+            // V47.0: More robust label extraction and manual fallbacks
+            let entryDre = cat.entrada_dre || cat.entradaDre || cat.entry_dre || null;
+
+            // Manual mapping fallbacks for core categories based on name patterns
+            if (!entryDre) {
+                const name = catName.toUpperCase();
+                if (name.includes('RECEITA') || name.startsWith('1 ')) entryDre = 'RECEITAS';
+                else if (name.includes('TRIBUTO') || name.includes('IMPOSTO') || name.startsWith('2 ')) entryDre = 'DEDUCOES';
+                else if (name.includes('CUSTO') || name.startsWith('3 ')) entryDre = 'CUSTOS';
+                else if (name.includes('COMERCIAL') || name.includes('MARKETING') || name.startsWith('4 ')) entryDre = 'DESPESAS_COMERCIAIS';
+                else if (name.includes('ADMINISTRATIVA') || name.startsWith('5 ')) entryDre = 'DESPESAS_ADMINISTRATIVAS';
+                else if (name.includes('FINANCEIRA') || name.includes('JUROS') || name.startsWith('6 ')) entryDre = 'DESPESSAS_FINANCEIRAS';
+                else if (name.includes('OUTRAS RECEITAS') || name.startsWith('7 ')) entryDre = 'OUTRAS_RECEITAS_NAO_OPERACIONAIS';
+                else if (name.includes('OUTRAS DESPESAS') || name.startsWith('8 ')) entryDre = 'OUTRAS_DESPESAS_NAO_OPERACIONAIS';
+            }
+
+            // V46.5+: Inherit metadata from parent if still missing
+            if (!entryDre && parentId) {
                 const parent = categories.find(c => c.id === parentId);
+                // We trust the API or our previous manual mapping for the parent
                 if (parent) {
-                    entradaDre = parent.entrada_dre || parent.entry_dre || null;
+                    entryDre = parent.entrada_dre || parent.entradaDre || parent.entry_dre || null;
                 }
             }
 
@@ -162,13 +178,13 @@ export async function syncData() {
                     tenantId: tenant.id,
                     parentId: parentId,
                     type: typeValue,
-                    entradaDre: entradaDre
+                    entradaDre: entryDre
                 },
                 update: {
                     name: catName,
                     parentId: parentId,
                     type: typeValue,
-                    entradaDre: entradaDre
+                    entradaDre: entryDre
                 }
             });
             report.categoriesSuccess++;

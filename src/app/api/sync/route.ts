@@ -19,26 +19,25 @@ export async function GET(request: Request) {
             });
         }
 
-        const data = await syncData() as any;
+        const syncResult = await syncData() as any;
+
+        if (!syncResult.success && syncResult.error) {
+            return NextResponse.json(syncResult, { status: 500 });
+        }
 
         const realizedValues: Record<string, number> = {};
-
-        // V19.3: Temporariamente desativando processamento de vendas
-        // O foco agora é na importação do Plano de Contas e Centros de Custo.
-        if (data.sales && Array.isArray(data.sales)) {
-            // ... logic safe even if absent
-        }
+        // Placeholder for future processing of realized values from sales/transactions
 
         return NextResponse.json({
             success: true,
             realizedValues,
-            raw: data // Send raw for debug if needed
+            data: syncResult // Send the whole report for frontend to show
         });
     } catch (error: any) {
-        console.error('Sync error:', error);
+        console.error('Critical Sync route failure:', error);
         return NextResponse.json({
             success: false,
-            error: error.message || 'Failed to sync data'
+            error: error.message || 'Fatal error during sync'
         }, { status: 500 });
     }
 }

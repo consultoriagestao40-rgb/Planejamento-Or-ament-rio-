@@ -60,47 +60,61 @@ async function getValidAccessToken() {
 // --------------------------------------------------------
 
 export async function syncData() {
-    const accessToken = await getValidAccessToken();
-    const tenant = await prisma.tenant.findFirst();
-    if (!tenant) throw new Error("Tenant not found");
-
-    // Fetch in parallel for performance
-    let syncError: string | null = null;
-    const [categories, costCenters] = await Promise.all([
-        fetchCategories(accessToken).catch(e => {
-            console.error("Error fetching categories:", e);
-            syncError = `Categories: ${e.message}`;
-            return [];
-        }),
-        fetchCostCenters(accessToken).catch(e => {
-            console.error("Error fetching cost centers:", e);
-            return [];
-        }),
-    ]);
-
-    if (syncError && categories.length === 0) {
-        return {
-            timestamp: new Date().toISOString(),
-            error: syncError,
-            categoriesCount: 0,
-            costCentersCount: 0
-        };
+    let accessToken: string;
+    try {
+        accessToken = await getValidAccessToken();
+    } catch (e: any) {
+        console.error("Auth failed during sync:", e);
+        return { success: false, error: `Auth Error: ${e.message}`, timestamp: new Date().toISOString() };
     }
 
-    // Persist Cost Centers
-    if (costCenters.length > 0) {
-        for (const cc of costCenters) {
+    const tenant = await prisma.tenant.findFirst();
+    if (!tenant) return { success: false, error: "Tenant not found in DB", timestamp: new Date().toISOString() };
+
+    console.log("Starting syncData V30...");
+    let categories: any[] = [];
+    let costCenters: any[] = [];
+    let fetchError: string | null = null;
+
+    try {
+        const results = await Promise.all([
+            fetchCategories(accessToken).catch(e => { fetchError = `Categories: ${e.message}`; return []; }),
+            fetchCostCenters(accessToken).catch(e => { fetchError = `CostCenters: ${e.message}`; return []; })
+        ]);
+        categories = results[0];
+        costCenters = results[1];
+    } catch (e: any) {
+        fetchError = `Total Fetch Error: ${e.message}`;
+    }
+
+    const report = {
+        categoriesSuccess: 0,
+        categoriesFailed: 0,
+        costCentersSuccess: 0,
+        costCentersFailed: 0,
+        lastError: fetchError
+    };
+
+    // Persist Cost Centers with individual try/catch
+    for (const cc of costCenters) {
+        try {
+            if (!cc.id || !cc.name) continue;
             await (prisma as any).costCenter.upsert({
                 where: { id: cc.id },
                 create: { id: cc.id, name: cc.name, tenantId: tenant.id },
                 update: { name: cc.name }
             });
+            report.costCentersSuccess++;
+        } catch (e: any) {
+            report.costCentersFailed++;
+            report.lastError = `CC Upsert Error (${cc.id}): ${e.message}`;
         }
     }
 
-    // Persist Categories
-    if (categories.length > 0) {
-        for (const cat of categories) {
+    // Persist Categories with individual try/catch
+    for (const cat of categories) {
+        try {
+            if (!cat.id || !cat.name) continue;
             await (prisma as any).category.upsert({
                 where: { id: cat.id },
                 create: {
@@ -116,10 +130,14 @@ export async function syncData() {
                     type: cat.type || 'EXPENSE'
                 }
             });
+            report.categoriesSuccess++;
+        } catch (e: any) {
+            report.categoriesFailed++;
+            report.lastError = `Cat Upsert Error (${cat.id}): ${e.message}`;
         }
     }
 
-    // Help debug: Try to decode token to see scopes (Conta Azul tokens are often JWT)
+    // Help debug: Try to decode token
     let grantedScopes = 'unknown';
     try {
         const payload = accessToken.split('.')[1];
@@ -128,18 +146,19 @@ export async function syncData() {
             grantedScopes = decoded.scope || decoded.authorities || 'none found in JWT';
         }
     } catch (e) {
-        grantedScopes = 'base64 decode failed (maybe not a JWT)';
+        grantedScopes = 'not a JWT or decode failed';
     }
 
     return {
+        success: true,
         timestamp: new Date().toISOString(),
         categoriesCount: categories.length,
         costCentersCount: costCenters.length,
+        report,
         debug: {
             grantedScopes,
-            firstCategoryName: categories[0]?.name || 'none',
-            rawCategoriesSample: JSON.stringify(categories).substring(0, 500),
-            rawCostCentersSample: JSON.stringify(costCenters).substring(0, 500)
+            firstCategory: categories[0] ? JSON.stringify(categories[0]) : 'none',
+            rawCategoriesSample: JSON.stringify(categories).substring(0, 500)
         }
     };
 }

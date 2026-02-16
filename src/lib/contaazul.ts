@@ -23,9 +23,9 @@ export const getAuthUrl = (state: string) => {
     const baseUrl = isDev ? 'http://127.0.0.1:3000' : 'https://planejamento-or-ament-rio.vercel.app';
     const redirectUri = `${baseUrl}/api/auth/callback`;
 
-    // V26: Tentando absolutamente todos os scopes possíveis para forçar o Financeiro.
-    // Algumas APIs da CA usam plural, outras singular, outras 'all'.
-    const scope = 'sales finance financial accounting expense all openid profile email';
+    // V27: Revertendo para o conjunto padrão que costuma funcionar.
+    // O erro 'invalid_scope' da v26 confirmou que não podemos colocar nomes arbitrários.
+    const scope = 'sales finance openid profile email';
 
     return `${CA_AUTH_URL}?client_id=${encodeURIComponent(clientId)}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=${encodeURIComponent(scope)}&state=${encodeURIComponent(state)}&response_type=code`;
 };

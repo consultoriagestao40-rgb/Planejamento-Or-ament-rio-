@@ -40,14 +40,14 @@ export default function BudgetGrid({ refreshKey = 0 }: BudgetGridProps) {
                         let ed = cat.entradaDre;
                         if (!ed) {
                             const n = (cat.name || '').toUpperCase();
-                            if (n.startsWith('1') || n.includes('RECEITA')) ed = 'RECEITAS';
-                            else if (n.startsWith('2') || n.includes('TRIBUTO') || n.includes('IMPOSTO')) ed = 'DEDUCOES';
-                            else if (n.startsWith('3') || n.includes('CUSTO')) ed = 'CUSTOS';
-                            else if (n.startsWith('4') || n.includes('COMERCIAL')) ed = 'DESPESAS_COMERCIAIS';
-                            else if (n.startsWith('5') || n.includes('ADMINISTRA')) ed = 'DESPESAS_ADMINISTRATIVAS';
-                            else if (n.startsWith('6') || n.includes('FINANCEIRA')) ed = 'DESPESSAS_FINANCEIRAS';
-                            else if (n.startsWith('7')) ed = 'OUTRAS_RECEITAS_NAO_OPERACIONAIS';
-                            else if (n.startsWith('8')) ed = 'OUTRAS_DESPESAS_NAO_OPERACIONAIS';
+                            if (n.includes('RECEITA') || n.includes('VENDA') || n.includes('FATURAMENTO')) ed = 'RECEITAS';
+                            else if (n.includes('TRIBUTO') || n.includes('IMPOSTO') || n.includes('DEDUCAO') || n.includes('SIMPLES')) ed = 'DEDUCOES';
+                            else if (n.includes('CUSTO') || n.includes('PRODUCAO') || n.includes('MATERIA PRIMA')) ed = 'CUSTOS';
+                            else if (n.includes('COMERCIAL') || n.includes('MARKETING') || n.includes('COMISSOES') || n.includes('PROPAGANDA')) ed = 'DESPESAS_COMERCIAIS';
+                            else if (n.includes('ADMINISTRA') || n.includes('OPERACIONAL') || n.includes('ALUGUEL') || n.includes('SALARIO') || n.includes('PESSOAL')) ed = 'DESPESAS_ADMINISTRATIVAS';
+                            else if (n.includes('FINANCEIRA') || n.includes('JUROS') || n.includes('TARIFA') || n.includes('IOF') || n.includes('BANCARIA')) ed = 'DESPESSAS_FINANCEIRAS';
+                            else if (n.includes('OUTRAS RECEITAS')) ed = 'OUTRAS_RECEITAS_NAO_OPERACIONAIS';
+                            else if (n.includes('OUTRAS DESPESAS')) ed = 'OUTRAS_DESPESAS_NAO_OPERACIONAIS';
                         }
                         return { ...cat, entradaDre: ed };
                     });
@@ -431,7 +431,7 @@ export default function BudgetGrid({ refreshKey = 0 }: BudgetGridProps) {
             </table>
 
             {loading && <div style={{ padding: '3rem', textAlign: 'center', color: '#64748b' }}>Sincronizando dados com Conta Azul...</div>}
-            <div style={{ padding: '0.5rem', fontSize: '0.7rem', color: '#ccc', textAlign: 'right' }}>Build v47.3 - STABILITY & REFRESH</div>
+            <div style={{ padding: '0.5rem', fontSize: '0.7rem', color: '#ccc', textAlign: 'right' }}>Build v47.6 - DE-NUCLEARIZED MAPPING ☯️🌿</div>
         </div>
     );
 }

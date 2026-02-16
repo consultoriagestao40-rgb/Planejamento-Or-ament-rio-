@@ -141,16 +141,18 @@ export async function syncData() {
         const upper = name.toUpperCase();
         let entryDre = cat.entrada_dre || cat.entradaDre || cat.entry_dre || null;
 
-        // Manual heuristics (The "Nuclear" Map)
+        // Manual heuristics (The "Nuclear" Map) - REFINED V47.6
+        // Removed number-based mapping (^1, ^2, etc.) as it conflicts with custom charts.
         if (!entryDre) {
-            if (/^1(\.|\s|$)/.test(upper) || upper.includes('RECEITA') || upper.includes('VENDA') || upper.includes('FATURAMENTO')) entryDre = 'RECEITAS';
-            else if (/^2(\.|\s|$)/.test(upper) || upper.includes('TRIBUTO') || upper.includes('IMPOSTO') || upper.includes('DEDUCAO')) entryDre = 'DEDUCOES';
-            else if (/^3(\.|\s|$)/.test(upper) || upper.includes('CUSTO') || upper.includes('PRODUCAO') || upper.includes('ESTOQUE')) entryDre = 'CUSTOS';
-            else if (/^4(\.|\s|$)/.test(upper) || upper.includes('COMERCIAL') || upper.includes('MARKETING') || upper.includes('VENDAS')) entryDre = 'DESPESAS_COMERCIAIS';
-            else if (/^5(\.|\s|$)/.test(upper) || upper.includes('ADMINISTRATIVA') || upper.includes('OPERACIONAL') || upper.includes('ALUGUEL') || upper.includes('MATERIAL')) entryDre = 'DESPESAS_ADMINISTRATIVAS';
-            else if (/^6(\.|\s|$)/.test(upper) || upper.includes('FINANCEIRA') || upper.includes('JUROS') || upper.includes('TARIFA') || upper.includes('IOF')) entryDre = 'DESPESSAS_FINANCEIRAS';
-            else if (/^7(\.|\s|$)/.test(upper)) entryDre = 'OUTRAS_RECEITAS_NAO_OPERACIONAIS';
-            else if (/^8(\.|\s|$)/.test(upper) || upper.includes('OUTRAS DESPESAS')) entryDre = 'OUTRAS_DESPESAS_NAO_OPERACIONAIS';
+            if (upper.includes('RECEITA') || upper.includes('VENDA') || upper.includes('FATURAMENTO')) entryDre = 'RECEITAS';
+            else if (upper.includes('TRIBUTO') || upper.includes('IMPOSTO') || upper.includes('DEDUCAO') || upper.includes('SIMPLES')) entryDre = 'DEDUCOES';
+            else if (upper.includes('CUSTO') || upper.includes('PRODUCAO') || upper.includes('MATERIA PRIMA')) entryDre = 'CUSTOS';
+            else if (upper.includes('COMERCIAL') || upper.includes('MARKETING') || upper.includes('COMISSOES') || upper.includes('PROPAGANDA')) entryDre = 'DESPESAS_COMERCIAIS';
+            else if (upper.includes('ADMINISTRATIVA') || upper.includes('OPERACIONAL') || upper.includes('ALUGUEL') || upper.includes('SALARIO') || upper.includes('PESSOAL')) entryDre = 'DESPESAS_ADMINISTRATIVAS';
+            else if (upper.includes('FINANCEIRA') || upper.includes('JUROS') || upper.includes('TARIFA') || upper.includes('IOF') || upper.includes('BANCARIA')) entryDre = 'DESPESSAS_FINANCEIRAS';
+            // 7 and 8 usually are very specific, less safe to guess by keyword solely unless "OUTRAS"
+            else if (upper.includes('OUTRAS RECEITAS')) entryDre = 'OUTRAS_RECEITAS_NAO_OPERACIONAIS';
+            else if (upper.includes('OUTRAS DESPESAS')) entryDre = 'OUTRAS_DESPESAS_NAO_OPERACIONAIS';
         }
 
         return { ...cat, name, entradaDreLocal: entryDre, parentIdLocal: cat.categoria_pai || cat.parent_id || null };

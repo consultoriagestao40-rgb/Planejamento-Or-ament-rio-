@@ -48,7 +48,7 @@ export function BudgetGrid() {
         setExpandedRows(newExpanded);
     };
 
-    const handleBudgetChange = async (categoryId: string, monthIndex: number, value: string, categoryName: string) => {
+    const handleBudgetChange = async (categoryId: string, monthIndex: number, value: string) => {
         const numericValue = parseFloat(value.replace(/\D/g, '')) / 100;
 
         // Optimistic update
@@ -63,7 +63,6 @@ export function BudgetGrid() {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     categoryId,
-                    categoryName,
                     costCenterId: selectedCostCenter,
                     month: monthIndex,
                     year: new Date().getFullYear(), // Default current year for now
@@ -175,7 +174,7 @@ export function BudgetGrid() {
                                                     placeholder="0,00"
                                                     // Display formatted, simplify edit logic for prototype
                                                     // value={budgetVal ? formatCurrency(budgetVal) : ''} 
-                                                    onChange={(e) => handleBudgetChange(cat.id, idx, e.target.value, cat.name)}
+                                                    onChange={(e) => handleBudgetChange(cat.id, idx, e.target.value)}
                                                     style={{
                                                         width: '100%',
                                                         padding: '0.75rem',

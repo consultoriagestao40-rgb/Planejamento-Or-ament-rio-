@@ -31,7 +31,7 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    const { categoryId, categoryName, month, year, amount, costCenterId } = body;
+    const { categoryId, month, year, amount, costCenterId } = body;
     const targetCostCenterId = costCenterId || "DEFAULT";
 
     // For prototype, find or create a default tenant
@@ -57,12 +57,10 @@ export async function POST(request: Request) {
       },
       update: {
         amount,
-        categoryName
       },
       create: {
         tenantId: tenant.id,
         categoryId,
-        categoryName,
         costCenterId: targetCostCenterId,
         month,
         year,

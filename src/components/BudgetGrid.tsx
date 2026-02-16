@@ -413,7 +413,10 @@ export default function BudgetGrid({ refreshKey = 0 }: BudgetGridProps) {
                 )}
             </div>
 
-            {/* Build Version Text Removed for Cleaner UI */}
+            {/* Debugging Active */}
+            <p style={{ color: 'red', fontWeight: 'bold', fontSize: '1.2em' }}>
+                Build Version: v47.9.7 - DEBUGGING ZERO VALUES (Waiting for Logs) 🕵️‍♂️🚫
+            </p>
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8rem' }}>
                 <thead>
                     <tr style={{ background: '#f8fafc', borderBottom: '2px solid #cbd5e1' }}>

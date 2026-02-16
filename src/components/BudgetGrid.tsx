@@ -185,7 +185,7 @@ export function BudgetGrid() {
         </tr>
     );
 
-    const renderCategoryRows = (parentId: string | null = null, level = 1) => {
+    const renderCategoryRows = (parentId: string | null = null, level = 1): React.ReactNode[] => {
         const children = categories.filter(c => c.parentId === parentId);
         return children.flatMap(cat => {
             const hasChildren = categories.some(c => c.parentId === cat.id);
@@ -238,7 +238,7 @@ export function BudgetGrid() {
         });
     };
 
-    const renderCategoriesForSection = (section: string, parentId: string | null = null, level = 1): JSX.Element[] => {
+    const renderCategoriesForSection = (section: string, parentId: string | null = null, level = 1): React.ReactNode[] => {
         return categories
             .filter(c => c.entradaDre === section && c.parentId === parentId)
             .flatMap(cat => {

@@ -127,41 +127,44 @@ export async function syncData() {
 }
 
 async function fetchCategories(accessToken: string) {
-    // Tentativa 1: /v1/categorias (Mais provável conforme documentação)
-    console.log("Fetching categories from /v1/categorias...");
-    const res = await fetch('https://api.contaazul.com/v1/categorias', {
+    // V2 Base URL matches auth.contaazul.com tokens
+    const baseUrl = 'https://api-v2.contaazul.com';
+
+    console.log("Fetching categories from V2 API...");
+    const res = await fetch(`${baseUrl}/v1/categorias`, {
         headers: { 'Authorization': `Bearer ${accessToken}` }
     });
 
     if (res.status === 404) {
-        console.warn("Categories /v1/categorias not found, trying /v1/categories...");
-        const res2 = await fetch('https://api.contaazul.com/v1/categories', {
+        console.warn("Categories /v1/categorias not found on V2, trying /v1/categories...");
+        const res2 = await fetch(`${baseUrl}/v1/categories`, {
             headers: { 'Authorization': `Bearer ${accessToken}` }
         });
-        if (!res2.ok) throw new Error(`Categories API failed (404 on both): ${res2.status}`);
+        if (!res2.ok) throw new Error(`V2 Categories API failed (404 on both): ${res2.status}`);
         return res2.json();
     }
 
     if (!res.ok) {
         const text = await res.text();
-        throw new Error(`Failed to fetch categories: ${res.status} ${text.substring(0, 100)}`);
+        throw new Error(`V2 Categories API failed: ${res.status} ${text.substring(0, 100)}`);
     }
     return res.json();
 }
 
 async function fetchCostCenters(accessToken: string) {
-    // Tentativa 1: /v1/centro-de-custo
-    console.log("Fetching cost centers from /v1/centro-de-custo...");
-    const res = await fetch('https://api.contaazul.com/v1/centro-de-custo', {
+    const baseUrl = 'https://api-v2.contaazul.com';
+
+    console.log("Fetching cost centers from V2 API...");
+    const res = await fetch(`${baseUrl}/v1/centro-de-custo`, {
         headers: { 'Authorization': `Bearer ${accessToken}` }
     });
 
     if (res.status === 404) {
-        console.warn("Cost centers /v1/centro-de-custo not found, trying /v1/cost-centers...");
-        const res2 = await fetch('https://api.contaazul.com/v1/cost-centers', {
+        console.warn("Cost centers /v1/centro-de-custo not found on V2, trying /v1/cost-centers...");
+        const res2 = await fetch(`${baseUrl}/v1/cost-centers`, {
             headers: { 'Authorization': `Bearer ${accessToken}` }
         });
-        if (!res2.ok) return []; // Fallback for CC as it's often optional
+        if (!res2.ok) return [];
         return res2.json();
     }
 

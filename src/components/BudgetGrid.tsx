@@ -99,10 +99,11 @@ export function BudgetGrid() {
             const sections = Array.from(new Set(list.map(c => c.entradaDre).filter(Boolean)));
             return sections.flatMap(section => {
                 const sectionName = DRE_MAP[section as string] || section;
-                const children = list.filter(c => c.entradaDre === section && !c.parentId);
+                // Find top-level categories for this section (those with no parent, or whose parent is not in this section)
+                const topLevelChildren = list.filter(c => c.entradaDre === section && (!c.parentId || list.find(p => p.id === c.parentId)?.entradaDre !== section));
                 return [
                     { id: `section-${section}`, name: sectionName as string, level: 1, isSection: true },
-                    ...children.flatMap(c => [
+                    ...topLevelChildren.flatMap(c => [
                         { ...c, level: 2, parentId: `section-${section}` },
                         ...buildCategoryTree(list, c.id, 3)
                     ])
@@ -156,7 +157,7 @@ export function BudgetGrid() {
         }
     };
 
-    // DRE Logic and Calculations (V47.0 - Recursive Summing)
+    // DRE Logic and Calculations (V47.3 - Robust Recursive Summing)
     const calculateTotals = (list: any[], values: Record<string, number>) => {
         // Recursive helper to get total for a category AND its children
         const getRecursiveVal = (catId: string, month: number): number => {
@@ -170,14 +171,12 @@ export function BudgetGrid() {
 
         const sumBySection = (section: string) => {
             const totals = new Array(12).fill(0);
-            // V47.2: Robust section summing.
-            // We sum all categories that belong to this section but whose PARENT doesn't
-            // (meaning it's the root of a branch in this section).
             list.forEach(c => {
                 if (c.entradaDre === section) {
                     const parent = list.find(p => p.id === c.parentId);
-                    const isSectionRoot = !parent || parent.entradaDre !== section;
-                    if (isSectionRoot) {
+                    // A category is a "Top Level" of a section if it has no parent 
+                    // OR its parent belongs to a DIFFERENT section.
+                    if (!parent || parent.entradaDre !== section) {
                         for (let i = 0; i < 12; i++) {
                             totals[i] += getRecursiveVal(c.id, i);
                         }
@@ -283,13 +282,20 @@ export function BudgetGrid() {
         });
     };
 
-    const renderCategoriesForSection = (section: string, parentId: string | null = null, level = 1): React.ReactNode[] => {
+    const renderCategoriesForSection = (section: string, parentId: string | 'INITIAL' = 'INITIAL', level = 1): React.ReactNode[] => {
         return categories
-            .filter(c => (parentId === null ? c.entradaDre === section : true) && c.parentId === parentId)
+            .filter(c => {
+                if (parentId === 'INITIAL') {
+                    const parent = categories.find(p => p.id === c.parentId);
+                    return c.entradaDre === section && (!parent || parent.entradaDre !== section);
+                }
+                return c.parentId === parentId;
+            })
             .flatMap(cat => {
                 const hasChildren = categories.some(c => c.parentId === cat.id);
+                const rowId = parentId === 'INITIAL' ? `root-${cat.id}` : cat.id;
                 const row = (
-                    <tr key={cat.id} style={{ borderBottom: '1px solid #f0f0f0' }}>
+                    <tr key={rowId} style={{ borderBottom: '1px solid #f0f0f0' }}>
                         <td style={{
                             padding: '0.5rem',
                             paddingLeft: `${level * 1.2}rem`,
@@ -421,7 +427,7 @@ export function BudgetGrid() {
             </table>
 
             {loading && <div style={{ padding: '3rem', textAlign: 'center', color: '#64748b' }}>Sincronizando dados com Conta Azul...</div>}
-            <div style={{ padding: '0.5rem', fontSize: '0.7rem', color: '#ccc', textAlign: 'right' }}>Build v47.2 - NUCLEAR HEURISTIC FIX</div>
+            <div style={{ padding: '0.5rem', fontSize: '0.7rem', color: '#ccc', textAlign: 'right' }}>Build v47.3 - STABILITY & REFRESH</div>
         </div>
     );
 }

@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { syncFinancialData } from '@/actions/sync';
 
-export function SyncButton() {
+export function SyncButton({ onSyncComplete }: { onSyncComplete?: () => void }) {
     const [loading, setLoading] = useState(false);
     const [lastSync, setLastSync] = useState<string | null>(null);
     const [data, setData] = useState<any>(null);
@@ -16,6 +16,7 @@ export function SyncButton() {
         if (result.success && result.data) {
             setLastSync(new Date().toLocaleTimeString());
             setData(result.data);
+            if (onSyncComplete) onSyncComplete();
             alert("Sincronização concluída com sucesso!");
         } else {
             alert("Erro ao sincronizar. Veja o console.");

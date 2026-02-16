@@ -16,7 +16,9 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ c
 
   const tenant = await prisma.tenant.findFirst();
   const tenantCount = tenant ? 1 : 0;
-  const isConnected = tenantCount > 0 || params.connected === 'true';
+  // V31: Apenas mostramos conectado se REALMENTE houver um tenant no banco.
+  // Ignoramos o parâmetro 'connected=true' da URL se o banco estiver vazio.
+  const isConnected = tenantCount > 0;
   const isTestMode = tenant?.accessToken === 'test-token';
 
   return (
@@ -101,7 +103,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ c
         <p><strong>Render Time:</strong> {new Date().toLocaleTimeString()}</p>
         <div style={{ backgroundColor: '#ffebee', padding: '10px', border: '2px solid red', borderRadius: '4px', margin: '10px 0' }}>
           <p style={{ color: 'red', fontWeight: 'bold', fontSize: '1.2em' }}>
-            Build Version: v30.0 - ROBUST SYNC & LOGS 🛡️
+            Build Version: v31.0 - REAL CONNECTION REQUIRED 🔌🔄
           </p>
         </div>
         <div style={{ padding: '10px', border: '1px solid orange', backgroundColor: '#fff7ed', marginBottom: '10px' }}>

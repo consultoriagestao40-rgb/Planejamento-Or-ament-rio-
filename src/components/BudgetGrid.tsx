@@ -85,38 +85,44 @@ export default function BudgetGrid({ refreshKey = 0 }: BudgetGridProps) {
     }, [selectedCostCenter]);
 
     // DRE Sections Mapping (Visual Headers)
-    // STRICT MAPPING BASED ON USER FEEDBACK:
-    // 1 -> Receitas (Careful with 10)
-    // 2 -> Deducoes
-    // 3, 4 -> Custos (User showed 4 as Custos Operacionais)
-    // 6 -> Despesas Comerciais
-    // 8 -> Despesas Administrativas
-    // 9, 10 -> Despesas Financeiras
+    // DYNAMIC IMPORT STRATEGY (v47.9)
+    // We try to find the Root Name in the imported data.
+    // If not found, we fallback to generous numeric names.
+
+    // Helper to find the dynamic label from the tree
+    const getDynamicLabel = (prefix: string, fallback: string) => {
+        if (categories.length === 0) return fallback;
+        // Find a root that starts with the prefix (e.g. "6" or "6.")
+        const root = categories.find(c => {
+            const n = c.name.toUpperCase();
+            // Match start of string, followed by dot, space, or dash
+            return n.startsWith(prefix + '.') || n.startsWith(prefix + ' ') || n.startsWith(prefix + ' -') || n === prefix;
+        });
+        return root ? root.name : fallback;
+    };
+
     const DRE_LAYOUT = [
-        // Regex: Starts with 1, followed by dot or space or end, NOT followed by 0 immediately (to exclude 10)
-        { id: 'RECEITAS', label: '01 1 - Receitas', patterns: ['^1(\\.|\\s|$)', 'RECEITA', 'VENDA', 'FATURAMENTO'] },
-        { id: 'DEDUCOES', label: '02 2 - Tributos sobre Faturamento', patterns: ['^2(\\.|\\s|$)', 'TRIBUTO', 'IMPOSTO', 'DEDUCAO', 'SIMPLES'] },
+        {
+            id: 'RECEITAS',
+            prefix: '1',
+            default: '01 1 - Receitas',
+            patterns: ['^1(\\.|\\s|$)', 'RECEITA'],
+            excludes: ['1.1.1'] // IMPORTANT: Receitas Financeiras must go to Financial Section
+        },
+        { id: 'DEDUCOES', prefix: '2', default: '02 2 - Tributos sobre Faturamento', patterns: ['^2(\\.|\\s|$)', 'TRIBUTO', 'IMPOSTO', 'DEDUCAO', 'SIMPLES'] },
 
-        // Calculated: Receita Liquida
-        // Costs often start with 3 or 4 in some charts. User showed "03 4 - Custos Operacionais".
-        { id: 'CUSTOS', label: '03 4 - Custos Operacionais', patterns: ['^3(\\.|\\s|$)', '^4(\\.|\\s|$)', 'CUSTO', 'PRODUCAO', 'MATERIA', 'ESTOQUE'] },
+        { id: 'CUSTOS', prefix: '4', default: '03 4 - Custos Operacionais', patterns: ['^3(\\.|\\s|$)', '^4(\\.|\\s|$)', 'CUSTO', 'PRODUCAO'] },
 
-        // Calculated: Margem Bruta
-        // User showed "04 6 - Despesa Comercial".
-        { id: 'DESPESAS_COMERCIAIS', label: '04 6 - Despesa Comercial', patterns: ['^6(\\.|\\s|$)', 'COMERCIAL', 'MARKETING', 'COMISSOES', 'PROPAGANDA', 'VENDAS'] },
+        // Updated default based on user feedback "Despesas Comerciais não existe" -> "Despesas Operacionais"
+        { id: 'DESPESAS_OPERACIONAIS', prefix: '6', default: '04 6 - Despesas Operacionais', patterns: ['^6(\\.|\\s|$)', 'DESPESA', 'OPERACIONAL', 'COMERCIAL'] },
 
-        // Calculated: Margem Contribuicao
-        // User showed "05 8 - Despesa Administrativa".
-        { id: 'DESPESAS_ADMINISTRATIVAS', label: '05 8 - Despesa Administrativa', patterns: ['^8(\\.|\\s|$)', 'ADMINISTRA', 'OPERACIONAL', 'ALUGUEL', 'SALARIO', 'PESSOAL'] },
+        { id: 'DESPESAS_ADMINISTRATIVAS', prefix: '8', default: '05 8 - Despesas Administrativas', patterns: ['^8(\\.|\\s|$)', 'ADMINISTRA'] },
 
-        // Calculated: EBITDA
-        // User showed "06 10 - Despesa Financeira".
-        // Also catching 9 just in case.
-        { id: 'DESPESSAS_FINANCEIRAS', label: '06 10 - Despesa Financeira', patterns: ['^10(\\.|\\s|$)', '^9(\\.|\\s|$)', 'FINANCEIRA', 'JUROS', 'TARIFA', 'IOF', 'BANCARIA'] },
+        // 1.1.1 is strictly mapped here
+        { id: 'DESPESSAS_FINANCEIRAS', prefix: '10', default: '06 10 - Despesas Financeiras', patterns: ['^9(\\.|\\s|$)', '^10(\\.|\\s|$)', 'FINANCEIRA', '1.1.1'] },
 
-        { id: 'OUTRAS_RECEITAS_NAO_OPERACIONAIS', label: '07 - Outras Receitas', patterns: ['^7(\\.|\\s|$)', 'OUTRAS RECEITAS'] },
-        // 11 or others?
-        { id: 'OUTRAS_DESPESAS_NAO_OPERACIONAIS', label: '08 - Outras Despesas', patterns: ['^11(\\.|\\s|$)', 'OUTRAS DESPESAS'] }
+        { id: 'OUTRAS_RECEITAS', prefix: '7', default: '07 - Outras Receitas', patterns: ['^7(\\.|\\s|$)', 'OUTRAS RECEITAS'] },
+        { id: 'OUTRAS_DESPESAS', prefix: '11', default: '08 - Outras Despesas', patterns: ['^11(\\.|\\s|$)', '^12(\\.|\\s|$)', 'OUTRAS DESPESAS'] }
     ];
 
     // Build the Full Directory Tree first, independent of sections
@@ -124,7 +130,18 @@ export default function BudgetGrid({ refreshKey = 0 }: BudgetGridProps) {
         const roots: any[] = [];
         const byParent: Record<string, any[]> = {};
 
-        list.forEach(c => {
+        // Pre-process list to Detach special nodes (like 1.1.1)
+        const processList = list.map(c => {
+            // DETACHMENT LOGIC:
+            // 1.1.1 (Receitas Financeiras) is technically a child of 1, but we want it as a Root 
+            // so we can map it separately to Section 06.
+            if (c.name.includes('1.1.1') || c.name.startsWith('1.1.1')) {
+                return { ...c, parentId: null, _forcedRoot: true };
+            }
+            return c;
+        });
+
+        processList.forEach(c => {
             if (!c.parentId) {
                 roots.push(c);
             } else {
@@ -134,8 +151,8 @@ export default function BudgetGrid({ refreshKey = 0 }: BudgetGridProps) {
         });
 
         // Also handle Orphans (items with parentId that doesn't exist in list)
-        const allIds = new Set(list.map(c => c.id));
-        list.forEach(c => {
+        const allIds = new Set(processList.map(c => c.id));
+        processList.forEach(c => {
             if (c.parentId && !allIds.has(c.parentId)) {
                 // Treat orphan as root
                 roots.push(c);
@@ -191,8 +208,16 @@ export default function BudgetGrid({ refreshKey = 0 }: BudgetGridProps) {
     const fullTree = React.useMemo(() => categories.length > 0 ? buildFullTree(categories) : [], [categories]);
 
     // Helper to check if a Root Node belongs to a Section
-    const belongsToSection = (node: any, patterns: string[]) => {
+    const belongsToSection = (node: any, patterns: string[], excludes?: string[]) => {
         const n = node.name.toUpperCase();
+
+        // 1. Check exclusions first
+        if (excludes && excludes.length > 0) {
+            const matchesExclude = excludes.some(e => n.includes(e.toUpperCase()));
+            if (matchesExclude) return false;
+        }
+
+        // 2. Check inclusions
         return patterns.some(p => {
             // Handle Regex Pattern Strings
             if (p.startsWith('^')) {
@@ -310,12 +335,12 @@ export default function BudgetGrid({ refreshKey = 0 }: BudgetGridProps) {
             return total;
         };
 
-        const sumByRoots = (patterns: string[]) => {
+        const sumByRoots = (patterns: string[], excludes?: string[]) => {
             const totals = new Array(12).fill(0);
 
             // Find all roots matching the pattern
             // Note: We use `fullTree` which contains the Top Level Nodes
-            const relevantRoots = fullTree.filter(r => belongsToSection(r, patterns));
+            const relevantRoots = fullTree.filter(r => belongsToSection(r, patterns, excludes));
 
             relevantRoots.forEach(root => {
                 for (let i = 0; i < 12; i++) {
@@ -325,21 +350,21 @@ export default function BudgetGrid({ refreshKey = 0 }: BudgetGridProps) {
             return totals;
         };
 
-        const rBruta = sumByRoots(DRE_LAYOUT.find(s => s.id === 'RECEITAS')?.patterns || []);
-        const tributos = sumByRoots(DRE_LAYOUT.find(s => s.id === 'DEDUCOES')?.patterns || []);
+        const rBruta = sumByRoots(DRE_LAYOUT[0].patterns, DRE_LAYOUT[0].excludes);
+        const tributos = sumByRoots(DRE_LAYOUT[1].patterns, DRE_LAYOUT[1].excludes);
         const rLiquida = rBruta.map((v, i) => v - Math.abs(tributos[i]));
-        const custos = sumByRoots(DRE_LAYOUT.find(s => s.id === 'CUSTOS')?.patterns || []);
+        const custos = sumByRoots(DRE_LAYOUT[2].patterns, DRE_LAYOUT[2].excludes);
         const mBruta = rLiquida.map((v, i) => v - Math.abs(custos[i]));
-        const dComerciais = sumByRoots(DRE_LAYOUT.find(s => s.id === 'DESPESAS_COMERCIAIS')?.patterns || []);
-        const mContrib = mBruta.map((v, i) => v - Math.abs(dComerciais[i]));
-        const dAdmins = sumByRoots(DRE_LAYOUT.find(s => s.id === 'DESPESAS_ADMINISTRATIVAS')?.patterns || []);
+        const dOperacionais = sumByRoots(DRE_LAYOUT[3].patterns, DRE_LAYOUT[3].excludes); // Changed from dComerciais
+        const mContrib = mBruta.map((v, i) => v - Math.abs(dOperacionais[i])); // Changed from dComerciais
+        const dAdmins = sumByRoots(DRE_LAYOUT[4].patterns, DRE_LAYOUT[4].excludes);
         const ebitda = mContrib.map((v, i) => v - Math.abs(dAdmins[i]));
-        const dFinanc = sumByRoots(DRE_LAYOUT.find(s => s.id === 'DESPESSAS_FINANCEIRAS')?.patterns || []);
-        const oReceitas = sumByRoots(DRE_LAYOUT.find(s => s.id === 'OUTRAS_RECEITAS_NAO_OPERACIONAIS')?.patterns || []);
-        const oDespesas = sumByRoots(DRE_LAYOUT.find(s => s.id === 'OUTRAS_DESPESAS_NAO_OPERACIONAIS')?.patterns || []);
+        const dFinanc = sumByRoots(DRE_LAYOUT[5].patterns, DRE_LAYOUT[5].excludes);
+        const oReceitas = sumByRoots(DRE_LAYOUT[6].patterns, DRE_LAYOUT[6].excludes);
+        const oDespesas = sumByRoots(DRE_LAYOUT[7].patterns, DRE_LAYOUT[7].excludes);
         const lLiquido = ebitda.map((v, i) => v - Math.abs(dFinanc[i]) + oReceitas[i] - Math.abs(oDespesas[i]));
 
-        return { rBruta, tributos, rLiquida, custos, mBruta, dComerciais, mContrib, dAdmins, ebitda, dFinanc, oReceitas, oDespesas, lLiquido, getRecursiveVal };
+        return { rBruta, tributos, rLiquida, custos, mBruta, dOperacionais, mContrib, dAdmins, ebitda, dFinanc, oReceitas, oDespesas, lLiquido, getRecursiveVal };
     };
 
     const budgetDRE = calculateTotals(fullTree, budgetValues);
@@ -389,7 +414,7 @@ export default function BudgetGrid({ refreshKey = 0 }: BudgetGridProps) {
             </div>
 
             <p style={{ color: 'red', fontWeight: 'bold', fontSize: '1.2em' }}>
-                Build Version: v47.8 - STRICT NUMERIC MAPPING 🦁🔢
+                Build Version: v47.9.2 - DETACH & EXCLUDE 1.1.1 🧬✂️
             </p>
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8rem' }}>
                 <thead>
@@ -413,50 +438,50 @@ export default function BudgetGrid({ refreshKey = 0 }: BudgetGridProps) {
                     {/* DYNAMIC RENDERING BASED ON ROOTS */}
 
                     {/* 01 RECEITAS */}
-                    {renderDRELine(DRE_LAYOUT[0].label, budgetDRE.rBruta, realizedDRE.rBruta)}
-                    {fullTree.filter(node => belongsToSection(node, DRE_LAYOUT[0].patterns)).flatMap(node => renderRowRecursively(node))}
+                    {renderDRELine(getDynamicLabel(DRE_LAYOUT[0].prefix, DRE_LAYOUT[0].default), budgetDRE.rBruta, realizedDRE.rBruta)}
+                    {fullTree.filter(node => belongsToSection(node, DRE_LAYOUT[0].patterns, DRE_LAYOUT[0].excludes)).flatMap(node => renderRowRecursively(node))}
 
                     {/* 02 DEDUCOES */}
-                    {renderDRELine(DRE_LAYOUT[1].label, budgetDRE.tributos, realizedDRE.tributos)}
-                    {fullTree.filter(node => belongsToSection(node, DRE_LAYOUT[1].patterns)).flatMap(node => renderRowRecursively(node))}
+                    {renderDRELine(getDynamicLabel(DRE_LAYOUT[1].prefix, DRE_LAYOUT[1].default), budgetDRE.tributos, realizedDRE.tributos)}
+                    {fullTree.filter(node => belongsToSection(node, DRE_LAYOUT[1].patterns, DRE_LAYOUT[1].excludes)).flatMap(node => renderRowRecursively(node))}
 
                     {renderDRELine('02T 3 - Receita Líquida', budgetDRE.rLiquida, realizedDRE.rLiquida, true)}
 
                     {/* 03 CUSTOS */}
-                    {renderDRELine(DRE_LAYOUT[2].label, budgetDRE.custos, realizedDRE.custos)}
-                    {fullTree.filter(node => belongsToSection(node, DRE_LAYOUT[2].patterns)).flatMap(node => renderRowRecursively(node))}
+                    {renderDRELine(getDynamicLabel(DRE_LAYOUT[2].prefix, DRE_LAYOUT[2].default), budgetDRE.custos, realizedDRE.custos)}
+                    {fullTree.filter(node => belongsToSection(node, DRE_LAYOUT[2].patterns, DRE_LAYOUT[2].excludes)).flatMap(node => renderRowRecursively(node))}
 
                     {renderDRELine('03T 5 - Margem Bruta', budgetDRE.mBruta, realizedDRE.mBruta, true)}
 
-                    {/* 04 DESPESAS COMERCIAIS */}
-                    {renderDRELine(DRE_LAYOUT[3].label, budgetDRE.dComerciais, realizedDRE.dComerciais)}
-                    {fullTree.filter(node => belongsToSection(node, DRE_LAYOUT[3].patterns)).flatMap(node => renderRowRecursively(node))}
+                    {/* 04 DESPESAS OPERACIONAIS (Formerly Comerciais) */}
+                    {renderDRELine(getDynamicLabel(DRE_LAYOUT[3].prefix, DRE_LAYOUT[3].default), budgetDRE.dOperacionais, realizedDRE.dOperacionais)}
+                    {fullTree.filter(node => belongsToSection(node, DRE_LAYOUT[3].patterns, DRE_LAYOUT[3].excludes)).flatMap(node => renderRowRecursively(node))}
 
                     {renderDRELine('04T 7 - Margem de Contribuição', budgetDRE.mContrib, realizedDRE.mContrib, true)}
 
                     {/* 05 DESPESAS ADM */}
-                    {renderDRELine(DRE_LAYOUT[4].label, budgetDRE.dAdmins, realizedDRE.dAdmins)}
-                    {fullTree.filter(node => belongsToSection(node, DRE_LAYOUT[4].patterns)).flatMap(node => renderRowRecursively(node))}
+                    {renderDRELine(getDynamicLabel(DRE_LAYOUT[4].prefix, DRE_LAYOUT[4].default), budgetDRE.dAdmins, realizedDRE.dAdmins)}
+                    {fullTree.filter(node => belongsToSection(node, DRE_LAYOUT[4].patterns, DRE_LAYOUT[4].excludes)).flatMap(node => renderRowRecursively(node))}
 
                     {renderDRELine('05T 9 - EBITDA', budgetDRE.ebitda, realizedDRE.ebitda, true)}
 
                     {/* 06 FINANCEIRO */}
-                    {renderDRELine(DRE_LAYOUT[5].label, budgetDRE.dFinanc, realizedDRE.dFinanc)}
-                    {fullTree.filter(node => belongsToSection(node, DRE_LAYOUT[5].patterns)).flatMap(node => renderRowRecursively(node))}
+                    {renderDRELine(getDynamicLabel(DRE_LAYOUT[5].prefix, DRE_LAYOUT[5].default), budgetDRE.dFinanc, realizedDRE.dFinanc)}
+                    {fullTree.filter(node => belongsToSection(node, DRE_LAYOUT[5].patterns, DRE_LAYOUT[5].excludes)).flatMap(node => renderRowRecursively(node))}
 
                     {/* OUTROS */}
-                    {renderDRELine(DRE_LAYOUT[6].label, budgetDRE.oReceitas, realizedDRE.oReceitas)}
-                    {fullTree.filter(node => belongsToSection(node, DRE_LAYOUT[6].patterns)).flatMap(node => renderRowRecursively(node))}
+                    {renderDRELine(getDynamicLabel(DRE_LAYOUT[6].prefix, DRE_LAYOUT[6].default), budgetDRE.oReceitas, realizedDRE.oReceitas)}
+                    {fullTree.filter(node => belongsToSection(node, DRE_LAYOUT[6].patterns, DRE_LAYOUT[6].excludes)).flatMap(node => renderRowRecursively(node))}
 
-                    {renderDRELine(DRE_LAYOUT[7].label, budgetDRE.oDespesas, realizedDRE.oDespesas)}
-                    {fullTree.filter(node => belongsToSection(node, DRE_LAYOUT[7].patterns)).flatMap(node => renderRowRecursively(node))}
+                    {renderDRELine(getDynamicLabel(DRE_LAYOUT[7].prefix, DRE_LAYOUT[7].default), budgetDRE.oDespesas, realizedDRE.oDespesas)}
+                    {fullTree.filter(node => belongsToSection(node, DRE_LAYOUT[7].patterns, DRE_LAYOUT[7].excludes)).flatMap(node => renderRowRecursively(node))}
 
                     {/* Unclassified/Others - Safety Net */}
                     <tr style={{ background: '#fff7ed', fontWeight: 'bold' }}>
                         <td colSpan={100} style={{ padding: '0.5rem', color: '#c2410c' }}>Outras Categorias (Não Mapeadas)</td>
                     </tr>
                     {fullTree.filter(node =>
-                        !DRE_LAYOUT.some(section => belongsToSection(node, section.patterns))
+                        !DRE_LAYOUT.some(section => belongsToSection(node, section.patterns, section.excludes))
                     ).flatMap(node => renderRowRecursively(node))}
 
                     <tr style={{ background: '#f8fafc' }}><td colSpan={100} style={{ padding: '0.5rem' }}></td></tr>
@@ -465,7 +490,7 @@ export default function BudgetGrid({ refreshKey = 0 }: BudgetGridProps) {
             </table>
 
             {loading && <div style={{ padding: '3rem', textAlign: 'center', color: '#64748b' }}>Sincronizando dados com Conta Azul...</div>}
-            <div style={{ padding: '0.5rem', fontSize: '0.7rem', color: '#ccc', textAlign: 'right' }}>Build v47.8 - STRICT NUMERIC MAPPING 🦁🔢</div>
+            <div style={{ padding: '0.5rem', fontSize: '0.7rem', color: '#ccc', textAlign: 'right' }}>Build v47.9 - DYNAMIC NATIVE HEADERS 🦁📜</div>
         </div>
     );
 }

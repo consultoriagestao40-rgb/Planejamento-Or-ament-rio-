@@ -331,6 +331,11 @@ async function aggregateTransactions(accessToken: string, baseUrl: string, targe
                 const monthIdx = dateObj.getMonth();
                 const year = dateObj.getFullYear();
 
+                // DEBUG LOG for first few items
+                if (idx < 5 && page === 1) {
+                    logs.push(`ITEM DEBUG: Val=${amount}, DateStr=${dateStr}, ParsedYear=${year}, ParsedMonth=${monthIdx}`);
+                }
+
                 // BUGFIX: We were summing 2024+2025+2026 into the same bucket!
                 // We must ONLY sum for the CURRENT YEAR for the DRE view.
                 if (year !== new Date().getFullYear()) return;

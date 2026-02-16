@@ -438,42 +438,42 @@ export default function BudgetGrid({ refreshKey = 0 }: BudgetGridProps) {
                     {/* DYNAMIC RENDERING BASED ON ROOTS */}
 
                     {/* 01 RECEITAS */}
-                    {renderDRELine(getDynamicLabel(DRE_LAYOUT[0].prefix, DRE_LAYOUT[0].default), budgetDRE.rBruta, realizedDRE.rBruta)}
+                    {renderDRELine(DRE_LAYOUT[0].default, budgetDRE.rBruta, realizedDRE.rBruta)}
                     {fullTree.filter(node => belongsToSection(node, DRE_LAYOUT[0].patterns, DRE_LAYOUT[0].excludes)).flatMap(node => renderRowRecursively(node))}
 
                     {/* 02 DEDUCOES */}
-                    {renderDRELine(getDynamicLabel(DRE_LAYOUT[1].prefix, DRE_LAYOUT[1].default), budgetDRE.tributos, realizedDRE.tributos)}
+                    {renderDRELine(DRE_LAYOUT[1].default, budgetDRE.tributos, realizedDRE.tributos)}
                     {fullTree.filter(node => belongsToSection(node, DRE_LAYOUT[1].patterns, DRE_LAYOUT[1].excludes)).flatMap(node => renderRowRecursively(node))}
 
                     {renderDRELine('02T 3 - Receita Líquida', budgetDRE.rLiquida, realizedDRE.rLiquida, true)}
 
                     {/* 03 CUSTOS */}
-                    {renderDRELine(getDynamicLabel(DRE_LAYOUT[2].prefix, DRE_LAYOUT[2].default), budgetDRE.custos, realizedDRE.custos)}
+                    {renderDRELine(DRE_LAYOUT[2].default, budgetDRE.custos, realizedDRE.custos)}
                     {fullTree.filter(node => belongsToSection(node, DRE_LAYOUT[2].patterns, DRE_LAYOUT[2].excludes)).flatMap(node => renderRowRecursively(node))}
 
                     {renderDRELine('03T 5 - Margem Bruta', budgetDRE.mBruta, realizedDRE.mBruta, true)}
 
                     {/* 04 DESPESAS OPERACIONAIS (Formerly Comerciais) */}
-                    {renderDRELine(getDynamicLabel(DRE_LAYOUT[3].prefix, DRE_LAYOUT[3].default), budgetDRE.dOperacionais, realizedDRE.dOperacionais)}
+                    {renderDRELine(DRE_LAYOUT[3].default, budgetDRE.dOperacionais, realizedDRE.dOperacionais)}
                     {fullTree.filter(node => belongsToSection(node, DRE_LAYOUT[3].patterns, DRE_LAYOUT[3].excludes)).flatMap(node => renderRowRecursively(node))}
 
                     {renderDRELine('04T 7 - Margem de Contribuição', budgetDRE.mContrib, realizedDRE.mContrib, true)}
 
                     {/* 05 DESPESAS ADM */}
-                    {renderDRELine(getDynamicLabel(DRE_LAYOUT[4].prefix, DRE_LAYOUT[4].default), budgetDRE.dAdmins, realizedDRE.dAdmins)}
+                    {renderDRELine(DRE_LAYOUT[4].default, budgetDRE.dAdmins, realizedDRE.dAdmins)}
                     {fullTree.filter(node => belongsToSection(node, DRE_LAYOUT[4].patterns, DRE_LAYOUT[4].excludes)).flatMap(node => renderRowRecursively(node))}
 
                     {renderDRELine('05T 9 - EBITDA', budgetDRE.ebitda, realizedDRE.ebitda, true)}
 
                     {/* 06 FINANCEIRO */}
-                    {renderDRELine(getDynamicLabel(DRE_LAYOUT[5].prefix, DRE_LAYOUT[5].default), budgetDRE.dFinanc, realizedDRE.dFinanc)}
+                    {renderDRELine(DRE_LAYOUT[5].default, budgetDRE.dFinanc, realizedDRE.dFinanc)}
                     {fullTree.filter(node => belongsToSection(node, DRE_LAYOUT[5].patterns, DRE_LAYOUT[5].excludes)).flatMap(node => renderRowRecursively(node))}
 
                     {/* OUTROS */}
-                    {renderDRELine(getDynamicLabel(DRE_LAYOUT[6].prefix, DRE_LAYOUT[6].default), budgetDRE.oReceitas, realizedDRE.oReceitas)}
+                    {renderDRELine(DRE_LAYOUT[6].default, budgetDRE.oReceitas, realizedDRE.oReceitas)}
                     {fullTree.filter(node => belongsToSection(node, DRE_LAYOUT[6].patterns, DRE_LAYOUT[6].excludes)).flatMap(node => renderRowRecursively(node))}
 
-                    {renderDRELine(getDynamicLabel(DRE_LAYOUT[7].prefix, DRE_LAYOUT[7].default), budgetDRE.oDespesas, realizedDRE.oDespesas)}
+                    {renderDRELine(DRE_LAYOUT[7].default, budgetDRE.oDespesas, realizedDRE.oDespesas)}
                     {fullTree.filter(node => belongsToSection(node, DRE_LAYOUT[7].patterns, DRE_LAYOUT[7].excludes)).flatMap(node => renderRowRecursively(node))}
 
                     {/* Unclassified/Others - Safety Net */}

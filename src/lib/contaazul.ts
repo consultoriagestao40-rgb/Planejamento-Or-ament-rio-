@@ -37,17 +37,19 @@ export const exchangeCodeForToken = async (code: string): Promise<ContaAzulToken
     const baseUrl = isDev ? 'http://127.0.0.1:3000' : 'https://planejamento-or-ament-rio.vercel.app';
     const redirectUri = `${baseUrl}/api/auth/callback`;
 
+    // Standard OAuth2 uses Basic Auth for the token exchange
+    const credentials = Buffer.from(`${clientId}:${clientSecret}`).toString('base64');
+
     const response = await fetch(CA_TOKEN_URL, {
         method: 'POST',
         headers: {
+            'Authorization': `Basic ${credentials}`,
             'Content-Type': 'application/x-www-form-urlencoded',
         },
         body: new URLSearchParams({
             grant_type: 'authorization_code',
             code,
             redirect_uri: redirectUri!,
-            client_id: clientId!,
-            client_secret: clientSecret!
         }),
     });
 

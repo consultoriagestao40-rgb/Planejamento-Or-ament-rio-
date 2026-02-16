@@ -1,52 +1,68 @@
 'use client';
 
 import React, { useState } from 'react';
-import { MOCK_CATEGORIES, MONTHS, MOCK_COST_CENTERS } from '@/lib/mock-data';
+import { MONTHS, MOCK_CATEGORIES, MOCK_COST_CENTERS } from '@/lib/mock-data';
 
 export function BudgetGrid() {
-    // State to store budget values: { "categoryId-monthIndex": value }
     const [budgetValues, setBudgetValues] = useState<Record<string, number>>({});
     const [realizedValues, setRealizedValues] = useState<Record<string, number>>({});
     const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
     const [loading, setLoading] = useState(true);
     const [selectedCostCenter, setSelectedCostCenter] = useState('DEFAULT');
 
-    // Dynamic setup data
     const [categories, setCategories] = useState<any[]>([]);
     const [costCenters, setCostCenters] = useState<any[]>(MOCK_COST_CENTERS);
+    const [error, setError] = useState<string | null>(null);
 
-    // Fetch setup and data on mount
     React.useEffect(() => {
-        setLoading(true);
-        Promise.all([
-            fetch('/api/setup').then(res => res.json()),
-            fetch(`/api/budgets?costCenterId=${selectedCostCenter}`).then(res => res.json()),
-            fetch(`/api/sync?costCenterId=${selectedCostCenter}`).then(res => res.json())
-        ]).then(([setupData, budgetData, syncData]) => {
-            if (setupData.success) {
-                setCategories(setupData.categories);
-                if (setupData.costCenters.length > 0) {
-                    setCostCenters([...MOCK_COST_CENTERS.filter(m => m.id === 'DEFAULT'), ...setupData.costCenters]);
+        const loadData = async () => {
+            setLoading(true);
+            setError(null);
+            try {
+                const [setupRes, budgetRes, syncRes] = await Promise.all([
+                    fetch('/api/setup', { cache: 'no-store' }),
+                    fetch(`/api/budgets?costCenterId=${selectedCostCenter}`, { cache: 'no-store' }),
+                    fetch(`/api/sync?costCenterId=${selectedCostCenter}`, { cache: 'no-store' })
+                ]);
+
+                const setupData = await setupRes.json();
+                const budgetData = await budgetRes.json();
+                const syncData = await syncRes.json();
+
+                if (setupData.success) {
+                    setCategories(setupData.categories);
+                    if (setupData.costCenters.length > 0) {
+                        setCostCenters([...MOCK_COST_CENTERS.filter(m => m.id === 'DEFAULT'), ...setupData.costCenters]);
+                    }
+                    // Auto-expand all roots by default
+                    setExpandedRows(new Set(setupData.categories.filter((c: any) => !c.parentId).map((c: any) => c.id)));
+                } else {
+                    console.warn('Setup failed:', setupData.error);
                 }
-            }
 
-            if (budgetData.success) {
-                const values: Record<string, number> = {};
-                budgetData.data.forEach((item: any) => {
-                    values[`${item.categoryId}-${item.month}`] = item.amount;
-                });
-                setBudgetValues(values);
-            }
+                if (budgetData.success) {
+                    const values: Record<string, number> = {};
+                    budgetData.data.forEach((item: any) => {
+                        values[`${item.categoryId}-${item.month}`] = item.amount;
+                    });
+                    setBudgetValues(values);
+                }
 
-            if (syncData.success && syncData.realizedValues) {
-                setRealizedValues(syncData.realizedValues);
+                if (syncData.success && syncData.realizedValues) {
+                    setRealizedValues(syncData.realizedValues);
+                }
+            } catch (err: any) {
+                console.error('Grid Load Error:', err);
+                setError(err.message);
+            } finally {
+                setLoading(false);
             }
-        })
-            .catch(err => console.error(err))
-            .finally(() => setLoading(false));
+        };
+
+        loadData();
     }, [selectedCostCenter]);
 
-    // Helper to build hierarchy
+    // Hierarchy Builder
     const buildCategoryTree = (list: any[], parentId: string | null = null, level = 1): any[] => {
         return list
             .filter(c => c.parentId === parentId)
@@ -58,24 +74,25 @@ export function BudgetGrid() {
 
     const displayCategories = categories.length > 0 ? buildCategoryTree(categories) : MOCK_CATEGORIES;
 
+    const isRowVisible = (cat: any): boolean => {
+        if (!cat.parentId) return true;
+        const parent = displayCategories.find(c => c.id === cat.parentId);
+        if (!parent) return true;
+        return expandedRows.has(parent.id) && isRowVisible(parent);
+    };
+
+    const visibleCategories = displayCategories.filter(isRowVisible);
+
     const toggleRow = (id: string) => {
         const newExpanded = new Set(expandedRows);
-        if (newExpanded.has(id)) {
-            newExpanded.delete(id);
-        } else {
-            newExpanded.add(id);
-        }
+        if (newExpanded.has(id)) newExpanded.delete(id);
+        else newExpanded.add(id);
         setExpandedRows(newExpanded);
     };
 
     const handleBudgetChange = async (categoryId: string, monthIndex: number, value: string) => {
         const numericValue = parseFloat(value.replace(/\D/g, '')) / 100 || 0;
-
-        setBudgetValues(prev => ({
-            ...prev,
-            [`${categoryId}-${monthIndex}`]: numericValue
-        }));
-
+        setBudgetValues(prev => ({ ...prev, [`${categoryId}-${monthIndex}`]: numericValue }));
         try {
             await fetch('/api/budgets', {
                 method: 'POST',
@@ -89,53 +106,41 @@ export function BudgetGrid() {
                 })
             });
         } catch (error) {
-            console.error('Failed to save', error);
+            console.error('Save failed', error);
         }
     };
 
     const formatCurrency = (val: number) =>
         new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val || 0);
 
-    // Filter visible rows based on expansion
-    const isRowVisible = (cat: any): boolean => {
-        if (!cat.parentId) return true;
-        const parent = displayCategories.find(c => c.id === cat.parentId);
-        if (!parent) return true;
-        return expandedRows.has(parent.id) && isRowVisible(parent);
-    };
-
-    const visibleCategories = displayCategories.filter(isRowVisible);
-
     return (
         <div style={{ overflowX: 'auto', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '1rem' }}>
-
-            <div style={{ marginBottom: '1.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                <label style={{ fontWeight: 500, color: 'hsl(var(--foreground))' }}>Centro de Custo:</label>
-                <select
-                    value={selectedCostCenter}
-                    onChange={(e) => setSelectedCostCenter(e.target.value)}
-                    style={{
-                        padding: '0.5rem',
-                        borderRadius: 'var(--radius)',
-                        border: '1px solid var(--border)',
-                        minWidth: '200px'
-                    }}
-                >
-                    {costCenters.map(cc => (
-                        <option key={cc.id} value={cc.id}>{cc.name}</option>
-                    ))}
-                </select>
-                {loading && <span style={{ fontSize: '0.8rem', color: 'hsl(var(--muted-foreground))', marginLeft: 'auto' }}>Carregando dados...</span>}
+            <div style={{ marginBottom: '1rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                    <label style={{ fontWeight: 500 }}>Centro de Custo:</label>
+                    <select
+                        value={selectedCostCenter}
+                        onChange={(e) => setSelectedCostCenter(e.target.value)}
+                        style={{ padding: '0.5rem', borderRadius: 'var(--radius)', border: '1px solid var(--border)', minWidth: '200px' }}
+                    >
+                        {costCenters.map(cc => <option key={cc.id} value={cc.id}>{cc.name}</option>)}
+                    </select>
+                </div>
+                {categories.length > 0 && (
+                    <span style={{ fontSize: '0.75rem', color: 'green', fontWeight: 'bold' }}>
+                        ✅ {categories.length} Categorias Carregadas
+                    </span>
+                )}
             </div>
+
+            {error && <div style={{ color: 'red', marginBottom: '1rem' }}>Erro ao carregar: {error}</div>}
 
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.875rem' }}>
                 <thead>
                     <tr style={{ background: 'hsl(var(--muted))' }}>
                         <th style={{ padding: '0.75rem', textAlign: 'left', minWidth: '250px', position: 'sticky', left: 0, background: 'hsl(var(--muted))', zIndex: 10 }}>Categoria</th>
                         {MONTHS.map((month) => (
-                            <th key={month} colSpan={2} style={{ padding: '0.5rem', textAlign: 'center', borderLeft: '1px solid var(--border)' }}>
-                                {month}
-                            </th>
+                            <th key={month} colSpan={2} style={{ padding: '0.5rem', textAlign: 'center', borderLeft: '1px solid var(--border)' }}>{month}</th>
                         ))}
                     </tr>
                     <tr style={{ background: 'hsl(var(--muted))', borderBottom: '1px solid var(--border)' }}>
@@ -152,9 +157,10 @@ export function BudgetGrid() {
                     {visibleCategories.map((cat) => {
                         const indent = (cat.level - 1) * 1.5;
                         const hasChildren = displayCategories.some(c => c.parentId === cat.id);
+                        const key = cat.id;
 
                         return (
-                            <tr key={cat.id} style={{ borderBottom: '1px solid var(--border)' }}>
+                            <tr key={key} style={{ borderBottom: '1px solid var(--border)' }}>
                                 <td style={{
                                     padding: '0.75rem',
                                     paddingLeft: `${0.75 + indent}rem`,
@@ -165,36 +171,24 @@ export function BudgetGrid() {
                                     fontWeight: hasChildren ? 600 : 400
                                 }}>
                                     {hasChildren && (
-                                        <button
-                                            onClick={() => toggleRow(cat.id)}
-                                            style={{ marginRight: '0.5rem', border: 'none', background: 'none', cursor: 'pointer' }}
-                                        >
+                                        <button onClick={() => toggleRow(cat.id)} style={{ marginRight: '0.5rem', border: 'none', background: 'none', cursor: 'pointer' }}>
                                             {expandedRows.has(cat.id) ? '▼' : '▶'}
                                         </button>
                                     )}
                                     {cat.name}
                                 </td>
                                 {MONTHS.map((_, idx) => {
-                                    const key = `${cat.id}-${idx}`;
-                                    const budgetVal = budgetValues[key] || 0;
-                                    const realizedVal = realizedValues[key] || 0;
-
+                                    const cellKey = `${cat.id}-${idx}`;
+                                    const budgetVal = budgetValues[cellKey] || 0;
+                                    const realizedVal = realizedValues[cellKey] || 0;
                                     return (
                                         <React.Fragment key={idx}>
                                             <td style={{ borderLeft: '1px solid var(--border)', padding: '0' }}>
                                                 <input
                                                     type="text"
                                                     placeholder="0,00"
-                                                    // Display formatted, simplify edit logic for prototype
-                                                    // value={budgetVal ? formatCurrency(budgetVal) : ''} 
                                                     onChange={(e) => handleBudgetChange(cat.id, idx, e.target.value)}
-                                                    style={{
-                                                        width: '100%',
-                                                        padding: '0.75rem',
-                                                        border: 'none',
-                                                        textAlign: 'right',
-                                                        background: 'transparent'
-                                                    }}
+                                                    style={{ width: '100%', padding: '0.75rem', border: 'none', textAlign: 'right', background: 'transparent' }}
                                                 />
                                             </td>
                                             <td style={{ padding: '0.75rem', textAlign: 'right', color: 'hsl(var(--muted-foreground))' }}>
@@ -202,13 +196,13 @@ export function BudgetGrid() {
                                             </td>
                                         </React.Fragment>
                                     );
-                                })
-                                }
+                                })}
                             </tr>
                         );
                     })}
                 </tbody>
             </table>
-        </div >
+            {loading && <div style={{ textAlign: 'center', padding: '1rem' }}>Sincronizando...</div>}
+        </div>
     );
 }

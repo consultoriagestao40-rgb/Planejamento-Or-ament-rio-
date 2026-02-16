@@ -201,49 +201,75 @@ export async function syncData() {
 }
 
 async function fetchCategories(accessToken: string) {
-    const url = 'https://api-v2.contaazul.com/v1/categorias?pagina=1&tamanho_pagina=100';
-    try {
-        console.log(`Trying categories from: ${url}`);
-        const res = await fetch(url, { headers: { 'Authorization': `Bearer ${accessToken}` } });
-        const data = await res.json();
+    let allItems: any[] = [];
+    let page = 1;
+    let hasMore = true;
 
-        // V38: Sempre guardamos um pedaço do dado para inspeção se vier vazio na nossa lógica
-        (global as any).lastCategoriesRaw = JSON.stringify(data).substring(0, 1000);
+    while (hasMore && page <= 10) { // Safety limit of 10 pages
+        const url = `https://api-v2.contaazul.com/v1/categorias?pagina=${page}&tamanho_pagina=100`;
+        try {
+            console.log(`Fetching categories page ${page}`);
+            const res = await fetch(url, { headers: { 'Authorization': `Bearer ${accessToken}` } });
+            const data = await res.json();
 
-        if (res.ok) {
-            // V39: Nova API usa 'itens' (com N)
-            const items = Array.isArray(data) ? data : (data.itens || data.items || data.categorias || []);
-            if (items.length > 0) return items;
-        } else {
-            console.warn(`Categories failed (${url}): Status ${res.status}`);
-            (global as any).lastApiError = `URL: ${url} | Status: ${res.status} | Body: ${JSON.stringify(data)}`;
+            if (res.ok) {
+                const items = Array.isArray(data) ? data : (data.itens || data.items || data.categorias || []);
+                if (items.length > 0) {
+                    allItems = [...allItems, ...items];
+                    // Se o número de itens for menor que o tamanho da página, não há mais
+                    if (items.length < 100) hasMore = false;
+                    else page++;
+                } else {
+                    hasMore = false;
+                }
+            } else {
+                hasMore = false;
+                (global as any).lastApiError = `Categories Page ${page} failed: ${res.status}`;
+            }
+        } catch (e) {
+            hasMore = false;
+            console.warn(`Error on categories page ${page}:`, e);
         }
-    } catch (e) {
-        console.warn(`Error on ${url}:`, e);
     }
-    return [];
+
+    if (allItems.length > 0) {
+        (global as any).lastCategoriesRaw = JSON.stringify(allItems).substring(0, 1000);
+    }
+    return allItems;
 }
 
 async function fetchCostCenters(accessToken: string) {
-    const url = 'https://api-v2.contaazul.com/v1/centro-de-custo?pagina=1&tamanho_pagina=100';
-    try {
-        const res = await fetch(url, { headers: { 'Authorization': `Bearer ${accessToken}` } });
-        const data = await res.json();
+    let allItems: any[] = [];
+    let page = 1;
+    let hasMore = true;
 
-        (global as any).lastCostCentersRaw = JSON.stringify(data).substring(0, 1000);
+    while (hasMore && page <= 10) {
+        const url = `https://api-v2.contaazul.com/v1/centro-de-custo?pagina=${page}&tamanho_pagina=100`;
+        try {
+            const res = await fetch(url, { headers: { 'Authorization': `Bearer ${accessToken}` } });
+            const data = await res.json();
 
-        if (res.ok) {
-            // V39: Nova API usa 'itens' (com N)
-            const items = Array.isArray(data) ? data : (data.itens || data.items || data.centro_de_custos || data.centro_custo || []);
-            if (items.length > 0) return items;
-        } else {
-            console.warn(`CostCenters failed (${url}): Status ${res.status}`);
-            (global as any).lastApiError = `URL: ${url} | Status: ${res.status} | Body: ${JSON.stringify(data)}`;
+            if (res.ok) {
+                const items = Array.isArray(data) ? data : (data.itens || data.items || data.centro_de_custos || data.centro_custo || []);
+                if (items.length > 0) {
+                    allItems = [...allItems, ...items];
+                    if (items.length < 100) hasMore = false;
+                    else page++;
+                } else {
+                    hasMore = false;
+                }
+            } else {
+                hasMore = false;
+            }
+        } catch (e) {
+            hasMore = false;
         }
-    } catch (e) {
-        console.warn(`Error on ${url}:`, e);
     }
-    return [];
+
+    if (allItems.length > 0) {
+        (global as any).lastCostCentersRaw = JSON.stringify(allItems).substring(0, 1000);
+    }
+    return allItems;
 }
 
 // Removing fetchSales as the focus is on DRE structure (Categories/Cost Centers) for now

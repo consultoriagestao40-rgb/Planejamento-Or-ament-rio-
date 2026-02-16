@@ -237,17 +237,22 @@ async function fetchRealizedValues(accessToken: string): Promise<Record<string, 
     ];
 
     for (const range of ranges) {
+        // V46.7: The API requires data_vencimento_de even if filtering by payment date.
+        // We use a wide vencimento range to ensure we don't miss anything paid in the target period.
+        const vencStart = '2020-01-01';
+        const vencEnd = '2030-12-31';
+
         // 1. Fetch Receivables
         await aggregateTransactions(
             accessToken,
-            `https://api-v2.contaazul.com/v1/financeiro/eventos-financeiros/contas-a-receber/buscar?data_pagamento_de=${range.start}&data_pagamento_ate=${range.end}&tamanho_pagina=100`,
+            `https://api-v2.contaazul.com/v1/financeiro/eventos-financeiros/contas-a-receber/buscar?data_pagamento_de=${range.start}&data_pagamento_ate=${range.end}&data_vencimento_de=${vencStart}&data_vencimento_ate=${vencEnd}&tamanho_pagina=100`,
             values
         );
 
         // 2. Fetch Payables
         await aggregateTransactions(
             accessToken,
-            `https://api-v2.contaazul.com/v1/financeiro/eventos-financeiros/contas-a-pagar/buscar?data_pagamento_de=${range.start}&data_pagamento_ate=${range.end}&tamanho_pagina=100`,
+            `https://api-v2.contaazul.com/v1/financeiro/eventos-financeiros/contas-a-pagar/buscar?data_pagamento_de=${range.start}&data_pagamento_ate=${range.end}&data_vencimento_de=${vencStart}&data_vencimento_ate=${vencEnd}&tamanho_pagina=100`,
             values,
             true // isExpense
         );

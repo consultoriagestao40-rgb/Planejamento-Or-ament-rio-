@@ -171,8 +171,16 @@ export function BudgetGrid() {
     const budgetDRE = calculateTotals(categories, budgetValues);
     const realizedDRE = calculateTotals(categories, realizedValues);
 
-    const formatCurrency = (val: number) =>
-        new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val || 0);
+    React.useEffect(() => {
+        if (categories.length > 0 && expandedRows.size === 0) {
+            setExpandedRows(new Set(categories.map(c => c.id)));
+        }
+    }, [categories]);
+
+    const formatCurrency = (val: number | undefined) => {
+        if (typeof val !== 'number') return 'R$ 0,00';
+        return val.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+    };
 
     const renderDRELine = (label: string, budgetLine: number[], realizedLine: number[], isMain = false) => (
         <tr style={{ background: isMain ? '#e2e8f0' : '#f1f5f9', fontWeight: 'bold', borderTop: '1px solid #94a3b8' }}>

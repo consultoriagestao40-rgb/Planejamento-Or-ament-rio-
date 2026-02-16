@@ -144,7 +144,15 @@ export async function syncData() {
 
             const parentId = cat.categoria_pai || cat.parent_id || null;
             const typeValue = cat.tipo || cat.type || 'EXPENSE';
-            const entradaDre = cat.entrada_dre || cat.entry_dre || null;
+            let entradaDre = cat.entrada_dre || cat.entry_dre || null;
+
+            // V46.5: Inherit metadata from parent if missing (crucial for summing children)
+            if (!entradaDre && parentId) {
+                const parent = categories.find(c => c.id === parentId);
+                if (parent) {
+                    entradaDre = parent.entrada_dre || parent.entry_dre || null;
+                }
+            }
 
             await (prisma as any).category.upsert({
                 where: { id: catId },
@@ -185,10 +193,13 @@ export async function syncData() {
 
     // V45: Fetch Realized Values (Balances)
     let realizedValues: Record<string, number> = {};
+    const transactionLogs: string[] = [];
     try {
+        (global as any).lastTransactionLogs = transactionLogs; // Pass the array to be filled
         realizedValues = await fetchRealizedValues(accessToken);
     } catch (e: any) {
         console.warn("Could not fetch realized values:", e);
+        transactionLogs.push(`Fatal Error: ${e.message}`);
     }
 
     return {
@@ -201,7 +212,8 @@ export async function syncData() {
         discovery: {
             userInfo,
             grantedScopes,
-            fullPayload: fullTokenPayload
+            fullPayload: fullTokenPayload,
+            transactionLogs: (global as any).lastTransactionLogs || []
         },
         debug: {
             rawCategoriesResponse: (global as any).lastCategoriesRaw || 'none',
@@ -247,8 +259,9 @@ async function fetchRealizedValues(accessToken: string): Promise<Record<string, 
 async function aggregateTransactions(accessToken: string, baseUrl: string, targetValues: Record<string, number>, isExpense = false) {
     let page = 1;
     let hasMore = true;
+    const logs = (global as any).lastTransactionLogs || [];
 
-    while (hasMore && page <= 10) {
+    while (hasMore && page <= 20) {
         const url = `${baseUrl}&pagina=${page}`;
         try {
             const res = await fetch(url, { headers: { 'Authorization': `Bearer ${accessToken}` } });
@@ -256,12 +269,14 @@ async function aggregateTransactions(accessToken: string, baseUrl: string, targe
                 const errText = await res.text();
                 console.warn(`Transaction API failed (${res.status}): ${errText}`);
                 (global as any).lastApiError = `Transaction API ${res.status}: ${errText.substring(0, 200)}`;
+                logs.push(`FAILED ${url}: ${res.status} - ${errText.substring(0, 100)}`);
                 hasMore = false;
                 break;
             }
 
             const data = await res.json();
             const items = data.itens || [];
+            logs.push(`SUCCESS ${url}: Found ${items.length} items`);
 
             if (items.length === 0) { hasMore = false; break; }
 
@@ -273,10 +288,9 @@ async function aggregateTransactions(accessToken: string, baseUrl: string, targe
                 const monthIdx = dateObj.getMonth();
                 const year = dateObj.getFullYear();
 
-                // For V46.2: We map 2025 data to the grid if 2026 is early/empty,
-                // so the user sees that the integration works.
-                const currentYear = new Date().getFullYear();
-                if (year !== currentYear && year !== (currentYear - 1)) return;
+                // For V46.5: We allow 2024, 2025 and 2026 to be aggregated into the month slots
+                // This ensures that even if 2026 is empty, we see that the data flow works.
+                if (year < 2024 || year > 2026) return;
 
                 const amount = item.valor || item.total || 0;
                 const categories = item.categorias || [];
@@ -285,9 +299,8 @@ async function aggregateTransactions(accessToken: string, baseUrl: string, targe
                     const catId = catRef.id;
                     if (catId) {
                         const key = `${catId}-${monthIdx}`;
-                        // Even if multiple years match the month, we sum them for visual confirmation
-                        // that the "PIPE" is open.
-                        targetValues[key] = (targetValues[key] || 0) + amount;
+                        targetValues[key] = (targetValues[key] || 0) + (isExpense ? amount : amount);
+                        // Signs are handled in DRE math by BudgetGrid (abs subtraction)
                     }
                 });
             });
@@ -297,6 +310,7 @@ async function aggregateTransactions(accessToken: string, baseUrl: string, targe
         } catch (e: any) {
             console.error("Aggregation crash:", e);
             (global as any).lastApiError = `Aggregation Crash: ${e.message}`;
+            logs.push(`CRASH ${url}: ${e.message}`);
             hasMore = false;
         }
     }

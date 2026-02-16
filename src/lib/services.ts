@@ -331,8 +331,9 @@ async function aggregateTransactions(accessToken: string, baseUrl: string, targe
                 const monthIdx = dateObj.getMonth();
                 const year = dateObj.getFullYear();
 
-                // Still filter by year for sanity, but we widened this in V46.5
-                if (year < 2024 || year > 2026) return;
+                // BUGFIX: We were summing 2024+2025+2026 into the same bucket!
+                // We must ONLY sum for the CURRENT YEAR for the DRE view.
+                if (year !== new Date().getFullYear()) return;
 
                 const categories = item.categorias || [];
 

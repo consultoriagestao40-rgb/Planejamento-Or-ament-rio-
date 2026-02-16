@@ -414,7 +414,7 @@ export default function BudgetGrid({ refreshKey = 0 }: BudgetGridProps) {
             </div>
 
             <p style={{ color: 'red', fontWeight: 'bold', fontSize: '1.2em' }}>
-                Build Version: v47.9.2 - DETACH & EXCLUDE 1.1.1 🧬✂️
+                Build Version: v47.9.3 - YEAR FIX & STRICT 2026 📅🦁
             </p>
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8rem' }}>
                 <thead>

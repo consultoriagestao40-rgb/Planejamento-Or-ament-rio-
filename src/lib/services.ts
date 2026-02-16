@@ -179,6 +179,8 @@ async function fetchCategories(accessToken: string) {
                 const data = await res.json();
                 const items = Array.isArray(data) ? data : (data.items || data.categorias || []);
                 if (items.length > 0) return items;
+            } else {
+                console.warn(`Categories failed (${url}): Status ${res.status}`);
             }
         } catch (e) {
             console.warn(`Error on ${url}:`, e);
@@ -201,6 +203,8 @@ async function fetchCostCenters(accessToken: string) {
                 const data = await res.json();
                 const items = Array.isArray(data) ? data : (data.items || data.cost_centers || []);
                 if (items.length > 0) return items;
+            } else {
+                console.warn(`CostCenters failed (${url}): Status ${res.status}`);
             }
         } catch (e) { }
     }

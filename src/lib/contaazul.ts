@@ -5,10 +5,10 @@ interface ContaAzulTokenResponse {
     expires_in: number;
 }
 
-// V29: Retornando para o sistema LEGADO (V1) da Conta Azul.
-// O sistema novo (Cognito) está restringindo o acesso apenas à identidade.
-const CA_AUTH_URL = 'https://app.contaazul.com/auth/authorize';
-const CA_TOKEN_URL = 'https://app.contaazul.com/oauth2/token';
+// V32: Revertendo para as URLs que funcionam (sem dar 404).
+// O foco agora é o login com CONTA REAL, ignorando o e-mail de teste.
+const CA_AUTH_URL = 'https://auth.contaazul.com/login';
+const CA_TOKEN_URL = 'https://auth.contaazul.com/oauth2/token';
 
 export const getAuthUrl = (state: string) => {
     // Configuração Hardcoded (Prioridade sobre Env Vars para evitar conflitos na Vercel)
@@ -19,10 +19,8 @@ export const getAuthUrl = (state: string) => {
     const baseUrl = isDev ? 'http://127.0.0.1:3000' : 'https://planejamento-or-ament-rio.vercel.app';
     const redirectUri = `${baseUrl}/api/auth/callback`;
 
-    // Scopes Clássicos do V1 que dão acesso ao Financeiro real.
-    const scope = 'sales financeiro';
-
-    return `${CA_AUTH_URL}?client_id=${encodeURIComponent(clientId)}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=${encodeURIComponent(scope)}&state=${encodeURIComponent(state)}&response_type=code`;
+    // V32: Sem scope na URL (como no exemplo do portal para esse Client ID)
+    return `${CA_AUTH_URL}?client_id=${encodeURIComponent(clientId)}&redirect_uri=${encodeURIComponent(redirectUri)}&state=${encodeURIComponent(state)}&response_type=code`;
 };
 
 export const exchangeCodeForToken = async (code: string): Promise<ContaAzulTokenResponse> => {

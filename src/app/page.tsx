@@ -129,13 +129,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ c
           </li>
           <li>DB_URL: {process.env.POSTGRES_PRISMA_URL ? '✅' : '❌'}</li>
         </ul>
-        <TestDbButton />
-
-        <div style={{ marginTop: '1rem' }}>
-          <a href="/api/auth/callback?code=TEST_MANUAL" target="_blank" style={{ color: '#666', textDecoration: 'underline' }}>
-            🔗 Testar Rota de Callback (Direct Link)
-          </a>
-        </div>
+        {/* Botões de Teste removidos na V37.1 para evitar confusão */}
       </div>
     </main>
   )

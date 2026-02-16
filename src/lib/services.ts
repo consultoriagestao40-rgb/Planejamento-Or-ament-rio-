@@ -119,11 +119,14 @@ export async function syncData() {
     // Persist Cost Centers with individual try/catch
     for (const cc of costCenters) {
         try {
-            if (!cc.id || !cc.name) continue;
+            const ccId = cc.id;
+            const ccName = cc.nome || cc.name;
+            if (!ccId || !ccName) continue;
+
             await (prisma as any).costCenter.upsert({
-                where: { id: cc.id },
-                create: { id: cc.id, name: cc.name, tenantId: tenant.id },
-                update: { name: cc.name }
+                where: { id: ccId },
+                create: { id: ccId, name: ccName, tenantId: tenant.id },
+                update: { name: ccName }
             });
             report.costCentersSuccess++;
         } catch (e: any) {
@@ -135,20 +138,26 @@ export async function syncData() {
     // Persist Categories with individual try/catch
     for (const cat of categories) {
         try {
-            if (!cat.id || !cat.name) continue;
+            const catId = cat.id;
+            const catName = cat.nome || cat.name;
+            if (!catId || !catName) continue;
+
+            const parentId = cat.categoria_pai || cat.parent_id || null;
+            const typeValue = cat.tipo || cat.type || 'EXPENSE';
+
             await (prisma as any).category.upsert({
-                where: { id: cat.id },
+                where: { id: catId },
                 create: {
-                    id: cat.id,
-                    name: cat.name,
+                    id: catId,
+                    name: catName,
                     tenantId: tenant.id,
-                    parentId: cat.parent_id || null,
-                    type: cat.type || 'EXPENSE'
+                    parentId: parentId,
+                    type: typeValue
                 },
                 update: {
-                    name: cat.name,
-                    parentId: cat.parent_id || null,
-                    type: cat.type || 'EXPENSE'
+                    name: catName,
+                    parentId: parentId,
+                    type: typeValue
                 }
             });
             report.categoriesSuccess++;

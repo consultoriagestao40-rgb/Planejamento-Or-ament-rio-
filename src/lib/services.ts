@@ -123,6 +123,11 @@ export async function syncData() {
         timestamp: new Date().toISOString(),
         categoriesCount: categories.length,
         costCentersCount: costCenters.length,
+        debug: {
+            firstCategoryName: categories[0]?.name || 'none',
+            rawCategoriesSample: JSON.stringify(categories).substring(0, 300),
+            rawCostCentersSample: JSON.stringify(costCenters).substring(0, 300)
+        }
     };
 }
 

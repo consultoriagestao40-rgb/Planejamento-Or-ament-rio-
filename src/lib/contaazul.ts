@@ -23,8 +23,8 @@ export const getAuthUrl = (state: string) => {
     const baseUrl = isDev ? 'http://127.0.0.1:3000' : 'https://planejamento-or-ament-rio.vercel.app';
     const redirectUri = `${baseUrl}/api/auth/callback`;
 
-    // V20: Re-adicionando scopes para garantir permissão ao Financeiro
-    const scope = 'sales finance openid';
+    // V23: Expandindo scopes ao máximo para cobrir todas as possibilidades do Financeiro
+    const scope = 'sales finance accounting expense openid profile';
 
     return `${CA_AUTH_URL}?client_id=${encodeURIComponent(clientId)}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=${encodeURIComponent(scope)}&state=${encodeURIComponent(state)}&response_type=code`;
 };

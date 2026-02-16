@@ -119,14 +119,27 @@ export async function syncData() {
         }
     }
 
+    // Help debug: Try to decode token to see scopes (Conta Azul tokens are often JWT)
+    let grantedScopes = 'unknown';
+    try {
+        const payload = accessToken.split('.')[1];
+        if (payload) {
+            const decoded = JSON.parse(Buffer.from(payload, 'base64').toString());
+            grantedScopes = decoded.scope || decoded.authorities || 'none found in JWT';
+        }
+    } catch (e) {
+        grantedScopes = 'base64 decode failed (maybe not a JWT)';
+    }
+
     return {
         timestamp: new Date().toISOString(),
         categoriesCount: categories.length,
         costCentersCount: costCenters.length,
         debug: {
+            grantedScopes,
             firstCategoryName: categories[0]?.name || 'none',
-            rawCategoriesSample: JSON.stringify(categories).substring(0, 300),
-            rawCostCentersSample: JSON.stringify(costCenters).substring(0, 300)
+            rawCategoriesSample: JSON.stringify(categories).substring(0, 500),
+            rawCostCentersSample: JSON.stringify(costCenters).substring(0, 500)
         }
     };
 }

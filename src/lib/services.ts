@@ -65,10 +65,27 @@ export async function syncData() {
     if (!tenant) throw new Error("Tenant not found");
 
     // Fetch in parallel for performance
+    let syncError: string | null = null;
     const [categories, costCenters] = await Promise.all([
-        fetchCategories(accessToken).catch(e => { console.error("Error fetching categories:", e); return []; }),
-        fetchCostCenters(accessToken).catch(e => { console.error("Error fetching cost centers:", e); return []; }),
+        fetchCategories(accessToken).catch(e => {
+            console.error("Error fetching categories:", e);
+            syncError = `Categories: ${e.message}`;
+            return [];
+        }),
+        fetchCostCenters(accessToken).catch(e => {
+            console.error("Error fetching cost centers:", e);
+            return [];
+        }),
     ]);
+
+    if (syncError && categories.length === 0) {
+        return {
+            timestamp: new Date().toISOString(),
+            error: syncError,
+            categoriesCount: 0,
+            costCentersCount: 0
+        };
+    }
 
     // Persist Cost Centers
     if (costCenters.length > 0) {
@@ -110,25 +127,45 @@ export async function syncData() {
 }
 
 async function fetchCategories(accessToken: string) {
-    // API de Financeiro V1 - Categorias
+    // Tentativa 1: /v1/categorias (Mais provável conforme documentação)
+    console.log("Fetching categories from /v1/categorias...");
     const res = await fetch('https://api.contaazul.com/v1/categorias', {
         headers: { 'Authorization': `Bearer ${accessToken}` }
     });
 
+    if (res.status === 404) {
+        console.warn("Categories /v1/categorias not found, trying /v1/categories...");
+        const res2 = await fetch('https://api.contaazul.com/v1/categories', {
+            headers: { 'Authorization': `Bearer ${accessToken}` }
+        });
+        if (!res2.ok) throw new Error(`Categories API failed (404 on both): ${res2.status}`);
+        return res2.json();
+    }
+
     if (!res.ok) {
-        throw new Error(`Failed to fetch categories: ${res.statusText}`);
+        const text = await res.text();
+        throw new Error(`Failed to fetch categories: ${res.status} ${text.substring(0, 100)}`);
     }
     return res.json();
 }
 
 async function fetchCostCenters(accessToken: string) {
-    // API de Financeiro V1 - Centros de Custo
+    // Tentativa 1: /v1/centro-de-custo
+    console.log("Fetching cost centers from /v1/centro-de-custo...");
     const res = await fetch('https://api.contaazul.com/v1/centro-de-custo', {
         headers: { 'Authorization': `Bearer ${accessToken}` }
     });
-    if (!res.ok) {
-        throw new Error(`Failed to fetch cost centers: ${res.statusText}`);
+
+    if (res.status === 404) {
+        console.warn("Cost centers /v1/centro-de-custo not found, trying /v1/cost-centers...");
+        const res2 = await fetch('https://api.contaazul.com/v1/cost-centers', {
+            headers: { 'Authorization': `Bearer ${accessToken}` }
+        });
+        if (!res2.ok) return []; // Fallback for CC as it's often optional
+        return res2.json();
     }
+
+    if (!res.ok) return [];
     return res.json();
 }
 

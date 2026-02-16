@@ -202,7 +202,8 @@ async function fetchCategories(accessToken: string) {
         (global as any).lastCategoriesRaw = JSON.stringify(data).substring(0, 1000);
 
         if (res.ok) {
-            const items = Array.isArray(data) ? data : (data.items || data.categorias || []);
+            // V39: Nova API usa 'itens' (com N)
+            const items = Array.isArray(data) ? data : (data.itens || data.items || data.categorias || []);
             if (items.length > 0) return items;
         } else {
             console.warn(`Categories failed (${url}): Status ${res.status}`);
@@ -223,7 +224,8 @@ async function fetchCostCenters(accessToken: string) {
         (global as any).lastCostCentersRaw = JSON.stringify(data).substring(0, 1000);
 
         if (res.ok) {
-            const items = Array.isArray(data) ? data : (data.items || data.centro_de_custos || data.centro_custo || []);
+            // V39: Nova API usa 'itens' (com N)
+            const items = Array.isArray(data) ? data : (data.itens || data.items || data.centro_de_custos || data.centro_custo || []);
             if (items.length > 0) return items;
         } else {
             console.warn(`CostCenters failed (${url}): Status ${res.status}`);

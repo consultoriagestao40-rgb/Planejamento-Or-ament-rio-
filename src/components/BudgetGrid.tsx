@@ -139,17 +139,15 @@ export function BudgetGrid() {
     };
 
     // DRE Logic and Calculations
-    const calculateDRE = (visibleCats: any[], values: Record<string, number>, isBudget: boolean) => {
-        const results: Record<string, number[]> = {}; // section -> months[12]
-
+    const calculateTotals = (list: any[], values: Record<string, number>) => {
         const getVal = (catId: string, month: number) => values[`${catId}-${month}`] || 0;
 
         const sumBySection = (section: string) => {
-            const sectionTotal = new Array(12).fill(0);
-            visibleCats.filter(c => c.entradaDre === section).forEach(c => {
-                for (let i = 0; i < 12; i++) sectionTotal[i] += getVal(c.id, i);
+            const totals = new Array(12).fill(0);
+            list.filter(c => c.entradaDre === section).forEach(c => {
+                for (let i = 0; i < 12; i++) totals[i] += getVal(c.id, i);
             });
-            return sectionTotal;
+            return totals;
         };
 
         const rBruta = sumBySection('RECEITAS');
@@ -157,110 +155,216 @@ export function BudgetGrid() {
         const rLiquida = rBruta.map((v, i) => v - Math.abs(tributos[i]));
         const custos = sumBySection('CUSTOS');
         const mBruta = rLiquida.map((v, i) => v - Math.abs(custos[i]));
-        const dOperacionais = sumBySection('DESPESAS_COMERCIAIS'); // Simplification for DRE sections
-        const mContrib = mBruta.map((v, i) => v - Math.abs(dOperacionais[i]));
+        const dComerciais = sumBySection('DESPESAS_COMERCIAIS');
+        const mContrib = mBruta.map((v, i) => v - Math.abs(dComerciais[i]));
         const dAdmins = sumBySection('DESPESAS_ADMINISTRATIVAS');
         const ebitda = mContrib.map((v, i) => v - Math.abs(dAdmins[i]));
         const dFinanc = sumBySection('DESPESSAS_FINANCEIRAS');
-        const lLiquido = ebitda.map((v, i) => v - Math.abs(dFinanc[i]));
+        const oReceitas = sumBySection('OUTRAS_RECEITAS_NAO_OPERACIONAIS');
+        const oDespesas = sumBySection('OUTRAS_DESPESAS_NAO_OPERACIONAIS');
+        const lLiquido = ebitda.map((v, i) => v - Math.abs(dFinanc[i]) + oReceitas[i] - Math.abs(oDespesas[i]));
 
-        return { rBruta, tributos, rLiquida, custos, mBruta, dOperacionais, mContrib, dAdmins, ebitda, dFinanc, lLiquido };
+        return { rBruta, tributos, rLiquida, custos, mBruta, dComerciais, mContrib, dAdmins, ebitda, dFinanc, oReceitas, oDespesas, lLiquido };
     };
 
-    const budgetDRE = calculateDRE(categories, budgetValues, true);
-    const realizedDRE = calculateDRE(categories, realizedValues, false);
+    const budgetDRE = calculateTotals(categories, budgetValues);
+    const realizedDRE = calculateTotals(categories, realizedValues);
 
     const formatCurrency = (val: number) =>
         new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val || 0);
 
+    const renderDRELine = (label: string, budgetLine: number[], realizedLine: number[], isMain = false) => (
+        <tr style={{ background: isMain ? '#e2e8f0' : '#f1f5f9', fontWeight: 'bold', borderTop: '1px solid #94a3b8' }}>
+            <td style={{ padding: '0.75rem', position: 'sticky', left: 0, background: isMain ? '#e2e8f0' : '#f1f5f9', zIndex: 10 }}>{label}</td>
+            {MONTHS.map((_, i) => (
+                <React.Fragment key={i}>
+                    <td style={{ textAlign: 'right', padding: '0.75rem' }}>{formatCurrency(budgetLine[i])}</td>
+                    <td style={{ textAlign: 'right', padding: '0.75rem', color: isMain ? 'blue' : 'inherit' }}>{formatCurrency(realizedLine[i])}</td>
+                </React.Fragment>
+            ))}
+        </tr>
+    );
+
+    const renderCategoryRows = (parentId: string | null = null, level = 1) => {
+        const children = categories.filter(c => c.parentId === parentId);
+        return children.flatMap(cat => {
+            const hasChildren = categories.some(c => c.parentId === cat.id);
+            const isVisible = !cat.parentId || (expandedRows.has(cat.parentId) && (level <= 2 || expandedRows.has(cat.parentId)));
+            // Simplified visibility: root and 1st level children usually visible or based on expanded
+
+            if (!isVisible) return [];
+
+            const row = (
+                <tr key={cat.id} style={{ borderBottom: '1px solid #f0f0f0' }}>
+                    <td style={{
+                        padding: '0.5rem',
+                        paddingLeft: `${level * 1}rem`,
+                        position: 'sticky',
+                        left: 0,
+                        background: 'white',
+                        zIndex: 5,
+                        fontWeight: hasChildren ? 600 : 400
+                    }}>
+                        {hasChildren && (
+                            <button
+                                onClick={() => toggleRow(cat.id)}
+                                style={{ marginRight: '0.4rem', border: 'none', background: 'none', cursor: 'pointer', fontSize: '0.7rem' }}
+                            >
+                                {expandedRows.has(cat.id) ? '▼' : '▶'}
+                            </button>
+                        )}
+                        {cat.name}
+                    </td>
+                    {MONTHS.map((_, i) => (
+                        <React.Fragment key={i}>
+                            <td style={{ borderLeft: '1px solid #f0f0f0', padding: '0' }}>
+                                <input
+                                    type="text"
+                                    placeholder="0,00"
+                                    onBlur={(e) => handleBudgetChange(cat.id, i, e.target.value)}
+                                    defaultValue={budgetValues[`${cat.id}-${i}`] ? budgetValues[`${cat.id}-${i}`].toFixed(2) : ''}
+                                    style={{ width: '100%', padding: '0.5rem', border: 'none', textAlign: 'right', background: 'transparent' }}
+                                />
+                            </td>
+                            <td style={{ textAlign: 'right', padding: '0.5rem', color: '#666' }}>
+                                {formatCurrency(realizedValues[`${cat.id}-${i}`])}
+                            </td>
+                        </React.Fragment>
+                    ))}
+                </tr>
+            );
+
+            return [row, ...(expandedRows.has(cat.id) ? renderCategoryRows(cat.id, level + 1) : [])];
+        });
+    };
+
+    const renderCategoriesForSection = (section: string, parentId: string | null = null, level = 1): JSX.Element[] => {
+        return categories
+            .filter(c => c.entradaDre === section && c.parentId === parentId)
+            .flatMap(cat => {
+                const hasChildren = categories.some(c => c.parentId === cat.id);
+                const row = (
+                    <tr key={cat.id} style={{ borderBottom: '1px solid #f0f0f0' }}>
+                        <td style={{
+                            padding: '0.5rem',
+                            paddingLeft: `${level * 1}rem`,
+                            position: 'sticky',
+                            left: 0,
+                            background: 'white',
+                            zIndex: 5,
+                            fontWeight: hasChildren ? 600 : 400
+                        }}>
+                            {hasChildren && (
+                                <button
+                                    onClick={() => toggleRow(cat.id)}
+                                    style={{ marginRight: '0.4rem', border: 'none', background: 'none', cursor: 'pointer', fontSize: '0.7rem' }}
+                                >
+                                    {expandedRows.has(cat.id) ? '▼' : '▶'}
+                                </button>
+                            )}
+                            {cat.name}
+                        </td>
+                        {MONTHS.map((_, i) => (
+                            <React.Fragment key={i}>
+                                <td style={{ borderLeft: '1px solid #f0f0f0', padding: '0' }}>
+                                    <input
+                                        type="text"
+                                        placeholder="0,00"
+                                        onBlur={(e) => handleBudgetChange(cat.id, i, e.target.value)}
+                                        defaultValue={budgetValues[`${cat.id}-${i}`] ? budgetValues[`${cat.id}-${i}`].toFixed(2) : ''}
+                                        style={{ width: '100%', padding: '0.5rem', border: 'none', textAlign: 'right', background: 'transparent' }}
+                                    />
+                                </td>
+                                <td style={{ textAlign: 'right', padding: '0.5rem', color: '#666' }}>
+                                    {formatCurrency(realizedValues[`${cat.id}-${i}`])}
+                                </td>
+                            </React.Fragment>
+                        ))}
+                    </tr>
+                );
+                return [row, ...(expandedRows.has(cat.id) ? renderCategoriesForSection(section, cat.id, level + 1) : [])];
+            });
+    };
+
+
     return (
-        <div style={{ overflowX: 'auto', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '1rem' }}>
-            {/* Headers and Selectors as before */}
-            <div style={{ marginBottom: '1rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                    <label style={{ fontWeight: 500 }}>Centro de Custo:</label>
+        <div style={{ overflowX: 'auto', border: '1px solid #e2e8f0', borderRadius: '8px', padding: '1rem', background: 'white' }}>
+            <div style={{ marginBottom: '1.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                    <label style={{ fontWeight: 600 }}>Centro de Custo:</label>
                     <select
                         value={selectedCostCenter}
                         onChange={(e) => setSelectedCostCenter(e.target.value)}
-                        style={{ padding: '0.5rem', borderRadius: 'var(--radius)', border: '1px solid var(--border)', minWidth: '200px' }}
+                        style={{ padding: '0.5rem', borderRadius: '4px', border: '1px solid #cbd5e1' }}
                     >
                         {costCenters.map(cc => <option key={cc.id} value={cc.id}>{cc.name}</option>)}
                     </select>
                 </div>
+                {categories.length > 0 && (
+                    <div style={{ fontSize: '0.75rem', color: '#059669', fontWeight: 600 }}>
+                        ● {categories.length} Categorias Importadas
+                    </div>
+                )}
             </div>
 
-            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.875rem' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8rem' }}>
                 <thead>
-                    <tr style={{ background: 'hsl(var(--muted))' }}>
-                        <th style={{ padding: '0.75rem', textAlign: 'left', minWidth: '250px', position: 'sticky', left: 0, background: 'hsl(var(--muted))', zIndex: 10 }}>Categoria</th>
-                        {MONTHS.map((month) => (
-                            <th key={month} colSpan={2} style={{ padding: '0.5rem', textAlign: 'center', borderLeft: '1px solid var(--border)' }}>{month}</th>
+                    <tr style={{ background: '#f8fafc', borderBottom: '2px solid #cbd5e1' }}>
+                        <th style={{ padding: '1rem', textAlign: 'left', minWidth: '300px', position: 'sticky', left: 0, background: '#f8fafc', zIndex: 20 }}>Categorias Financeiras</th>
+                        {MONTHS.map((m) => (
+                            <th key={m} colSpan={2} style={{ textAlign: 'center', padding: '0.5rem', borderLeft: '1px solid #cbd5e1' }}>{m}</th>
+                        ))}
+                    </tr>
+                    <tr style={{ background: '#f8fafc', borderBottom: '1px solid #cbd5e1' }}>
+                        <th style={{ position: 'sticky', left: 0, background: '#f8fafc', zIndex: 20 }}></th>
+                        {MONTHS.map((_, i) => (
+                            <React.Fragment key={i}>
+                                <th style={{ padding: '0.3rem', fontSize: '0.7rem', color: '#64748b', borderLeft: '1px solid #e2e8f0' }}>Orçado</th>
+                                <th style={{ padding: '0.3rem', fontSize: '0.7rem', color: '#64748b' }}>Realizado</th>
+                            </React.Fragment>
                         ))}
                     </tr>
                 </thead>
                 <tbody>
-                    {/* 01T RECEITA BRUTA */}
-                    <tr style={{ background: '#f8fafc', fontWeight: 'bold', borderBottom: '2px solid var(--border)' }}>
-                        <td style={{ padding: '0.75rem', position: 'sticky', left: 0, background: '#f8fafc', zIndex: 5 }}>01T Receita Bruta</td>
-                        {MONTHS.map((_, i) => (
-                            <React.Fragment key={i}>
-                                <td style={{ textAlign: 'right', padding: '0.75rem' }}>{formatCurrency(budgetDRE.rBruta[i])}</td>
-                                <td style={{ textAlign: 'right', padding: '0.75rem', color: 'blue' }}>{formatCurrency(budgetDRE.rBruta[i])}</td>
-                            </React.Fragment>
-                        ))}
-                    </tr>
+                    {/* Dynamic DRE Structure */}
+                    {renderDRELine('01T Receita Bruta', budgetDRE.rBruta, realizedDRE.rBruta)}
+                    {renderCategoriesForSection('RECEITAS')}
 
-                    {/* DEDUCOES SECTION */}
-                    {displayCategories.filter(c => c.entradaDre === 'DEDUCOES').map(cat => (
-                        <tr key={cat.id} style={{ borderBottom: '1px solid var(--border)' }}>
-                            <td style={{ paddingLeft: '1.5rem', padding: '0.5rem', position: 'sticky', left: 0, background: 'white' }}>{cat.name}</td>
-                            {MONTHS.map((_, i) => (
-                                <React.Fragment key={i}>
-                                    <td style={{ textAlign: 'right' }}>{formatCurrency(budgetValues[`${cat.id}-${i}`])}</td>
-                                    <td style={{ textAlign: 'right' }}>{formatCurrency(realizedValues[`${cat.id}-${i}`])}</td>
-                                </React.Fragment>
-                            ))}
-                        </tr>
-                    ))}
+                    {renderDRELine('02 2 - Tributo Sobre Faturamento', budgetDRE.tributos, realizedDRE.tributos)}
+                    {renderCategoriesForSection('DEDUCOES')}
 
-                    {/* 02T RECEITA LIQUIDA */}
-                    <tr style={{ background: '#f1f5f9', fontWeight: 'bold' }}>
-                        <td style={{ padding: '0.75rem', position: 'sticky', left: 0, background: '#f1f5f9' }}>02T 3 - Receita Líquida</td>
-                        {MONTHS.map((_, i) => (
-                            <React.Fragment key={i}>
-                                <td style={{ textAlign: 'right' }}>{formatCurrency(budgetDRE.rLiquida[i])}</td>
-                                <td style={{ textAlign: 'right' }}>{formatCurrency(realizedDRE.rLiquida[i])}</td>
-                            </React.Fragment>
-                        ))}
-                    </tr>
+                    {renderDRELine('02T 3 - Receita Líquida', budgetDRE.rLiquida, realizedDRE.rLiquida, true)}
 
-                    {/* CUSTOS SECTION */}
-                    {displayCategories.filter(c => c.entradaDre === 'CUSTOS').map(cat => (
-                        <tr key={cat.id}>
-                            <td style={{ paddingLeft: '1.5rem', padding: '0.5rem', position: 'sticky', left: 0, background: 'white' }}>{cat.name}</td>
-                            {MONTHS.map((_, i) => (
-                                <React.Fragment key={i}>
-                                    <td style={{ textAlign: 'right' }}>{formatCurrency(budgetValues[`${cat.id}-${i}`])}</td>
-                                    <td style={{ textAlign: 'right' }}>{formatCurrency(realizedValues[`${cat.id}-${i}`])}</td>
-                                </React.Fragment>
-                            ))}
-                        </tr>
-                    ))}
+                    {renderDRELine('03 4 - Custos Operacionais', budgetDRE.custos, realizedDRE.custos)}
+                    {renderCategoriesForSection('CUSTOS')}
 
-                    <tr style={{ background: '#f1f5f9', fontWeight: 'bold' }}>
-                        <td style={{ padding: '0.75rem', position: 'sticky', left: 0, background: '#f1f5f9' }}>03T 5 - Margem Bruta</td>
-                        {MONTHS.map((_, i) => (
-                            <React.Fragment key={i}>
-                                <td style={{ textAlign: 'right' }}>{formatCurrency(budgetDRE.mBruta[i])}</td>
-                                <td style={{ textAlign: 'right' }}>{formatCurrency(realizedDRE.mBruta[i])}</td>
-                            </React.Fragment>
-                        ))}
-                    </tr>
+                    {renderDRELine('03T 5 - Margem Bruta', budgetDRE.mBruta, realizedDRE.mBruta, true)}
 
-                    {/* And so on for other sections... Simplified for the prompt response */}
+                    {renderDRELine('04 6 - Despesa Comercial', budgetDRE.dComerciais, realizedDRE.dComerciais)}
+                    {renderCategoriesForSection('DESPESAS_COMERCIAIS')}
+
+                    {renderDRELine('04T 7 - Margem de Contribuição', budgetDRE.mContrib, realizedDRE.mContrib, true)}
+
+                    {renderDRELine('05 8 - Despesa Administrativa', budgetDRE.dAdmins, realizedDRE.dAdmins)}
+                    {renderCategoriesForSection('DESPESAS_ADMINISTRATIVAS')}
+
+                    {renderDRELine('05T 9 - EBITDA', budgetDRE.ebitda, realizedDRE.ebitda, true)}
+
+                    {renderDRELine('06 10 - Despesa Financeira', budgetDRE.dFinanc, realizedDRE.dFinanc)}
+                    {renderCategoriesForSection('DESPESSAS_FINANCEIRAS')}
+
+                    {renderDRELine('07 - Outras Receitas Não Operacionais', budgetDRE.oReceitas, realizedDRE.oReceitas)}
+                    {renderCategoriesForSection('OUTRAS_RECEITAS_NAO_OPERACIONAIS')}
+
+                    {renderDRELine('08 - Outras Despesas Não Operacionais', budgetDRE.oDespesas, realizedDRE.oDespesas)}
+                    {renderCategoriesForSection('OUTRAS_DESPESAS_NAO_OPERACIONAIS')}
+
+                    {renderDRELine('06T 11 - Lucro Líquido', budgetDRE.lLiquido, realizedDRE.lLiquido, true)}
                 </tbody>
             </table>
-            {loading && <div style={{ textAlign: 'center', padding: '1rem' }}>Sincronizando...</div>}
+
+            {loading && <div style={{ padding: '3rem', textAlign: 'center', color: '#64748b' }}>Sincronizando dados com Conta Azul...</div>}
+            {error && <div style={{ padding: '1rem', color: '#dc2626', background: '#fef2f2', marginTop: '1rem', borderRadius: '4px' }}>{error}</div>}
         </div>
     );
 }

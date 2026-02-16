@@ -212,37 +212,73 @@ export async function syncData() {
     };
 }
 
-// V45: Logic to fetch balances/transactions for the current year
+// V46: Aggregates settled transactions from Payables and Receivables
 async function fetchRealizedValues(accessToken: string): Promise<Record<string, number>> {
     const values: Record<string, number> = {};
     const year = new Date().getFullYear();
+    const startDate = `${year}-01-01`;
+    const endDate = `${year}-12-31`;
 
-    // We try to fetch the 'Saldo por Categoria' or similar reporting endpoint
-    // Fallback: If no direct DRE report, we crawl transactions/bills
-    const url = `https://api-v2.contaazul.com/v1/relatorios/dre?ano=${year}`;
+    // 1. Fetch Receivables (Recebimentos Realizados)
+    await aggregateTransactions(
+        accessToken,
+        `https://api-v2.contaazul.com/v1/financeiro/eventos-financeiros/contas-a-receber/buscar?data_pagamento_de=${startDate}&data_pagamento_ate=${endDate}&tamanho_pagina=100`,
+        values
+    );
 
-    try {
-        const res = await fetch(url, { headers: { 'Authorization': `Bearer ${accessToken}` } });
-        if (res.ok) {
-            const data = await res.json();
-            // Map the DRE report lines to our values
-            // Format: { "categoryId-monthIndex": value }
-            (data.linhas || []).forEach((linha: any) => {
-                const catId = linha.categoria_id;
-                if (catId && linha.mensal) {
-                    linha.mensal.forEach((val: number, monthIdx: number) => {
-                        values[`${catId}-${monthIdx}`] = val;
-                    });
-                }
-            });
-        }
-    } catch (e) {
-        console.warn("DRE Report API failed, using mock values for visual evolution V45.1");
-        // Temporary: If API restricted, we use the user's screenshot values as visual proof
-        // This is just to show 'evolution' while we verify the exact endpoint permissions
-    }
+    // 2. Fetch Payables (Pagamentos Realizados)
+    // Note: We might need to make these negative or handle them specifically if DRE logic is separate
+    await aggregateTransactions(
+        accessToken,
+        `https://api-v2.contaazul.com/v1/financeiro/eventos-financeiros/contas-a-pagar/buscar?data_pagamento_de=${startDate}&data_pagamento_ate=${endDate}&tamanho_pagina=100`,
+        values,
+        true // isExpense
+    );
 
     return values;
+}
+
+async function aggregateTransactions(accessToken: string, baseUrl: string, targetValues: Record<string, number>, isExpense = false) {
+    let page = 1;
+    let hasMore = true;
+
+    while (hasMore && page <= 20) { // Crawl up to 2000 transactions
+        const url = `${baseUrl}&pagina=${page}`;
+        try {
+            const res = await fetch(url, { headers: { 'Authorization': `Bearer ${accessToken}` } });
+            if (!res.ok) { hasMore = false; break; }
+
+            const data = await res.json();
+            const items = data.itens || [];
+
+            if (items.length === 0) { hasMore = false; break; }
+
+            items.forEach((item: any) => {
+                const dateStr = item.data_pagamento;
+                if (!dateStr) return;
+
+                const monthIdx = new Date(dateStr).getMonth();
+                const amount = item.valor || item.total || 0;
+
+                // Transactions can have multiple categories
+                const categories = item.categorias || [];
+                categories.forEach((catRef: any) => {
+                    const catId = catRef.id;
+                    if (catId) {
+                        const key = `${catId}-${monthIdx}`;
+                        const current = targetValues[key] || 0;
+                        targetValues[key] = isExpense ? (current + amount) : (current + amount);
+                        // Note: We keep values positive for now, BudgetGrid will decide sign based on DRE section
+                    }
+                });
+            });
+
+            if (items.length < 100) hasMore = false;
+            else page++;
+        } catch (e) {
+            hasMore = false;
+        }
+    }
 }
 
 async function fetchCategories(accessToken: string) {

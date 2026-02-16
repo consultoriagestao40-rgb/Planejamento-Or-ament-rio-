@@ -31,12 +31,29 @@ export function BudgetGrid() {
                 const syncData = await syncRes.json();
 
                 if (setupData.success) {
-                    setCategories(setupData.categories);
+                    // V47.2: Nuclear Mapping Pass (Frontend Sanity)
+                    const enrichedCategories = setupData.categories.map((cat: any) => {
+                        let ed = cat.entradaDre;
+                        if (!ed) {
+                            const n = (cat.name || '').toUpperCase();
+                            if (n.startsWith('1') || n.includes('RECEITA')) ed = 'RECEITAS';
+                            else if (n.startsWith('2') || n.includes('TRIBUTO') || n.includes('IMPOSTO')) ed = 'DEDUCOES';
+                            else if (n.startsWith('3') || n.includes('CUSTO')) ed = 'CUSTOS';
+                            else if (n.startsWith('4') || n.includes('COMERCIAL')) ed = 'DESPESAS_COMERCIAIS';
+                            else if (n.startsWith('5') || n.includes('ADMINISTRA')) ed = 'DESPESAS_ADMINISTRATIVAS';
+                            else if (n.startsWith('6') || n.includes('FINANCEIRA')) ed = 'DESPESSAS_FINANCEIRAS';
+                            else if (n.startsWith('7')) ed = 'OUTRAS_RECEITAS_NAO_OPERACIONAIS';
+                            else if (n.startsWith('8')) ed = 'OUTRAS_DESPESAS_NAO_OPERACIONAIS';
+                        }
+                        return { ...cat, entradaDre: ed };
+                    });
+
+                    setCategories(enrichedCategories);
                     if (setupData.costCenters.length > 0) {
                         setCostCenters([...MOCK_COST_CENTERS.filter(m => m.id === 'DEFAULT'), ...setupData.costCenters]);
                     }
-                    // Auto-expand all roots by default
-                    setExpandedRows(new Set(setupData.categories.filter((c: any) => !c.parentId).map((c: any) => c.id)));
+                    // Auto-expand all
+                    setExpandedRows(new Set(enrichedCategories.map((c: any) => c.id)));
                 } else {
                     console.warn('Setup failed:', setupData.error);
                 }
@@ -153,15 +170,17 @@ export function BudgetGrid() {
 
         const sumBySection = (section: string) => {
             const totals = new Array(12).fill(0);
-            // V47.1: Sum recursive values for categories that belong to this section
-            // but are "roots" of this section (no parent OR parent has different section)
-            list.filter(c => c.entradaDre === section).forEach(c => {
-                const parent = list.find(p => p.id === c.parentId);
-                const isSectionRoot = !parent || parent.entradaDre !== section;
-
-                if (isSectionRoot) {
-                    for (let i = 0; i < 12; i++) {
-                        totals[i] += getRecursiveVal(c.id, i);
+            // V47.2: Robust section summing.
+            // We sum all categories that belong to this section but whose PARENT doesn't
+            // (meaning it's the root of a branch in this section).
+            list.forEach(c => {
+                if (c.entradaDre === section) {
+                    const parent = list.find(p => p.id === c.parentId);
+                    const isSectionRoot = !parent || parent.entradaDre !== section;
+                    if (isSectionRoot) {
+                        for (let i = 0; i < 12; i++) {
+                            totals[i] += getRecursiveVal(c.id, i);
+                        }
                     }
                 }
             });
@@ -336,7 +355,7 @@ export function BudgetGrid() {
             </div>
 
             <p style={{ color: 'red', fontWeight: 'bold', fontSize: '1.2em' }}>
-                Build Version: v47.1 - RECURSIVE HIERARCHY FIX 🏆🚀
+                Build Version: v47.2 - NUCLEAR HEURISTIC FIX 🏆🚀
             </p>
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8rem' }}>
                 <thead>
@@ -402,7 +421,7 @@ export function BudgetGrid() {
             </table>
 
             {loading && <div style={{ padding: '3rem', textAlign: 'center', color: '#64748b' }}>Sincronizando dados com Conta Azul...</div>}
-            <div style={{ padding: '0.5rem', fontSize: '0.7rem', color: '#ccc', textAlign: 'right' }}>Build v47.1 - RECURSIVE HIERARCHY FIX</div>
+            <div style={{ padding: '0.5rem', fontSize: '0.7rem', color: '#ccc', textAlign: 'right' }}>Build v47.2 - NUCLEAR HEURISTIC FIX</div>
         </div>
     );
 }

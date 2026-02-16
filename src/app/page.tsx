@@ -1,4 +1,4 @@
-import { BudgetGrid } from '@/components/BudgetGrid';
+import BudgetGrid from '@/components/BudgetGrid';
 import { getAuthUrl } from '@/lib/contaazul';
 import { prisma } from '@/lib/prisma';
 import Link from 'next/link';

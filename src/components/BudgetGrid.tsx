@@ -85,19 +85,38 @@ export default function BudgetGrid({ refreshKey = 0 }: BudgetGridProps) {
     }, [selectedCostCenter]);
 
     // DRE Sections Mapping (Visual Headers)
+    // STRICT MAPPING BASED ON USER FEEDBACK:
+    // 1 -> Receitas (Careful with 10)
+    // 2 -> Deducoes
+    // 3, 4 -> Custos (User showed 4 as Custos Operacionais)
+    // 6 -> Despesas Comerciais
+    // 8 -> Despesas Administrativas
+    // 9, 10 -> Despesas Financeiras
     const DRE_LAYOUT = [
-        { id: 'RECEITAS', label: '01 1 - Receitas', patterns: ['^1', 'RECEITA', 'VENDA', 'FATURAMENTO'] },
-        { id: 'DEDUCOES', label: '02 2 - Tributos sobre Faturamento', patterns: ['^2', 'TRIBUTO', 'IMPOSTO', 'DEDUCAO', 'SIMPLES'] },
+        // Regex: Starts with 1, followed by dot or space or end, NOT followed by 0 immediately (to exclude 10)
+        { id: 'RECEITAS', label: '01 1 - Receitas', patterns: ['^1(\\.|\\s|$)', 'RECEITA', 'VENDA', 'FATURAMENTO'] },
+        { id: 'DEDUCOES', label: '02 2 - Tributos sobre Faturamento', patterns: ['^2(\\.|\\s|$)', 'TRIBUTO', 'IMPOSTO', 'DEDUCAO', 'SIMPLES'] },
+
         // Calculated: Receita Liquida
-        { id: 'CUSTOS', label: '03 4 - Custos Operacionais', patterns: ['^3', 'CUSTO', 'PRODUCAO', 'MATERIA', 'ESTOQUE'] },
+        // Costs often start with 3 or 4 in some charts. User showed "03 4 - Custos Operacionais".
+        { id: 'CUSTOS', label: '03 4 - Custos Operacionais', patterns: ['^3(\\.|\\s|$)', '^4(\\.|\\s|$)', 'CUSTO', 'PRODUCAO', 'MATERIA', 'ESTOQUE'] },
+
         // Calculated: Margem Bruta
-        { id: 'DESPESAS_COMERCIAIS', label: '04 6 - Despesa Comercial', patterns: ['^4', 'COMERCIAL', 'MARKETING', 'COMISSOES', 'PROPAGANDA', 'VENDAS'] },
+        // User showed "04 6 - Despesa Comercial".
+        { id: 'DESPESAS_COMERCIAIS', label: '04 6 - Despesa Comercial', patterns: ['^6(\\.|\\s|$)', 'COMERCIAL', 'MARKETING', 'COMISSOES', 'PROPAGANDA', 'VENDAS'] },
+
         // Calculated: Margem Contribuicao
-        { id: 'DESPESAS_ADMINISTRATIVAS', label: '05 8 - Despesa Administrativa', patterns: ['^5', 'ADMINISTRA', 'OPERACIONAL', 'ALUGUEL', 'SALARIO', 'PESSOAL'] },
+        // User showed "05 8 - Despesa Administrativa".
+        { id: 'DESPESAS_ADMINISTRATIVAS', label: '05 8 - Despesa Administrativa', patterns: ['^8(\\.|\\s|$)', 'ADMINISTRA', 'OPERACIONAL', 'ALUGUEL', 'SALARIO', 'PESSOAL'] },
+
         // Calculated: EBITDA
-        { id: 'DESPESSAS_FINANCEIRAS', label: '06 10 - Despesa Financeira', patterns: ['^6', 'FINANCEIRA', 'JUROS', 'TARIFA', 'IOF', 'BANCARIA'] },
-        { id: 'OUTRAS_RECEITAS_NAO_OPERACIONAIS', label: '07 - Outras Receitas', patterns: ['^7', 'OUTRAS RECEITAS'] },
-        { id: 'OUTRAS_DESPESAS_NAO_OPERACIONAIS', label: '08 - Outras Despesas', patterns: ['^8', 'OUTRAS DESPESAS'] }
+        // User showed "06 10 - Despesa Financeira".
+        // Also catching 9 just in case.
+        { id: 'DESPESSAS_FINANCEIRAS', label: '06 10 - Despesa Financeira', patterns: ['^10(\\.|\\s|$)', '^9(\\.|\\s|$)', 'FINANCEIRA', 'JUROS', 'TARIFA', 'IOF', 'BANCARIA'] },
+
+        { id: 'OUTRAS_RECEITAS_NAO_OPERACIONAIS', label: '07 - Outras Receitas', patterns: ['^7(\\.|\\s|$)', 'OUTRAS RECEITAS'] },
+        // 11 or others?
+        { id: 'OUTRAS_DESPESAS_NAO_OPERACIONAIS', label: '08 - Outras Despesas', patterns: ['^11(\\.|\\s|$)', 'OUTRAS DESPESAS'] }
     ];
 
     // Build the Full Directory Tree first, independent of sections
@@ -124,10 +143,41 @@ export default function BudgetGrid({ refreshKey = 0 }: BudgetGridProps) {
         });
 
         // Sort roots by name (usually implies code order 1, 1.1, etc.)
-        roots.sort((a, b) => a.name.localeCompare(b.name));
+        roots.sort((a, b) => {
+            // Smart sort: Try to sort by the leading number if present
+            const numA = (a.name.match(/^\d+(\.\d+)*/)?.[0]) || '';
+            const numB = (b.name.match(/^\d+(\.\d+)*/)?.[0]) || '';
+            if (numA && numB) {
+                // Compare as segment arrays
+                const partsA = numA.split('.').map(Number);
+                const partsB = numB.split('.').map(Number);
+                for (let i = 0; i < Math.max(partsA.length, partsB.length); i++) {
+                    const valA = partsA[i] || 0;
+                    const valB = partsB[i] || 0;
+                    if (valA !== valB) return valA - valB;
+                }
+                return 0;
+            }
+            return a.name.localeCompare(b.name);
+        });
 
         const enhanceNode = (node: any, level: number): any => {
-            const children = (byParent[node.id] || []).sort((a, b) => a.name.localeCompare(b.name));
+            const children = (byParent[node.id] || []).sort((a, b) => {
+                const numA = (a.name.match(/^\d+(\.\d+)*/)?.[0]) || '';
+                const numB = (b.name.match(/^\d+(\.\d+)*/)?.[0]) || '';
+                if (numA && numB) {
+                    const partsA = numA.split('.').map(Number);
+                    const partsB = numB.split('.').map(Number);
+                    for (let i = 0; i < Math.max(partsA.length, partsB.length); i++) {
+                        const valA = partsA[i] || 0;
+                        const valB = partsB[i] || 0;
+                        if (valA !== valB) return valA - valB;
+                    }
+                    return 0;
+                }
+                return a.name.localeCompare(b.name);
+            });
+
             return {
                 ...node,
                 level,
@@ -144,7 +194,11 @@ export default function BudgetGrid({ refreshKey = 0 }: BudgetGridProps) {
     const belongsToSection = (node: any, patterns: string[]) => {
         const n = node.name.toUpperCase();
         return patterns.some(p => {
-            if (p.startsWith('^')) return n.startsWith(p.substring(1));
+            // Handle Regex Pattern Strings
+            if (p.startsWith('^')) {
+                const regex = new RegExp(p);
+                return regex.test(n);
+            }
             return n.includes(p);
         });
     };
@@ -239,7 +293,7 @@ export default function BudgetGrid({ refreshKey = 0 }: BudgetGridProps) {
         }
     };
 
-    // DRE Logic and Calculations (V47.7 - Root-Based Summing)
+    // DRE Logic and Calculations (V47.8 - Root-Based Summing & Strict 1/10 split)
     const calculateTotals = (tree: any[], values: Record<string, number>) => {
         // Recursive helper to get total for a category AND its children
         // We use the flat map of values + the hierarchy
@@ -335,7 +389,7 @@ export default function BudgetGrid({ refreshKey = 0 }: BudgetGridProps) {
             </div>
 
             <p style={{ color: 'red', fontWeight: 'bold', fontSize: '1.2em' }}>
-                Build Version: v47.7 - DYNAMIC ROOT MIRROR ☯️🌳
+                Build Version: v47.8 - STRICT NUMERIC MAPPING 🦁🔢
             </p>
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8rem' }}>
                 <thead>
@@ -411,7 +465,7 @@ export default function BudgetGrid({ refreshKey = 0 }: BudgetGridProps) {
             </table>
 
             {loading && <div style={{ padding: '3rem', textAlign: 'center', color: '#64748b' }}>Sincronizando dados com Conta Azul...</div>}
-            <div style={{ padding: '0.5rem', fontSize: '0.7rem', color: '#ccc', textAlign: 'right' }}>Build v47.7 - DYNAMIC ROOT MIRROR ☯️🌳</div>
+            <div style={{ padding: '0.5rem', fontSize: '0.7rem', color: '#ccc', textAlign: 'right' }}>Build v47.8 - STRICT NUMERIC MAPPING 🦁🔢</div>
         </div>
     );
 }

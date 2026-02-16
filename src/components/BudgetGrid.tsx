@@ -318,6 +318,9 @@ export function BudgetGrid() {
                 )}
             </div>
 
+            <p style={{ color: 'red', fontWeight: 'bold', fontSize: '1.2em' }}>
+                Build Version: v46.9 - API DATA FLOW FIX 🏆🚀
+            </p>
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8rem' }}>
                 <thead>
                     <tr style={{ background: '#f8fafc', borderBottom: '2px solid #cbd5e1' }}>
@@ -382,7 +385,7 @@ export function BudgetGrid() {
             </table>
 
             {loading && <div style={{ padding: '3rem', textAlign: 'center', color: '#64748b' }}>Sincronizando dados com Conta Azul...</div>}
-            <div style={{ padding: '0.5rem', fontSize: '0.7rem', color: '#ccc', textAlign: 'right' }}>Build v46.3 - Fully Hierarchical DRE</div>
+            <div style={{ padding: '0.5rem', fontSize: '0.7rem', color: '#ccc', textAlign: 'right' }}>Build v46.9 - API DATA FLOW FIX</div>
         </div>
     );
 }

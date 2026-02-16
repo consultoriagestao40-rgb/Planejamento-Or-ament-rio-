@@ -25,13 +25,10 @@ export async function GET(request: Request) {
             return NextResponse.json(syncResult, { status: 500 });
         }
 
-        const realizedValues: Record<string, number> = {};
-        // Placeholder for future processing of realized values from sales/transactions
-
         return NextResponse.json({
             success: true,
-            realizedValues,
-            data: syncResult // Send the whole report for frontend to show
+            realizedValues: syncResult.realizedValues || {},
+            data: syncResult
         });
     } catch (error: any) {
         console.error('Critical Sync route failure:', error);

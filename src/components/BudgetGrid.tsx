@@ -4,7 +4,11 @@
 import React, { useState } from 'react';
 import { MONTHS, MOCK_CATEGORIES, MOCK_COST_CENTERS } from '@/lib/mock-data';
 
-export function BudgetGrid() {
+interface BudgetGridProps {
+    refreshKey?: number;
+}
+
+export default function BudgetGrid({ refreshKey = 0 }: BudgetGridProps) {
     const [budgetValues, setBudgetValues] = useState<Record<string, number>>({});
     const [realizedValues, setRealizedValues] = useState<Record<string, number>>({});
     const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());

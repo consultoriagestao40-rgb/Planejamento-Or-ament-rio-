@@ -280,8 +280,14 @@ async function aggregateTransactions(accessToken: string, baseUrl: string, targe
 
             if (items.length === 0) { hasMore = false; break; }
 
-            items.forEach((item: any) => {
-                const dateStr = item.data_pagamento;
+            items.forEach((item: any, idx: number) => {
+                // Log the first item's keys to help us know the EXACT production schema
+                if (idx === 0 && page === 1) {
+                    logs.push(`SCHEMA DEBUG: ${Object.keys(item).join(', ')}`);
+                    logs.push(`SCHEMA VALUES (sample): v=${item.valor}, vl=${item.valor_liquido}, tp=${item.total_parcelas}, dp=${item.data_pagamento}`);
+                }
+
+                const dateStr = item.data_pagamento || item.data_liquidacao || item.liquidado_em || item.vencimento;
                 if (!dateStr) return;
 
                 const dateObj = new Date(dateStr);
@@ -292,17 +298,19 @@ async function aggregateTransactions(accessToken: string, baseUrl: string, targe
                 // This ensures that even if 2026 is empty, we see that the data flow works.
                 if (year < 2024 || year > 2026) return;
 
-                const amount = item.valor || item.total || 0;
+                // Priority: valor_liquido (V2 often uses this), then valor, then total
+                const amount = item.valor_liquido || item.valor || item.total || item.total_parcela || 0;
                 const categories = item.categorias || [];
 
-                categories.forEach((catRef: any) => {
-                    const catId = catRef.id;
+                // V46.6: If multiple categories exist, we pick the FIRST one to avoid overcounting the DRE
+                // ideally we would use 'rateio' from the detailed view, but that's a lot of API calls.
+                if (categories.length > 0) {
+                    const catId = categories[0].id;
                     if (catId) {
                         const key = `${catId}-${monthIdx}`;
-                        targetValues[key] = (targetValues[key] || 0) + (isExpense ? amount : amount);
-                        // Signs are handled in DRE math by BudgetGrid (abs subtraction)
+                        targetValues[key] = (targetValues[key] || 0) + amount;
                     }
-                });
+                }
             });
 
             if (items.length < 100) hasMore = false;

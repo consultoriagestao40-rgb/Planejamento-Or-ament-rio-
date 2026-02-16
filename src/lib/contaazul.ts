@@ -7,9 +7,9 @@ interface ContaAzulTokenResponse {
 
 // Retornando para a URL antiga pois a 'auth' rejeitou todos os escopos.
 // O erro original 'invalid_client' aqui indica URI de redirecionamento errada.
-// URL V16: Usando a URL nova do portal, mas sem escopo.
+// URL V18: Ambos Auth e Token agora no subdomínio 'auth' (Novo sistema)
 const CA_AUTH_URL = 'https://auth.contaazul.com/login';
-const CA_TOKEN_URL = 'https://api.contaazul.com/oauth2/token';
+const CA_TOKEN_URL = 'https://auth.contaazul.com/oauth2/token';
 
 export const getAuthUrl = (state: string) => {
     // Configuração Hardcoded (Prioridade sobre Env Vars para evitar conflitos na Vercel)

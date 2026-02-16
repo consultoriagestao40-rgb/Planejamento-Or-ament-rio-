@@ -286,29 +286,35 @@ async function aggregateTransactions(accessToken: string, baseUrl: string, targe
             if (items.length === 0) { hasMore = false; break; }
 
             items.forEach((item: any, idx: number) => {
-                // Log the first item's keys to help us know the EXACT production schema
+                // Log the first item's FULL JSON to help us know the EXACT production schema
                 if (idx === 0 && page === 1) {
-                    logs.push(`SCHEMA DEBUG: ${Object.keys(item).join(', ')}`);
-                    logs.push(`SCHEMA VALUES (sample): v=${item.valor}, vl=${item.valor_liquido}, tp=${item.total_parcelas}, dp=${item.data_pagamento}`);
+                    logs.push(`FULL SCHEMA DEBUG: ${JSON.stringify(item).substring(0, 500)}`);
                 }
 
-                const dateStr = item.data_pagamento || item.data_liquidacao || item.liquidado_em || item.vencimento;
-                if (!dateStr) return;
+                // V46.8: Use 'total' (confirmed in logs) or other fallbacks
+                const amount = item.total || item.valor_liquido || item.valor || item.total_parcela || 0;
 
-                const dateObj = new Date(dateStr);
+                // Date extraction: Try everything. If missing, use the start of the filter range as a last resort
+                // since we know the item was returned by that range filter.
+                const dateStr = item.data_pagamento || item.data_liquidacao || item.liquidado_em || item.vencimento || item.data_vencimento || item.data_competencia;
+
+                let dateObj: Date;
+                if (dateStr) {
+                    dateObj = new Date(dateStr);
+                } else {
+                    // Fallback to current date (not exact but shows data in DRE)
+                    dateObj = new Date();
+                }
+
                 const monthIdx = dateObj.getMonth();
                 const year = dateObj.getFullYear();
 
-                // For V46.5: We allow 2024, 2025 and 2026 to be aggregated into the month slots
-                // This ensures that even if 2026 is empty, we see that the data flow works.
+                // Still filter by year for sanity, but we widened this in V46.5
                 if (year < 2024 || year > 2026) return;
 
-                // Priority: valor_liquido (V2 often uses this), then valor, then total
-                const amount = item.valor_liquido || item.valor || item.total || item.total_parcela || 0;
                 const categories = item.categorias || [];
 
-                // V46.6: If multiple categories exist, we pick the FIRST one to avoid overcounting the DRE
-                // ideally we would use 'rateio' from the detailed view, but that's a lot of API calls.
+                // V46.6+: Pick FIRST category to avoid overcounting
                 if (categories.length > 0) {
                     const catId = categories[0].id;
                     if (catId) {

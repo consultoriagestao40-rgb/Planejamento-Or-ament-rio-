@@ -135,56 +135,60 @@ export async function syncData() {
         }
     }
 
-    // Persist Categories with individual try/catch
-    for (const cat of categories) {
-        try {
-            const catId = cat.id;
-            const catName = (cat.nome || cat.name || '').trim();
-            if (!catId || !catName) continue;
+    // V47.1: Pre-process categories for robust mapping and multi-pass inheritance
+    const mappedCategories = categories.map(cat => {
+        const name = (cat.nome || cat.name || '').trim();
+        const upper = name.toUpperCase();
+        let entryDre = cat.entrada_dre || cat.entradaDre || cat.entry_dre || null;
 
-            const parentId = cat.categoria_pai || cat.parent_id || null;
-            const typeValue = cat.tipo || cat.type || 'EXPENSE';
+        // Manual heuristics (The "Nuclear" Map)
+        if (!entryDre) {
+            if (/^1(\.|\s|$)/.test(upper) || upper.includes('RECEITA') || upper.includes('VENDA') || upper.includes('FATURAMENTO')) entryDre = 'RECEITAS';
+            else if (/^2(\.|\s|$)/.test(upper) || upper.includes('TRIBUTO') || upper.includes('IMPOSTO') || upper.includes('DEDUCAO')) entryDre = 'DEDUCOES';
+            else if (/^3(\.|\s|$)/.test(upper) || upper.includes('CUSTO') || upper.includes('PRODUCAO') || upper.includes('ESTOQUE')) entryDre = 'CUSTOS';
+            else if (/^4(\.|\s|$)/.test(upper) || upper.includes('COMERCIAL') || upper.includes('MARKETING') || upper.includes('VENDAS')) entryDre = 'DESPESAS_COMERCIAIS';
+            else if (/^5(\.|\s|$)/.test(upper) || upper.includes('ADMINISTRATIVA') || upper.includes('OPERACIONAL') || upper.includes('ALUGUEL') || upper.includes('MATERIAL')) entryDre = 'DESPESAS_ADMINISTRATIVAS';
+            else if (/^6(\.|\s|$)/.test(upper) || upper.includes('FINANCEIRA') || upper.includes('JUROS') || upper.includes('TARIFA') || upper.includes('IOF')) entryDre = 'DESPESSAS_FINANCEIRAS';
+            else if (/^7(\.|\s|$)/.test(upper)) entryDre = 'OUTRAS_RECEITAS_NAO_OPERACIONAIS';
+            else if (/^8(\.|\s|$)/.test(upper) || upper.includes('OUTRAS DESPESAS')) entryDre = 'OUTRAS_DESPESAS_NAO_OPERACIONAIS';
+        }
 
-            // V47.0: More robust label extraction and manual fallbacks
-            let entryDre = cat.entrada_dre || cat.entradaDre || cat.entry_dre || null;
+        return { ...cat, name, entradaDreLocal: entryDre, parentIdLocal: cat.categoria_pai || cat.parent_id || null };
+    });
 
-            // Manual mapping fallbacks for core categories based on name patterns
-            if (!entryDre) {
-                const name = catName.toUpperCase();
-                if (name.includes('RECEITA') || name.startsWith('1 ')) entryDre = 'RECEITAS';
-                else if (name.includes('TRIBUTO') || name.includes('IMPOSTO') || name.startsWith('2 ')) entryDre = 'DEDUCOES';
-                else if (name.includes('CUSTO') || name.startsWith('3 ')) entryDre = 'CUSTOS';
-                else if (name.includes('COMERCIAL') || name.includes('MARKETING') || name.startsWith('4 ')) entryDre = 'DESPESAS_COMERCIAIS';
-                else if (name.includes('ADMINISTRATIVA') || name.startsWith('5 ')) entryDre = 'DESPESAS_ADMINISTRATIVAS';
-                else if (name.includes('FINANCEIRA') || name.includes('JUROS') || name.startsWith('6 ')) entryDre = 'DESPESSAS_FINANCEIRAS';
-                else if (name.includes('OUTRAS RECEITAS') || name.startsWith('7 ')) entryDre = 'OUTRAS_RECEITAS_NAO_OPERACIONAIS';
-                else if (name.includes('OUTRAS DESPESAS') || name.startsWith('8 ')) entryDre = 'OUTRAS_DESPESAS_NAO_OPERACIONAIS';
-            }
-
-            // V46.5+: Inherit metadata from parent if still missing
-            if (!entryDre && parentId) {
-                const parent = categories.find(c => c.id === parentId);
-                // We trust the API or our previous manual mapping for the parent
-                if (parent) {
-                    entryDre = parent.entrada_dre || parent.entradaDre || parent.entry_dre || null;
+    // Multi-pass inheritance (Ensures children get labels even if parents were mapped manually)
+    for (let i = 0; i < 4; i++) {
+        mappedCategories.forEach(cat => {
+            if (!cat.entradaDreLocal && cat.parentIdLocal) {
+                const parent = mappedCategories.find(p => p.id === cat.parentIdLocal);
+                if (parent && parent.entradaDreLocal) {
+                    cat.entradaDreLocal = parent.entradaDreLocal;
                 }
             }
+        });
+    }
+
+    // Persist Categories
+    for (const cat of mappedCategories) {
+        try {
+            const catId = cat.id;
+            const typeValue = cat.tipo || cat.type || 'EXPENSE';
 
             await (prisma as any).category.upsert({
                 where: { id: catId },
                 create: {
                     id: catId,
-                    name: catName,
+                    name: cat.name,
                     tenantId: tenant.id,
-                    parentId: parentId,
+                    parentId: cat.parentIdLocal,
                     type: typeValue,
-                    entradaDre: entryDre
+                    entradaDre: cat.entradaDreLocal
                 },
                 update: {
-                    name: catName,
-                    parentId: parentId,
+                    name: cat.name,
+                    parentId: cat.parentIdLocal,
                     type: typeValue,
-                    entradaDre: entryDre
+                    entradaDre: cat.entradaDreLocal
                 }
             });
             report.categoriesSuccess++;

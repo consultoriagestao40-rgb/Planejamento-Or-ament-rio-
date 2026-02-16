@@ -153,14 +153,16 @@ export function BudgetGrid() {
 
         const sumBySection = (section: string) => {
             const totals = new Array(12).fill(0);
-            // We only sum ROOT categories for the section to avoid double counting 
-            // if both parent and child have the metadata (inherited).
-            // Actually, we sum everything that has the metadata but ONLY if they are 'leaf' 
-            // OR we just sum all direct entries.
-            // Simplified: Sum all direct values for categories that belong to this section.
+            // V47.1: Sum recursive values for categories that belong to this section
+            // but are "roots" of this section (no parent OR parent has different section)
             list.filter(c => c.entradaDre === section).forEach(c => {
-                for (let i = 0; i < 12; i++) {
-                    totals[i] += values[`${c.id}-${i}`] || 0;
+                const parent = list.find(p => p.id === c.parentId);
+                const isSectionRoot = !parent || parent.entradaDre !== section;
+
+                if (isSectionRoot) {
+                    for (let i = 0; i < 12; i++) {
+                        totals[i] += getRecursiveVal(c.id, i);
+                    }
                 }
             });
             return totals;
@@ -334,7 +336,7 @@ export function BudgetGrid() {
             </div>
 
             <p style={{ color: 'red', fontWeight: 'bold', fontSize: '1.2em' }}>
-                Build Version: v47.0 - RECURSIVE TOTALS FIX 🏆🚀
+                Build Version: v47.1 - RECURSIVE HIERARCHY FIX 🏆🚀
             </p>
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8rem' }}>
                 <thead>
@@ -400,7 +402,7 @@ export function BudgetGrid() {
             </table>
 
             {loading && <div style={{ padding: '3rem', textAlign: 'center', color: '#64748b' }}>Sincronizando dados com Conta Azul...</div>}
-            <div style={{ padding: '0.5rem', fontSize: '0.7rem', color: '#ccc', textAlign: 'right' }}>Build v47.0 - RECURSIVE TOTALS FIX</div>
+            <div style={{ padding: '0.5rem', fontSize: '0.7rem', color: '#ccc', textAlign: 'right' }}>Build v47.1 - RECURSIVE HIERARCHY FIX</div>
         </div>
     );
 }

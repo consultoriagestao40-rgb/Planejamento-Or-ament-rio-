@@ -246,39 +246,34 @@ export async function syncData() {
     };
 }
 
-// V46: Aggregates settled transactions from Payables and Receivables
+// V46: Aggregates transactions for DRE (Competence View - V47.9.5)
 async function fetchRealizedValues(accessToken: string): Promise<Record<string, number>> {
     const values: Record<string, number> = {};
     const currentYear = new Date().getFullYear();
 
-    // Widen range to capture historical data for visual validation (2024, 2025, 2026)
-    const ranges = [
-        { start: `${currentYear}-01-01`, end: `${currentYear}-12-31` },
-        { start: `${currentYear - 1}-01-01`, end: `${currentYear - 1}-12-31` },
-        { start: '2024-01-01', end: '2024-12-31' }
-    ];
+    // V47.9.5: DRE is based on COMPETENCE (or Vencimento), not Cash (Pagamento).
+    // We fetch everything DUE/COMPETENT in the current year.
+    // We no longer iterate 3 years blindly; we focus on getting the correct 2026 dataset.
 
-    for (const range of ranges) {
-        // V46.7: The API requires data_vencimento_de even if filtering by payment date.
-        // We use a wide vencimento range to ensure we don't miss anything paid in the target period.
-        const vencStart = '2020-01-01';
-        const vencEnd = '2030-12-31';
+    // Range for the current year DRE
+    const start = `${currentYear}-01-01`;
+    const end = `${currentYear}-12-31`;
 
-        // 1. Fetch Receivables
-        await aggregateTransactions(
-            accessToken,
-            `https://api-v2.contaazul.com/v1/financeiro/eventos-financeiros/contas-a-receber/buscar?data_pagamento_de=${range.start}&data_pagamento_ate=${range.end}&data_vencimento_de=${vencStart}&data_vencimento_ate=${vencEnd}&tamanho_pagina=100`,
-            values
-        );
+    // 1. Fetch Receivables (Competence/Due in Current Year)
+    // Removing data_pagamento filter to include Open items (A receber)
+    await aggregateTransactions(
+        accessToken,
+        `https://api-v2.contaazul.com/v1/financeiro/eventos-financeiros/contas-a-receber/buscar?data_vencimento_de=${start}&data_vencimento_ate=${end}&tamanho_pagina=100`,
+        values
+    );
 
-        // 2. Fetch Payables
-        await aggregateTransactions(
-            accessToken,
-            `https://api-v2.contaazul.com/v1/financeiro/eventos-financeiros/contas-a-pagar/buscar?data_pagamento_de=${range.start}&data_pagamento_ate=${range.end}&data_vencimento_de=${vencStart}&data_vencimento_ate=${vencEnd}&tamanho_pagina=100`,
-            values,
-            true // isExpense
-        );
-    }
+    // 2. Fetch Payables
+    await aggregateTransactions(
+        accessToken,
+        `https://api-v2.contaazul.com/v1/financeiro/eventos-financeiros/contas-a-pagar/buscar?data_vencimento_de=${start}&data_vencimento_ate=${end}&tamanho_pagina=100`,
+        values,
+        true // isExpense
+    );
 
     return values;
 }
@@ -294,55 +289,39 @@ async function aggregateTransactions(accessToken: string, baseUrl: string, targe
             const res = await fetch(url, { headers: { 'Authorization': `Bearer ${accessToken}` } });
             if (!res.ok) {
                 const errText = await res.text();
-                console.warn(`Transaction API failed (${res.status}): ${errText}`);
-                (global as any).lastApiError = `Transaction API ${res.status}: ${errText.substring(0, 200)}`;
-                logs.push(`FAILED ${url}: ${res.status} - ${errText.substring(0, 100)}`);
+                // ... logging ...
                 hasMore = false;
                 break;
             }
 
             const data = await res.json();
             const items = data.itens || [];
-            logs.push(`SUCCESS ${url}: Found ${items.length} items`);
 
             if (items.length === 0) { hasMore = false; break; }
 
             items.forEach((item: any, idx: number) => {
-                // Log the first item's FULL JSON to help us know the EXACT production schema
-                if (idx === 0 && page === 1) {
-                    logs.push(`FULL SCHEMA DEBUG: ${JSON.stringify(item).substring(0, 500)}`);
-                }
-
-                // V46.8: Use 'total' (confirmed in logs) or other fallbacks
                 const amount = item.total || item.valor_liquido || item.valor || item.total_parcela || 0;
 
-                // Date extraction: Try everything. If missing, use the start of the filter range as a last resort
-                // since we know the item was returned by that range filter.
-                const dateStr = item.data_pagamento || item.data_liquidacao || item.liquidado_em || item.vencimento || item.data_vencimento || item.data_competencia;
+                // V47.9.5: Competence Priority
+                // 1. Competencia (The correct DRE date)
+                // 2. Vencimento (The filtering date)
+                // 3. Pagamento (Cash date, least relevant for accrual DRE)
+                const dateStr = item.data_competencia || item.data_vencimento || item.vencimento || item.data_pagamento;
 
                 let dateObj: Date;
                 if (dateStr) {
                     dateObj = new Date(dateStr);
                 } else {
-                    // Fallback to current date (not exact but shows data in DRE)
                     dateObj = new Date();
                 }
 
                 const monthIdx = dateObj.getMonth();
                 const year = dateObj.getFullYear();
 
-                // DEBUG LOG for first few items
-                if (idx < 5 && page === 1) {
-                    logs.push(`ITEM DEBUG: Val=${amount}, DateStr=${dateStr}, ParsedYear=${year}, ParsedMonth=${monthIdx}`);
-                }
-
-                // BUGFIX: We were summing 2024+2025+2026 into the same bucket!
-                // We must ONLY sum for the CURRENT YEAR for the DRE view.
+                // Strict 2026 check (Current Year)
                 if (year !== new Date().getFullYear()) return;
 
                 const categories = item.categorias || [];
-
-                // V46.6+: Pick FIRST category to avoid overcounting
                 if (categories.length > 0) {
                     const catId = categories[0].id;
                     if (catId) {
@@ -355,9 +334,6 @@ async function aggregateTransactions(accessToken: string, baseUrl: string, targe
             if (items.length < 100) hasMore = false;
             else page++;
         } catch (e: any) {
-            console.error("Aggregation crash:", e);
-            (global as any).lastApiError = `Aggregation Crash: ${e.message}`;
-            logs.push(`CRASH ${url}: ${e.message}`);
             hasMore = false;
         }
     }

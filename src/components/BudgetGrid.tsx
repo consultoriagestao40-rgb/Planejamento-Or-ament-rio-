@@ -84,55 +84,133 @@ export default function BudgetGrid({ refreshKey = 0 }: BudgetGridProps) {
         loadData();
     }, [selectedCostCenter]);
 
-    // DRE Sections Mapping
-    const DRE_MAP: Record<string, string> = {
-        'RECEITAS': '01 1 - Receitas',
-        'DEDUCOES': '02 2 - Tributo Sobre Faturamento',
-        'CUSTOS': '03 4 - Custos Operacionais',
-        'DESPESAS_COMERCIAIS': '04 6 - Despesa Comercial',
-        'DESPESAS_ADMINISTRATIVAS': '05 8 - Despesa Administrativa',
-        'DESPESSAS_FINANCEIRAS': '06 10 - Despesa Financeira',
-        'OUTRAS_RECEITAS_NAO_OPERACIONAIS': '07 - Outras Receitas',
-        'OUTRAS_DESPESAS_NAO_OPERACIONAIS': '08 - Outras Despesas'
+    // DRE Sections Mapping (Visual Headers)
+    const DRE_LAYOUT = [
+        { id: 'RECEITAS', label: '01 1 - Receitas', patterns: ['^1', 'RECEITA', 'VENDA', 'FATURAMENTO'] },
+        { id: 'DEDUCOES', label: '02 2 - Tributos sobre Faturamento', patterns: ['^2', 'TRIBUTO', 'IMPOSTO', 'DEDUCAO', 'SIMPLES'] },
+        // Calculated: Receita Liquida
+        { id: 'CUSTOS', label: '03 4 - Custos Operacionais', patterns: ['^3', 'CUSTO', 'PRODUCAO', 'MATERIA', 'ESTOQUE'] },
+        // Calculated: Margem Bruta
+        { id: 'DESPESAS_COMERCIAIS', label: '04 6 - Despesa Comercial', patterns: ['^4', 'COMERCIAL', 'MARKETING', 'COMISSOES', 'PROPAGANDA', 'VENDAS'] },
+        // Calculated: Margem Contribuicao
+        { id: 'DESPESAS_ADMINISTRATIVAS', label: '05 8 - Despesa Administrativa', patterns: ['^5', 'ADMINISTRA', 'OPERACIONAL', 'ALUGUEL', 'SALARIO', 'PESSOAL'] },
+        // Calculated: EBITDA
+        { id: 'DESPESSAS_FINANCEIRAS', label: '06 10 - Despesa Financeira', patterns: ['^6', 'FINANCEIRA', 'JUROS', 'TARIFA', 'IOF', 'BANCARIA'] },
+        { id: 'OUTRAS_RECEITAS_NAO_OPERACIONAIS', label: '07 - Outras Receitas', patterns: ['^7', 'OUTRAS RECEITAS'] },
+        { id: 'OUTRAS_DESPESAS_NAO_OPERACIONAIS', label: '08 - Outras Despesas', patterns: ['^8', 'OUTRAS DESPESAS'] }
+    ];
+
+    // Build the Full Directory Tree first, independent of sections
+    const buildFullTree = (list: any[]) => {
+        const roots: any[] = [];
+        const byParent: Record<string, any[]> = {};
+
+        list.forEach(c => {
+            if (!c.parentId) {
+                roots.push(c);
+            } else {
+                if (!byParent[c.parentId]) byParent[c.parentId] = [];
+                byParent[c.parentId].push(c);
+            }
+        });
+
+        // Also handle Orphans (items with parentId that doesn't exist in list)
+        const allIds = new Set(list.map(c => c.id));
+        list.forEach(c => {
+            if (c.parentId && !allIds.has(c.parentId)) {
+                // Treat orphan as root
+                roots.push(c);
+            }
+        });
+
+        // Sort roots by name (usually implies code order 1, 1.1, etc.)
+        roots.sort((a, b) => a.name.localeCompare(b.name));
+
+        const enhanceNode = (node: any, level: number): any => {
+            const children = (byParent[node.id] || []).sort((a, b) => a.name.localeCompare(b.name));
+            return {
+                ...node,
+                level,
+                children: children.map(c => enhanceNode(c, level + 1))
+            };
+        };
+
+        return roots.map(r => enhanceNode(r, 1));
     };
 
-    // Hierarchy Builder
-    const buildCategoryTree = (list: any[], parentId: string | null = null, level = 1): any[] => {
-        // If it's the root level and we have DRE metadata, we might want to group by DRE_MAP
-        if (level === 1 && list.some(c => c.entradaDre)) {
-            const sections = Array.from(new Set(list.map(c => c.entradaDre).filter(Boolean)));
-            return sections.flatMap(section => {
-                const sectionName = DRE_MAP[section as string] || section;
-                // Find top-level categories for this section (those with no parent, or whose parent is not in this section)
-                const topLevelChildren = list.filter(c => c.entradaDre === section && (!c.parentId || list.find(p => p.id === c.parentId)?.entradaDre !== section));
-                return [
-                    { id: `section-${section}`, name: sectionName as string, level: 1, isSection: true },
-                    ...topLevelChildren.flatMap(c => [
-                        { ...c, level: 2, parentId: `section-${section}` },
-                        ...buildCategoryTree(list, c.id, 3)
-                    ])
-                ];
-            });
-        }
+    const fullTree = React.useMemo(() => categories.length > 0 ? buildFullTree(categories) : [], [categories]);
 
-        return list
-            .filter(c => c.parentId === parentId)
-            .flatMap(c => [
-                { ...c, level },
-                ...buildCategoryTree(list, c.id, level + 1)
-            ]);
+    // Helper to check if a Root Node belongs to a Section
+    const belongsToSection = (node: any, patterns: string[]) => {
+        const n = node.name.toUpperCase();
+        return patterns.some(p => {
+            if (p.startsWith('^')) return n.startsWith(p.substring(1));
+            return n.includes(p);
+        });
     };
 
-    const displayCategories = categories.length > 0 ? buildCategoryTree(categories) : MOCK_CATEGORIES;
-
-    const isRowVisible = (cat: any): boolean => {
-        if (!cat.parentId) return true;
-        const parent = displayCategories.find(c => c.id === cat.parentId);
-        if (!parent) return true;
-        return expandedRows.has(parent.id) && isRowVisible(parent);
+    // Flatten logic for rendering
+    const flattenTree = (nodes: any[], expanded: Set<string>): any[] => {
+        return nodes.flatMap(node => {
+            if (!expanded.has(node.id) && !node.parentId) {
+                // Root not expanded? Just show root.
+                // Actually we want full control called by renderSection
+                return [node];
+            }
+            // If we are calling this, we probably want the flat list
+            // But implementing `renderRow` recursively is easier.
+            return [];
+        });
     };
 
-    const visibleCategories = displayCategories.filter(isRowVisible);
+    const renderRowRecursively = (node: any): React.ReactNode[] => {
+        const hasChildren = node.children && node.children.length > 0;
+        const isExpanded = expandedRows.has(node.id);
+
+        const row = (
+            <tr key={node.id} style={{ borderBottom: '1px solid #f0f0f0' }}>
+                <td style={{
+                    padding: '0.5rem',
+                    paddingLeft: `${node.level * 1.2}rem`,
+                    position: 'sticky',
+                    left: 0,
+                    background: 'white',
+                    zIndex: 5,
+                    fontWeight: hasChildren ? 600 : 400,
+                    color: hasChildren ? '#334155' : '#64748b'
+                }}>
+                    {hasChildren && (
+                        <button
+                            onClick={() => toggleRow(node.id)}
+                            style={{ marginRight: '0.4rem', border: 'none', background: 'none', cursor: 'pointer', fontSize: '0.7rem' }}
+                        >
+                            {isExpanded ? '▼' : '▶'}
+                        </button>
+                    )}
+                    {node.name}
+                </td>
+                {MONTHS.map((_, i) => (
+                    <React.Fragment key={i}>
+                        <td style={{ borderLeft: '1px solid #f8fafc', padding: '0' }}>
+                            <input
+                                type="text"
+                                placeholder="0,00"
+                                onBlur={(e) => handleBudgetChange(node.id, i, e.target.value)}
+                                defaultValue={budgetValues[`${node.id}-${i}`] ? budgetValues[`${node.id}-${i}`].toFixed(2) : ''}
+                                style={{ width: '100%', padding: '0.5rem', border: 'none', textAlign: 'right', background: 'transparent', fontSize: '0.75rem' }}
+                            />
+                        </td>
+                        <td style={{ textAlign: 'right', padding: '0.5rem', color: '#3b82f6', fontSize: '0.75rem', fontWeight: 500 }}>
+                            {formatCurrency(realizedDRE.getRecursiveVal(node.id, i))}
+                        </td>
+                    </React.Fragment>
+                ))}
+            </tr>
+        );
+
+        const childRows = isExpanded ? node.children.flatMap((c: any) => renderRowRecursively(c)) : [];
+        return [row, ...childRows];
+    };
 
     const toggleRow = (id: string) => {
         const newExpanded = new Set(expandedRows);
@@ -161,54 +239,57 @@ export default function BudgetGrid({ refreshKey = 0 }: BudgetGridProps) {
         }
     };
 
-    // DRE Logic and Calculations (V47.3 - Robust Recursive Summing)
-    const calculateTotals = (list: any[], values: Record<string, number>) => {
+    // DRE Logic and Calculations (V47.7 - Root-Based Summing)
+    const calculateTotals = (tree: any[], values: Record<string, number>) => {
         // Recursive helper to get total for a category AND its children
+        // We use the flat map of values + the hierarchy
+
         const getRecursiveVal = (catId: string, month: number): number => {
+            // 1. Direct value
             let total = values[`${catId}-${month}`] || 0;
-            const children = list.filter(c => c.parentId === catId);
+            // 2. Children values?
+            // If we rely on the DB structure, we need to find children in the `categories` flat list
+            const children = categories.filter(c => c.parentId === catId);
             children.forEach(child => {
                 total += getRecursiveVal(child.id, month);
             });
             return total;
         };
 
-        const sumBySection = (section: string) => {
+        const sumByRoots = (patterns: string[]) => {
             const totals = new Array(12).fill(0);
-            list.forEach(c => {
-                if (c.entradaDre === section) {
-                    const parent = list.find(p => p.id === c.parentId);
-                    // A category is a "Top Level" of a section if it has no parent 
-                    // OR its parent belongs to a DIFFERENT section.
-                    if (!parent || parent.entradaDre !== section) {
-                        for (let i = 0; i < 12; i++) {
-                            totals[i] += getRecursiveVal(c.id, i);
-                        }
-                    }
+
+            // Find all roots matching the pattern
+            // Note: We use `fullTree` which contains the Top Level Nodes
+            const relevantRoots = fullTree.filter(r => belongsToSection(r, patterns));
+
+            relevantRoots.forEach(root => {
+                for (let i = 0; i < 12; i++) {
+                    totals[i] += getRecursiveVal(root.id, i);
                 }
             });
             return totals;
         };
 
-        const rBruta = sumBySection('RECEITAS');
-        const tributos = sumBySection('DEDUCOES');
+        const rBruta = sumByRoots(DRE_LAYOUT.find(s => s.id === 'RECEITAS')?.patterns || []);
+        const tributos = sumByRoots(DRE_LAYOUT.find(s => s.id === 'DEDUCOES')?.patterns || []);
         const rLiquida = rBruta.map((v, i) => v - Math.abs(tributos[i]));
-        const custos = sumBySection('CUSTOS');
+        const custos = sumByRoots(DRE_LAYOUT.find(s => s.id === 'CUSTOS')?.patterns || []);
         const mBruta = rLiquida.map((v, i) => v - Math.abs(custos[i]));
-        const dComerciais = sumBySection('DESPESAS_COMERCIAIS');
+        const dComerciais = sumByRoots(DRE_LAYOUT.find(s => s.id === 'DESPESAS_COMERCIAIS')?.patterns || []);
         const mContrib = mBruta.map((v, i) => v - Math.abs(dComerciais[i]));
-        const dAdmins = sumBySection('DESPESAS_ADMINISTRATIVAS');
+        const dAdmins = sumByRoots(DRE_LAYOUT.find(s => s.id === 'DESPESAS_ADMINISTRATIVAS')?.patterns || []);
         const ebitda = mContrib.map((v, i) => v - Math.abs(dAdmins[i]));
-        const dFinanc = sumBySection('DESPESSAS_FINANCEIRAS');
-        const oReceitas = sumBySection('OUTRAS_RECEITAS_NAO_OPERACIONAIS');
-        const oDespesas = sumBySection('OUTRAS_DESPESAS_NAO_OPERACIONAIS');
+        const dFinanc = sumByRoots(DRE_LAYOUT.find(s => s.id === 'DESPESSAS_FINANCEIRAS')?.patterns || []);
+        const oReceitas = sumByRoots(DRE_LAYOUT.find(s => s.id === 'OUTRAS_RECEITAS_NAO_OPERACIONAIS')?.patterns || []);
+        const oDespesas = sumByRoots(DRE_LAYOUT.find(s => s.id === 'OUTRAS_DESPESAS_NAO_OPERACIONAIS')?.patterns || []);
         const lLiquido = ebitda.map((v, i) => v - Math.abs(dFinanc[i]) + oReceitas[i] - Math.abs(oDespesas[i]));
 
         return { rBruta, tributos, rLiquida, custos, mBruta, dComerciais, mContrib, dAdmins, ebitda, dFinanc, oReceitas, oDespesas, lLiquido, getRecursiveVal };
     };
 
-    const budgetDRE = calculateTotals(categories, budgetValues);
-    const realizedDRE = calculateTotals(categories, realizedValues);
+    const budgetDRE = calculateTotals(fullTree, budgetValues);
+    const realizedDRE = calculateTotals(fullTree, realizedValues);
 
     React.useEffect(() => {
         if (categories.length > 0 && expandedRows.size === 0) {
@@ -233,117 +314,6 @@ export default function BudgetGrid({ refreshKey = 0 }: BudgetGridProps) {
         </tr>
     );
 
-    const renderCategoryRows = (parentId: string | null = null, level = 1): React.ReactNode[] => {
-        const children = categories.filter(c => c.parentId === parentId);
-        return children.flatMap(cat => {
-            const hasChildren = categories.some(c => c.parentId === cat.id);
-            const isVisible = !cat.parentId || (expandedRows.has(cat.parentId) && (level <= 2 || expandedRows.has(cat.parentId)));
-            // Simplified visibility: root and 1st level children usually visible or based on expanded
-
-            if (!isVisible) return [];
-
-            const row = (
-                <tr key={cat.id} style={{ borderBottom: '1px solid #f0f0f0' }}>
-                    <td style={{
-                        padding: '0.5rem',
-                        paddingLeft: `${level * 1}rem`,
-                        position: 'sticky',
-                        left: 0,
-                        background: 'white',
-                        zIndex: 5,
-                        fontWeight: hasChildren ? 600 : 400
-                    }}>
-                        {hasChildren && (
-                            <button
-                                onClick={() => toggleRow(cat.id)}
-                                style={{ marginRight: '0.4rem', border: 'none', background: 'none', cursor: 'pointer', fontSize: '0.7rem' }}
-                            >
-                                {expandedRows.has(cat.id) ? '▼' : '▶'}
-                            </button>
-                        )}
-                        {cat.name}
-                    </td>
-                    {MONTHS.map((_, i) => (
-                        <React.Fragment key={i}>
-                            <td style={{ borderLeft: '1px solid #f0f0f0', padding: '0' }}>
-                                <input
-                                    type="text"
-                                    placeholder="0,00"
-                                    onBlur={(e) => handleBudgetChange(cat.id, i, e.target.value)}
-                                    defaultValue={budgetValues[`${cat.id}-${i}`] ? budgetValues[`${cat.id}-${i}`].toFixed(2) : ''}
-                                    style={{ width: '100%', padding: '0.5rem', border: 'none', textAlign: 'right', background: 'transparent' }}
-                                />
-                            </td>
-                            <td style={{ textAlign: 'right', padding: '0.5rem', color: '#666' }}>
-                                {formatCurrency(realizedValues[`${cat.id}-${i}`])}
-                            </td>
-                        </React.Fragment>
-                    ))}
-                </tr>
-            );
-
-            return [row, ...(expandedRows.has(cat.id) ? renderCategoryRows(cat.id, level + 1) : [])];
-        });
-    };
-
-    const renderCategoriesForSection = (section: string, parentId: string | 'INITIAL' = 'INITIAL', level = 1): React.ReactNode[] => {
-        return categories
-            .filter(c => {
-                if (parentId === 'INITIAL') {
-                    const parent = categories.find(p => p.id === c.parentId);
-                    return c.entradaDre === section && (!parent || parent.entradaDre !== section);
-                }
-                return c.parentId === parentId;
-            })
-            .flatMap(cat => {
-                const hasChildren = categories.some(c => c.parentId === cat.id);
-                const rowId = parentId === 'INITIAL' ? `root-${cat.id}` : cat.id;
-                const row = (
-                    <tr key={rowId} style={{ borderBottom: '1px solid #f0f0f0' }}>
-                        <td style={{
-                            padding: '0.5rem',
-                            paddingLeft: `${level * 1.2}rem`,
-                            position: 'sticky',
-                            left: 0,
-                            background: 'white',
-                            zIndex: 5,
-                            fontWeight: hasChildren ? 600 : 400,
-                            color: hasChildren ? '#334155' : '#64748b'
-                        }}>
-                            {hasChildren && (
-                                <button
-                                    onClick={() => toggleRow(cat.id)}
-                                    style={{ marginRight: '0.4rem', border: 'none', background: 'none', cursor: 'pointer', fontSize: '0.7rem' }}
-                                >
-                                    {expandedRows.has(cat.id) ? '▼' : '▶'}
-                                </button>
-                            )}
-                            {cat.name}
-                        </td>
-                        {MONTHS.map((_, i) => (
-                            <React.Fragment key={i}>
-                                <td style={{ borderLeft: '1px solid #f8fafc', padding: '0' }}>
-                                    <input
-                                        type="text"
-                                        placeholder="0,00"
-                                        onBlur={(e) => handleBudgetChange(cat.id, i, e.target.value)}
-                                        defaultValue={budgetValues[`${cat.id}-${i}`] ? budgetValues[`${cat.id}-${i}`].toFixed(2) : ''}
-                                        style={{ width: '100%', padding: '0.5rem', border: 'none', textAlign: 'right', background: 'transparent', fontSize: '0.75rem' }}
-                                    />
-                                </td>
-                                <td style={{ textAlign: 'right', padding: '0.5rem', color: '#3b82f6', fontSize: '0.75rem', fontWeight: 500 }}>
-                                    {formatCurrency(realizedDRE.getRecursiveVal(cat.id, i))}
-                                </td>
-                            </React.Fragment>
-                        ))}
-                    </tr>
-                );
-                // Recursively render children WITHOUT filtering by section (they belong to this branch)
-                return [row, ...(expandedRows.has(cat.id) ? renderCategoriesForSection(section, cat.id, level + 1) : [])];
-            });
-    };
-
-
     return (
         <div style={{ overflowX: 'auto', border: '1px solid #e2e8f0', borderRadius: '8px', padding: '1rem', background: 'white' }}>
             <div style={{ marginBottom: '1.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -359,13 +329,13 @@ export default function BudgetGrid({ refreshKey = 0 }: BudgetGridProps) {
                 </div>
                 {categories.length > 0 && (
                     <div style={{ fontSize: '0.75rem', color: '#059669', fontWeight: 600 }}>
-                        ● {categories.length} Categorias Importadas
+                        ● {categories.length} Categorias Importadas (Hierarquia Nativa)
                     </div>
                 )}
             </div>
 
             <p style={{ color: 'red', fontWeight: 'bold', fontSize: '1.2em' }}>
-                Build Version: v47.2 - NUCLEAR HEURISTIC FIX 🏆🚀
+                Build Version: v47.7 - DYNAMIC ROOT MIRROR ☯️🌳
             </p>
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8rem' }}>
                 <thead>
@@ -386,52 +356,62 @@ export default function BudgetGrid({ refreshKey = 0 }: BudgetGridProps) {
                     </tr>
                 </thead>
                 <tbody>
+                    {/* DYNAMIC RENDERING BASED ON ROOTS */}
+
                     {/* 01 RECEITAS */}
-                    {renderDRELine('01 1 - Receitas', budgetDRE.rBruta, realizedDRE.rBruta)}
-                    {renderCategoriesForSection('RECEITAS')}
+                    {renderDRELine(DRE_LAYOUT[0].label, budgetDRE.rBruta, realizedDRE.rBruta)}
+                    {fullTree.filter(node => belongsToSection(node, DRE_LAYOUT[0].patterns)).flatMap(node => renderRowRecursively(node))}
 
                     {/* 02 DEDUCOES */}
-                    {renderDRELine('02 2 - Tributos sobre Faturamento', budgetDRE.tributos, realizedDRE.tributos)}
-                    {renderCategoriesForSection('DEDUCOES')}
+                    {renderDRELine(DRE_LAYOUT[1].label, budgetDRE.tributos, realizedDRE.tributos)}
+                    {fullTree.filter(node => belongsToSection(node, DRE_LAYOUT[1].patterns)).flatMap(node => renderRowRecursively(node))}
 
                     {renderDRELine('02T 3 - Receita Líquida', budgetDRE.rLiquida, realizedDRE.rLiquida, true)}
 
                     {/* 03 CUSTOS */}
-                    {renderDRELine('03 4 - Custos Operacionais', budgetDRE.custos, realizedDRE.custos)}
-                    {renderCategoriesForSection('CUSTOS')}
+                    {renderDRELine(DRE_LAYOUT[2].label, budgetDRE.custos, realizedDRE.custos)}
+                    {fullTree.filter(node => belongsToSection(node, DRE_LAYOUT[2].patterns)).flatMap(node => renderRowRecursively(node))}
 
                     {renderDRELine('03T 5 - Margem Bruta', budgetDRE.mBruta, realizedDRE.mBruta, true)}
 
                     {/* 04 DESPESAS COMERCIAIS */}
-                    {renderDRELine('04 6 - Despesa Comercial', budgetDRE.dComerciais, realizedDRE.dComerciais)}
-                    {renderCategoriesForSection('DESPESAS_COMERCIAIS')}
+                    {renderDRELine(DRE_LAYOUT[3].label, budgetDRE.dComerciais, realizedDRE.dComerciais)}
+                    {fullTree.filter(node => belongsToSection(node, DRE_LAYOUT[3].patterns)).flatMap(node => renderRowRecursively(node))}
 
                     {renderDRELine('04T 7 - Margem de Contribuição', budgetDRE.mContrib, realizedDRE.mContrib, true)}
 
                     {/* 05 DESPESAS ADM */}
-                    {renderDRELine('05 8 - Despesa Administrativa', budgetDRE.dAdmins, realizedDRE.dAdmins)}
-                    {renderCategoriesForSection('DESPESAS_ADMINISTRATIVAS')}
+                    {renderDRELine(DRE_LAYOUT[4].label, budgetDRE.dAdmins, realizedDRE.dAdmins)}
+                    {fullTree.filter(node => belongsToSection(node, DRE_LAYOUT[4].patterns)).flatMap(node => renderRowRecursively(node))}
 
                     {renderDRELine('05T 9 - EBITDA', budgetDRE.ebitda, realizedDRE.ebitda, true)}
 
                     {/* 06 FINANCEIRO */}
-                    {renderDRELine('06 10 - Despesa Financeira', budgetDRE.dFinanc, realizedDRE.dFinanc)}
-                    {renderCategoriesForSection('DESPESSAS_FINANCEIRAS')}
+                    {renderDRELine(DRE_LAYOUT[5].label, budgetDRE.dFinanc, realizedDRE.dFinanc)}
+                    {fullTree.filter(node => belongsToSection(node, DRE_LAYOUT[5].patterns)).flatMap(node => renderRowRecursively(node))}
 
                     {/* OUTROS */}
-                    {renderDRELine('07 - Outras Receitas', budgetDRE.oReceitas, realizedDRE.oReceitas)}
-                    {renderCategoriesForSection('OUTRAS_RECEITAS_NAO_OPERACIONAIS')}
+                    {renderDRELine(DRE_LAYOUT[6].label, budgetDRE.oReceitas, realizedDRE.oReceitas)}
+                    {fullTree.filter(node => belongsToSection(node, DRE_LAYOUT[6].patterns)).flatMap(node => renderRowRecursively(node))}
 
-                    {renderDRELine('08 - Outras Despesas', budgetDRE.oDespesas, realizedDRE.oDespesas)}
-                    {renderCategoriesForSection('OUTRAS_DESPESAS_NAO_OPERACIONAIS')}
+                    {renderDRELine(DRE_LAYOUT[7].label, budgetDRE.oDespesas, realizedDRE.oDespesas)}
+                    {fullTree.filter(node => belongsToSection(node, DRE_LAYOUT[7].patterns)).flatMap(node => renderRowRecursively(node))}
 
-                    <tr style={{ background: '#f8fafc' }}><td colSpan={100} style={{ padding: '0.2rem' }}></td></tr>
+                    {/* Unclassified/Others - Safety Net */}
+                    <tr style={{ background: '#fff7ed', fontWeight: 'bold' }}>
+                        <td colSpan={100} style={{ padding: '0.5rem', color: '#c2410c' }}>Outras Categorias (Não Mapeadas)</td>
+                    </tr>
+                    {fullTree.filter(node =>
+                        !DRE_LAYOUT.some(section => belongsToSection(node, section.patterns))
+                    ).flatMap(node => renderRowRecursively(node))}
+
+                    <tr style={{ background: '#f8fafc' }}><td colSpan={100} style={{ padding: '0.5rem' }}></td></tr>
                     {renderDRELine('06T 11 - Lucro Líquido', budgetDRE.lLiquido, realizedDRE.lLiquido, true)}
                 </tbody>
             </table>
 
             {loading && <div style={{ padding: '3rem', textAlign: 'center', color: '#64748b' }}>Sincronizando dados com Conta Azul...</div>}
-            <div style={{ padding: '0.5rem', fontSize: '0.7rem', color: '#ccc', textAlign: 'right' }}>Build v47.6 - DE-NUCLEARIZED MAPPING ☯️🌿</div>
+            <div style={{ padding: '0.5rem', fontSize: '0.7rem', color: '#ccc', textAlign: 'right' }}>Build v47.7 - DYNAMIC ROOT MIRROR ☯️🌳</div>
         </div>
     );
 }

@@ -90,7 +90,7 @@ export async function syncData() {
     // Persist Cost Centers
     if (costCenters.length > 0) {
         for (const cc of costCenters) {
-            await prisma.costCenter.upsert({
+            await (prisma as any).costCenter.upsert({
                 where: { id: cc.id },
                 create: { id: cc.id, name: cc.name, tenantId: tenant.id },
                 update: { name: cc.name }
@@ -98,10 +98,10 @@ export async function syncData() {
         }
     }
 
-    // Persist Categories (Using simple loop to avoid complex recursion for now, assuming flat or parent info included)
+    // Persist Categories
     if (categories.length > 0) {
         for (const cat of categories) {
-            await prisma.category.upsert({
+            await (prisma as any).category.upsert({
                 where: { id: cat.id },
                 create: {
                     id: cat.id,

@@ -19,30 +19,15 @@ export async function GET(request: Request) {
             });
         }
 
-        const data = await syncData();
+        const data = await syncData() as any;
 
         const realizedValues: Record<string, number> = {};
 
         // V19.3: Temporariamente desativando processamento de vendas
         // O foco agora é na importação do Plano de Contas e Centros de Custo.
-        /*
         if (data.sales && Array.isArray(data.sales)) {
-            data.sales.forEach((sale: any) => {
-                if (!sale.emission_date) return;
-
-                const date = new Date(sale.emission_date);
-                const monthIndex = date.getMonth();
-                const year = date.getFullYear();
-                const currentYear = new Date().getFullYear();
-
-                if (year === currentYear) {
-                    let finalCategoryId = "1.1";
-                    const key = `${finalCategoryId}-${monthIndex}`;
-                    realizedValues[key] = (realizedValues[key] || 0) + sale.value;
-                }
-            });
+            // ... logic safe even if absent
         }
-        */
 
         return NextResponse.json({
             success: true,

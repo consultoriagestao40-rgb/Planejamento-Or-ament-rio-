@@ -59,6 +59,22 @@ async function getValidAccessToken() {
 // Data Fetching Functions
 // --------------------------------------------------------
 
+async function fetchUserInfo(accessToken: string) {
+    const urls = [
+        'https://api-v2.contaazul.com/v1/user/info',
+        'https://api.contaazul.com/v1/user/info',
+        'https://api-v2.contaazul.com/v1/tenants'
+    ];
+    for (const url of urls) {
+        try {
+            const res = await fetch(url, { headers: { 'Authorization': `Bearer ${accessToken}` } });
+            if (res.ok) return await res.json();
+            console.warn(`UserInfo failed (${url}): ${res.status}`);
+        } catch (e) { }
+    }
+    return { error: 'Could not fetch user/tenant info' };
+}
+
 export async function syncData() {
     let accessToken: string;
     try {
@@ -71,7 +87,11 @@ export async function syncData() {
     const tenant = await prisma.tenant.findFirst();
     if (!tenant) return { success: false, error: "Tenant not found in DB", timestamp: new Date().toISOString() };
 
-    console.log("Starting syncData V30...");
+    console.log("Starting syncData V36 (Discovery Mode)...");
+
+    // Discovery step: Who are we?
+    const userInfo = await fetchUserInfo(accessToken);
+
     let categories: any[] = [];
     let costCenters: any[] = [];
     let fetchError: string | null = null;
@@ -157,9 +177,12 @@ export async function syncData() {
         categoriesCount: categories.length,
         costCentersCount: costCenters.length,
         report,
-        debug: {
+        discovery: {
+            userInfo,
             grantedScopes,
-            fullPayload: fullTokenPayload,
+            fullPayload: fullTokenPayload
+        },
+        debug: {
             firstCategory: categories[0] ? JSON.stringify(categories[0]) : 'none',
             rawCategoriesSample: JSON.stringify(categories).substring(0, 500)
         }

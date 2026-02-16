@@ -5,7 +5,6 @@ generator client {
 datasource db {
   provider = "postgresql"
   url      = env("POSTGRES_PRISMA_URL") // Uses connection pooling
-  directUrl = env("POSTGRES_URL_NON_POOLING") // Uses direct connection
 }
 
 model Tenant {
@@ -19,21 +18,44 @@ model Tenant {
   updatedAt    DateTime @updatedAt
   
   budgets      BudgetEntry[]
+  categories   Category[]
+  costCenters  CostCenter[]
+}
+
+model Category {
+  id        String   @id // Financial Category ID from Conta Azul (UUID)
+  name      String
+  tenantId  String
+  parentId  String?
+  type      String   // REVENUE / EXPENSE
+  
+  tenant    Tenant   @relation(fields: [tenantId], references: [id])
+  budgets   BudgetEntry[]
+}
+
+model CostCenter {
+  id        String   @id // Cost Center ID from Conta Azul (UUID)
+  name      String
+  tenantId  String
+  
+  tenant    Tenant   @relation(fields: [tenantId], references: [id])
+  budgets   BudgetEntry[]
 }
 
 model BudgetEntry {
   id           String   @id @default(uuid())
   tenantId     String
-  categoryId   String   // ID coming from Conta Azul (UUID usually)
-  categoryName String   // Store name to show without fetching if needed
-  costCenterId String?  // Optional
+  categoryId   String   
+  costCenterId String?  
   month        Int      // 1-12
   year         Int
   amount       Float
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
-  tenant       Tenant   @relation(fields: [tenantId], references: [id])
+  tenant       Tenant      @relation(fields: [tenantId], references: [id])
+  category     Category    @relation(fields: [categoryId], references: [id])
+  costCenter   CostCenter? @relation(fields: [costCenterId], references: [id])
 
   @@unique([tenantId, categoryId, costCenterId, month, year])
 }

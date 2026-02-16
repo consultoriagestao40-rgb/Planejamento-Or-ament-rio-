@@ -61,56 +61,76 @@ async function getValidAccessToken() {
 
 export async function syncData() {
     const accessToken = await getValidAccessToken();
+    const tenant = await prisma.tenant.findFirst();
+    if (!tenant) throw new Error("Tenant not found");
 
     // Fetch in parallel for performance
-    const [categories, costCenters, sales] = await Promise.all([
+    const [categories, costCenters] = await Promise.all([
         fetchCategories(accessToken).catch(e => { console.error("Error fetching categories:", e); return []; }),
         fetchCostCenters(accessToken).catch(e => { console.error("Error fetching cost centers:", e); return []; }),
-        fetchSales(accessToken).catch(e => { console.error("Error fetching sales:", e); return []; }),
     ]);
 
-    // In a real app, we would save these to the database here.
-    // For this prototype, we return the data to be displayed directly.
+    // Persist Cost Centers
+    if (costCenters.length > 0) {
+        for (const cc of costCenters) {
+            await prisma.costCenter.upsert({
+                where: { id: cc.id },
+                create: { id: cc.id, name: cc.name, tenantId: tenant.id },
+                update: { name: cc.name }
+            });
+        }
+    }
+
+    // Persist Categories (Using simple loop to avoid complex recursion for now, assuming flat or parent info included)
+    if (categories.length > 0) {
+        for (const cat of categories) {
+            await prisma.category.upsert({
+                where: { id: cat.id },
+                create: {
+                    id: cat.id,
+                    name: cat.name,
+                    tenantId: tenant.id,
+                    parentId: cat.parent_id || null,
+                    type: cat.type || 'EXPENSE'
+                },
+                update: {
+                    name: cat.name,
+                    parentId: cat.parent_id || null,
+                    type: cat.type || 'EXPENSE'
+                }
+            });
+        }
+    }
+
     return {
         timestamp: new Date().toISOString(),
-        categories,
-        costCenters,
-        sales
+        categoriesCount: categories.length,
+        costCentersCount: costCenters.length,
     };
 }
 
 async function fetchCategories(accessToken: string) {
-    // Note: 'product-categories' is often for items, not financial accounts. 
-    // If 'plano de contas' is needed, the endpoint might differ or require specific permissions.
-    // We will try a standard endpoint, but fallback to a mock if it fails (common in Sandbox/Dev).
-    const res = await fetch('https://api.contaazul.com/v1/sales/product-categories', {
+    // API de Financeiro V1 - Categorias
+    const res = await fetch('https://api.contaazul.com/v1/categorias', {
         headers: { 'Authorization': `Bearer ${accessToken}` }
     });
 
     if (!res.ok) {
-        console.warn("Categories endpoint failed, using fallback data.");
-        // Fallback for prototype if API fails or scope issues
-        return [
-            { id: '1', name: 'Receita de Vendas' },
-            { id: '2', name: 'Serviços Prestados' }
-        ];
+        throw new Error(`Failed to fetch categories: ${res.statusText}`);
     }
     return res.json();
 }
 
 async function fetchCostCenters(accessToken: string) {
-    // Hypothetical endpoint - check docs if 404
-    const res = await fetch('https://api.contaazul.com/v1/costs-centers', {
+    // API de Financeiro V1 - Centros de Custo
+    const res = await fetch('https://api.contaazul.com/v1/centro-de-custo', {
         headers: { 'Authorization': `Bearer ${accessToken}` }
     });
-    if (!res.ok) return [];
+    if (!res.ok) {
+        throw new Error(`Failed to fetch cost centers: ${res.statusText}`);
+    }
     return res.json();
 }
 
-async function fetchSales(accessToken: string) {
-    const res = await fetch('https://api.contaazul.com/v1/sales?status=COMMITTED', {
-        headers: { 'Authorization': `Bearer ${accessToken}` }
-    });
-    if (!res.ok) return [];
-    return res.json();
-}
+// Removing fetchSales as the focus is on DRE structure (Categories/Cost Centers) for now
+// and sales might require a different sync logic into BudgetEntry.

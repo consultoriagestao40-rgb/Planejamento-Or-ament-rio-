@@ -183,6 +183,8 @@ export async function syncData() {
             fullPayload: fullTokenPayload
         },
         debug: {
+            rawCategoriesResponse: (global as any).lastCategoriesRaw || 'none',
+            rawCostCentersResponse: (global as any).lastCostCentersRaw || 'none',
             firstCategory: categories[0] ? JSON.stringify(categories[0]) : 'none',
             rawCategoriesSample: JSON.stringify(categories).substring(0, 500)
         }
@@ -194,15 +196,17 @@ async function fetchCategories(accessToken: string) {
     try {
         console.log(`Trying categories from: ${url}`);
         const res = await fetch(url, { headers: { 'Authorization': `Bearer ${accessToken}` } });
+        const data = await res.json();
+
+        // V38: Sempre guardamos um pedaço do dado para inspeção se vier vazio na nossa lógica
+        (global as any).lastCategoriesRaw = JSON.stringify(data).substring(0, 1000);
+
         if (res.ok) {
-            const data = await res.json();
-            // Nova API standard: data is often an array or { items: [] } or { categorias: [] }
             const items = Array.isArray(data) ? data : (data.items || data.categorias || []);
             if (items.length > 0) return items;
         } else {
-            const errorBody = await res.text().catch(() => 'no body');
-            console.warn(`Categories failed (${url}): Status ${res.status} - Body: ${errorBody}`);
-            (global as any).lastApiError = `URL: ${url} | Status: ${res.status} | Body: ${errorBody}`;
+            console.warn(`Categories failed (${url}): Status ${res.status}`);
+            (global as any).lastApiError = `URL: ${url} | Status: ${res.status} | Body: ${JSON.stringify(data)}`;
         }
     } catch (e) {
         console.warn(`Error on ${url}:`, e);
@@ -214,14 +218,16 @@ async function fetchCostCenters(accessToken: string) {
     const url = 'https://api-v2.contaazul.com/v1/centro-de-custo?pagina=1&tamanho_pagina=100';
     try {
         const res = await fetch(url, { headers: { 'Authorization': `Bearer ${accessToken}` } });
+        const data = await res.json();
+
+        (global as any).lastCostCentersRaw = JSON.stringify(data).substring(0, 1000);
+
         if (res.ok) {
-            const data = await res.json();
             const items = Array.isArray(data) ? data : (data.items || data.centro_de_custos || data.centro_custo || []);
             if (items.length > 0) return items;
         } else {
-            const errorBody = await res.text().catch(() => 'no body');
-            console.warn(`CostCenters failed (${url}): Status ${res.status} - Body: ${errorBody}`);
-            (global as any).lastApiError = `URL: ${url} | Status: ${res.status} | Body: ${errorBody}`;
+            console.warn(`CostCenters failed (${url}): Status ${res.status}`);
+            (global as any).lastApiError = `URL: ${url} | Status: ${res.status} | Body: ${JSON.stringify(data)}`;
         }
     } catch (e) {
         console.warn(`Error on ${url}:`, e);

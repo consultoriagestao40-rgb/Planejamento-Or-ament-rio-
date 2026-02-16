@@ -190,53 +190,41 @@ export async function syncData() {
 }
 
 async function fetchCategories(accessToken: string) {
-    const urls = [
-        'https://api-v2.contaazul.com/v1/categorias',
-        'https://api.contaazul.com/v1/categorias',
-        'https://api-v2.contaazul.com/v1/categories',
-        'https://api.contaazul.com/v1/categories'
-    ];
-
-    for (const url of urls) {
-        try {
-            console.log(`Trying categories from: ${url}`);
-            const res = await fetch(url, { headers: { 'Authorization': `Bearer ${accessToken}` } });
-            if (res.ok) {
-                const data = await res.json();
-                const items = Array.isArray(data) ? data : (data.items || data.categorias || []);
-                if (items.length > 0) return items;
-            } else {
-                const errorBody = await res.text().catch(() => 'no body');
-                console.warn(`Categories failed (${url}): Status ${res.status} - Body: ${errorBody}`);
-                (global as any).lastApiError = `URL: ${url} | Status: ${res.status} | Body: ${errorBody}`;
-            }
-        } catch (e) {
-            console.warn(`Error on ${url}:`, e);
+    const url = 'https://api-v2.contaazul.com/v1/categorias?pagina=1&tamanho_pagina=100';
+    try {
+        console.log(`Trying categories from: ${url}`);
+        const res = await fetch(url, { headers: { 'Authorization': `Bearer ${accessToken}` } });
+        if (res.ok) {
+            const data = await res.json();
+            // Nova API standard: data is often an array or { items: [] } or { categorias: [] }
+            const items = Array.isArray(data) ? data : (data.items || data.categorias || []);
+            if (items.length > 0) return items;
+        } else {
+            const errorBody = await res.text().catch(() => 'no body');
+            console.warn(`Categories failed (${url}): Status ${res.status} - Body: ${errorBody}`);
+            (global as any).lastApiError = `URL: ${url} | Status: ${res.status} | Body: ${errorBody}`;
         }
+    } catch (e) {
+        console.warn(`Error on ${url}:`, e);
     }
     return [];
 }
 
 async function fetchCostCenters(accessToken: string) {
-    const urls = [
-        'https://api-v2.contaazul.com/v1/centro-de-custo',
-        'https://api.contaazul.com/v1/centro-de-custo',
-        'https://api-v2.contaazul.com/v1/cost-centers'
-    ];
-
-    for (const url of urls) {
-        try {
-            const res = await fetch(url, { headers: { 'Authorization': `Bearer ${accessToken}` } });
-            if (res.ok) {
-                const data = await res.json();
-                const items = Array.isArray(data) ? data : (data.items || data.cost_centers || []);
-                if (items.length > 0) return items;
-            } else {
-                const errorBody = await res.text().catch(() => 'no body');
-                console.warn(`CostCenters failed (${url}): Status ${res.status} - Body: ${errorBody}`);
-                (global as any).lastApiError = `URL: ${url} | Status: ${res.status} | Body: ${errorBody}`;
-            }
-        } catch (e) { }
+    const url = 'https://api-v2.contaazul.com/v1/centro-de-custo?pagina=1&tamanho_pagina=100';
+    try {
+        const res = await fetch(url, { headers: { 'Authorization': `Bearer ${accessToken}` } });
+        if (res.ok) {
+            const data = await res.json();
+            const items = Array.isArray(data) ? data : (data.items || data.centro_de_custos || data.centro_custo || []);
+            if (items.length > 0) return items;
+        } else {
+            const errorBody = await res.text().catch(() => 'no body');
+            console.warn(`CostCenters failed (${url}): Status ${res.status} - Body: ${errorBody}`);
+            (global as any).lastApiError = `URL: ${url} | Status: ${res.status} | Body: ${errorBody}`;
+        }
+    } catch (e) {
+        console.warn(`Error on ${url}:`, e);
     }
     return [];
 }

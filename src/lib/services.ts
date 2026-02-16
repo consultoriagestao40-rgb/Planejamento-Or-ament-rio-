@@ -284,7 +284,8 @@ async function aggregateTransactions(accessToken: string, baseUrl: string, targe
     let hasMore = true;
     const logs = (global as any).lastTransactionLogs || [];
 
-    while (hasMore && page <= 20) {
+    // V47.9.8: Increased safer limit to 200 pages (20k items) to avoid truncation
+    while (hasMore && page <= 200) {
         const url = `${baseUrl}&pagina=${page}`;
         try {
             const res = await fetch(url, { headers: { 'Authorization': `Bearer ${accessToken}` } });
@@ -321,6 +322,10 @@ async function aggregateTransactions(accessToken: string, baseUrl: string, targe
 
                 // Strict 2026 check (Current Year)
                 if (year !== new Date().getFullYear()) return;
+
+                // V47.9.9: Exclude Canceled items to avoid over-reporting
+                const status = (item.status || '').toUpperCase();
+                if (status.includes('CANCEL')) return;
 
                 const categories = item.categorias || [];
                 if (categories.length > 0) {

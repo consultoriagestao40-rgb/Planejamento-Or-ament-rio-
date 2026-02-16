@@ -5,10 +5,10 @@ interface ContaAzulTokenResponse {
     expires_in: number;
 }
 
-// V34: MODO HÍBRIDO - Tentando combinar Identidade (Cognito) com Business (Legacy).
-// Usamos a URL estável mas pedimos os escopos de dados reais.
-const CA_AUTH_URL = 'https://auth.contaazul.com/login';
-const CA_TOKEN_URL = 'https://auth.contaazul.com/oauth2/token';
+// V35: VOLTA AO LEGADO PURO - api.contaazul.com
+// Confirmado que esta é a única URL que aceita 'finance' sem erro no portal.
+const CA_AUTH_URL = 'https://api.contaazul.com/auth/authorize';
+const CA_TOKEN_URL = 'https://api.contaazul.com/oauth2/token';
 
 export const getAuthUrl = (state: string) => {
     // Configuração Hardcoded
@@ -18,8 +18,8 @@ export const getAuthUrl = (state: string) => {
     const baseUrl = isDev ? 'http://127.0.0.1:3000' : 'https://planejamento-or-ament-rio.vercel.app';
     const redirectUri = `${baseUrl}/api/auth/callback`;
 
-    // V34: Combo de escopos para forçar a autorização de dados financeiros.
-    const scope = 'openid profile email sales finance aws.cognito.signin.user.admin';
+    // V35: Usando apenas o escopo financeiro básico para evitar restrições do Cognito.
+    const scope = 'finance';
 
     return `${CA_AUTH_URL}?client_id=${encodeURIComponent(clientId)}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=${encodeURIComponent(scope)}&state=${encodeURIComponent(state)}&response_type=code`;
 };

@@ -92,7 +92,8 @@ export async function syncData() {
         categoriesFailed: 0,
         costCentersSuccess: 0,
         costCentersFailed: 0,
-        lastError: fetchError
+        lastError: fetchError,
+        rawApiError: (global as any).lastApiError || 'none recorded'
     };
 
     // Persist Cost Centers with individual try/catch
@@ -182,7 +183,9 @@ async function fetchCategories(accessToken: string) {
                 const items = Array.isArray(data) ? data : (data.items || data.categorias || []);
                 if (items.length > 0) return items;
             } else {
-                console.warn(`Categories failed (${url}): Status ${res.status}`);
+                const errorBody = await res.text().catch(() => 'no body');
+                console.warn(`Categories failed (${url}): Status ${res.status} - Body: ${errorBody}`);
+                (global as any).lastApiError = `URL: ${url} | Status: ${res.status} | Body: ${errorBody}`;
             }
         } catch (e) {
             console.warn(`Error on ${url}:`, e);
@@ -206,7 +209,9 @@ async function fetchCostCenters(accessToken: string) {
                 const items = Array.isArray(data) ? data : (data.items || data.cost_centers || []);
                 if (items.length > 0) return items;
             } else {
-                console.warn(`CostCenters failed (${url}): Status ${res.status}`);
+                const errorBody = await res.text().catch(() => 'no body');
+                console.warn(`CostCenters failed (${url}): Status ${res.status} - Body: ${errorBody}`);
+                (global as any).lastApiError = `URL: ${url} | Status: ${res.status} | Body: ${errorBody}`;
             }
         } catch (e) { }
     }

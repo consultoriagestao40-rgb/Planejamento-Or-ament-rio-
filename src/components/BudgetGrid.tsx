@@ -97,7 +97,7 @@ export function BudgetGrid() {
         new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val || 0);
 
     // Filter visible rows based on expansion
-    const isRowVisible = (cat: any) => {
+    const isRowVisible = (cat: any): boolean => {
         if (!cat.parentId) return true;
         const parent = displayCategories.find(c => c.id === cat.parentId);
         if (!parent) return true;

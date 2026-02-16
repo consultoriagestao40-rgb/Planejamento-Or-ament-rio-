@@ -145,54 +145,47 @@ export async function syncData() {
 }
 
 async function fetchCategories(accessToken: string) {
-    const baseUrl = 'https://api-v2.contaazul.com';
-    console.log("Fetching categories from V2 API...");
-    const res = await fetch(`${baseUrl}/v1/categorias`, {
-        headers: { 'Authorization': `Bearer ${accessToken}` }
-    });
+    const urls = [
+        'https://api-v2.contaazul.com/v1/categorias',
+        'https://api.contaazul.com/v1/categorias',
+        'https://api-v2.contaazul.com/v1/categories',
+        'https://api.contaazul.com/v1/categories'
+    ];
 
-    if (res.status === 404) {
-        console.warn("Categories /v1/categorias not found on V2, trying /v1/categories...");
-        const res2 = await fetch(`${baseUrl}/v1/categories`, {
-            headers: { 'Authorization': `Bearer ${accessToken}` }
-        });
-        if (!res2.ok) throw new Error(`V2 Categories API failed (404 on both): ${res2.status}`);
-        const data = await res2.json();
-        return Array.isArray(data) ? data : (data.items || data.categorias || []);
+    for (const url of urls) {
+        try {
+            console.log(`Trying categories from: ${url}`);
+            const res = await fetch(url, { headers: { 'Authorization': `Bearer ${accessToken}` } });
+            if (res.ok) {
+                const data = await res.json();
+                const items = Array.isArray(data) ? data : (data.items || data.categorias || []);
+                if (items.length > 0) return items;
+            }
+        } catch (e) {
+            console.warn(`Error on ${url}:`, e);
+        }
     }
-
-    if (!res.ok) {
-        const text = await res.text();
-        throw new Error(`V2 Categories API failed: ${res.status} ${text.substring(0, 100)}`);
-    }
-    const data = await res.json();
-    // V20.1: Defensive handling of response format
-    const categories = Array.isArray(data) ? data : (data.items || data.categorias || []);
-    console.log(`Found ${categories.length} categories. First one:`, categories[0] ? JSON.stringify(categories[0]) : 'none');
-    return categories;
+    return [];
 }
 
 async function fetchCostCenters(accessToken: string) {
-    const baseUrl = 'https://api-v2.contaazul.com';
-    console.log("Fetching cost centers from V2 API...");
-    const res = await fetch(`${baseUrl}/v1/centro-de-custo`, {
-        headers: { 'Authorization': `Bearer ${accessToken}` }
-    });
+    const urls = [
+        'https://api-v2.contaazul.com/v1/centro-de-custo',
+        'https://api.contaazul.com/v1/centro-de-custo',
+        'https://api-v2.contaazul.com/v1/cost-centers'
+    ];
 
-    if (res.status === 404) {
-        const res2 = await fetch(`${baseUrl}/v1/cost-centers`, {
-            headers: { 'Authorization': `Bearer ${accessToken}` }
-        });
-        if (!res2.ok) return [];
-        const data = await res2.json();
-        return Array.isArray(data) ? data : (data.items || data.cost_centers || []);
+    for (const url of urls) {
+        try {
+            const res = await fetch(url, { headers: { 'Authorization': `Bearer ${accessToken}` } });
+            if (res.ok) {
+                const data = await res.json();
+                const items = Array.isArray(data) ? data : (data.items || data.cost_centers || []);
+                if (items.length > 0) return items;
+            }
+        } catch (e) { }
     }
-
-    if (!res.ok) return [];
-    const data = await res.json();
-    const centers = Array.isArray(data) ? data : (data.items || data.cost_centers || []);
-    console.log(`Found ${centers.length} cost centers.`);
-    return centers;
+    return [];
 }
 
 // Removing fetchSales as the focus is on DRE structure (Categories/Cost Centers) for now

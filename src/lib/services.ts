@@ -127,9 +127,7 @@ export async function syncData() {
 }
 
 async function fetchCategories(accessToken: string) {
-    // V2 Base URL matches auth.contaazul.com tokens
     const baseUrl = 'https://api-v2.contaazul.com';
-
     console.log("Fetching categories from V2 API...");
     const res = await fetch(`${baseUrl}/v1/categorias`, {
         headers: { 'Authorization': `Bearer ${accessToken}` }
@@ -141,35 +139,42 @@ async function fetchCategories(accessToken: string) {
             headers: { 'Authorization': `Bearer ${accessToken}` }
         });
         if (!res2.ok) throw new Error(`V2 Categories API failed (404 on both): ${res2.status}`);
-        return res2.json();
+        const data = await res2.json();
+        return Array.isArray(data) ? data : (data.items || data.categorias || []);
     }
 
     if (!res.ok) {
         const text = await res.text();
         throw new Error(`V2 Categories API failed: ${res.status} ${text.substring(0, 100)}`);
     }
-    return res.json();
+    const data = await res.json();
+    // V20.1: Defensive handling of response format
+    const categories = Array.isArray(data) ? data : (data.items || data.categorias || []);
+    console.log(`Found ${categories.length} categories. First one:`, categories[0] ? JSON.stringify(categories[0]) : 'none');
+    return categories;
 }
 
 async function fetchCostCenters(accessToken: string) {
     const baseUrl = 'https://api-v2.contaazul.com';
-
     console.log("Fetching cost centers from V2 API...");
     const res = await fetch(`${baseUrl}/v1/centro-de-custo`, {
         headers: { 'Authorization': `Bearer ${accessToken}` }
     });
 
     if (res.status === 404) {
-        console.warn("Cost centers /v1/centro-de-custo not found on V2, trying /v1/cost-centers...");
         const res2 = await fetch(`${baseUrl}/v1/cost-centers`, {
             headers: { 'Authorization': `Bearer ${accessToken}` }
         });
         if (!res2.ok) return [];
-        return res2.json();
+        const data = await res2.json();
+        return Array.isArray(data) ? data : (data.items || data.cost_centers || []);
     }
 
     if (!res.ok) return [];
-    return res.json();
+    const data = await res.json();
+    const centers = Array.isArray(data) ? data : (data.items || data.cost_centers || []);
+    console.log(`Found ${centers.length} cost centers.`);
+    return centers;
 }
 
 // Removing fetchSales as the focus is on DRE structure (Categories/Cost Centers) for now

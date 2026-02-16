@@ -23,11 +23,9 @@ export const getAuthUrl = (state: string) => {
     const baseUrl = isDev ? 'http://127.0.0.1:3000' : 'https://planejamento-or-ament-rio.vercel.app';
     const redirectUri = `${baseUrl}/api/auth/callback`;
 
-    // V27: Revertendo para o conjunto padrão que costuma funcionar.
-    // O erro 'invalid_scope' da v26 confirmou que não podemos colocar nomes arbitrários.
-    const scope = 'sales finance openid profile email';
-
-    return `${CA_AUTH_URL}?client_id=${encodeURIComponent(clientId)}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=${encodeURIComponent(scope)}&state=${encodeURIComponent(state)}&response_type=code`;
+    // V28: Removendo o parâmetro scope inteiramente.
+    // O print do portal do usuário mostra uma URL sem scope.
+    return `${CA_AUTH_URL}?client_id=${encodeURIComponent(clientId)}&redirect_uri=${encodeURIComponent(redirectUri)}&state=${encodeURIComponent(state)}&response_type=code`;
 };
 
 export const exchangeCodeForToken = async (code: string): Promise<ContaAzulTokenResponse> => {

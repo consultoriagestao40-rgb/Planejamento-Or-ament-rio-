@@ -139,11 +139,12 @@ export async function syncData() {
 
     // Help debug: Try to decode token
     let grantedScopes = 'unknown';
+    let fullTokenPayload = null;
     try {
         const payload = accessToken.split('.')[1];
         if (payload) {
-            const decoded = JSON.parse(Buffer.from(payload, 'base64').toString());
-            grantedScopes = decoded.scope || decoded.authorities || 'none found in JWT';
+            fullTokenPayload = JSON.parse(Buffer.from(payload, 'base64').toString());
+            grantedScopes = fullTokenPayload.scope || fullTokenPayload.authorities || 'none found in JWT';
         }
     } catch (e) {
         grantedScopes = 'not a JWT or decode failed';
@@ -157,6 +158,7 @@ export async function syncData() {
         report,
         debug: {
             grantedScopes,
+            fullPayload: fullTokenPayload,
             firstCategory: categories[0] ? JSON.stringify(categories[0]) : 'none',
             rawCategoriesSample: JSON.stringify(categories).substring(0, 500)
         }

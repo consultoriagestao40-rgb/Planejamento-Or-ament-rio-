@@ -23,14 +23,15 @@ model Tenant {
 }
 
 model Category {
-  id        String   @id // Financial Category ID from Conta Azul (UUID)
-  name      String
-  tenantId  String
-  parentId  String?
-  type      String   // REVENUE / EXPENSE
+  id         String   @id // Financial Category ID from Conta Azul (UUID)
+  name       String
+  tenantId   String
+  parentId   String?
+  type       String   // REVENUE / EXPENSE
+  entradaDre String?  // Metadata for DRE grouping (e.g., DESPESAS_ADMINISTRATIVAS)
   
-  tenant    Tenant   @relation(fields: [tenantId], references: [id])
-  budgets   BudgetEntry[]
+  tenant     Tenant   @relation(fields: [tenantId], references: [id])
+  budgets    BudgetEntry[]
 }
 
 model CostCenter {

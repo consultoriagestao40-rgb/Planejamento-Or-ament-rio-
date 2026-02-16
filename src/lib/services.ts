@@ -144,6 +144,7 @@ export async function syncData() {
 
             const parentId = cat.categoria_pai || cat.parent_id || null;
             const typeValue = cat.tipo || cat.type || 'EXPENSE';
+            const entradaDre = cat.entrada_dre || cat.entry_dre || null;
 
             await (prisma as any).category.upsert({
                 where: { id: catId },
@@ -152,12 +153,14 @@ export async function syncData() {
                     name: catName,
                     tenantId: tenant.id,
                     parentId: parentId,
-                    type: typeValue
+                    type: typeValue,
+                    entradaDre: entradaDre
                 },
                 update: {
                     name: catName,
                     parentId: parentId,
-                    type: typeValue
+                    type: typeValue,
+                    entradaDre: entradaDre
                 }
             });
             report.categoriesSuccess++;

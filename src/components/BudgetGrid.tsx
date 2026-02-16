@@ -62,8 +62,36 @@ export function BudgetGrid() {
         loadData();
     }, [selectedCostCenter]);
 
+    // DRE Sections Mapping
+    const DRE_MAP: Record<string, string> = {
+        'RECEITAS': '01 1 - Receitas',
+        'DEDUCOES': '02 2 - Tributo Sobre Faturamento',
+        'CUSTOS': '03 4 - Custos Operacionais',
+        'DESPESAS_COMERCIAIS': '04 6 - Despesa Comercial',
+        'DESPESAS_ADMINISTRATIVAS': '05 8 - Despesa Administrativa',
+        'DESPESSAS_FINANCEIRAS': '06 10 - Despesa Financeira',
+        'OUTRAS_RECEITAS_NAO_OPERACIONAIS': '07 - Outras Receitas',
+        'OUTRAS_DESPESAS_NAO_OPERACIONAIS': '08 - Outras Despesas'
+    };
+
     // Hierarchy Builder
     const buildCategoryTree = (list: any[], parentId: string | null = null, level = 1): any[] => {
+        // If it's the root level and we have DRE metadata, we might want to group by DRE_MAP
+        if (level === 1 && list.some(c => c.entradaDre)) {
+            const sections = Array.from(new Set(list.map(c => c.entradaDre).filter(Boolean)));
+            return sections.flatMap(section => {
+                const sectionName = DRE_MAP[section as string] || section;
+                const children = list.filter(c => c.entradaDre === section && !c.parentId);
+                return [
+                    { id: `section-${section}`, name: sectionName as string, level: 1, isSection: true },
+                    ...children.flatMap(c => [
+                        { ...c, level: 2, parentId: `section-${section}` },
+                        ...buildCategoryTree(list, c.id, 3)
+                    ])
+                ];
+            });
+        }
+
         return list
             .filter(c => c.parentId === parentId)
             .flatMap(c => [

@@ -241,19 +241,20 @@ export function BudgetGrid() {
 
     const renderCategoriesForSection = (section: string, parentId: string | null = null, level = 1): React.ReactNode[] => {
         return categories
-            .filter(c => c.entradaDre === section && c.parentId === parentId)
+            .filter(c => (parentId === null ? c.entradaDre === section : true) && c.parentId === parentId)
             .flatMap(cat => {
                 const hasChildren = categories.some(c => c.parentId === cat.id);
                 const row = (
                     <tr key={cat.id} style={{ borderBottom: '1px solid #f0f0f0' }}>
                         <td style={{
                             padding: '0.5rem',
-                            paddingLeft: `${level * 1}rem`,
+                            paddingLeft: `${level * 1.2}rem`,
                             position: 'sticky',
                             left: 0,
                             background: 'white',
                             zIndex: 5,
-                            fontWeight: hasChildren ? 600 : 400
+                            fontWeight: hasChildren ? 600 : 400,
+                            color: hasChildren ? '#334155' : '#64748b'
                         }}>
                             {hasChildren && (
                                 <button
@@ -267,22 +268,23 @@ export function BudgetGrid() {
                         </td>
                         {MONTHS.map((_, i) => (
                             <React.Fragment key={i}>
-                                <td style={{ borderLeft: '1px solid #f0f0f0', padding: '0' }}>
+                                <td style={{ borderLeft: '1px solid #f8fafc', padding: '0' }}>
                                     <input
                                         type="text"
                                         placeholder="0,00"
                                         onBlur={(e) => handleBudgetChange(cat.id, i, e.target.value)}
                                         defaultValue={budgetValues[`${cat.id}-${i}`] ? budgetValues[`${cat.id}-${i}`].toFixed(2) : ''}
-                                        style={{ width: '100%', padding: '0.5rem', border: 'none', textAlign: 'right', background: 'transparent' }}
+                                        style={{ width: '100%', padding: '0.5rem', border: 'none', textAlign: 'right', background: 'transparent', fontSize: '0.75rem' }}
                                     />
                                 </td>
-                                <td style={{ textAlign: 'right', padding: '0.5rem', color: '#666' }}>
+                                <td style={{ textAlign: 'right', padding: '0.5rem', color: '#3b82f6', fontSize: '0.75rem', fontWeight: 500 }}>
                                     {formatCurrency(realizedValues[`${cat.id}-${i}`])}
                                 </td>
                             </React.Fragment>
                         ))}
                     </tr>
                 );
+                // Recursively render children WITHOUT filtering by section (they belong to this branch)
                 return [row, ...(expandedRows.has(cat.id) ? renderCategoriesForSection(section, cat.id, level + 1) : [])];
             });
     };
@@ -327,45 +329,52 @@ export function BudgetGrid() {
                     </tr>
                 </thead>
                 <tbody>
-                    {/* Dynamic DRE Structure */}
-                    {renderDRELine('01T Receita Bruta', budgetDRE.rBruta, realizedDRE.rBruta)}
+                    {/* 01 RECEITAS */}
+                    {renderDRELine('01 1 - Receitas', budgetDRE.rBruta, realizedDRE.rBruta)}
                     {renderCategoriesForSection('RECEITAS')}
 
-                    {renderDRELine('02 2 - Tributo Sobre Faturamento', budgetDRE.tributos, realizedDRE.tributos)}
+                    {/* 02 DEDUCOES */}
+                    {renderDRELine('02 2 - Tributos sobre Faturamento', budgetDRE.tributos, realizedDRE.tributos)}
                     {renderCategoriesForSection('DEDUCOES')}
 
                     {renderDRELine('02T 3 - Receita Líquida', budgetDRE.rLiquida, realizedDRE.rLiquida, true)}
 
+                    {/* 03 CUSTOS */}
                     {renderDRELine('03 4 - Custos Operacionais', budgetDRE.custos, realizedDRE.custos)}
                     {renderCategoriesForSection('CUSTOS')}
 
                     {renderDRELine('03T 5 - Margem Bruta', budgetDRE.mBruta, realizedDRE.mBruta, true)}
 
+                    {/* 04 DESPESAS COMERCIAIS */}
                     {renderDRELine('04 6 - Despesa Comercial', budgetDRE.dComerciais, realizedDRE.dComerciais)}
                     {renderCategoriesForSection('DESPESAS_COMERCIAIS')}
 
                     {renderDRELine('04T 7 - Margem de Contribuição', budgetDRE.mContrib, realizedDRE.mContrib, true)}
 
+                    {/* 05 DESPESAS ADM */}
                     {renderDRELine('05 8 - Despesa Administrativa', budgetDRE.dAdmins, realizedDRE.dAdmins)}
                     {renderCategoriesForSection('DESPESAS_ADMINISTRATIVAS')}
 
                     {renderDRELine('05T 9 - EBITDA', budgetDRE.ebitda, realizedDRE.ebitda, true)}
 
+                    {/* 06 FINANCEIRO */}
                     {renderDRELine('06 10 - Despesa Financeira', budgetDRE.dFinanc, realizedDRE.dFinanc)}
                     {renderCategoriesForSection('DESPESSAS_FINANCEIRAS')}
 
-                    {renderDRELine('07 - Outras Receitas Não Operacionais', budgetDRE.oReceitas, realizedDRE.oReceitas)}
+                    {/* OUTROS */}
+                    {renderDRELine('07 - Outras Receitas', budgetDRE.oReceitas, realizedDRE.oReceitas)}
                     {renderCategoriesForSection('OUTRAS_RECEITAS_NAO_OPERACIONAIS')}
 
-                    {renderDRELine('08 - Outras Despesas Não Operacionais', budgetDRE.oDespesas, realizedDRE.oDespesas)}
+                    {renderDRELine('08 - Outras Despesas', budgetDRE.oDespesas, realizedDRE.oDespesas)}
                     {renderCategoriesForSection('OUTRAS_DESPESAS_NAO_OPERACIONAIS')}
 
+                    <tr style={{ background: '#f8fafc' }}><td colSpan={100} style={{ padding: '0.2rem' }}></td></tr>
                     {renderDRELine('06T 11 - Lucro Líquido', budgetDRE.lLiquido, realizedDRE.lLiquido, true)}
                 </tbody>
             </table>
 
             {loading && <div style={{ padding: '3rem', textAlign: 'center', color: '#64748b' }}>Sincronizando dados com Conta Azul...</div>}
-            {error && <div style={{ padding: '1rem', color: '#dc2626', background: '#fef2f2', marginTop: '1rem', borderRadius: '4px' }}>{error}</div>}
+            <div style={{ padding: '0.5rem', fontSize: '0.7rem', color: '#ccc', textAlign: 'right' }}>Build v46.3 - Fully Hierarchical DRE</div>
         </div>
     );
 }

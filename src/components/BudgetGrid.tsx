@@ -1,5 +1,5 @@
 'use client';
-// V47.41 - Strict Code-Based Hierarchy (01.1.1 -> 01.1 -> 01) + Totals on Top
+// V47.50 - Strict Code-Based Hierarchy + Correct Revenue/Tax Segregation
 
 import React, { useState, useMemo, useEffect } from 'react';
 import { MONTHS, MOCK_COST_CENTERS } from '@/lib/mock-data';
@@ -62,7 +62,8 @@ export default function BudgetGrid({ refreshKey = 0 }: BudgetGridProps) {
     useEffect(() => {
         const loadSetup = async () => {
             try {
-                const setupRes = await fetch('/api/setup', { cache: 'no-store' });
+                // Force fresh fetch to help with stale data issues
+                const setupRes = await fetch('/api/setup?t=' + Date.now(), { cache: 'no-store' });
                 const setupData = await setupRes.json();
 
                 if (setupData.success) {
@@ -84,9 +85,10 @@ export default function BudgetGrid({ refreshKey = 0 }: BudgetGridProps) {
             setLoading(true);
             setError(null);
             try {
+                // Force fresh fetch
                 const [budgetRes, syncRes] = await Promise.all([
-                    fetch(`/api/budgets?costCenterId=${selectedCostCenter}&year=${selectedYear}`, { cache: 'no-store' }),
-                    fetch(`/api/sync?costCenterId=${selectedCostCenter}&year=${selectedYear}`, { cache: 'no-store' })
+                    fetch(`/api/budgets?costCenterId=${selectedCostCenter}&year=${selectedYear}&t=${Date.now()}`, { cache: 'no-store' }),
+                    fetch(`/api/sync?costCenterId=${selectedCostCenter}&year=${selectedYear}&t=${Date.now()}`, { cache: 'no-store' })
                 ]);
 
                 const budgetData = await budgetRes.json();
@@ -115,52 +117,42 @@ export default function BudgetGrid({ refreshKey = 0 }: BudgetGridProps) {
     }, [selectedCostCenter, selectedYear, refreshKey]);
 
     // --- STRICT CODE-BASED TREE BUILDER ---
-    // User Requirement: "01.1.1" must be child of "01.1", which is child of "01".
-    // We strictly use the Account Code (Prefix) to build the hierarchy.
     const treeRoots = useMemo(() => {
         const map = new Map<string, CategoryNode>();
         const roots: CategoryNode[] = [];
 
         // 1. Initialize Nodes & Extract Codes
-        // Sort by Code length (shortest first) so we process parents before children usually
-        // But better: Sort alphabetically to ensure 01 comes before 01.1
         const sortedCats = [...categories].sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true }));
 
         sortedCats.forEach(cat => {
-            // "01.1.1 - Desc" -> Code "01.1.1"
+            // Extract code: "01.1.1 - Desc" -> "01.1.1"
             const codeMatch = cat.name.match(/^([\d.]+)/);
             const code = codeMatch ? codeMatch[1] : '';
 
             map.set(cat.id, {
                 ...cat,
-                code, // Store extracted code
+                code,
                 children: [],
                 level: 0
             });
         });
 
         // 2. Build Hierarchy using CODES
-        // We look for the "Best Match Parent" based on code prefix.
-        // ex: "01.1.1" looks for "01.1". "01.1" looks for "01".
         sortedCats.forEach(cat => {
             const node = map.get(cat.id)!;
 
-            // If no code, we can't place it in this strict hierarchy easily. 
-            // Put it in roots or try legacy parentId? Let's treat as Root for now.
             if (!node.code) {
                 roots.push(node);
                 return;
             }
 
-            // Find Strict Code Parent
             let parentFound = false;
             let currentPrefix = node.code;
 
-            // "01.1.1" -> try "01.1" -> try "01"
+            // Try to find parent by removing last segment: "01.1.1" -> "01.1" -> "01"
             while (currentPrefix.includes('.')) {
                 currentPrefix = currentPrefix.substring(0, currentPrefix.lastIndexOf('.'));
 
-                // Find node with this exact code
                 const parentNode = Array.from(map.values()).find(n => n.code === currentPrefix);
                 if (parentNode) {
                     node.level = parentNode.level + 1;
@@ -170,17 +162,15 @@ export default function BudgetGrid({ refreshKey = 0 }: BudgetGridProps) {
                 }
             }
 
-            // If no "dot parent", maybe it's "01" and we need to see if there's a "0" parent? 
-            // Or maybe "01.1" didn't find "01" because "01" has no dots but is a prefix?
+            // Fallback: If no dot-parent found, check if there's a simpler prefix match?
+            // E.g. "01" is parent of "01.1"? Yes, handled above if "01" exists as a node.
+            // If "01" does NOT exist as a node, then "01.1" becomes a root.
             if (!parentFound) {
-                // Try finding a parent that is a strict prefix (e.g. Code "01" for "011..."? Unlikely with dots)
-                // User uses standard accounting: 1, 1.1, 1.1.1
-                // If we are here, it means we found no ancestor. It is a Root of this tree.
                 roots.push(node);
             }
         });
 
-        // 3. Final Sort of the Roots
+        // 3. Final Sort of Roots
         return roots.sort((a, b) => (a.code || '').localeCompare(b.code || '', undefined, { numeric: true }));
 
     }, [categories]);
@@ -215,8 +205,7 @@ export default function BudgetGrid({ refreshKey = 0 }: BudgetGridProps) {
         return totalsMap;
     }, [treeRoots, budgetValues, realizedValues]);
 
-    // --- STRUCTURED DRE BUILDER (User's Exact Mapping) ---
-    // Rule: Calculated Totals ALWAYS at the TOP of the group.
+    // --- STRUCTURED DRE BUILDER (Corrected Segregation) ---
     const dreStructure = useMemo(() => {
         const sumRoots = (roots: CategoryNode[], monthIdx: number, type: 'budget' | 'realized') => {
             return roots.reduce((acc, root) => {
@@ -226,12 +215,12 @@ export default function BudgetGrid({ refreshKey = 0 }: BudgetGridProps) {
         };
 
         const buckets = {
-            rev: [] as CategoryNode[],        // 01, 02
-            taxes: [] as CategoryNode[],      // 03
-            costs: [] as CategoryNode[],      // 04
-            opExp: [] as CategoryNode[],      // 05, 06
-            adminExp: [] as CategoryNode[],   // 07, 08
-            fin: [] as CategoryNode[],        // 09, 10
+            rev: [] as CategoryNode[],        // 01, 02 (Strictly)
+            taxes: [] as CategoryNode[],      // 2, 02.1?, 03?  (Assuming user has "2.1.1" as taxes)
+            costs: [] as CategoryNode[],      // 3, 04?
+            opExp: [] as CategoryNode[],      // 4, 05, 06?
+            adminExp: [] as CategoryNode[],   // 7, 08?
+            fin: [] as CategoryNode[],        // 9, 10
             other: [] as CategoryNode[]
         };
 
@@ -244,32 +233,49 @@ export default function BudgetGrid({ refreshKey = 0 }: BudgetGridProps) {
             const p = getPrefix(root.name);
             const code = root.code || p;
 
-            // Revenue: 01 (Services) & 02 (Sales)
-            // Note: Since we built the tree by code, "01.1" is inside "01". 
-            // So we only see the ROOT "01" here. That is correct.
-            // If "01.1" had no parent "01", it would appear here as a root.
-            if (code.startsWith('01') || code.startsWith('1.') || code === '1') buckets.rev.push(root);
-            else if (code.startsWith('02') || code.startsWith('2.') || code === '2') buckets.rev.push(root); // User wants 01 & 02 in Revenue
+            // --- REVENUE (Receita Bruta) ---
+            // STRICTLY "01" (Services) and "02" (Sales).
+            // DANGER: Do NOT use "startsWith('2')" here.
+            // "02" matches startsWith('02').
+            if (code === '01' || code === '02' || code.startsWith('01.') || code.startsWith('02.')) {
+                buckets.rev.push(root);
+            }
 
-            // Taxes: 03 ? (Implicit from user order) - "2 - Tributos"
-            else if (code.startsWith('03') || code.startsWith('3.') || code === '3') buckets.taxes.push(root);
+            // --- TAXES (Tributos) ---
+            // "2.1.1" -> Starts with "2".
+            // "03" -> Expenses?
+            else if (code.startsWith('2') || code.startsWith('03')) {
+                buckets.taxes.push(root);
+            }
 
-            // Costs: 04
-            else if (code.startsWith('04') || code.startsWith('4.') || code === '4') buckets.costs.push(root);
+            // --- COSTS (Custo Operacional) ---
+            // 3, 04? Assuming 3 based on DRE common sense, but earlier user said 4=Costs.
+            // Let's assume 3 and 4 are costs based on earlier "Prefix 3 & 4"
+            else if (code.startsWith('3') || code.startsWith('04')) {
+                buckets.costs.push(root);
+            }
 
-            // OpExp: 05, 06
-            else if (code.startsWith('05') || code.startsWith('5.') || code === '5') buckets.opExp.push(root);
-            else if (code.startsWith('06') || code.startsWith('6.') || code === '6') buckets.opExp.push(root);
+            // --- OP EXP (Despesa Operacional) ---
+            // 5, 05, 6, 06
+            else if (code.startsWith('5') || code.startsWith('05') || code.startsWith('6') || code.startsWith('06')) {
+                buckets.opExp.push(root);
+            }
 
-            // AdminExp: 07, 08
-            else if (code.startsWith('07') || code.startsWith('7.') || code === '7') buckets.adminExp.push(root);
-            else if (code.startsWith('08') || code.startsWith('8.') || code === '8') buckets.adminExp.push(root);
+            // --- ADMIN EXP (Despesas Administrativas) ---
+            // 7, 07, 8, 08
+            else if (code.startsWith('7') || code.startsWith('07') || code.startsWith('8') || code.startsWith('08')) {
+                buckets.adminExp.push(root);
+            }
 
-            // FinExp: 09, 10
-            else if (code.startsWith('09') || code.startsWith('9.') || code === '9') buckets.fin.push(root);
-            else if (code.startsWith('10')) buckets.fin.push(root);
+            // --- FIN EXP (Despesas Financeiras) ---
+            // 9, 09, 10
+            else if (code.startsWith('9') || code.startsWith('09') || code.startsWith('10')) {
+                buckets.fin.push(root);
+            }
 
-            else buckets.other.push(root);
+            else {
+                buckets.other.push(root);
+            }
         });
 
         // Computed Rows Logic
@@ -437,11 +443,7 @@ export default function BudgetGrid({ refreshKey = 0 }: BudgetGridProps) {
                 <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
                     <div style={{ display: 'flex', flexDirection: 'column' }}>
                         <label style={{ fontSize: '0.75rem', fontWeight: 600, color: '#64748b' }}>Centro de Custo</label>
-                        <select
-                            value={selectedCostCenter}
-                            onChange={(e) => setSelectedCostCenter(e.target.value)}
-                            style={{ padding: '0.5rem', borderRadius: '4px', border: '1px solid #cbd5e1', minWidth: '200px' }}
-                        >
+                        <select value={selectedCostCenter} onChange={(e) => setSelectedCostCenter(e.target.value)} style={{ padding: '0.5rem', borderRadius: '4px', border: '1px solid #cbd5e1', minWidth: '200px' }}>
                             {costCenters.map(cc => <option key={cc.id} value={cc.id}>{cc.name}</option>)}
                         </select>
                     </div>

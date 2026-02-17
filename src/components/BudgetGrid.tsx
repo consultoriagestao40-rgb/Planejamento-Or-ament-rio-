@@ -170,15 +170,47 @@ export default function BudgetGrid({ refreshKey = 0 }: BudgetGridProps) {
 
         treeRoots.forEach(root => {
             const p = getPrefix(root.name);
-            if (p.startsWith('1') && !p.startsWith('10') && !p.startsWith('11') && !p.startsWith('12')) buckets.revenue.push(root); // 1...
-            else if (p.startsWith('2')) buckets.deductions.push(root);
-            else if (p.startsWith('3') || p.startsWith('4')) buckets.costs.push(root);
-            else if (p.startsWith('6')) buckets.opExpenses.push(root);
-            else if (p.startsWith('8')) buckets.adminExpenses.push(root);
-            else if (p.startsWith('9') || p.startsWith('10')) buckets.financial.push(root); // 9 or 10
-            else if (p.startsWith('7')) buckets.otherRev.push(root);
-            else if (p.startsWith('11') || p.startsWith('12')) buckets.otherExp.push(root);
-            else buckets.unclassified.push(root);
+            // V47.16.1: Robust Prefix Matching (Handles '01', '1', '03', '3' etc.)
+
+            // Revenue: 1 or 01
+            if (p.startsWith('1') && !p.startsWith('10') && !p.startsWith('11') && !p.startsWith('12') || p === '01') {
+                buckets.revenue.push(root);
+            }
+            // Deductions: 2 or 02
+            else if (p.startsWith('2') || p === '02') {
+                buckets.deductions.push(root);
+            }
+            // Costs: 3 or 4 or 03 or 04
+            else if (p.startsWith('3') || p.startsWith('4') || p === '03' || p === '04') {
+                buckets.costs.push(root);
+            }
+            // Op Expenses: 6 or 06
+            else if (p.startsWith('6') || p === '06') {
+                buckets.opExpenses.push(root);
+            }
+            // Admin Expenses: 8 or 08 or 5??? (User mentioned 05 might be admin in older logs, strictly sticking to 8 if standard chart)
+            // User's chart seems to use 05 for Admin based on '05 8 - Despesas Administrativas' label in previous code.
+            // Let's broaden to catch '08' and '8'.
+            else if (p.startsWith('8') || p === '08') {
+                buckets.adminExpenses.push(root);
+            }
+            // Financial: 9, 10, 09
+            else if (p.startsWith('9') || p.startsWith('10') || p === '09') {
+                buckets.financial.push(root);
+            }
+            // Other Rev: 7, 07
+            else if (p.startsWith('7') || p === '07') {
+                buckets.otherRev.push(root);
+            }
+            // Other Exp: 11, 12
+            else if (p.startsWith('11') || p.startsWith('12')) {
+                buckets.otherExp.push(root);
+            }
+            // Fallback: If "Loose", try to pattern match name if prefix failed?
+            // For now, put in unclassified.
+            else {
+                buckets.unclassified.push(root);
+            }
         });
 
         return buckets;
@@ -268,6 +300,39 @@ export default function BudgetGrid({ refreshKey = 0 }: BudgetGridProps) {
         } catch (error) {
             console.error('Save failed', error);
         }
+    };
+
+    // Render a "Folder" Row (The Section Total)
+    const renderSectionHeader = (sectionId: string, label: string, budgetVal: number[], realizedVal: number[], isMain = false, hasCategories = true) => {
+        const isExpanded = expandedRows.has(sectionId);
+        const canDrillDown = hasCategories;
+
+        return (
+            <tr
+                key={sectionId}
+                onClick={() => canDrillDown && toggleRow(sectionId)} // Use toggleRow which reuses expandedRows Set
+                style={{
+                    background: isMain ? '#e2e8f0' : '#f1f5f9',
+                    fontWeight: 'bold',
+                    borderTop: '1px solid #94a3b8',
+                    cursor: canDrillDown ? 'pointer' : 'default',
+                    opacity: canDrillDown ? 1 : 0.9
+                }}
+            >
+                <td style={{ padding: '0.75rem', position: 'sticky', left: 0, background: isMain ? '#e2e8f0' : '#f1f5f9', zIndex: 10, display: 'flex', alignItems: 'center' }}>
+                    <span style={{ marginRight: '0.5rem', fontSize: '0.8rem', width: '1rem', visibility: canDrillDown ? 'visible' : 'hidden' }}>
+                        {isExpanded ? '▼' : '▶'}
+                    </span>
+                    {label}
+                </td>
+                {MONTHS.map((_, i) => (
+                    <React.Fragment key={i}>
+                        <td style={{ textAlign: 'right', padding: '0.75rem' }}>{formatCurrency(budgetVal[i])}</td>
+                        <td style={{ textAlign: 'right', padding: '0.75rem', color: isMain ? 'blue' : 'inherit' }}>{formatCurrency(realizedVal[i])}</td>
+                    </React.Fragment>
+                ))}
+            </tr>
+        );
     };
 
     // Recursive Row Renderer
@@ -400,41 +465,146 @@ export default function BudgetGrid({ refreshKey = 0 }: BudgetGridProps) {
                     </tr>
                 </thead>
                 <tbody>
-                    {/* Dynamic Rendering Loop based on Accounting Buckets */}
-
                     {/* 1. Revenue */}
-                    {dreBuckets.revenue.map(renderNode)}
+                    {(() => {
+                        const roots = dreBuckets.revenue;
+                        const total = T_Revenue;
+                        const sectionId = 'RECEITAS';
+                        const label = '01 - Receitas'; // Hardcoded Label for Stability
+                        const isExpanded = expandedRows.has(sectionId); // Reuse expandedRows set for sections too
+
+                        return (
+                            <>
+                                {renderSectionHeader(sectionId, label, total.budget, total.realized, false, roots.length > 0)}
+                                {isExpanded && roots.map(renderNode)}
+                            </>
+                        );
+                    })()}
 
                     {/* 2. Deductions */}
-                    {dreBuckets.deductions.map(renderNode)}
+                    {(() => {
+                        const roots = dreBuckets.deductions;
+                        const total = T_Deductions;
+                        const sectionId = 'DEDUCOES';
+                        const label = '02 - Tributos sobre Faturamento';
+                        const isExpanded = expandedRows.has(sectionId);
+
+                        return (
+                            <>
+                                {renderSectionHeader(sectionId, label, total.budget, total.realized, false, roots.length > 0)}
+                                {isExpanded && roots.map(renderNode)}
+                            </>
+                        );
+                    })()}
 
                     {/* Result: Net Revenue */}
                     {renderResultRow('02T 3 - Receita Líquida', R_NetRevenue.budget, R_NetRevenue.realized)}
 
                     {/* 3. Costs */}
-                    {dreBuckets.costs.map(renderNode)}
+                    {(() => {
+                        const roots = dreBuckets.costs;
+                        const total = T_Costs;
+                        const sectionId = 'CUSTOS';
+                        const label = '03 - Custos Operacionais';
+                        const isExpanded = expandedRows.has(sectionId);
+
+                        return (
+                            <>
+                                {renderSectionHeader(sectionId, label, total.budget, total.realized, false, roots.length > 0)}
+                                {isExpanded && roots.map(renderNode)}
+                            </>
+                        );
+                    })()}
 
                     {/* Result: Gross Margin */}
                     {renderResultRow('03T 5 - Margem Bruta', R_GrossMargin.budget, R_GrossMargin.realized)}
 
                     {/* 4. Operating Expenses */}
-                    {dreBuckets.opExpenses.map(renderNode)}
+                    {(() => {
+                        const roots = dreBuckets.opExpenses;
+                        const total = T_OpExp;
+                        const sectionId = 'DESPESAS_OPERACIONAIS';
+                        const label = '04 - Despesas Operacionais';
+                        const isExpanded = expandedRows.has(sectionId);
+
+                        return (
+                            <>
+                                {renderSectionHeader(sectionId, label, total.budget, total.realized, false, roots.length > 0)}
+                                {isExpanded && roots.map(renderNode)}
+                            </>
+                        );
+                    })()}
 
                     {/* Result: Contribution Margin */}
                     {renderResultRow('04T 7 - Margem de Contribuição', R_ContribMargin.budget, R_ContribMargin.realized)}
 
                     {/* 5. Admin Expenses */}
-                    {dreBuckets.adminExpenses.map(renderNode)}
+                    {(() => {
+                        const roots = dreBuckets.adminExpenses;
+                        const total = T_AdminExp;
+                        const sectionId = 'DESPESAS_ADMINISTRATIVAS';
+                        const label = '05 - Despesas Administrativas';
+                        const isExpanded = expandedRows.has(sectionId);
+
+                        return (
+                            <>
+                                {renderSectionHeader(sectionId, label, total.budget, total.realized, false, roots.length > 0)}
+                                {isExpanded && roots.map(renderNode)}
+                            </>
+                        );
+                    })()}
 
                     {/* Result: EBITDA */}
                     {renderResultRow('05T 9 - EBITDA', R_EBITDA.budget, R_EBITDA.realized)}
 
                     {/* 6. Financial */}
-                    {dreBuckets.financial.map(renderNode)}
+                    {(() => {
+                        const roots = dreBuckets.financial;
+                        const total = T_Fin;
+                        const sectionId = 'DESPESAS_FINANCEIRAS';
+                        const label = '06 - Despesas Financeiras';
+                        const isExpanded = expandedRows.has(sectionId);
 
-                    {/* 7. Others */}
-                    {dreBuckets.otherRev.map(renderNode)}
-                    {dreBuckets.otherExp.map(renderNode)}
+                        return (
+                            <>
+                                {renderSectionHeader(sectionId, label, total.budget, total.realized, false, roots.length > 0)}
+                                {isExpanded && roots.map(renderNode)}
+                            </>
+                        );
+                    })()}
+
+
+                    {/* 7. Other Revenue */}
+                    {(() => {
+                        const roots = dreBuckets.otherRev;
+                        const total = T_OtherRev;
+                        const sectionId = 'OUTRAS_RECEITAS';
+                        const label = '07 - Outras Receitas';
+                        const isExpanded = expandedRows.has(sectionId);
+
+                        return (
+                            <>
+                                {renderSectionHeader(sectionId, label, total.budget, total.realized, false, roots.length > 0)}
+                                {isExpanded && roots.map(renderNode)}
+                            </>
+                        );
+                    })()}
+
+                    {/* 8. Other Expenses */}
+                    {(() => {
+                        const roots = dreBuckets.otherExp;
+                        const total = T_OtherExp;
+                        const sectionId = 'OUTRAS_DESPESAS';
+                        const label = '08 - Outras Despesas';
+                        const isExpanded = expandedRows.has(sectionId);
+
+                        return (
+                            <>
+                                {renderSectionHeader(sectionId, label, total.budget, total.realized, false, roots.length > 0)}
+                                {isExpanded && roots.map(renderNode)}
+                            </>
+                        );
+                    })()}
 
                     {/* Unclassified */}
                     {dreBuckets.unclassified.length > 0 && (

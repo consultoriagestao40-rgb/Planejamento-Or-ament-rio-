@@ -1,5 +1,5 @@
 'use client';
-// V47.20 - Exact 11-Step Structured DRE (Matching User Image 01 Codes)
+// V47.30 - Structured DRE with Totals on Top & Expanded Revenue Mapping
 
 import React, { useState, useMemo, useEffect } from 'react';
 import { MONTHS, MOCK_COST_CENTERS } from '@/lib/mock-data';
@@ -36,7 +36,6 @@ export default function BudgetGrid({ refreshKey = 0 }: BudgetGridProps) {
         setLoadingTransactions(true);
         setTransactions([]);
         try {
-            // Level 4 Drill-Down: Fetch specific transactions for this category/month
             const res = await fetch(`/api/transactions?categoryId=${categoryId}&month=${month}&year=${selectedYear}&costCenterId=${selectedCostCenter}`);
             const data = await res.json();
             if (data.success) {
@@ -119,15 +118,12 @@ export default function BudgetGrid({ refreshKey = 0 }: BudgetGridProps) {
         const map = new Map<string, CategoryNode>();
         const roots: CategoryNode[] = [];
 
-        // 1. Initialize Nodes
         categories.forEach(cat => {
             map.set(cat.id, { ...cat, children: [], level: 0 });
         });
 
-        // 2. Build Hierarchy using PARENT ID only
         categories.forEach(cat => {
             const node = map.get(cat.id)!;
-
             if (cat.parentId && map.has(cat.parentId)) {
                 const parent = map.get(cat.parentId)!;
                 node.level = parent.level + 1;
@@ -137,7 +133,6 @@ export default function BudgetGrid({ refreshKey = 0 }: BudgetGridProps) {
             }
         });
 
-        // 3. Sort by Name
         const sortRecursive = (nodes: CategoryNode[]) => {
             nodes.sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true }));
             nodes.forEach(n => sortRecursive(n.children));
@@ -157,7 +152,6 @@ export default function BudgetGrid({ refreshKey = 0 }: BudgetGridProps) {
             const myBudget = new Array(12).fill(0);
             const myRealized = new Array(12).fill(0);
 
-            // Sum Children
             childrenTotals.forEach(childTotal => {
                 for (let i = 0; i < 12; i++) {
                     myBudget[i] += childTotal.budget[i];
@@ -165,7 +159,6 @@ export default function BudgetGrid({ refreshKey = 0 }: BudgetGridProps) {
                 }
             });
 
-            // Add Own Values
             for (let i = 0; i < 12; i++) {
                 myBudget[i] += budgetValues[`${node.id}-${i}`] || 0;
                 myRealized[i] += realizedValues[`${node.id}-${i}`] || 0;
@@ -177,22 +170,10 @@ export default function BudgetGrid({ refreshKey = 0 }: BudgetGridProps) {
 
         treeRoots.forEach(root => calculateNode(root));
         return totalsMap;
-
     }, [treeRoots, budgetValues, realizedValues]);
 
     // --- STRUCTURED DRE BUILDER (User's Exact Mapping) ---
-    // Codes based on Image 01 & User Request:
-    // 1 - Receita Bruta (Prefix 1)
-    // 2 - Tributos (Prefix 2)
-    // 3 - (=) Receita Líquida
-    // 4 - Custos Operacionais (Prefix 3 & 4)
-    // 5 - (=) Margem Bruta
-    // 6 - Despesas Operacionais (Prefix 5 & 6)
-    // 7 - (=) Margem de Contribuição
-    // 8 - Despesas Administrativas (Prefix 7 & 8)
-    // 9 - (=) EBITDA
-    // 10 - Despesas Financeiras (Prefix 9 & 10)
-    // 11 - (=) Lucro Líquido
+    // Rule: Calculated Totals ALWAYS at the TOP of the group.
     const dreStructure = useMemo(() => {
         const sumRoots = (roots: CategoryNode[], monthIdx: number, type: 'budget' | 'realized') => {
             return roots.reduce((acc, root) => {
@@ -202,61 +183,62 @@ export default function BudgetGrid({ refreshKey = 0 }: BudgetGridProps) {
         };
 
         const buckets = {
-            rev: [] as CategoryNode[],        // 1
-            taxes: [] as CategoryNode[],      // 2
-            costs: [] as CategoryNode[],      // 3 & 4
-            opExp: [] as CategoryNode[],      // 5 & 6
-            adminExp: [] as CategoryNode[],   // 7 & 8
-            fin: [] as CategoryNode[],        // 9 & 10 
+            rev: [] as CategoryNode[],        // 01, 02
+            taxes: [] as CategoryNode[],      // 03
+            costs: [] as CategoryNode[],      // 04
+            opExp: [] as CategoryNode[],      // 05, 06
+            adminExp: [] as CategoryNode[],   // 07, 08
+            fin: [] as CategoryNode[],        // 09, 10
             other: [] as CategoryNode[]
         };
 
-        treeRoots.forEach(root => {
-            const firstPart = root.name.split(/[ -.]+/)[0];
-            const prefix = parseInt(firstPart, 10);
+        const getPrefix = (name: string) => {
+            const parts = name.split(/[ -.]+/);
+            return parts[0];
+        };
 
-            if (prefix === 1 || root.name.startsWith('1')) buckets.rev.push(root);
-            else if (prefix === 2 || root.name.startsWith('2')) buckets.taxes.push(root);
-            else if (prefix === 3 || prefix === 4 || root.name.startsWith('3') || root.name.startsWith('4')) buckets.costs.push(root);
-            else if (prefix === 5 || prefix === 6 || root.name.startsWith('5') || root.name.startsWith('6')) buckets.opExp.push(root);
-            else if (prefix === 7 || prefix === 8 || root.name.startsWith('7') || root.name.startsWith('8')) buckets.adminExp.push(root);
-            else if (prefix === 9 || prefix === 10 || root.name.startsWith('9') || root.name.startsWith('10')) buckets.fin.push(root);
+        treeRoots.forEach(root => {
+            const p = getPrefix(root.name);
+
+            // Revenue: Includes "01" (Services) and "02" (Sales)
+            if (p === '01' || p === '1' || p === '02' || p === '2') {
+                buckets.rev.push(root);
+            }
+            // Taxes: 03 (Assuming based on sequence, user didn't specify exact code for Taxes root but requested line 2=Tributos)
+            else if (p === '03' || p === '3') buckets.taxes.push(root);
+
+            // Costs: 04 (Based on previous user input/image)
+            else if (p === '04' || p === '4') buckets.costs.push(root);
+
+            // OpExp: 05 & 06
+            else if (p === '05' || p === '5') buckets.opExp.push(root);
+            else if (p === '06' || p === '6') buckets.opExp.push(root);
+
+            // AdminExp: 07 & 08
+            else if (p === '07' || p === '7') buckets.adminExp.push(root);
+            else if (p === '08' || p === '8') buckets.adminExp.push(root);
+
+            // FinExp: 09 & 10
+            else if (p === '09' || p === '9') buckets.fin.push(root);
+            else if (p === '10') buckets.fin.push(root);
+
             else buckets.other.push(root);
         });
 
+        // Computed Rows Logic
         return {
             buckets,
             calculateTotals: (monthIdx: number) => {
-                // 1
                 const vRev = { b: sumRoots(buckets.rev, monthIdx, 'budget'), r: sumRoots(buckets.rev, monthIdx, 'realized') };
-                // 2
                 const vTaxes = { b: sumRoots(buckets.taxes, monthIdx, 'budget'), r: sumRoots(buckets.taxes, monthIdx, 'realized') };
-
-                // 3 (=) Rec Liq (Rev - Taxes)
                 const vRecLiq = { b: vRev.b - Math.abs(vTaxes.b), r: vRev.r - Math.abs(vTaxes.r) };
-
-                // 4
                 const vCosts = { b: sumRoots(buckets.costs, monthIdx, 'budget'), r: sumRoots(buckets.costs, monthIdx, 'realized') };
-
-                // 5 (=) Margem Bruta (Rec Liq - Costs)
                 const vGrossMarg = { b: vRecLiq.b - Math.abs(vCosts.b), r: vRecLiq.r - Math.abs(vCosts.r) };
-
-                // 6
                 const vOpExp = { b: sumRoots(buckets.opExp, monthIdx, 'budget'), r: sumRoots(buckets.opExp, monthIdx, 'realized') };
-
-                // 7 (=) Margem Contribuição (GrossMarg - OpExp)
                 const vContribMarg = { b: vGrossMarg.b - Math.abs(vOpExp.b), r: vGrossMarg.r - Math.abs(vOpExp.r) };
-
-                // 8
                 const vAdminExp = { b: sumRoots(buckets.adminExp, monthIdx, 'budget'), r: sumRoots(buckets.adminExp, monthIdx, 'realized') };
-
-                // 9 (=) EBITDA (ContribMarg - AdminExp)
                 const vEbitda = { b: vContribMarg.b - Math.abs(vAdminExp.b), r: vContribMarg.r - Math.abs(vAdminExp.r) };
-
-                // 10
                 const vFin = { b: sumRoots(buckets.fin, monthIdx, 'budget'), r: sumRoots(buckets.fin, monthIdx, 'realized') };
-
-                // 11 (=) Lucro Liquido (EBITDA + Fin Result)
                 const vNetProfit = { b: vEbitda.b + vFin.b, r: vEbitda.r + vFin.r };
 
                 return { vRev, vTaxes, vRecLiq, vCosts, vGrossMarg, vOpExp, vContribMarg, vAdminExp, vEbitda, vFin, vNetProfit };
@@ -379,8 +361,8 @@ export default function BudgetGrid({ refreshKey = 0 }: BudgetGridProps) {
     };
 
     // Summary Row Renderer
-    const renderSummaryRow = (label: string, validx: keyof ReturnType<typeof dreStructure.calculateTotals>, isBold = false, bgColor = '#f8fafc', textColor = '#0f172a') => (
-        <tr style={{ background: bgColor, borderBottom: '1px solid #e2e8f0', fontWeight: isBold ? 700 : 600 }}>
+    const renderSummaryRow = (label: string, validx: keyof ReturnType<typeof dreStructure.calculateTotals>, isBold = false, bgColor = '#f8fafc', textColor = '#0f172a', onClick?: () => void) => (
+        <tr onClick={onClick} style={{ background: bgColor, borderBottom: '1px solid #e2e8f0', fontWeight: isBold ? 700 : 600, cursor: onClick ? 'pointer' : 'default' }}>
             <td style={{ padding: '0.75rem', position: 'sticky', left: 0, background: bgColor, zIndex: 10, color: textColor, fontSize: '0.85rem' }}>
                 {label}
             </td>
@@ -403,7 +385,7 @@ export default function BudgetGrid({ refreshKey = 0 }: BudgetGridProps) {
 
     return (
         <div style={{ overflowX: 'auto', border: '1px solid #e2e8f0', borderRadius: '8px', padding: '1rem', background: 'white' }}>
-            {/* Header / Month Controls */}
+            {/* Header ... */}
             <div style={{ marginBottom: '1.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
                     <div style={{ display: 'flex', flexDirection: 'column' }}>
@@ -436,42 +418,41 @@ export default function BudgetGrid({ refreshKey = 0 }: BudgetGridProps) {
                     </tr>
                 </thead>
                 <tbody>
-                    {/* 1 - RECEITA BRUTA */}
-                    {dreStructure.buckets.rev.map(root => renderNode(root))}
+                    {/* 1 - RECEITA BRUTA (Total Top) */}
                     {renderSummaryRow('1 - RECEITA BRUTA', 'vRev', true, '#eff6ff', '#1e3a8a')}
+                    {dreStructure.buckets.rev.map(root => renderNode(root))}
 
-                    {/* 2 - TRIBUTOS */}
-                    {dreStructure.buckets.taxes.map(root => renderNode(root))}
+                    {/* 2 - TRIBUTOS (Total Top) */}
                     {renderSummaryRow('2 - TRIBUTOS', 'vTaxes', true, '#f1f5f9', '#64748b')}
+                    {dreStructure.buckets.taxes.map(root => renderNode(root))}
 
-                    {/* 3 - RECEITA LÍQUIDA */}
+                    {/* 3 - RECEITA LÍQUIDA (Result Only) */}
                     {renderSummaryRow('3 - (=) RECEITA LÍQUIDA', 'vRecLiq', true, '#e0f2fe', '#0369a1')}
 
-                    {/* 4 - CUSTO OPERACIONAL */}
-                    {dreStructure.buckets.costs.map(root => renderNode(root))}
+                    {/* 4 - CUSTO OPERACIONAL (Total Top) */}
                     {renderSummaryRow('4 - CUSTO OPERACIONAL', 'vCosts', true, '#f1f5f9', '#64748b')}
+                    {dreStructure.buckets.costs.map(root => renderNode(root))}
 
                     {/* 5 - MARGEM BRUTA */}
                     {renderSummaryRow('5 - (=) MARGEM BRUTA', 'vGrossMarg', true, '#dcfce7', '#15803d')}
 
-                    {/* 6 - DESPESA OPERACIONAL */}
-                    {dreStructure.buckets.opExp.map(root => renderNode(root))}
+                    {/* 6 - DESPESA OPERACIONAL (Total Top) */}
                     {renderSummaryRow('6 - DESPESA OPERACIONAL', 'vOpExp', true, '#f1f5f9', '#64748b')}
+                    {dreStructure.buckets.opExp.map(root => renderNode(root))}
 
-                    {/* 7 - MARGEM DE CONTRIBUIÇÃO (Actually Contrib Margin AFTER Fixed Op Expenses?) */}
-                    {/* User put this at 7. Usually this is before fixed expenses. But strict map follows request. */}
+                    {/* 7 - MARGEM DE CONTRIBUIÇÃO */}
                     {renderSummaryRow('7 - (=) MARGEM DE CONTRIBUIÇÃO', 'vContribMarg', true, '#fff7ed', '#c2410c')}
 
-                    {/* 8 - DESPESAS ADMINISTRATIVAS */}
-                    {dreStructure.buckets.adminExp.map(root => renderNode(root))}
+                    {/* 8 - DESPESAS ADMINISTRATIVAS (Total Top) */}
                     {renderSummaryRow('8 - DESPESAS ADMINISTRATIVAS', 'vAdminExp', true, '#f1f5f9', '#64748b')}
+                    {dreStructure.buckets.adminExp.map(root => renderNode(root))}
 
                     {/* 9 - EBITDA */}
                     {renderSummaryRow('9 - (=) EBITDA', 'vEbitda', true, '#fef3c7', '#b45309')}
 
-                    {/* 10 - DESPESAS FINANCEIRAS */}
-                    {dreStructure.buckets.fin.map(root => renderNode(root))}
+                    {/* 10 - DESPESAS FINANCEIRAS (Total Top) */}
                     {renderSummaryRow('10 - DESPESAS FINANCEIRAS', 'vFin', true, '#f1f5f9', '#64748b')}
+                    {dreStructure.buckets.fin.map(root => renderNode(root))}
 
                     {/* 11 - LUCRO LIQUIDO */}
                     {renderSummaryRow('11 - (=) LUCRO LÍQUIDO', 'vNetProfit', true, '#0f172a', '#fbbf24')}

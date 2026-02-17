@@ -140,87 +140,7 @@ export default function BudgetGrid({ refreshKey = 0 }: BudgetGridProps) {
         { id: 'OUTRAS_DESPESAS', prefix: '11', default: '08 - Outras Despesas', patterns: ['^11(\\.|\\s|$)', '^12(\\.|\\s|$)', 'OUTRAS DESPESAS'] }
     ];
 
-    // Build the Full Directory Tree first, independent of sections
-    const buildFullTree = (list: any[]) => {
-        const roots: any[] = [];
-        // Map ID -> Node
-        const nodesMap = new Map<string, any>();
-        list.forEach(c => nodesMap.set(c.id, { ...c, children: [] }));
 
-        // Helper to extract code from name (e.g., "1.1 - Vendas" -> "1.1")
-        const getCode = (name: string) => {
-            const match = name.match(/^(\d+(\.\d+)*)/);
-            return match ? match[0] : null;
-        };
-
-        // Name-based Parent Inference fallback
-        const inferParent = (node: any) => {
-            if (node.parentId && nodesMap.has(node.parentId)) return node.parentId;
-
-            const code = getCode(node.name);
-            if (!code) return null;
-
-            if (code.includes('.')) {
-                const parentCode = code.substring(0, code.lastIndexOf('.'));
-                // Find node with this code
-                for (const potentialParent of list) {
-                    if (getCode(potentialParent.name) === parentCode) {
-                        return potentialParent.id;
-                    }
-                }
-            } else if (code.length > 1 && code.startsWith('0')) {
-                // Handle "01" -> parent null? Or special mapping?
-                // "011" case.
-            }
-            return null;
-        };
-
-        // Build structure
-        nodesMap.forEach((node) => {
-            const pid = inferParent(node);
-            if (pid && nodesMap.has(pid)) {
-                const parent = nodesMap.get(pid);
-                parent.children.push(node);
-                node.parentId = pid; // Normalize for render check
-            } else {
-                roots.push(node);
-            }
-        });
-
-        // Sort Helper
-        const sortNodes = (nodes: any[]) => {
-            nodes.sort((a, b) => {
-                const codeA = getCode(a.name) || '';
-                const codeB = getCode(b.name) || '';
-
-                // Numeric sort logic for codes like 1.1, 1.2, 1.10
-                const partsA = codeA.split('.').map(Number);
-                const partsB = codeB.split('.').map(Number);
-
-                for (let i = 0; i < Math.max(partsA.length, partsB.length); i++) {
-                    const valA = partsA[i] || 0;
-                    const valB = partsB[i] || 0;
-                    if (valA !== valB) return valA - valB;
-                }
-                return a.name.localeCompare(b.name);
-            });
-            nodes.forEach(n => {
-                if (n.children.length > 0) sortNodes(n.children);
-            });
-        };
-
-        sortNodes(roots);
-
-        const enhanceNode = (node: any, level: number): any => ({
-            ...node,
-            level,
-            children: node.children.map((c: any) => enhanceNode(c, level + 1))
-        });
-
-        return roots.map(r => enhanceNode(r, 1));
-    };
-
-    const fullTree = React.useMemo(() => categories.length > 0 ? buildFullTree(categories) : [], [categories]);
 
     // Helper to check if a Root Node belongs to a Section
     const belongsToSection = (node: any, patterns: string[], excludes?: string[]) => {
@@ -243,68 +163,7 @@ export default function BudgetGrid({ refreshKey = 0 }: BudgetGridProps) {
         });
     };
 
-    // Flatten logic for rendering
-    const flattenTree = (nodes: any[], expanded: Set<string>): any[] => {
-        return nodes.flatMap(node => {
-            if (!expanded.has(node.id) && !node.parentId) {
-                // Root not expanded? Just show root.
-                // Actually we want full control called by renderSection
-                return [node];
-            }
-            // If we are calling this, we probably want the flat list
-            // But implementing `renderRow` recursively is easier.
-            return [];
-        });
-    };
 
-    const renderRowRecursively = (node: any): React.ReactNode[] => {
-        const hasChildren = node.children && node.children.length > 0;
-        const isExpanded = expandedRows.has(node.id);
-
-        const row = (
-            <tr key={node.id} style={{ borderBottom: '1px solid #f0f0f0' }}>
-                <td style={{
-                    padding: '0.5rem',
-                    paddingLeft: `${node.level * 1.2}rem`,
-                    position: 'sticky',
-                    left: 0,
-                    background: 'white',
-                    zIndex: 5,
-                    fontWeight: hasChildren ? 600 : 400,
-                    color: hasChildren ? '#334155' : '#64748b'
-                }}>
-                    {hasChildren && (
-                        <button
-                            onClick={() => toggleRow(node.id)}
-                            style={{ marginRight: '0.4rem', border: 'none', background: 'none', cursor: 'pointer', fontSize: '0.7rem' }}
-                        >
-                            {isExpanded ? '▼' : '▶'}
-                        </button>
-                    )}
-                    {node.name}
-                </td>
-                {MONTHS.map((_, i) => (
-                    <React.Fragment key={i}>
-                        <td style={{ borderLeft: '1px solid #f8fafc', padding: '0' }}>
-                            <input
-                                type="text"
-                                placeholder="0,00"
-                                onBlur={(e) => handleBudgetChange(node.id, i, e.target.value)}
-                                defaultValue={budgetValues[`${node.id}-${i}`] ? budgetValues[`${node.id}-${i}`].toFixed(2) : ''}
-                                style={{ width: '100%', padding: '0.5rem', border: 'none', textAlign: 'right', background: 'transparent', fontSize: '0.75rem' }}
-                            />
-                        </td>
-                        <td style={{ textAlign: 'right', padding: '0.5rem', color: '#3b82f6', fontSize: '0.75rem', fontWeight: 500 }}>
-                            {formatCurrency(realizedDRE.getRecursiveVal(node.id, i))}
-                        </td>
-                    </React.Fragment>
-                ))}
-            </tr>
-        );
-
-        const childRows = isExpanded ? node.children.flatMap((c: any) => renderRowRecursively(c)) : [];
-        return [row, ...childRows];
-    };
 
     // V47.12: Section-Based Drill-Down (Robust to Flat Data)
     const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set());

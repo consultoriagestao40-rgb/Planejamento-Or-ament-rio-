@@ -143,79 +143,79 @@ export default function BudgetGrid({ refreshKey = 0 }: BudgetGridProps) {
     // Build the Full Directory Tree first, independent of sections
     const buildFullTree = (list: any[]) => {
         const roots: any[] = [];
-        const byParent: Record<string, any[]> = {};
+        // Map ID -> Node
+        const nodesMap = new Map<string, any>();
+        list.forEach(c => nodesMap.set(c.id, { ...c, children: [] }));
 
-        // Pre-process list to Detach special nodes (like 1.1.1)
-        const processList = list.map(c => {
-            // DETACHMENT LOGIC:
-            // 1.1.1 (Receitas Financeiras) is technically a child of 1, but we want it as a Root 
-            // so we can map it separately to Section 06.
-            if (c.name.includes('1.1.1') || c.name.startsWith('1.1.1')) {
-                return { ...c, parentId: null, _forcedRoot: true };
+        // Helper to extract code from name (e.g., "1.1 - Vendas" -> "1.1")
+        const getCode = (name: string) => {
+            const match = name.match(/^(\d+(\.\d+)*)/);
+            return match ? match[0] : null;
+        };
+
+        // Name-based Parent Inference fallback
+        const inferParent = (node: any) => {
+            if (node.parentId && nodesMap.has(node.parentId)) return node.parentId;
+
+            const code = getCode(node.name);
+            if (!code) return null;
+
+            if (code.includes('.')) {
+                const parentCode = code.substring(0, code.lastIndexOf('.'));
+                // Find node with this code
+                for (const potentialParent of list) {
+                    if (getCode(potentialParent.name) === parentCode) {
+                        return potentialParent.id;
+                    }
+                }
+            } else if (code.length > 1 && code.startsWith('0')) {
+                // Handle "01" -> parent null? Or special mapping?
+                // "011" case.
             }
-            return c;
-        });
+            return null;
+        };
 
-        processList.forEach(c => {
-            if (!c.parentId) {
-                roots.push(c);
+        // Build structure
+        nodesMap.forEach((node) => {
+            const pid = inferParent(node);
+            if (pid && nodesMap.has(pid)) {
+                const parent = nodesMap.get(pid);
+                parent.children.push(node);
+                node.parentId = pid; // Normalize for render check
             } else {
-                if (!byParent[c.parentId]) byParent[c.parentId] = [];
-                byParent[c.parentId].push(c);
+                roots.push(node);
             }
         });
 
-        // Also handle Orphans (items with parentId that doesn't exist in list)
-        const allIds = new Set(processList.map(c => c.id));
-        processList.forEach(c => {
-            if (c.parentId && !allIds.has(c.parentId)) {
-                // Treat orphan as root
-                roots.push(c);
-            }
-        });
+        // Sort Helper
+        const sortNodes = (nodes: any[]) => {
+            nodes.sort((a, b) => {
+                const codeA = getCode(a.name) || '';
+                const codeB = getCode(b.name) || '';
 
-        // Sort roots by name (usually implies code order 1, 1.1, etc.)
-        roots.sort((a, b) => {
-            // Smart sort: Try to sort by the leading number if present
-            const numA = (a.name.match(/^\d+(\.\d+)*/)?.[0]) || '';
-            const numB = (b.name.match(/^\d+(\.\d+)*/)?.[0]) || '';
-            if (numA && numB) {
-                // Compare as segment arrays
-                const partsA = numA.split('.').map(Number);
-                const partsB = numB.split('.').map(Number);
+                // Numeric sort logic for codes like 1.1, 1.2, 1.10
+                const partsA = codeA.split('.').map(Number);
+                const partsB = codeB.split('.').map(Number);
+
                 for (let i = 0; i < Math.max(partsA.length, partsB.length); i++) {
                     const valA = partsA[i] || 0;
                     const valB = partsB[i] || 0;
                     if (valA !== valB) return valA - valB;
                 }
-                return 0;
-            }
-            return a.name.localeCompare(b.name);
-        });
-
-        const enhanceNode = (node: any, level: number): any => {
-            const children = (byParent[node.id] || []).sort((a, b) => {
-                const numA = (a.name.match(/^\d+(\.\d+)*/)?.[0]) || '';
-                const numB = (b.name.match(/^\d+(\.\d+)*/)?.[0]) || '';
-                if (numA && numB) {
-                    const partsA = numA.split('.').map(Number);
-                    const partsB = numB.split('.').map(Number);
-                    for (let i = 0; i < Math.max(partsA.length, partsB.length); i++) {
-                        const valA = partsA[i] || 0;
-                        const valB = partsB[i] || 0;
-                        if (valA !== valB) return valA - valB;
-                    }
-                    return 0;
-                }
                 return a.name.localeCompare(b.name);
             });
-
-            return {
-                ...node,
-                level,
-                children: children.map(c => enhanceNode(c, level + 1))
-            };
+            nodes.forEach(n => {
+                if (n.children.length > 0) sortNodes(n.children);
+            });
         };
+
+        sortNodes(roots);
+
+        const enhanceNode = (node: any, level: number): any => ({
+            ...node,
+            level,
+            children: node.children.map((c: any) => enhanceNode(c, level + 1))
+        });
 
         return roots.map(r => enhanceNode(r, 1));
     };
@@ -466,49 +466,49 @@ export default function BudgetGrid({ refreshKey = 0 }: BudgetGridProps) {
 
                     {/* 01 RECEITAS */}
                     {renderDRELine(DRE_LAYOUT[0].default, budgetDRE.rBruta, realizedDRE.rBruta)}
-                    {fullTree.filter(node => belongsToSection(node, DRE_LAYOUT[0].patterns, DRE_LAYOUT[0].excludes)).flatMap(node => renderRowRecursively(node))}
+                    {fullTree.filter(node => !node.parentId && belongsToSection(node, DRE_LAYOUT[0].patterns, DRE_LAYOUT[0].excludes)).flatMap(node => renderRowRecursively(node))}
 
                     {/* 02 DEDUCOES */}
                     {renderDRELine(DRE_LAYOUT[1].default, budgetDRE.tributos, realizedDRE.tributos)}
-                    {fullTree.filter(node => belongsToSection(node, DRE_LAYOUT[1].patterns, DRE_LAYOUT[1].excludes)).flatMap(node => renderRowRecursively(node))}
+                    {fullTree.filter(node => !node.parentId && belongsToSection(node, DRE_LAYOUT[1].patterns, DRE_LAYOUT[1].excludes)).flatMap(node => renderRowRecursively(node))}
 
                     {renderDRELine('02T 3 - Receita Líquida', budgetDRE.rLiquida, realizedDRE.rLiquida, true)}
 
                     {/* 03 CUSTOS */}
                     {renderDRELine(DRE_LAYOUT[2].default, budgetDRE.custos, realizedDRE.custos)}
-                    {fullTree.filter(node => belongsToSection(node, DRE_LAYOUT[2].patterns, DRE_LAYOUT[2].excludes)).flatMap(node => renderRowRecursively(node))}
+                    {fullTree.filter(node => !node.parentId && belongsToSection(node, DRE_LAYOUT[2].patterns, DRE_LAYOUT[2].excludes)).flatMap(node => renderRowRecursively(node))}
 
                     {renderDRELine('03T 5 - Margem Bruta', budgetDRE.mBruta, realizedDRE.mBruta, true)}
 
                     {/* 04 DESPESAS OPERACIONAIS (Formerly Comerciais) */}
                     {renderDRELine(DRE_LAYOUT[3].default, budgetDRE.dOperacionais, realizedDRE.dOperacionais)}
-                    {fullTree.filter(node => belongsToSection(node, DRE_LAYOUT[3].patterns, DRE_LAYOUT[3].excludes)).flatMap(node => renderRowRecursively(node))}
+                    {fullTree.filter(node => !node.parentId && belongsToSection(node, DRE_LAYOUT[3].patterns, DRE_LAYOUT[3].excludes)).flatMap(node => renderRowRecursively(node))}
 
                     {renderDRELine('04T 7 - Margem de Contribuição', budgetDRE.mContrib, realizedDRE.mContrib, true)}
 
                     {/* 05 DESPESAS ADM */}
                     {renderDRELine(DRE_LAYOUT[4].default, budgetDRE.dAdmins, realizedDRE.dAdmins)}
-                    {fullTree.filter(node => belongsToSection(node, DRE_LAYOUT[4].patterns, DRE_LAYOUT[4].excludes)).flatMap(node => renderRowRecursively(node))}
+                    {fullTree.filter(node => !node.parentId && belongsToSection(node, DRE_LAYOUT[4].patterns, DRE_LAYOUT[4].excludes)).flatMap(node => renderRowRecursively(node))}
 
                     {renderDRELine('05T 9 - EBITDA', budgetDRE.ebitda, realizedDRE.ebitda, true)}
 
                     {/* 06 FINANCEIRO */}
                     {renderDRELine(DRE_LAYOUT[5].default, budgetDRE.dFinanc, realizedDRE.dFinanc)}
-                    {fullTree.filter(node => belongsToSection(node, DRE_LAYOUT[5].patterns, DRE_LAYOUT[5].excludes)).flatMap(node => renderRowRecursively(node))}
+                    {fullTree.filter(node => !node.parentId && belongsToSection(node, DRE_LAYOUT[5].patterns, DRE_LAYOUT[5].excludes)).flatMap(node => renderRowRecursively(node))}
 
                     {/* OUTROS */}
                     {renderDRELine(DRE_LAYOUT[6].default, budgetDRE.oReceitas, realizedDRE.oReceitas)}
-                    {fullTree.filter(node => belongsToSection(node, DRE_LAYOUT[6].patterns, DRE_LAYOUT[6].excludes)).flatMap(node => renderRowRecursively(node))}
+                    {fullTree.filter(node => !node.parentId && belongsToSection(node, DRE_LAYOUT[6].patterns, DRE_LAYOUT[6].excludes)).flatMap(node => renderRowRecursively(node))}
 
                     {renderDRELine(DRE_LAYOUT[7].default, budgetDRE.oDespesas, realizedDRE.oDespesas)}
-                    {fullTree.filter(node => belongsToSection(node, DRE_LAYOUT[7].patterns, DRE_LAYOUT[7].excludes)).flatMap(node => renderRowRecursively(node))}
+                    {fullTree.filter(node => !node.parentId && belongsToSection(node, DRE_LAYOUT[7].patterns, DRE_LAYOUT[7].excludes)).flatMap(node => renderRowRecursively(node))}
 
                     {/* Unclassified/Others - Safety Net */}
                     <tr style={{ background: '#fff7ed', fontWeight: 'bold' }}>
                         <td colSpan={100} style={{ padding: '0.5rem', color: '#c2410c' }}>Outras Categorias (Não Mapeadas)</td>
                     </tr>
                     {fullTree.filter(node =>
-                        !DRE_LAYOUT.some(section => belongsToSection(node, section.patterns, section.excludes))
+                        !node.parentId && !DRE_LAYOUT.some(section => belongsToSection(node, section.patterns, section.excludes))
                     ).flatMap(node => renderRowRecursively(node))}
 
                     <tr style={{ background: '#f8fafc' }}><td colSpan={100} style={{ padding: '0.5rem' }}></td></tr>

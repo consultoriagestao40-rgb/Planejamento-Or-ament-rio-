@@ -210,7 +210,7 @@ export default function BudgetGrid({ refreshKey = 0 }: BudgetGridProps) {
     };
 
     // Render a "Folder" Row (The Section Total)
-    const renderSectionHeader = (sectionId: string, label: string, budgetVal: number, realizedVal: number, isMain = false) => {
+    const renderSectionHeader = (sectionId: string, label: string, budgetVal: number[], realizedVal: number[], isMain = false) => {
         const isExpanded = expandedSections.has(sectionId);
         return (
             <tr

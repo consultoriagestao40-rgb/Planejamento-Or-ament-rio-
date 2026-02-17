@@ -21,7 +21,7 @@ interface ContaAzulSale {
 }
 
 // Helper to get a valid access token
-async function getValidAccessToken() {
+export async function getValidAccessToken() {
     const tenant = await prisma.tenant.findFirst();
     if (!tenant) throw new Error("No connected tenant found");
 

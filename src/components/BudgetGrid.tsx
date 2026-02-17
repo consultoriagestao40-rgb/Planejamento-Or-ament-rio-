@@ -248,23 +248,52 @@ export default function BudgetGrid({ refreshKey = 0 }: BudgetGridProps) {
     };
 
     // Render a "Folder" Row (The Section Total)
-    const renderSectionHeader = (sectionId: string, label: string, budgetVal: number[], realizedVal: number[], isMain = false) => {
+    const renderSectionHeader = (sectionId: string, label: string, budgetVal: number[], realizedVal: number[], isMain = false, hasCategories = true) => {
         const isExpanded = expandedSections.has(sectionId);
+        const canDrillDown = hasCategories;
+
         return (
             <tr
                 key={sectionId}
-                onClick={() => toggleSection(sectionId)}
+                onClick={() => canDrillDown && toggleSection(sectionId)}
                 style={{
                     background: isMain ? '#e2e8f0' : '#f1f5f9',
                     fontWeight: 'bold',
                     borderTop: '1px solid #94a3b8',
-                    cursor: 'pointer'
+                    cursor: canDrillDown ? 'pointer' : 'default',
+                    opacity: canDrillDown ? 1 : 0.9
                 }}
             >
                 <td style={{ padding: '0.75rem', position: 'sticky', left: 0, background: isMain ? '#e2e8f0' : '#f1f5f9', zIndex: 10, display: 'flex', alignItems: 'center' }}>
-                    <span style={{ marginRight: '0.5rem', fontSize: '0.8rem', width: '1rem' }}>
+                    <span style={{ marginRight: '0.5rem', fontSize: '0.8rem', width: '1rem', visibility: canDrillDown ? 'visible' : 'hidden' }}>
                         {isExpanded ? '▼' : '▶'}
                     </span>
+                    {label}
+                </td>
+                {MONTHS.map((_, i) => (
+                    <React.Fragment key={i}>
+                        <td style={{ textAlign: 'right', padding: '0.75rem' }}>{formatCurrency(budgetVal[i])}</td>
+                        <td style={{ textAlign: 'right', padding: '0.75rem', color: isMain ? 'blue' : 'inherit' }}>{formatCurrency(realizedVal[i])}</td>
+                    </React.Fragment>
+                ))}
+            </tr>
+        );
+    };
+
+    // Render a Result Row (No Drill-Down, Just Totals)
+    const renderResultRow = (label: string, budgetVal: number[], realizedVal: number[], isMain = false) => {
+        return (
+            <tr
+                key={label}
+                style={{
+                    background: isMain ? '#cbd5e1' : '#e2e8f0', // Slightly darker for results
+                    fontWeight: 'bold',
+                    borderTop: '2px solid #94a3b8',
+                    borderBottom: '2px solid #94a3b8'
+                }}
+            >
+                <td style={{ padding: '0.75rem', position: 'sticky', left: 0, background: isMain ? '#cbd5e1' : '#e2e8f0', zIndex: 10, display: 'flex', alignItems: 'center' }}>
+                    <span style={{ marginRight: '0.5rem', width: '1rem' }}></span>
                     {label}
                 </td>
                 {MONTHS.map((_, i) => (
@@ -296,6 +325,7 @@ export default function BudgetGrid({ refreshKey = 0 }: BudgetGridProps) {
                     <React.Fragment key={i}>
                         <td style={{ borderLeft: '1px solid #f8fafc', padding: '0' }}>
                             <input
+                                key={`${cat.id}-${i}-${selectedCostCenter}-${selectedYear}`}
                                 type="text"
                                 placeholder="0,00"
                                 onBlur={(e) => handleBudgetChange(cat.id, i, e.target.value)}
@@ -365,47 +395,103 @@ export default function BudgetGrid({ refreshKey = 0 }: BudgetGridProps) {
                 </thead>
                 <tbody>
                     {/* 01 RECEITAS */}
-                    {renderSectionHeader(DRE_LAYOUT[0].id, DRE_LAYOUT[0].default, budgetDRE.rBruta, realizedDRE.rBruta)}
-                    {expandedSections.has(DRE_LAYOUT[0].id) && renderCategoryRows(getCategoriesForSection(DRE_LAYOUT[0].patterns, DRE_LAYOUT[0].excludes))}
+                    {(() => {
+                        const cats = getCategoriesForSection(DRE_LAYOUT[0].patterns, DRE_LAYOUT[0].excludes);
+                        return (
+                            <>
+                                {renderSectionHeader(DRE_LAYOUT[0].id, DRE_LAYOUT[0].default, budgetDRE.rBruta, realizedDRE.rBruta, false, cats.length > 0)}
+                                {expandedSections.has(DRE_LAYOUT[0].id) && renderCategoryRows(cats)}
+                            </>
+                        );
+                    })()}
 
                     {/* 02 DEDUCOES */}
-                    {renderSectionHeader(DRE_LAYOUT[1].id, DRE_LAYOUT[1].default, budgetDRE.tributos, realizedDRE.tributos)}
-                    {expandedSections.has(DRE_LAYOUT[1].id) && renderCategoryRows(getCategoriesForSection(DRE_LAYOUT[1].patterns, DRE_LAYOUT[1].excludes))}
+                    {(() => {
+                        const cats = getCategoriesForSection(DRE_LAYOUT[1].patterns, DRE_LAYOUT[1].excludes);
+                        return (
+                            <>
+                                {renderSectionHeader(DRE_LAYOUT[1].id, DRE_LAYOUT[1].default, budgetDRE.tributos, realizedDRE.tributos, false, cats.length > 0)}
+                                {expandedSections.has(DRE_LAYOUT[1].id) && renderCategoryRows(cats)}
+                            </>
+                        );
+                    })()}
 
                     {/* Result Line 1 */}
-                    {renderSectionHeader('RESULT_RL', '02T 3 - Receita Líquida', budgetDRE.rLiquida, realizedDRE.rLiquida, true)}
+                    {renderResultRow('02T 3 - Receita Líquida', budgetDRE.rLiquida, realizedDRE.rLiquida, true)}
 
                     {/* 03 CUSTOS */}
-                    {renderSectionHeader(DRE_LAYOUT[2].id, DRE_LAYOUT[2].default, budgetDRE.custos, realizedDRE.custos)}
-                    {expandedSections.has(DRE_LAYOUT[2].id) && renderCategoryRows(getCategoriesForSection(DRE_LAYOUT[2].patterns, DRE_LAYOUT[2].excludes))}
+                    {(() => {
+                        const cats = getCategoriesForSection(DRE_LAYOUT[2].patterns, DRE_LAYOUT[2].excludes);
+                        return (
+                            <>
+                                {renderSectionHeader(DRE_LAYOUT[2].id, DRE_LAYOUT[2].default, budgetDRE.custos, realizedDRE.custos, false, cats.length > 0)}
+                                {expandedSections.has(DRE_LAYOUT[2].id) && renderCategoryRows(cats)}
+                            </>
+                        );
+                    })()}
 
                     {/* Result Line 2 */}
-                    {renderSectionHeader('RESULT_MB', '03T 5 - Margem Bruta', budgetDRE.mBruta, realizedDRE.mBruta, true)}
+                    {renderResultRow('03T 5 - Margem Bruta', budgetDRE.mBruta, realizedDRE.mBruta, true)}
 
                     {/* 04 DESPESAS OPERACIONAIS */}
-                    {renderSectionHeader(DRE_LAYOUT[3].id, DRE_LAYOUT[3].default, budgetDRE.dOperacionais, realizedDRE.dOperacionais)}
-                    {expandedSections.has(DRE_LAYOUT[3].id) && renderCategoryRows(getCategoriesForSection(DRE_LAYOUT[3].patterns, DRE_LAYOUT[3].excludes))}
+                    {(() => {
+                        const cats = getCategoriesForSection(DRE_LAYOUT[3].patterns, DRE_LAYOUT[3].excludes);
+                        return (
+                            <>
+                                {renderSectionHeader(DRE_LAYOUT[3].id, DRE_LAYOUT[3].default, budgetDRE.dOperacionais, realizedDRE.dOperacionais, false, cats.length > 0)}
+                                {expandedSections.has(DRE_LAYOUT[3].id) && renderCategoryRows(cats)}
+                            </>
+                        );
+                    })()}
 
                     {/* Result Line 3 */}
-                    {renderSectionHeader('RESULT_MC', '04T 7 - Margem de Contribuição', budgetDRE.mContrib, realizedDRE.mContrib, true)}
+                    {renderResultRow('04T 7 - Margem de Contribuição', budgetDRE.mContrib, realizedDRE.mContrib, true)}
 
                     {/* 05 DESPESAS ADM */}
-                    {renderSectionHeader(DRE_LAYOUT[4].id, DRE_LAYOUT[4].default, budgetDRE.dAdmins, realizedDRE.dAdmins)}
-                    {expandedSections.has(DRE_LAYOUT[4].id) && renderCategoryRows(getCategoriesForSection(DRE_LAYOUT[4].patterns, DRE_LAYOUT[4].excludes))}
+                    {(() => {
+                        const cats = getCategoriesForSection(DRE_LAYOUT[4].patterns, DRE_LAYOUT[4].excludes);
+                        return (
+                            <>
+                                {renderSectionHeader(DRE_LAYOUT[4].id, DRE_LAYOUT[4].default, budgetDRE.dAdmins, realizedDRE.dAdmins, false, cats.length > 0)}
+                                {expandedSections.has(DRE_LAYOUT[4].id) && renderCategoryRows(cats)}
+                            </>
+                        );
+                    })()}
 
                     {/* Result Line 4 */}
-                    {renderSectionHeader('RESULT_EBITDA', '05T 9 - EBITDA', budgetDRE.ebitda, realizedDRE.ebitda, true)}
+                    {renderResultRow('05T 9 - EBITDA', budgetDRE.ebitda, realizedDRE.ebitda, true)}
 
                     {/* 06 FINANCEIRO */}
-                    {renderSectionHeader(DRE_LAYOUT[5].id, DRE_LAYOUT[5].default, budgetDRE.dFinanc, realizedDRE.dFinanc)}
-                    {expandedSections.has(DRE_LAYOUT[5].id) && renderCategoryRows(getCategoriesForSection(DRE_LAYOUT[5].patterns, DRE_LAYOUT[5].excludes))}
+                    {(() => {
+                        const cats = getCategoriesForSection(DRE_LAYOUT[5].patterns, DRE_LAYOUT[5].excludes);
+                        return (
+                            <>
+                                {renderSectionHeader(DRE_LAYOUT[5].id, DRE_LAYOUT[5].default, budgetDRE.dFinanc, realizedDRE.dFinanc, false, cats.length > 0)}
+                                {expandedSections.has(DRE_LAYOUT[5].id) && renderCategoryRows(cats)}
+                            </>
+                        );
+                    })()}
 
                     {/* OUTROS */}
-                    {renderSectionHeader(DRE_LAYOUT[6].id, DRE_LAYOUT[6].default, budgetDRE.oReceitas, realizedDRE.oReceitas)}
-                    {expandedSections.has(DRE_LAYOUT[6].id) && renderCategoryRows(getCategoriesForSection(DRE_LAYOUT[6].patterns, DRE_LAYOUT[6].excludes))}
+                    {(() => {
+                        const cats = getCategoriesForSection(DRE_LAYOUT[6].patterns, DRE_LAYOUT[6].excludes);
+                        return (
+                            <>
+                                {renderSectionHeader(DRE_LAYOUT[6].id, DRE_LAYOUT[6].default, budgetDRE.oReceitas, realizedDRE.oReceitas, false, cats.length > 0)}
+                                {expandedSections.has(DRE_LAYOUT[6].id) && renderCategoryRows(cats)}
+                            </>
+                        );
+                    })()}
 
-                    {renderSectionHeader(DRE_LAYOUT[7].id, DRE_LAYOUT[7].default, budgetDRE.oDespesas, realizedDRE.oDespesas)}
-                    {expandedSections.has(DRE_LAYOUT[7].id) && renderCategoryRows(getCategoriesForSection(DRE_LAYOUT[7].patterns, DRE_LAYOUT[7].excludes))}
+                    {(() => {
+                        const cats = getCategoriesForSection(DRE_LAYOUT[7].patterns, DRE_LAYOUT[7].excludes);
+                        return (
+                            <>
+                                {renderSectionHeader(DRE_LAYOUT[7].id, DRE_LAYOUT[7].default, budgetDRE.oDespesas, realizedDRE.oDespesas, false, cats.length > 0)}
+                                {expandedSections.has(DRE_LAYOUT[7].id) && renderCategoryRows(cats)}
+                            </>
+                        );
+                    })()}
 
                     {/* Unclassified */}
                     <tr style={{ background: '#fff7ed', fontWeight: 'bold' }}>
@@ -416,7 +502,7 @@ export default function BudgetGrid({ refreshKey = 0 }: BudgetGridProps) {
                     ))}
 
                     <tr style={{ background: '#f8fafc' }}><td colSpan={100} style={{ padding: '0.5rem' }}></td></tr>
-                    {renderSectionHeader('RESULT_LL', '06T 11 - Lucro Líquido', budgetDRE.lLiquido, realizedDRE.lLiquido, true)}
+                    {renderResultRow('06T 11 - Lucro Líquido', budgetDRE.lLiquido, realizedDRE.lLiquido, true)}
                 </tbody>
             </table>
 

@@ -185,14 +185,96 @@ export default function BudgetGrid({ refreshKey = 0 }: BudgetGridProps) {
 
     }, [treeRoots, budgetValues, realizedValues]);
 
-    // --- Bucketing Strategy: ROOTS AS SECTIONS ---
-    // We treat the Roots of the tree as the main DRE sections.
-    // If the chart of accounts is well structured, Roots will be "1 - Receitas", "2 - Despesas", etc.
-    const sections = useMemo(() => {
-        return treeRoots.map(root => ({
-            rootNode: root,
-            totals: nodeTotals.get(root.id) || { budget: new Array(12).fill(0), realized: new Array(12).fill(0) }
-        }));
+    // --- STRUCTURED DRE BUILDER ---
+    // The user wants a DRE, which is a Calculated Report, not just a list of categories.
+    // We must group the Strict Roots into DRE Sections to calculate Margins.
+    const dreStructure = useMemo(() => {
+        // Helper to sum a list of roots for a given month
+        const sumRoots = (roots: CategoryNode[], monthIdx: number, type: 'budget' | 'realized') => {
+            return roots.reduce((acc, root) => {
+                const total = nodeTotals.get(root.id);
+                return acc + (total ? total[type][monthIdx] : 0);
+            }, 0);
+        };
+
+        // Bucketer: Sorts Roots into DRE blocks based on their Number prefix (1, 2, 3...)
+        // This is standard accounting (Plano de Contas Referencial) and much safer than Name guessing.
+        const buckets = {
+            grossRevenue: [] as CategoryNode[], // 1
+            deductions: [] as CategoryNode[],   // 2
+            costs: [] as CategoryNode[],        // 3 (or 4 depending on setup)
+            opExpenses: [] as CategoryNode[],   // 4, 5, 6
+            financial: [] as CategoryNode[],    // 9 (Resultados Financeiros)
+            other: [] as CategoryNode[]         // Others
+        };
+
+        treeRoots.forEach(root => {
+            // "01 1 - Receitas" -> Clean to "1"
+            // "2 - Impostos" -> Clean to "2"
+            const firstPart = root.name.split(/[ -.]+/)[0];
+            const prefix = parseInt(firstPart, 10);
+
+            if (prefix === 1 || root.name.startsWith('1')) buckets.grossRevenue.push(root);
+            else if (prefix === 2 || root.name.startsWith('2')) buckets.deductions.push(root);
+            else if (prefix === 3 || root.name.startsWith('3')) buckets.costs.push(root);
+            else if ((prefix >= 4 && prefix <= 8) || root.name.startsWith('4')) buckets.opExpenses.push(root);
+            else if (prefix === 9 || root.name.startsWith('9')) buckets.financial.push(root);
+            else buckets.other.push(root);
+        });
+
+        // Computed Rows Logic
+        return {
+            buckets,
+            calculateTotals: (monthIdx: number) => {
+                const grossRev = {
+                    budget: sumRoots(buckets.grossRevenue, monthIdx, 'budget'),
+                    realized: sumRoots(buckets.grossRevenue, monthIdx, 'realized')
+                };
+                const ded = {
+                    budget: sumRoots(buckets.deductions, monthIdx, 'budget'), // Usually negative in DRE logic? check sign.
+                    realized: sumRoots(buckets.deductions, monthIdx, 'realized')
+                };
+
+                // Net Revenue = Gross - Deductions (Assuming Deductions are stored as positive values in DB, we subtract. If stored negative, we add).
+                // Usually Expense/Deductions api returns Positive numbers. so we sbtract.
+                const netRev = {
+                    budget: grossRev.budget - Math.abs(ded.budget),
+                    realized: grossRev.realized - Math.abs(ded.realized)
+                };
+
+                const costs = {
+                    budget: sumRoots(buckets.costs, monthIdx, 'budget'),
+                    realized: sumRoots(buckets.costs, monthIdx, 'realized')
+                };
+
+                const grossMargin = {
+                    budget: netRev.budget - Math.abs(costs.budget),
+                    realized: netRev.realized - Math.abs(costs.realized)
+                };
+
+                const opExp = {
+                    budget: sumRoots(buckets.opExpenses, monthIdx, 'budget'),
+                    realized: sumRoots(buckets.opExpenses, monthIdx, 'realized')
+                };
+
+                const ebitda = {
+                    budget: grossMargin.budget - Math.abs(opExp.budget),
+                    realized: grossMargin.realized - Math.abs(opExp.realized)
+                };
+
+                const fin = {
+                    budget: sumRoots(buckets.financial, monthIdx, 'budget'),
+                    realized: sumRoots(buckets.financial, monthIdx, 'realized')
+                };
+
+                const netProfit = {
+                    budget: ebitda.budget + fin.budget, // Financial result can be positive or negative
+                    realized: ebitda.realized + fin.realized
+                };
+
+                return { grossRev, ded, netRev, costs, grossMargin, opExp, ebitda, fin, netProfit };
+            }
+        };
     }, [treeRoots, nodeTotals]);
 
     // --- Rendering Helpers ---
@@ -211,7 +293,22 @@ export default function BudgetGrid({ refreshKey = 0 }: BudgetGridProps) {
     const handleBudgetChange = async (categoryId: string, monthIndex: number, value: string) => {
         const numericValue = parseFloat(value.replace(/\D/g, '')) / 100 || 0;
         setBudgetValues(prev => ({ ...prev, [`${categoryId}-${monthIndex}`]: numericValue }));
-        // ... (save logic)
+
+        // Debounced Save (simplified for clarity)
+        try {
+            await fetch('/api/budgets', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    tenantId: 'demo-tenant', // placeholder
+                    categoryId,
+                    costCenterId: selectedCostCenter,
+                    year: selectedYear,
+                    month: monthIndex,
+                    amount: numericValue
+                })
+            });
+        } catch (e) { console.error("Save failed", e); }
     };
 
     // Recursive Row Renderer
@@ -219,17 +316,16 @@ export default function BudgetGrid({ refreshKey = 0 }: BudgetGridProps) {
         const totals = nodeTotals.get(node.id) || { budget: new Array(12).fill(0), realized: new Array(12).fill(0) };
         const isExpanded = expandedRows.has(node.id);
         const hasChildren = node.children.length > 0;
-        const isRoot = node.level === 0;
+        // const isRoot = node.level === 0; // Not used in new layout
 
         return (
             <React.Fragment key={node.id}>
                 <tr
                     onClick={() => hasChildren && toggleRow(node.id)}
                     style={{
-                        background: hasChildren ? (isRoot ? '#f1f5f9' : '#f8fafc') : 'white',
-                        fontWeight: hasChildren ? 600 : 400,
+                        background: hasChildren ? '#fdfdfd' : 'white',
                         cursor: hasChildren ? 'pointer' : 'default',
-                        borderBottom: '1px solid #e2e8f0'
+                        borderBottom: '1px solid #f1f5f9'
                     }}
                 >
                     <td style={{
@@ -237,15 +333,16 @@ export default function BudgetGrid({ refreshKey = 0 }: BudgetGridProps) {
                         paddingLeft: `${0.5 + (node.level * 1.5)}rem`,
                         position: 'sticky',
                         left: 0,
-                        background: hasChildren ? (isRoot ? '#f1f5f9' : '#f8fafc') : 'white',
+                        background: hasChildren ? '#fdfdfd' : 'white',
                         zIndex: 5,
                         display: 'flex',
                         alignItems: 'center',
-                        color: hasChildren ? '#0f172a' : '#334155',
+                        color: hasChildren ? '#1e293b' : '#334155',
+                        fontWeight: hasChildren ? 600 : 400,
                         fontSize: '0.8rem'
                     }}>
                         {hasChildren && (
-                            <span style={{ marginRight: '0.5rem', fontSize: '0.7rem', width: '1rem' }}>
+                            <span style={{ marginRight: '0.5rem', fontSize: '0.7rem', width: '1rem', color: '#94a3b8' }}>
                                 {isExpanded ? '▼' : '▶'}
                             </span>
                         )}
@@ -255,16 +352,21 @@ export default function BudgetGrid({ refreshKey = 0 }: BudgetGridProps) {
 
                     {MONTHS.map((_, i) => (
                         <React.Fragment key={i}>
-                            <td style={{ borderLeft: '1px solid #e2e8f0', padding: hasChildren ? '0.5rem' : '0' }}>
+                            <td style={{ borderLeft: '1px solid #f1f5f9', padding: hasChildren ? '0.5rem' : '0' }}>
                                 {hasChildren ? (
-                                    <div style={{ textAlign: 'right', fontSize: '0.8rem' }}>{formatCurrency(totals.budget[i])}</div>
+                                    <div style={{ textAlign: 'right', fontSize: '0.8rem', color: '#64748b' }}>{formatCurrency(totals.budget[i])}</div>
                                 ) : (
                                     <input
                                         type="text"
                                         placeholder="0,00"
                                         onBlur={(e) => handleBudgetChange(node.id, i, e.target.value)}
                                         defaultValue={totals.budget[i] ? totals.budget[i].toFixed(2) : ''}
-                                        style={{ width: '100%', padding: '0.5rem', border: 'none', textAlign: 'right', background: 'transparent', fontSize: '0.75rem' }}
+                                        style={{
+                                            width: '100%', padding: '0.5rem', border: '1px solid transparent',
+                                            textAlign: 'right', background: 'transparent', fontSize: '0.75rem',
+                                            color: '#334155'
+                                        }}
+                                        onFocus={(e) => e.target.style.borderColor = '#3b82f6'}
                                     />
                                 )}
                             </td>
@@ -274,12 +376,10 @@ export default function BudgetGrid({ refreshKey = 0 }: BudgetGridProps) {
                                 style={{
                                     textAlign: 'right',
                                     padding: '0.5rem',
-                                    color: hasChildren ? 'blue' : '#3b82f6',
+                                    color: '#3b82f6',
                                     fontSize: '0.8rem',
-                                    fontWeight: hasChildren ? 600 : 500,
+                                    fontWeight: 500,
                                     cursor: 'pointer',
-                                    textDecoration: 'underline',
-                                    textUnderlineOffset: '2px'
                                 }}
                             >
                                 {formatCurrency(totals.realized[i])}
@@ -292,6 +392,29 @@ export default function BudgetGrid({ refreshKey = 0 }: BudgetGridProps) {
             </React.Fragment>
         );
     };
+
+    // Summary Row Renderer (Results)
+    const renderSummaryRow = (label: string, dataKey: string, isBold = false, bgColor = '#f8fafc', textColor = '#0f172a') => (
+        <tr style={{ background: bgColor, borderBottom: '1px solid #e2e8f0', fontWeight: isBold ? 700 : 600 }}>
+            <td style={{ padding: '0.75rem', position: 'sticky', left: 0, background: bgColor, zIndex: 10, color: textColor, fontSize: '0.85rem' }}>
+                {label}
+            </td>
+            {MONTHS.map((_, i) => {
+                const vals = dreStructure.calculateTotals(i) as any;
+                const val = vals[dataKey];
+                return (
+                    <React.Fragment key={i}>
+                        <td style={{ textAlign: 'right', padding: '0.75rem', borderLeft: '1px solid #e2e8f0', color: '#64748b', fontSize: '0.8rem' }}>
+                            {formatCurrency(val.budget)}
+                        </td>
+                        <td style={{ textAlign: 'right', padding: '0.75rem', color: textColor, fontSize: '0.8rem' }}>
+                            {formatCurrency(val.realized)}
+                        </td>
+                    </React.Fragment>
+                );
+            })}
+        </tr>
+    );
 
     return (
         <div style={{ overflowX: 'auto', border: '1px solid #e2e8f0', borderRadius: '8px', padding: '1rem', background: 'white' }}>
@@ -314,23 +437,49 @@ export default function BudgetGrid({ refreshKey = 0 }: BudgetGridProps) {
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8rem' }}>
                 <thead>
                     <tr style={{ background: '#f8fafc', borderBottom: '2px solid #cbd5e1' }}>
-                        <th style={{ padding: '1rem', textAlign: 'left', minWidth: '300px', position: 'sticky', left: 0, background: '#f8fafc', zIndex: 20 }}>Categorias (Estrutura Fiel Conta Azul)</th>
-                        {MONTHS.map((m) => <th key={m} colSpan={2} style={{ textAlign: 'center', padding: '0.5rem', borderLeft: '1px solid #cbd5e1' }}>{m}</th>)}
+                        <th style={{ padding: '1rem', textAlign: 'left', minWidth: '300px', position: 'sticky', left: 0, background: '#f8fafc', zIndex: 20, color: '#475569' }}>DRE Gerencial</th>
+                        {MONTHS.map((m) => <th key={m} colSpan={2} style={{ textAlign: 'center', padding: '0.5rem', borderLeft: '1px solid #cbd5e1', color: '#475569' }}>{m}</th>)}
+                    </tr>
+                    <tr style={{ background: '#fff' }}>
+                        <th style={{ position: 'sticky', left: 0, background: '#fff', zIndex: 20 }}></th>
+                        {MONTHS.map((m) => (
+                            <React.Fragment key={m}>
+                                <th style={{ fontSize: '0.7rem', color: '#94a3b8', borderLeft: '1px solid #f1f5f9', fontWeight: 500, paddingBottom: '0.5rem' }}>Orçado</th>
+                                <th style={{ fontSize: '0.7rem', color: '#94a3b8', fontWeight: 500, paddingBottom: '0.5rem' }}>Realizado</th>
+                            </React.Fragment>
+                        ))}
                     </tr>
                 </thead>
                 <tbody>
-                    {/* Render Roots directly. No manual buckets. */}
-                    {treeRoots.map(root => renderNode(root))}
+                    {/* 1. Receita Operacional Bruta */}
+                    {dreStructure.buckets.grossRevenue.map(root => renderNode(root))}
+                    {renderSummaryRow('(=) Receita Líquida', 'netRev', true, '#eff6ff', '#1e3a8a')}
 
-                    {/* We can calculate a Grand Total (Net Result) by summing everything if needed, 
-                        BUT CA structure usually has "Receitas" separate from "Despesas". 
-                        The Net Result is (Sum of Roots). Check if expense roots are negative? 
-                        In CA, expenses usually come positive. We might need to handle signs. 
-                        For now, we list values as is. 
-                        
-                        To display a Net Result (Lucro/Prejuizo), we need to know which Root is which.
-                        If strict, we can't guess. We'll show the Total row at bottom as "Net Cash Flow"
-                    */}
+                    {/* 2. Deduções (Rendered if any exist, usually implied negative in logic but listed here) */}
+                    {dreStructure.buckets.deductions.length > 0 && (
+                        <>
+                            {/* Section Header if needed */}
+                            <tr style={{ background: '#f1f5f9' }}><td colSpan={25} style={{ padding: '0.5rem', fontWeight: 'bold', fontSize: '0.75rem', color: '#64748b' }}>(-) Deduções</td></tr>
+                            {dreStructure.buckets.deductions.map(root => renderNode(root))}
+                        </>
+                    )}
+
+                    {/* 3. Custos */}
+                    <tr style={{ background: '#f1f5f9' }}><td colSpan={25} style={{ padding: '0.5rem', fontWeight: 'bold', fontSize: '0.75rem', color: '#64748b' }}>(-) Custos Variáveis</td></tr>
+                    {dreStructure.buckets.costs.map(root => renderNode(root))}
+                    {renderSummaryRow('(=) Margem Bruta', 'grossMargin', true, '#f0fdf4', '#14532d')}
+
+                    {/* 4. Despesas Operacionais */}
+                    <tr style={{ background: '#f1f5f9' }}><td colSpan={25} style={{ padding: '0.5rem', fontWeight: 'bold', fontSize: '0.75rem', color: '#64748b' }}>(-) Despesas Operacionais</td></tr>
+                    {dreStructure.buckets.opExpenses.map(root => renderNode(root))}
+                    {renderSummaryRow('(=) EBITDA', 'ebitda', true, '#fff7ed', '#7c2d12')}
+
+                    {/* 5. Outros/Financeiro */}
+                    {dreStructure.buckets.financial.map(root => renderNode(root))}
+                    {dreStructure.buckets.other.map(root => renderNode(root))}
+
+                    {/* Final Result */}
+                    {renderSummaryRow('(=) Lucro/Prejuízo Líquido', 'netProfit', true, '#1e293b', '#fbbf24')}
                 </tbody>
             </table>
 

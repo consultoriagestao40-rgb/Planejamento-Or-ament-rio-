@@ -1,5 +1,5 @@
 'use client';
-// V47.18 - Strict ID-Based DRE Tree (No Heuristics)
+// V47.20 - Exact 11-Step Structured DRE (Matching User Image 01 Codes)
 
 import React, { useState, useMemo, useEffect } from 'react';
 import { MONTHS, MOCK_COST_CENTERS } from '@/lib/mock-data';
@@ -129,17 +129,15 @@ export default function BudgetGrid({ refreshKey = 0 }: BudgetGridProps) {
             const node = map.get(cat.id)!;
 
             if (cat.parentId && map.has(cat.parentId)) {
-                // Has Parent -> Is Child
                 const parent = map.get(cat.parentId)!;
                 node.level = parent.level + 1;
                 parent.children.push(node);
             } else {
-                // No Parent -> Is Root
                 roots.push(node);
             }
         });
 
-        // 3. Sort by Name (for display order)
+        // 3. Sort by Name
         const sortRecursive = (nodes: CategoryNode[]) => {
             nodes.sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true }));
             nodes.forEach(n => sortRecursive(n.children));
@@ -149,19 +147,17 @@ export default function BudgetGrid({ refreshKey = 0 }: BudgetGridProps) {
         return roots;
     }, [categories]);
 
-    // --- RECURSIVE TOTALS (Bottom-Up Aggregation) ---
-    // Rule: Parent Total = Sum of Children + Direct Transactions (if any)
+    // --- RECURSIVE TOTALS ---
     const nodeTotals = useMemo(() => {
         const totalsMap = new Map<string, { budget: number[], realized: number[] }>();
 
         const calculateNode = (node: CategoryNode) => {
-            // Recurse first to get children totals
             const childrenTotals = node.children.map(calculateNode);
 
             const myBudget = new Array(12).fill(0);
             const myRealized = new Array(12).fill(0);
 
-            // 1. Sum Children
+            // Sum Children
             childrenTotals.forEach(childTotal => {
                 for (let i = 0; i < 12; i++) {
                     myBudget[i] += childTotal.budget[i];
@@ -169,8 +165,7 @@ export default function BudgetGrid({ refreshKey = 0 }: BudgetGridProps) {
                 }
             });
 
-            // 2. Add Own Values (Direct Transactions at this level)
-            // Note: In pure DRE, usually only leaves have transactions, but we handle mixed cases safely.
+            // Add Own Values
             for (let i = 0; i < 12; i++) {
                 myBudget[i] += budgetValues[`${node.id}-${i}`] || 0;
                 myRealized[i] += realizedValues[`${node.id}-${i}`] || 0;
@@ -185,11 +180,20 @@ export default function BudgetGrid({ refreshKey = 0 }: BudgetGridProps) {
 
     }, [treeRoots, budgetValues, realizedValues]);
 
-    // --- STRUCTURED DRE BUILDER ---
-    // The user wants a DRE, which is a Calculated Report, not just a list of categories.
-    // We must group the Strict Roots into DRE Sections to calculate Margins.
+    // --- STRUCTURED DRE BUILDER (User's Exact Mapping) ---
+    // Codes based on Image 01 & User Request:
+    // 1 - Receita Bruta (Prefix 1)
+    // 2 - Tributos (Prefix 2)
+    // 3 - (=) Receita Líquida
+    // 4 - Custos Operacionais (Prefix 3 & 4)
+    // 5 - (=) Margem Bruta
+    // 6 - Despesas Operacionais (Prefix 5 & 6)
+    // 7 - (=) Margem de Contribuição
+    // 8 - Despesas Administrativas (Prefix 7 & 8)
+    // 9 - (=) EBITDA
+    // 10 - Despesas Financeiras (Prefix 9 & 10)
+    // 11 - (=) Lucro Líquido
     const dreStructure = useMemo(() => {
-        // Helper to sum a list of roots for a given month
         const sumRoots = (roots: CategoryNode[], monthIdx: number, type: 'budget' | 'realized') => {
             return roots.reduce((acc, root) => {
                 const total = nodeTotals.get(root.id);
@@ -197,82 +201,65 @@ export default function BudgetGrid({ refreshKey = 0 }: BudgetGridProps) {
             }, 0);
         };
 
-        // Bucketer: Sorts Roots into DRE blocks based on their Number prefix (1, 2, 3...)
-        // This is standard accounting (Plano de Contas Referencial) and much safer than Name guessing.
         const buckets = {
-            grossRevenue: [] as CategoryNode[], // 1
-            deductions: [] as CategoryNode[],   // 2
-            costs: [] as CategoryNode[],        // 3 (or 4 depending on setup)
-            opExpenses: [] as CategoryNode[],   // 4, 5, 6
-            financial: [] as CategoryNode[],    // 9 (Resultados Financeiros)
-            other: [] as CategoryNode[]         // Others
+            rev: [] as CategoryNode[],        // 1
+            taxes: [] as CategoryNode[],      // 2
+            costs: [] as CategoryNode[],      // 3 & 4
+            opExp: [] as CategoryNode[],      // 5 & 6
+            adminExp: [] as CategoryNode[],   // 7 & 8
+            fin: [] as CategoryNode[],        // 9 & 10 
+            other: [] as CategoryNode[]
         };
 
         treeRoots.forEach(root => {
-            // "01 1 - Receitas" -> Clean to "1"
-            // "2 - Impostos" -> Clean to "2"
             const firstPart = root.name.split(/[ -.]+/)[0];
             const prefix = parseInt(firstPart, 10);
 
-            if (prefix === 1 || root.name.startsWith('1')) buckets.grossRevenue.push(root);
-            else if (prefix === 2 || root.name.startsWith('2')) buckets.deductions.push(root);
-            else if (prefix === 3 || root.name.startsWith('3')) buckets.costs.push(root);
-            else if ((prefix >= 4 && prefix <= 8) || root.name.startsWith('4')) buckets.opExpenses.push(root);
-            else if (prefix === 9 || root.name.startsWith('9')) buckets.financial.push(root);
+            if (prefix === 1 || root.name.startsWith('1')) buckets.rev.push(root);
+            else if (prefix === 2 || root.name.startsWith('2')) buckets.taxes.push(root);
+            else if (prefix === 3 || prefix === 4 || root.name.startsWith('3') || root.name.startsWith('4')) buckets.costs.push(root);
+            else if (prefix === 5 || prefix === 6 || root.name.startsWith('5') || root.name.startsWith('6')) buckets.opExp.push(root);
+            else if (prefix === 7 || prefix === 8 || root.name.startsWith('7') || root.name.startsWith('8')) buckets.adminExp.push(root);
+            else if (prefix === 9 || prefix === 10 || root.name.startsWith('9') || root.name.startsWith('10')) buckets.fin.push(root);
             else buckets.other.push(root);
         });
 
-        // Computed Rows Logic
         return {
             buckets,
             calculateTotals: (monthIdx: number) => {
-                const grossRev = {
-                    budget: sumRoots(buckets.grossRevenue, monthIdx, 'budget'),
-                    realized: sumRoots(buckets.grossRevenue, monthIdx, 'realized')
-                };
-                const ded = {
-                    budget: sumRoots(buckets.deductions, monthIdx, 'budget'), // Usually negative in DRE logic? check sign.
-                    realized: sumRoots(buckets.deductions, monthIdx, 'realized')
-                };
+                // 1
+                const vRev = { b: sumRoots(buckets.rev, monthIdx, 'budget'), r: sumRoots(buckets.rev, monthIdx, 'realized') };
+                // 2
+                const vTaxes = { b: sumRoots(buckets.taxes, monthIdx, 'budget'), r: sumRoots(buckets.taxes, monthIdx, 'realized') };
 
-                // Net Revenue = Gross - Deductions (Assuming Deductions are stored as positive values in DB, we subtract. If stored negative, we add).
-                // Usually Expense/Deductions api returns Positive numbers. so we sbtract.
-                const netRev = {
-                    budget: grossRev.budget - Math.abs(ded.budget),
-                    realized: grossRev.realized - Math.abs(ded.realized)
-                };
+                // 3 (=) Rec Liq (Rev - Taxes)
+                const vRecLiq = { b: vRev.b - Math.abs(vTaxes.b), r: vRev.r - Math.abs(vTaxes.r) };
 
-                const costs = {
-                    budget: sumRoots(buckets.costs, monthIdx, 'budget'),
-                    realized: sumRoots(buckets.costs, monthIdx, 'realized')
-                };
+                // 4
+                const vCosts = { b: sumRoots(buckets.costs, monthIdx, 'budget'), r: sumRoots(buckets.costs, monthIdx, 'realized') };
 
-                const grossMargin = {
-                    budget: netRev.budget - Math.abs(costs.budget),
-                    realized: netRev.realized - Math.abs(costs.realized)
-                };
+                // 5 (=) Margem Bruta (Rec Liq - Costs)
+                const vGrossMarg = { b: vRecLiq.b - Math.abs(vCosts.b), r: vRecLiq.r - Math.abs(vCosts.r) };
 
-                const opExp = {
-                    budget: sumRoots(buckets.opExpenses, monthIdx, 'budget'),
-                    realized: sumRoots(buckets.opExpenses, monthIdx, 'realized')
-                };
+                // 6
+                const vOpExp = { b: sumRoots(buckets.opExp, monthIdx, 'budget'), r: sumRoots(buckets.opExp, monthIdx, 'realized') };
 
-                const ebitda = {
-                    budget: grossMargin.budget - Math.abs(opExp.budget),
-                    realized: grossMargin.realized - Math.abs(opExp.realized)
-                };
+                // 7 (=) Margem Contribuição (GrossMarg - OpExp)
+                const vContribMarg = { b: vGrossMarg.b - Math.abs(vOpExp.b), r: vGrossMarg.r - Math.abs(vOpExp.r) };
 
-                const fin = {
-                    budget: sumRoots(buckets.financial, monthIdx, 'budget'),
-                    realized: sumRoots(buckets.financial, monthIdx, 'realized')
-                };
+                // 8
+                const vAdminExp = { b: sumRoots(buckets.adminExp, monthIdx, 'budget'), r: sumRoots(buckets.adminExp, monthIdx, 'realized') };
 
-                const netProfit = {
-                    budget: ebitda.budget + fin.budget, // Financial result can be positive or negative
-                    realized: ebitda.realized + fin.realized
-                };
+                // 9 (=) EBITDA (ContribMarg - AdminExp)
+                const vEbitda = { b: vContribMarg.b - Math.abs(vAdminExp.b), r: vContribMarg.r - Math.abs(vAdminExp.r) };
 
-                return { grossRev, ded, netRev, costs, grossMargin, opExp, ebitda, fin, netProfit };
+                // 10
+                const vFin = { b: sumRoots(buckets.fin, monthIdx, 'budget'), r: sumRoots(buckets.fin, monthIdx, 'realized') };
+
+                // 11 (=) Lucro Liquido (EBITDA + Fin Result)
+                const vNetProfit = { b: vEbitda.b + vFin.b, r: vEbitda.r + vFin.r };
+
+                return { vRev, vTaxes, vRecLiq, vCosts, vGrossMarg, vOpExp, vContribMarg, vAdminExp, vEbitda, vFin, vNetProfit };
             }
         };
     }, [treeRoots, nodeTotals]);
@@ -294,13 +281,12 @@ export default function BudgetGrid({ refreshKey = 0 }: BudgetGridProps) {
         const numericValue = parseFloat(value.replace(/\D/g, '')) / 100 || 0;
         setBudgetValues(prev => ({ ...prev, [`${categoryId}-${monthIndex}`]: numericValue }));
 
-        // Debounced Save (simplified for clarity)
         try {
             await fetch('/api/budgets', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                    tenantId: 'demo-tenant', // placeholder
+                    tenantId: 'demo-tenant',
                     categoryId,
                     costCenterId: selectedCostCenter,
                     year: selectedYear,
@@ -316,7 +302,6 @@ export default function BudgetGrid({ refreshKey = 0 }: BudgetGridProps) {
         const totals = nodeTotals.get(node.id) || { budget: new Array(12).fill(0), realized: new Array(12).fill(0) };
         const isExpanded = expandedRows.has(node.id);
         const hasChildren = node.children.length > 0;
-        // const isRoot = node.level === 0; // Not used in new layout
 
         return (
             <React.Fragment key={node.id}>
@@ -393,22 +378,22 @@ export default function BudgetGrid({ refreshKey = 0 }: BudgetGridProps) {
         );
     };
 
-    // Summary Row Renderer (Results)
-    const renderSummaryRow = (label: string, dataKey: string, isBold = false, bgColor = '#f8fafc', textColor = '#0f172a') => (
+    // Summary Row Renderer
+    const renderSummaryRow = (label: string, validx: keyof ReturnType<typeof dreStructure.calculateTotals>, isBold = false, bgColor = '#f8fafc', textColor = '#0f172a') => (
         <tr style={{ background: bgColor, borderBottom: '1px solid #e2e8f0', fontWeight: isBold ? 700 : 600 }}>
             <td style={{ padding: '0.75rem', position: 'sticky', left: 0, background: bgColor, zIndex: 10, color: textColor, fontSize: '0.85rem' }}>
                 {label}
             </td>
             {MONTHS.map((_, i) => {
-                const vals = dreStructure.calculateTotals(i) as any;
-                const val = vals[dataKey];
+                const totals = dreStructure.calculateTotals(i);
+                const val = totals[validx];
                 return (
                     <React.Fragment key={i}>
                         <td style={{ textAlign: 'right', padding: '0.75rem', borderLeft: '1px solid #e2e8f0', color: '#64748b', fontSize: '0.8rem' }}>
-                            {formatCurrency(val.budget)}
+                            {formatCurrency(val.b)}
                         </td>
                         <td style={{ textAlign: 'right', padding: '0.75rem', color: textColor, fontSize: '0.8rem' }}>
-                            {formatCurrency(val.realized)}
+                            {formatCurrency(val.r)}
                         </td>
                     </React.Fragment>
                 );
@@ -451,39 +436,49 @@ export default function BudgetGrid({ refreshKey = 0 }: BudgetGridProps) {
                     </tr>
                 </thead>
                 <tbody>
-                    {/* 1. Receita Operacional Bruta */}
-                    {dreStructure.buckets.grossRevenue.map(root => renderNode(root))}
-                    {renderSummaryRow('(=) Receita Líquida', 'netRev', true, '#eff6ff', '#1e3a8a')}
+                    {/* 1 - RECEITA BRUTA */}
+                    {dreStructure.buckets.rev.map(root => renderNode(root))}
+                    {renderSummaryRow('1 - RECEITA BRUTA', 'vRev', true, '#eff6ff', '#1e3a8a')}
 
-                    {/* 2. Deduções (Rendered if any exist, usually implied negative in logic but listed here) */}
-                    {dreStructure.buckets.deductions.length > 0 && (
-                        <>
-                            {/* Section Header if needed */}
-                            <tr style={{ background: '#f1f5f9' }}><td colSpan={25} style={{ padding: '0.5rem', fontWeight: 'bold', fontSize: '0.75rem', color: '#64748b' }}>(-) Deduções</td></tr>
-                            {dreStructure.buckets.deductions.map(root => renderNode(root))}
-                        </>
-                    )}
+                    {/* 2 - TRIBUTOS */}
+                    {dreStructure.buckets.taxes.map(root => renderNode(root))}
+                    {renderSummaryRow('2 - TRIBUTOS', 'vTaxes', true, '#f1f5f9', '#64748b')}
 
-                    {/* 3. Custos */}
-                    <tr style={{ background: '#f1f5f9' }}><td colSpan={25} style={{ padding: '0.5rem', fontWeight: 'bold', fontSize: '0.75rem', color: '#64748b' }}>(-) Custos Variáveis</td></tr>
+                    {/* 3 - RECEITA LÍQUIDA */}
+                    {renderSummaryRow('3 - (=) RECEITA LÍQUIDA', 'vRecLiq', true, '#e0f2fe', '#0369a1')}
+
+                    {/* 4 - CUSTO OPERACIONAL */}
                     {dreStructure.buckets.costs.map(root => renderNode(root))}
-                    {renderSummaryRow('(=) Margem Bruta', 'grossMargin', true, '#f0fdf4', '#14532d')}
+                    {renderSummaryRow('4 - CUSTO OPERACIONAL', 'vCosts', true, '#f1f5f9', '#64748b')}
 
-                    {/* 4. Despesas Operacionais */}
-                    <tr style={{ background: '#f1f5f9' }}><td colSpan={25} style={{ padding: '0.5rem', fontWeight: 'bold', fontSize: '0.75rem', color: '#64748b' }}>(-) Despesas Operacionais</td></tr>
-                    {dreStructure.buckets.opExpenses.map(root => renderNode(root))}
-                    {renderSummaryRow('(=) EBITDA', 'ebitda', true, '#fff7ed', '#7c2d12')}
+                    {/* 5 - MARGEM BRUTA */}
+                    {renderSummaryRow('5 - (=) MARGEM BRUTA', 'vGrossMarg', true, '#dcfce7', '#15803d')}
 
-                    {/* 5. Outros/Financeiro */}
-                    {dreStructure.buckets.financial.map(root => renderNode(root))}
-                    {dreStructure.buckets.other.map(root => renderNode(root))}
+                    {/* 6 - DESPESA OPERACIONAL */}
+                    {dreStructure.buckets.opExp.map(root => renderNode(root))}
+                    {renderSummaryRow('6 - DESPESA OPERACIONAL', 'vOpExp', true, '#f1f5f9', '#64748b')}
 
-                    {/* Final Result */}
-                    {renderSummaryRow('(=) Lucro/Prejuízo Líquido', 'netProfit', true, '#1e293b', '#fbbf24')}
+                    {/* 7 - MARGEM DE CONTRIBUIÇÃO (Actually Contrib Margin AFTER Fixed Op Expenses?) */}
+                    {/* User put this at 7. Usually this is before fixed expenses. But strict map follows request. */}
+                    {renderSummaryRow('7 - (=) MARGEM DE CONTRIBUIÇÃO', 'vContribMarg', true, '#fff7ed', '#c2410c')}
+
+                    {/* 8 - DESPESAS ADMINISTRATIVAS */}
+                    {dreStructure.buckets.adminExp.map(root => renderNode(root))}
+                    {renderSummaryRow('8 - DESPESAS ADMINISTRATIVAS', 'vAdminExp', true, '#f1f5f9', '#64748b')}
+
+                    {/* 9 - EBITDA */}
+                    {renderSummaryRow('9 - (=) EBITDA', 'vEbitda', true, '#fef3c7', '#b45309')}
+
+                    {/* 10 - DESPESAS FINANCEIRAS */}
+                    {dreStructure.buckets.fin.map(root => renderNode(root))}
+                    {renderSummaryRow('10 - DESPESAS FINANCEIRAS', 'vFin', true, '#f1f5f9', '#64748b')}
+
+                    {/* 11 - LUCRO LIQUIDO */}
+                    {renderSummaryRow('11 - (=) LUCRO LÍQUIDO', 'vNetProfit', true, '#0f172a', '#fbbf24')}
                 </tbody>
             </table>
 
-            {/* Modal - Same as before */}
+            {/* Modal */}
             {selectedCell && (
                 <div style={{
                     position: 'fixed', top: 0, left: 0, width: '100%', height: '100%',

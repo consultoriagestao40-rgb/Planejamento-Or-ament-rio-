@@ -19,12 +19,12 @@ export async function GET(request: Request) {
         const accessToken = await getValidAccessToken();
 
         // Calculate Date Range for the requested month
-        // Month is 0-indexed (0 = Jan)
-        const startDate = new Date(year, month, 1);
-        const endDate = new Date(year, month + 1, 0); // Last day of month
-
-        const startStr = startDate.toISOString().split('T')[0];
-        const endStr = endDate.toISOString().split('T')[0];
+        // V47.16.3: Widen the search window to the WHOLE YEAR.
+        // Why? Conta Azul API only filters by "Due Date", but we need "Competency Date".
+        // A transaction might have Competence in January but be Due in March.
+        // If we only search Due Date in Jan, we miss it.
+        const startStr = `${year}-01-01`;
+        const endStr = `${year}-12-31`;
 
         // Fetch Receivables
         const receivablesUrl = `https://api-v2.contaazul.com/v1/financeiro/eventos-financeiros/contas-a-receber/buscar?data_vencimento_de=${startStr}&data_vencimento_ate=${endStr}&tamanho_pagina=100`;
@@ -58,7 +58,8 @@ async function fetchTransactions(accessToken: string, baseUrl: string, costCente
         finalUrlBase += `&centro_custo_id=${costCenterId}`;
     }
 
-    while (hasMore && page <= 5) { // Limit pages for responsiveness
+    // Increased page limit to 50 (5000 items) to cover the whole year search
+    while (hasMore && page <= 50) { // Limit pages for responsiveness
         const url = `${finalUrlBase}&pagina=${page}`;
         try {
             const res = await fetch(url, { headers: { 'Authorization': `Bearer ${accessToken}` } });

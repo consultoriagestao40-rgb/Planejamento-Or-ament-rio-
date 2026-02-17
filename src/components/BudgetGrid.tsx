@@ -1,5 +1,5 @@
 'use client';
-// V47.30 - Structured DRE with Totals on Top & Expanded Revenue Mapping
+// V47.41 - Strict Code-Based Hierarchy (01.1.1 -> 01.1 -> 01) + Totals on Top
 
 import React, { useState, useMemo, useEffect } from 'react';
 import { MONTHS, MOCK_COST_CENTERS } from '@/lib/mock-data';
@@ -16,6 +16,7 @@ interface CategoryNode {
     children: CategoryNode[];
     level: number;
     type?: string;
+    code?: string; // extracted prefix like "01.1", "02"
 }
 
 export default function BudgetGrid({ refreshKey = 0 }: BudgetGridProps) {
@@ -143,30 +144,23 @@ export default function BudgetGrid({ refreshKey = 0 }: BudgetGridProps) {
         // ex: "01.1.1" looks for "01.1". "01.1" looks for "01".
         sortedCats.forEach(cat => {
             const node = map.get(cat.id)!;
+
+            // If no code, we can't place it in this strict hierarchy easily. 
+            // Put it in roots or try legacy parentId? Let's treat as Root for now.
             if (!node.code) {
-                // No code? Put in Others or try API parentId
                 roots.push(node);
                 return;
             }
 
             // Find Strict Code Parent
-            // Logic: Remove last segment of code. "01.1.1" -> "01.1" -> "01"
-            let potentialParentCode = node.code.substring(0, node.code.lastIndexOf('.'));
-            if (!potentialParentCode && node.code.length > 2) {
-                // Handle cases like "0101" -> "01"? No, user uses dots "01.1.1".
-                // If no dots, maybe it is a root "01".
-            }
-
-            // Iterate backwards to find the closest existing parent code
-            // Actually, simply iterating the sorted list, we can find the "closest strictly shorter prefix"
             let parentFound = false;
-
-            // Strategy: Look for a node in the map whose code == potentialParentCode
-            // We iterate to handle "01.1.1" -> "01.1". If "01.1" missing, try "01".
             let currentPrefix = node.code;
+
+            // "01.1.1" -> try "01.1" -> try "01"
             while (currentPrefix.includes('.')) {
                 currentPrefix = currentPrefix.substring(0, currentPrefix.lastIndexOf('.'));
-                // Find node with this code
+
+                // Find node with this exact code
                 const parentNode = Array.from(map.values()).find(n => n.code === currentPrefix);
                 if (parentNode) {
                     node.level = parentNode.level + 1;
@@ -176,32 +170,19 @@ export default function BudgetGrid({ refreshKey = 0 }: BudgetGridProps) {
                 }
             }
 
-            // Fallback: If no Dot parent found, try simple prefix (e.g. "02..." parent of "02")
-            // Wait, "02" is the parent of "02.something".
-            // If "02" is the node provided, it is a Root.
+            // If no "dot parent", maybe it's "01" and we need to see if there's a "0" parent? 
+            // Or maybe "01.1" didn't find "01" because "01" has no dots but is a prefix?
             if (!parentFound) {
-                // Special Case: User showed "01.1" inside "01".
-                // If this node is "01.1", we looked for "01".
-                // Did we find "01"?
-                // If map has a node with code "01", strict search above handles it.
-                // If NOT found, effectively it's a root.
-
-                // What if "01 Receitas" doesn't have a dot? code is "01".
-                // "01.1" code is "01.1". Prefix "01" matches "01".
-
-                // Try one more check: Direct Prefix match without dot logic
-                // (Only if we haven't found a parent yet)
-                if (node.code.length > 2) {
-                    // Try finding "01" for "011..."? User uses Dots.
-                    // If user has mixed (dots and no dots), this is complex.
-                    // Assuming strict dots based on image.
-                }
-
+                // Try finding a parent that is a strict prefix (e.g. Code "01" for "011..."? Unlikely with dots)
+                // User uses standard accounting: 1, 1.1, 1.1.1
+                // If we are here, it means we found no ancestor. It is a Root of this tree.
                 roots.push(node);
             }
         });
 
-        return roots;
+        // 3. Final Sort of the Roots
+        return roots.sort((a, b) => (a.code || '').localeCompare(b.code || '', undefined, { numeric: true }));
+
     }, [categories]);
 
     // --- RECURSIVE TOTALS ---
@@ -261,28 +242,32 @@ export default function BudgetGrid({ refreshKey = 0 }: BudgetGridProps) {
 
         treeRoots.forEach(root => {
             const p = getPrefix(root.name);
+            const code = root.code || p;
 
-            // Revenue: Includes "01" (Services) and "02" (Sales)
-            if (p === '01' || p === '1' || p === '02' || p === '2') {
-                buckets.rev.push(root);
-            }
-            // Taxes: 03 (Assuming based on sequence, user didn't specify exact code for Taxes root but requested line 2=Tributos)
-            else if (p === '03' || p === '3') buckets.taxes.push(root);
+            // Revenue: 01 (Services) & 02 (Sales)
+            // Note: Since we built the tree by code, "01.1" is inside "01". 
+            // So we only see the ROOT "01" here. That is correct.
+            // If "01.1" had no parent "01", it would appear here as a root.
+            if (code.startsWith('01') || code.startsWith('1.') || code === '1') buckets.rev.push(root);
+            else if (code.startsWith('02') || code.startsWith('2.') || code === '2') buckets.rev.push(root); // User wants 01 & 02 in Revenue
 
-            // Costs: 04 (Based on previous user input/image)
-            else if (p === '04' || p === '4') buckets.costs.push(root);
+            // Taxes: 03 ? (Implicit from user order) - "2 - Tributos"
+            else if (code.startsWith('03') || code.startsWith('3.') || code === '3') buckets.taxes.push(root);
 
-            // OpExp: 05 & 06
-            else if (p === '05' || p === '5') buckets.opExp.push(root);
-            else if (p === '06' || p === '6') buckets.opExp.push(root);
+            // Costs: 04
+            else if (code.startsWith('04') || code.startsWith('4.') || code === '4') buckets.costs.push(root);
 
-            // AdminExp: 07 & 08
-            else if (p === '07' || p === '7') buckets.adminExp.push(root);
-            else if (p === '08' || p === '8') buckets.adminExp.push(root);
+            // OpExp: 05, 06
+            else if (code.startsWith('05') || code.startsWith('5.') || code === '5') buckets.opExp.push(root);
+            else if (code.startsWith('06') || code.startsWith('6.') || code === '6') buckets.opExp.push(root);
 
-            // FinExp: 09 & 10
-            else if (p === '09' || p === '9') buckets.fin.push(root);
-            else if (p === '10') buckets.fin.push(root);
+            // AdminExp: 07, 08
+            else if (code.startsWith('07') || code.startsWith('7.') || code === '7') buckets.adminExp.push(root);
+            else if (code.startsWith('08') || code.startsWith('8.') || code === '8') buckets.adminExp.push(root);
+
+            // FinExp: 09, 10
+            else if (code.startsWith('09') || code.startsWith('9.') || code === '9') buckets.fin.push(root);
+            else if (code.startsWith('10')) buckets.fin.push(root);
 
             else buckets.other.push(root);
         });

@@ -1,11 +1,20 @@
 'use client';
-// V46.1 - Force redeploy with TS fixes applied
+// V47.16 - Dynamic DRE Tree Structure (SaaS-Ready)
 
-import React, { useState } from 'react';
-import { MONTHS, MOCK_CATEGORIES, MOCK_COST_CENTERS } from '@/lib/mock-data';
+import React, { useState, useMemo, useEffect } from 'react';
+import { MONTHS, MOCK_COST_CENTERS } from '@/lib/mock-data';
 
 interface BudgetGridProps {
     refreshKey?: number;
+}
+
+// Tree Node Interface
+interface CategoryNode {
+    id: string;
+    name: string;
+    parentId: string | null;
+    children: CategoryNode[];
+    level: number;
 }
 
 export default function BudgetGrid({ refreshKey = 0 }: BudgetGridProps) {
@@ -20,55 +29,32 @@ export default function BudgetGrid({ refreshKey = 0 }: BudgetGridProps) {
     const [costCenters, setCostCenters] = useState<any[]>(MOCK_COST_CENTERS);
     const [error, setError] = useState<string | null>(null);
 
-    // V47.11: Split Effects to prevent Filter Reset (UI Flicker)
-
-    // 1. Setup Effect (Run once or on manual refresh)
-    React.useEffect(() => {
+    // 1. Setup Effect
+    useEffect(() => {
         const loadSetup = async () => {
             try {
                 const setupRes = await fetch('/api/setup', { cache: 'no-store' });
                 const setupData = await setupRes.json();
 
                 if (setupData.success) {
-                    // Enrich Categories
-                    const enrichedCategories = setupData.categories.map((cat: any) => {
-                        let ed = cat.entradaDre;
-                        if (!ed) {
-                            const n = (cat.name || '').toUpperCase();
-                            if (n.includes('RECEITA') || n.includes('VENDA') || n.includes('FATURAMENTO')) ed = 'RECEITAS';
-                            else if (n.includes('TRIBUTO') || n.includes('IMPOSTO') || n.includes('DEDUCAO') || n.includes('SIMPLES')) ed = 'DEDUCOES';
-                            else if (n.includes('CUSTO') || n.includes('PRODUCAO') || n.includes('MATERIA PRIMA')) ed = 'CUSTOS';
-                            else if (n.includes('COMERCIAL') || n.includes('MARKETING') || n.includes('COMISSOES') || n.includes('PROPAGANDA')) ed = 'DESPESAS_COMERCIAIS';
-                            else if (n.includes('ADMINISTRA') || n.includes('OPERACIONAL') || n.includes('ALUGUEL') || n.includes('SALARIO') || n.includes('PESSOAL')) ed = 'DESPESAS_ADMINISTRATIVAS';
-                            else if (n.includes('FINANCEIRA') || n.includes('JUROS') || n.includes('TARIFA') || n.includes('IOF') || n.includes('BANCARIA')) ed = 'DESPESSAS_FINANCEIRAS';
-                            else if (n.includes('OUTRAS RECEITAS')) ed = 'OUTRAS_RECEITAS_NAO_OPERACIONAIS';
-                            else if (n.includes('OUTRAS DESPESAS')) ed = 'OUTRAS_DESPESAS_NAO_OPERACIONAIS';
-                        }
-                        return { ...cat, entradaDre: ed };
-                    });
-
-                    setCategories(enrichedCategories);
+                    setCategories(setupData.categories);
                     if (setupData.costCenters.length > 0) {
                         setCostCenters([...MOCK_COST_CENTERS.filter(m => m.id === 'DEFAULT'), ...setupData.costCenters]);
                     }
-
-                    // Drill-down: Start collapsed (Visual Cleanliness)
-                    // if (expandedRows.size === 0) { ... }
                 }
             } catch (err) {
                 console.error("Setup Error:", err);
             }
         };
         loadSetup();
-    }, [refreshKey]); // Only on mount or Refresh Button
+    }, [refreshKey]);
 
-    // 2. Data Effect (Run on Filter Change)
-    React.useEffect(() => {
+    // 2. Data Effect
+    useEffect(() => {
         const loadValues = async () => {
             setLoading(true);
             setError(null);
             try {
-                // V47.10: Pass selectedYear to APIs
                 const [budgetRes, syncRes] = await Promise.all([
                     fetch(`/api/budgets?costCenterId=${selectedCostCenter}&year=${selectedYear}`, { cache: 'no-store' }),
                     fetch(`/api/sync?costCenterId=${selectedCostCenter}&year=${selectedYear}`, { cache: 'no-store' })
@@ -99,27 +85,169 @@ export default function BudgetGrid({ refreshKey = 0 }: BudgetGridProps) {
         loadValues();
     }, [selectedCostCenter, selectedYear, refreshKey]);
 
-    // DRE Sections Mapping (Visual Headers)
-    // DYNAMIC IMPORT STRATEGY (v47.9)
-    // We try to find the Root Name in the imported data.
-    // If not found, we fallback to generous numeric names.
+    // --- Dynamic Tree Builder ---
+    const treeRoots = useMemo(() => {
+        const map = new Map<string, CategoryNode>();
+        const roots: CategoryNode[] = [];
 
-    // Helper to find the dynamic label from the tree
-    const getDynamicLabel = (prefix: string, fallback: string) => {
-        if (categories.length === 0) return fallback;
-        // Find a root that starts with the prefix (e.g. "6" or "6.")
-        const root = categories.find(c => {
-            const n = c.name.toUpperCase();
-            // Match start of string, followed by dot, space, or dash
-            return n.startsWith(prefix + '.') || n.startsWith(prefix + ' ') || n.startsWith(prefix + ' -') || n === prefix;
+        // 1. Initialize Nodes
+        categories.forEach(cat => {
+            map.set(cat.id, { ...cat, children: [], level: 0 });
         });
-        return root ? root.name : fallback;
+
+        // 2. Build Hierarchy
+        categories.forEach(cat => {
+            const node = map.get(cat.id)!;
+            if (cat.parentId && map.has(cat.parentId)) {
+                const parent = map.get(cat.parentId)!;
+                node.level = parent.level + 1;
+                parent.children.push(node);
+            } else {
+                roots.push(node);
+            }
+        });
+
+        // 3. Sort by Name (Preserves 1, 1.1, 1.2 ordering naturally)
+        const sortRecursive = (nodes: CategoryNode[]) => {
+            nodes.sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true }));
+            nodes.forEach(n => sortRecursive(n.children));
+        };
+        sortRecursive(roots);
+
+        return roots;
+    }, [categories]);
+
+    // --- Recursive Totals Calculation ---
+    // Returns a Map where Key = CategoryID, Value = Array[12] of monthly totals (including children)
+    const nodeTotals = useMemo(() => {
+        const totalsMap = new Map<string, { budget: number[], realized: number[] }>();
+
+        const calculateNode = (node: CategoryNode) => {
+            const myBudget = new Array(12).fill(0);
+            const myRealized = new Array(12).fill(0);
+
+            // 1. Add own values (Leaf level or direct assignment)
+            for (let i = 0; i < 12; i++) {
+                myBudget[i] = budgetValues[`${node.id}-${i}`] || 0;
+                myRealized[i] = realizedValues[`${node.id}-${i}`] || 0;
+            }
+
+            // 2. Add children values recursively
+            node.children.forEach(child => {
+                const childTotals = calculateNode(child);
+                for (let i = 0; i < 12; i++) {
+                    myBudget[i] += childTotals.budget[i];
+                    myRealized[i] += childTotals.realized[i];
+                }
+            });
+
+            totalsMap.set(node.id, { budget: myBudget, realized: myRealized });
+            return { budget: myBudget, realized: myRealized };
+        };
+
+        treeRoots.forEach(root => calculateNode(root));
+        return totalsMap;
+
+    }, [treeRoots, budgetValues, realizedValues]);
+
+    // --- DRE Bucketing Strategy ---
+    // Instead of hardcoded IDs, we group ROOT nodes by their numeric prefix.
+    // This allows "1.5 New Group" to automatically fall into Revenue.
+    const dreBuckets = useMemo(() => {
+        const buckets = {
+            revenue: [] as CategoryNode[],
+            deductions: [] as CategoryNode[],
+            costs: [] as CategoryNode[],
+            opExpenses: [] as CategoryNode[],
+            adminExpenses: [] as CategoryNode[],
+            financial: [] as CategoryNode[],
+            otherRev: [] as CategoryNode[],
+            otherExp: [] as CategoryNode[],
+            unclassified: [] as CategoryNode[]
+        };
+
+        const getPrefix = (name: string) => name.split(' ')[0].split('-')[0].trim(); // "1.1" from "1.1 - Name"
+
+        treeRoots.forEach(root => {
+            const p = getPrefix(root.name);
+            if (p.startsWith('1') && !p.startsWith('10') && !p.startsWith('11') && !p.startsWith('12')) buckets.revenue.push(root); // 1...
+            else if (p.startsWith('2')) buckets.deductions.push(root);
+            else if (p.startsWith('3') || p.startsWith('4')) buckets.costs.push(root);
+            else if (p.startsWith('6')) buckets.opExpenses.push(root);
+            else if (p.startsWith('8')) buckets.adminExpenses.push(root);
+            else if (p.startsWith('9') || p.startsWith('10')) buckets.financial.push(root); // 9 or 10
+            else if (p.startsWith('7')) buckets.otherRev.push(root);
+            else if (p.startsWith('11') || p.startsWith('12')) buckets.otherExp.push(root);
+            else buckets.unclassified.push(root);
+        });
+
+        return buckets;
+    }, [treeRoots]);
+
+    // --- Totals Helpers ---
+    const sumBucket = (nodes: CategoryNode[]) => {
+        const b = new Array(12).fill(0);
+        const r = new Array(12).fill(0);
+        nodes.forEach(node => {
+            const t = nodeTotals.get(node.id);
+            if (t) {
+                for (let i = 0; i < 12; i++) {
+                    b[i] += t.budget[i];
+                    r[i] += t.realized[i];
+                }
+            }
+        });
+        return { budget: b, realized: r };
     };
 
-    // Helper: Format Currency
+    // --- Accounting Result Calculations ---
+    const T_Revenue = sumBucket(dreBuckets.revenue);
+    const T_Deductions = sumBucket(dreBuckets.deductions);
+    const T_Costs = sumBucket(dreBuckets.costs);
+    const T_OpExp = sumBucket(dreBuckets.opExpenses);
+    const T_AdminExp = sumBucket(dreBuckets.adminExpenses);
+    const T_Fin = sumBucket(dreBuckets.financial);
+    const T_OtherRev = sumBucket(dreBuckets.otherRev);
+    const T_OtherExp = sumBucket(dreBuckets.otherExp);
+
+    // Results (Arrays)
+    const R_NetRevenue = {
+        budget: T_Revenue.budget.map((v, i) => v - Math.abs(T_Deductions.budget[i])),
+        realized: T_Revenue.realized.map((v, i) => v - Math.abs(T_Deductions.realized[i]))
+    };
+
+    const R_GrossMargin = {
+        budget: R_NetRevenue.budget.map((v, i) => v - Math.abs(T_Costs.budget[i])),
+        realized: R_NetRevenue.realized.map((v, i) => v - Math.abs(T_Costs.realized[i]))
+    };
+
+    const R_ContribMargin = {
+        budget: R_GrossMargin.budget.map((v, i) => v - Math.abs(T_OpExp.budget[i])),
+        realized: R_GrossMargin.realized.map((v, i) => v - Math.abs(T_OpExp.realized[i]))
+    };
+
+    // EBITDA = Contrib Margin - Admin Expenses
+    const R_EBITDA = {
+        budget: R_ContribMargin.budget.map((v, i) => v - Math.abs(T_AdminExp.budget[i])),
+        realized: R_ContribMargin.realized.map((v, i) => v - Math.abs(T_AdminExp.realized[i]))
+    };
+
+    const R_NetProfit = {
+        budget: R_EBITDA.budget.map((v, i) => v + T_OtherRev.budget[i] - Math.abs(T_OtherExp.budget[i]) - Math.abs(T_Fin.budget[i])),
+        realized: R_EBITDA.realized.map((v, i) => v + T_OtherRev.realized[i] - Math.abs(T_OtherExp.realized[i]) - Math.abs(T_Fin.realized[i]))
+    };
+
+    // --- Rendering Helpers ---
     const formatCurrency = (val: number | undefined) => {
         if (typeof val !== 'number') return 'R$ 0,00';
         return val.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+    };
+
+    const toggleRow = (id: string) => {
+        const newSet = new Set(expandedRows);
+        if (newSet.has(id)) newSet.delete(id);
+        else newSet.add(id);
+        setExpandedRows(newSet);
     };
 
     const handleBudgetChange = async (categoryId: string, monthIndex: number, value: string) => {
@@ -142,212 +270,93 @@ export default function BudgetGrid({ refreshKey = 0 }: BudgetGridProps) {
         }
     };
 
-    const DRE_LAYOUT = [
-        {
-            id: 'RECEITAS',
-            prefix: '1',
-            default: '01 1 - Receitas',
-            patterns: ['^1(\\.|\\s|$)'], // Strict Prefix Only. Ex: "1.1.1" matches. "RECEITA" keyword removed.
-            excludes: [] // Removed 1.1.1 exclusion
-        },
-        // 2 starts with 2. Removed generic 'TRIBUTO', 'IMPOSTO' to avoid matching '10.2.5 - Impostos'
-        { id: 'DEDUCOES', prefix: '2', default: '02 2 - Tributos sobre Faturamento', patterns: ['^2(\\.|\\s|$)'] },
-
-        // 3 and 4 start with 3 or 4. Removed 'CUSTO'.
-        { id: 'CUSTOS', prefix: '4', default: '03 4 - Custos Operacionais', patterns: ['^3(\\.|\\s|$)', '^4(\\.|\\s|$)'] },
-
-        // 6 starts with 6. Removed 'DESPESA', 'OPERACIONAL' to avoid matching '8... Despesas Adm' or '4... Despesas...'
-        { id: 'DESPESAS_OPERACIONAIS', prefix: '6', default: '04 6 - Despesas Operacionais', patterns: ['^6(\\.|\\s|$)'] },
-
-        // 8 starts with 8. Removed 'ADMINISTRA'.
-        { id: 'DESPESAS_ADMINISTRATIVAS', prefix: '8', default: '05 8 - Despesas Administrativas', patterns: ['^8(\\.|\\s|$)'] },
-
-        // 9 and 10 start with 9 or 10. Removed 'FINANCEIRA', '1.1.1'.
-        // This ensures '4... Financeiras' or '1.1.1' do NOT go here.
-        { id: 'DESPESSAS_FINANCEIRAS', prefix: '10', default: '06 10 - Despesas Financeiras', patterns: ['^9(\\.|\\s|$)', '^10(\\.|\\s|$)'] },
-
-        { id: 'OUTRAS_RECEITAS', prefix: '7', default: '07 - Outras Receitas', patterns: ['^7(\\.|\\s|$)'] },
-        { id: 'OUTRAS_DESPESAS', prefix: '11', default: '08 - Outras Despesas', patterns: ['^11(\\.|\\s|$)', '^12(\\.|\\s|$)'] }
-    ];
-
-
-
-    // Helper to check if a Root Node belongs to a Section
-    const belongsToSection = (node: any, patterns: string[], excludes?: string[]) => {
-        const n = node.name.toUpperCase();
-
-        // 1. Check exclusions first
-        if (excludes && excludes.length > 0) {
-            const matchesExclude = excludes.some(e => n.includes(e.toUpperCase()));
-            if (matchesExclude) return false;
-        }
-
-        // 2. Check inclusions
-        return patterns.some(p => {
-            // Handle Regex Pattern Strings
-            if (p.startsWith('^')) {
-                const regex = new RegExp(p);
-                return regex.test(n);
-            }
-            return n.includes(p);
-        });
-    };
-
-
-
-    // V47.12: Section-Based Drill-Down (Robust to Flat Data)
-    const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set());
-
-    // DRE Logic and Calculations
-    const calculateTotals = (values: Record<string, number>) => {
-        const getRecursiveVal = (catId: string, month: number): number => {
-            return values[`${catId}-${month}`] || 0;
-        };
-
-        const sumByRoots = (patterns: string[], excludes?: string[]) => {
-            const totals = new Array(12).fill(0);
-            const relevantCats = categories.filter(c => belongsToSection(c, patterns, excludes));
-
-            relevantCats.forEach(cat => {
-                for (let i = 0; i < 12; i++) {
-                    totals[i] += getRecursiveVal(cat.id, i);
-                }
-            });
-            return totals;
-        };
-
-        const rBruta = sumByRoots(DRE_LAYOUT[0].patterns, DRE_LAYOUT[0].excludes);
-        const tributos = sumByRoots(DRE_LAYOUT[1].patterns, DRE_LAYOUT[1].excludes);
-        const rLiquida = rBruta.map((v, i) => v - Math.abs(tributos[i]));
-        const custos = sumByRoots(DRE_LAYOUT[2].patterns, DRE_LAYOUT[2].excludes);
-        const mBruta = rLiquida.map((v, i) => v - Math.abs(custos[i]));
-        const dOperacionais = sumByRoots(DRE_LAYOUT[3].patterns, DRE_LAYOUT[3].excludes);
-        const mContrib = mBruta.map((v, i) => v - Math.abs(dOperacionais[i]));
-        const dAdmins = sumByRoots(DRE_LAYOUT[4].patterns, DRE_LAYOUT[4].excludes);
-        const ebitda = mContrib.map((v, i) => v - Math.abs(dAdmins[i]));
-        const dFinanc = sumByRoots(DRE_LAYOUT[5].patterns, DRE_LAYOUT[5].excludes);
-        const oReceitas = sumByRoots(DRE_LAYOUT[6].patterns, DRE_LAYOUT[6].excludes);
-        const oDespesas = sumByRoots(DRE_LAYOUT[7].patterns, DRE_LAYOUT[7].excludes);
-        const lLiquido = ebitda.map((v, i) => v + dFinanc[i] + oReceitas[i] - Math.abs(oDespesas[i]));
-
-        return { rBruta, tributos, rLiquida, custos, mBruta, dOperacionais, mContrib, dAdmins, ebitda, dFinanc, oReceitas, oDespesas, lLiquido, getRecursiveVal };
-    };
-
-    const budgetDRE = calculateTotals(budgetValues);
-    const realizedDRE = calculateTotals(realizedValues);
-
-    // Toggle Section logic
-    const toggleSection = (sectionId: string) => {
-        const newSet = new Set(expandedSections);
-        if (newSet.has(sectionId)) newSet.delete(sectionId);
-        else newSet.add(sectionId);
-        setExpandedSections(newSet);
-    };
-
-    // Helper: Get categories for a section (Flat List, Sorted)
-    const getCategoriesForSection = (patterns: string[], excludes?: string[]) => {
-        return categories
-            .filter(c => belongsToSection(c, patterns, excludes))
-            .sort((a, b) => a.name.localeCompare(b.name));
-    };
-
-    // Render a "Folder" Row (The Section Total)
-    const renderSectionHeader = (sectionId: string, label: string, budgetVal: number[], realizedVal: number[], isMain = false, hasCategories = true) => {
-        const isExpanded = expandedSections.has(sectionId);
-        const canDrillDown = hasCategories;
+    // Recursive Row Renderer
+    const renderNode = (node: CategoryNode) => {
+        const totals = nodeTotals.get(node.id) || { budget: new Array(12).fill(0), realized: new Array(12).fill(0) };
+        const isExpanded = expandedRows.has(node.id);
+        const hasChildren = node.children.length > 0;
+        const isRoot = node.level === 0;
 
         return (
-            <tr
-                key={sectionId}
-                onClick={() => canDrillDown && toggleSection(sectionId)}
-                style={{
-                    background: isMain ? '#e2e8f0' : '#f1f5f9',
-                    fontWeight: 'bold',
-                    borderTop: '1px solid #94a3b8',
-                    cursor: canDrillDown ? 'pointer' : 'default',
-                    opacity: canDrillDown ? 1 : 0.9
-                }}
-            >
-                <td style={{ padding: '0.75rem', position: 'sticky', left: 0, background: isMain ? '#e2e8f0' : '#f1f5f9', zIndex: 10, display: 'flex', alignItems: 'center' }}>
-                    <span style={{ marginRight: '0.5rem', fontSize: '0.8rem', width: '1rem', visibility: canDrillDown ? 'visible' : 'hidden' }}>
-                        {isExpanded ? '▼' : '▶'}
-                    </span>
-                    {label}
-                </td>
-                {MONTHS.map((_, i) => (
-                    <React.Fragment key={i}>
-                        <td style={{ textAlign: 'right', padding: '0.75rem' }}>{formatCurrency(budgetVal[i])}</td>
-                        <td style={{ textAlign: 'right', padding: '0.75rem', color: isMain ? 'blue' : 'inherit' }}>{formatCurrency(realizedVal[i])}</td>
-                    </React.Fragment>
-                ))}
-            </tr>
+            <React.Fragment key={node.id}>
+                {/* Check if this is a "Folder" (Has Children) or "File" (Leaf) */}
+                <tr
+                    onClick={() => hasChildren && toggleRow(node.id)}
+                    style={{
+                        background: hasChildren ? (isRoot ? '#f1f5f9' : '#f8fafc') : 'white',
+                        fontWeight: hasChildren ? 600 : 400,
+                        cursor: hasChildren ? 'pointer' : 'default',
+                        borderBottom: '1px solid #e2e8f0'
+                    }}
+                >
+                    <td style={{
+                        padding: '0.5rem',
+                        paddingLeft: `${0.5 + (node.level * 1.5)}rem`, // Recursive Indent
+                        position: 'sticky',
+                        left: 0,
+                        background: hasChildren ? (isRoot ? '#f1f5f9' : '#f8fafc') : 'white',
+                        zIndex: 5,
+                        display: 'flex',
+                        alignItems: 'center',
+                        color: hasChildren ? '#0f172a' : '#334155',
+                        fontSize: '0.8rem'
+                    }}>
+                        {hasChildren && (
+                            <span style={{ marginRight: '0.5rem', fontSize: '0.7rem', width: '1rem' }}>
+                                {isExpanded ? '▼' : '▶'}
+                            </span>
+                        )}
+                        {!hasChildren && <span style={{ width: '1.5rem' }}></span>}
+                        {node.name}
+                    </td>
+
+                    {MONTHS.map((_, i) => (
+                        <React.Fragment key={i}>
+                            {/* Budget Column */}
+                            <td style={{ borderLeft: '1px solid #e2e8f0', padding: hasChildren ? '0.5rem' : '0' }}>
+                                {hasChildren ? (
+                                    <div style={{ textAlign: 'right', fontSize: '0.8rem' }}>{formatCurrency(totals.budget[i])}</div>
+                                ) : (
+                                    <input
+                                        key={`${node.id}-${i}-${selectedCostCenter}-${selectedYear}`}
+                                        type="text"
+                                        placeholder="0,00"
+                                        onBlur={(e) => handleBudgetChange(node.id, i, e.target.value)}
+                                        defaultValue={totals.budget[i] ? totals.budget[i].toFixed(2) : ''}
+                                        style={{ width: '100%', padding: '0.5rem', border: 'none', textAlign: 'right', background: 'transparent', fontSize: '0.75rem' }}
+                                    />
+                                )}
+                            </td>
+
+                            {/* Realized Column */}
+                            <td style={{ textAlign: 'right', padding: '0.5rem', color: hasChildren ? 'blue' : '#3b82f6', fontSize: '0.8rem', fontWeight: hasChildren ? 600 : 500 }}>
+                                {formatCurrency(totals.realized[i])}
+                            </td>
+                        </React.Fragment>
+                    ))}
+                </tr>
+
+                {/* Render Children if Expanded */}
+                {isExpanded && node.children.map(child => renderNode(child))}
+            </React.Fragment>
         );
     };
 
-    // Render a Result Row (No Drill-Down, Just Totals)
-    const renderResultRow = (label: string, budgetVal: number[], realizedVal: number[], isMain = false) => {
-        return (
-            <tr
-                key={label}
-                style={{
-                    background: isMain ? '#cbd5e1' : '#e2e8f0', // Slightly darker for results
-                    fontWeight: 'bold',
-                    borderTop: '2px solid #94a3b8',
-                    borderBottom: '2px solid #94a3b8'
-                }}
-            >
-                <td style={{ padding: '0.75rem', position: 'sticky', left: 0, background: isMain ? '#cbd5e1' : '#e2e8f0', zIndex: 10, display: 'flex', alignItems: 'center' }}>
-                    <span style={{ marginRight: '0.5rem', width: '1rem' }}></span>
-                    {label}
-                </td>
-                {MONTHS.map((_, i) => (
-                    <React.Fragment key={i}>
-                        <td style={{ textAlign: 'right', padding: '0.75rem' }}>{formatCurrency(budgetVal[i])}</td>
-                        <td style={{ textAlign: 'right', padding: '0.75rem', color: isMain ? 'blue' : 'inherit' }}>{formatCurrency(realizedVal[i])}</td>
-                    </React.Fragment>
-                ))}
-            </tr>
-        );
-    };
-
-    const renderCategoryRows = (sectionCats: any[]) => {
-        return sectionCats.map(cat => (
-            <tr key={cat.id} style={{ borderBottom: '1px solid #f0f0f0' }}>
-                <td style={{
-                    padding: '0.5rem',
-                    paddingLeft: '2.5rem', // Indent to show it's inside the section
-                    position: 'sticky',
-                    left: 0,
-                    background: 'white',
-                    zIndex: 5,
-                    color: '#334155',
-                    fontSize: '0.8rem'
-                }}>
-                    {cat.name}
-                </td>
-                {MONTHS.map((_, i) => (
-                    <React.Fragment key={i}>
-                        <td style={{ borderLeft: '1px solid #f8fafc', padding: '0' }}>
-                            <input
-                                key={`${cat.id}-${i}-${selectedCostCenter}-${selectedYear}`}
-                                type="text"
-                                placeholder="0,00"
-                                onBlur={(e) => handleBudgetChange(cat.id, i, e.target.value)}
-                                defaultValue={budgetValues[`${cat.id}-${i}`] ? budgetValues[`${cat.id}-${i}`].toFixed(2) : ''}
-                                style={{ width: '100%', padding: '0.5rem', border: 'none', textAlign: 'right', background: 'transparent', fontSize: '0.75rem' }}
-                            />
-                        </td>
-                        <td style={{ textAlign: 'right', padding: '0.5rem', color: '#3b82f6', fontSize: '0.75rem', fontWeight: 500 }}>
-                            {formatCurrency(realizedDRE.getRecursiveVal(cat.id, i))}
-                        </td>
-                    </React.Fragment>
-                ))}
-            </tr>
-        ));
-    };
+    const renderResultRow = (label: string, budget: number[], realized: number[], isMain = true) => (
+        <tr key={label} style={{ background: isMain ? '#cbd5e1' : '#e2e8f0', fontWeight: 'bold', borderTop: '2px solid #94a3b8', borderBottom: '2px solid #94a3b8' }}>
+            <td style={{ padding: '0.75rem', position: 'sticky', left: 0, background: isMain ? '#cbd5e1' : '#e2e8f0', zIndex: 10 }}>{label}</td>
+            {MONTHS.map((_, i) => (
+                <React.Fragment key={i}>
+                    <td style={{ textAlign: 'right', padding: '0.75rem' }}>{formatCurrency(budget[i])}</td>
+                    <td style={{ textAlign: 'right', padding: '0.75rem', color: isMain ? 'blue' : 'inherit' }}>{formatCurrency(realized[i])}</td>
+                </React.Fragment>
+            ))}
+        </tr>
+    );
 
     return (
         <div style={{ overflowX: 'auto', border: '1px solid #e2e8f0', borderRadius: '8px', padding: '1rem', background: 'white' }}>
+            {/* Header Controls */}
             <div style={{ marginBottom: '1.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
                     <div style={{ display: 'flex', flexDirection: 'column' }}>
@@ -360,7 +369,6 @@ export default function BudgetGrid({ refreshKey = 0 }: BudgetGridProps) {
                             {costCenters.map(cc => <option key={cc.id} value={cc.id}>{cc.name}</option>)}
                         </select>
                     </div>
-
                     <div style={{ display: 'flex', flexDirection: 'column' }}>
                         <label style={{ fontSize: '0.75rem', fontWeight: 600, color: '#64748b' }}>Ano</label>
                         <select
@@ -372,20 +380,14 @@ export default function BudgetGrid({ refreshKey = 0 }: BudgetGridProps) {
                         </select>
                     </div>
                 </div>
-                {categories.length > 0 && (
-                    <div style={{ fontSize: '0.75rem', color: '#059669', fontWeight: 600 }}>
-                        ● {categories.length} Categorias (Agrupadas por Seção)
-                    </div>
-                )}
+                {categories.length > 0 && <div style={{ fontSize: '0.75rem', color: '#059669', fontWeight: 600 }}>● {categories.length} Categorias (Dinâmico)</div>}
             </div>
 
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8rem' }}>
                 <thead>
                     <tr style={{ background: '#f8fafc', borderBottom: '2px solid #cbd5e1' }}>
                         <th style={{ padding: '1rem', textAlign: 'left', minWidth: '300px', position: 'sticky', left: 0, background: '#f8fafc', zIndex: 20 }}>Categorias Financeiras</th>
-                        {MONTHS.map((m) => (
-                            <th key={m} colSpan={2} style={{ textAlign: 'center', padding: '0.5rem', borderLeft: '1px solid #cbd5e1' }}>{m}</th>
-                        ))}
+                        {MONTHS.map((m) => <th key={m} colSpan={2} style={{ textAlign: 'center', padding: '0.5rem', borderLeft: '1px solid #cbd5e1' }}>{m}</th>)}
                     </tr>
                     <tr style={{ background: '#f8fafc', borderBottom: '1px solid #cbd5e1' }}>
                         <th style={{ position: 'sticky', left: 0, background: '#f8fafc', zIndex: 20 }}></th>
@@ -398,115 +400,56 @@ export default function BudgetGrid({ refreshKey = 0 }: BudgetGridProps) {
                     </tr>
                 </thead>
                 <tbody>
-                    {/* 01 RECEITAS */}
-                    {(() => {
-                        const cats = getCategoriesForSection(DRE_LAYOUT[0].patterns, DRE_LAYOUT[0].excludes);
-                        return (
-                            <>
-                                {renderSectionHeader(DRE_LAYOUT[0].id, DRE_LAYOUT[0].default, budgetDRE.rBruta, realizedDRE.rBruta, false, cats.length > 0)}
-                                {expandedSections.has(DRE_LAYOUT[0].id) && renderCategoryRows(cats)}
-                            </>
-                        );
-                    })()}
+                    {/* Dynamic Rendering Loop based on Accounting Buckets */}
 
-                    {/* 02 DEDUCOES */}
-                    {(() => {
-                        const cats = getCategoriesForSection(DRE_LAYOUT[1].patterns, DRE_LAYOUT[1].excludes);
-                        return (
-                            <>
-                                {renderSectionHeader(DRE_LAYOUT[1].id, DRE_LAYOUT[1].default, budgetDRE.tributos, realizedDRE.tributos, false, cats.length > 0)}
-                                {expandedSections.has(DRE_LAYOUT[1].id) && renderCategoryRows(cats)}
-                            </>
-                        );
-                    })()}
+                    {/* 1. Revenue */}
+                    {dreBuckets.revenue.map(renderNode)}
 
-                    {/* Result Line 1 */}
-                    {renderResultRow('02T 3 - Receita Líquida', budgetDRE.rLiquida, realizedDRE.rLiquida, true)}
+                    {/* 2. Deductions */}
+                    {dreBuckets.deductions.map(renderNode)}
 
-                    {/* 03 CUSTOS */}
-                    {(() => {
-                        const cats = getCategoriesForSection(DRE_LAYOUT[2].patterns, DRE_LAYOUT[2].excludes);
-                        return (
-                            <>
-                                {renderSectionHeader(DRE_LAYOUT[2].id, DRE_LAYOUT[2].default, budgetDRE.custos, realizedDRE.custos, false, cats.length > 0)}
-                                {expandedSections.has(DRE_LAYOUT[2].id) && renderCategoryRows(cats)}
-                            </>
-                        );
-                    })()}
+                    {/* Result: Net Revenue */}
+                    {renderResultRow('02T 3 - Receita Líquida', R_NetRevenue.budget, R_NetRevenue.realized)}
 
-                    {/* Result Line 2 */}
-                    {renderResultRow('03T 5 - Margem Bruta', budgetDRE.mBruta, realizedDRE.mBruta, true)}
+                    {/* 3. Costs */}
+                    {dreBuckets.costs.map(renderNode)}
 
-                    {/* 04 DESPESAS OPERACIONAIS */}
-                    {(() => {
-                        const cats = getCategoriesForSection(DRE_LAYOUT[3].patterns, DRE_LAYOUT[3].excludes);
-                        return (
-                            <>
-                                {renderSectionHeader(DRE_LAYOUT[3].id, DRE_LAYOUT[3].default, budgetDRE.dOperacionais, realizedDRE.dOperacionais, false, cats.length > 0)}
-                                {expandedSections.has(DRE_LAYOUT[3].id) && renderCategoryRows(cats)}
-                            </>
-                        );
-                    })()}
+                    {/* Result: Gross Margin */}
+                    {renderResultRow('03T 5 - Margem Bruta', R_GrossMargin.budget, R_GrossMargin.realized)}
 
-                    {/* Result Line 3 */}
-                    {renderResultRow('04T 7 - Margem de Contribuição', budgetDRE.mContrib, realizedDRE.mContrib, true)}
+                    {/* 4. Operating Expenses */}
+                    {dreBuckets.opExpenses.map(renderNode)}
 
-                    {/* 05 DESPESAS ADM */}
-                    {(() => {
-                        const cats = getCategoriesForSection(DRE_LAYOUT[4].patterns, DRE_LAYOUT[4].excludes);
-                        return (
-                            <>
-                                {renderSectionHeader(DRE_LAYOUT[4].id, DRE_LAYOUT[4].default, budgetDRE.dAdmins, realizedDRE.dAdmins, false, cats.length > 0)}
-                                {expandedSections.has(DRE_LAYOUT[4].id) && renderCategoryRows(cats)}
-                            </>
-                        );
-                    })()}
+                    {/* Result: Contribution Margin */}
+                    {renderResultRow('04T 7 - Margem de Contribuição', R_ContribMargin.budget, R_ContribMargin.realized)}
 
-                    {/* Result Line 4 */}
-                    {renderResultRow('05T 9 - EBITDA', budgetDRE.ebitda, realizedDRE.ebitda, true)}
+                    {/* 5. Admin Expenses */}
+                    {dreBuckets.adminExpenses.map(renderNode)}
 
-                    {/* 06 FINANCEIRO */}
-                    {(() => {
-                        const cats = getCategoriesForSection(DRE_LAYOUT[5].patterns, DRE_LAYOUT[5].excludes);
-                        return (
-                            <>
-                                {renderSectionHeader(DRE_LAYOUT[5].id, DRE_LAYOUT[5].default, budgetDRE.dFinanc, realizedDRE.dFinanc, false, cats.length > 0)}
-                                {expandedSections.has(DRE_LAYOUT[5].id) && renderCategoryRows(cats)}
-                            </>
-                        );
-                    })()}
+                    {/* Result: EBITDA */}
+                    {renderResultRow('05T 9 - EBITDA', R_EBITDA.budget, R_EBITDA.realized)}
 
-                    {/* OUTROS */}
-                    {(() => {
-                        const cats = getCategoriesForSection(DRE_LAYOUT[6].patterns, DRE_LAYOUT[6].excludes);
-                        return (
-                            <>
-                                {renderSectionHeader(DRE_LAYOUT[6].id, DRE_LAYOUT[6].default, budgetDRE.oReceitas, realizedDRE.oReceitas, false, cats.length > 0)}
-                                {expandedSections.has(DRE_LAYOUT[6].id) && renderCategoryRows(cats)}
-                            </>
-                        );
-                    })()}
+                    {/* 6. Financial */}
+                    {dreBuckets.financial.map(renderNode)}
 
-                    {(() => {
-                        const cats = getCategoriesForSection(DRE_LAYOUT[7].patterns, DRE_LAYOUT[7].excludes);
-                        return (
-                            <>
-                                {renderSectionHeader(DRE_LAYOUT[7].id, DRE_LAYOUT[7].default, budgetDRE.oDespesas, realizedDRE.oDespesas, false, cats.length > 0)}
-                                {expandedSections.has(DRE_LAYOUT[7].id) && renderCategoryRows(cats)}
-                            </>
-                        );
-                    })()}
+                    {/* 7. Others */}
+                    {dreBuckets.otherRev.map(renderNode)}
+                    {dreBuckets.otherExp.map(renderNode)}
 
                     {/* Unclassified */}
-                    <tr style={{ background: '#fff7ed', fontWeight: 'bold' }}>
-                        <td colSpan={100} style={{ padding: '0.5rem', color: '#c2410c' }}>Outras Categorias (Não Mapeadas)</td>
-                    </tr>
-                    {renderCategoryRows(categories.filter(node =>
-                        !DRE_LAYOUT.some(section => belongsToSection(node, section.patterns, section.excludes))
-                    ))}
+                    {dreBuckets.unclassified.length > 0 && (
+                        <>
+                            <tr style={{ background: '#fff7ed', fontWeight: 'bold' }}>
+                                <td colSpan={100} style={{ padding: '0.5rem', color: '#c2410c' }}>Outras Categorias (Não Mapeadas)</td>
+                            </tr>
+                            {dreBuckets.unclassified.map(renderNode)}
+                        </>
+                    )}
 
                     <tr style={{ background: '#f8fafc' }}><td colSpan={100} style={{ padding: '0.5rem' }}></td></tr>
-                    {renderResultRow('06T 11 - Lucro Líquido', budgetDRE.lLiquido, realizedDRE.lLiquido, true)}
+
+                    {/* Final Result: Net Profit */}
+                    {renderResultRow('06T 11 - Lucro Líquido', R_NetProfit.budget, R_NetProfit.realized)}
                 </tbody>
             </table>
 

@@ -147,23 +147,27 @@ export default function BudgetGrid({ refreshKey = 0 }: BudgetGridProps) {
             id: 'RECEITAS',
             prefix: '1',
             default: '01 1 - Receitas',
-            patterns: ['^1(\\.|\\s|$)', 'RECEITA'],
-            excludes: ['1.1.1'] // IMPORTANT: Receitas Financeiras must go to Financial Section
+            patterns: ['^1(\\.|\\s|$)'], // Strict Prefix Only. Ex: "1.1.1" matches. "RECEITA" keyword removed.
+            excludes: [] // Removed 1.1.1 exclusion
         },
-        { id: 'DEDUCOES', prefix: '2', default: '02 2 - Tributos sobre Faturamento', patterns: ['^2(\\.|\\s|$)', 'TRIBUTO', 'IMPOSTO', 'DEDUCAO', 'SIMPLES'] },
+        // 2 starts with 2. Removed generic 'TRIBUTO', 'IMPOSTO' to avoid matching '10.2.5 - Impostos'
+        { id: 'DEDUCOES', prefix: '2', default: '02 2 - Tributos sobre Faturamento', patterns: ['^2(\\.|\\s|$)'] },
 
-        { id: 'CUSTOS', prefix: '4', default: '03 4 - Custos Operacionais', patterns: ['^3(\\.|\\s|$)', '^4(\\.|\\s|$)', 'CUSTO', 'PRODUCAO'] },
+        // 3 and 4 start with 3 or 4. Removed 'CUSTO'.
+        { id: 'CUSTOS', prefix: '4', default: '03 4 - Custos Operacionais', patterns: ['^3(\\.|\\s|$)', '^4(\\.|\\s|$)'] },
 
-        // Updated default based on user feedback "Despesas Comerciais não existe" -> "Despesas Operacionais"
-        { id: 'DESPESAS_OPERACIONAIS', prefix: '6', default: '04 6 - Despesas Operacionais', patterns: ['^6(\\.|\\s|$)', 'DESPESA', 'OPERACIONAL', 'COMERCIAL'] },
+        // 6 starts with 6. Removed 'DESPESA', 'OPERACIONAL' to avoid matching '8... Despesas Adm' or '4... Despesas...'
+        { id: 'DESPESAS_OPERACIONAIS', prefix: '6', default: '04 6 - Despesas Operacionais', patterns: ['^6(\\.|\\s|$)'] },
 
-        { id: 'DESPESAS_ADMINISTRATIVAS', prefix: '8', default: '05 8 - Despesas Administrativas', patterns: ['^8(\\.|\\s|$)', 'ADMINISTRA'] },
+        // 8 starts with 8. Removed 'ADMINISTRA'.
+        { id: 'DESPESAS_ADMINISTRATIVAS', prefix: '8', default: '05 8 - Despesas Administrativas', patterns: ['^8(\\.|\\s|$)'] },
 
-        // 1.1.1 is strictly mapped here
-        { id: 'DESPESSAS_FINANCEIRAS', prefix: '10', default: '06 10 - Despesas Financeiras', patterns: ['^9(\\.|\\s|$)', '^10(\\.|\\s|$)', 'FINANCEIRA', '1.1.1'] },
+        // 9 and 10 start with 9 or 10. Removed 'FINANCEIRA', '1.1.1'.
+        // This ensures '4... Financeiras' or '1.1.1' do NOT go here.
+        { id: 'DESPESSAS_FINANCEIRAS', prefix: '10', default: '06 10 - Despesas Financeiras', patterns: ['^9(\\.|\\s|$)', '^10(\\.|\\s|$)'] },
 
-        { id: 'OUTRAS_RECEITAS', prefix: '7', default: '07 - Outras Receitas', patterns: ['^7(\\.|\\s|$)', 'OUTRAS RECEITAS'] },
-        { id: 'OUTRAS_DESPESAS', prefix: '11', default: '08 - Outras Despesas', patterns: ['^11(\\.|\\s|$)', '^12(\\.|\\s|$)', 'OUTRAS DESPESAS'] }
+        { id: 'OUTRAS_RECEITAS', prefix: '7', default: '07 - Outras Receitas', patterns: ['^7(\\.|\\s|$)'] },
+        { id: 'OUTRAS_DESPESAS', prefix: '11', default: '08 - Outras Despesas', patterns: ['^11(\\.|\\s|$)', '^12(\\.|\\s|$)'] }
     ];
 
 

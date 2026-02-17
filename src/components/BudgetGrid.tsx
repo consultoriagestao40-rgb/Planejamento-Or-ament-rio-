@@ -206,10 +206,30 @@ export default function BudgetGrid({ refreshKey = 0 }: BudgetGridProps) {
             else if (p.startsWith('11') || p.startsWith('12')) {
                 buckets.otherExp.push(root);
             }
-            // Fallback: If "Loose", try to pattern match name if prefix failed?
-            // For now, put in unclassified.
+            // Fallback: If "Loose" (No Prefix), try to put them in the right bucket via Keywords
             else {
-                buckets.unclassified.push(root);
+                const n = root.name.toUpperCase();
+
+                // Financial: Juros, Multas, IOF, Tarifas, Bancarias, Descontos
+                if (n.includes('JUROS') || n.includes('MULTA') || n.includes('IOF') || n.includes('TARIF') || n.includes('BANCARI') || n.includes('DESCONTO') || n.includes('CAMBIAL') || n.includes('RENDIMENTO')) {
+                    buckets.financial.push(root);
+                }
+                // Deductions/Taxes: Imposto, Tributo, Simples, DAS, CSLL, IRPJ
+                else if (n.includes('IMPOSTO') || n.includes('TRIBUTO') || n.includes('SIMPLES') || n.includes('DAS') || n.includes('CSLL') || n.includes('IRPJ')) {
+                    buckets.deductions.push(root);
+                }
+                // OpEx/Admin: Salario, Agua, Luz, Aluguel, Pro-labore, Honorarios, Condominio, Internet
+                else if (n.includes('SALARIO') || n.includes('AGUA') || n.includes('LUZ') || n.includes('ALUGUEL') || n.includes('LABORE') || n.includes('HONORARIO') || n.includes('CONDOMINIO') || n.includes('INTERNET') || n.includes('TELEFONE') || n.includes('SOFTWARE') || n.includes('LIMPEZA') || n.includes('MANUTENCAO')) {
+                    buckets.opExpenses.push(root); // Safe default to OpExp (Group 6 or 8)
+                }
+                // Costs: Frete, Compra, Materia, Fornecedor
+                else if (n.includes('FRETE') || n.includes('COMPRA') || n.includes('MATERIA') || n.includes('FORNECEDOR')) {
+                    buckets.costs.push(root);
+                }
+                // Truly Unclassified
+                else {
+                    buckets.unclassified.push(root);
+                }
             }
         });
 

@@ -1,5 +1,5 @@
 'use client';
-// V47.70 - Custom Tree Remapping (02 -> 01.2 override) + Bucket Fixes
+// V47.80 - Hierarchy Perfection (02 -> 01.2 Rename + 01.1 Preservation)
 
 import React, { useState, useMemo, useEffect } from 'react';
 import { MONTHS, MOCK_COST_CENTERS } from '@/lib/mock-data';
@@ -115,7 +115,10 @@ export default function BudgetGrid({ refreshKey = 0 }: BudgetGridProps) {
     }, [selectedCostCenter, selectedYear, refreshKey]);
 
     // --- CUSTOM HIERARCHY BUILDER ---
-    // User Requirement: "02" (Vendas) must appear INSIDE "01" (Receitas) as if it were "01.2".
+    // User Requirement: 
+    // 1. "01" (Receitas) is Root.
+    // 2. "01.1" (Serviços) is Child of "01".
+    // 3. "02" (Vendas) is VISUALLY "01.2" (Child of "01").
     const treeRoots = useMemo(() => {
         const map = new Map<string, CategoryNode>();
         const roots: CategoryNode[] = [];
@@ -127,14 +130,24 @@ export default function BudgetGrid({ refreshKey = 0 }: BudgetGridProps) {
             const codeMatch = cat.name.match(/^([\d.]+)/);
             const rawCode = codeMatch ? codeMatch[1] : '';
 
-            // --- CUSTOM REMAPPING CODE ---
-            // If code is "02", pretend it stands for "01.2" (conceptually).
-            // This doesn't change `cat.name` but affects logic below.
+            // Rename logic for "02..."
+            // If code is "02", we rename it to "01.2 - Receitas de Vendas" (or similar) purely for display.
+            // But keep `id` same.
+            let effectiveName = cat.name;
             let effectiveCode = rawCode;
+
+            if (rawCode.startsWith('02') || rawCode === '2') {
+                // Is this "Vendas"?
+                if (cat.name.toLowerCase().includes('vendas') || cat.name.toLowerCase().includes('receita')) {
+                    effectiveName = cat.name.replace(/^[\d.]+/, '01.2');
+                    effectiveCode = '01.2' + rawCode.substring(2);
+                }
+            }
 
             map.set(cat.id, {
                 ...cat,
-                code: rawCode,
+                name: effectiveName, // Apply rename
+                code: effectiveCode, // Update code for sorting
                 children: [],
                 level: 0
             });
@@ -147,16 +160,13 @@ export default function BudgetGrid({ refreshKey = 0 }: BudgetGridProps) {
 
             // --- CUSTOM PARENTING RULES ---
 
-            // Rule A: "02..." (Vendas) should be child of "01" (Receitas).
-            if (code.startsWith('02') || code.startsWith('2.')) {
+            // Rule A: "01.2..." (Renamed Vendas) should be child of "01".
+            if (code.startsWith('01.2')) {
                 // Try to find "01"
                 const parent01 = Array.from(map.values()).find(n => n.code === '01' || n.code === '1');
                 if (parent01) {
                     node.level = parent01.level + 1;
                     parent01.children.push(node);
-                    // Manually rename for visual consistency? 
-                    // User asked: "01.2 Receitas de Vendas".
-                    // Let's NOT rename the source data to avoid confusion, but position it correctly.
                     return;
                 }
             }
@@ -166,8 +176,6 @@ export default function BudgetGrid({ refreshKey = 0 }: BudgetGridProps) {
             // B1. Try API Parent first (Primary)
             if (cat.parentId && map.has(cat.parentId)) {
                 const parent = map.get(cat.parentId)!;
-                // Prevent cycles or weird "02 inside 05" logic if API is weird.
-                // Only verify it doesn't contradict major groups.
                 node.level = parent.level + 1;
                 parent.children.push(node);
                 return;
@@ -196,8 +204,7 @@ export default function BudgetGrid({ refreshKey = 0 }: BudgetGridProps) {
         const sortNodes = (nodes: CategoryNode[]) => {
             nodes.sort((a, b) => {
                 // Custom Sort for "01" Children:
-                // We want "01.1" then "02" (mapped as 01.2).
-                // "02" > "01.1" alphabetically? Yes.
+                // We want "01.1" then "01.2" (Vendas).
                 return (a.code || a.name).localeCompare(b.code || b.name, undefined, { numeric: true });
             });
             nodes.forEach(n => sortNodes(n.children));
@@ -249,7 +256,7 @@ export default function BudgetGrid({ refreshKey = 0 }: BudgetGridProps) {
         };
 
         const buckets = {
-            rev: [] as CategoryNode[],        // 01 Only (since 02 is now child of 01)
+            rev: [] as CategoryNode[],        // 01 Only (since 02 is now mapped to 01.2 inside 01)
             taxes: [] as CategoryNode[],      // 2
             costs: [] as CategoryNode[],      // 3, 03
             opExp: [] as CategoryNode[],      // 4, 5, 6
@@ -262,7 +269,7 @@ export default function BudgetGrid({ refreshKey = 0 }: BudgetGridProps) {
             const code = root.code || '';
 
             // --- REVENUE ---
-            // Only "01" is a root now. "02" is inside "01".
+            // Only "01" is a root now. "02" is inside "01" as "01.2".
             if (code.startsWith('01') || code === '1') buckets.rev.push(root);
 
             // --- TAXES ---

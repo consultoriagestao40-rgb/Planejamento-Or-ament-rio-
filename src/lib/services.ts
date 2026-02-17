@@ -136,40 +136,21 @@ export async function syncData(costCenterId: string = 'DEFAULT', year: number = 
         }
     }
 
-    // V47.1: Pre-process categories for robust mapping and multi-pass inheritance
+    // V47.1: Pre-process categories for robust mapping
+    // STAGE 2: STRICT MODE - Remove Heuristics. Trust API.
     const mappedCategories = categories.map(cat => {
         const name = (cat.nome || cat.name || '').trim();
-        const upper = name.toUpperCase();
-        let entryDre = cat.entrada_dre || cat.entradaDre || cat.entry_dre || null;
+        // Use ID and ParentID strictly from API
+        // entradadre often comes null from CA, but we must NOT guess.
+        // We will rely on the Tree Structure in the Frontend to group them.
 
-        // Manual heuristics (The "Nuclear" Map) - REFINED V47.6
-        // Removed number-based mapping (^1, ^2, etc.) as it conflicts with custom charts.
-        if (!entryDre) {
-            if (upper.includes('RECEITA') || upper.includes('VENDA') || upper.includes('FATURAMENTO')) entryDre = 'RECEITAS';
-            else if (upper.includes('TRIBUTO') || upper.includes('IMPOSTO') || upper.includes('DEDUCAO') || upper.includes('SIMPLES')) entryDre = 'DEDUCOES';
-            else if (upper.includes('CUSTO') || upper.includes('PRODUCAO') || upper.includes('MATERIA PRIMA')) entryDre = 'CUSTOS';
-            else if (upper.includes('COMERCIAL') || upper.includes('MARKETING') || upper.includes('COMISSOES') || upper.includes('PROPAGANDA')) entryDre = 'DESPESAS_COMERCIAIS';
-            else if (upper.includes('ADMINISTRATIVA') || upper.includes('OPERACIONAL') || upper.includes('ALUGUEL') || upper.includes('SALARIO') || upper.includes('PESSOAL')) entryDre = 'DESPESAS_ADMINISTRATIVAS';
-            else if (upper.includes('FINANCEIRA') || upper.includes('JUROS') || upper.includes('TARIFA') || upper.includes('IOF') || upper.includes('BANCARIA')) entryDre = 'DESPESSAS_FINANCEIRAS';
-            // 7 and 8 usually are very specific, less safe to guess by keyword solely unless "OUTRAS"
-            else if (upper.includes('OUTRAS RECEITAS')) entryDre = 'OUTRAS_RECEITAS_NAO_OPERACIONAIS';
-            else if (upper.includes('OUTRAS DESPESAS')) entryDre = 'OUTRAS_DESPESAS_NAO_OPERACIONAIS';
-        }
-
-        return { ...cat, name, entradaDreLocal: entryDre, parentIdLocal: cat.categoria_pai || cat.parent_id || null };
+        return {
+            ...cat,
+            name,
+            entradaDreLocal: null, // Let the UI decide based on Root Parent 
+            parentIdLocal: cat.categoria_pai?.id || cat.parent_id || cat.parentId || null // Ensure we get the ID, not the object
+        };
     });
-
-    // Multi-pass inheritance (Ensures children get labels even if parents were mapped manually)
-    for (let i = 0; i < 4; i++) {
-        mappedCategories.forEach(cat => {
-            if (!cat.entradaDreLocal && cat.parentIdLocal) {
-                const parent = mappedCategories.find(p => p.id === cat.parentIdLocal);
-                if (parent && parent.entradaDreLocal) {
-                    cat.entradaDreLocal = parent.entradaDreLocal;
-                }
-            }
-        });
-    }
 
     // Persist Categories
     for (const cat of mappedCategories) {

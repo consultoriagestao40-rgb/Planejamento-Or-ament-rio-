@@ -113,31 +113,93 @@ export default function BudgetGrid({ refreshKey = 0 }: BudgetGridProps) {
         loadValues();
     }, [selectedCostCenter, selectedYear, refreshKey]);
 
-    // --- STRICT ID-BASED TREE BUILDER ---
+    // --- STRICT CODE-BASED TREE BUILDER ---
+    // User Requirement: "01.1.1" must be child of "01.1", which is child of "01".
+    // We strictly use the Account Code (Prefix) to build the hierarchy.
     const treeRoots = useMemo(() => {
         const map = new Map<string, CategoryNode>();
         const roots: CategoryNode[] = [];
 
-        categories.forEach(cat => {
-            map.set(cat.id, { ...cat, children: [], level: 0 });
+        // 1. Initialize Nodes & Extract Codes
+        // Sort by Code length (shortest first) so we process parents before children usually
+        // But better: Sort alphabetically to ensure 01 comes before 01.1
+        const sortedCats = [...categories].sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true }));
+
+        sortedCats.forEach(cat => {
+            // "01.1.1 - Desc" -> Code "01.1.1"
+            const codeMatch = cat.name.match(/^([\d.]+)/);
+            const code = codeMatch ? codeMatch[1] : '';
+
+            map.set(cat.id, {
+                ...cat,
+                code, // Store extracted code
+                children: [],
+                level: 0
+            });
         });
 
-        categories.forEach(cat => {
+        // 2. Build Hierarchy using CODES
+        // We look for the "Best Match Parent" based on code prefix.
+        // ex: "01.1.1" looks for "01.1". "01.1" looks for "01".
+        sortedCats.forEach(cat => {
             const node = map.get(cat.id)!;
-            if (cat.parentId && map.has(cat.parentId)) {
-                const parent = map.get(cat.parentId)!;
-                node.level = parent.level + 1;
-                parent.children.push(node);
-            } else {
+            if (!node.code) {
+                // No code? Put in Others or try API parentId
+                roots.push(node);
+                return;
+            }
+
+            // Find Strict Code Parent
+            // Logic: Remove last segment of code. "01.1.1" -> "01.1" -> "01"
+            let potentialParentCode = node.code.substring(0, node.code.lastIndexOf('.'));
+            if (!potentialParentCode && node.code.length > 2) {
+                // Handle cases like "0101" -> "01"? No, user uses dots "01.1.1".
+                // If no dots, maybe it is a root "01".
+            }
+
+            // Iterate backwards to find the closest existing parent code
+            // Actually, simply iterating the sorted list, we can find the "closest strictly shorter prefix"
+            let parentFound = false;
+
+            // Strategy: Look for a node in the map whose code == potentialParentCode
+            // We iterate to handle "01.1.1" -> "01.1". If "01.1" missing, try "01".
+            let currentPrefix = node.code;
+            while (currentPrefix.includes('.')) {
+                currentPrefix = currentPrefix.substring(0, currentPrefix.lastIndexOf('.'));
+                // Find node with this code
+                const parentNode = Array.from(map.values()).find(n => n.code === currentPrefix);
+                if (parentNode) {
+                    node.level = parentNode.level + 1;
+                    parentNode.children.push(node);
+                    parentFound = true;
+                    break;
+                }
+            }
+
+            // Fallback: If no Dot parent found, try simple prefix (e.g. "02..." parent of "02")
+            // Wait, "02" is the parent of "02.something".
+            // If "02" is the node provided, it is a Root.
+            if (!parentFound) {
+                // Special Case: User showed "01.1" inside "01".
+                // If this node is "01.1", we looked for "01".
+                // Did we find "01"?
+                // If map has a node with code "01", strict search above handles it.
+                // If NOT found, effectively it's a root.
+
+                // What if "01 Receitas" doesn't have a dot? code is "01".
+                // "01.1" code is "01.1". Prefix "01" matches "01".
+
+                // Try one more check: Direct Prefix match without dot logic
+                // (Only if we haven't found a parent yet)
+                if (node.code.length > 2) {
+                    // Try finding "01" for "011..."? User uses Dots.
+                    // If user has mixed (dots and no dots), this is complex.
+                    // Assuming strict dots based on image.
+                }
+
                 roots.push(node);
             }
         });
-
-        const sortRecursive = (nodes: CategoryNode[]) => {
-            nodes.sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true }));
-            nodes.forEach(n => sortRecursive(n.children));
-        };
-        sortRecursive(roots);
 
         return roots;
     }, [categories]);

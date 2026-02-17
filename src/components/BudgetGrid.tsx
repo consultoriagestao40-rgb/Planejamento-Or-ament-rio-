@@ -195,16 +195,18 @@ export default function BudgetGrid({ refreshKey = 0 }: BudgetGridProps) {
 
         const getPrefix = (name: string) => name.split(' ')[0].split('-')[0].trim(); // "1.1" from "1.1 - Name"
 
+        // V47.16.2: Stricter Prefix Matching
+        const isPrefix = (str: string, prefix: string) => str === prefix || str.startsWith(`${prefix}.`) || str.startsWith(`${prefix} `) || str.startsWith(`${prefix}-`);
+
         treeRoots.forEach(root => {
             const p = getPrefix(root.name);
-            // V47.16.1: Robust Prefix Matching (Handles '01', '1', '03', '3' etc.)
 
             // Revenue: 1 or 01
-            if (p.startsWith('1') && !p.startsWith('10') && !p.startsWith('11') && !p.startsWith('12') || p === '01') {
+            if (isPrefix(p, '1') || isPrefix(p, '01')) {
                 buckets.revenue.push(root);
             }
             // Deductions: 2 or 02
-            else if (p.startsWith('2') || p === '02') {
+            else if (isPrefix(p, '2') || isPrefix(p, '02')) {
                 buckets.deductions.push(root);
             }
             // Costs: 3 or 4 or 03 or 04
@@ -245,7 +247,7 @@ export default function BudgetGrid({ refreshKey = 0 }: BudgetGridProps) {
                 }
                 // OpEx/Admin: Salario, Agua, Luz, Aluguel, Pro-labore, Honorarios, Condominio, Internet
                 else if (n.includes('SALARIO') || n.includes('AGUA') || n.includes('LUZ') || n.includes('ALUGUEL') || n.includes('LABORE') || n.includes('HONORARIO') || n.includes('CONDOMINIO') || n.includes('INTERNET') || n.includes('TELEFONE') || n.includes('SOFTWARE') || n.includes('LIMPEZA') || n.includes('MANUTENCAO')) {
-                    buckets.opExpenses.push(root); // Safe default to OpExp (Group 6 or 8)
+                    buckets.opExpenses.push(root);
                 }
                 // Costs: Frete, Compra, Materia, Fornecedor
                 else if (n.includes('FRETE') || n.includes('COMPRA') || n.includes('MATERIA') || n.includes('FORNECEDOR')) {
@@ -574,7 +576,7 @@ export default function BudgetGrid({ refreshKey = 0 }: BudgetGridProps) {
                     position: 'fixed', top: 0, left: 0, width: '100%', height: '100%',
                     background: 'rgba(0,0,0,0.5)', zIndex: 50, display: 'flex', justifyContent: 'center', alignItems: 'center'
                 }}>
-                    <div style={{ background: 'white', padding: '1.5rem', borderRadius: '8px', width: '600px', maxHeight: '80vh', overflowY: 'auto', boxShadow: '0 10px 25px rgba(0,0,0,0.2)' }}>
+                    <div style={{ background: 'white', padding: '2rem', borderRadius: '12px', width: '90vw', maxWidth: '1000px', height: '90vh', maxHeight: '90vh', overflowY: 'auto', boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)', display: 'flex', flexDirection: 'column' }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '1rem', borderBottom: '1px solid #e2e8f0', paddingBottom: '0.5rem' }}>
                             <h3 style={{ fontSize: '1.1rem', fontWeight: 'bold' }}>{selectedCell.categoryName} - {MONTHS[selectedCell.month]}</h3>
                             <button onClick={closeModal} style={{ background: 'none', border: 'none', fontSize: '1.5rem', cursor: 'pointer' }}>×</button>

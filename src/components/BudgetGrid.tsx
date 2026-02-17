@@ -25,6 +25,33 @@ export default function BudgetGrid({ refreshKey = 0 }: BudgetGridProps) {
     const [selectedCostCenter, setSelectedCostCenter] = useState('DEFAULT');
     const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
 
+    // --- Transaction Drill-down State ---
+    const [selectedCell, setSelectedCell] = useState<{ categoryId: string, month: number, categoryName: string } | null>(null);
+    const [transactions, setTransactions] = useState<any[]>([]);
+    const [loadingTransactions, setLoadingTransactions] = useState(false);
+
+    const handleCellClick = async (categoryId: string, month: number, categoryName: string) => {
+        setSelectedCell({ categoryId, month, categoryName });
+        setLoadingTransactions(true);
+        setTransactions([]);
+        try {
+            const res = await fetch(`/api/transactions?categoryId=${categoryId}&month=${month}&year=${selectedYear}&costCenterId=${selectedCostCenter}`);
+            const data = await res.json();
+            if (data.success) {
+                setTransactions(data.transactions);
+            }
+        } catch (error) {
+            console.error("Failed to fetch transactions", error);
+        } finally {
+            setLoadingTransactions(false);
+        }
+    };
+
+    const closeModal = () => {
+        setSelectedCell(null);
+        setTransactions([]);
+    };
+
     const [categories, setCategories] = useState<any[]>([]);
     const [costCenters, setCostCenters] = useState<any[]>(MOCK_COST_CENTERS);
     const [error, setError] = useState<string | null>(null);

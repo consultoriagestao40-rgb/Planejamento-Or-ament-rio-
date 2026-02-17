@@ -194,6 +194,44 @@ export default function BudgetGrid({ refreshKey = 0 }: BudgetGridProps) {
     // V47.12: Section-Based Drill-Down (Robust to Flat Data)
     const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set());
 
+    // DRE Logic and Calculations
+    const calculateTotals = (values: Record<string, number>) => {
+        const getRecursiveVal = (catId: string, month: number): number => {
+            return values[`${catId}-${month}`] || 0;
+        };
+
+        const sumByRoots = (patterns: string[], excludes?: string[]) => {
+            const totals = new Array(12).fill(0);
+            const relevantCats = categories.filter(c => belongsToSection(c, patterns, excludes));
+
+            relevantCats.forEach(cat => {
+                for (let i = 0; i < 12; i++) {
+                    totals[i] += getRecursiveVal(cat.id, i);
+                }
+            });
+            return totals;
+        };
+
+        const rBruta = sumByRoots(DRE_LAYOUT[0].patterns, DRE_LAYOUT[0].excludes);
+        const tributos = sumByRoots(DRE_LAYOUT[1].patterns, DRE_LAYOUT[1].excludes);
+        const rLiquida = rBruta.map((v, i) => v - Math.abs(tributos[i]));
+        const custos = sumByRoots(DRE_LAYOUT[2].patterns, DRE_LAYOUT[2].excludes);
+        const mBruta = rLiquida.map((v, i) => v - Math.abs(custos[i]));
+        const dOperacionais = sumByRoots(DRE_LAYOUT[3].patterns, DRE_LAYOUT[3].excludes);
+        const mContrib = mBruta.map((v, i) => v - Math.abs(dOperacionais[i]));
+        const dAdmins = sumByRoots(DRE_LAYOUT[4].patterns, DRE_LAYOUT[4].excludes);
+        const ebitda = mContrib.map((v, i) => v - Math.abs(dAdmins[i]));
+        const dFinanc = sumByRoots(DRE_LAYOUT[5].patterns, DRE_LAYOUT[5].excludes);
+        const oReceitas = sumByRoots(DRE_LAYOUT[6].patterns, DRE_LAYOUT[6].excludes);
+        const oDespesas = sumByRoots(DRE_LAYOUT[7].patterns, DRE_LAYOUT[7].excludes);
+        const lLiquido = ebitda.map((v, i) => v + dFinanc[i] + oReceitas[i] - Math.abs(oDespesas[i]));
+
+        return { rBruta, tributos, rLiquida, custos, mBruta, dOperacionais, mContrib, dAdmins, ebitda, dFinanc, oReceitas, oDespesas, lLiquido, getRecursiveVal };
+    };
+
+    const budgetDRE = calculateTotals(budgetValues);
+    const realizedDRE = calculateTotals(realizedValues);
+
     // Toggle Section logic
     const toggleSection = (sectionId: string) => {
         const newSet = new Set(expandedSections);

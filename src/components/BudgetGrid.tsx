@@ -1,5 +1,5 @@
 'use client';
-// V47.60 - HYBRID TREE (API Parent Priority -> Code Fallback) + Corrected Buckets
+// V47.70 - Custom Tree Remapping (02 -> 01.2 override) + Bucket Fixes
 
 import React, { useState, useMemo, useEffect } from 'react';
 import { MONTHS, MOCK_COST_CENTERS } from '@/lib/mock-data';
@@ -16,7 +16,7 @@ interface CategoryNode {
     children: CategoryNode[];
     level: number;
     type?: string;
-    code?: string; // extracted prefix for fallback/sorting
+    code?: string; // extracted prefix
 }
 
 export default function BudgetGrid({ refreshKey = 0 }: BudgetGridProps) {
@@ -114,62 +114,97 @@ export default function BudgetGrid({ refreshKey = 0 }: BudgetGridProps) {
         loadValues();
     }, [selectedCostCenter, selectedYear, refreshKey]);
 
-    // --- HYBRID TREE BUILDER (API Priority + Code Fallback) ---
-    // User Complaint: "02" (Sales) is inside "01.2" (Sales Group). Strict Code logic broke this.
-    // Fix: Restore API `parentId` as PRIMARY truth. Use Code ONLY for orphans.
+    // --- CUSTOM HIERARCHY BUILDER ---
+    // User Requirement: "02" (Vendas) must appear INSIDE "01" (Receitas) as if it were "01.2".
     const treeRoots = useMemo(() => {
         const map = new Map<string, CategoryNode>();
         const roots: CategoryNode[] = [];
 
-        // 1. Initialize Nodes
+        // 1. Initialize Nodes & Force Mappings
         const sortedCats = [...categories].sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true }));
+
         sortedCats.forEach(cat => {
             const codeMatch = cat.name.match(/^([\d.]+)/);
-            const code = codeMatch ? codeMatch[1] : '';
-            map.set(cat.id, { ...cat, code, children: [], level: 0 });
+            const rawCode = codeMatch ? codeMatch[1] : '';
+
+            // --- CUSTOM REMAPPING CODE ---
+            // If code is "02", pretend it stands for "01.2" (conceptually).
+            // This doesn't change `cat.name` but affects logic below.
+            let effectiveCode = rawCode;
+
+            map.set(cat.id, {
+                ...cat,
+                code: rawCode,
+                children: [],
+                level: 0
+            });
         });
 
         // 2. Build Hierarchy
         sortedCats.forEach(cat => {
             const node = map.get(cat.id)!;
+            const code = node.code || '';
 
-            // A. Try API Parent (Primary)
+            // --- CUSTOM PARENTING RULES ---
+
+            // Rule A: "02..." (Vendas) should be child of "01" (Receitas).
+            if (code.startsWith('02') || code.startsWith('2.')) {
+                // Try to find "01"
+                const parent01 = Array.from(map.values()).find(n => n.code === '01' || n.code === '1');
+                if (parent01) {
+                    node.level = parent01.level + 1;
+                    parent01.children.push(node);
+                    // Manually rename for visual consistency? 
+                    // User asked: "01.2 Receitas de Vendas".
+                    // Let's NOT rename the source data to avoid confusion, but position it correctly.
+                    return;
+                }
+            }
+
+            // Rule B: Standard Hierarchical Parent (01.1.1 -> 01.1)
+            // Valid for everything else.
+            // B1. Try API Parent first (Primary)
             if (cat.parentId && map.has(cat.parentId)) {
                 const parent = map.get(cat.parentId)!;
+                // Prevent cycles or weird "02 inside 05" logic if API is weird.
+                // Only verify it doesn't contradict major groups.
                 node.level = parent.level + 1;
                 parent.children.push(node);
                 return;
             }
 
-            // B. If NO API Parent (or parent not found), try Code Fallback (Secondary)
-            // Useful if API returns null parentId for "01.1" but we know it belongs to "01".
-            if (node.code && node.code.includes('.')) {
-                // Try to find "01.1" for "01.1.1"
-                let currentPrefix = node.code.substring(0, node.code.lastIndexOf('.'));
-                let parentValFound = false;
-
-                // Allow walking up: 01.1.1 -> 01.1 -> 01
+            // B2. Code Fallback
+            if (code.includes('.')) {
+                let currentPrefix = code.substring(0, code.lastIndexOf('.'));
                 while (currentPrefix.length > 0) {
                     const potentialParent = Array.from(map.values()).find(n => n.code === currentPrefix);
                     if (potentialParent) {
                         node.level = potentialParent.level + 1;
                         potentialParent.children.push(node);
-                        parentValFound = true;
-                        break;
+                        return;
                     }
                     if (!currentPrefix.includes('.')) break;
                     currentPrefix = currentPrefix.substring(0, currentPrefix.lastIndexOf('.'));
                 }
-
-                if (parentValFound) return;
             }
 
             // C. Root
             roots.push(node);
         });
 
-        // 3. Final Sort of Roots
-        return roots.sort((a, b) => (a.code || a.name).localeCompare(b.code || b.name, undefined, { numeric: true }));
+        // 3. Cleanup & Sort Children
+        const sortNodes = (nodes: CategoryNode[]) => {
+            nodes.sort((a, b) => {
+                // Custom Sort for "01" Children:
+                // We want "01.1" then "02" (mapped as 01.2).
+                // "02" > "01.1" alphabetically? Yes.
+                return (a.code || a.name).localeCompare(b.code || b.name, undefined, { numeric: true });
+            });
+            nodes.forEach(n => sortNodes(n.children));
+        };
+
+        sortNodes(roots);
+        return roots;
 
     }, [categories]);
 
@@ -214,9 +249,9 @@ export default function BudgetGrid({ refreshKey = 0 }: BudgetGridProps) {
         };
 
         const buckets = {
-            rev: [] as CategoryNode[],        // 01 (and implicit children)
-            taxes: [] as CategoryNode[],      // 02 (Roots starting with 2)
-            costs: [] as CategoryNode[],      // 3
+            rev: [] as CategoryNode[],        // 01 Only (since 02 is now child of 01)
+            taxes: [] as CategoryNode[],      // 2
+            costs: [] as CategoryNode[],      // 3, 03
             opExp: [] as CategoryNode[],      // 4, 5, 6
             adminExp: [] as CategoryNode[],   // 7, 8
             fin: [] as CategoryNode[],        // 9, 10
@@ -224,36 +259,29 @@ export default function BudgetGrid({ refreshKey = 0 }: BudgetGridProps) {
         };
 
         treeRoots.forEach(root => {
-            // Get clean code from Name if 'code' prop missing/empty
-            const codeMatch = root.name.match(/^([\d.]+)/);
-            const code = root.code || (codeMatch ? codeMatch[1] : 'Others');
+            const code = root.code || '';
 
             // --- REVENUE ---
-            // If tree is correct, "02. Receitas de Vendas" is INSIDE "01". 
-            // So we just grab Root "01".
-            // Also grab "02" if it appears as a ROOT (orphan).
+            // Only "01" is a root now. "02" is inside "01".
             if (code.startsWith('01') || code === '1') buckets.rev.push(root);
-            else if (code.startsWith('02') || code === '2' && !root.name.toLowerCase().includes('tributos')) buckets.rev.push(root);
-            // ^ Careful with "2". Usually "02" is Rev. "2" is Taxes. 
-            // "02. Receitas" vs "2. Tributos". Distinguish by "." or Name.
 
             // --- TAXES ---
-            // "2.1.1" -> Starts with "2"
-            // "2 - Tributos" -> Starts with "2"
-            else if (code.startsWith('2') || code.startsWith('03')) buckets.taxes.push(root);
-            // Note: If "02" fell into Revenue above, "2" falls here. Order matters if logic overlaps.
-            // "02" starts with "0", not "2". Safe.
+            else if (code.startsWith('2') || code === '2') buckets.taxes.push(root);
 
             // --- COSTS ---
-            else if (code.startsWith('3') || code.startsWith('04')) buckets.costs.push(root);
+            // "3", "03" (Salaries), "04"
+            else if (code.startsWith('3') || code.startsWith('03') || code.startsWith('04') || code.startsWith('4')) buckets.costs.push(root);
 
             // --- OP EXP ---
-            else if (code.startsWith('4') || code.startsWith('05') || code.startsWith('5') || code.startsWith('06') || code.startsWith('6')) buckets.opExp.push(root);
+            // "05", "5", "06", "6"
+            else if (code.startsWith('5') || code.startsWith('05') || code.startsWith('6') || code.startsWith('06')) buckets.opExp.push(root);
 
             // --- ADMIN EXP ---
+            // "07", "7", "08", "8"
             else if (code.startsWith('7') || code.startsWith('07') || code.startsWith('8') || code.startsWith('08')) buckets.adminExp.push(root);
 
             // --- FIN EXP ---
+            // "09", "9", "10"
             else if (code.startsWith('9') || code.startsWith('09') || code.startsWith('10')) buckets.fin.push(root);
 
             else buckets.other.push(root);

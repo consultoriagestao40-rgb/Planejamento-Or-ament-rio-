@@ -1,5 +1,5 @@
 'use client';
-// V47.110 - Tax Hierarchy Perfection (02 -> 02.1 -> 2.1.x) + Ghost Filter
+// V47.120 - Deduplicated Roots (Fixing Double 01)
 
 import React, { useState, useMemo, useEffect } from 'react';
 import { MONTHS, MOCK_COST_CENTERS } from '@/lib/mock-data';
@@ -115,10 +115,10 @@ export default function BudgetGrid({ refreshKey = 0 }: BudgetGridProps) {
         loadValues();
     }, [selectedCostCenter, selectedYear, refreshKey]);
 
-    // --- HIERARCHY BUILDER (Revenue + Custom Taxes) ---
+    // --- HIERARCHY BUILDER (Deduplicated Roots) ---
     const treeRoots = useMemo(() => {
         const map = new Map<string, CategoryNode>();
-        const roots: CategoryNode[] = [];
+        const potentialRoots: CategoryNode[] = [];
         const codeMap = new Map<string, CategoryNode>();
 
         // 1. Initial Load + Remapping + Filtering
@@ -127,7 +127,6 @@ export default function BudgetGrid({ refreshKey = 0 }: BudgetGridProps) {
             const rawCode = codeMatch ? codeMatch[1] : '';
 
             // --- FILTER: GHOST ACCOUNTS ---
-            // User: "2.3 and 2.4 don't exist anymore"
             if (rawCode.startsWith('2.3') || rawCode.startsWith('2.4')) {
                 return; // Skip
             }
@@ -137,9 +136,6 @@ export default function BudgetGrid({ refreshKey = 0 }: BudgetGridProps) {
 
             // --- REVENUE REMAP (02 -> 01.2) ---
             if (rawCode.startsWith('02') || (rawCode.startsWith('2') && !cat.name.toLowerCase().includes('tributo') && !rawCode.startsWith('2.1'))) {
-                // Convert "02" to "01.2" (Receitas de Vendas)
-                // NOTE: Careful not to capture "2.1.1" (Taxes) here. 
-                // Heuristic: "02" starts with '0'. "2.1" starts with '2'.
                 if (rawCode.startsWith('02')) {
                     let suffix = rawCode.replace(/^0?2/, '');
                     if (suffix.startsWith('.')) suffix = suffix.substring(1);
@@ -158,15 +154,17 @@ export default function BudgetGrid({ refreshKey = 0 }: BudgetGridProps) {
                 isSynthetic: false
             };
             map.set(cat.id, node);
+
+            // If conflict in codeMap (duplicate code), keep the LATEST one or logic?
+            // Usually we want unique codes. If duplicate, we just overwrite.
             if (effectiveCode) codeMap.set(effectiveCode, node);
         });
 
-        // 2. Synthetic Parent Creation (Revenue & Taxes)
-        // We define specific synthetic parents requested by user
+        // 2. Synthetic Parent Creation
         const syntheticParents = [
             { code: '01.1', name: '01.1 - Receita de Serviços', parentCode: '01' },
             { code: '01.2', name: '01.2 - Receitas de Vendas', parentCode: '01' },
-            { code: '02.1', name: '02.1 - Tributos', parentCode: null }, // Taxes Root
+            { code: '02.1', name: '02.1 - Tributos', parentCode: null },
         ];
 
         syntheticParents.forEach(synth => {
@@ -187,31 +185,27 @@ export default function BudgetGrid({ refreshKey = 0 }: BudgetGridProps) {
 
         // 3. Linking Logic
         map.forEach(node => {
-            if (node.isSynthetic) return; // Processed later or via children logic
+            if (node.isSynthetic) return;
 
             const code = node.code || '';
 
-            // --- REVENUE LINKS (01...) ---
-            if (code.startsWith('01.1.')) { // 01.1.1 -> 01.1
+            // Revenue Links
+            if (code.startsWith('01.1.')) {
                 const parent = codeMap.get('01.1');
                 if (parent) { parent.children.push(node); node.level = parent.level + 1; return; }
             }
-            if (code.startsWith('01.2.')) { // 01.2.1 -> 01.2
+            if (code.startsWith('01.2.')) {
                 const parent = codeMap.get('01.2');
                 if (parent) { parent.children.push(node); node.level = parent.level + 1; return; }
             }
 
-            // --- TAXES LINKS (User: 2.1.X -> 02.1) ---
+            // Taxes Links
             if (code.startsWith('2.1')) {
-                const parent = codeMap.get('02.1'); // Link 2.1.1 to 02.1
-                if (parent) {
-                    parent.children.push(node);
-                    node.level = parent.level + 1;
-                    return;
-                }
+                const parent = codeMap.get('02.1');
+                if (parent) { parent.children.push(node); node.level = parent.level + 1; return; }
             }
 
-            // --- GENERAL FALLBACK (Recursive Gap Jumping) ---
+            // General Fallback
             if (code.includes('.')) {
                 let currentPrefix = code.substring(0, code.lastIndexOf('.'));
                 let parentFound = false;
@@ -231,26 +225,21 @@ export default function BudgetGrid({ refreshKey = 0 }: BudgetGridProps) {
             }
         });
 
-        // 4. Roots Retrieval
-        // Any node not in a child list is a potential Root
+        // 4. Roots Retrieval (Potential Duplicates)
         const allChildren = new Set<string>();
         map.forEach(node => node.children.forEach(c => allChildren.add(c.id)));
 
         map.forEach(node => {
             if (!allChildren.has(node.id)) {
-                // If it's 01.1 or 01.2, we must ensure they are children of 01 (if 01 exists)
-                // But wait, 01 itself might be missing.
-                // Let's create '01' if needed?
-                // User said "01 Receitas".
+                // Ensure 01 exists for 01.1/01.2 children
                 if ((node.code === '01.1' || node.code === '01.2') && !codeMap.has('01')) {
-                    // Create 01
                     const p01 = {
                         id: `synth-01`, name: '01 - RECEITAS', parentId: null, children: [node], level: 0, code: '01', isSynthetic: true
                     };
                     map.set(p01.id, p01);
                     codeMap.set('01', p01);
-                    allChildren.add(node.id); // It's no longer a root
-                    roots.push(p01); // 01 is root
+                    allChildren.add(node.id);
+                    potentialRoots.push(p01);
                     return;
                 } else if ((node.code === '01.1' || node.code === '01.2') && codeMap.has('01')) {
                     const p01 = codeMap.get('01')!;
@@ -259,21 +248,43 @@ export default function BudgetGrid({ refreshKey = 0 }: BudgetGridProps) {
                     return;
                 }
 
-                roots.push(node);
+                potentialRoots.push(node);
             }
         });
 
-        // 5. Final Sort
+        // 5. ROOT DEDUPLICATION (The Fix)
+        const uniqueRootsMap = new Map<string, CategoryNode>();
+
+        potentialRoots.forEach(root => {
+            const rootCode = root.code || root.name; // Fallback to name if code missing
+
+            if (uniqueRootsMap.has(rootCode)) {
+                // Merge Children
+                const existingRoot = uniqueRootsMap.get(rootCode)!;
+                // Avoid duplicating children
+                root.children.forEach(child => {
+                    if (!existingRoot.children.find(c => c.id === child.id)) {
+                        existingRoot.children.push(child);
+                    }
+                });
+                // Prefer Synthetic Name for 01/02 if we set it
+                if (rootCode === '01') existingRoot.name = '01 - RECEITAS';
+                if (rootCode === '02') existingRoot.name = '02 - TRIBUTO SOBRE FATURAMENTO';
+            } else {
+                uniqueRootsMap.set(rootCode, root);
+            }
+        });
+
+        const finalRoots = Array.from(uniqueRootsMap.values());
+
+        // 6. Final Sort
         const sortNodes = (list: CategoryNode[]) => {
             list.sort((a, b) => (a.code || a.name).localeCompare(b.code || b.name, undefined, { numeric: true }));
             list.forEach(n => sortNodes(n.children));
         };
-        sortNodes(roots);
+        sortNodes(finalRoots);
 
-        // Remove Synthetic Roots that ended up empty? (Optional)
-        // Keep them for structure visualization
-
-        return roots;
+        return finalRoots;
 
     }, [categories]);
 
@@ -282,7 +293,15 @@ export default function BudgetGrid({ refreshKey = 0 }: BudgetGridProps) {
         const totalsMap = new Map<string, { budget: number[], realized: number[] }>();
 
         const calculateNode = (node: CategoryNode) => {
-            const childrenTotals = node.children.map(calculateNode);
+            // Deduplicate children before calculating? (Just in case)
+            // But strict Sets help us.
+            const uniqueChildren = Array.from(new Set(node.children.map(c => c.id)))
+                .map(id => node.children.find(c => c.id === id)!);
+
+            // Update node.children to be unique (optional, but safe)
+            node.children = uniqueChildren;
+
+            const childrenTotals = uniqueChildren.map(calculateNode);
 
             const myBudget = new Array(12).fill(0);
             const myRealized = new Array(12).fill(0);
@@ -332,11 +351,7 @@ export default function BudgetGrid({ refreshKey = 0 }: BudgetGridProps) {
             const code = root.code || '';
 
             if (code.startsWith('01') || code === '1') buckets.rev.push(root);
-
-            // TAXES: "02" (Bucket Header is 02) includes "02.1" (Synthetic).
-            // "2.1.1" is inside 02.1.
             else if (code.startsWith('02') || code === '2') buckets.taxes.push(root);
-
             else if (code.startsWith('3') || code.startsWith('03') || code.startsWith('04') || code.startsWith('4')) buckets.costs.push(root);
             else if (code.startsWith('5') || code.startsWith('05') || code.startsWith('6') || code.startsWith('06')) buckets.opExp.push(root);
             else if (code.startsWith('7') || code.startsWith('07') || code.startsWith('8') || code.startsWith('08')) buckets.adminExp.push(root);
@@ -344,6 +359,7 @@ export default function BudgetGrid({ refreshKey = 0 }: BudgetGridProps) {
             else buckets.other.push(root);
         });
 
+        // Computed Rows (Same as previous)
         return {
             buckets,
             calculateTotals: (monthIdx: number) => {
@@ -364,7 +380,7 @@ export default function BudgetGrid({ refreshKey = 0 }: BudgetGridProps) {
         };
     }, [treeRoots, nodeTotals]);
 
-    // --- Rendering Helpers ---
+    // --- Rendering Helpers (Same as previous) ---
     const formatCurrency = (val: number | undefined) => {
         if (typeof val !== 'number') return 'R$ 0,00';
         return val.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
@@ -432,7 +448,6 @@ export default function BudgetGrid({ refreshKey = 0 }: BudgetGridProps) {
 
     return (
         <div style={{ overflowX: 'auto', border: '1px solid #e2e8f0', borderRadius: '8px', padding: '1rem', background: 'white' }}>
-            {/* Header omitted for brevity in thought but kept in full code */}
             <div style={{ marginBottom: '1.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
                     <div style={{ display: 'flex', flexDirection: 'column' }}>
@@ -464,7 +479,6 @@ export default function BudgetGrid({ refreshKey = 0 }: BudgetGridProps) {
                     {renderSummaryRow('1 - RECEITA BRUTA', 'vRev', true, '#eff6ff', '#1e3a8a')}
                     {dreStructure.buckets.rev.map(root => renderNode(root))}
 
-                    {/* UPDATED HEADER NAME */}
                     {renderSummaryRow('02 - TRIBUTO SOBRE FATURAMENTO', 'vTaxes', true, '#f1f5f9', '#64748b')}
                     {dreStructure.buckets.taxes.map(root => renderNode(root))}
 
@@ -484,7 +498,7 @@ export default function BudgetGrid({ refreshKey = 0 }: BudgetGridProps) {
                 </tbody>
             </table>
 
-            {/* Modal omitted but kept in logic */}
+            {/* Modal */}
             {selectedCell && (
                 <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', background: 'rgba(0,0,0,0.5)', zIndex: 50, display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
                     <div style={{ background: 'white', padding: '2rem', borderRadius: '12px', width: '90vw', maxWidth: '1000px', height: '90vh', maxHeight: '90vh', overflowY: 'auto', boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)', display: 'flex', flexDirection: 'column' }}>

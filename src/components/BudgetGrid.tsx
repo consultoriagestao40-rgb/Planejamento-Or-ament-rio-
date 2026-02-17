@@ -1,5 +1,5 @@
 'use client';
-// V47.90 - Robust Hierarchy (Gap Jumping) + 02->01.2 Remap + Omni Directional Drilldown
+// V47.100 - Synthetic Tree Inflation (Guaranteed Hierarchy)
 
 import React, { useState, useMemo, useEffect } from 'react';
 import { MONTHS, MOCK_COST_CENTERS } from '@/lib/mock-data';
@@ -17,6 +17,7 @@ interface CategoryNode {
     level: number;
     type?: string;
     code?: string;
+    isSynthetic?: boolean; // New flag for generated parents
 }
 
 export default function BudgetGrid({ refreshKey = 0 }: BudgetGridProps) {
@@ -37,8 +38,6 @@ export default function BudgetGrid({ refreshKey = 0 }: BudgetGridProps) {
         setLoadingTransactions(true);
         setTransactions([]);
         try {
-            // NOTE: Ideally the API should handle "get transactions for category X OR its children".
-            // If the node is a Folder/Grouper, this request might return empty if the API is strict.
             const res = await fetch(`/api/transactions?categoryId=${categoryId}&month=${month}&year=${selectedYear}&costCenterId=${selectedCostCenter}`);
             const data = await res.json();
             if (data.success) {
@@ -116,99 +115,140 @@ export default function BudgetGrid({ refreshKey = 0 }: BudgetGridProps) {
         loadValues();
     }, [selectedCostCenter, selectedYear, refreshKey]);
 
-    // --- ROBUST HIERARCHY BUILDER ---
-    // User Requirement: 01 -> 01.1 -> 01.1.1
-    // User Requirement: 02 -> 01.2
-    // User Requirement: Drill down everywhere.
+    // --- SYNTHETIC TREE BUILDER (The "Escadinha" Enforcer) ---
     const treeRoots = useMemo(() => {
         const map = new Map<string, CategoryNode>();
         const roots: CategoryNode[] = [];
 
-        // 1. Initialize Nodes & Force Remap "02" -> "01.2"
-        const sortedCats = [...categories].sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true }));
+        // Helper to get Node by Code (to avoid dupes if ID is diff or missing)
+        const codeMap = new Map<string, CategoryNode>();
 
-        sortedCats.forEach(cat => {
+        // 1. Initial Load + Remapping 02->01.2
+        const rawCats = [...categories];
+
+        rawCats.forEach(cat => {
             const codeMatch = cat.name.match(/^([\d.]+)/);
             const rawCode = codeMatch ? codeMatch[1] : '';
 
             let effectiveName = cat.name;
             let effectiveCode = rawCode;
 
-            // REMAP: 02... -> 01.2...
-            if (rawCode.startsWith('02') || rawCode === '2') {
-                // Only remap if it looks like the user's "Vendas" structure and not "Tributos" (which might start with 2)
-                // User said "02. Receitas de Vendas".
-                // BUT "2. Tributos" also starts with 2.
-                // Heuristic: Check for Dot "02." OR exact "02" OR "Receita".
-                if (rawCode.startsWith('02') || cat.name.toLowerCase().includes('receita') || cat.name.toLowerCase().includes('venda')) {
-                    // CAUTION: "Receita de Serviços" starts with 01. 
-                    // Only touch "02" starts.
-                    if (rawCode.startsWith('02')) {
-                        const suffix = rawCode.substring(2); // "02.1" -> ".1"
-                        effectiveCode = '01.2' + suffix;
-                        // Update name for visual clarity? "02. Receitas" -> "01.2 - Receitas"
-                        effectiveName = cat.name.replace(/^[\d.]+/, effectiveCode);
-                    }
-                }
+            // REMAP Logic
+            if (rawCode.startsWith('02') || (rawCode.startsWith('2') && !cat.name.includes('Tributos'))) {
+                // Convert "02.X" -> "01.2.X"
+                // Or "02" -> "01.2"
+                let suffix = rawCode.replace(/^0?2/, ''); // Remove leading 02 or 2
+                if (suffix.startsWith('.')) suffix = suffix.substring(1);
+
+                effectiveCode = suffix ? `01.2.${suffix}` : '01.2';
+                effectiveName = cat.name.replace(rawCode, effectiveCode).replace('01.2. ', '01.2 - ');
+                // If exact 02:
+                if (effectiveCode === '01.2') effectiveName = '01.2 - Receitas de Vendas';
             }
 
-            map.set(cat.id, {
+            const node: CategoryNode = {
                 ...cat,
                 name: effectiveName,
                 code: effectiveCode,
                 children: [],
-                level: 0
-            });
+                level: 0,
+                isSynthetic: false
+            };
+
+            map.set(cat.id, node);
+            if (effectiveCode) codeMap.set(effectiveCode, node);
         });
 
-        // 2. Build Hierarchy with Gap Jumping
-        sortedCats.forEach(cat => {
-            const node = map.get(cat.id)!;
-            const code = node.code || '';
+        // 2. Synthetic Parent Creation
+        // We iterate current nodes. If we see "01.1.1", we ensure "01.1" exists.
+        // If "01.1" exists, we ensure "01" exists.
+        // We do this logic until we hit top or existing node.
 
-            // Try to find a parent strictly by Code
-            if (code.includes('.')) {
-                let currentPrefix = code.substring(0, code.lastIndexOf('.'));
-                let parentFound = false;
+        // Convert map values to array for iteration (fix mutation issues by copying codes)
+        const existingCodes = Array.from(codeMap.keys());
 
-                // GAP JUMPING Loop: 
-                // 01.1.1 -> Try 01.1 -> Not found? -> Try 01.
-                while (currentPrefix.length > 0) {
-                    // Find node with this code
-                    const potentialParent = Array.from(map.values()).find(n => n.code === currentPrefix);
-                    if (potentialParent) {
-                        // Found an ancestor!
-                        node.level = potentialParent.level + 1;
-                        potentialParent.children.push(node);
-                        parentFound = true;
-                        break;
-                    }
+        existingCodes.forEach(code => {
+            if (!code || !code.includes('.')) return; // Roots handled later
 
-                    // Not found, try stripping another segment
-                    if (!currentPrefix.includes('.')) break;
-                    currentPrefix = currentPrefix.substring(0, currentPrefix.lastIndexOf('.'));
+            let currentCode = code;
+            let childNode = codeMap.get(currentCode)!;
+
+            // Walk up: 01.1.1 -> 01.1 -> 01
+            while (currentCode.includes('.')) {
+                const parentCode = currentCode.substring(0, currentCode.lastIndexOf('.'));
+
+                let parentNode = codeMap.get(parentCode);
+
+                if (!parentNode) {
+                    // CREATE SYNTHETIC PARENT
+                    let synthName = `${parentCode} - Grupo Genérico`;
+
+                    // Custom Names for User
+                    if (parentCode === '01') synthName = '01 - RECEITAS';
+                    if (parentCode === '01.1') synthName = '01.1 - Receita de Serviços';
+                    if (parentCode === '01.2') synthName = '01.2 - Receitas de Vendas';
+                    if (parentCode === '02') synthName = '02 - TRIBUTOS'; // Should be 2 actually
+
+                    parentNode = {
+                        id: `synth-${parentCode}`,
+                        name: synthName,
+                        parentId: null,
+                        children: [],
+                        level: 0,
+                        code: parentCode,
+                        isSynthetic: true
+                    };
+
+                    map.set(parentNode.id, parentNode);
+                    codeMap.set(parentCode, parentNode);
                 }
 
-                if (parentFound) return;
+                // Link Child to Parent (if not already linked)
+                if (!parentNode.children.includes(childNode)) {
+                    parentNode.children.push(childNode);
+                    childNode.level = parentNode.level + 1; // Temporary level, fixed later usually
+                }
+
+                // Prepare for next iteration up
+                childNode = parentNode;
+                currentCode = parentCode;
             }
-
-            // If Code link failed, try API Parent?
-            // (Only if not remapped, because remapping breaks API ID links usually)
-            // But if "02.1" remapped to "01.2.1", its parent "02" is now "01.2". 
-            // The Code logic above handles remapped parents too! 
-            // So we mostly rely on Code Gap Jumping.
-
-            // Fallback: If "01.2" (Ex-02) didn't find "01", it lands here.
-            // If "01" is missing from map, "01.2" becomes root.
-            roots.push(node);
         });
 
-        // 3. Sort
-        const sortNodes = (nodes: CategoryNode[]) => {
-            nodes.sort((a, b) => (a.code || a.name).localeCompare(b.code || b.name, undefined, { numeric: true }));
-            nodes.forEach(n => sortNodes(n.children));
+        // 3. Identification of Roots
+        // Any node that has NO parent in our constructed logic is a Root.
+        // Currently we built `children` arrays, but didn't set `parentId` on the objects explicitly in the loop 
+        // (we just pushed to children). 
+        // Let's sweep: Any node NOT in someone else's children list is a Root.
+
+        const allChildren = new Set<string>();
+        map.forEach(node => {
+            node.children.forEach(c => allChildren.add(c.id));
+        });
+
+        const allNodes = Array.from(map.values());
+
+        allNodes.forEach(node => {
+            if (!allChildren.has(node.id)) {
+                // It's a root
+                roots.push(node);
+            }
+            // Sort children while we're here
+            node.children.sort((a, b) => (a.code || a.name).localeCompare(b.code || b.name, undefined, { numeric: true }));
+        });
+
+        // 4. Final Root Sort
+        roots.sort((a, b) => (a.code || a.name).localeCompare(b.code || b.name, undefined, { numeric: true }));
+
+        // 5. Fix Levels Recursively
+        const setLevels = (nodes: CategoryNode[], lvl: number) => {
+            nodes.forEach(n => {
+                n.level = lvl;
+                setLevels(n.children, lvl + 1);
+            });
         };
-        sortNodes(roots);
+        setLevels(roots, 0);
+
         return roots;
 
     }, [categories]);
@@ -231,8 +271,11 @@ export default function BudgetGrid({ refreshKey = 0 }: BudgetGridProps) {
             });
 
             for (let i = 0; i < 12; i++) {
-                myBudget[i] += budgetValues[`${node.id}-${i}`] || 0;
-                myRealized[i] += realizedValues[`${node.id}-${i}`] || 0;
+                // Synthetic nodes don't have direct values, only children sum
+                if (!node.isSynthetic) {
+                    myBudget[i] += budgetValues[`${node.id}-${i}`] || 0;
+                    myRealized[i] += realizedValues[`${node.id}-${i}`] || 0;
+                }
             }
 
             totalsMap.set(node.id, { budget: myBudget, realized: myRealized });
@@ -265,21 +308,13 @@ export default function BudgetGrid({ refreshKey = 0 }: BudgetGridProps) {
         treeRoots.forEach(root => {
             const code = root.code || '';
 
-            // Note: Since we remapped 02 -> 01.2 and nested it under 01, 
-            // "01" should be the ONLY root for Revenue if "01" exists.
-            // If "01" does NOT exist, we might see "01.1", "01.2" as roots.
+            // Logic: Roots starting with "01" (Generated or Real) go to Rev.
             if (code.startsWith('01') || code === '1') buckets.rev.push(root);
-
             else if (code.startsWith('2') || code === '2') buckets.taxes.push(root);
-
             else if (code.startsWith('3') || code.startsWith('03') || code.startsWith('04') || code.startsWith('4')) buckets.costs.push(root);
-
             else if (code.startsWith('5') || code.startsWith('05') || code.startsWith('6') || code.startsWith('06')) buckets.opExp.push(root);
-
             else if (code.startsWith('7') || code.startsWith('07') || code.startsWith('8') || code.startsWith('08')) buckets.adminExp.push(root);
-
             else if (code.startsWith('9') || code.startsWith('09') || code.startsWith('10')) buckets.fin.push(root);
-
             else buckets.other.push(root);
         });
 
@@ -378,7 +413,8 @@ export default function BudgetGrid({ refreshKey = 0 }: BudgetGridProps) {
                     {MONTHS.map((_, i) => (
                         <React.Fragment key={i}>
                             <td style={{ borderLeft: '1px solid #f1f5f9', padding: hasChildren ? '0.5rem' : '0' }}>
-                                {hasChildren ? (
+                                {/* Budgets only for direct analytical nodes (leaves) technically, but we won't block it */}
+                                {hasChildren || node.isSynthetic ? (
                                     <div style={{ textAlign: 'right', fontSize: '0.8rem', color: '#64748b' }}>{formatCurrency(totals.budget[i])}</div>
                                 ) : (
                                     <input
@@ -396,7 +432,6 @@ export default function BudgetGrid({ refreshKey = 0 }: BudgetGridProps) {
                                 )}
                             </td>
 
-                            {/* DRILL DOWN EVERYWHERE: If hasChildren, we still allow click. */}
                             <td
                                 onClick={() => handleCellClick(node.id, i, node.name)}
                                 style={{

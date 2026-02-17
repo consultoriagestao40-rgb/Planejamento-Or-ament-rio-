@@ -36,7 +36,7 @@ export default function FinancialDashboard({
     };
 
     return (
-        <main className="container" style={{ paddingTop: '2rem', paddingBottom: '4rem' }}>
+        <main style={{ width: '100%', padding: '2rem 4rem', boxSizing: 'border-box' }}>
             <header style={{ marginBottom: '2rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <div>
                     <h1 style={{ color: 'hsl(var(--primary))' }}>Dashboard Financeiro</h1>

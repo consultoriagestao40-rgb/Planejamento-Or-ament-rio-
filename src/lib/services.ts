@@ -75,7 +75,8 @@ async function fetchUserInfo(accessToken: string) {
     return { error: 'Could not fetch user/tenant info' };
 }
 
-export async function syncData() {
+// V47.9.10: Updated signature to accept Cost Center & Year
+export async function syncData(costCenterId: string = 'DEFAULT', year: number = new Date().getFullYear()) {
     let accessToken: string;
     try {
         accessToken = await getValidAccessToken();
@@ -87,7 +88,7 @@ export async function syncData() {
     const tenant = await prisma.tenant.findFirst();
     if (!tenant) return { success: false, error: "Tenant not found in DB", timestamp: new Date().toISOString() };
 
-    console.log("Starting syncData V36 (Discovery Mode)...");
+    console.log(`Starting syncData V47.10 (CC=${costCenterId}, Year=${year})...`);
 
     // Discovery step: Who are we?
     const userInfo = await fetchUserInfo(accessToken);
@@ -218,7 +219,7 @@ export async function syncData() {
     const transactionLogs: string[] = [];
     try {
         (global as any).lastTransactionLogs = transactionLogs; // Pass the array to be filled
-        realizedValues = await fetchRealizedValues(accessToken);
+        realizedValues = await fetchRealizedValues(accessToken, year, costCenterId);
     } catch (e: any) {
         console.warn("Could not fetch realized values:", e);
         transactionLogs.push(`Fatal Error: ${e.message}`);
@@ -247,25 +248,22 @@ export async function syncData() {
 }
 
 // V46: Aggregates transactions for DRE (Competence View - V47.9.5)
-async function fetchRealizedValues(accessToken: string): Promise<Record<string, number>> {
+async function fetchRealizedValues(accessToken: string, targetYear: number, costCenterId: string): Promise<Record<string, number>> {
     const values: Record<string, number> = {};
-    const currentYear = new Date().getFullYear();
 
-    // V47.9.5: DRE is based on COMPETENCE (or Vencimento), not Cash (Pagamento).
-    // We fetch everything DUE/COMPETENT in the current year.
-    // We no longer iterate 3 years blindly; we focus on getting the correct 2026 dataset.
-
-    // V47.9.6: Widen the Search Window!
-    // Issues matching Competence Jan 2026 likely due to Vencimento being in Dec 2025 or Feb 2026.
-    // We fetch a 3-year buffer to ensure we catch ALL competence-2026 items.
-    const start = `${currentYear - 1}-01-01`; // 2025
-    const end = `${currentYear + 1}-12-31`;   // 2027
+    // V47.9.10: Use targetYear passed from Frontend
+    // Still use a buffer window to catch items with Competence in TargetYear but Due/Paid around it.
+    const start = `${targetYear - 1}-01-01`;
+    const end = `${targetYear + 1}-12-31`;
 
     // 1. Fetch Receivables (Competence/Due in Window)
     await aggregateTransactions(
         accessToken,
         `https://api-v2.contaazul.com/v1/financeiro/eventos-financeiros/contas-a-receber/buscar?data_vencimento_de=${start}&data_vencimento_ate=${end}&tamanho_pagina=100`,
-        values
+        values,
+        false,
+        costCenterId,
+        targetYear
     );
 
     // 2. Fetch Payables
@@ -273,20 +271,35 @@ async function fetchRealizedValues(accessToken: string): Promise<Record<string, 
         accessToken,
         `https://api-v2.contaazul.com/v1/financeiro/eventos-financeiros/contas-a-pagar/buscar?data_vencimento_de=${start}&data_vencimento_ate=${end}&tamanho_pagina=100`,
         values,
-        true // isExpense
+        true, // isExpense
+        costCenterId,
+        targetYear
     );
 
     return values;
 }
 
-async function aggregateTransactions(accessToken: string, baseUrl: string, targetValues: Record<string, number>, isExpense = false) {
+async function aggregateTransactions(
+    accessToken: string,
+    baseUrl: string,
+    targetValues: Record<string, number>,
+    isExpense = false,
+    costCenterId: string = 'DEFAULT',
+    targetYear: number
+) {
     let page = 1;
     let hasMore = true;
     const logs = (global as any).lastTransactionLogs || [];
 
+    // V47.9.10: Append Cost Center Filter if valid
+    let finalUrlBase = baseUrl;
+    if (costCenterId && costCenterId !== 'DEFAULT' && costCenterId !== 'Geral') {
+        finalUrlBase += `&centro_custo_id=${costCenterId}`;
+    }
+
     // V47.9.8: Increased safer limit to 200 pages (20k items) to avoid truncation
     while (hasMore && page <= 200) {
-        const url = `${baseUrl}&pagina=${page}`;
+        const url = `${finalUrlBase}&pagina=${page}`;
         try {
             const res = await fetch(url, { headers: { 'Authorization': `Bearer ${accessToken}` } });
             if (!res.ok) {
@@ -320,8 +333,8 @@ async function aggregateTransactions(accessToken: string, baseUrl: string, targe
                 const monthIdx = dateObj.getMonth();
                 const year = dateObj.getFullYear();
 
-                // Strict 2026 check (Current Year)
-                if (year !== new Date().getFullYear()) return;
+                // V47.9.10: Strict Target Year Check (controlled by user selector)
+                if (year !== targetYear) return;
 
                 // V47.9.9: Exclude Canceled items to avoid over-reporting
                 const status = (item.status || '').toUpperCase();

@@ -14,28 +14,23 @@ export default function BudgetGrid({ refreshKey = 0 }: BudgetGridProps) {
     const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
     const [loading, setLoading] = useState(true);
     const [selectedCostCenter, setSelectedCostCenter] = useState('DEFAULT');
+    const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
 
     const [categories, setCategories] = useState<any[]>([]);
     const [costCenters, setCostCenters] = useState<any[]>(MOCK_COST_CENTERS);
     const [error, setError] = useState<string | null>(null);
 
-    React.useEffect(() => {
-        const loadData = async () => {
-            setLoading(true);
-            setError(null);
-            try {
-                const [setupRes, budgetRes, syncRes] = await Promise.all([
-                    fetch('/api/setup', { cache: 'no-store' }),
-                    fetch(`/api/budgets?costCenterId=${selectedCostCenter}`, { cache: 'no-store' }),
-                    fetch(`/api/sync?costCenterId=${selectedCostCenter}`, { cache: 'no-store' })
-                ]);
+    // V47.11: Split Effects to prevent Filter Reset (UI Flicker)
 
+    // 1. Setup Effect (Run once or on manual refresh)
+    React.useEffect(() => {
+        const loadSetup = async () => {
+            try {
+                const setupRes = await fetch('/api/setup', { cache: 'no-store' });
                 const setupData = await setupRes.json();
-                const budgetData = await budgetRes.json();
-                const syncData = await syncRes.json();
 
                 if (setupData.success) {
-                    // V47.2: Nuclear Mapping Pass (Frontend Sanity)
+                    // Enrich Categories
                     const enrichedCategories = setupData.categories.map((cat: any) => {
                         let ed = cat.entradaDre;
                         if (!ed) {
@@ -56,11 +51,31 @@ export default function BudgetGrid({ refreshKey = 0 }: BudgetGridProps) {
                     if (setupData.costCenters.length > 0) {
                         setCostCenters([...MOCK_COST_CENTERS.filter(m => m.id === 'DEFAULT'), ...setupData.costCenters]);
                     }
-                    // Auto-expand all
-                    setExpandedRows(new Set(enrichedCategories.map((c: any) => c.id)));
-                } else {
-                    console.warn('Setup failed:', setupData.error);
+
+                    // Drill-down: Start collapsed (Visual Cleanliness)
+                    // if (expandedRows.size === 0) { ... }
                 }
+            } catch (err) {
+                console.error("Setup Error:", err);
+            }
+        };
+        loadSetup();
+    }, [refreshKey]); // Only on mount or Refresh Button
+
+    // 2. Data Effect (Run on Filter Change)
+    React.useEffect(() => {
+        const loadValues = async () => {
+            setLoading(true);
+            setError(null);
+            try {
+                // V47.10: Pass selectedYear to APIs
+                const [budgetRes, syncRes] = await Promise.all([
+                    fetch(`/api/budgets?costCenterId=${selectedCostCenter}&year=${selectedYear}`, { cache: 'no-store' }),
+                    fetch(`/api/sync?costCenterId=${selectedCostCenter}&year=${selectedYear}`, { cache: 'no-store' })
+                ]);
+
+                const budgetData = await budgetRes.json();
+                const syncData = await syncRes.json();
 
                 if (budgetData.success) {
                     const values: Record<string, number> = {};
@@ -81,8 +96,8 @@ export default function BudgetGrid({ refreshKey = 0 }: BudgetGridProps) {
             }
         };
 
-        loadData();
-    }, [selectedCostCenter]);
+        loadValues();
+    }, [selectedCostCenter, selectedYear, refreshKey]);
 
     // DRE Sections Mapping (Visual Headers)
     // DYNAMIC IMPORT STRATEGY (v47.9)
@@ -371,9 +386,10 @@ export default function BudgetGrid({ refreshKey = 0 }: BudgetGridProps) {
     const realizedDRE = calculateTotals(fullTree, realizedValues);
 
     React.useEffect(() => {
-        if (categories.length > 0 && expandedRows.size === 0) {
-            setExpandedRows(new Set(categories.map(c => c.id)));
-        }
+        // Drill-down: Ensure we don't auto-expand when categories load
+        // if (categories.length > 0 && expandedRows.size === 0) {
+        //     setExpandedRows(new Set(categories.map(c => c.id)));
+        // }
     }, [categories]);
 
     const formatCurrency = (val: number | undefined) => {
@@ -397,14 +413,27 @@ export default function BudgetGrid({ refreshKey = 0 }: BudgetGridProps) {
         <div style={{ overflowX: 'auto', border: '1px solid #e2e8f0', borderRadius: '8px', padding: '1rem', background: 'white' }}>
             <div style={{ marginBottom: '1.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-                    <label style={{ fontWeight: 600 }}>Centro de Custo:</label>
-                    <select
-                        value={selectedCostCenter}
-                        onChange={(e) => setSelectedCostCenter(e.target.value)}
-                        style={{ padding: '0.5rem', borderRadius: '4px', border: '1px solid #cbd5e1' }}
-                    >
-                        {costCenters.map(cc => <option key={cc.id} value={cc.id}>{cc.name}</option>)}
-                    </select>
+                    <div style={{ display: 'flex', flexDirection: 'column' }}>
+                        <label style={{ fontSize: '0.75rem', fontWeight: 600, color: '#64748b' }}>Centro de Custo</label>
+                        <select
+                            value={selectedCostCenter}
+                            onChange={(e) => setSelectedCostCenter(e.target.value)}
+                            style={{ padding: '0.5rem', borderRadius: '4px', border: '1px solid #cbd5e1', minWidth: '200px' }}
+                        >
+                            {costCenters.map(cc => <option key={cc.id} value={cc.id}>{cc.name}</option>)}
+                        </select>
+                    </div>
+
+                    <div style={{ display: 'flex', flexDirection: 'column' }}>
+                        <label style={{ fontSize: '0.75rem', fontWeight: 600, color: '#64748b' }}>Ano</label>
+                        <select
+                            value={selectedYear}
+                            onChange={(e) => setSelectedYear(parseInt(e.target.value))}
+                            style={{ padding: '0.5rem', borderRadius: '4px', border: '1px solid #cbd5e1' }}
+                        >
+                            {[2024, 2025, 2026, 2027].map(y => <option key={y} value={y}>{y}</option>)}
+                        </select>
+                    </div>
                 </div>
                 {categories.length > 0 && (
                     <div style={{ fontSize: '0.75rem', color: '#059669', fontWeight: 600 }}>

@@ -569,6 +569,50 @@ export default function BudgetGrid({ refreshKey = 0 }: BudgetGridProps) {
             </table>
 
             {loading && <div style={{ padding: '3rem', textAlign: 'center', color: '#64748b' }}>Sincronizando dados...</div>}
+
+            {/* Transaction Detail Modal */}
+            {selectedCell && (
+                <div style={{
+                    position: 'fixed', top: 0, left: 0, width: '100%', height: '100%',
+                    background: 'rgba(0,0,0,0.5)', zIndex: 50, display: 'flex', justifyContent: 'center', alignItems: 'center'
+                }}>
+                    <div style={{ background: 'white', padding: '1.5rem', borderRadius: '8px', width: '600px', maxHeight: '80vh', overflowY: 'auto', boxShadow: '0 10px 25px rgba(0,0,0,0.2)' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '1rem', borderBottom: '1px solid #e2e8f0', paddingBottom: '0.5rem' }}>
+                            <h3 style={{ fontSize: '1.1rem', fontWeight: 'bold' }}>{selectedCell.categoryName} - {MONTHS[selectedCell.month]}</h3>
+                            <button onClick={closeModal} style={{ background: 'none', border: 'none', fontSize: '1.5rem', cursor: 'pointer' }}>×</button>
+                        </div>
+
+                        {loadingTransactions ? (
+                            <div style={{ textAlign: 'center', padding: '2rem', color: '#64748b' }}>Carregando lançamentos...</div>
+                        ) : transactions.length === 0 ? (
+                            <div style={{ textAlign: 'center', padding: '2rem', color: '#64748b' }}>Nenhum lançamento encontrado nesta competência.</div>
+                        ) : (
+                            <table style={{ width: '100%', fontSize: '0.8rem', borderCollapse: 'collapse' }}>
+                                <thead>
+                                    <tr style={{ background: '#f8fafc', textAlign: 'left' }}>
+                                        <th style={{ padding: '0.5rem', borderBottom: '1px solid #e2e8f0' }}>Data</th>
+                                        <th style={{ padding: '0.5rem', borderBottom: '1px solid #e2e8f0' }}>Descrição</th>
+                                        <th style={{ padding: '0.5rem', borderBottom: '1px solid #e2e8f0' }}>Cliente/Forn.</th>
+                                        <th style={{ padding: '0.5rem', borderBottom: '1px solid #e2e8f0', textAlign: 'right' }}>Valor</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {transactions.map((tx: any) => (
+                                        <tr key={tx.id} style={{ borderBottom: '1px solid #f1f5f9' }}>
+                                            <td style={{ padding: '0.5rem' }}>{new Date(tx.date).toLocaleDateString('pt-BR')}</td>
+                                            <td style={{ padding: '0.5rem' }}>{tx.description}</td>
+                                            <td style={{ padding: '0.5rem' }}>{tx.customer || '-'}</td>
+                                            <td style={{ padding: '0.5rem', textAlign: 'right', fontWeight: 'bold' }}>
+                                                {parseFloat(tx.value).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        )}
+                    </div>
+                </div>
+            )}
         </div>
     );
 }

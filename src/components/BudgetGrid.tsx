@@ -208,29 +208,27 @@ export default function BudgetGrid({ refreshKey = 0 }: BudgetGridProps) {
                 buckets.deductions.push(root);
             }
             // Costs: 3 or 4 or 03 or 04
-            else if (p.startsWith('3') || p.startsWith('4') || p === '03' || p === '04') {
+            else if (isPrefix(p, '3') || isPrefix(p, '03') || isPrefix(p, '4') || isPrefix(p, '04')) {
                 buckets.costs.push(root);
             }
             // Op Expenses: 6 or 06
-            else if (p.startsWith('6') || p === '06') {
+            else if (isPrefix(p, '6') || isPrefix(p, '06')) {
                 buckets.opExpenses.push(root);
             }
-            // Admin Expenses: 8 or 08 or 5??? (User mentioned 05 might be admin in older logs, strictly sticking to 8 if standard chart)
-            // User's chart seems to use 05 for Admin based on '05 8 - Despesas Administrativas' label in previous code.
-            // Let's broaden to catch '08' and '8'.
-            else if (p.startsWith('8') || p === '08') {
+            // Admin Expenses: 8 or 08
+            else if (isPrefix(p, '8') || isPrefix(p, '08')) {
                 buckets.adminExpenses.push(root);
             }
             // Financial: 9, 10, 09
-            else if (p.startsWith('9') || p.startsWith('10') || p === '09') {
+            else if (isPrefix(p, '9') || isPrefix(p, '09') || isPrefix(p, '10')) {
                 buckets.financial.push(root);
             }
             // Other Rev: 7, 07
-            else if (p.startsWith('7') || p === '07') {
+            else if (isPrefix(p, '7') || isPrefix(p, '07')) {
                 buckets.otherRev.push(root);
             }
             // Other Exp: 11, 12
-            else if (p.startsWith('11') || p.startsWith('12')) {
+            else if (isPrefix(p, '11') || isPrefix(p, '12')) {
                 buckets.otherExp.push(root);
             }
             // Fallback: If "Loose" (No Prefix), try to put them in the right bucket via Keywords

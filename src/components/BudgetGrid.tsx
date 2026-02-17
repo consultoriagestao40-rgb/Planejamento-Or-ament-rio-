@@ -116,6 +116,32 @@ export default function BudgetGrid({ refreshKey = 0 }: BudgetGridProps) {
         return root ? root.name : fallback;
     };
 
+    // Helper: Format Currency
+    const formatCurrency = (val: number | undefined) => {
+        if (typeof val !== 'number') return 'R$ 0,00';
+        return val.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+    };
+
+    const handleBudgetChange = async (categoryId: string, monthIndex: number, value: string) => {
+        const numericValue = parseFloat(value.replace(/\D/g, '')) / 100 || 0;
+        setBudgetValues(prev => ({ ...prev, [`${categoryId}-${monthIndex}`]: numericValue }));
+        try {
+            await fetch('/api/budgets', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    categoryId,
+                    costCenterId: selectedCostCenter,
+                    month: monthIndex,
+                    year: new Date().getFullYear(),
+                    amount: numericValue
+                })
+            });
+        } catch (error) {
+            console.error('Save failed', error);
+        }
+    };
+
     const DRE_LAYOUT = [
         {
             id: 'RECEITAS',

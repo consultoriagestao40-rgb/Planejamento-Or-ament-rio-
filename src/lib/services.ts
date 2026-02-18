@@ -296,7 +296,10 @@ async function aggregateTransactions(
             if (items.length === 0) { hasMore = false; break; }
 
             items.forEach((item: any, idx: number) => {
-                const amount = item.total || item.valor_liquido || item.valor || item.total_parcela || 0;
+                // V47.14: Use Gross Value (valor) for Competence DRE.
+                // Previous logic used 'valor_liquido' which is Net of Tax Retentions (Cash Basis).
+                // User confirmed DRE must show Gross Revenue (e.g. 165k vs 154k).
+                const amount = item.valor || item.valor_original || item.total || item.valor_liquido || 0;
 
                 // V47.9.5: Competence Priority
                 // 1. Competencia (The correct DRE date)

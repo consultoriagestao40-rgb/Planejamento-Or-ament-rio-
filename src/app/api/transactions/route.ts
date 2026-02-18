@@ -79,6 +79,11 @@ async function fetchTransactions(accessToken: string, baseUrl: string, costCente
                 const hasCategory = cats.some((c: any) => c.id === categoryId);
 
                 if (hasCategory) {
+                    // DEBUG: Inspect Raw Values for MRV
+                    if (item.cliente && item.cliente.nome && item.cliente.nome.includes('MRV')) {
+                        console.log(`[DEBUG_MRV] Name: ${item.cliente.nome} | Total: ${item.total} | Valor: ${item.valor} | Net: ${item.valor_liquido} | D.Comp: ${item.data_competencia} | D.Venc: ${item.data_vencimento}`);
+                    }
+
                     // Check Competence/Date Match (Strictly same logic as Sync)
                     const dateStr = item.data_competencia || item.data_vencimento || item.vencimento || item.data_pagamento;
                     const dateObj = dateStr ? new Date(dateStr) : new Date();
@@ -88,7 +93,8 @@ async function fetchTransactions(accessToken: string, baseUrl: string, costCente
                             id: item.id,
                             date: dateStr,
                             description: item.descricao || 'Sem descrição',
-                            value: item.total || item.valor_liquido || item.valor || 0,
+                            // V47.14: Use Gross Value for consistency with DRE
+                            value: item.valor || item.valor_original || item.total || item.valor_liquido || 0,
                             customer: item.cliente ? item.cliente.nome : (item.fornecedor ? item.fornecedor.nome : 'N/A'),
                             status: item.status
                         });

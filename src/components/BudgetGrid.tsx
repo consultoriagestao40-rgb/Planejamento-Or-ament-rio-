@@ -470,11 +470,23 @@ export default function BudgetGrid({ refreshKey = 0 }: BudgetGridProps) {
                             <table style={{ width: '100%', fontSize: '0.8rem', borderCollapse: 'collapse' }}>
                                 <thead>
                                     <tr style={{ background: '#f8fafc', textAlign: 'left' }}>
-                                        <th style={{ padding: '0.5rem', borderBottom: '1px solid #e2e8f0' }}>Data</th><th>Descrição</th><th>Cliente/Forn.</th><th style={{ textAlign: 'right' }}>Valor</th>
+                                        <th style={{ padding: '0.5rem', borderBottom: '1px solid #e2e8f0' }}>Data</th>
+                                        <th style={{ padding: '0.5rem', borderBottom: '1px solid #e2e8f0' }}>Descrição</th>
+                                        <th style={{ padding: '0.5rem', borderBottom: '1px solid #e2e8f0' }}>Cliente/Forn.</th>
+                                        <th style={{ padding: '0.5rem', borderBottom: '1px solid #e2e8f0', textAlign: 'right' }}>Valor</th>
+                                        <th style={{ padding: '0.5rem', borderBottom: '1px solid #e2e8f0', fontSize: '0.7rem', color: 'red' }}>Debug Values</th>
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    {transactions.map((tx: any) => (<tr key={tx.id} style={{ borderBottom: '1px solid #f1f5f9' }}><td style={{ padding: '0.5rem' }}>{new Date(tx.date).toLocaleDateString('pt-BR')}</td><td style={{ padding: '0.5rem' }}>{tx.description}</td><td style={{ padding: '0.5rem' }}>{tx.customer || '-'}</td><td style={{ padding: '0.5rem', textAlign: 'right', fontWeight: 'bold' }}>{parseFloat(tx.value).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</td></tr>))}
+                                    {transactions.map((tx: any) => (
+                                        <tr key={tx.id} style={{ borderBottom: '1px solid #f1f5f9' }}>
+                                            <td style={{ padding: '0.5rem' }}>{new Date(tx.date).toLocaleDateString('pt-BR')}</td>
+                                            <td style={{ padding: '0.5rem' }}>{tx.description}</td>
+                                            <td style={{ padding: '0.5rem' }}>{tx.customer || '-'}</td>
+                                            <td style={{ padding: '0.5rem', textAlign: 'right', fontWeight: 'bold' }}>{parseFloat(tx.value).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</td>
+                                            <td style={{ padding: '0.5rem', fontSize: '0.7rem', color: '#666' }}>{tx.debug_info}</td>
+                                        </tr>
+                                    ))}
                                 </tbody>
                             </table>
                         )}

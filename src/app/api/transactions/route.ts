@@ -96,7 +96,8 @@ async function fetchTransactions(accessToken: string, baseUrl: string, costCente
                             // V47.14: Use Gross Value for consistency with DRE
                             value: item.valor || item.valor_original || item.total || item.valor_liquido || 0,
                             customer: item.cliente ? item.cliente.nome : (item.fornecedor ? item.fornecedor.nome : 'N/A'),
-                            status: item.status
+                            status: item.status,
+                            debug_info: `V:${item.valor} | VO:${item.valor_original} | T:${item.total} | VL:${item.valor_liquido}`
                         });
                     }
                 }

@@ -154,9 +154,9 @@ export default function BudgetGrid({ refreshKey = 0 }: BudgetGridProps) {
 
         // 2. Synthetics
         const syntheticParents = [
-            { code: '01.1', name: '01.1 - Receita de Serviços', parentCode: '01' },
-            { code: '01.2', name: '01.2 - Receitas de Vendas', parentCode: '01' },
-            { code: '02.1', name: '02.1 - Tributos', parentCode: null },
+            { code: '01.1', name: 'RECEITA DE SERVIÇOS', parentCode: '01' },
+            { code: '01.2', name: 'RECEITAS DE VENDAS', parentCode: '01' },
+            { code: '02.1', name: 'TRIBUTOS', parentCode: null },
         ];
 
         syntheticParents.forEach(synth => {
@@ -213,7 +213,7 @@ export default function BudgetGrid({ refreshKey = 0 }: BudgetGridProps) {
         map.forEach(node => {
             if (!allChildren.has(node.id)) {
                 if ((node.code === '01.1' || node.code === '01.2') && !codeMap.has('01')) {
-                    const p01 = { id: `synth-01`, name: '01 - RECEITAS', parentId: null, children: [node], level: 0, code: '01', isSynthetic: true };
+                    const p01 = { id: `synth-01`, name: 'RECEITAS', parentId: null, children: [node], level: 0, code: '01', isSynthetic: true };
                     map.set(p01.id, p01);
                     codeMap.set('01', p01);
                     allChildren.add(node.id);
@@ -240,8 +240,8 @@ export default function BudgetGrid({ refreshKey = 0 }: BudgetGridProps) {
                         existingRoot.children.push(child);
                     }
                 });
-                if (rootCode === '01') existingRoot.name = '01 - RECEITAS';
-                if (rootCode === '02') existingRoot.name = '02 - TRIBUTO SOBRE FATURAMENTO';
+                if (rootCode === '01') existingRoot.name = 'RECEITAS';
+                if (rootCode === '02') existingRoot.name = 'TRIBUTO SOBRE FATURAMENTO';
             } else {
                 uniqueRootsMap.set(rootCode, root);
             }
@@ -407,7 +407,7 @@ export default function BudgetGrid({ refreshKey = 0 }: BudgetGridProps) {
     };
 
     const renderSummaryRow = (label: string, validx: keyof ReturnType<typeof dreStructure.calculateTotals>, isBold = false, bgColor = '#f8fafc', textColor = '#0f172a', onClick?: () => void) => (
-        <tr onClick={onClick} style={{ background: bgColor, borderBottom: '1px solid #e2e8f0', fontWeight: isBold ? 700 : 600, cursor: onClick ? 'pointer' : 'default' }}>
+        <tr onClick={onClick} style={{ background: bgColor, borderBottom: '1px solid #e2e8f0', fontWeight: isBold ? 700 : 600, cursor: onClick ? 'pointer' : 'default', textTransform: 'uppercase' }}>
             <td style={{ padding: '0.75rem', position: 'sticky', left: 0, background: bgColor, zIndex: 10, color: textColor, fontSize: '0.85rem' }}>{label}</td>
             {MONTHS.map((_, i) => (
                 <React.Fragment key={i}>
@@ -440,23 +440,23 @@ export default function BudgetGrid({ refreshKey = 0 }: BudgetGridProps) {
                     </tr>
                 </thead>
                 <tbody>
-                    {renderSummaryRow('1 - RECEITA BRUTA', 'vRev', true, '#eff6ff', '#1e3a8a')}
+                    {renderSummaryRow('RECEITA BRUTA', 'vRev', true, '#eff6ff', '#1e3a8a')}
                     {dreStructure.buckets.rev.map(root => renderNode(root))}
-                    {renderSummaryRow('02 - TRIBUTO SOBRE FATURAMENTO', 'vTaxes', true, '#f1f5f9', '#64748b')}
+                    {renderSummaryRow('TRIBUTO SOBRE FATURAMENTO', 'vTaxes', true, '#f1f5f9', '#64748b')}
                     {dreStructure.buckets.taxes.map(root => renderNode(root))}
-                    {renderSummaryRow('3 - (=) RECEITA LÍQUIDA', 'vRecLiq', true, '#e0f2fe', '#0369a1')}
-                    {renderSummaryRow('4 - CUSTO OPERACIONAL', 'vCosts', true, '#f1f5f9', '#64748b')}
+                    {renderSummaryRow('(=) RECEITA LÍQUIDA', 'vRecLiq', true, '#e0f2fe', '#0369a1')}
+                    {renderSummaryRow('CUSTO OPERACIONAL', 'vCosts', true, '#f1f5f9', '#64748b')}
                     {dreStructure.buckets.costs.map(root => renderNode(root))}
-                    {renderSummaryRow('5 - (=) MARGEM BRUTA', 'vGrossMarg', true, '#dcfce7', '#15803d')}
-                    {renderSummaryRow('6 - DESPESA OPERACIONAL', 'vOpExp', true, '#f1f5f9', '#64748b')}
+                    {renderSummaryRow('(=) MARGEM BRUTA', 'vGrossMarg', true, '#dcfce7', '#15803d')}
+                    {renderSummaryRow('DESPESA OPERACIONAL', 'vOpExp', true, '#f1f5f9', '#64748b')}
                     {dreStructure.buckets.opExp.map(root => renderNode(root))}
-                    {renderSummaryRow('7 - (=) MARGEM DE CONTRIBUIÇÃO', 'vContribMarg', true, '#fff7ed', '#c2410c')}
-                    {renderSummaryRow('8 - DESPESAS ADMINISTRATIVAS', 'vAdminExp', true, '#f1f5f9', '#64748b')}
+                    {renderSummaryRow('(=) MARGEM DE CONTRIBUIÇÃO', 'vContribMarg', true, '#fff7ed', '#c2410c')}
+                    {renderSummaryRow('DESPESAS ADMINISTRATIVAS', 'vAdminExp', true, '#f1f5f9', '#64748b')}
                     {dreStructure.buckets.adminExp.map(root => renderNode(root))}
-                    {renderSummaryRow('9 - (=) EBITDA', 'vEbitda', true, '#fef3c7', '#b45309')}
-                    {renderSummaryRow('10 - DESPESAS FINANCEIRAS', 'vFin', true, '#f1f5f9', '#64748b')}
+                    {renderSummaryRow('(=) EBITDA', 'vEbitda', true, '#fef3c7', '#b45309')}
+                    {renderSummaryRow('DESPESAS FINANCEIRAS', 'vFin', true, '#f1f5f9', '#64748b')}
                     {dreStructure.buckets.fin.map(root => renderNode(root))}
-                    {renderSummaryRow('11 - (=) LUCRO LÍQUIDO', 'vNetProfit', true, '#0f172a', '#fbbf24')}
+                    {renderSummaryRow('(=) LUCRO LÍQUIDO', 'vNetProfit', true, '#0f172a', '#fbbf24')}
                 </tbody>
             </table>
             {selectedCell && (

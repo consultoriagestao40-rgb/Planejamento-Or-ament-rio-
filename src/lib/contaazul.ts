@@ -20,7 +20,7 @@ export const getAuthUrl = (state: string) => {
 
     // V36: Escopos OIDC + Cognito Admin (O conjunto mais estável para o novo sistema)
     // V48: Restoring SALES scope because we believe User's Env Var Creds allow it.
-    const scope = 'openid profile email finance';
+    const scope = 'openid profile email aws.cognito.signin.user.admin finance';
 
     // V46.5: Adding prompt=login to force fresh consent with the new finance scopes!
     return `${CA_AUTH_URL}?client_id=${encodeURIComponent(clientId)}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=${encodeURIComponent(scope)}&state=${encodeURIComponent(state)}&response_type=code&prompt=login`;

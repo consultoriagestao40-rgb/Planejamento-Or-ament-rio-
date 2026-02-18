@@ -62,12 +62,9 @@ export const exchangeCodeForToken = async (code: string): Promise<ContaAzulToken
 };
 
 export const refreshAccessToken = async (refreshToken: string): Promise<ContaAzulTokenResponse> => {
-    // Priority: Force Hardcoded (Known Good) to bypass broken Env Var
-    const clientId = '4obnij6ehp1q45oecojivdta7n';
-    const clientSecret = '1nhd3b2mu9hoo6o2qkhr7unn376m5lets1gvfdcd7lkie5vpoo49';
-
-    // V50: Force EXACT Local Scope (including AWS internal)
-    const scope = 'openid profile email aws.cognito.signin.user.admin finance';
+    // Priority: Env Vars > Hardcoded
+    const clientId = process.env.CONTA_AZUL_CLIENT_ID || '4obnij6ehp1q45oecojivdta7n'.trim();
+    const clientSecret = process.env.CONTA_AZUL_CLIENT_SECRET || '1nhd3b2mu9hoo6o2qkhr7unn376m5lets1gvfdcd7lkie5vpoo49'.trim();
 
     const credentials = Buffer.from(`${clientId}:${clientSecret}`).toString('base64');
 

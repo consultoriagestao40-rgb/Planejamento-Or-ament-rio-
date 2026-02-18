@@ -11,27 +11,23 @@ const CA_AUTH_URL = 'https://auth.contaazul.com/login';
 const CA_TOKEN_URL = 'https://auth.contaazul.com/oauth2/token';
 
 export const getAuthUrl = (state: string) => {
-    // Priority: Force Hardcoded (Known Good)
-    const clientId = '4obnij6ehp1q45oecojivdta7n';
+    // Priority: Env Vars > Hardcoded
+    const clientId = process.env.CONTA_AZUL_CLIENT_ID || '4obnij6ehp1q45oecojivdta7n'.trim();
 
-    // V50: Force EXACT Local Scope
-    const scope = 'openid profile email aws.cognito.signin.user.admin finance';
+    // V51: Minimal Vanilla Scope (No AWS, No Sales, No Offline explicitly)
+    const scope = 'openid profile email finance';
 
     const isDev = process.env.NODE_ENV === 'development';
     const baseUrl = isDev ? 'http://127.0.0.1:3000' : 'https://planejamento-or-ament-rio.vercel.app';
     const redirectUri = process.env.CONTA_AZUL_REDIRECT_URI || `${baseUrl}/api/auth/callback`;
 
-    // V36: Escopos OIDC + Cognito Admin (O conjunto mais estável para o novo sistema)
-    // V48: Restoring SALES scope because we believe User's Env Var Creds allow it.
-
-
-    // V46.5: Adding prompt=login to force fresh consent with the new finance scopes!
-    return `${CA_AUTH_URL}?client_id=${encodeURIComponent(clientId)}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=${encodeURIComponent(scope)}&state=${encodeURIComponent(state)}&response_type=code&prompt=login`;
+    // Remove prompt=login to avoid issues
+    return `${CA_AUTH_URL}?client_id=${encodeURIComponent(clientId)}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=${encodeURIComponent(scope)}&state=${encodeURIComponent(state)}&response_type=code`;
 };
 
 export const exchangeCodeForToken = async (code: string): Promise<ContaAzulTokenResponse> => {
-    const clientId = '4obnij6ehp1q45oecojivdta7n';
-    const clientSecret = '1nhd3b2mu9hoo6o2qkhr7unn376m5lets1gvfdcd7lkie5vpoo49';
+    const clientId = process.env.CONTA_AZUL_CLIENT_ID || '4obnij6ehp1q45oecojivdta7n'.trim();
+    const clientSecret = process.env.CONTA_AZUL_CLIENT_SECRET || '1nhd3b2mu9hoo6o2qkhr7unn376m5lets1gvfdcd7lkie5vpoo49'.trim();
 
     const isDev = process.env.NODE_ENV === 'development';
     const baseUrl = isDev ? 'http://127.0.0.1:3000' : 'https://planejamento-or-ament-rio.vercel.app';

@@ -89,15 +89,40 @@ export default function FinancialDashboard({
                     borderRadius: 'var(--radius)',
                     backgroundColor: isTestMode ? '#fefce8' : 'hsl(var(--green-50, #f0fdf4))',
                     marginBottom: '2rem',
-                    color: isTestMode ? '#854d0e' : '#15803d'
+                    color: isTestMode ? '#854d0e' : '#15803d',
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center'
                 }}>
-                    <strong>{isTestMode ? '⚠️ Conexão de Teste (Fake)' : '✅ Empresa Conectada com Sucesso!'}</strong>
-                    <p style={{ margin: 0, fontSize: '0.875rem' }}>
-                        {isTestMode
-                            ? 'Este é apenas um registro de teste. Para conectar na Conta Azul, clique em "Limpar Banco" e depois conecte a empresa real.'
-                            : 'Os dados estão prontos para serem sincronizados.'
-                        }
-                    </p>
+                    <div>
+                        <strong>{isTestMode ? '⚠️ Conexão de Teste (Fake)' : '✅ Empresa Conectada com Sucesso!'}</strong>
+                        <p style={{ margin: 0, fontSize: '0.875rem' }}>
+                            {isTestMode
+                                ? 'Este é apenas um registro de teste. Para conectar na Conta Azul, clique em "Limpar Banco" e depois conecte a empresa real.'
+                                : 'Os dados estão prontos para serem sincronizados.'
+                            }
+                        </p>
+                    </div>
+                    <button
+                        onClick={async () => {
+                            if (confirm('Tem certeza que deseja desconectar? Isso exigirá login novamente na Conta Azul.')) {
+                                await fetch('/api/auth/disconnect', { method: 'POST' });
+                                window.location.reload();
+                            }
+                        }}
+                        style={{
+                            padding: '0.5rem 1rem',
+                            backgroundColor: 'white',
+                            border: '1px solid currentColor',
+                            borderRadius: 'var(--radius)',
+                            cursor: 'pointer',
+                            fontSize: '0.8rem',
+                            fontWeight: 'bold',
+                            color: 'inherit'
+                        }}
+                    >
+                        Desconectar / Trocar Conta
+                    </button>
                 </div>
             )}
 

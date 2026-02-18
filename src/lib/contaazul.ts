@@ -11,8 +11,8 @@ const CA_AUTH_URL = 'https://auth.contaazul.com/login';
 const CA_TOKEN_URL = 'https://auth.contaazul.com/oauth2/token';
 
 export const getAuthUrl = (state: string) => {
-    // Priority: Env Vars > Hardcoded
-    const clientId = process.env.CONTA_AZUL_CLIENT_ID || '4obnij6ehp1q45oecojivdta7n'.trim();
+    // Priority: Force Hardcoded (Known Good) to bypass broken Env Var
+    const clientId = '4obnij6ehp1q45oecojivdta7n';
 
     const isDev = process.env.NODE_ENV === 'development';
     const baseUrl = isDev ? 'http://127.0.0.1:3000' : 'https://planejamento-or-ament-rio.vercel.app';
@@ -27,8 +27,8 @@ export const getAuthUrl = (state: string) => {
 };
 
 export const exchangeCodeForToken = async (code: string): Promise<ContaAzulTokenResponse> => {
-    const clientId = process.env.CONTA_AZUL_CLIENT_ID || '4obnij6ehp1q45oecojivdta7n'.trim();
-    const clientSecret = process.env.CONTA_AZUL_CLIENT_SECRET || '1nhd3b2mu9hoo6o2qkhr7unn376m5lets1gvfdcd7lkie5vpoo49'.trim();
+    const clientId = '4obnij6ehp1q45oecojivdta7n';
+    const clientSecret = '1nhd3b2mu9hoo6o2qkhr7unn376m5lets1gvfdcd7lkie5vpoo49';
 
     const isDev = process.env.NODE_ENV === 'development';
     const baseUrl = isDev ? 'http://127.0.0.1:3000' : 'https://planejamento-or-ament-rio.vercel.app';
@@ -59,9 +59,9 @@ export const exchangeCodeForToken = async (code: string): Promise<ContaAzulToken
 };
 
 export const refreshAccessToken = async (refreshToken: string): Promise<ContaAzulTokenResponse> => {
-    // Priority: Env Vars > Hardcoded
-    const clientId = process.env.CONTA_AZUL_CLIENT_ID || '4obnij6ehp1q45oecojivdta7n'.trim();
-    const clientSecret = process.env.CONTA_AZUL_CLIENT_SECRET || '1nhd3b2mu9hoo6o2qkhr7unn376m5lets1gvfdcd7lkie5vpoo49'.trim();
+    // Priority: Force Hardcoded (Known Good) to bypass broken Env Var
+    const clientId = '4obnij6ehp1q45oecojivdta7n';
+    const clientSecret = '1nhd3b2mu9hoo6o2qkhr7unn376m5lets1gvfdcd7lkie5vpoo49';
 
     const credentials = Buffer.from(`${clientId}:${clientSecret}`).toString('base64');
 

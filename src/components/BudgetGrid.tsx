@@ -1,5 +1,5 @@
 'use client';
-// V47.120 - Deduplicated Roots (Fixing Double 01)
+// V47.130 - Hierarchical Indentation Fix (Recursive Leveling + Deep Padding)
 
 import React, { useState, useMemo, useEffect } from 'react';
 import { MONTHS, MOCK_COST_CENTERS } from '@/lib/mock-data';
@@ -115,26 +115,21 @@ export default function BudgetGrid({ refreshKey = 0 }: BudgetGridProps) {
         loadValues();
     }, [selectedCostCenter, selectedYear, refreshKey]);
 
-    // --- HIERARCHY BUILDER (Deduplicated Roots) ---
+    // --- HIERARCHY BUILDER ---
     const treeRoots = useMemo(() => {
         const map = new Map<string, CategoryNode>();
         const potentialRoots: CategoryNode[] = [];
         const codeMap = new Map<string, CategoryNode>();
 
-        // 1. Initial Load + Remapping + Filtering
+        // 1. Initial Load
         categories.forEach(cat => {
             const codeMatch = cat.name.match(/^([\d.]+)/);
             const rawCode = codeMatch ? codeMatch[1] : '';
-
-            // --- FILTER: GHOST ACCOUNTS ---
-            if (rawCode.startsWith('2.3') || rawCode.startsWith('2.4')) {
-                return; // Skip
-            }
+            if (rawCode.startsWith('2.3') || rawCode.startsWith('2.4')) return;
 
             let effectiveName = cat.name;
             let effectiveCode = rawCode;
 
-            // --- REVENUE REMAP (02 -> 01.2) ---
             if (rawCode.startsWith('02') || (rawCode.startsWith('2') && !cat.name.toLowerCase().includes('tributo') && !rawCode.startsWith('2.1'))) {
                 if (rawCode.startsWith('02')) {
                     let suffix = rawCode.replace(/^0?2/, '');
@@ -154,13 +149,10 @@ export default function BudgetGrid({ refreshKey = 0 }: BudgetGridProps) {
                 isSynthetic: false
             };
             map.set(cat.id, node);
-
-            // If conflict in codeMap (duplicate code), keep the LATEST one or logic?
-            // Usually we want unique codes. If duplicate, we just overwrite.
             if (effectiveCode) codeMap.set(effectiveCode, node);
         });
 
-        // 2. Synthetic Parent Creation
+        // 2. Synthetics
         const syntheticParents = [
             { code: '01.1', name: '01.1 - Receita de Serviços', parentCode: '01' },
             { code: '01.2', name: '01.2 - Receitas de Vendas', parentCode: '01' },
@@ -183,59 +175,45 @@ export default function BudgetGrid({ refreshKey = 0 }: BudgetGridProps) {
             }
         });
 
-        // 3. Linking Logic
+        // 3. Linking
         map.forEach(node => {
             if (node.isSynthetic) return;
-
             const code = node.code || '';
 
-            // Revenue Links
             if (code.startsWith('01.1.')) {
                 const parent = codeMap.get('01.1');
-                if (parent) { parent.children.push(node); node.level = parent.level + 1; return; }
+                if (parent) { parent.children.push(node); return; }
             }
             if (code.startsWith('01.2.')) {
                 const parent = codeMap.get('01.2');
-                if (parent) { parent.children.push(node); node.level = parent.level + 1; return; }
+                if (parent) { parent.children.push(node); return; }
             }
-
-            // Taxes Links
             if (code.startsWith('2.1')) {
                 const parent = codeMap.get('02.1');
-                if (parent) { parent.children.push(node); node.level = parent.level + 1; return; }
+                if (parent) { parent.children.push(node); return; }
             }
-
-            // General Fallback
             if (code.includes('.')) {
                 let currentPrefix = code.substring(0, code.lastIndexOf('.'));
-                let parentFound = false;
-
                 while (currentPrefix.length > 0) {
                     const potentialParent = Array.from(codeMap.values()).find(n => n.code === currentPrefix);
                     if (potentialParent) {
                         potentialParent.children.push(node);
-                        node.level = potentialParent.level + 1;
-                        parentFound = true;
-                        break;
+                        return;
                     }
                     if (!currentPrefix.includes('.')) break;
                     currentPrefix = currentPrefix.substring(0, currentPrefix.lastIndexOf('.'));
                 }
-                if (parentFound) return;
             }
         });
 
-        // 4. Roots Retrieval (Potential Duplicates)
+        // 4. Roots Retrieval
         const allChildren = new Set<string>();
         map.forEach(node => node.children.forEach(c => allChildren.add(c.id)));
 
         map.forEach(node => {
             if (!allChildren.has(node.id)) {
-                // Ensure 01 exists for 01.1/01.2 children
                 if ((node.code === '01.1' || node.code === '01.2') && !codeMap.has('01')) {
-                    const p01 = {
-                        id: `synth-01`, name: '01 - RECEITAS', parentId: null, children: [node], level: 0, code: '01', isSynthetic: true
-                    };
+                    const p01 = { id: `synth-01`, name: '01 - RECEITAS', parentId: null, children: [node], level: 0, code: '01', isSynthetic: true };
                     map.set(p01.id, p01);
                     codeMap.set('01', p01);
                     allChildren.add(node.id);
@@ -247,27 +225,21 @@ export default function BudgetGrid({ refreshKey = 0 }: BudgetGridProps) {
                     allChildren.add(node.id);
                     return;
                 }
-
                 potentialRoots.push(node);
             }
         });
 
-        // 5. ROOT DEDUPLICATION (The Fix)
+        // 5. ROOT DEDUPLICATION
         const uniqueRootsMap = new Map<string, CategoryNode>();
-
         potentialRoots.forEach(root => {
-            const rootCode = root.code || root.name; // Fallback to name if code missing
-
+            const rootCode = root.code || root.name;
             if (uniqueRootsMap.has(rootCode)) {
-                // Merge Children
                 const existingRoot = uniqueRootsMap.get(rootCode)!;
-                // Avoid duplicating children
                 root.children.forEach(child => {
                     if (!existingRoot.children.find(c => c.id === child.id)) {
                         existingRoot.children.push(child);
                     }
                 });
-                // Prefer Synthetic Name for 01/02 if we set it
                 if (rootCode === '01') existingRoot.name = '01 - RECEITAS';
                 if (rootCode === '02') existingRoot.name = '02 - TRIBUTO SOBRE FATURAMENTO';
             } else {
@@ -277,12 +249,18 @@ export default function BudgetGrid({ refreshKey = 0 }: BudgetGridProps) {
 
         const finalRoots = Array.from(uniqueRootsMap.values());
 
-        // 6. Final Sort
-        const sortNodes = (list: CategoryNode[]) => {
-            list.sort((a, b) => (a.code || a.name).localeCompare(b.code || b.name, undefined, { numeric: true }));
-            list.forEach(n => sortNodes(n.children));
+        // 6. FIX LEVELS & SORT
+        // Recursive Level Set (CRITICAL FIX for Indentation)
+        const recalculateLevels = (nodes: CategoryNode[], lvl: number) => {
+            // Sort children first to ensure order
+            nodes.sort((a, b) => (a.code || a.name).localeCompare(b.code || b.name, undefined, { numeric: true }));
+
+            nodes.forEach(n => {
+                n.level = lvl;
+                recalculateLevels(n.children, lvl + 1);
+            });
         };
-        sortNodes(finalRoots);
+        recalculateLevels(finalRoots, 0);
 
         return finalRoots;
 
@@ -293,16 +271,11 @@ export default function BudgetGrid({ refreshKey = 0 }: BudgetGridProps) {
         const totalsMap = new Map<string, { budget: number[], realized: number[] }>();
 
         const calculateNode = (node: CategoryNode) => {
-            // Deduplicate children before calculating? (Just in case)
-            // But strict Sets help us.
-            const uniqueChildren = Array.from(new Set(node.children.map(c => c.id)))
-                .map(id => node.children.find(c => c.id === id)!);
-
-            // Update node.children to be unique (optional, but safe)
+            // De-dup children in case they were pushed multiple times
+            const uniqueChildren = Array.from(new Set(node.children.map(c => c.id))).map(id => node.children.find(c => c.id === id)!);
             node.children = uniqueChildren;
 
             const childrenTotals = uniqueChildren.map(calculateNode);
-
             const myBudget = new Array(12).fill(0);
             const myRealized = new Array(12).fill(0);
 
@@ -328,7 +301,7 @@ export default function BudgetGrid({ refreshKey = 0 }: BudgetGridProps) {
         return totalsMap;
     }, [treeRoots, budgetValues, realizedValues]);
 
-    // --- STRUCTURED DRE BUILDER ---
+    // --- DRE STRUCTURE ---
     const dreStructure = useMemo(() => {
         const sumRoots = (roots: CategoryNode[], monthIdx: number, type: 'budget' | 'realized') => {
             return roots.reduce((acc, root) => {
@@ -349,7 +322,6 @@ export default function BudgetGrid({ refreshKey = 0 }: BudgetGridProps) {
 
         treeRoots.forEach(root => {
             const code = root.code || '';
-
             if (code.startsWith('01') || code === '1') buckets.rev.push(root);
             else if (code.startsWith('02') || code === '2') buckets.taxes.push(root);
             else if (code.startsWith('3') || code.startsWith('03') || code.startsWith('04') || code.startsWith('4')) buckets.costs.push(root);
@@ -359,7 +331,6 @@ export default function BudgetGrid({ refreshKey = 0 }: BudgetGridProps) {
             else buckets.other.push(root);
         });
 
-        // Computed Rows (Same as previous)
         return {
             buckets,
             calculateTotals: (monthIdx: number) => {
@@ -380,7 +351,7 @@ export default function BudgetGrid({ refreshKey = 0 }: BudgetGridProps) {
         };
     }, [treeRoots, nodeTotals]);
 
-    // --- Rendering Helpers (Same as previous) ---
+    // Formatters
     const formatCurrency = (val: number | undefined) => {
         if (typeof val !== 'number') return 'R$ 0,00';
         return val.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
@@ -396,11 +367,7 @@ export default function BudgetGrid({ refreshKey = 0 }: BudgetGridProps) {
     const handleBudgetChange = async (categoryId: string, monthIndex: number, value: string) => {
         const numericValue = parseFloat(value.replace(/\D/g, '')) / 100 || 0;
         setBudgetValues(prev => ({ ...prev, [`${categoryId}-${monthIndex}`]: numericValue }));
-        try {
-            await fetch('/api/budgets', {
-                method: 'POST', body: JSON.stringify({ categoryId, costCenterId: selectedCostCenter, year: selectedYear, month: monthIndex, amount: numericValue })
-            });
-        } catch (e) { console.error("Save failed", e); }
+        try { await fetch('/api/budgets', { method: 'POST', body: JSON.stringify({ categoryId, costCenterId: selectedCostCenter, year: selectedYear, month: monthIndex, amount: numericValue }), headers: { 'Content-Type': 'application/json' } }); } catch (e) { console.error("Save failed", e); }
     };
 
     const renderNode = (node: CategoryNode) => {
@@ -411,7 +378,12 @@ export default function BudgetGrid({ refreshKey = 0 }: BudgetGridProps) {
         return (
             <React.Fragment key={node.id}>
                 <tr onClick={() => hasChildren && toggleRow(node.id)} style={{ background: hasChildren ? '#fdfdfd' : 'white', cursor: hasChildren ? 'pointer' : 'default', borderBottom: '1px solid #f1f5f9' }}>
-                    <td style={{ padding: '0.5rem', paddingLeft: `${0.5 + (node.level * 1.5)}rem`, position: 'sticky', left: 0, background: hasChildren ? '#fdfdfd' : 'white', zIndex: 5, display: 'flex', alignItems: 'center', color: hasChildren ? '#1e293b' : '#334155', fontWeight: hasChildren ? 600 : 400, fontSize: '0.8rem' }}>
+                    <td style={{
+                        padding: '0.5rem',
+                        // INCREASED INDENTATION MULTIPLIER (2.25rem per level)
+                        paddingLeft: `${0.5 + (node.level * 2.25)}rem`,
+                        position: 'sticky', left: 0, background: hasChildren ? '#fdfdfd' : 'white', zIndex: 5, display: 'flex', alignItems: 'center', color: hasChildren ? '#1e293b' : '#334155', fontWeight: hasChildren ? 600 : 400, fontSize: '0.8rem'
+                    }}>
                         {hasChildren && <span style={{ marginRight: '0.5rem', fontSize: '0.7rem', width: '1rem', color: '#94a3b8' }}>{isExpanded ? '▼' : '▶'}</span>}
                         {!hasChildren && <span style={{ width: '1.5rem' }}></span>}
                         {node.name}
@@ -450,15 +422,12 @@ export default function BudgetGrid({ refreshKey = 0 }: BudgetGridProps) {
         <div style={{ overflowX: 'auto', border: '1px solid #e2e8f0', borderRadius: '8px', padding: '1rem', background: 'white' }}>
             <div style={{ marginBottom: '1.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-                    <div style={{ display: 'flex', flexDirection: 'column' }}>
-                        <label style={{ fontSize: '0.75rem', fontWeight: 600, color: '#64748b' }}>Centro de Custo</label>
-                        <select value={selectedCostCenter} onChange={(e) => setSelectedCostCenter(e.target.value)} style={{ padding: '0.5rem', borderRadius: '4px', border: '1px solid #cbd5e1', minWidth: '200px' }}>
-                            {costCenters.map(cc => <option key={cc.id} value={cc.id}>{cc.name}</option>)}
-                        </select>
-                    </div>
+                    <label style={{ fontSize: '0.75rem', fontWeight: 600, color: '#64748b' }}>Centro de Custo</label>
+                    <select value={selectedCostCenter} onChange={(e) => setSelectedCostCenter(e.target.value)} style={{ padding: '0.5rem', borderRadius: '4px', border: '1px solid #cbd5e1', minWidth: '200px' }}>
+                        {costCenters.map(cc => <option key={cc.id} value={cc.id}>{cc.name}</option>)}
+                    </select>
                 </div>
             </div>
-
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8rem' }}>
                 <thead>
                     <tr style={{ background: '#f8fafc', borderBottom: '2px solid #cbd5e1' }}>
@@ -467,21 +436,14 @@ export default function BudgetGrid({ refreshKey = 0 }: BudgetGridProps) {
                     </tr>
                     <tr style={{ background: '#fff' }}>
                         <th style={{ position: 'sticky', left: 0, background: '#fff', zIndex: 20 }}></th>
-                        {MONTHS.map((m) => (
-                            <React.Fragment key={m}>
-                                <th style={{ fontSize: '0.7rem', color: '#94a3b8', borderLeft: '1px solid #f1f5f9', fontWeight: 500, paddingBottom: '0.5rem' }}>Orçado</th>
-                                <th style={{ fontSize: '0.7rem', color: '#94a3b8', fontWeight: 500, paddingBottom: '0.5rem' }}>Realizado</th>
-                            </React.Fragment>
-                        ))}
+                        {MONTHS.map((m) => (<React.Fragment key={m}><th style={{ fontSize: '0.7rem', color: '#94a3b8', borderLeft: '1px solid #f1f5f9', fontWeight: 500, paddingBottom: '0.5rem' }}>Orçado</th><th style={{ fontSize: '0.7rem', color: '#94a3b8', fontWeight: 500, paddingBottom: '0.5rem' }}>Realizado</th></React.Fragment>))}
                     </tr>
                 </thead>
                 <tbody>
                     {renderSummaryRow('1 - RECEITA BRUTA', 'vRev', true, '#eff6ff', '#1e3a8a')}
                     {dreStructure.buckets.rev.map(root => renderNode(root))}
-
                     {renderSummaryRow('02 - TRIBUTO SOBRE FATURAMENTO', 'vTaxes', true, '#f1f5f9', '#64748b')}
                     {dreStructure.buckets.taxes.map(root => renderNode(root))}
-
                     {renderSummaryRow('3 - (=) RECEITA LÍQUIDA', 'vRecLiq', true, '#e0f2fe', '#0369a1')}
                     {renderSummaryRow('4 - CUSTO OPERACIONAL', 'vCosts', true, '#f1f5f9', '#64748b')}
                     {dreStructure.buckets.costs.map(root => renderNode(root))}
@@ -497,8 +459,6 @@ export default function BudgetGrid({ refreshKey = 0 }: BudgetGridProps) {
                     {renderSummaryRow('11 - (=) LUCRO LÍQUIDO', 'vNetProfit', true, '#0f172a', '#fbbf24')}
                 </tbody>
             </table>
-
-            {/* Modal */}
             {selectedCell && (
                 <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', background: 'rgba(0,0,0,0.5)', zIndex: 50, display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
                     <div style={{ background: 'white', padding: '2rem', borderRadius: '12px', width: '90vw', maxWidth: '1000px', height: '90vh', maxHeight: '90vh', overflowY: 'auto', boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)', display: 'flex', flexDirection: 'column' }}>
@@ -510,21 +470,11 @@ export default function BudgetGrid({ refreshKey = 0 }: BudgetGridProps) {
                             <table style={{ width: '100%', fontSize: '0.8rem', borderCollapse: 'collapse' }}>
                                 <thead>
                                     <tr style={{ background: '#f8fafc', textAlign: 'left' }}>
-                                        <th style={{ padding: '0.5rem', borderBottom: '1px solid #e2e8f0' }}>Data</th>
-                                        <th style={{ padding: '0.5rem', borderBottom: '1px solid #e2e8f0' }}>Descrição</th>
-                                        <th style={{ padding: '0.5rem', borderBottom: '1px solid #e2e8f0' }}>Cliente/Forn.</th>
-                                        <th style={{ padding: '0.5rem', borderBottom: '1px solid #e2e8f0', textAlign: 'right' }}>Valor</th>
+                                        <th style={{ padding: '0.5rem', borderBottom: '1px solid #e2e8f0' }}>Data</th><th>Descrição</th><th>Cliente/Forn.</th><th style={{ textAlign: 'right' }}>Valor</th>
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    {transactions.map((tx: any) => (
-                                        <tr key={tx.id} style={{ borderBottom: '1px solid #f1f5f9' }}>
-                                            <td style={{ padding: '0.5rem' }}>{new Date(tx.date).toLocaleDateString('pt-BR')}</td>
-                                            <td style={{ padding: '0.5rem' }}>{tx.description}</td>
-                                            <td style={{ padding: '0.5rem' }}>{tx.customer || '-'}</td>
-                                            <td style={{ padding: '0.5rem', textAlign: 'right', fontWeight: 'bold' }}>{parseFloat(tx.value).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</td>
-                                        </tr>
-                                    ))}
+                                    {transactions.map((tx: any) => (<tr key={tx.id} style={{ borderBottom: '1px solid #f1f5f9' }}><td style={{ padding: '0.5rem' }}>{new Date(tx.date).toLocaleDateString('pt-BR')}</td><td style={{ padding: '0.5rem' }}>{tx.description}</td><td style={{ padding: '0.5rem' }}>{tx.customer || '-'}</td><td style={{ padding: '0.5rem', textAlign: 'right', fontWeight: 'bold' }}>{parseFloat(tx.value).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</td></tr>))}
                                 </tbody>
                             </table>
                         )}

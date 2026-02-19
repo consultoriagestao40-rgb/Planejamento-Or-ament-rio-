@@ -7,7 +7,7 @@ interface ContaAzulTokenResponse {
 
 // V36: ROTA COGNITO (V2) COM DESCOBERTA DE DADOS.
 // O teste na V35 provou que este Client ID NÃO é do sistema antigo.
-const CA_AUTH_URL = 'https://auth.contaazul.com/authorize';
+const CA_AUTH_URL = 'https://auth.contaazul.com/login';
 const CA_TOKEN_URL = 'https://auth.contaazul.com/oauth2/token';
 
 export const getAuthUrl = (state: string) => {

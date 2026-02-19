@@ -21,8 +21,9 @@ export const getAuthUrl = (state: string) => {
     const baseUrl = isDev ? 'http://127.0.0.1:3000' : 'https://planejamento-or-ament-rio.vercel.app';
     const redirectUri = process.env.CONTA_AZUL_REDIRECT_URI || `${baseUrl}/api/auth/callback`;
 
-    // Remove prompt=login to avoid issues
-    return `${CA_AUTH_URL}?client_id=${encodeURIComponent(clientId)}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=${encodeURIComponent(scope)}&state=${encodeURIComponent(state)}&response_type=code`;
+    // V53: Remove SCOPE param entirely to rely on Default App Permissions
+    // This is often required for legacy Apps that don't support dynamic scopes
+    return `${CA_AUTH_URL}?client_id=${encodeURIComponent(clientId)}&redirect_uri=${encodeURIComponent(redirectUri)}&state=${encodeURIComponent(state)}&response_type=code`;
 };
 
 export const exchangeCodeForToken = async (code: string): Promise<ContaAzulTokenResponse> => {

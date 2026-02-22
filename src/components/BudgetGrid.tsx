@@ -386,12 +386,19 @@ export default function BudgetGrid({ refreshKey = 0 }: BudgetGridProps) {
     const nodeTotals = useMemo(() => {
         const totalsMap = new Map<string, { budget: number[], realized: number[] }>();
 
-        const calculateNode = (node: CategoryNode) => {
+        // Categories that represent income inside an expense group - their values are negated
+        // so they REDUCE the group total instead of increasing it.
+        // 06.1 = Entradas Financeiras (inside DESPESAS FINANCEIRAS, but it's actually income).
+        const isNegatedCode = (code: string) => code.startsWith('06.1');
+
+        const calculateNode = (node: CategoryNode, parentNegated = false) => {
             // De-dup children in case they were pushed multiple times
             const uniqueChildren = Array.from(new Set(node.children.map(c => c.id))).map(id => node.children.find(c => c.id === id)!);
             node.children = uniqueChildren;
 
-            const childrenTotals = uniqueChildren.map(calculateNode);
+            const negated = parentNegated || isNegatedCode(node.code || '');
+
+            const childrenTotals = uniqueChildren.map(child => calculateNode(child, negated));
             const myBudget = new Array(12).fill(0);
             const myRealized = new Array(12).fill(0);
 
@@ -404,8 +411,9 @@ export default function BudgetGrid({ refreshKey = 0 }: BudgetGridProps) {
 
             for (let i = 0; i < 12; i++) {
                 if (!node.isSynthetic) {
-                    myBudget[i] += budgetValues[`${node.id}-${i}`] || 0;
-                    myRealized[i] += realizedValues[`${node.id}-${i}`] || 0;
+                    const sign = negated ? -1 : 1;
+                    myBudget[i] += sign * (budgetValues[`${node.id}-${i}`] || 0);
+                    myRealized[i] += sign * (realizedValues[`${node.id}-${i}`] || 0);
                 }
             }
 

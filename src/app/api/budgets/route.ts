@@ -72,46 +72,60 @@ export async function POST(request: Request) {
       const { categoryId, month, year, costCenterId } = entry;
       const targetCostCenterId = (costCenterId || "DEFAULT").split(',')[0] || "DEFAULT";
 
-      console.log(`[API] Upserting entry for CC: ${targetCostCenterId}, Cat: ${categoryId}, Date: ${month}/${year}`);
+      console.log(`[API DEBUG] Attempting upsert for:`, {
+        categoryId,
+        month,
+        year,
+        targetCostCenterId,
+        amount: entry.amount,
+        radarAmount: entry.radarAmount,
+        isLocked: entry.isLocked
+      });
 
       try {
-        const budget = await (prisma.budgetEntry as any).upsert({
-          where: {
-            tenantId_categoryId_costCenterId_month_year: {
-              tenantId: tenant.id,
-              categoryId,
-              costCenterId: targetCostCenterId,
-              month,
-              year
-            }
-          },
-          update: {
-            amount: entry.amount !== undefined ? entry.amount : undefined,
-            radarAmount: entry.radarAmount !== undefined ? entry.radarAmount : undefined,
-            isLocked: entry.isLocked !== undefined ? entry.isLocked : undefined,
-          },
-          create: {
+        const whereClause = {
+          tenantId_categoryId_costCenterId_month_year: {
             tenantId: tenant.id,
-            categoryId,
+            categoryId: categoryId,
             costCenterId: targetCostCenterId,
-            month,
-            year,
-            amount: entry.amount !== undefined ? entry.amount : 0,
-            radarAmount: entry.radarAmount !== undefined ? entry.radarAmount : null,
-            isLocked: entry.isLocked || false,
+            month: parseInt(month.toString()),
+            year: parseInt(year.toString())
           }
+        };
+
+        const updateData: any = {};
+        if (entry.amount !== undefined) updateData.amount = parseFloat(entry.amount.toString());
+        if (entry.radarAmount !== undefined) updateData.radarAmount = entry.radarAmount === null ? null : parseFloat(entry.radarAmount.toString());
+        if (entry.isLocked !== undefined) updateData.isLocked = !!entry.isLocked;
+
+        const createData: any = {
+          tenantId: tenant.id,
+          categoryId: categoryId,
+          costCenterId: targetCostCenterId,
+          month: parseInt(month.toString()),
+          year: parseInt(year.toString()),
+          amount: entry.amount !== undefined ? parseFloat(entry.amount.toString()) : 0,
+          radarAmount: entry.radarAmount !== undefined && entry.radarAmount !== null ? parseFloat(entry.radarAmount.toString()) : null,
+          isLocked: !!entry.isLocked
+        };
+
+        const budget = await (prisma.budgetEntry as any).upsert({
+          where: whereClause,
+          update: updateData,
+          create: createData
         });
-        console.log(`[API] Success for Cat: ${categoryId}, Month: ${month}`);
+
+        console.log(`[API DEBUG] Success for Cat: ${categoryId}, Month: ${month}`);
         results.push(budget);
       } catch (err: any) {
-        console.error(`[API] Prisma Upsert Error for entry Cat: ${categoryId}:`, err);
-        throw err; // Re-throw to be caught by the outer catch
+        console.error(`[API DEBUG] FAILED entry Cat: ${categoryId}, Month: ${month}:`, err.message);
+        throw new Error(`Erro na categoria ${categoryId}, mês ${month}: ${err.message}`);
       }
     }
 
-    return NextResponse.json({ success: true, data: results.length === 1 ? results[0] : results });
+    return NextResponse.json({ success: true, data: results });
   } catch (error: any) {
-    console.error('[API] Error saving budget:', error);
+    console.error('[API CRITICAL ERROR]:', error.message);
     return NextResponse.json({
       success: false,
       error: 'Failed to save budget',

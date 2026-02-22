@@ -534,8 +534,8 @@ export default function BudgetGrid({ refreshKey = 0 }: BudgetGridProps) {
     };
 
     return (
-        <div style={{ overflowX: 'auto', border: '1px solid #e2e8f0', borderRadius: '8px', padding: '1rem', background: 'white' }}>
-            <div style={{ marginBottom: '1.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <div style={{ overflowX: 'auto', border: '1px solid #e2e8f0', borderRadius: '8px', background: 'white' }}>
+            <div style={{ padding: '1rem', borderBottom: '1px solid #e2e8f0', marginBottom: '0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
                     <label style={{ fontSize: '0.75rem', fontWeight: 600, color: '#64748b' }}>Centro de Custo</label>
                     <select value={selectedCostCenter} onChange={(e) => setSelectedCostCenter(e.target.value)} style={{ padding: '0.5rem', borderRadius: '4px', border: '1px solid #cbd5e1', minWidth: '200px' }}>
@@ -546,12 +546,12 @@ export default function BudgetGrid({ refreshKey = 0 }: BudgetGridProps) {
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8rem' }}>
                 <thead>
                     <tr style={{ background: '#f8fafc', borderBottom: '2px solid #cbd5e1' }}>
-                        <th style={{ padding: '1rem', textAlign: 'left', minWidth: '300px', position: 'sticky', left: 0, background: '#f8fafc', zIndex: 20, color: '#475569' }}>DRE Gerencial</th>
-                        {MONTHS.map((m) => <th key={m} colSpan={2} style={{ textAlign: 'center', padding: '0.5rem', borderLeft: '1px solid #cbd5e1', color: '#475569' }}>{m}</th>)}
+                        <th style={{ padding: '0.75rem 1rem', textAlign: 'left', minWidth: '300px', position: 'sticky', left: 0, background: '#f8fafc', zIndex: 20, color: '#475569' }}>DRE Gerencial</th>
+                        {MONTHS.map((m) => <th key={m} colSpan={2} style={{ textAlign: 'center', padding: '0.75rem 0.5rem', borderLeft: '1px solid #cbd5e1', color: '#475569' }}>{m}</th>)}
                     </tr>
                     <tr style={{ background: '#fff' }}>
-                        <th style={{ position: 'sticky', left: 0, background: '#fff', zIndex: 20 }}></th>
-                        {MONTHS.map((m) => (<React.Fragment key={m}><th style={{ fontSize: '0.7rem', color: '#94a3b8', borderLeft: '1px solid #f1f5f9', fontWeight: 500, paddingBottom: '0.5rem' }}>Orçado</th><th style={{ fontSize: '0.7rem', color: '#94a3b8', fontWeight: 500, paddingBottom: '0.5rem' }}>Realizado</th></React.Fragment>))}
+                        <th style={{ position: 'sticky', left: 0, background: '#fff', zIndex: 20, borderBottom: '1px solid #e2e8f0' }}></th>
+                        {MONTHS.map((m) => (<React.Fragment key={m}><th style={{ fontSize: '0.7rem', color: '#94a3b8', borderLeft: '1px solid #f1f5f9', fontWeight: 500, paddingBottom: '0.5rem', borderBottom: '1px solid #e2e8f0' }}>Orçado</th><th style={{ fontSize: '0.7rem', color: '#94a3b8', fontWeight: 500, paddingBottom: '0.5rem', borderBottom: '1px solid #e2e8f0' }}>Realizado</th></React.Fragment>))}
                     </tr>
                 </thead>
                 <tbody>

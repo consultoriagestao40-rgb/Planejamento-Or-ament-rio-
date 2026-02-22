@@ -638,12 +638,23 @@ export default function BudgetGrid({ refreshKey = 0, isExternalLoading = false }
                 <tr style={{ background: '#fff', cursor: hasChildren ? 'pointer' : 'default', borderBottom: '1px solid #f1f5f9' }}>
                     <td onClick={() => hasChildren && toggleRow(node.id)} style={{
                         padding: '0.5rem',
-                        paddingLeft: `${1.5 + (node.level * 1.5)}rem`,
-                        position: 'sticky', left: 0, background: '#fff', zIndex: 5, display: 'flex', alignItems: 'center', color: hasChildren ? '#1e293b' : '#334155', fontWeight: hasChildren ? 600 : 400, fontSize: '0.8rem'
+                        position: 'sticky',
+                        left: 0,
+                        background: '#fff',
+                        zIndex: 5,
+                        color: hasChildren ? '#1e293b' : '#334155',
+                        fontWeight: hasChildren ? 600 : 400,
+                        fontSize: '0.8rem',
+                        minWidth: '350px',
+                        width: '350px',
+                        borderRight: '2px solid #f1f5f9',
+                        boxShadow: '2px 0 5px -2px rgba(0,0,0,0.05)'
                     }}>
-                        {hasChildren && <span style={{ marginRight: '0.5rem', fontSize: '0.7rem', width: '1rem', color: '#94a3b8' }}>{isExpanded ? '▼' : '▶'}</span>}
-                        {!hasChildren && <span style={{ width: '1.5rem' }}></span>}
-                        {node.name}
+                        <div style={{ display: 'flex', alignItems: 'center', paddingLeft: `${node.level * 1.5}rem` }}>
+                            {hasChildren && <span style={{ marginRight: '0.5rem', fontSize: '0.7rem', width: '1rem', color: '#94a3b8' }}>{isExpanded ? '▼' : '▶'}</span>}
+                            {!hasChildren && <span style={{ width: '1.5rem' }}></span>}
+                            {node.name}
+                        </div>
                     </td>
                     {MONTHS.map((_, i) => {
                         const monthTotal = dreStructure.calculateTotals(i);
@@ -724,14 +735,28 @@ export default function BudgetGrid({ refreshKey = 0, isExternalLoading = false }
 
         return (
             <tr onClick={() => groupId && toggleGroup(groupId)} style={{ background: bgColor, borderBottom: '1px solid #e2e8f0', fontWeight: isBold ? 700 : 600, cursor: groupId ? 'pointer' : 'default', textTransform: 'uppercase' }}>
-                <td style={{ padding: '0.75rem', position: 'sticky', left: 0, background: bgColor, zIndex: 10, color: textColor, fontSize: '0.85rem', display: 'flex', alignItems: 'center' }}>
-                    {groupId && (
-                        <span style={{ marginRight: '0.5rem', fontSize: '0.8rem', width: '1rem', color: textColor, opacity: 0.7 }}>
-                            {isGroupExpanded ? '▼' : '▶'}
-                        </span>
-                    )}
-                    {!groupId && <span style={{ width: '1.5rem' }}></span>}
-                    {label}
+                <td style={{
+                    padding: '0.75rem',
+                    position: 'sticky',
+                    left: 0,
+                    background: bgColor,
+                    zIndex: 10,
+                    color: textColor,
+                    fontSize: '0.85rem',
+                    minWidth: '350px',
+                    width: '350px',
+                    borderRight: '2px solid #e2e8f0',
+                    boxShadow: '2px 0 5px -2px rgba(0,0,0,0.05)'
+                }}>
+                    <div style={{ display: 'flex', alignItems: 'center' }}>
+                        {groupId && (
+                            <span style={{ marginRight: '0.5rem', fontSize: '0.8rem', width: '1rem', color: textColor, opacity: 0.7 }}>
+                                {isGroupExpanded ? '▼' : '▶'}
+                            </span>
+                        )}
+                        {!groupId && <span style={{ width: '1.5rem' }}></span>}
+                        {label}
+                    </div>
                 </td>
                 {MONTHS.map((_, i) => {
                     const monthTotal = dreStructure.calculateTotals(i);

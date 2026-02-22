@@ -38,6 +38,29 @@ export default function BudgetGrid({ refreshKey = 0, isExternalLoading = false }
     const [transactions, setTransactions] = useState<any[]>([]);
     const [loadingTransactions, setLoadingTransactions] = useState(false);
 
+    // --- Budget Modal State ---
+    const [budgetModal, setBudgetModal] = useState<{ categoryId: string, categoryName: string, month: number, initialValue: number } | null>(null);
+    const [formulaValue, setFormulaValue] = useState('');
+    const [isSavingBudget, setIsSavingBudget] = useState(false);
+
+    const evaluateFormula = (formula: string): number => {
+        if (!formula.startsWith('=')) {
+            const val = parseFloat(formula.replace(',', '.'));
+            return isNaN(val) ? 0 : val;
+        }
+        try {
+            // Basic math parser (Safe eval replacement)
+            const expression = formula.substring(1).replace(/,/g, '.').replace(/[^-+*/().0-9]/g, '');
+            // We'll use Function constructor for a simple sandbox-like math evaluation
+            // ONLY allowing math characters prevents malicious code.
+            const result = new Function(`return ${expression}`)();
+            return typeof result === 'number' && isFinite(result) ? result : 0;
+        } catch (e) {
+            console.error("Math eval error:", e);
+            return 0;
+        }
+    };
+
     const handleCellClick = async (categoryId: string, month: number, categoryName: string) => {
         setSelectedCell({ categoryId, month, categoryName });
         setLoadingTransactions(true);
@@ -504,10 +527,45 @@ export default function BudgetGrid({ refreshKey = 0, isExternalLoading = false }
         setExpandedGroups(newSet);
     };
 
-    const handleBudgetChange = async (categoryId: string, monthIndex: number, value: string) => {
-        const numericValue = parseFloat(value.replace(/\D/g, '')) / 100 || 0;
-        setBudgetValues(prev => ({ ...prev, [`${categoryId}-${monthIndex}`]: numericValue }));
-        try { await fetch('/api/budgets', { method: 'POST', body: JSON.stringify({ categoryId, costCenterId: selectedCostCenter.join(','), year: selectedYear, month: monthIndex, amount: numericValue }), headers: { 'Content-Type': 'application/json' } }); } catch (e) { console.error("Save failed", e); }
+    const handleBudgetChange = async (categoryId: string, monthIndex: number, finalValue: number, copyToFollowing = false) => {
+        setIsSavingBudget(true);
+        try {
+            const monthsToUpdate = copyToFollowing ? Array.from({ length: 12 - monthIndex }, (_, i) => monthIndex + i) : [monthIndex];
+
+            // Single CC check for save
+            const ccId = selectedCostCenter[0];
+
+            for (const m of monthsToUpdate) {
+                setBudgetValues(prev => ({ ...prev, [`${categoryId}-${m}`]: finalValue }));
+                await fetch('/api/budgets', {
+                    method: 'POST',
+                    body: JSON.stringify({
+                        categoryId,
+                        costCenterId: ccId,
+                        year: selectedYear,
+                        month: m,
+                        amount: finalValue
+                    }),
+                    headers: { 'Content-Type': 'application/json' }
+                });
+            }
+            setBudgetModal(null);
+        } catch (e) {
+            console.error("Save failed", e);
+            alert("Erro ao salvar orçamento. Tente novamente.");
+        } finally {
+            setIsSavingBudget(false);
+        }
+    };
+
+    const openBudgetModal = (nodeId: string, nodeName: string, monthIdx: number, currentVal: number) => {
+        // VALIDATION
+        if (selectedCostCenter.includes('DEFAULT') || selectedCostCenter.length !== 1) {
+            alert("Selecione um único centro de custo para lançar um valor");
+            return;
+        }
+        setBudgetModal({ categoryId: nodeId, categoryName: nodeName, month: monthIdx, initialValue: currentVal });
+        setFormulaValue(currentVal > 0 ? currentVal.toString() : '');
     };
 
     const renderNode = (node: CategoryNode) => {
@@ -530,12 +588,23 @@ export default function BudgetGrid({ refreshKey = 0, isExternalLoading = false }
                     </td>
                     {MONTHS.map((_, i) => (
                         <React.Fragment key={i}>
-                            <td style={{ borderLeft: '1px solid #f1f5f9', padding: hasChildren ? '0.5rem' : '0', minWidth: '90px', whiteSpace: 'nowrap' }}>
-                                {hasChildren || node.isSynthetic ? (
-                                    <div style={{ textAlign: 'right', fontSize: '0.8rem', color: '#64748b' }}>{formatCurrency(totals.budget[i])}</div>
-                                ) : (
-                                    <input type="text" placeholder="0,00" onBlur={(e) => handleBudgetChange(node.id, i, e.target.value)} defaultValue={totals.budget[i] ? totals.budget[i].toFixed(2) : ''} style={{ width: '100%', padding: '0.5rem', border: '1px solid transparent', textAlign: 'right', background: 'transparent', fontSize: '0.75rem', color: '#334155' }} />
-                                )}
+                            <td
+                                onClick={() => !hasChildren && !node.isSynthetic && openBudgetModal(node.id, node.name, i, totals.budget[i])}
+                                style={{
+                                    borderLeft: '1px solid #f1f5f9',
+                                    padding: '0.5rem',
+                                    minWidth: '90px',
+                                    whiteSpace: 'nowrap',
+                                    cursor: (!hasChildren && !node.isSynthetic) ? 'pointer' : 'default',
+                                    backgroundColor: (!hasChildren && !node.isSynthetic) ? '#fff' : 'transparent',
+                                    transition: 'background 0.2s'
+                                }}
+                                onMouseEnter={(e) => { if (!hasChildren && !node.isSynthetic) e.currentTarget.style.backgroundColor = '#f8fafc'; }}
+                                onMouseLeave={(e) => { if (!hasChildren && !node.isSynthetic) e.currentTarget.style.backgroundColor = '#fff'; }}
+                            >
+                                <div style={{ textAlign: 'right', fontSize: '0.8rem', color: (!hasChildren && !node.isSynthetic) ? '#334155' : '#64748b', fontWeight: (!hasChildren && !node.isSynthetic) ? 500 : 400 }}>
+                                    {formatCurrency(totals.budget[i])}
+                                </div>
                             </td>
                             <td onClick={() => handleCellClick(node.id, i, node.name)} style={{ textAlign: 'right', padding: '0.5rem', color: '#3b82f6', fontSize: '0.8rem', fontWeight: 500, cursor: 'pointer', minWidth: '90px', whiteSpace: 'nowrap' }}>{formatCurrency(totals.realized[i])}</td>
                         </React.Fragment>
@@ -785,6 +854,61 @@ export default function BudgetGrid({ refreshKey = 0, isExternalLoading = false }
                         </div>
                     )
                 }
+
+                {/* Budget Entry Modal */}
+                {budgetModal && (
+                    <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
+                        <div style={{ backgroundColor: 'white', borderRadius: '12px', padding: '1.5rem', width: '400px', boxShadow: '0 20px 25px -5px rgba(0,0,0,0.1)' }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '1rem' }}>
+                                <h3 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 700 }}>Orçar Categoria</h3>
+                                <button onClick={() => setBudgetModal(null)} style={{ border: 'none', background: 'none', cursor: 'pointer', fontSize: '1.2rem', color: '#94a3b8' }}>✕</button>
+                            </div>
+
+                            <div style={{ marginBottom: '1.25rem' }}>
+                                <div style={{ fontSize: '0.75rem', color: '#64748b', marginBottom: '0.25rem' }}>{budgetModal.categoryName}</div>
+                                <div style={{ fontSize: '0.9rem', fontWeight: 600 }}>Mês: {MONTHS[budgetModal.month]}</div>
+                            </div>
+
+                            <div style={{ marginBottom: '1.5rem' }}>
+                                <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, color: '#334155', marginBottom: '0.5rem' }}>Valor ou Fórmula (=)</label>
+                                <input
+                                    autoFocus
+                                    type="text"
+                                    value={formulaValue}
+                                    onChange={(e) => setFormulaValue(e.target.value)}
+                                    placeholder="Ex: 1500 ou =500*3"
+                                    style={{ width: '100%', padding: '0.75rem', borderRadius: '8px', border: '2px solid #e2e8f0', fontSize: '1rem', outline: 'none', transition: 'border-color 0.2s' }}
+                                    onKeyDown={(e) => {
+                                        if (e.key === 'Enter') handleBudgetChange(budgetModal.categoryId, budgetModal.month, evaluateFormula(formulaValue));
+                                    }}
+                                />
+                                {formulaValue.startsWith('=') && (
+                                    <div style={{ marginTop: '0.5rem', fontSize: '0.85rem', color: '#2563eb', fontWeight: 600 }}>
+                                        Resultado: {formatCurrency(evaluateFormula(formulaValue))}
+                                    </div>
+                                )}
+                            </div>
+
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                                <button
+                                    disabled={isSavingBudget}
+                                    onClick={() => handleBudgetChange(budgetModal.categoryId, budgetModal.month, evaluateFormula(formulaValue))}
+                                    style={{ width: '100%', padding: '0.75rem', backgroundColor: '#2563eb', color: 'white', border: 'none', borderRadius: '8px', fontWeight: 700, cursor: 'pointer', opacity: isSavingBudget ? 0.7 : 1 }}
+                                >
+                                    {isSavingBudget ? 'Salvando...' : 'Salvar apenas este mês'}
+                                </button>
+
+                                <button
+                                    disabled={isSavingBudget}
+                                    onClick={() => handleBudgetChange(budgetModal.categoryId, budgetModal.month, evaluateFormula(formulaValue), true)}
+                                    style={{ width: '100%', padding: '0.75rem', backgroundColor: '#f1f5f9', color: '#1e293b', border: 'none', borderRadius: '8px', fontWeight: 600, cursor: 'pointer' }}
+                                >
+                                    ↗ Copiar para meses seguintes
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                )}
             </div >
         </>
     );

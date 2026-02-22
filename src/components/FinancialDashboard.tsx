@@ -116,7 +116,7 @@ export default function FinancialDashboard({
             )}
 
             <section style={{ marginBottom: '2rem' }}>
-                <h2 style={{ marginBottom: '1rem' }}>Planejamento Orçamentário</h2>
+                <h2 style={{ marginBottom: '1rem' }}>Previsto x Realizado</h2>
                 <div style={{ display: 'flex', gap: '1rem', marginBottom: '1rem' }}>
                     {/* Filters */}
                 </div>

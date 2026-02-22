@@ -28,14 +28,16 @@ export function SyncButton({ onSyncComplete }: { onSyncComplete?: () => void }) 
                 disabled={loading}
                 style={{
                     padding: '0.5rem 1rem',
-                    backgroundColor: loading ? '#ccc' : '#2563eb',
+                    backgroundColor: loading ? '#93c5fd' : '#2563eb',
                     color: 'white',
                     border: 'none',
-                    borderRadius: '4px',
-                    cursor: loading ? 'not-allowed' : 'pointer'
+                    borderRadius: '6px',
+                    cursor: loading ? 'not-allowed' : 'pointer',
+                    fontSize: '0.8rem',
+                    fontWeight: 600,
                 }}
             >
-                {loading ? 'Sincronizando...' : '🔄 Sincronizar Agora'}
+                {loading ? '🔄 Sincronizando...' : '🔄 Sincronizar Agora'}
             </button>
             {lastSync && <div style={{ fontSize: '0.8rem', color: '#666', marginTop: '0.5rem' }}>Última: {lastSync}</div>}
 

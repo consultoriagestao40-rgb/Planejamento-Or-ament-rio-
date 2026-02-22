@@ -1,16 +1,36 @@
-
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 
+// Helper to ensure database schema is up-to-date in production without manual migration
+async function ensureSchema() {
+  try {
+    console.log("[SCHEMA] Checking for missing columns in BudgetEntry...");
+    // Check if columns exist using Raw SQL (Postgres specific)
+    await prisma.$executeRawUnsafe(`
+      DO $$ 
+      BEGIN 
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='BudgetEntry' AND column_name='radarAmount') THEN
+          ALTER TABLE "BudgetEntry" ADD COLUMN "radarAmount" DOUBLE PRECISION;
+        END IF;
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='BudgetEntry' AND column_name='isLocked') THEN
+          ALTER TABLE "BudgetEntry" ADD COLUMN "isLocked" BOOLEAN DEFAULT FALSE;
+        END IF;
+      END $$;
+    `);
+    console.log("[SCHEMA] Schema check complete.");
+  } catch (err) {
+    console.error("[SCHEMA] Error insuring schema:", err);
+  }
+}
+
 export async function GET(request: Request) {
   try {
+    await ensureSchema();
     const { searchParams } = new URL(request.url);
     const costCenterIdParam = searchParams.get('costCenterId') || 'DEFAULT';
     const costCenterIds = costCenterIdParam.split(',').map(id => id.trim()).filter(Boolean);
 
-    // For prototype, just grab the first tenant
     const tenant = await prisma.tenant.findFirst();
-
     if (!tenant) {
       return NextResponse.json({ success: true, data: [] });
     }
@@ -24,7 +44,6 @@ export async function GET(request: Request) {
       }
     });
 
-    // Aggregate by categoryId and month
     const aggregatedBudgets = budgets.reduce((acc, curr: any) => {
       const key = `${curr.categoryId}-${curr.month}`;
       if (!acc[key]) {
@@ -53,17 +72,14 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   try {
+    await ensureSchema();
     const body = await request.json();
     const entries = body.entries ? body.entries : [body];
 
-    // For prototype, find or create a default tenant
     let tenant = await prisma.tenant.findFirst();
     if (!tenant) {
       tenant = await prisma.tenant.create({
-        data: {
-          name: 'Empresa Padrão',
-          cnpj: '00000000000000',
-        }
+        data: { name: 'Empresa Padrão', cnpj: '00000000000000' }
       });
     }
 

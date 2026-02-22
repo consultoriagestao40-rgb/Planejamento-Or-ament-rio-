@@ -564,7 +564,9 @@ export default function BudgetGrid({ refreshKey = 0, isExternalLoading = false }
 
             if (!res.ok) {
                 const errData = await res.json();
-                throw new Error(errData.error || "Erro ao salvar");
+                const throwErr: any = new Error(errData.error || "Erro ao salvar");
+                throwErr.details = errData.details;
+                throw throwErr;
             }
 
             setBudgetModal(null);

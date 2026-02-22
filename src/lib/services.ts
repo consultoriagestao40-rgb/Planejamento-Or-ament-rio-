@@ -270,7 +270,6 @@ async function aggregateTransactions(
 ) {
     let page = 1;
     let hasMore = true;
-    const logs = (global as any).lastTransactionLogs || [];
 
     // V47.9.10: Append Cost Center Filter if valid
     let finalUrlBase = baseUrl;
@@ -278,64 +277,45 @@ async function aggregateTransactions(
         finalUrlBase += `&centro_custo_id=${costCenterId}`;
     }
 
-    // V47.9.8: Increased safer limit to 200 pages (20k items) to avoid truncation
+    const isFiltered = !!(costCenterId && costCenterId !== 'DEFAULT' && costCenterId !== 'Geral');
+
+    // TWO-PASS RATEIO APPROACH (when a specific CC is active):
+    // Conta Azul creates two types of entries for apportioned (rateado) transactions:
+    //   Type A: Individual per-CC entry with the EXACT apportioned value (1 CC)
+    //   Type B: Umbrella master entry with the TOTAL across all CCs (N > 1 CCs)
+    // When filtering by a specific CC, we prefer Type A entries (exact).
+    // If a category only has Type B entries (no Type A), we fall back to equal-split.
+    // This mirrors exactly how Conta Azul calculates the DRE per cost center.
+    type ItemBucket = { amount: number; ccCount: number };
+    const singleCCByKey: Record<string, number> = {}; // catId-monthIdx -> total from single-CC entries
+    const multiCCByKey: Record<string, ItemBucket[]> = {}; // catId-monthIdx -> list of multi-CC entries
+
+    // V47.9.8: Increased safer limit to 200 pages
     while (hasMore && page <= 200) {
         const url = `${finalUrlBase}&pagina=${page}`;
         try {
             const res = await fetch(url, { headers: { 'Authorization': `Bearer ${accessToken}` } });
-            if (!res.ok) {
-                const errText = await res.text();
-                // ... logging ...
-                hasMore = false;
-                break;
-            }
+            if (!res.ok) { hasMore = false; break; }
 
             const data = await res.json();
             const items = data.itens || [];
-
             if (items.length === 0) { hasMore = false; break; }
 
-            items.forEach((item: any, idx: number) => {
-                // V47.14: Use Gross Value (valor) for Competence DRE.
-                // Previous logic used 'valor_liquido' which is Net of Tax Retentions (Cash Basis).
-                // User confirmed DRE must show Gross Revenue (e.g. 165k vs 154k).
+            items.forEach((item: any) => {
                 const amount = item.valor || item.valor_original || item.total || item.valor_liquido || 0;
-
-                // V47.9.5: Competence Priority
-                // 1. Competencia (The correct DRE date)
-                // 2. Vencimento (The filtering date)
-                // 3. Pagamento (Cash date, least relevant for accrual DRE)
                 const dateStr = item.data_competencia || item.data_vencimento || item.vencimento || item.data_pagamento;
-
-                let dateObj: Date;
-                if (dateStr) {
-                    dateObj = new Date(dateStr);
-                } else {
-                    dateObj = new Date();
-                }
-
+                let dateObj = dateStr ? new Date(dateStr) : new Date();
                 const monthIdx = dateObj.getMonth();
                 const year = dateObj.getFullYear();
-
-                // V47.9.10: Strict Target Year Check (controlled by user selector)
                 if (year !== targetYear) return;
 
-                // V47.9.9: Exclude Canceled items to avoid over-reporting
                 const status = (item.status || '').toUpperCase();
                 if (status.includes('CANCEL')) return;
 
-                // Local Cost Center Filtering
                 const ccs = item.centros_de_custo || [];
-                if (costCenterId && costCenterId !== 'DEFAULT' && costCenterId !== 'Geral') {
+                if (isFiltered) {
                     const hasCC = ccs.some((c: any) => c.id === costCenterId);
                     if (!hasCC) return;
-
-                    // KEY RATEIO FIX: Conta Azul creates two kinds of entries:
-                    // 1) A "master" umbrella entry with the TOTAL amount assigned to all CCs
-                    // 2) Individual apportioned entries per CC with the EXACT split value
-                    // When filtering by a specific CC, we must SKIP multi-CC umbrella entries
-                    // and only count single-CC entries (which already have the correct apportioned value).
-                    if (ccs.length > 1) return;
                 }
 
                 const categories = item.categorias || [];
@@ -343,7 +323,14 @@ async function aggregateTransactions(
                     const catId = categories[0].id;
                     if (catId) {
                         const key = `${catId}-${monthIdx}`;
-                        targetValues[key] = (targetValues[key] || 0) + amount;
+                        if (!isFiltered || ccs.length === 1) {
+                            // Single-CC or global mode: add directly
+                            singleCCByKey[key] = (singleCCByKey[key] || 0) + amount;
+                        } else {
+                            // Multi-CC umbrella entry
+                            if (!multiCCByKey[key]) multiCCByKey[key] = [];
+                            multiCCByKey[key].push({ amount, ccCount: ccs.length });
+                        }
                     }
                 }
             });
@@ -352,6 +339,21 @@ async function aggregateTransactions(
             else page++;
         } catch (e: any) {
             hasMore = false;
+        }
+    }
+
+    // Merge: for each key, use single-CC totals if any exist; else use equal-split of multi-CC
+    const allKeys = new Set([...Object.keys(singleCCByKey), ...Object.keys(multiCCByKey)]);
+    for (const key of allKeys) {
+        if (singleCCByKey[key] !== undefined) {
+            // Prefer individual entries - they carry the exact apportioned value
+            // Also add any multi-CC for safe measure (e.g. transactions split across 2 CCs)
+            // But if single-CC entries exist for a category, the multi-CC ones are the umbrella totals - skip them.
+            targetValues[key] = (targetValues[key] || 0) + singleCCByKey[key];
+        } else if (multiCCByKey[key]) {
+            // No individual entries for this category - use equal split of umbrella entries
+            const total = multiCCByKey[key].reduce((sum, b) => sum + (b.amount / b.ccCount), 0);
+            targetValues[key] = (targetValues[key] || 0) + total;
         }
     }
 }

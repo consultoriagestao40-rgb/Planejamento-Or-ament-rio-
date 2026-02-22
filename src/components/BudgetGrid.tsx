@@ -40,7 +40,7 @@ export default function BudgetGrid({ refreshKey = 0 }: BudgetGridProps) {
         setLoadingTransactions(true);
         setTransactions([]);
         try {
-            const res = await fetch(`/api/transactions?categoryId=${categoryId}&month=${month}&year=${selectedYear}&costCenterId=${selectedCostCenter}`);
+            const res = await fetch(`/api/transactions?categoryId=${categoryId}&month=${month}&year=${selectedYear}&costCenterId=${selectedCostCenter}&viewMode=${viewMode}`);
             const data = await res.json();
             if (data.success) {
                 setTransactions(data.transactions);

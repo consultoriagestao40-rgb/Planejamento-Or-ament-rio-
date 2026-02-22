@@ -324,6 +324,13 @@ async function aggregateTransactions(
                 const status = (item.status || '').toUpperCase();
                 if (status.includes('CANCEL')) return;
 
+                // Local Cost Center Filtering (API query param doesn't work reliably)
+                if (costCenterId && costCenterId !== 'DEFAULT' && costCenterId !== 'Geral') {
+                    const ccs = item.centros_de_custo || [];
+                    const hasCC = ccs.some((c: any) => c.id === costCenterId);
+                    if (!hasCC) return;
+                }
+
                 const categories = item.categorias || [];
                 if (categories.length > 0) {
                     const catId = categories[0].id;

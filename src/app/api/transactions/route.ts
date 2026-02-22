@@ -74,6 +74,13 @@ async function fetchTransactions(accessToken: string, baseUrl: string, costCente
                 // Check if canceled
                 if ((item.status || '').toUpperCase().includes('CANCEL')) return;
 
+                // Local Cost Center Filtering (API query param doesn't work reliably)
+                if (costCenterId && costCenterId !== 'DEFAULT' && costCenterId !== 'Geral') {
+                    const ccs = item.centros_de_custo || [];
+                    const hasCC = ccs.some((c: any) => c.id === costCenterId);
+                    if (!hasCC) return;
+                }
+
                 // Check Category Match
                 const cats = item.categorias || [];
                 const hasCategory = cats.some((c: any) => c.id === categoryId);

@@ -529,14 +529,14 @@ export default function BudgetGrid({ refreshKey = 0, isExternalLoading = false }
                     </td>
                     {MONTHS.map((_, i) => (
                         <React.Fragment key={i}>
-                            <td style={{ borderLeft: '1px solid #f1f5f9', padding: hasChildren ? '0.5rem' : '0' }}>
+                            <td style={{ borderLeft: '1px solid #f1f5f9', padding: hasChildren ? '0.5rem' : '0', minWidth: '90px', whiteSpace: 'nowrap' }}>
                                 {hasChildren || node.isSynthetic ? (
                                     <div style={{ textAlign: 'right', fontSize: '0.8rem', color: '#64748b' }}>{formatCurrency(totals.budget[i])}</div>
                                 ) : (
                                     <input type="text" placeholder="0,00" onBlur={(e) => handleBudgetChange(node.id, i, e.target.value)} defaultValue={totals.budget[i] ? totals.budget[i].toFixed(2) : ''} style={{ width: '100%', padding: '0.5rem', border: '1px solid transparent', textAlign: 'right', background: 'transparent', fontSize: '0.75rem', color: '#334155' }} />
                                 )}
                             </td>
-                            <td onClick={() => handleCellClick(node.id, i, node.name)} style={{ textAlign: 'right', padding: '0.5rem', color: '#3b82f6', fontSize: '0.8rem', fontWeight: 500, cursor: 'pointer' }}>{formatCurrency(totals.realized[i])}</td>
+                            <td onClick={() => handleCellClick(node.id, i, node.name)} style={{ textAlign: 'right', padding: '0.5rem', color: '#3b82f6', fontSize: '0.8rem', fontWeight: 500, cursor: 'pointer', minWidth: '90px', whiteSpace: 'nowrap' }}>{formatCurrency(totals.realized[i])}</td>
                         </React.Fragment>
                     ))}
                 </tr>
@@ -567,8 +567,8 @@ export default function BudgetGrid({ refreshKey = 0, isExternalLoading = false }
 
                     return (
                         <React.Fragment key={i}>
-                            <td style={{ textAlign: 'right', padding: '0.75rem', borderLeft: '1px solid #e2e8f0', color: bColor, fontSize: '0.8rem' }}>{formatCurrency(budgetVal)}</td>
-                            <td style={{ textAlign: 'right', padding: '0.75rem', color: rColor, fontSize: '0.8rem' }}>{formatCurrency(realizedVal)}</td>
+                            <td style={{ textAlign: 'right', padding: '0.75rem', borderLeft: '1px solid #e2e8f0', color: bColor, fontSize: '0.8rem', minWidth: '90px', whiteSpace: 'nowrap' }}>{formatCurrency(budgetVal)}</td>
+                            <td style={{ textAlign: 'right', padding: '0.75rem', color: rColor, fontSize: '0.8rem', minWidth: '90px', whiteSpace: 'nowrap' }}>{formatCurrency(realizedVal)}</td>
                         </React.Fragment>
                     );
                 })}
@@ -685,15 +685,15 @@ export default function BudgetGrid({ refreshKey = 0, isExternalLoading = false }
                         <style>{`@keyframes spin-loading { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }`}</style>
                     </div>
                 )}
-                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8rem' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8rem', tableLayout: 'auto' }}>
                     <thead>
                         <tr style={{ background: '#f8fafc', borderBottom: '2px solid #cbd5e1' }}>
-                            <th style={{ padding: '0.75rem 1rem', textAlign: 'left', minWidth: '300px', position: 'sticky', left: 0, background: '#f8fafc', zIndex: 20, color: '#475569' }}>DRE Gerencial</th>
-                            {MONTHS.map((m) => <th key={m} colSpan={2} style={{ textAlign: 'center', padding: '0.75rem 0.5rem', borderLeft: '1px solid #cbd5e1', color: '#475569' }}>{m}</th>)}
+                            <th style={{ padding: '0.75rem 1rem', textAlign: 'left', minWidth: '350px', position: 'sticky', left: 0, background: '#f8fafc', zIndex: 20, color: '#475569', whiteSpace: 'nowrap' }}>DRE Gerencial</th>
+                            {MONTHS.map((m) => <th key={m} colSpan={2} style={{ textAlign: 'center', padding: '0.75rem 0.5rem', borderLeft: '1px solid #cbd5e1', color: '#475569', minWidth: '180px' }}>{m}</th>)}
                         </tr>
                         <tr style={{ background: '#fff' }}>
                             <th style={{ position: 'sticky', left: 0, background: '#fff', zIndex: 20, borderBottom: '1px solid #e2e8f0' }}></th>
-                            {MONTHS.map((m) => (<React.Fragment key={m}><th style={{ fontSize: '0.7rem', color: '#94a3b8', borderLeft: '1px solid #f1f5f9', fontWeight: 500, paddingBottom: '0.5rem', borderBottom: '1px solid #e2e8f0' }}>Orçado</th><th style={{ fontSize: '0.7rem', color: '#94a3b8', fontWeight: 500, paddingBottom: '0.5rem', borderBottom: '1px solid #e2e8f0' }}>Realizado</th></React.Fragment>))}
+                            {MONTHS.map((m) => (<React.Fragment key={m}><th style={{ fontSize: '0.7rem', color: '#94a3b8', borderLeft: '1px solid #f1f5f9', fontWeight: 500, paddingBottom: '0.5rem', borderBottom: '1px solid #e2e8f0', minWidth: '90px', whiteSpace: 'nowrap' }}>Orçado</th><th style={{ fontSize: '0.7rem', color: '#94a3b8', fontWeight: 500, paddingBottom: '0.5rem', borderBottom: '1px solid #e2e8f0', minWidth: '90px', whiteSpace: 'nowrap' }}>Realizado</th></React.Fragment>))}
                         </tr>
                     </thead>
                     <tbody>

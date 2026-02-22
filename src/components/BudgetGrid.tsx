@@ -598,7 +598,7 @@ export default function BudgetGrid({ refreshKey = 0, isExternalLoading = false }
                                     style={{
                                         borderLeft: '1px solid #f1f5f9',
                                         padding: '0.5rem',
-                                        minWidth: '100px',
+                                        minWidth: '120px',
                                         whiteSpace: 'nowrap',
                                         cursor: (!hasChildren && !node.isSynthetic) ? 'pointer' : 'default',
                                         backgroundColor: (!hasChildren && !node.isSynthetic) ? '#fff' : 'transparent',
@@ -616,7 +616,7 @@ export default function BudgetGrid({ refreshKey = 0, isExternalLoading = false }
                                         )}
                                     </div>
                                 </td>
-                                <td onClick={() => handleCellClick(node.id, i, node.name)} style={{ textAlign: 'right', padding: '0.5rem', color: '#3b82f6', fontSize: '0.8rem', fontWeight: 500, cursor: 'pointer', minWidth: '100px', whiteSpace: 'nowrap' }}>
+                                <td onClick={() => handleCellClick(node.id, i, node.name)} style={{ textAlign: 'right', padding: '0.5rem', color: '#3b82f6', fontSize: '0.8rem', fontWeight: 500, cursor: 'pointer', minWidth: '120px', whiteSpace: 'nowrap' }}>
                                     {formatCurrency(totals.realized[i])}
                                     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end' }}>
                                         {showAV && <span style={{ fontSize: '0.65rem', color: '#94a3b8', fontWeight: 400 }}>AV: {avRealized.toFixed(1)}%</span>}
@@ -647,15 +647,37 @@ export default function BudgetGrid({ refreshKey = 0, isExternalLoading = false }
                     {label}
                 </td>
                 {MONTHS.map((_, i) => {
-                    const budgetVal = dreStructure.calculateTotals(i)[validx].b;
-                    const realizedVal = dreStructure.calculateTotals(i)[validx].r;
+                    const monthTotal = dreStructure.calculateTotals(i);
+                    const budgetVal = monthTotal[validx].b;
+                    const realizedVal = monthTotal[validx].r;
+
+                    const revBruta = monthTotal.vRev.b || 1;
+                    const revBrutaReal = monthTotal.vRev.r || 1;
+
+                    const avBudget = (budgetVal / revBruta) * 100;
+                    const avRealized = (realizedVal / revBrutaReal) * 100;
+                    const ahValue = budgetVal !== 0 ? (realizedVal / budgetVal) * 100 : 0;
+
                     const bColor = budgetVal < 0 ? '#ef4444' : '#64748b';
                     const rColor = realizedVal < 0 ? '#ef4444' : textColor;
 
                     return (
                         <React.Fragment key={i}>
-                            <td style={{ textAlign: 'right', padding: '0.75rem', borderLeft: '1px solid #e2e8f0', color: bColor, fontSize: '0.8rem', minWidth: '90px', whiteSpace: 'nowrap' }}>{formatCurrency(budgetVal)}</td>
-                            <td style={{ textAlign: 'right', padding: '0.75rem', color: rColor, fontSize: '0.8rem', minWidth: '90px', whiteSpace: 'nowrap' }}>{formatCurrency(realizedVal)}</td>
+                            <td style={{ textAlign: 'right', padding: '0.75rem', borderLeft: '1px solid #e2e8f0', color: bColor, fontSize: '0.8rem', minWidth: '120px', whiteSpace: 'nowrap' }}>
+                                <div>{formatCurrency(budgetVal)}</div>
+                                {showAV && (
+                                    <div style={{ fontSize: '0.65rem', color: '#94a3b8', fontWeight: 400 }}>
+                                        AV: {avBudget.toFixed(1)}%
+                                    </div>
+                                )}
+                            </td>
+                            <td style={{ textAlign: 'right', padding: '0.75rem', color: rColor, fontSize: '0.8rem', minWidth: '120px', whiteSpace: 'nowrap' }}>
+                                <div>{formatCurrency(realizedVal)}</div>
+                                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end' }}>
+                                    {showAV && <span style={{ fontSize: '0.65rem', color: '#94a3b8', fontWeight: 400 }}>AV: {avRealized.toFixed(1)}%</span>}
+                                    {showAH && <span style={{ fontSize: '0.65rem', color: '#059669', fontWeight: 600 }}>AH: {ahValue.toFixed(1)}%</span>}
+                                </div>
+                            </td>
                         </React.Fragment>
                     );
                 })}

@@ -14,6 +14,8 @@ export async function GET(request: Request) {
         async function runScan(endpoint: string, label: string) {
             let matches = 0;
             let total = 0;
+            const itemsMatch: any[] = [];
+
             for (let i = 1; i <= 20; i++) {
                 let url = `https://api-v2.contaazul.com/v1/financeiro/eventos-financeiros/${endpoint}/buscar?data_vencimento_de=2026-01-01&data_vencimento_ate=2026-12-31&tamanho_pagina=100&pagina=${i}`;
                 const res = await fetch(url, { headers: { 'Authorization': `Bearer ${accessToken}` } });
@@ -27,11 +29,21 @@ export async function GET(request: Request) {
                     const ccs = item.centros_de_custo || [];
                     if (ccs.length > 0) {
                         const id = ccs[0].id;
-                        if (id === costCenterId) matches++;
+                        if (id === costCenterId) {
+                            matches++;
+                            itemsMatch.push({
+                                id: item.id,
+                                valor: item.valor,
+                                status: item.status,
+                                descricao: item.descricao,
+                                categorias: item.categorias,
+                                fornecedor: item.fornecedor || item.cliente
+                            });
+                        }
                     }
                 });
             }
-            return { total, matches };
+            return { total, matches, itemsMatch };
         }
 
         const payables = await runScan('contas-a-pagar', 'pagar');

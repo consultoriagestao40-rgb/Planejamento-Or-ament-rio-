@@ -44,9 +44,8 @@ export default function BudgetGrid({ refreshKey = 0, isExternalLoading = false }
     const [loadingTransactions, setLoadingTransactions] = useState(false);
 
     // --- Budget Modal State ---
-    const [budgetModal, setBudgetModal] = useState<{ categoryId: string, categoryName: string, startMonth: number } | null>(null);
+    const [budgetModal, setBudgetModal] = useState<{ categoryId: string, categoryName: string, startMonth: number, type: 'budget' | 'radar' } | null>(null);
     const [modalValues, setModalValues] = useState<string[]>(new Array(12).fill(''));
-    const [radarModalValues, setRadarModalValues] = useState<string[]>(new Array(12).fill(''));
     const [lockedMonths, setLockedMonths] = useState<boolean[]>(new Array(12).fill(false));
     const [activeMonth, setActiveMonth] = useState<number>(0);
     const [isSavingBudget, setIsSavingBudget] = useState(false);
@@ -529,7 +528,6 @@ export default function BudgetGrid({ refreshKey = 0, isExternalLoading = false }
         try {
             for (let i = 0; i < 12; i++) {
                 const currentVal = modalValues[i];
-                const currentRadarVal = radarModalValues[i];
                 const locked = budgetValues[`${budgetModal.categoryId}-${i}`]?.isLocked || false;
 
                 const payload: any = {
@@ -539,17 +537,18 @@ export default function BudgetGrid({ refreshKey = 0, isExternalLoading = false }
                     costCenterId: selectedCostCenter[0]
                 };
 
-                // Only allow editing original amount if not locked OR if user is MASTER
-                if (!locked || userRole === 'MASTER') {
-                    payload.amount = evaluateFormula(currentVal);
-                }
-
-                // Radar can always be edited
-                payload.radarAmount = evaluateFormula(currentRadarVal);
-
-                // Allow locking/unlocking only if MASTER
-                if (userRole === 'MASTER') {
-                    payload.isLocked = lockedMonths[i];
+                if (budgetModal.type === 'budget') {
+                    // Only allow editing original amount if not locked OR if user is MASTER
+                    if (!locked || userRole === 'MASTER') {
+                        payload.amount = evaluateFormula(currentVal);
+                    }
+                    // Allow locking/unlocking only if MASTER
+                    if (userRole === 'MASTER') {
+                        payload.isLocked = lockedMonths[i];
+                    }
+                } else {
+                    // Radar can always be edited
+                    payload.radarAmount = evaluateFormula(currentVal);
                 }
 
                 await fetch('/api/budgets', {
@@ -581,17 +580,14 @@ export default function BudgetGrid({ refreshKey = 0, isExternalLoading = false }
         }
     };
 
-    const openBudgetModal = (nodeId: string, nodeName: string, monthIndex: number) => {
+    const openBudgetModal = (nodeId: string, nodeName: string, monthIndex: number, type: 'budget' | 'radar') => {
         if (selectedCostCenter.includes('DEFAULT') || selectedCostCenter.length !== 1) {
             alert("Selecione um único centro de custo para lançar um valor");
             return;
         }
         const initialValues = new Array(12).fill('').map((_, i) => {
             const data = budgetValues[`${nodeId}-${i}`];
-            return data?.amount ? data.amount.toString() : '';
-        });
-        const initialRadarValues = new Array(12).fill('').map((_, i) => {
-            const data = budgetValues[`${nodeId}-${i}`];
+            if (type === 'budget') return data?.amount ? data.amount.toString() : '';
             return data?.radarAmount ? data.radarAmount.toString() : '';
         });
         const initialLocks = new Array(12).fill(false).map((_, i) => {
@@ -599,9 +595,8 @@ export default function BudgetGrid({ refreshKey = 0, isExternalLoading = false }
             return data?.isLocked || false;
         });
 
-        setBudgetModal({ categoryId: nodeId, categoryName: nodeName, startMonth: monthIndex });
+        setBudgetModal({ categoryId: nodeId, categoryName: nodeName, startMonth: monthIndex, type });
         setModalValues(initialValues);
-        setRadarModalValues(initialRadarValues);
         setLockedMonths(initialLocks);
         setActiveMonth(monthIndex);
     };
@@ -646,7 +641,7 @@ export default function BudgetGrid({ refreshKey = 0, isExternalLoading = false }
                         return (
                             <React.Fragment key={i}>
                                 <td
-                                    onClick={() => !hasChildren && !node.isSynthetic && openBudgetModal(node.id, node.name, i)}
+                                    onClick={() => !hasChildren && !node.isSynthetic && openBudgetModal(node.id, node.name, i, 'budget')}
                                     style={{
                                         borderLeft: '1px solid #f1f5f9',
                                         padding: '0.5rem',
@@ -664,7 +659,12 @@ export default function BudgetGrid({ refreshKey = 0, isExternalLoading = false }
                                         {formatCurrency(totals.budget[i])}
                                     </div>
                                 </td>
-                                <td style={{ textAlign: 'right', padding: '0.5rem', borderLeft: '1px solid #f1f5f9', color: '#10b981', fontSize: '0.8rem', fontWeight: 600, minWidth: '100px', backgroundColor: '#f0fdf4' }}>
+                                <td
+                                    onClick={() => !hasChildren && !node.isSynthetic && openBudgetModal(node.id, node.name, i, 'radar')}
+                                    style={{ textAlign: 'right', padding: '0.5rem', borderLeft: '1px solid #f1f5f9', color: '#475569', fontSize: '0.8rem', fontWeight: 600, minWidth: '100px', backgroundColor: '#f8fafc', cursor: (!hasChildren && !node.isSynthetic) ? 'pointer' : 'default' }}
+                                    onMouseEnter={(e) => { if (!hasChildren && !node.isSynthetic) e.currentTarget.style.backgroundColor = '#f1f5f9'; }}
+                                    onMouseLeave={(e) => { if (!hasChildren && !node.isSynthetic) e.currentTarget.style.backgroundColor = '#f8fafc'; }}
+                                >
                                     {formatCurrency(totals.radar[i])}
                                 </td>
                                 <td onClick={() => handleCellClick(node.id, i, node.name)} style={{ textAlign: 'right', padding: '0.5rem', borderLeft: '1px solid #f1f5f9', color: '#3b82f6', fontSize: '0.8rem', fontWeight: 500, cursor: 'pointer', minWidth: '120px', whiteSpace: 'nowrap' }}>
@@ -718,7 +718,7 @@ export default function BudgetGrid({ refreshKey = 0, isExternalLoading = false }
                             <td style={{ textAlign: 'right', padding: '0.75rem', borderLeft: '1px solid #e2e8f0', color: bColor, fontSize: '0.8rem', minWidth: '100px', whiteSpace: 'nowrap' }}>
                                 <div>{formatCurrency(budgetVal)}</div>
                             </td>
-                            <td style={{ textAlign: 'right', padding: '0.75rem', borderLeft: '1px solid #e2e8f0', color: '#059669', fontSize: '0.8rem', minWidth: '100px', whiteSpace: 'nowrap', backgroundColor: '#f0fdf4' }}>
+                            <td style={{ textAlign: 'right', padding: '0.75rem', borderLeft: '1px solid #e2e8f0', color: '#475569', fontSize: '0.8rem', minWidth: '100px', whiteSpace: 'nowrap', backgroundColor: '#f8fafc' }}>
                                 <div>{formatCurrency(radarVal)}</div>
                             </td>
                             <td style={{ textAlign: 'right', padding: '0.75rem', borderLeft: '1px solid #e2e8f0', color: rColor, fontSize: '0.8rem', minWidth: '120px', whiteSpace: 'nowrap' }}>
@@ -918,8 +918,10 @@ export default function BudgetGrid({ refreshKey = 0, isExternalLoading = false }
                         <div style={{ backgroundColor: '#fff', borderRadius: '16px', padding: '2rem', width: '600px', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.15)', color: '#1e293b', border: '1px solid #e2e8f0' }}>
                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
                                 <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-                                    <h3 style={{ margin: 0, fontSize: '1.4rem', fontWeight: 700 }}>{budgetModal.categoryName}</h3>
-                                    {userRole === 'MASTER' && (
+                                    <h3 style={{ margin: 0, fontSize: '1.4rem', fontWeight: 700 }}>
+                                        {budgetModal.type === 'budget' ? 'Orçado' : 'Radar'}: {budgetModal.categoryName}
+                                    </h3>
+                                    {userRole === 'MASTER' && budgetModal.type === 'budget' && (
                                         <div style={{ display: 'flex', gap: '0.2rem' }}>
                                             {MONTHS.map((_, i) => (
                                                 <button
@@ -948,91 +950,50 @@ export default function BudgetGrid({ refreshKey = 0, isExternalLoading = false }
                                 <button onClick={() => setBudgetModal(null)} style={{ border: 'none', background: 'none', cursor: 'pointer', fontSize: '1.5rem', color: '#94a3b8', padding: '0.5rem' }}>✕</button>
                             </div>
 
-                            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '1rem', marginBottom: '1rem' }}>
-                                <button onClick={replicateValue} style={{ background: 'none', border: 'none', color: '#2563eb', cursor: 'pointer', fontSize: '0.8rem', fontWeight: 600, padding: '0.4rem' }}>
-                                    Replicar Orçado ({MONTHS[activeMonth]})
-                                </button>
-                                <button
-                                    onClick={() => {
-                                        const valToRep = radarModalValues[activeMonth];
-                                        const next = [...radarModalValues];
-                                        for (let i = activeMonth; i < 12; i++) next[i] = valToRep;
-                                        setRadarModalValues(next);
-                                    }}
-                                    style={{ background: 'none', border: 'none', color: '#10b981', cursor: 'pointer', fontSize: '0.8rem', fontWeight: 600, padding: '0.4rem' }}
-                                >
-                                    Replicar Radar ({MONTHS[activeMonth]})
+                            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '1rem', marginBottom: '1.5rem' }}>
+                                <button onClick={replicateValue} style={{ background: 'none', border: 'none', color: '#2563eb', cursor: 'pointer', fontSize: '0.85rem', fontWeight: 600, padding: '0.4rem' }}>
+                                    Replicar {MONTHS[activeMonth]} para todos
                                 </button>
                             </div>
 
-                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '1.5rem', marginBottom: '2rem', maxHeight: '400px', overflowY: 'auto', paddingRight: '0.5rem' }}>
+                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '1rem', marginBottom: '2.2rem' }}>
                                 {MONTHS.map((m, i) => {
                                     const isLocked = lockedMonths[i];
-                                    const canEditBudget = !isLocked || userRole === 'MASTER';
+                                    const canEditBudget = budgetModal.type === 'radar' || (!isLocked || userRole === 'MASTER');
 
                                     return (
-                                        <div key={m} style={{ padding: '1rem', borderRadius: '12px', background: '#f8fafc', border: '1px solid #e2e8f0' }}>
-                                            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.8rem' }}>
-                                                <label style={{ fontSize: '0.85rem', fontWeight: 800, color: '#1e293b' }}>{m}</label>
-                                                {isLocked && <span style={{ fontSize: '0.8rem', color: '#ef4444', fontWeight: 700 }}>LOCKED 🔒</span>}
+                                        <div key={m} style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
+                                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                                <label style={{ fontSize: '0.75rem', fontWeight: 800, color: '#64748b' }}>{m}</label>
+                                                {isLocked && budgetModal.type === 'budget' && <span title="Travado" style={{ fontSize: '0.7rem' }}>🔒</span>}
                                             </div>
 
-                                            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.8rem' }}>
-                                                <div>
-                                                    <label style={{ fontSize: '0.7rem', fontWeight: 700, color: '#64748b', marginBottom: '0.3rem', display: 'block' }}>ORÇADO (BASE)</label>
-                                                    <div style={{ position: 'relative' }}>
-                                                        <span style={{ position: 'absolute', left: '0.75rem', top: '50%', transform: 'translateY(-50%)', color: '#94a3b8', fontSize: '0.85rem' }}>R$</span>
-                                                        <input
-                                                            type="text"
-                                                            value={modalValues[i]}
-                                                            onFocus={() => setActiveMonth(i)}
-                                                            onChange={(e) => {
-                                                                const next = [...modalValues];
-                                                                next[i] = e.target.value;
-                                                                setModalValues(next);
-                                                            }}
-                                                            disabled={!canEditBudget}
-                                                            style={{
-                                                                width: '100%',
-                                                                padding: '0.6rem 0.6rem 0.6rem 2.2rem',
-                                                                borderRadius: '6px',
-                                                                border: activeMonth === i ? '2px solid #2563eb' : (isLocked ? '1px dashed #cbd5e1' : '1px solid #cbd5e1'),
-                                                                backgroundColor: !canEditBudget ? '#f1f5f9' : '#fff',
-                                                                fontSize: '0.9rem',
-                                                                outline: 'none',
-                                                                color: !canEditBudget ? '#94a3b8' : '#1e293b'
-                                                            }}
-                                                        />
-                                                    </div>
-                                                </div>
-
-                                                <div>
-                                                    <label style={{ fontSize: '0.7rem', fontWeight: 700, color: '#10b981', marginBottom: '0.3rem', display: 'block' }}>RADAR (PROJEÇÃO)</label>
-                                                    <div style={{ position: 'relative' }}>
-                                                        <span style={{ position: 'absolute', left: '0.75rem', top: '50%', transform: 'translateY(-50%)', color: '#10b981', opacity: 0.5, fontSize: '0.85rem' }}>R$</span>
-                                                        <input
-                                                            type="text"
-                                                            value={radarModalValues[i]}
-                                                            onFocus={() => setActiveMonth(i)}
-                                                            onChange={(e) => {
-                                                                const next = [...radarModalValues];
-                                                                next[i] = e.target.value;
-                                                                setRadarModalValues(next);
-                                                            }}
-                                                            style={{
-                                                                width: '100%',
-                                                                padding: '0.6rem 0.6rem 0.6rem 2.2rem',
-                                                                borderRadius: '6px',
-                                                                border: activeMonth === i ? '2px solid #10b981' : '1px solid #10b981',
-                                                                backgroundColor: '#ecfdf5',
-                                                                fontSize: '0.9rem',
-                                                                outline: 'none',
-                                                                color: '#065f46',
-                                                                fontWeight: 600
-                                                            }}
-                                                        />
-                                                    </div>
-                                                </div>
+                                            <div style={{ position: 'relative' }}>
+                                                <span style={{ position: 'absolute', left: '0.75rem', top: '50%', transform: 'translateY(-50%)', color: '#94a3b8', fontSize: '0.85rem' }}>R$</span>
+                                                <input
+                                                    type="text"
+                                                    value={modalValues[i]}
+                                                    onFocus={() => setActiveMonth(i)}
+                                                    onChange={(e) => {
+                                                        const next = [...modalValues];
+                                                        next[i] = e.target.value;
+                                                        setModalValues(next);
+                                                    }}
+                                                    disabled={!canEditBudget}
+                                                    placeholder="0.00"
+                                                    style={{
+                                                        width: '100%',
+                                                        padding: '0.75rem 0.75rem 0.75rem 2.2rem',
+                                                        borderRadius: '8px',
+                                                        border: activeMonth === i ? '2px solid #2563eb' : (isLocked && budgetModal.type === 'budget' ? '1px dashed #cbd5e1' : '1px solid #cbd5e1'),
+                                                        backgroundColor: !canEditBudget ? '#f1f5f9' : '#fff',
+                                                        fontSize: '0.95rem',
+                                                        outline: 'none',
+                                                        color: !canEditBudget ? '#94a3b8' : '#1e293b',
+                                                        transition: 'all 0.2s',
+                                                        cursor: !canEditBudget ? 'not-allowed' : 'text'
+                                                    }}
+                                                />
                                             </div>
                                         </div>
                                     );

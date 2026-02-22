@@ -324,11 +324,18 @@ async function aggregateTransactions(
                 const status = (item.status || '').toUpperCase();
                 if (status.includes('CANCEL')) return;
 
-                // Local Cost Center Filtering (API query param doesn't work reliably)
+                // Local Cost Center Filtering
                 const ccs = item.centros_de_custo || [];
                 if (costCenterId && costCenterId !== 'DEFAULT' && costCenterId !== 'Geral') {
                     const hasCC = ccs.some((c: any) => c.id === costCenterId);
                     if (!hasCC) return;
+
+                    // KEY RATEIO FIX: Conta Azul creates two kinds of entries:
+                    // 1) A "master" umbrella entry with the TOTAL amount assigned to all CCs
+                    // 2) Individual apportioned entries per CC with the EXACT split value
+                    // When filtering by a specific CC, we must SKIP multi-CC umbrella entries
+                    // and only count single-CC entries (which already have the correct apportioned value).
+                    if (ccs.length > 1) return;
                 }
 
                 const categories = item.categorias || [];
@@ -336,16 +343,7 @@ async function aggregateTransactions(
                     const catId = categories[0].id;
                     if (catId) {
                         const key = `${catId}-${monthIdx}`;
-                        // RATEIO: If filtering by a specific cost center AND the transaction
-                        // has multiple CCs (it's apportioned/rateado), divide amount equally.
-                        // Conta Azul API does not expose per-CC values for apportioned transactions,
-                        // so we use an equal split across all linked CCs as the best approximation.
-                        let effectiveAmount = amount;
-                        const isFiltered = costCenterId && costCenterId !== 'DEFAULT' && costCenterId !== 'Geral';
-                        if (isFiltered && ccs.length > 1) {
-                            effectiveAmount = amount / ccs.length;
-                        }
-                        targetValues[key] = (targetValues[key] || 0) + effectiveAmount;
+                        targetValues[key] = (targetValues[key] || 0) + amount;
                     }
                 }
             });

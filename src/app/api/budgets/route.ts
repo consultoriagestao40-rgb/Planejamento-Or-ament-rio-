@@ -48,9 +48,7 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    const { categoryId, month, year, amount, costCenterId } = body;
-    const costCenterIds = (costCenterId || "DEFAULT").split(',').map((id: string) => id.trim()).filter(Boolean);
-    const targetCostCenterId = costCenterIds[0] || "DEFAULT";
+    const entries = body.entries ? body.entries : [body];
 
     // For prototype, find or create a default tenant
     let tenant = await prisma.tenant.findFirst();
@@ -63,34 +61,41 @@ export async function POST(request: Request) {
       });
     }
 
-    const budget = await prisma.budgetEntry.upsert({
-      where: {
-        tenantId_categoryId_costCenterId_month_year: {
+    const results = [];
+    for (const entry of entries) {
+      const { categoryId, month, year, costCenterId } = entry;
+      const targetCostCenterId = (costCenterId || "DEFAULT").split(',')[0] || "DEFAULT";
+
+      const budget = await prisma.budgetEntry.upsert({
+        where: {
+          tenantId_categoryId_costCenterId_month_year: {
+            tenantId: tenant.id,
+            categoryId,
+            costCenterId: targetCostCenterId,
+            month,
+            year
+          }
+        },
+        update: {
+          amount: entry.amount !== undefined ? entry.amount : undefined,
+          radarAmount: entry.radarAmount !== undefined ? entry.radarAmount : undefined,
+          isLocked: entry.isLocked !== undefined ? entry.isLocked : undefined,
+        },
+        create: {
           tenantId: tenant.id,
           categoryId,
           costCenterId: targetCostCenterId,
           month,
-          year
+          year,
+          amount: entry.amount || 0,
+          radarAmount: entry.radarAmount || 0,
+          isLocked: entry.isLocked || false,
         }
-      },
-      update: {
-        amount: body.amount !== undefined ? body.amount : undefined,
-        radarAmount: body.radarAmount !== undefined ? body.radarAmount : undefined,
-        isLocked: body.isLocked !== undefined ? body.isLocked : undefined,
-      },
-      create: {
-        tenantId: tenant.id,
-        categoryId,
-        costCenterId: targetCostCenterId,
-        month,
-        year,
-        amount: body.amount || 0,
-        radarAmount: body.radarAmount || 0,
-        isLocked: body.isLocked || false,
-      }
-    });
+      });
+      results.push(budget);
+    }
 
-    return NextResponse.json({ success: true, data: budget });
+    return NextResponse.json({ success: true, data: results.length === 1 ? results[0] : results });
   } catch (error) {
     console.error('Error saving budget:', error);
     return NextResponse.json({ success: false, error: 'Failed to save budget' }, { status: 500 });

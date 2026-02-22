@@ -438,8 +438,9 @@ export default function BudgetGrid({ refreshKey = 0, isExternalLoading = false }
                     const bData = budgetValues[`${node.id}-${i}`] || { amount: 0, radarAmount: 0, isLocked: false };
                     myBudget[i] += sign * bData.amount;
                     myRealized[i] += sign * (realizedValues[`${node.id}-${i}`] || 0);
-                    // Radar fallback to Orçado
-                    const radarVal = bData.radarAmount !== 0 ? bData.radarAmount : bData.amount;
+                    // Radar fallback to Orçado if not set
+                    const hasRadar = bData.radarAmount !== undefined && bData.radarAmount !== null;
+                    const radarVal = hasRadar ? bData.radarAmount : bData.amount;
                     myRadar[i] += sign * radarVal;
                 }
             }
@@ -526,11 +527,12 @@ export default function BudgetGrid({ refreshKey = 0, isExternalLoading = false }
         if (!budgetModal) return;
         setIsSavingBudget(true);
         try {
+            const entries = [];
             for (let i = 0; i < 12; i++) {
                 const currentVal = modalValues[i];
                 const locked = budgetValues[`${budgetModal.categoryId}-${i}`]?.isLocked || false;
 
-                const payload: any = {
+                const entry: any = {
                     categoryId: budgetModal.categoryId,
                     month: i,
                     year: selectedYear,
@@ -538,25 +540,24 @@ export default function BudgetGrid({ refreshKey = 0, isExternalLoading = false }
                 };
 
                 if (budgetModal.type === 'budget') {
-                    // Only allow editing original amount if not locked OR if user is MASTER
                     if (!locked || userRole === 'MASTER') {
-                        payload.amount = evaluateFormula(currentVal);
+                        entry.amount = evaluateFormula(currentVal);
                     }
-                    // Allow locking/unlocking only if MASTER
                     if (userRole === 'MASTER') {
-                        payload.isLocked = lockedMonths[i];
+                        entry.isLocked = lockedMonths[i];
                     }
                 } else {
-                    // Radar can always be edited
-                    payload.radarAmount = evaluateFormula(currentVal);
+                    entry.radarAmount = evaluateFormula(currentVal);
                 }
-
-                await fetch('/api/budgets', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(payload)
-                });
+                entries.push(entry);
             }
+
+            await fetch('/api/budgets', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ entries })
+            });
+
             setBudgetModal(null);
             // Re-fetch to update state
             const budgetRes = await fetch(`/api/budgets?costCenterId=${selectedCostCenter.join(',')}`);
@@ -587,8 +588,10 @@ export default function BudgetGrid({ refreshKey = 0, isExternalLoading = false }
         }
         const initialValues = new Array(12).fill('').map((_, i) => {
             const data = budgetValues[`${nodeId}-${i}`];
-            if (type === 'budget') return data?.amount ? data.amount.toString() : '';
-            return data?.radarAmount ? data.radarAmount.toString() : '';
+            if (type === 'budget') {
+                return (data?.amount !== undefined && data.amount !== null) ? data.amount.toString() : '';
+            }
+            return (data?.radarAmount !== undefined && data.radarAmount !== null) ? data.radarAmount.toString() : '';
         });
         const initialLocks = new Array(12).fill(false).map((_, i) => {
             const data = budgetValues[`${nodeId}-${i}`];
@@ -615,14 +618,15 @@ export default function BudgetGrid({ refreshKey = 0, isExternalLoading = false }
         const totals = nodeTotals.get(node.id) || { budget: new Array(12).fill(0), realized: new Array(12).fill(0), radar: new Array(12).fill(0) };
         const isExpanded = expandedRows.has(node.id);
         const hasChildren = node.children.length > 0;
+        const isEditable = !hasChildren && !node.isSynthetic && selectedCostCenter.length === 1;
 
         return (
             <React.Fragment key={node.id}>
-                <tr onClick={() => hasChildren && toggleRow(node.id)} style={{ background: hasChildren ? '#fdfdfd' : 'white', cursor: hasChildren ? 'pointer' : 'default', borderBottom: '1px solid #f1f5f9' }}>
-                    <td style={{
+                <tr style={{ background: '#fff', cursor: hasChildren ? 'pointer' : 'default', borderBottom: '1px solid #f1f5f9' }}>
+                    <td onClick={() => hasChildren && toggleRow(node.id)} style={{
                         padding: '0.5rem',
                         paddingLeft: `${1.5 + (node.level * 1.5)}rem`,
-                        position: 'sticky', left: 0, background: hasChildren ? '#fdfdfd' : 'white', zIndex: 5, display: 'flex', alignItems: 'center', color: hasChildren ? '#1e293b' : '#334155', fontWeight: hasChildren ? 600 : 400, fontSize: '0.8rem'
+                        position: 'sticky', left: 0, background: '#fff', zIndex: 5, display: 'flex', alignItems: 'center', color: hasChildren ? '#1e293b' : '#334155', fontWeight: hasChildren ? 600 : 400, fontSize: '0.8rem'
                     }}>
                         {hasChildren && <span style={{ marginRight: '0.5rem', fontSize: '0.7rem', width: '1rem', color: '#94a3b8' }}>{isExpanded ? '▼' : '▶'}</span>}
                         {!hasChildren && <span style={{ width: '1.5rem' }}></span>}
@@ -641,18 +645,19 @@ export default function BudgetGrid({ refreshKey = 0, isExternalLoading = false }
                         return (
                             <React.Fragment key={i}>
                                 <td
-                                    onClick={() => !hasChildren && !node.isSynthetic && openBudgetModal(node.id, node.name, i, 'budget')}
+                                    onClick={() => isEditable && openBudgetModal(node.id, node.name, i, 'budget')}
                                     style={{
                                         borderLeft: '1px solid #f1f5f9',
                                         padding: '0.5rem',
                                         minWidth: '100px',
                                         whiteSpace: 'nowrap',
-                                        cursor: (!hasChildren && !node.isSynthetic) ? 'pointer' : 'default',
-                                        backgroundColor: (!hasChildren && !node.isSynthetic) ? '#fff' : 'transparent',
+                                        cursor: isEditable ? 'pointer' : 'not-allowed',
+                                        backgroundColor: '#fff',
                                         transition: 'background 0.2s'
                                     }}
-                                    onMouseEnter={(e) => { if (!hasChildren && !node.isSynthetic) e.currentTarget.style.backgroundColor = '#f8fafc'; }}
-                                    onMouseLeave={(e) => { if (!hasChildren && !node.isSynthetic) e.currentTarget.style.backgroundColor = '#fff'; }}
+                                    onMouseEnter={(e) => { if (isEditable) e.currentTarget.style.backgroundColor = '#f8fafc'; }}
+                                    onMouseLeave={(e) => { if (isEditable) e.currentTarget.style.backgroundColor = '#fff'; }}
+                                    title={!isEditable ? "Selecione um único Centro de Custo para editar" : ""}
                                 >
                                     <div style={{ textAlign: 'right', fontSize: '0.8rem', color: '#334155', display: 'flex', alignItems: 'center', gap: '0.3rem', justifyContent: 'flex-end' }}>
                                         {bData.isLocked && <span title="Orçamento Travado" style={{ fontSize: '0.7rem', color: '#ef4444' }}>🔒</span>}
@@ -660,10 +665,21 @@ export default function BudgetGrid({ refreshKey = 0, isExternalLoading = false }
                                     </div>
                                 </td>
                                 <td
-                                    onClick={() => !hasChildren && !node.isSynthetic && openBudgetModal(node.id, node.name, i, 'radar')}
-                                    style={{ textAlign: 'right', padding: '0.5rem', borderLeft: '1px solid #f1f5f9', color: '#475569', fontSize: '0.8rem', fontWeight: 600, minWidth: '100px', backgroundColor: '#f8fafc', cursor: (!hasChildren && !node.isSynthetic) ? 'pointer' : 'default' }}
-                                    onMouseEnter={(e) => { if (!hasChildren && !node.isSynthetic) e.currentTarget.style.backgroundColor = '#f1f5f9'; }}
-                                    onMouseLeave={(e) => { if (!hasChildren && !node.isSynthetic) e.currentTarget.style.backgroundColor = '#f8fafc'; }}
+                                    onClick={() => isEditable && openBudgetModal(node.id, node.name, i, 'radar')}
+                                    style={{
+                                        textAlign: 'right',
+                                        padding: '0.5rem',
+                                        borderLeft: '1px solid #f1f5f9',
+                                        color: '#334155',
+                                        fontSize: '0.8rem',
+                                        fontWeight: 400,
+                                        minWidth: '100px',
+                                        backgroundColor: '#fff',
+                                        cursor: isEditable ? 'pointer' : 'not-allowed'
+                                    }}
+                                    onMouseEnter={(e) => { if (isEditable) e.currentTarget.style.backgroundColor = '#f8fafc'; }}
+                                    onMouseLeave={(e) => { if (isEditable) e.currentTarget.style.backgroundColor = '#fff'; }}
+                                    title={!isEditable ? "Selecione um único Centro de Custo para editar" : ""}
                                 >
                                     {formatCurrency(totals.radar[i])}
                                 </td>
@@ -718,7 +734,7 @@ export default function BudgetGrid({ refreshKey = 0, isExternalLoading = false }
                             <td style={{ textAlign: 'right', padding: '0.75rem', borderLeft: '1px solid #e2e8f0', color: bColor, fontSize: '0.8rem', minWidth: '100px', whiteSpace: 'nowrap' }}>
                                 <div>{formatCurrency(budgetVal)}</div>
                             </td>
-                            <td style={{ textAlign: 'right', padding: '0.75rem', borderLeft: '1px solid #e2e8f0', color: '#475569', fontSize: '0.8rem', minWidth: '100px', whiteSpace: 'nowrap', backgroundColor: '#f8fafc' }}>
+                            <td style={{ textAlign: 'right', padding: '0.75rem', borderLeft: '1px solid #e2e8f0', color: bColor, fontSize: '0.8rem', minWidth: '100px', whiteSpace: 'nowrap' }}>
                                 <div>{formatCurrency(radarVal)}</div>
                             </td>
                             <td style={{ textAlign: 'right', padding: '0.75rem', borderLeft: '1px solid #e2e8f0', color: rColor, fontSize: '0.8rem', minWidth: '120px', whiteSpace: 'nowrap' }}>
@@ -851,8 +867,8 @@ export default function BudgetGrid({ refreshKey = 0, isExternalLoading = false }
                             {MONTHS.map((m) => (
                                 <React.Fragment key={m}>
                                     <th style={{ fontSize: '0.7rem', color: '#94a3b8', borderLeft: '1px solid #f1f5f9', fontWeight: 500, paddingBottom: '0.5rem', borderBottom: '1px solid #e2e8f0', minWidth: '80px', whiteSpace: 'nowrap' }}>Orçado</th>
-                                    <th style={{ fontSize: '0.7rem', color: '#10b981', fontWeight: 700, paddingBottom: '0.5rem', borderBottom: '1px solid #e2e8f0', minWidth: '80px', whiteSpace: 'nowrap', backgroundColor: '#ecfdf5' }}>Radar</th>
-                                    <th style={{ fontSize: '0.7rem', color: '#94a3b8', fontWeight: 500, paddingBottom: '0.5rem', borderBottom: '1px solid #e2e8f0', minWidth: '80px', whiteSpace: 'nowrap' }}>Realizado</th>
+                                    <th style={{ fontSize: '0.7rem', color: '#94a3b8', borderLeft: '1px solid #f1f5f9', fontWeight: 500, paddingBottom: '0.5rem', borderBottom: '1px solid #e2e8f0', minWidth: '80px', whiteSpace: 'nowrap' }}>Radar</th>
+                                    <th style={{ fontSize: '0.7rem', color: '#94a3b8', borderLeft: '1px solid #f1f5f9', fontWeight: 500, paddingBottom: '0.5rem', borderBottom: '1px solid #e2e8f0', minWidth: '80px', whiteSpace: 'nowrap' }}>Realizado</th>
                                 </React.Fragment>
                             ))}
                         </tr>

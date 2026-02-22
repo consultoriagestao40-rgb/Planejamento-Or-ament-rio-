@@ -140,6 +140,19 @@ export default function BudgetGrid({ refreshKey = 0 }: BudgetGridProps) {
                 }
             }
 
+            // Force naming for 03.1 to 03.9 to maintain consistency even if API brings them differently
+            if (rawCode.match(/^03\.[1-9]$/)) {
+                if (rawCode === '03.1') effectiveName = '03.1 - Salarios e Remuneração';
+                if (rawCode === '03.2') effectiveName = '03.2 - Encargos Sociais';
+                if (rawCode === '03.3') effectiveName = '03.3 - Beneficios';
+                if (rawCode === '03.4') effectiveName = '03.4 - Diárias';
+                if (rawCode === '03.5') effectiveName = '03.5 - SSMA';
+                if (rawCode === '03.6') effectiveName = '03.6 - Materiais';
+                if (rawCode === '03.7') effectiveName = '03.7 - Equipamentos';
+                if (rawCode === '03.8') effectiveName = '03.8 - Comunicação/Sistema/Licenças';
+                if (rawCode === '03.9') effectiveName = '03.9 - Custo com Veiculo';
+            }
+
             const node: CategoryNode = {
                 ...cat,
                 name: effectiveName,
@@ -152,11 +165,20 @@ export default function BudgetGrid({ refreshKey = 0 }: BudgetGridProps) {
             if (effectiveCode) codeMap.set(effectiveCode, node);
         });
 
-        // 2. Synthetics
         const syntheticParents = [
             { code: '01.1', name: 'RECEITA DE SERVIÇOS', parentCode: '01' },
             { code: '01.2', name: 'RECEITAS DE VENDAS', parentCode: '01' },
             { code: '02.1', name: 'TRIBUTOS', parentCode: null },
+            // CUSTOS OPERACIONAIS (03.1 to 03.9)
+            { code: '03.1', name: 'Salarios e Remuneração', parentCode: '03' },
+            { code: '03.2', name: 'Encargos Sociais', parentCode: '03' },
+            { code: '03.3', name: 'Beneficios', parentCode: '03' },
+            { code: '03.4', name: 'Diárias', parentCode: '03' },
+            { code: '03.5', name: 'SSMA', parentCode: '03' },
+            { code: '03.6', name: 'Materiais', parentCode: '03' },
+            { code: '03.7', name: 'Equipamentos', parentCode: '03' },
+            { code: '03.8', name: 'Comunicação/Sistema/Licenças', parentCode: '03' },
+            { code: '03.9', name: 'Custo com Veiculo', parentCode: '03' },
         ];
 
         syntheticParents.forEach(synth => {

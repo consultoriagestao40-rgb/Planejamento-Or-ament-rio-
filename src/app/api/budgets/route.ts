@@ -15,10 +15,12 @@ export async function GET(request: Request) {
       return NextResponse.json({ success: true, data: [] });
     }
 
+    const isGeneralView = costCenterIds.includes('DEFAULT');
+
     const budgets = await prisma.budgetEntry.findMany({
       where: {
         tenantId: tenant.id,
-        costCenterId: { in: costCenterIds }
+        ...(isGeneralView ? {} : { costCenterId: { in: costCenterIds } })
       }
     });
 

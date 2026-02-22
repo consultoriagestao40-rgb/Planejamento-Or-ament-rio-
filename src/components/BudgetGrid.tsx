@@ -182,6 +182,18 @@ export default function BudgetGrid({ refreshKey = 0 }: BudgetGridProps) {
                 if (rawCode === '05.13') effectiveName = '05.13 Taxas e Despesas Legais';
             }
 
+            // Force naming for 06.1 to 06.8
+            if (rawCode.match(/^06\.[1-8]$/)) {
+                if (rawCode === '06.1') effectiveName = '06.1 Entradas Financeiras';
+                if (rawCode === '06.2') effectiveName = '06.2 Saidas Financeiras';
+                if (rawCode === '06.3') effectiveName = '06.3 Financiamento';
+                if (rawCode === '06.4') effectiveName = '06.4 Juros/Multas';
+                if (rawCode === '06.5') effectiveName = '06.5 Passivo Trabalhista';
+                if (rawCode === '06.6') effectiveName = '06.6 Depreciação';
+                if (rawCode === '06.7') effectiveName = '06.7 Cartão de Credito';
+                if (rawCode === '06.8') effectiveName = '06.8 PDD';
+            }
+
             const node: CategoryNode = {
                 ...cat,
                 name: effectiveName,
@@ -231,6 +243,15 @@ export default function BudgetGrid({ refreshKey = 0 }: BudgetGridProps) {
             { code: '05.11', name: '05.11 Despesa com Veículos', parentCode: '05' },
             { code: '05.12', name: '05.12 Despesa de Informatica', parentCode: '05' },
             { code: '05.13', name: '05.13 Taxas e Despesas Legais', parentCode: '05' },
+            // DESPESAS FINANCEIRAS (06.1 to 06.8)
+            { code: '06.1', name: '06.1 Entradas Financeiras', parentCode: '06' },
+            { code: '06.2', name: '06.2 Saidas Financeiras', parentCode: '06' },
+            { code: '06.3', name: '06.3 Financiamento', parentCode: '06' },
+            { code: '06.4', name: '06.4 Juros/Multas', parentCode: '06' },
+            { code: '06.5', name: '06.5 Passivo Trabalhista', parentCode: '06' },
+            { code: '06.6', name: '06.6 Depreciação', parentCode: '06' },
+            { code: '06.7', name: '06.7 Cartão de Credito', parentCode: '06' },
+            { code: '06.8', name: '06.8 PDD', parentCode: '06' },
         ];
 
         syntheticParents.forEach(synth => {
@@ -400,8 +421,8 @@ export default function BudgetGrid({ refreshKey = 0 }: BudgetGridProps) {
             else if (code.startsWith('02') || code === '2') buckets.taxes.push(root);
             else if (code.startsWith('3') || code.startsWith('03')) buckets.costs.push(root);
             else if (code.startsWith('4') || code.startsWith('04')) buckets.opExp.push(root);
-            else if (code.startsWith('5') || code.startsWith('05') || code.startsWith('6') || code.startsWith('06') || code.startsWith('7') || code.startsWith('07') || code.startsWith('8') || code.startsWith('08')) buckets.adminExp.push(root);
-            else if (code.startsWith('9') || code.startsWith('09') || code.startsWith('10')) buckets.fin.push(root);
+            else if (code.startsWith('5') || code.startsWith('05') || code.startsWith('7') || code.startsWith('07') || code.startsWith('8') || code.startsWith('08')) buckets.adminExp.push(root);
+            else if (code.startsWith('6') || code.startsWith('06') || code.startsWith('9') || code.startsWith('09') || code.startsWith('10')) buckets.fin.push(root);
             else buckets.other.push(root);
         });
 

@@ -1,0 +1,1 @@
+{"success":true,"payables":{"status":404,"error":"{\"timestamp\":\"2026-02-22T15:14:28.476+00:00\",\"status\":404,\"error\":\"Not Found\",\"message\":\"Not Found\",\"path\":\"/api/v1/financeiro/contas-a-pagar\"}"}}

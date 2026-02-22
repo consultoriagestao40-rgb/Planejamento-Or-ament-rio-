@@ -434,6 +434,12 @@ async function fetchCostCenters(accessToken: string) {
             if (res.ok) {
                 let items = Array.isArray(data) ? data : (data.itens || data.items || data.centro_de_custos || data.centro_custo || []);
                 if (items.length > 0) {
+
+                    // DEBUG: Capture the first item to understand the status structure
+                    if (page === 1) {
+                        (global as any).lastApiError = `DEBUG CC[0]: ${JSON.stringify(items[0]).substring(0, 500)}`;
+                    }
+
                     // Filter for active CCs only. Conta Azul uses status='ATIVO' or 'INATIVO', or booleans 'ativo'/'inativo'
                     items = items.filter((i: any) => {
                         if (i.status) return i.status.toUpperCase() === 'ATIVO';

@@ -76,7 +76,7 @@ async function fetchUserInfo(accessToken: string) {
 }
 
 // V47.9.10: Updated signature to accept Cost Center & Year
-export async function syncData(costCenterId: string = 'DEFAULT', year: number = new Date().getFullYear()) {
+export async function syncData(costCenterId: string = 'DEFAULT', year: number = new Date().getFullYear(), viewMode: 'caixa' | 'competencia' = 'competencia') {
     let accessToken: string;
     try {
         accessToken = await getValidAccessToken();
@@ -200,7 +200,7 @@ export async function syncData(costCenterId: string = 'DEFAULT', year: number = 
     const transactionLogs: string[] = [];
     try {
         (global as any).lastTransactionLogs = transactionLogs; // Pass the array to be filled
-        realizedValues = await fetchRealizedValues(accessToken, year, costCenterId);
+        realizedValues = await fetchRealizedValues(accessToken, year, costCenterId, viewMode);
     } catch (e: any) {
         console.warn("Could not fetch realized values:", e);
         transactionLogs.push(`Fatal Error: ${e.message}`);
@@ -229,7 +229,7 @@ export async function syncData(costCenterId: string = 'DEFAULT', year: number = 
 }
 
 // V46: Aggregates transactions for DRE (Competence View - V47.9.5)
-async function fetchRealizedValues(accessToken: string, targetYear: number, costCenterId: string): Promise<Record<string, number>> {
+async function fetchRealizedValues(accessToken: string, targetYear: number, costCenterId: string, viewMode: 'caixa' | 'competencia' = 'competencia'): Promise<Record<string, number>> {
     const values: Record<string, number> = {};
 
     // V47.9.10: Use targetYear passed from Frontend
@@ -244,7 +244,8 @@ async function fetchRealizedValues(accessToken: string, targetYear: number, cost
         values,
         false,
         costCenterId,
-        targetYear
+        targetYear,
+        viewMode
     );
 
     // 2. Fetch Payables
@@ -254,7 +255,8 @@ async function fetchRealizedValues(accessToken: string, targetYear: number, cost
         values,
         true, // isExpense
         costCenterId,
-        targetYear
+        targetYear,
+        viewMode
     );
 
     return values;
@@ -266,7 +268,8 @@ async function aggregateTransactions(
     targetValues: Record<string, number>,
     isExpense = false,
     costCenterId: string = 'DEFAULT',
-    targetYear: number
+    targetYear: number,
+    viewMode: 'caixa' | 'competencia' = 'competencia'
 ) {
     let page = 1;
     let hasMore = true;
@@ -302,8 +305,19 @@ async function aggregateTransactions(
             if (items.length === 0) { hasMore = false; break; }
 
             items.forEach((item: any) => {
-                const amount = item.valor || item.valor_original || item.total || item.valor_liquido || 0;
-                const dateStr = item.data_competencia || item.data_vencimento || item.vencimento || item.data_pagamento;
+                // Caixa: parcel value + vencimento date
+                // Competencia (Gerencial): total cost + competencia date
+                let amount: number;
+                let dateStr: string;
+                if (viewMode === 'caixa') {
+                    // Cash basis: use the parcel/installment value and due date
+                    amount = item.valor || item.valor_original || item.valor_liquido || item.total || 0;
+                    dateStr = item.data_vencimento || item.vencimento || item.data_competencia || item.data_pagamento;
+                } else {
+                    // Accrual basis (Gerencial): use total cost and competencia date
+                    amount = item.total || item.valor_original || item.valor || item.valor_liquido || 0;
+                    dateStr = item.data_competencia || item.data_vencimento || item.vencimento || item.data_pagamento;
+                }
                 let dateObj = dateStr ? new Date(dateStr) : new Date();
                 const monthIdx = dateObj.getMonth();
                 const year = dateObj.getFullYear();

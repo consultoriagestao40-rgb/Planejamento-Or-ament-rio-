@@ -28,6 +28,7 @@ export default function BudgetGrid({ refreshKey = 0 }: BudgetGridProps) {
     const [loading, setLoading] = useState(true);
     const [selectedCostCenter, setSelectedCostCenter] = useState('DEFAULT');
     const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
+    const [viewMode, setViewMode] = useState<'caixa' | 'competencia'>('competencia');
 
     // --- Transaction Drill-down State ---
     const [selectedCell, setSelectedCell] = useState<{ categoryId: string, month: number, categoryName: string } | null>(null);
@@ -88,7 +89,7 @@ export default function BudgetGrid({ refreshKey = 0 }: BudgetGridProps) {
             try {
                 const [budgetRes, syncRes] = await Promise.all([
                     fetch(`/api/budgets?costCenterId=${selectedCostCenter}&year=${selectedYear}&t=${Date.now()}`, { cache: 'no-store' }),
-                    fetch(`/api/sync?costCenterId=${selectedCostCenter}&year=${selectedYear}&t=${Date.now()}`, { cache: 'no-store' })
+                    fetch(`/api/sync?costCenterId=${selectedCostCenter}&year=${selectedYear}&viewMode=${viewMode}&t=${Date.now()}`, { cache: 'no-store' })
                 ]);
 
                 const budgetData = await budgetRes.json();
@@ -114,7 +115,7 @@ export default function BudgetGrid({ refreshKey = 0 }: BudgetGridProps) {
         };
 
         loadValues();
-    }, [selectedCostCenter, selectedYear, refreshKey]);
+    }, [selectedCostCenter, selectedYear, refreshKey, viewMode]);
 
     // --- HIERARCHY BUILDER ---
     const treeRoots = useMemo(() => {
@@ -567,6 +568,41 @@ export default function BudgetGrid({ refreshKey = 0 }: BudgetGridProps) {
                     <select value={selectedCostCenter} onChange={(e) => setSelectedCostCenter(e.target.value)} style={{ padding: '0.5rem', borderRadius: '4px', border: '1px solid #cbd5e1', minWidth: '200px' }}>
                         {costCenters.map(cc => <option key={cc.id} value={cc.id}>{cc.name}</option>)}
                     </select>
+                </div>
+                {/* View Mode Toggle */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', background: '#f1f5f9', borderRadius: '8px', padding: '0.25rem' }}>
+                    <button
+                        onClick={() => setViewMode('competencia')}
+                        style={{
+                            padding: '0.4rem 0.9rem',
+                            borderRadius: '6px',
+                            border: 'none',
+                            cursor: 'pointer',
+                            fontSize: '0.75rem',
+                            fontWeight: 600,
+                            backgroundColor: viewMode === 'competencia' ? '#2563eb' : 'transparent',
+                            color: viewMode === 'competencia' ? 'white' : '#64748b',
+                            transition: 'all 0.2s',
+                        }}
+                    >
+                        📊 Competência
+                    </button>
+                    <button
+                        onClick={() => setViewMode('caixa')}
+                        style={{
+                            padding: '0.4rem 0.9rem',
+                            borderRadius: '6px',
+                            border: 'none',
+                            cursor: 'pointer',
+                            fontSize: '0.75rem',
+                            fontWeight: 600,
+                            backgroundColor: viewMode === 'caixa' ? '#2563eb' : 'transparent',
+                            color: viewMode === 'caixa' ? 'white' : '#64748b',
+                            transition: 'all 0.2s',
+                        }}
+                    >
+                        💵 Caixa
+                    </button>
                 </div>
             </div>
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8rem' }}>

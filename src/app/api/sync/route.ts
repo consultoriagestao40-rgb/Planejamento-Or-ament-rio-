@@ -9,11 +9,12 @@ export async function GET(request: Request) {
         const { searchParams } = new URL(request.url);
         const costCenterId = searchParams.get('costCenterId') || 'DEFAULT';
         const year = parseInt(searchParams.get('year') || '2026', 10);
+        const viewMode = (searchParams.get('viewMode') || 'competencia') as 'caixa' | 'competencia';
 
         // V47.10: Removed blocking logic for non-default CCs.
         // We now pass the CC ID down to the service to filter at the API level.
 
-        const syncResult = await syncData(costCenterId, year) as any;
+        const syncResult = await syncData(costCenterId, year, viewMode) as any;
 
         if (!syncResult.success && syncResult.error) {
             return NextResponse.json(syncResult, { status: 500 });

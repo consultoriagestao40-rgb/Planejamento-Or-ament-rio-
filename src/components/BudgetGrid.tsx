@@ -127,11 +127,12 @@ export default function BudgetGrid({ refreshKey = 0, isExternalLoading = false }
                 const syncData = await syncRes.json();
 
                 if (budgetData.success) {
-                    const values: Record<string, { amount: number, radarAmount: number, isLocked: boolean }> = {};
+                    const values: Record<string, { amount: number, radarAmount: number | null, isLocked: boolean }> = {};
                     budgetData.data.forEach((item: any) => {
-                        values[`${item.categoryId}-${item.month}`] = {
-                            amount: item.amount,
-                            radarAmount: item.radarAmount || 0,
+                        // Map 1-12 from DB to 0-11 for UI
+                        values[`${item.categoryId}-${item.month - 1}`] = {
+                            amount: item.amount || 0,
+                            radarAmount: (item.radarAmount !== undefined && item.radarAmount !== null) ? item.radarAmount : null,
                             isLocked: item.isLocked || false
                         };
                     });
@@ -576,7 +577,8 @@ export default function BudgetGrid({ refreshKey = 0, isExternalLoading = false }
             if (budgetData.success) {
                 const values: Record<string, { amount: number, radarAmount: number | null, isLocked: boolean }> = {};
                 budgetData.data.forEach((item: any) => {
-                    values[`${item.categoryId}-${item.month}`] = {
+                    // Map 1-12 from DB to 0-11 for UI
+                    values[`${item.categoryId}-${item.month - 1}`] = {
                         amount: item.amount || 0,
                         radarAmount: (item.radarAmount !== undefined && item.radarAmount !== null) ? item.radarAmount : null,
                         isLocked: item.isLocked || false

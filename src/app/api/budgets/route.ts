@@ -32,6 +32,7 @@ export async function GET(request: Request) {
 
     const tenant = await prisma.tenant.findFirst();
     if (!tenant) {
+      console.log("[GET] No tenant found");
       return NextResponse.json({ success: true, data: [] });
     }
 
@@ -45,6 +46,7 @@ export async function GET(request: Request) {
     });
 
     const aggregatedBudgets = budgets.reduce((acc, curr: any) => {
+      // Keep DB month as is (1-12)
       const key = `${curr.categoryId}-${curr.month}`;
       if (!acc[key]) {
         acc[key] = {
@@ -52,7 +54,7 @@ export async function GET(request: Request) {
           month: curr.month,
           year: curr.year,
           amount: curr.amount || 0,
-          radarAmount: curr.radarAmount || 0,
+          radarAmount: curr.radarAmount,
           isLocked: curr.isLocked || false
         };
       } else {
@@ -64,9 +66,9 @@ export async function GET(request: Request) {
     }, {} as Record<string, any>);
 
     return NextResponse.json({ success: true, data: Object.values(aggregatedBudgets) });
-  } catch (error) {
+  } catch (error: any) {
     console.error('Error fetching budgets:', error);
-    return NextResponse.json({ success: false, error: 'Failed to fetch budgets' }, { status: 500 });
+    return NextResponse.json({ success: false, error: 'Failed to fetch budgets', details: error.message }, { status: 500 });
   }
 }
 
@@ -88,15 +90,10 @@ export async function POST(request: Request) {
       const { categoryId, month, year, costCenterId } = entry;
       const targetCostCenterId = (costCenterId || "DEFAULT").split(',')[0] || "DEFAULT";
 
-      console.log(`[API DEBUG] Attempting upsert for:`, {
-        categoryId,
-        month,
-        year,
-        targetCostCenterId,
-        amount: entry.amount,
-        radarAmount: entry.radarAmount,
-        isLocked: entry.isLocked
-      });
+      // Convert to 1-indexed for DB (1-12)
+      const dbMonth = parseInt(month.toString()) + 1;
+
+      console.log(`[API POST] Upserting Cat: ${categoryId}, Month: ${dbMonth}`);
 
       try {
         const whereClause = {
@@ -104,24 +101,24 @@ export async function POST(request: Request) {
             tenantId: tenant.id,
             categoryId: categoryId,
             costCenterId: targetCostCenterId,
-            month: parseInt(month.toString()),
+            month: dbMonth,
             year: parseInt(year.toString())
           }
         };
 
         const updateData: any = {};
-        if (entry.amount !== undefined) updateData.amount = parseFloat(entry.amount.toString());
-        if (entry.radarAmount !== undefined) updateData.radarAmount = entry.radarAmount === null ? null : parseFloat(entry.radarAmount.toString());
+        if (entry.amount !== undefined) updateData.amount = parseFloat(entry.amount.toString() || "0");
+        if (entry.radarAmount !== undefined) updateData.radarAmount = entry.radarAmount === null ? null : parseFloat(entry.radarAmount.toString() || "0");
         if (entry.isLocked !== undefined) updateData.isLocked = !!entry.isLocked;
 
         const createData: any = {
           tenantId: tenant.id,
           categoryId: categoryId,
           costCenterId: targetCostCenterId,
-          month: parseInt(month.toString()),
+          month: dbMonth,
           year: parseInt(year.toString()),
-          amount: entry.amount !== undefined ? parseFloat(entry.amount.toString()) : 0,
-          radarAmount: entry.radarAmount !== undefined && entry.radarAmount !== null ? parseFloat(entry.radarAmount.toString()) : null,
+          amount: entry.amount !== undefined ? parseFloat(entry.amount.toString() || "0") : 0,
+          radarAmount: entry.radarAmount !== undefined && entry.radarAmount !== null ? parseFloat(entry.radarAmount.toString() || "0") : null,
           isLocked: !!entry.isLocked
         };
 
@@ -130,18 +127,16 @@ export async function POST(request: Request) {
           update: updateData,
           create: createData
         });
-
-        console.log(`[API DEBUG] Success for Cat: ${categoryId}, Month: ${month}`);
         results.push(budget);
       } catch (err: any) {
-        console.error(`[API DEBUG] FAILED entry Cat: ${categoryId}, Month: ${month}:`, err.message);
-        throw new Error(`Erro na categoria ${categoryId}, mês ${month}: ${err.message}`);
+        console.error(`[API POST ERR] Cat ${categoryId}:`, err.message);
+        throw err;
       }
     }
 
     return NextResponse.json({ success: true, data: results });
   } catch (error: any) {
-    console.error('[API CRITICAL ERROR]:', error.message);
+    console.error('[API POST CRITICAL]:', error.message);
     return NextResponse.json({
       success: false,
       error: 'Failed to save budget',

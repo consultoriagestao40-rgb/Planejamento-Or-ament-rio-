@@ -32,6 +32,8 @@ export default function BudgetGrid({ refreshKey = 0, isExternalLoading = false }
     const [costCenterDropdownOpen, setCostCenterDropdownOpen] = useState(false);
     const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
     const [viewMode, setViewMode] = useState<'caixa' | 'competencia'>('competencia');
+    const [showAV, setShowAV] = useState(false);
+    const [showAH, setShowAH] = useState(false);
 
     // --- Transaction Drill-down State ---
     const [selectedCell, setSelectedCell] = useState<{ categoryId: string, month: number, categoryName: string } | null>(null);
@@ -580,29 +582,50 @@ export default function BudgetGrid({ refreshKey = 0, isExternalLoading = false }
                         {!hasChildren && <span style={{ width: '1.5rem' }}></span>}
                         {node.name}
                     </td>
-                    {MONTHS.map((_, i) => (
-                        <React.Fragment key={i}>
-                            <td
-                                onClick={() => !hasChildren && !node.isSynthetic && openBudgetModal(node.id, node.name, i)}
-                                style={{
-                                    borderLeft: '1px solid #f1f5f9',
-                                    padding: '0.5rem',
-                                    minWidth: '90px',
-                                    whiteSpace: 'nowrap',
-                                    cursor: (!hasChildren && !node.isSynthetic) ? 'pointer' : 'default',
-                                    backgroundColor: (!hasChildren && !node.isSynthetic) ? '#fff' : 'transparent',
-                                    transition: 'background 0.2s'
-                                }}
-                                onMouseEnter={(e) => { if (!hasChildren && !node.isSynthetic) e.currentTarget.style.backgroundColor = '#f8fafc'; }}
-                                onMouseLeave={(e) => { if (!hasChildren && !node.isSynthetic) e.currentTarget.style.backgroundColor = '#fff'; }}
-                            >
-                                <div style={{ textAlign: 'right', fontSize: '0.8rem', color: (!hasChildren && !node.isSynthetic) ? '#334155' : '#64748b', fontWeight: (!hasChildren && !node.isSynthetic) ? 500 : 400 }}>
-                                    {formatCurrency(totals.budget[i])}
-                                </div>
-                            </td>
-                            <td onClick={() => handleCellClick(node.id, i, node.name)} style={{ textAlign: 'right', padding: '0.5rem', color: '#3b82f6', fontSize: '0.8rem', fontWeight: 500, cursor: 'pointer', minWidth: '90px', whiteSpace: 'nowrap' }}>{formatCurrency(totals.realized[i])}</td>
-                        </React.Fragment>
-                    ))}
+                    {MONTHS.map((_, i) => {
+                        const monthTotal = dreStructure.calculateTotals(i);
+                        const revBruta = monthTotal.vRev.b || 1; // Fallback to 1 to avoid / 0
+                        const revBrutaReal = monthTotal.vRev.r || 1;
+
+                        const avBudget = (totals.budget[i] / revBruta) * 100;
+                        const avRealized = (totals.realized[i] / revBrutaReal) * 100;
+                        const ahValue = totals.budget[i] !== 0 ? (totals.realized[i] / totals.budget[i]) * 100 : 0;
+
+                        return (
+                            <React.Fragment key={i}>
+                                <td
+                                    onClick={() => !hasChildren && !node.isSynthetic && openBudgetModal(node.id, node.name, i)}
+                                    style={{
+                                        borderLeft: '1px solid #f1f5f9',
+                                        padding: '0.5rem',
+                                        minWidth: '100px',
+                                        whiteSpace: 'nowrap',
+                                        cursor: (!hasChildren && !node.isSynthetic) ? 'pointer' : 'default',
+                                        backgroundColor: (!hasChildren && !node.isSynthetic) ? '#fff' : 'transparent',
+                                        transition: 'background 0.2s'
+                                    }}
+                                    onMouseEnter={(e) => { if (!hasChildren && !node.isSynthetic) e.currentTarget.style.backgroundColor = '#f8fafc'; }}
+                                    onMouseLeave={(e) => { if (!hasChildren && !node.isSynthetic) e.currentTarget.style.backgroundColor = '#fff'; }}
+                                >
+                                    <div style={{ textAlign: 'right', fontSize: '0.8rem', color: (!hasChildren && !node.isSynthetic) ? '#334155' : '#64748b', fontWeight: (!hasChildren && !node.isSynthetic) ? 500 : 400 }}>
+                                        {formatCurrency(totals.budget[i])}
+                                        {showAV && (
+                                            <div style={{ fontSize: '0.65rem', color: '#94a3b8', fontWeight: 400 }}>
+                                                AV: {avBudget.toFixed(1)}%
+                                            </div>
+                                        )}
+                                    </div>
+                                </td>
+                                <td onClick={() => handleCellClick(node.id, i, node.name)} style={{ textAlign: 'right', padding: '0.5rem', color: '#3b82f6', fontSize: '0.8rem', fontWeight: 500, cursor: 'pointer', minWidth: '100px', whiteSpace: 'nowrap' }}>
+                                    {formatCurrency(totals.realized[i])}
+                                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end' }}>
+                                        {showAV && <span style={{ fontSize: '0.65rem', color: '#94a3b8', fontWeight: 400 }}>AV: {avRealized.toFixed(1)}%</span>}
+                                        {showAH && <span style={{ fontSize: '0.65rem', color: '#059669', fontWeight: 600 }}>AH: {ahValue.toFixed(1)}%</span>}
+                                    </div>
+                                </td>
+                            </React.Fragment>
+                        );
+                    })}
                 </tr>
                 {isExpanded && node.children.map(child => renderNode(child))}
             </React.Fragment>
@@ -701,6 +724,17 @@ export default function BudgetGrid({ refreshKey = 0, isExternalLoading = false }
                     </div>
                     <button onClick={applyFilter} style={{ padding: '0 1rem', height: '38px', backgroundColor: '#2563eb', color: 'white', border: 'none', borderRadius: '6px', fontSize: '0.85rem', fontWeight: 600, cursor: 'pointer', transition: 'all 0.2s', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>🔍 Filtrar</button>
                     <button onClick={clearFilter} style={{ padding: '0 1rem', height: '38px', backgroundColor: 'transparent', color: '#64748b', border: '1px solid #cbd5e1', borderRadius: '6px', fontSize: '0.85rem', fontWeight: 600, cursor: 'pointer', transition: 'all 0.2s' }}>Limpar</button>
+
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginLeft: '1rem', borderLeft: '1px solid #e2e8f0', paddingLeft: '1rem' }}>
+                        <label style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.8rem', fontWeight: 600, color: '#475569', cursor: 'pointer' }}>
+                            <input type="checkbox" checked={showAV} onChange={(e) => setShowAV(e.target.checked)} style={{ cursor: 'pointer' }} />
+                            Análise Vertical (AV)
+                        </label>
+                        <label style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.8rem', fontWeight: 600, color: '#475569', cursor: 'pointer' }}>
+                            <input type="checkbox" checked={showAH} onChange={(e) => setShowAH(e.target.checked)} style={{ cursor: 'pointer' }} />
+                            Análise Horizontal (AH)
+                        </label>
+                    </div>
                 </div>
 
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', background: '#f1f5f9', borderRadius: '8px', padding: '0.25rem', height: '38px', marginLeft: 'auto' }}>

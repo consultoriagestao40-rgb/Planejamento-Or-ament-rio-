@@ -589,38 +589,40 @@ export default function BudgetGrid({ refreshKey = 0, isExternalLoading = false }
     return (
         <>
             {/* Controls bar - Restored full width layout */}
-            <div style={{ display: 'flex', gap: '1rem', width: '100%', maxWidth: '800px', margin: '0 0 2rem 0', alignItems: 'flex-end' }}>
-                <div style={{ flex: 1, position: 'relative' }}>
-                    <label style={{ display: 'block', fontSize: '0.9rem', marginBottom: '0.5rem', fontWeight: 600, color: '#64748b' }}>Centro de Custo</label>
-                    <div
-                        onClick={() => setCostCenterDropdownOpen(!costCenterDropdownOpen)}
-                        style={{ padding: '0.5rem 0.75rem', borderRadius: '6px', border: '1px solid #cbd5e1', backgroundColor: '#fff', cursor: 'pointer', fontSize: '0.85rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', minHeight: '38px' }}
-                    >
-                        <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{getSelectedCostCenterNames()}</span>
-                        <span style={{ fontSize: '0.6rem', color: '#94a3b8' }}>▼</span>
-                    </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', margin: '0 0 1.5rem 0', width: '100%' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                    <label style={{ fontSize: '0.85rem', fontWeight: 600, color: '#64748b', whiteSpace: 'nowrap' }}>Centro de Custo</label>
+                    <div style={{ position: 'relative', minWidth: '350px' }}>
+                        <div
+                            onClick={() => setCostCenterDropdownOpen(!costCenterDropdownOpen)}
+                            style={{ padding: '0.45rem 0.75rem', borderRadius: '6px', border: '1px solid #cbd5e1', backgroundColor: '#fff', cursor: 'pointer', fontSize: '0.85rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', minHeight: '38px' }}
+                        >
+                            <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{getSelectedCostCenterNames()}</span>
+                            <span style={{ fontSize: '0.6rem', color: '#94a3b8' }}>▼</span>
+                        </div>
 
-                    {costCenterDropdownOpen && (
-                        <>
-                            <div
-                                style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, zIndex: 30 }}
-                                onClick={() => setCostCenterDropdownOpen(false)}
-                            />
-                            <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, marginTop: '4px', backgroundColor: '#fff', border: '1px solid #e2e8f0', borderRadius: '6px', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1)', zIndex: 40, maxHeight: '300px', overflowY: 'auto' }}>
-                                {costCenters.map(cc => (
-                                    <label key={cc.id} style={{ display: 'flex', alignItems: 'center', padding: '0.5rem 0.75rem', cursor: 'pointer', borderBottom: '1px solid #f1f5f9', fontSize: '0.85rem' }}>
-                                        <input
-                                            type="checkbox"
-                                            checked={selectedCostCenter.includes(cc.id)}
-                                            onChange={() => handleCostCenterToggle(cc.id)}
-                                            style={{ marginRight: '0.5rem', cursor: 'pointer' }}
-                                        />
-                                        <span style={{ flex: 1 }}>{cc.name}</span>
-                                    </label>
-                                ))}
-                            </div>
-                        </>
-                    )}
+                        {costCenterDropdownOpen && (
+                            <>
+                                <div
+                                    style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, zIndex: 30 }}
+                                    onClick={() => setCostCenterDropdownOpen(false)}
+                                />
+                                <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, marginTop: '4px', backgroundColor: '#fff', border: '1px solid #e2e8f0', borderRadius: '6px', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1)', zIndex: 40, maxHeight: '300px', overflowY: 'auto' }}>
+                                    {costCenters.map(cc => (
+                                        <label key={cc.id} style={{ display: 'flex', alignItems: 'center', padding: '0.5rem 0.75rem', cursor: 'pointer', borderBottom: '1px solid #f1f5f9', fontSize: '0.85rem' }}>
+                                            <input
+                                                type="checkbox"
+                                                checked={selectedCostCenter.includes(cc.id)}
+                                                onChange={() => handleCostCenterToggle(cc.id)}
+                                                style={{ marginRight: '0.5rem', cursor: 'pointer' }}
+                                            />
+                                            <span style={{ flex: 1 }}>{cc.name}</span>
+                                        </label>
+                                    ))}
+                                </div>
+                            </>
+                        )}
+                    </div>
                 </div>
 
                 {/* View Mode Toggle */}
@@ -660,93 +662,97 @@ export default function BudgetGrid({ refreshKey = 0, isExternalLoading = false }
                     </button>
                 </div>
             </div>
+        </div >
 
-            {/* Table Container */}
-            <div style={{ position: 'relative', overflowX: 'auto', border: '1px solid #e2e8f0', borderRadius: '8px', background: 'white', minHeight: '300px' }}>
-                {(loading || isExternalLoading) && (
-                    <div style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(255, 255, 255, 0.7)', zIndex: 100, display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center' }}>
-                        <div style={{ width: '40px', height: '40px', border: '4px solid #f1f5f9', borderTop: '4px solid #3b82f6', borderRadius: '50%', animation: 'spin-loading 1s linear infinite' }} />
-                        <span style={{ marginTop: '1rem', color: '#1e293b', fontWeight: 600, fontSize: '0.9rem' }}>Atualizando...</span>
-                        <style>{`@keyframes spin-loading { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }`}</style>
-                    </div>
-                )}
-                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8rem' }}>
-                    <thead>
-                        <tr style={{ background: '#f8fafc', borderBottom: '2px solid #cbd5e1' }}>
-                            <th style={{ padding: '0.75rem 1rem', textAlign: 'left', minWidth: '300px', position: 'sticky', left: 0, background: '#f8fafc', zIndex: 20, color: '#475569' }}>DRE Gerencial</th>
-                            {MONTHS.map((m) => <th key={m} colSpan={2} style={{ textAlign: 'center', padding: '0.75rem 0.5rem', borderLeft: '1px solid #cbd5e1', color: '#475569' }}>{m}</th>)}
-                        </tr>
-                        <tr style={{ background: '#fff' }}>
-                            <th style={{ position: 'sticky', left: 0, background: '#fff', zIndex: 20, borderBottom: '1px solid #e2e8f0' }}></th>
-                            {MONTHS.map((m) => (<React.Fragment key={m}><th style={{ fontSize: '0.7rem', color: '#94a3b8', borderLeft: '1px solid #f1f5f9', fontWeight: 500, paddingBottom: '0.5rem', borderBottom: '1px solid #e2e8f0' }}>Orçado</th><th style={{ fontSize: '0.7rem', color: '#94a3b8', fontWeight: 500, paddingBottom: '0.5rem', borderBottom: '1px solid #e2e8f0' }}>Realizado</th></React.Fragment>))}
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {renderSummaryRow('RECEITA BRUTA', 'vRev', true, '#eff6ff', '#1e3a8a', 'rev')}
-                        {expandedGroups.has('rev') && dreStructure.buckets.rev.map(root => renderNode(root))}
+            {/* Table Container */ }
+            < div style = {{ position: 'relative', overflowX: 'auto', border: '1px solid #e2e8f0', borderRadius: '8px', background: 'white', minHeight: '300px' }
+}>
+    {(loading || isExternalLoading) && (
+        <div style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(255, 255, 255, 0.7)', zIndex: 100, display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center' }}>
+            <div style={{ width: '40px', height: '40px', border: '4px solid #f1f5f9', borderTop: '4px solid #3b82f6', borderRadius: '50%', animation: 'spin-loading 1s linear infinite' }} />
+            <span style={{ marginTop: '1rem', color: '#1e293b', fontWeight: 600, fontSize: '0.9rem' }}>Atualizando...</span>
+            <style>{`@keyframes spin-loading { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }`}</style>
+        </div>
+    )}
+<table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8rem' }}>
+    <thead>
+        <tr style={{ background: '#f8fafc', borderBottom: '2px solid #cbd5e1' }}>
+            <th style={{ padding: '0.75rem 1rem', textAlign: 'left', minWidth: '300px', position: 'sticky', left: 0, background: '#f8fafc', zIndex: 20, color: '#475569' }}>DRE Gerencial</th>
+            {MONTHS.map((m) => <th key={m} colSpan={2} style={{ textAlign: 'center', padding: '0.75rem 0.5rem', borderLeft: '1px solid #cbd5e1', color: '#475569' }}>{m}</th>)}
+        </tr>
+        <tr style={{ background: '#fff' }}>
+            <th style={{ position: 'sticky', left: 0, background: '#fff', zIndex: 20, borderBottom: '1px solid #e2e8f0' }}></th>
+            {MONTHS.map((m) => (<React.Fragment key={m}><th style={{ fontSize: '0.7rem', color: '#94a3b8', borderLeft: '1px solid #f1f5f9', fontWeight: 500, paddingBottom: '0.5rem', borderBottom: '1px solid #e2e8f0' }}>Orçado</th><th style={{ fontSize: '0.7rem', color: '#94a3b8', fontWeight: 500, paddingBottom: '0.5rem', borderBottom: '1px solid #e2e8f0' }}>Realizado</th></React.Fragment>))}
+        </tr>
+    </thead>
+    <tbody>
+        {renderSummaryRow('RECEITA BRUTA', 'vRev', true, '#eff6ff', '#1e3a8a', 'rev')}
+        {expandedGroups.has('rev') && dreStructure.buckets.rev.map(root => renderNode(root))}
 
-                        {renderSummaryRow('TRIBUTO SOBRE FATURAMENTO', 'vTaxes', true, '#f1f5f9', '#64748b', 'taxes')}
-                        {expandedGroups.has('taxes') && dreStructure.buckets.taxes.map(root => renderNode(root))}
+        {renderSummaryRow('TRIBUTO SOBRE FATURAMENTO', 'vTaxes', true, '#f1f5f9', '#64748b', 'taxes')}
+        {expandedGroups.has('taxes') && dreStructure.buckets.taxes.map(root => renderNode(root))}
 
-                        {renderSummaryRow('(=) RECEITA LÍQUIDA', 'vRecLiq', true, '#e0f2fe', '#0369a1')}
+        {renderSummaryRow('(=) RECEITA LÍQUIDA', 'vRecLiq', true, '#e0f2fe', '#0369a1')}
 
-                        {renderSummaryRow('CUSTO OPERACIONAL', 'vCosts', true, '#f1f5f9', '#64748b', 'costs')}
-                        {expandedGroups.has('costs') && dreStructure.buckets.costs.map(root => renderNode(root))}
+        {renderSummaryRow('CUSTO OPERACIONAL', 'vCosts', true, '#f1f5f9', '#64748b', 'costs')}
+        {expandedGroups.has('costs') && dreStructure.buckets.costs.map(root => renderNode(root))}
 
-                        {renderSummaryRow('(=) MARGEM BRUTA', 'vGrossMarg', true, '#dcfce7', '#15803d')}
+        {renderSummaryRow('(=) MARGEM BRUTA', 'vGrossMarg', true, '#dcfce7', '#15803d')}
 
-                        {renderSummaryRow('DESPESA OPERACIONAL', 'vOpExp', true, '#f1f5f9', '#64748b', 'opExp')}
-                        {expandedGroups.has('opExp') && dreStructure.buckets.opExp.map(root => renderNode(root))}
+        {renderSummaryRow('DESPESA OPERACIONAL', 'vOpExp', true, '#f1f5f9', '#64748b', 'opExp')}
+        {expandedGroups.has('opExp') && dreStructure.buckets.opExp.map(root => renderNode(root))}
 
-                        {renderSummaryRow('(=) MARGEM DE CONTRIBUIÇÃO', 'vContribMarg', true, '#fff7ed', '#c2410c')}
+        {renderSummaryRow('(=) MARGEM DE CONTRIBUIÇÃO', 'vContribMarg', true, '#fff7ed', '#c2410c')}
 
-                        {renderSummaryRow('DESPESAS ADMINISTRATIVAS', 'vAdminExp', true, '#f1f5f9', '#64748b', 'adminExp')}
-                        {expandedGroups.has('adminExp') && dreStructure.buckets.adminExp.map(root => renderNode(root))}
+        {renderSummaryRow('DESPESAS ADMINISTRATIVAS', 'vAdminExp', true, '#f1f5f9', '#64748b', 'adminExp')}
+        {expandedGroups.has('adminExp') && dreStructure.buckets.adminExp.map(root => renderNode(root))}
 
-                        {renderSummaryRow('(=) EBITDA', 'vEbitda', true, '#fef3c7', '#b45309')}
+        {renderSummaryRow('(=) EBITDA', 'vEbitda', true, '#fef3c7', '#b45309')}
 
-                        {renderSummaryRow('DESPESAS FINANCEIRAS', 'vFin', true, '#f1f5f9', '#64748b', 'fin')}
-                        {expandedGroups.has('fin') && dreStructure.buckets.fin.map(root => renderNode(root))}
+        {renderSummaryRow('DESPESAS FINANCEIRAS', 'vFin', true, '#f1f5f9', '#64748b', 'fin')}
+        {expandedGroups.has('fin') && dreStructure.buckets.fin.map(root => renderNode(root))}
 
-                        {renderSummaryRow('(=) LUCRO LÍQUIDO', 'vNetProfit', true, '#0f172a', '#fbbf24')}
-                    </tbody>
-                </table>
-                {selectedCell && (
-                    <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', background: 'rgba(0,0,0,0.5)', zIndex: 50, display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
-                        <div style={{ background: 'white', padding: '2rem', borderRadius: '12px', width: '90vw', maxWidth: '1000px', height: '90vh', maxHeight: '90vh', overflowY: 'auto', boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)', display: 'flex', flexDirection: 'column' }}>
-                            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '1rem', borderBottom: '1px solid #e2e8f0', paddingBottom: '0.5rem' }}>
-                                <h3 style={{ fontSize: '1.1rem', fontWeight: 'bold' }}>{selectedCell.categoryName} - {MONTHS[selectedCell.month]}</h3>
-                                <button onClick={closeModal} style={{ background: 'none', border: 'none', fontSize: '1.5rem', cursor: 'pointer' }}>×</button>
-                            </div>
-                            {loadingTransactions ? <div style={{ textAlign: 'center', padding: '2rem', color: '#64748b' }}>Carregando lançamentos...</div> : transactions.length === 0 ? <div style={{ textAlign: 'center', padding: '2rem', color: '#64748b' }}>Nenhum lançamento encontrado.</div> : (
-                                <table style={{ width: '100%', fontSize: '0.8rem', borderCollapse: 'collapse' }}>
-                                    <thead>
-                                        <tr style={{ background: '#f8fafc', textAlign: 'left' }}>
-                                            <th style={{ padding: '0.5rem', borderBottom: '1px solid #e2e8f0' }}>Data</th>
-                                            <th style={{ padding: '0.5rem', borderBottom: '1px solid #e2e8f0' }}>Descrição</th>
-                                            <th style={{ padding: '0.5rem', borderBottom: '1px solid #e2e8f0' }}>Cliente/Forn.</th>
-                                            <th style={{ padding: '0.5rem', borderBottom: '1px solid #e2e8f0', textAlign: 'right' }}>Valor</th>
-                                            <th style={{ padding: '0.5rem', borderBottom: '1px solid #e2e8f0', fontSize: '0.7rem', color: 'red' }}>Debug Values</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        {transactions.map((tx: any) => (
-                                            <tr key={tx.id} style={{ borderBottom: '1px solid #f1f5f9' }}>
-                                                <td style={{ padding: '0.5rem' }}>{new Date(tx.date).toLocaleDateString('pt-BR')}</td>
-                                                <td style={{ padding: '0.5rem' }}>{tx.description}</td>
-                                                <td style={{ padding: '0.5rem' }}>{tx.customer || '-'}</td>
-                                                <td style={{ padding: '0.5rem', textAlign: 'right', fontWeight: 'bold' }}>{parseFloat(tx.value).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</td>
-                                                <td style={{ padding: '0.5rem', fontSize: '0.7rem', color: '#666' }}>{tx.debug_info}</td>
-                                            </tr>
-                                        ))}
-                                    </tbody>
-                                </table>
-                            )}
-                        </div>
-                    </div>
+        {renderSummaryRow('(=) LUCRO LÍQUIDO', 'vNetProfit', true, '#0f172a', '#fbbf24')}
+    </tbody>
+</table>
+{
+    selectedCell && (
+        <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', background: 'rgba(0,0,0,0.5)', zIndex: 50, display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
+            <div style={{ background: 'white', padding: '2rem', borderRadius: '12px', width: '90vw', maxWidth: '1000px', height: '90vh', maxHeight: '90vh', overflowY: 'auto', boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)', display: 'flex', flexDirection: 'column' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '1rem', borderBottom: '1px solid #e2e8f0', paddingBottom: '0.5rem' }}>
+                    <h3 style={{ fontSize: '1.1rem', fontWeight: 'bold' }}>{selectedCell.categoryName} - {MONTHS[selectedCell.month]}</h3>
+                    <button onClick={closeModal} style={{ background: 'none', border: 'none', fontSize: '1.5rem', cursor: 'pointer' }}>×</button>
+                </div>
+                {loadingTransactions ? <div style={{ textAlign: 'center', padding: '2rem', color: '#64748b' }}>Carregando lançamentos...</div> : transactions.length === 0 ? <div style={{ textAlign: 'center', padding: '2rem', color: '#64748b' }}>Nenhum lançamento encontrado.</div> : (
+                    <table style={{ width: '100%', fontSize: '0.8rem', borderCollapse: 'collapse' }}>
+                        <thead>
+                            <tr style={{ background: '#f8fafc', textAlign: 'left' }}>
+                                <th style={{ padding: '0.5rem', borderBottom: '1px solid #e2e8f0' }}>Data</th>
+                                <th style={{ padding: '0.5rem', borderBottom: '1px solid #e2e8f0' }}>Descrição</th>
+                                <th style={{ padding: '0.5rem', borderBottom: '1px solid #e2e8f0' }}>Cliente/Forn.</th>
+                                <th style={{ padding: '0.5rem', borderBottom: '1px solid #e2e8f0', textAlign: 'right' }}>Valor</th>
+                                <th style={{ padding: '0.5rem', borderBottom: '1px solid #e2e8f0', fontSize: '0.7rem', color: 'red' }}>Debug Values</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {transactions.map((tx: any) => (
+                                <tr key={tx.id} style={{ borderBottom: '1px solid #f1f5f9' }}>
+                                    <td style={{ padding: '0.5rem' }}>{new Date(tx.date).toLocaleDateString('pt-BR')}</td>
+                                    <td style={{ padding: '0.5rem' }}>{tx.description}</td>
+                                    <td style={{ padding: '0.5rem' }}>{tx.customer || '-'}</td>
+                                    <td style={{ padding: '0.5rem', textAlign: 'right', fontWeight: 'bold' }}>{parseFloat(tx.value).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</td>
+                                    <td style={{ padding: '0.5rem', fontSize: '0.7rem', color: '#666' }}>{tx.debug_info}</td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
                 )}
             </div>
-        </>
-    );
+        </div>
+    )
+}
+                </div >
+            </>
+            );
 }
 

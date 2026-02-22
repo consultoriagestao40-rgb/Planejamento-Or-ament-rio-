@@ -39,7 +39,7 @@ export default function BudgetGrid({ refreshKey = 0, isExternalLoading = false }
     const [loadingTransactions, setLoadingTransactions] = useState(false);
 
     // --- Budget Modal State ---
-    const [budgetModal, setBudgetModal] = useState<{ categoryId: string, categoryName: string } | null>(null);
+    const [budgetModal, setBudgetModal] = useState<{ categoryId: string, categoryName: string, startMonth: number } | null>(null);
     const [modalValues, setModalValues] = useState<string[]>(new Array(12).fill(''));
     const [activeMonth, setActiveMonth] = useState<number>(0);
     const [isSavingBudget, setIsSavingBudget] = useState(false);
@@ -539,7 +539,7 @@ export default function BudgetGrid({ refreshKey = 0, isExternalLoading = false }
         }
     };
 
-    const openBudgetModal = (nodeId: string, nodeName: string) => {
+    const openBudgetModal = (nodeId: string, nodeName: string, monthIndex: number) => {
         if (selectedCostCenter.includes('DEFAULT') || selectedCostCenter.length !== 1) {
             alert("Selecione um único centro de custo para lançar um valor");
             return;
@@ -548,14 +548,19 @@ export default function BudgetGrid({ refreshKey = 0, isExternalLoading = false }
             const val = budgetValues[`${nodeId}-${i}`];
             return val ? val.toString() : '';
         });
-        setBudgetModal({ categoryId: nodeId, categoryName: nodeName });
+        setBudgetModal({ categoryId: nodeId, categoryName: nodeName, startMonth: monthIndex });
         setModalValues(initialValues);
-        setActiveMonth(0);
+        setActiveMonth(monthIndex);
     };
 
     const replicateValue = () => {
+        if (!budgetModal) return;
         const valueToReplicate = modalValues[activeMonth];
-        setModalValues(new Array(12).fill(valueToReplicate));
+        const next = [...modalValues];
+        for (let i = budgetModal.startMonth; i < 12; i++) {
+            next[i] = valueToReplicate;
+        }
+        setModalValues(next);
     };
 
     const renderNode = (node: CategoryNode) => {
@@ -578,7 +583,7 @@ export default function BudgetGrid({ refreshKey = 0, isExternalLoading = false }
                     {MONTHS.map((_, i) => (
                         <React.Fragment key={i}>
                             <td
-                                onClick={() => !hasChildren && !node.isSynthetic && openBudgetModal(node.id, node.name)}
+                                onClick={() => !hasChildren && !node.isSynthetic && openBudgetModal(node.id, node.name, i)}
                                 style={{
                                     borderLeft: '1px solid #f1f5f9',
                                     padding: '0.5rem',
@@ -808,8 +813,20 @@ export default function BudgetGrid({ refreshKey = 0, isExternalLoading = false }
                                                     next[i] = e.target.value;
                                                     setModalValues(next);
                                                 }}
+                                                disabled={i < budgetModal.startMonth}
                                                 placeholder="0.00"
-                                                style={{ width: '100%', padding: '0.75rem 0.75rem 0.75rem 2.2rem', borderRadius: '8px', backgroundColor: '#fff', border: activeMonth === i ? '2px solid #2563eb' : '1px solid #cbd5e1', color: '#1e293b', fontSize: '0.95rem', outline: 'none', transition: 'all 0.2s' }}
+                                                style={{
+                                                    width: '100%',
+                                                    padding: '0.75rem 0.75rem 0.75rem 2.2rem',
+                                                    borderRadius: '8px',
+                                                    backgroundColor: i < budgetModal.startMonth ? '#f1f5f9' : '#fff',
+                                                    border: activeMonth === i ? '2px solid #2563eb' : '1px solid #cbd5e1',
+                                                    color: i < budgetModal.startMonth ? '#94a3b8' : '#1e293b',
+                                                    fontSize: '0.95rem',
+                                                    outline: 'none',
+                                                    transition: 'all 0.2s',
+                                                    cursor: i < budgetModal.startMonth ? 'not-allowed' : 'text'
+                                                }}
                                             />
                                         </div>
                                     </div>

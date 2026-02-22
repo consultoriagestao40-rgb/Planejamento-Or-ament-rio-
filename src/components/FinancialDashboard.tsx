@@ -8,25 +8,14 @@ interface FinancialDashboardProps {
     isConnected: boolean;
     isTestMode: boolean;
     authUrl: string;
-    tenantCount: number;
     params: { connected?: string; error?: string };
-    envInfo: {
-        clientId: string;
-        clientSecret: string;
-        redirectUri: string;
-        dbUrl: boolean;
-    };
-    isDev: boolean;
 }
 
 export default function FinancialDashboard({
     isConnected,
     isTestMode,
     authUrl,
-    tenantCount,
-    params,
-    envInfo,
-    isDev
+    params
 }: FinancialDashboardProps) {
     const [refreshKey, setRefreshKey] = useState(0);
 
@@ -134,37 +123,7 @@ export default function FinancialDashboard({
                 <BudgetGrid refreshKey={refreshKey} />
             </section>
 
-            {/* DEBUG PANEL - REMOVER DEPOIS */}
-            <div style={{ marginTop: '4rem', padding: '1rem', background: '#f5f5f5', fontSize: '0.8rem', border: '1px dashed #999', opacity: 0.8, wordBreak: 'break-all' }}>
-                <h3>🔧 Painel de Diagnóstico</h3>
-                <p><strong>DB Tenant Count:</strong> {tenantCount}</p>
-                <p><strong>URL Params:</strong> {JSON.stringify(params)}</p>
-                <p><strong>Render Time:</strong> {new Date().toLocaleTimeString()}</p>
-                <div style={{ backgroundColor: '#ffebee', padding: '10px', border: '2px solid red', borderRadius: '4px', margin: '10px 0' }}>
-                    <p style={{ color: 'red', fontWeight: 'bold', fontSize: '1.2em' }}>
-                        Build Version: v47.5 - CLIENT COMPONENT REFACTOR 🏆🚀
-                    </p>
-                </div>
-                <div style={{ padding: '10px', border: '1px solid orange', backgroundColor: '#fff7ed', marginBottom: '10px' }}>
-                    <strong>Atenção:</strong> Verifique se a URL abaixo está cadastrada no Portal:
-                    <br />
-                    <code style={{ userSelect: 'all', background: '#eee', padding: '2px' }}>{isDev ? 'http://127.0.0.1:3000/api/auth/callback' : 'https://planejamento-or-ament-rio.vercel.app/api/auth/callback'}</code>
-                </div>
-                <p><strong>Generated Link:</strong> <a href={authUrl} style={{ wordBreak: 'break-all' }}>{authUrl}</a></p>
-                <p><strong>Env Vars Check (SHOULD BE IGNORED BY CODE):</strong></p>
-                <ul style={{ paddingLeft: '1rem' }}>
-                    <li>
-                        CLIENT_ID (Env): {envInfo.clientId}
-                    </li>
-                    <li>
-                        CLIENT_SECRET (Env): {envInfo.clientSecret}
-                    </li>
-                    <li>
-                        REDIRECT_URI: "{envInfo.redirectUri}"
-                    </li>
-                    <li>DB_URL: {envInfo.dbUrl ? '✅' : '❌'}</li>
-                </ul>
-            </div>
+
         </main>
     );
 }

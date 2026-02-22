@@ -50,11 +50,11 @@ export default function FinancialDashboard({
 
     return (
         <main style={{ width: '100%', padding: '2rem 4rem', boxSizing: 'border-box' }}>
-            <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '1.5rem' }}>
-                <div>
+            <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
                     <h1 style={{ color: 'hsl(var(--primary))', margin: 0 }}>Budget Hub</h1>
                     {isConnected && companies.length > 0 && (
-                        <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', marginTop: '0.75rem' }}>
+                        <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
                             {companies.map(c => (
                                 <div key={c.id} style={{
                                     display: 'inline-flex',

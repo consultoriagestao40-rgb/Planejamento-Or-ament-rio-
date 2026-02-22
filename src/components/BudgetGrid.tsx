@@ -483,8 +483,8 @@ export default function BudgetGrid({ refreshKey = 0 }: BudgetGridProps) {
                 <tr onClick={() => hasChildren && toggleRow(node.id)} style={{ background: hasChildren ? '#fdfdfd' : 'white', cursor: hasChildren ? 'pointer' : 'default', borderBottom: '1px solid #f1f5f9' }}>
                     <td style={{
                         padding: '0.5rem',
-                        // INCREASED INDENTATION MULTIPLIER (3.5rem per level)
-                        paddingLeft: `${0.5 + (node.level * 3.5)}rem`,
+                        // FIX: Base indent of 1.5rem (for Level 0) + 1.5rem per level
+                        paddingLeft: `${1.5 + (node.level * 1.5)}rem`,
                         position: 'sticky', left: 0, background: hasChildren ? '#fdfdfd' : 'white', zIndex: 5, display: 'flex', alignItems: 'center', color: hasChildren ? '#1e293b' : '#334155', fontWeight: hasChildren ? 600 : 400, fontSize: '0.8rem'
                     }}>
                         {hasChildren && <span style={{ marginRight: '0.5rem', fontSize: '0.7rem', width: '1rem', color: '#94a3b8' }}>{isExpanded ? '▼' : '▶'}</span>}

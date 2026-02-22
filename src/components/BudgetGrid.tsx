@@ -153,6 +153,18 @@ export default function BudgetGrid({ refreshKey = 0 }: BudgetGridProps) {
                 if (rawCode === '03.9') effectiveName = '03.9 Custo com Veiculo';
             }
 
+            // Force naming for 04.1 to 04.8
+            if (rawCode.match(/^04\.[1-8]$/)) {
+                if (rawCode === '04.1') effectiveName = '04.1 Salarios e Remuneração';
+                if (rawCode === '04.2') effectiveName = '04.2 Encargos Sociais';
+                if (rawCode === '04.3') effectiveName = '04.3 Beneficios';
+                if (rawCode === '04.4') effectiveName = '04.4 SSMA';
+                if (rawCode === '04.5') effectiveName = '04.5 Viagens';
+                if (rawCode === '04.6') effectiveName = '04.6 Custo com Veículos';
+                if (rawCode === '04.7') effectiveName = '04.7 Cartão Corporativo';
+                if (rawCode === '04.8') effectiveName = '04.8 Serviços Terceirizados';
+            }
+
             const node: CategoryNode = {
                 ...cat,
                 name: effectiveName,
@@ -179,6 +191,15 @@ export default function BudgetGrid({ refreshKey = 0 }: BudgetGridProps) {
             { code: '03.7', name: '03.7 Equipamentos', parentCode: '03' },
             { code: '03.8', name: '03.8 Comunicação/Sistema/Licenças', parentCode: '03' },
             { code: '03.9', name: '03.9 Custo com Veiculo', parentCode: '03' },
+            // DESPESAS OPERACIONAIS (04.1 to 04.8)
+            { code: '04.1', name: '04.1 Salarios e Remuneração', parentCode: '04' },
+            { code: '04.2', name: '04.2 Encargos Sociais', parentCode: '04' },
+            { code: '04.3', name: '04.3 Beneficios', parentCode: '04' },
+            { code: '04.4', name: '04.4 SSMA', parentCode: '04' },
+            { code: '04.5', name: '04.5 Viagens', parentCode: '04' },
+            { code: '04.6', name: '04.6 Custo com Veículos', parentCode: '04' },
+            { code: '04.7', name: '04.7 Cartão Corporativo', parentCode: '04' },
+            { code: '04.8', name: '04.8 Serviços Terceirizados', parentCode: '04' },
         ];
 
         syntheticParents.forEach(synth => {
@@ -346,8 +367,8 @@ export default function BudgetGrid({ refreshKey = 0 }: BudgetGridProps) {
             const code = root.code || '';
             if (code.startsWith('01') || code === '1') buckets.rev.push(root);
             else if (code.startsWith('02') || code === '2') buckets.taxes.push(root);
-            else if (code.startsWith('3') || code.startsWith('03') || code.startsWith('04') || code.startsWith('4')) buckets.costs.push(root);
-            else if (code.startsWith('5') || code.startsWith('05') || code.startsWith('6') || code.startsWith('06')) buckets.opExp.push(root);
+            else if (code.startsWith('3') || code.startsWith('03')) buckets.costs.push(root);
+            else if (code.startsWith('5') || code.startsWith('05') || code.startsWith('6') || code.startsWith('06') || code.startsWith('4') || code.startsWith('04')) buckets.opExp.push(root);
             else if (code.startsWith('7') || code.startsWith('07') || code.startsWith('8') || code.startsWith('08')) buckets.adminExp.push(root);
             else if (code.startsWith('9') || code.startsWith('09') || code.startsWith('10')) buckets.fin.push(root);
             else buckets.other.push(root);

@@ -25,13 +25,19 @@ export async function GET(request: Request) {
     });
 
     // Aggregate by categoryId and month
-    const aggregatedBudgets = budgets.reduce((acc, curr) => {
+    const aggregatedBudgets = budgets.reduce((acc, curr: any) => {
       const key = `${curr.categoryId}-${curr.month}`;
       if (!acc[key]) {
-        acc[key] = { ...curr };
-        acc[key].radarAmount = curr.radarAmount || 0;
+        acc[key] = {
+          categoryId: curr.categoryId,
+          month: curr.month,
+          year: curr.year,
+          amount: curr.amount || 0,
+          radarAmount: curr.radarAmount || 0,
+          isLocked: curr.isLocked || false
+        };
       } else {
-        acc[key].amount += curr.amount;
+        acc[key].amount += curr.amount || 0;
         acc[key].radarAmount = (acc[key].radarAmount || 0) + (curr.radarAmount || 0);
         if (curr.isLocked) acc[key].isLocked = true;
       }
@@ -66,38 +72,50 @@ export async function POST(request: Request) {
       const { categoryId, month, year, costCenterId } = entry;
       const targetCostCenterId = (costCenterId || "DEFAULT").split(',')[0] || "DEFAULT";
 
-      const budget = await prisma.budgetEntry.upsert({
-        where: {
-          tenantId_categoryId_costCenterId_month_year: {
+      console.log(`[API] Upserting entry for CC: ${targetCostCenterId}, Cat: ${categoryId}, Date: ${month}/${year}`);
+
+      try {
+        const budget = await (prisma.budgetEntry as any).upsert({
+          where: {
+            tenantId_categoryId_costCenterId_month_year: {
+              tenantId: tenant.id,
+              categoryId,
+              costCenterId: targetCostCenterId,
+              month,
+              year
+            }
+          },
+          update: {
+            amount: entry.amount !== undefined ? entry.amount : undefined,
+            radarAmount: entry.radarAmount !== undefined ? entry.radarAmount : undefined,
+            isLocked: entry.isLocked !== undefined ? entry.isLocked : undefined,
+          },
+          create: {
             tenantId: tenant.id,
             categoryId,
             costCenterId: targetCostCenterId,
             month,
-            year
+            year,
+            amount: entry.amount !== undefined ? entry.amount : 0,
+            radarAmount: entry.radarAmount !== undefined ? entry.radarAmount : null,
+            isLocked: entry.isLocked || false,
           }
-        },
-        update: {
-          amount: entry.amount !== undefined ? entry.amount : undefined,
-          radarAmount: entry.radarAmount !== undefined ? entry.radarAmount : undefined,
-          isLocked: entry.isLocked !== undefined ? entry.isLocked : undefined,
-        },
-        create: {
-          tenantId: tenant.id,
-          categoryId,
-          costCenterId: targetCostCenterId,
-          month,
-          year,
-          amount: entry.amount !== undefined ? entry.amount : 0,
-          radarAmount: entry.radarAmount !== undefined ? entry.radarAmount : null,
-          isLocked: entry.isLocked || false,
-        }
-      });
-      results.push(budget);
+        });
+        console.log(`[API] Success for Cat: ${categoryId}, Month: ${month}`);
+        results.push(budget);
+      } catch (err: any) {
+        console.error(`[API] Prisma Upsert Error for entry Cat: ${categoryId}:`, err);
+        throw err; // Re-throw to be caught by the outer catch
+      }
     }
 
     return NextResponse.json({ success: true, data: results.length === 1 ? results[0] : results });
-  } catch (error) {
-    console.error('Error saving budget:', error);
-    return NextResponse.json({ success: false, error: 'Failed to save budget' }, { status: 500 });
+  } catch (error: any) {
+    console.error('[API] Error saving budget:', error);
+    return NextResponse.json({
+      success: false,
+      error: 'Failed to save budget',
+      details: error.message
+    }, { status: 500 });
   }
 }

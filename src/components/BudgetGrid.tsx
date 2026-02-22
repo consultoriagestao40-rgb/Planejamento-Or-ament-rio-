@@ -582,9 +582,9 @@ export default function BudgetGrid({ refreshKey = 0, isExternalLoading = false }
                 });
                 setBudgetValues(values);
             }
-        } catch (error) {
+        } catch (error: any) {
             console.error("Save error:", error);
-            alert("Erro ao salvar orçamentos. Verifique sua conexão.");
+            alert(`Erro ao salvar orçamentos: ${error.message}${error.details ? '\nDetalhes: ' + error.details : ''}`);
         } finally {
             setIsSavingBudget(false);
         }

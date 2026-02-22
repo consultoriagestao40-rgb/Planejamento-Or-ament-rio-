@@ -778,17 +778,17 @@ export default function BudgetGrid({ refreshKey = 0, isExternalLoading = false }
                     </div>
                 )}
 
-                {/* Budget Entry Modal - Redesigned Dark Version */}
+                {/* Budget Entry Modal - Redesigned Light Version */}
                 {budgetModal && (
-                    <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, backdropFilter: 'blur(4px)' }}>
-                        <div style={{ backgroundColor: '#111827', borderRadius: '16px', padding: '2rem', width: '600px', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.5)', color: '#fff', border: '1px solid #374151' }}>
+                    <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
+                        <div style={{ backgroundColor: '#fff', borderRadius: '16px', padding: '2rem', width: '600px', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.15)', color: '#1e293b', border: '1px solid #e2e8f0' }}>
                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
-                                <h3 style={{ margin: 0, fontSize: '1.4rem', fontWeight: 600 }}>Editar: {budgetModal.categoryName}</h3>
+                                <h3 style={{ margin: 0, fontSize: '1.4rem', fontWeight: 700 }}>Editar: {budgetModal.categoryName}</h3>
                                 <button onClick={() => setBudgetModal(null)} style={{ border: 'none', background: 'none', cursor: 'pointer', fontSize: '1.5rem', color: '#94a3b8', padding: '0.5rem' }}>✕</button>
                             </div>
 
                             <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '1rem' }}>
-                                <button onClick={replicateValue} style={{ background: 'none', border: 'none', color: '#38bdf8', cursor: 'pointer', fontSize: '0.85rem', fontWeight: 500, padding: '0.5rem' }}>
+                                <button onClick={replicateValue} style={{ background: 'none', border: 'none', color: '#2563eb', cursor: 'pointer', fontSize: '0.85rem', fontWeight: 600, padding: '0.5rem' }}>
                                     Replicar {MONTHS[activeMonth]} para todos
                                 </button>
                             </div>
@@ -796,9 +796,9 @@ export default function BudgetGrid({ refreshKey = 0, isExternalLoading = false }
                             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '1rem', marginBottom: '2rem' }}>
                                 {MONTHS.map((m, i) => (
                                     <div key={m} style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
-                                        <label style={{ fontSize: '0.75rem', fontWeight: 600, color: '#94a3b8', textTransform: 'uppercase' }}>{m}</label>
+                                        <label style={{ fontSize: '0.75rem', fontWeight: 700, color: '#64748b', textTransform: 'uppercase' }}>{m}</label>
                                         <div style={{ position: 'relative' }}>
-                                            <span style={{ position: 'absolute', left: '0.75rem', top: '50%', transform: 'translateY(-50%)', color: '#64748b', fontSize: '0.9rem' }}>R$</span>
+                                            <span style={{ position: 'absolute', left: '0.75rem', top: '50%', transform: 'translateY(-50%)', color: '#94a3b8', fontSize: '0.9rem' }}>R$</span>
                                             <input
                                                 type="text"
                                                 value={modalValues[i]}
@@ -809,7 +809,7 @@ export default function BudgetGrid({ refreshKey = 0, isExternalLoading = false }
                                                     setModalValues(next);
                                                 }}
                                                 placeholder="0.00"
-                                                style={{ width: '100%', padding: '0.75rem 0.75rem 0.75rem 2.2rem', borderRadius: '8px', backgroundColor: '#1f2937', border: activeMonth === i ? '2px solid #38bdf8' : '1px solid #374151', color: '#fff', fontSize: '0.95rem', outline: 'none', transition: 'all 0.2s' }}
+                                                style={{ width: '100%', padding: '0.75rem 0.75rem 0.75rem 2.2rem', borderRadius: '8px', backgroundColor: '#fff', border: activeMonth === i ? '2px solid #2563eb' : '1px solid #cbd5e1', color: '#1e293b', fontSize: '0.95rem', outline: 'none', transition: 'all 0.2s' }}
                                             />
                                         </div>
                                     </div>
@@ -817,8 +817,8 @@ export default function BudgetGrid({ refreshKey = 0, isExternalLoading = false }
                             </div>
 
                             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '1rem', marginTop: '1rem' }}>
-                                <button onClick={() => setBudgetModal(null)} style={{ padding: '0.75rem 1.5rem', backgroundColor: 'transparent', color: '#94a3b8', border: 'none', borderRadius: '8px', fontWeight: 600, cursor: 'pointer', fontSize: '0.95rem' }}>Cancelar</button>
-                                <button disabled={isSavingBudget} onClick={handleSaveBudget} style={{ padding: '0.75rem 2rem', backgroundColor: '#38bdf8', color: '#000', border: 'none', borderRadius: '8px', fontWeight: 700, cursor: 'pointer', fontSize: '0.95rem', minWidth: '120px', opacity: isSavingBudget ? 0.7 : 1 }}>{isSavingBudget ? 'Salvando...' : 'Salvar'}</button>
+                                <button onClick={() => setBudgetModal(null)} style={{ padding: '0.75rem 1.5rem', backgroundColor: 'transparent', color: '#64748b', border: 'none', borderRadius: '8px', fontWeight: 600, cursor: 'pointer', fontSize: '0.95rem' }}>Cancelar</button>
+                                <button disabled={isSavingBudget} onClick={handleSaveBudget} style={{ padding: '0.75rem 2rem', backgroundColor: '#2563eb', color: '#fff', border: 'none', borderRadius: '8px', fontWeight: 700, cursor: 'pointer', fontSize: '0.95rem', minWidth: '120px', opacity: isSavingBudget ? 0.7 : 1 }}>{isSavingBudget ? 'Salvando...' : 'Salvar'}</button>
                             </div>
                         </div>
                     </div>

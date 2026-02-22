@@ -28,6 +28,7 @@ export default function BudgetGrid({ refreshKey = 0, isExternalLoading = false }
     const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set()); // New state for main groups
     const [loading, setLoading] = useState(true);
     const [selectedCostCenter, setSelectedCostCenter] = useState<string[]>(['DEFAULT']);
+    const [pendingCostCenter, setPendingCostCenter] = useState<string[]>(['DEFAULT']);
     const [costCenterDropdownOpen, setCostCenterDropdownOpen] = useState(false);
     const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
     const [viewMode, setViewMode] = useState<'caixa' | 'competencia'>('competencia');
@@ -577,22 +578,30 @@ export default function BudgetGrid({ refreshKey = 0, isExternalLoading = false }
     };
 
     const handleCostCenterToggle = (id: string) => {
-        setSelectedCostCenter(prev => {
+        setPendingCostCenter(prev => {
             if (prev.includes(id)) {
                 const next = prev.filter(c => c !== id);
                 return next.length === 0 ? ['DEFAULT'] : next; // Prevent empty selection
             }
-            // If they pick something else while DEFAULT is selected, usually we just add it,
-            // or we remove DEFAULT if DEFAULT was the only one. Let's remove DEFAULT if it's there
-            // and they pick a specific CC.
             const next = prev.includes('DEFAULT') ? [id] : [...prev, id];
             return next;
         });
     };
 
-    const getSelectedCostCenterNames = () => {
-        if (selectedCostCenter.includes('DEFAULT') && selectedCostCenter.length === 1) return 'Geral (Todos)';
-        const names = costCenters.filter(c => selectedCostCenter.includes(c.id)).map(c => c.name);
+    const applyFilter = () => {
+        setSelectedCostCenter(pendingCostCenter);
+        setCostCenterDropdownOpen(false);
+    };
+
+    const clearFilter = () => {
+        setPendingCostCenter(['DEFAULT']);
+        setSelectedCostCenter(['DEFAULT']);
+        setCostCenterDropdownOpen(false);
+    };
+
+    const getSelectedCostCenterNames = (current: string[]) => {
+        if (current.includes('DEFAULT') && current.length === 1) return 'Geral (Todos)';
+        const names = costCenters.filter(c => current.includes(c.id)).map(c => c.name);
         if (names.length === 0) return 'Geral (Todos)';
         if (names.length === 1) return names[0];
         if (names.length === costCenters.length) return 'Todos Selecionados';
@@ -610,7 +619,7 @@ export default function BudgetGrid({ refreshKey = 0, isExternalLoading = false }
                             onClick={() => setCostCenterDropdownOpen(!costCenterDropdownOpen)}
                             style={{ padding: '0.45rem 0.75rem', borderRadius: '6px', border: '1px solid #cbd5e1', backgroundColor: '#fff', cursor: 'pointer', fontSize: '0.85rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', minHeight: '38px' }}
                         >
-                            <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{getSelectedCostCenterNames()}</span>
+                            <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{getSelectedCostCenterNames(pendingCostCenter)}</span>
                             <span style={{ fontSize: '0.6rem', color: '#94a3b8' }}>▼</span>
                         </div>
 
@@ -625,7 +634,7 @@ export default function BudgetGrid({ refreshKey = 0, isExternalLoading = false }
                                         <label key={cc.id} style={{ display: 'flex', alignItems: 'center', padding: '0.5rem 0.75rem', cursor: 'pointer', borderBottom: '1px solid #f1f5f9', fontSize: '0.85rem' }}>
                                             <input
                                                 type="checkbox"
-                                                checked={selectedCostCenter.includes(cc.id)}
+                                                checked={pendingCostCenter.includes(cc.id)}
                                                 onChange={() => handleCostCenterToggle(cc.id)}
                                                 style={{ marginRight: '0.5rem', cursor: 'pointer' }}
                                             />
@@ -636,6 +645,20 @@ export default function BudgetGrid({ refreshKey = 0, isExternalLoading = false }
                             </>
                         )}
                     </div>
+
+                    {/* Botões de Filtrar e Limpar */}
+                    <button
+                        onClick={applyFilter}
+                        style={{ padding: '0 1rem', height: '38px', backgroundColor: '#2563eb', color: 'white', border: 'none', borderRadius: '6px', fontSize: '0.85rem', fontWeight: 600, cursor: 'pointer', transition: 'all 0.2s', display: 'flex', alignItems: 'center', gap: '0.5rem' }}
+                    >
+                        🔍 Filtrar
+                    </button>
+                    <button
+                        onClick={clearFilter}
+                        style={{ padding: '0 1rem', height: '38px', backgroundColor: 'transparent', color: '#64748b', border: '1px solid #cbd5e1', borderRadius: '6px', fontSize: '0.85rem', fontWeight: 600, cursor: 'pointer', transition: 'all 0.2s' }}
+                    >
+                        Limpar
+                    </button>
                 </div>
 
                 {/* View Mode Toggle alinhado à direita */}

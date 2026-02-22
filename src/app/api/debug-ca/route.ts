@@ -7,7 +7,7 @@ export async function POST(request: Request) {
 
         async function runScan(endpoint: string) {
             for (let i = 1; i <= 20; i++) {
-                let res = await fetch(`https://api-v2.contaazul.com/v1/financeiro/eventos-financeiros/${endpoint}/buscar?data_vencimento_de=2026-01-01&data_vencimento_ate=2026-01-31&tamanho_pagina=100&pagina=${i}`, { headers: { 'Authorization': `Bearer ${accessToken}` } });
+                let res = await fetch(`https://api-v2.contaazul.com/v1/financeiro/eventos-financeiros/${endpoint}/buscar?data_vencimento_de=2026-01-01&data_vencimento_ate=2026-12-31&tamanho_pagina=100&pagina=${i}`, { headers: { 'Authorization': `Bearer ${accessToken}` } });
                 if (!res.ok) return { error: await res.text() };
                 const data = await res.json();
                 const items = data.itens || [];

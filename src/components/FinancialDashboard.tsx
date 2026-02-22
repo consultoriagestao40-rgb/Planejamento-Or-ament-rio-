@@ -41,13 +41,17 @@ export default function FinancialDashboard({
                             }}
                             style={{
                                 padding: '0.5rem 1rem',
+                                height: '36px',
                                 backgroundColor: '#2563eb',
                                 border: 'none',
-                                borderRadius: 'var(--radius)',
+                                borderRadius: '6px',
                                 cursor: 'pointer',
                                 fontSize: '0.8rem',
-                                fontWeight: 'bold',
-                                color: 'white'
+                                fontWeight: 600,
+                                color: 'white',
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                whiteSpace: 'nowrap',
                             }}
                         >
                             Desconectar / Trocar Conta

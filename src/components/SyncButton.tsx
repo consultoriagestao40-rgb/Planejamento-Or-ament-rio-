@@ -22,12 +22,13 @@ export function SyncButton({ onSyncComplete }: { onSyncComplete?: () => void }) 
     };
 
     return (
-        <div>
+        <>
             <button
                 onClick={handleSync}
                 disabled={loading}
                 style={{
                     padding: '0.5rem 1rem',
+                    height: '36px',
                     backgroundColor: loading ? '#93c5fd' : '#2563eb',
                     color: 'white',
                     border: 'none',
@@ -35,13 +36,15 @@ export function SyncButton({ onSyncComplete }: { onSyncComplete?: () => void }) 
                     cursor: loading ? 'not-allowed' : 'pointer',
                     fontSize: '0.8rem',
                     fontWeight: 600,
+                    whiteSpace: 'nowrap',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '0.35rem',
                 }}
             >
                 {loading ? '🔄 Sincronizando...' : '🔄 Sincronizar Agora'}
             </button>
-            {lastSync && <div style={{ fontSize: '0.8rem', color: '#666', marginTop: '0.5rem' }}>Última: {lastSync}</div>}
-
-
-        </div>
+            {lastSync && <div style={{ fontSize: '0.75rem', color: '#666', marginTop: '0.3rem', textAlign: 'right' }}>Última: {lastSync}</div>}
+        </>
     );
 }

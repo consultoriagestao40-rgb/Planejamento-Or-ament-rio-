@@ -39,8 +39,9 @@ export default function BudgetGrid({ refreshKey = 0, isExternalLoading = false }
     const [loadingTransactions, setLoadingTransactions] = useState(false);
 
     // --- Budget Modal State ---
-    const [budgetModal, setBudgetModal] = useState<{ categoryId: string, categoryName: string, month: number, initialValue: number } | null>(null);
-    const [formulaValue, setFormulaValue] = useState('');
+    const [budgetModal, setBudgetModal] = useState<{ categoryId: string, categoryName: string } | null>(null);
+    const [modalValues, setModalValues] = useState<string[]>(new Array(12).fill(''));
+    const [activeMonth, setActiveMonth] = useState<number>(0);
     const [isSavingBudget, setIsSavingBudget] = useState(false);
 
     const evaluateFormula = (formula: string): number => {
@@ -51,8 +52,6 @@ export default function BudgetGrid({ refreshKey = 0, isExternalLoading = false }
         try {
             // Basic math parser (Safe eval replacement)
             const expression = formula.substring(1).replace(/,/g, '.').replace(/[^-+*/().0-9]/g, '');
-            // We'll use Function constructor for a simple sandbox-like math evaluation
-            // ONLY allowing math characters prevents malicious code.
             const result = new Function(`return ${expression}`)();
             return typeof result === 'number' && isFinite(result) ? result : 0;
         } catch (e) {
@@ -168,7 +167,7 @@ export default function BudgetGrid({ refreshKey = 0, isExternalLoading = false }
                 }
             }
 
-            // Force naming for 03.1 to 03.9 to maintain consistency even if API brings them differently
+            // Force naming for 03.1 to 03.9
             if (rawCode.match(/^03\.[1-9]$/)) {
                 if (rawCode === '03.1') effectiveName = '03.1 Salarios e Remuneração';
                 if (rawCode === '03.2') effectiveName = '03.2 Encargos Sociais';
@@ -316,8 +315,6 @@ export default function BudgetGrid({ refreshKey = 0, isExternalLoading = false }
                 if (parent) { parent.children.push(node); return; }
             }
 
-            // Fix: Directly map any deep code to its closest synthetic parent if it starts with a match
-            // e.g., 03.3.2 -> matches synthetic parent '03.3'
             let parentFound = false;
             if (code.includes('.')) {
                 let currentPrefix = code.substring(0, code.lastIndexOf('.'));
@@ -335,7 +332,6 @@ export default function BudgetGrid({ refreshKey = 0, isExternalLoading = false }
                 }
             }
 
-            // Fallback for codes like 03.3.2 if the above didn't catch (e.g., if codeMap doesn't have intermediate levels like 03.3.2 but has 03.3)
             if (!parentFound && code.match(/^(0[3456])\.(\d+)\./)) {
                 const match = code.match(/^(0[3456])\.(\d+)/);
                 if (match) {
@@ -392,11 +388,8 @@ export default function BudgetGrid({ refreshKey = 0, isExternalLoading = false }
         const finalRoots = Array.from(uniqueRootsMap.values());
 
         // 6. FIX LEVELS & SORT
-        // Recursive Level Set (CRITICAL FIX for Indentation)
         const recalculateLevels = (nodes: CategoryNode[], lvl: number) => {
-            // Sort children first to ensure order
             nodes.sort((a, b) => (a.code || a.name).localeCompare(b.code || b.name, undefined, { numeric: true }));
-
             nodes.forEach(n => {
                 n.level = lvl;
                 recalculateLevels(n.children, lvl + 1);
@@ -405,25 +398,17 @@ export default function BudgetGrid({ refreshKey = 0, isExternalLoading = false }
         recalculateLevels(finalRoots, 0);
 
         return finalRoots;
-
     }, [categories]);
 
     // --- RECURSIVE TOTALS ---
     const nodeTotals = useMemo(() => {
         const totalsMap = new Map<string, { budget: number[], realized: number[] }>();
-
-        // Categories that represent income inside an expense group - their values are negated
-        // so they REDUCE the group total instead of increasing it.
-        // 06.1 = Entradas Financeiras (inside DESPESAS FINANCEIRAS, but it's actually income).
         const isNegatedCode = (code: string) => code.startsWith('06.1');
 
         const calculateNode = (node: CategoryNode, parentNegated = false) => {
-            // De-dup children in case they were pushed multiple times
             const uniqueChildren = Array.from(new Set(node.children.map(c => c.id))).map(id => node.children.find(c => c.id === id)!);
             node.children = uniqueChildren;
-
             const negated = parentNegated || isNegatedCode(node.code || '');
-
             const childrenTotals = uniqueChildren.map(child => calculateNode(child, negated));
             const myBudget = new Array(12).fill(0);
             const myRealized = new Array(12).fill(0);
@@ -486,12 +471,6 @@ export default function BudgetGrid({ refreshKey = 0, isExternalLoading = false }
             calculateTotals: (monthIdx: number) => {
                 const vRev = { b: sumRoots(buckets.rev, monthIdx, 'budget'), r: sumRoots(buckets.rev, monthIdx, 'realized') };
                 const vTaxes = { b: sumRoots(buckets.taxes, monthIdx, 'budget'), r: sumRoots(buckets.taxes, monthIdx, 'realized') };
-
-                // Receita Líquida = Receita Bruta - Tributos (se tributos já vierem negativos da API ou DRE, a gente soma?)
-                // A maioria das APIs de contabilidade traz todas as saídas como POSTIVAS, então a fórmula da DRE subtrai.
-                // Mas se a DRE já usar sinal negativo para saídas na árvore, Math.abs forçava elas a ficarem positivas e reduzia.
-                // Na lógica atual de 'nodeTotals', despesas normais vêm como (+) positivo. Então RECEITA - DESPESA é correto. 
-
                 const vRecLiq = { b: vRev.b - vTaxes.b, r: vRev.r - vTaxes.r };
                 const vCosts = { b: sumRoots(buckets.costs, monthIdx, 'budget'), r: sumRoots(buckets.costs, monthIdx, 'realized') };
                 const vGrossMarg = { b: vRecLiq.b - vCosts.b, r: vRecLiq.r - vCosts.r };
@@ -527,24 +506,26 @@ export default function BudgetGrid({ refreshKey = 0, isExternalLoading = false }
         setExpandedGroups(newSet);
     };
 
-    const handleBudgetChange = async (categoryId: string, monthIndex: number, finalValue: number, copyToFollowing = false) => {
+    const handleSaveBudget = async () => {
+        if (!budgetModal) return;
         setIsSavingBudget(true);
         try {
-            const monthsToUpdate = copyToFollowing ? Array.from({ length: 12 - monthIndex }, (_, i) => monthIndex + i) : [monthIndex];
-
-            // Single CC check for save
             const ccId = selectedCostCenter[0];
+            const updates = modalValues.map((val, idx) => ({
+                month: idx,
+                amount: evaluateFormula(val)
+            }));
 
-            for (const m of monthsToUpdate) {
-                setBudgetValues(prev => ({ ...prev, [`${categoryId}-${m}`]: finalValue }));
+            for (const update of updates) {
+                setBudgetValues(prev => ({ ...prev, [`${budgetModal.categoryId}-${update.month}`]: update.amount }));
                 await fetch('/api/budgets', {
                     method: 'POST',
                     body: JSON.stringify({
-                        categoryId,
+                        categoryId: budgetModal.categoryId,
                         costCenterId: ccId,
                         year: selectedYear,
-                        month: m,
-                        amount: finalValue
+                        month: update.month,
+                        amount: update.amount
                     }),
                     headers: { 'Content-Type': 'application/json' }
                 });
@@ -552,20 +533,29 @@ export default function BudgetGrid({ refreshKey = 0, isExternalLoading = false }
             setBudgetModal(null);
         } catch (e) {
             console.error("Save failed", e);
-            alert("Erro ao salvar orçamento. Tente novamente.");
+            alert("Erro ao salvar orçamento.");
         } finally {
             setIsSavingBudget(false);
         }
     };
 
-    const openBudgetModal = (nodeId: string, nodeName: string, monthIdx: number, currentVal: number) => {
-        // VALIDATION
+    const openBudgetModal = (nodeId: string, nodeName: string) => {
         if (selectedCostCenter.includes('DEFAULT') || selectedCostCenter.length !== 1) {
             alert("Selecione um único centro de custo para lançar um valor");
             return;
         }
-        setBudgetModal({ categoryId: nodeId, categoryName: nodeName, month: monthIdx, initialValue: currentVal });
-        setFormulaValue(currentVal > 0 ? currentVal.toString() : '');
+        const initialValues = new Array(12).fill('').map((_, i) => {
+            const val = budgetValues[`${nodeId}-${i}`];
+            return val ? val.toString() : '';
+        });
+        setBudgetModal({ categoryId: nodeId, categoryName: nodeName });
+        setModalValues(initialValues);
+        setActiveMonth(0);
+    };
+
+    const replicateValue = () => {
+        const valueToReplicate = modalValues[activeMonth];
+        setModalValues(new Array(12).fill(valueToReplicate));
     };
 
     const renderNode = (node: CategoryNode) => {
@@ -578,7 +568,6 @@ export default function BudgetGrid({ refreshKey = 0, isExternalLoading = false }
                 <tr onClick={() => hasChildren && toggleRow(node.id)} style={{ background: hasChildren ? '#fdfdfd' : 'white', cursor: hasChildren ? 'pointer' : 'default', borderBottom: '1px solid #f1f5f9' }}>
                     <td style={{
                         padding: '0.5rem',
-                        // FIX: Base indent of 1.5rem (for Level 0) + 1.5rem per level
                         paddingLeft: `${1.5 + (node.level * 1.5)}rem`,
                         position: 'sticky', left: 0, background: hasChildren ? '#fdfdfd' : 'white', zIndex: 5, display: 'flex', alignItems: 'center', color: hasChildren ? '#1e293b' : '#334155', fontWeight: hasChildren ? 600 : 400, fontSize: '0.8rem'
                     }}>
@@ -589,7 +578,7 @@ export default function BudgetGrid({ refreshKey = 0, isExternalLoading = false }
                     {MONTHS.map((_, i) => (
                         <React.Fragment key={i}>
                             <td
-                                onClick={() => !hasChildren && !node.isSynthetic && openBudgetModal(node.id, node.name, i, totals.budget[i])}
+                                onClick={() => !hasChildren && !node.isSynthetic && openBudgetModal(node.id, node.name)}
                                 style={{
                                     borderLeft: '1px solid #f1f5f9',
                                     padding: '0.5rem',
@@ -650,7 +639,7 @@ export default function BudgetGrid({ refreshKey = 0, isExternalLoading = false }
         setPendingCostCenter(prev => {
             if (prev.includes(id)) {
                 const next = prev.filter(c => c !== id);
-                return next.length === 0 ? ['DEFAULT'] : next; // Prevent empty selection
+                return next.length === 0 ? ['DEFAULT'] : next;
             }
             const next = prev.includes('DEFAULT') ? [id] : [...prev, id];
             return next;
@@ -679,7 +668,6 @@ export default function BudgetGrid({ refreshKey = 0, isExternalLoading = false }
 
     return (
         <>
-            {/* Controls bar - Restored full width layout */}
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', margin: '0 0 1.5rem 0', width: '100%' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
                     <label style={{ fontSize: '0.85rem', fontWeight: 600, color: '#64748b', whiteSpace: 'nowrap' }}>Centro de Custo</label>
@@ -694,19 +682,11 @@ export default function BudgetGrid({ refreshKey = 0, isExternalLoading = false }
 
                         {costCenterDropdownOpen && (
                             <>
-                                <div
-                                    style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, zIndex: 30 }}
-                                    onClick={() => setCostCenterDropdownOpen(false)}
-                                />
+                                <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, zIndex: 30 }} onClick={() => setCostCenterDropdownOpen(false)} />
                                 <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, marginTop: '4px', backgroundColor: '#fff', border: '1px solid #e2e8f0', borderRadius: '6px', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1)', zIndex: 40, maxHeight: '300px', overflowY: 'auto' }}>
                                     {costCenters.map(cc => (
                                         <label key={cc.id} style={{ display: 'flex', alignItems: 'center', padding: '0.5rem 0.75rem', cursor: 'pointer', borderBottom: '1px solid #f1f5f9', fontSize: '0.85rem' }}>
-                                            <input
-                                                type="checkbox"
-                                                checked={pendingCostCenter.includes(cc.id)}
-                                                onChange={() => handleCostCenterToggle(cc.id)}
-                                                style={{ marginRight: '0.5rem', cursor: 'pointer' }}
-                                            />
+                                            <input type="checkbox" checked={pendingCostCenter.includes(cc.id)} onChange={() => handleCostCenterToggle(cc.id)} style={{ marginRight: '0.5rem', cursor: 'pointer' }} />
                                             <span style={{ flex: 1 }}>{cc.name}</span>
                                         </label>
                                     ))}
@@ -714,61 +694,16 @@ export default function BudgetGrid({ refreshKey = 0, isExternalLoading = false }
                             </>
                         )}
                     </div>
-
-                    {/* Botões de Filtrar e Limpar */}
-                    <button
-                        onClick={applyFilter}
-                        style={{ padding: '0 1rem', height: '38px', backgroundColor: '#2563eb', color: 'white', border: 'none', borderRadius: '6px', fontSize: '0.85rem', fontWeight: 600, cursor: 'pointer', transition: 'all 0.2s', display: 'flex', alignItems: 'center', gap: '0.5rem' }}
-                    >
-                        🔍 Filtrar
-                    </button>
-                    <button
-                        onClick={clearFilter}
-                        style={{ padding: '0 1rem', height: '38px', backgroundColor: 'transparent', color: '#64748b', border: '1px solid #cbd5e1', borderRadius: '6px', fontSize: '0.85rem', fontWeight: 600, cursor: 'pointer', transition: 'all 0.2s' }}
-                    >
-                        Limpar
-                    </button>
+                    <button onClick={applyFilter} style={{ padding: '0 1rem', height: '38px', backgroundColor: '#2563eb', color: 'white', border: 'none', borderRadius: '6px', fontSize: '0.85rem', fontWeight: 600, cursor: 'pointer', transition: 'all 0.2s', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>🔍 Filtrar</button>
+                    <button onClick={clearFilter} style={{ padding: '0 1rem', height: '38px', backgroundColor: 'transparent', color: '#64748b', border: '1px solid #cbd5e1', borderRadius: '6px', fontSize: '0.85rem', fontWeight: 600, cursor: 'pointer', transition: 'all 0.2s' }}>Limpar</button>
                 </div>
 
-                {/* View Mode Toggle alinhado à direita */}
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', background: '#f1f5f9', borderRadius: '8px', padding: '0.25rem', height: '38px', marginLeft: 'auto' }}>
-                    <button
-                        onClick={() => setViewMode('competencia')}
-                        style={{
-                            padding: '0.3rem 0.9rem',
-                            borderRadius: '6px',
-                            border: 'none',
-                            cursor: 'pointer',
-                            fontSize: '0.75rem',
-                            fontWeight: 600,
-                            backgroundColor: viewMode === 'competencia' ? '#2563eb' : 'transparent',
-                            color: viewMode === 'competencia' ? 'white' : '#64748b',
-                            transition: 'all 0.2s',
-                        }}
-                    >
-                        📊 Competência
-                    </button>
-
-                    <button
-                        onClick={() => setViewMode('caixa')}
-                        style={{
-                            padding: '0.4rem 0.9rem',
-                            borderRadius: '6px',
-                            border: 'none',
-                            cursor: 'pointer',
-                            fontSize: '0.75rem',
-                            fontWeight: 600,
-                            backgroundColor: viewMode === 'caixa' ? '#2563eb' : 'transparent',
-                            color: viewMode === 'caixa' ? 'white' : '#64748b',
-                            transition: 'all 0.2s',
-                        }}
-                    >
-                        💵 Caixa
-                    </button>
+                    <button onClick={() => setViewMode('competencia')} style={{ padding: '0.3rem 0.9rem', borderRadius: '6px', border: 'none', cursor: 'pointer', fontSize: '0.75rem', fontWeight: 600, backgroundColor: viewMode === 'competencia' ? '#2563eb' : 'transparent', color: viewMode === 'competencia' ? 'white' : '#64748b', transition: 'all 0.2s' }}>📊 Competência</button>
+                    <button onClick={() => setViewMode('caixa')} style={{ padding: '0.4rem 0.9rem', borderRadius: '6px', border: 'none', cursor: 'pointer', fontSize: '0.75rem', fontWeight: 600, backgroundColor: viewMode === 'caixa' ? '#2563eb' : 'transparent', color: viewMode === 'caixa' ? 'white' : '#64748b', transition: 'all 0.2s' }}>💵 Caixa</button>
                 </div>
             </div>
 
-            {/* Table Container */}
             <div style={{ position: 'relative', overflowX: 'auto', border: '1px solid #e2e8f0', borderRadius: '8px', background: 'white', minHeight: '300px' }}>
                 {(loading || isExternalLoading) && (
                     <div style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(255, 255, 255, 0.7)', zIndex: 100, display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center' }}>
@@ -791,126 +726,104 @@ export default function BudgetGrid({ refreshKey = 0, isExternalLoading = false }
                     <tbody>
                         {renderSummaryRow('RECEITA BRUTA', 'vRev', true, '#eff6ff', '#1e3a8a', 'rev')}
                         {expandedGroups.has('rev') && dreStructure.buckets.rev.map(root => renderNode(root))}
-
                         {renderSummaryRow('TRIBUTO SOBRE FATURAMENTO', 'vTaxes', true, '#f1f5f9', '#64748b', 'taxes')}
                         {expandedGroups.has('taxes') && dreStructure.buckets.taxes.map(root => renderNode(root))}
-
                         {renderSummaryRow('(=) RECEITA LÍQUIDA', 'vRecLiq', true, '#e0f2fe', '#0369a1')}
-
                         {renderSummaryRow('CUSTO OPERACIONAL', 'vCosts', true, '#f1f5f9', '#64748b', 'costs')}
                         {expandedGroups.has('costs') && dreStructure.buckets.costs.map(root => renderNode(root))}
-
                         {renderSummaryRow('(=) MARGEM BRUTA', 'vGrossMarg', true, '#dcfce7', '#15803d')}
-
                         {renderSummaryRow('DESPESA OPERACIONAL', 'vOpExp', true, '#f1f5f9', '#64748b', 'opExp')}
                         {expandedGroups.has('opExp') && dreStructure.buckets.opExp.map(root => renderNode(root))}
-
                         {renderSummaryRow('(=) MARGEM DE CONTRIBUIÇÃO', 'vContribMarg', true, '#fff7ed', '#c2410c')}
-
                         {renderSummaryRow('DESPESAS ADMINISTRATIVAS', 'vAdminExp', true, '#f1f5f9', '#64748b', 'adminExp')}
                         {expandedGroups.has('adminExp') && dreStructure.buckets.adminExp.map(root => renderNode(root))}
-
                         {renderSummaryRow('(=) EBITDA', 'vEbitda', true, '#fef3c7', '#b45309')}
-
                         {renderSummaryRow('DESPESAS FINANCEIRAS', 'vFin', true, '#f1f5f9', '#64748b', 'fin')}
                         {expandedGroups.has('fin') && dreStructure.buckets.fin.map(root => renderNode(root))}
-
                         {renderSummaryRow('(=) LUCRO LÍQUIDO', 'vNetProfit', true, '#0f172a', '#fbbf24')}
                     </tbody>
                 </table>
-                {
-                    selectedCell && (
-                        <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', background: 'rgba(0,0,0,0.5)', zIndex: 50, display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
-                            <div style={{ background: 'white', padding: '2rem', borderRadius: '12px', width: '90vw', maxWidth: '1000px', height: '90vh', maxHeight: '90vh', overflowY: 'auto', boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)', display: 'flex', flexDirection: 'column' }}>
-                                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '1rem', borderBottom: '1px solid #e2e8f0', paddingBottom: '0.5rem' }}>
-                                    <h3 style={{ fontSize: '1.1rem', fontWeight: 'bold' }}>{selectedCell.categoryName} - {MONTHS[selectedCell.month]}</h3>
-                                    <button onClick={closeModal} style={{ background: 'none', border: 'none', fontSize: '1.5rem', cursor: 'pointer' }}>×</button>
-                                </div>
-                                {loadingTransactions ? <div style={{ textAlign: 'center', padding: '2rem', color: '#64748b' }}>Carregando lançamentos...</div> : transactions.length === 0 ? <div style={{ textAlign: 'center', padding: '2rem', color: '#64748b' }}>Nenhum lançamento encontrado.</div> : (
-                                    <table style={{ width: '100%', fontSize: '0.8rem', borderCollapse: 'collapse' }}>
-                                        <thead>
-                                            <tr style={{ background: '#f8fafc', textAlign: 'left' }}>
-                                                <th style={{ padding: '0.5rem', borderBottom: '1px solid #e2e8f0' }}>Data</th>
-                                                <th style={{ padding: '0.5rem', borderBottom: '1px solid #e2e8f0' }}>Descrição</th>
-                                                <th style={{ padding: '0.5rem', borderBottom: '1px solid #e2e8f0' }}>Cliente/Forn.</th>
-                                                <th style={{ padding: '0.5rem', borderBottom: '1px solid #e2e8f0', textAlign: 'right' }}>Valor</th>
-                                                <th style={{ padding: '0.5rem', borderBottom: '1px solid #e2e8f0', fontSize: '0.7rem', color: 'red' }}>Debug Values</th>
+                {selectedCell && (
+                    <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', background: 'rgba(0,0,0,0.5)', zIndex: 50, display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
+                        <div style={{ background: 'white', padding: '2rem', borderRadius: '12px', width: '90vw', maxWidth: '1000px', height: '90vh', maxHeight: '90vh', overflowY: 'auto', boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)', display: 'flex', flexDirection: 'column' }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '1rem', borderBottom: '1px solid #e2e8f0', paddingBottom: '0.5rem' }}>
+                                <h3 style={{ fontSize: '1.1rem', fontWeight: 'bold' }}>{selectedCell.categoryName} - {MONTHS[selectedCell.month]}</h3>
+                                <button onClick={closeModal} style={{ background: 'none', border: 'none', fontSize: '1.5rem', cursor: 'pointer' }}>×</button>
+                            </div>
+                            {loadingTransactions ? <div style={{ textAlign: 'center', padding: '2rem', color: '#64748b' }}>Carregando lançamentos...</div> : transactions.length === 0 ? <div style={{ textAlign: 'center', padding: '2rem', color: '#64748b' }}>Nenhum lançamento encontrado.</div> : (
+                                <table style={{ width: '100%', fontSize: '0.8rem', borderCollapse: 'collapse' }}>
+                                    <thead>
+                                        <tr style={{ background: '#f8fafc', textAlign: 'left' }}>
+                                            <th style={{ padding: '0.5rem', borderBottom: '1px solid #e2e8f0' }}>Data</th>
+                                            <th style={{ padding: '0.5rem', borderBottom: '1px solid #e2e8f0' }}>Descrição</th>
+                                            <th style={{ padding: '0.5rem', borderBottom: '1px solid #e2e8f0' }}>Cliente/Forn.</th>
+                                            <th style={{ padding: '0.5rem', borderBottom: '1px solid #e2e8f0', textAlign: 'right' }}>Valor</th>
+                                            <th style={{ padding: '0.5rem', borderBottom: '1px solid #e2e8f0', fontSize: '0.7rem', color: 'red' }}>Debug Values</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {transactions.map((tx: any) => (
+                                            <tr key={tx.id} style={{ borderBottom: '1px solid #f1f5f9' }}>
+                                                <td style={{ padding: '0.5rem' }}>{new Date(tx.date).toLocaleDateString('pt-BR')}</td>
+                                                <td style={{ padding: '0.5rem' }}>{tx.description}</td>
+                                                <td style={{ padding: '0.5rem' }}>{tx.customer || '-'}</td>
+                                                <td style={{ padding: '0.5rem', textAlign: 'right', fontWeight: 'bold' }}>{parseFloat(tx.value).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</td>
+                                                <td style={{ padding: '0.5rem', fontSize: '0.7rem', color: '#666' }}>{tx.debug_info}</td>
                                             </tr>
-                                        </thead>
-                                        <tbody>
-                                            {transactions.map((tx: any) => (
-                                                <tr key={tx.id} style={{ borderBottom: '1px solid #f1f5f9' }}>
-                                                    <td style={{ padding: '0.5rem' }}>{new Date(tx.date).toLocaleDateString('pt-BR')}</td>
-                                                    <td style={{ padding: '0.5rem' }}>{tx.description}</td>
-                                                    <td style={{ padding: '0.5rem' }}>{tx.customer || '-'}</td>
-                                                    <td style={{ padding: '0.5rem', textAlign: 'right', fontWeight: 'bold' }}>{parseFloat(tx.value).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</td>
-                                                    <td style={{ padding: '0.5rem', fontSize: '0.7rem', color: '#666' }}>{tx.debug_info}</td>
-                                                </tr>
-                                            ))}
-                                        </tbody>
-                                    </table>
-                                )}
-                            </div>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            )}
                         </div>
-                    )
-                }
+                    </div>
+                )}
 
-                {/* Budget Entry Modal */}
+                {/* Budget Entry Modal - Redesigned Dark Version */}
                 {budgetModal && (
-                    <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
-                        <div style={{ backgroundColor: 'white', borderRadius: '12px', padding: '1.5rem', width: '400px', boxShadow: '0 20px 25px -5px rgba(0,0,0,0.1)' }}>
-                            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '1rem' }}>
-                                <h3 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 700 }}>Orçar Categoria</h3>
-                                <button onClick={() => setBudgetModal(null)} style={{ border: 'none', background: 'none', cursor: 'pointer', fontSize: '1.2rem', color: '#94a3b8' }}>✕</button>
+                    <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, backdropFilter: 'blur(4px)' }}>
+                        <div style={{ backgroundColor: '#111827', borderRadius: '16px', padding: '2rem', width: '600px', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.5)', color: '#fff', border: '1px solid #374151' }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
+                                <h3 style={{ margin: 0, fontSize: '1.4rem', fontWeight: 600 }}>Editar: {budgetModal.categoryName}</h3>
+                                <button onClick={() => setBudgetModal(null)} style={{ border: 'none', background: 'none', cursor: 'pointer', fontSize: '1.5rem', color: '#94a3b8', padding: '0.5rem' }}>✕</button>
                             </div>
 
-                            <div style={{ marginBottom: '1.25rem' }}>
-                                <div style={{ fontSize: '0.75rem', color: '#64748b', marginBottom: '0.25rem' }}>{budgetModal.categoryName}</div>
-                                <div style={{ fontSize: '0.9rem', fontWeight: 600 }}>Mês: {MONTHS[budgetModal.month]}</div>
+                            <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '1rem' }}>
+                                <button onClick={replicateValue} style={{ background: 'none', border: 'none', color: '#38bdf8', cursor: 'pointer', fontSize: '0.85rem', fontWeight: 500, padding: '0.5rem' }}>
+                                    Replicar {MONTHS[activeMonth]} para todos
+                                </button>
                             </div>
 
-                            <div style={{ marginBottom: '1.5rem' }}>
-                                <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, color: '#334155', marginBottom: '0.5rem' }}>Valor ou Fórmula (=)</label>
-                                <input
-                                    autoFocus
-                                    type="text"
-                                    value={formulaValue}
-                                    onChange={(e) => setFormulaValue(e.target.value)}
-                                    placeholder="Ex: 1500 ou =500*3"
-                                    style={{ width: '100%', padding: '0.75rem', borderRadius: '8px', border: '2px solid #e2e8f0', fontSize: '1rem', outline: 'none', transition: 'border-color 0.2s' }}
-                                    onKeyDown={(e) => {
-                                        if (e.key === 'Enter') handleBudgetChange(budgetModal.categoryId, budgetModal.month, evaluateFormula(formulaValue));
-                                    }}
-                                />
-                                {formulaValue.startsWith('=') && (
-                                    <div style={{ marginTop: '0.5rem', fontSize: '0.85rem', color: '#2563eb', fontWeight: 600 }}>
-                                        Resultado: {formatCurrency(evaluateFormula(formulaValue))}
+                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '1rem', marginBottom: '2rem' }}>
+                                {MONTHS.map((m, i) => (
+                                    <div key={m} style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
+                                        <label style={{ fontSize: '0.75rem', fontWeight: 600, color: '#94a3b8', textTransform: 'uppercase' }}>{m}</label>
+                                        <div style={{ position: 'relative' }}>
+                                            <span style={{ position: 'absolute', left: '0.75rem', top: '50%', transform: 'translateY(-50%)', color: '#64748b', fontSize: '0.9rem' }}>R$</span>
+                                            <input
+                                                type="text"
+                                                value={modalValues[i]}
+                                                onFocus={() => setActiveMonth(i)}
+                                                onChange={(e) => {
+                                                    const next = [...modalValues];
+                                                    next[i] = e.target.value;
+                                                    setModalValues(next);
+                                                }}
+                                                placeholder="0.00"
+                                                style={{ width: '100%', padding: '0.75rem 0.75rem 0.75rem 2.2rem', borderRadius: '8px', backgroundColor: '#1f2937', border: activeMonth === i ? '2px solid #38bdf8' : '1px solid #374151', color: '#fff', fontSize: '0.95rem', outline: 'none', transition: 'all 0.2s' }}
+                                            />
+                                        </div>
                                     </div>
-                                )}
+                                ))}
                             </div>
 
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-                                <button
-                                    disabled={isSavingBudget}
-                                    onClick={() => handleBudgetChange(budgetModal.categoryId, budgetModal.month, evaluateFormula(formulaValue))}
-                                    style={{ width: '100%', padding: '0.75rem', backgroundColor: '#2563eb', color: 'white', border: 'none', borderRadius: '8px', fontWeight: 700, cursor: 'pointer', opacity: isSavingBudget ? 0.7 : 1 }}
-                                >
-                                    {isSavingBudget ? 'Salvando...' : 'Salvar apenas este mês'}
-                                </button>
-
-                                <button
-                                    disabled={isSavingBudget}
-                                    onClick={() => handleBudgetChange(budgetModal.categoryId, budgetModal.month, evaluateFormula(formulaValue), true)}
-                                    style={{ width: '100%', padding: '0.75rem', backgroundColor: '#f1f5f9', color: '#1e293b', border: 'none', borderRadius: '8px', fontWeight: 600, cursor: 'pointer' }}
-                                >
-                                    ↗ Copiar para meses seguintes
-                                </button>
+                            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '1rem', marginTop: '1rem' }}>
+                                <button onClick={() => setBudgetModal(null)} style={{ padding: '0.75rem 1.5rem', backgroundColor: 'transparent', color: '#94a3b8', border: 'none', borderRadius: '8px', fontWeight: 600, cursor: 'pointer', fontSize: '0.95rem' }}>Cancelar</button>
+                                <button disabled={isSavingBudget} onClick={handleSaveBudget} style={{ padding: '0.75rem 2rem', backgroundColor: '#38bdf8', color: '#000', border: 'none', borderRadius: '8px', fontWeight: 700, cursor: 'pointer', fontSize: '0.95rem', minWidth: '120px', opacity: isSavingBudget ? 0.7 : 1 }}>{isSavingBudget ? 'Salvando...' : 'Salvar'}</button>
                             </div>
                         </div>
                     </div>
                 )}
-            </div >
+            </div>
         </>
     );
 }
-

@@ -19,6 +19,7 @@ export default function FinancialDashboard({
 }: FinancialDashboardProps) {
     const [refreshKey, setRefreshKey] = useState(0);
     const [companies, setCompanies] = useState<any[]>([]);
+    const [isSyncing, setIsSyncing] = useState(false);
 
     useEffect(() => {
         if (isConnected) {
@@ -32,7 +33,7 @@ export default function FinancialDashboard({
     }, [isConnected, refreshKey]);
 
     const triggerRefresh = () => {
-        console.log('Refreshing grid...');
+        setIsSyncing(false);
         setRefreshKey(prev => prev + 1);
     };
 
@@ -49,11 +50,11 @@ export default function FinancialDashboard({
 
     return (
         <main style={{ width: '100%', padding: '2rem 4rem', boxSizing: 'border-box' }}>
-            <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+            <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '1.5rem' }}>
+                <div>
                     <h1 style={{ color: 'hsl(var(--primary))', margin: 0 }}>Budget Hub</h1>
                     {isConnected && companies.length > 0 && (
-                        <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+                        <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', marginTop: '0.75rem' }}>
                             {companies.map(c => (
                                 <div key={c.id} style={{
                                     display: 'inline-flex',
@@ -103,7 +104,7 @@ export default function FinancialDashboard({
                         >
                             + Adicionar Empresa
                         </a>
-                        <SyncButton onSyncComplete={triggerRefresh} />
+                        <SyncButton onSyncStart={() => setIsSyncing(true)} onSyncComplete={triggerRefresh} />
                     </div>
                 )}
             </header>
@@ -150,7 +151,7 @@ export default function FinancialDashboard({
 
             <section style={{ marginBottom: '2rem' }}>
                 <h2 style={{ marginBottom: '1rem' }}>Previsto x Realizado</h2>
-                <BudgetGrid refreshKey={refreshKey} />
+                <BudgetGrid refreshKey={refreshKey} isExternalLoading={isSyncing} />
             </section>
 
         </main>

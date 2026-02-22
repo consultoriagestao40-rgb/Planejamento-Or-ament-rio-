@@ -272,33 +272,31 @@ async function aggregateTransactions(
     baseUrl: string,
     targetValues: Record<string, number>,
     isExpense = false,
-    costCenterId: string = 'DEFAULT',
+    costCenterIdString: string = 'DEFAULT',
     targetYear: number,
     viewMode: 'caixa' | 'competencia' = 'competencia'
 ) {
     let page = 1;
     let hasMore = true;
 
-    // V47.9.10: Append Cost Center Filter if valid
+    // Parse target cost centers into an array
+    const targetCcs = costCenterIdString.split(',').map(id => id.trim()).filter(id => id !== 'DEFAULT' && id !== 'Geral' && id !== '');
+    const isFiltered = targetCcs.length > 0;
+    const isMultiSelect = targetCcs.length > 1;
+
+    // Append Cost Center Filter if valid and only a SINGLE one is selected.
+    // If multiple are selected, we must fetch without the filter and filter locally,
+    // because the API V1 only accepts exactly one centro_custo_id via query parameter.
     let finalUrlBase = baseUrl;
-    if (costCenterId && costCenterId !== 'DEFAULT' && costCenterId !== 'Geral') {
-        finalUrlBase += `&centro_custo_id=${costCenterId}`;
+    if (isFiltered && !isMultiSelect) {
+        finalUrlBase += `&centro_custo_id=${targetCcs[0]}`;
     }
 
-    const isFiltered = !!(costCenterId && costCenterId !== 'DEFAULT' && costCenterId !== 'Geral');
-
-    // TWO-PASS RATEIO APPROACH (when a specific CC is active):
-    // Conta Azul creates two types of entries for apportioned (rateado) transactions:
-    //   Type A: Individual per-CC entry with the EXACT apportioned value (1 CC)
-    //   Type B: Umbrella master entry with the TOTAL across all CCs (N > 1 CCs)
-    // When filtering by a specific CC, we prefer Type A entries (exact).
-    // If a category only has Type B entries (no Type A), we fall back to equal-split.
-    // This mirrors exactly how Conta Azul calculates the DRE per cost center.
+    // TWO-PASS RATEIO APPROACH
     type ItemBucket = { amount: number; ccCount: number };
-    const singleCCByKey: Record<string, number> = {}; // catId-monthIdx -> total from single-CC entries
-    const multiCCByKey: Record<string, ItemBucket[]> = {}; // catId-monthIdx -> list of multi-CC entries
+    const singleCCByKey: Record<string, number> = {};
+    const multiCCByKey: Record<string, ItemBucket[]> = {};
 
-    // V47.9.8: Increased safer limit to 200 pages
     while (hasMore && page <= 200) {
         const url = `${finalUrlBase}&pagina=${page}`;
         try {
@@ -310,16 +308,12 @@ async function aggregateTransactions(
             if (items.length === 0) { hasMore = false; break; }
 
             items.forEach((item: any) => {
-                // Caixa: parcel value + vencimento date
-                // Competencia (Gerencial): total cost + competencia date
                 let amount: number;
                 let dateStr: string;
                 if (viewMode === 'caixa') {
-                    // Cash basis: use the parcel/installment value and due date
                     amount = item.valor || item.valor_original || item.valor_liquido || item.total || 0;
                     dateStr = item.data_vencimento || item.vencimento || item.data_competencia || item.data_pagamento;
                 } else {
-                    // Accrual basis (Gerencial): use total cost and competencia date
                     amount = item.total || item.valor_original || item.valor || item.valor_liquido || 0;
                     dateStr = item.data_competencia || item.data_vencimento || item.vencimento || item.data_pagamento;
                 }
@@ -332,9 +326,11 @@ async function aggregateTransactions(
                 if (status.includes('CANCEL')) return;
 
                 const ccs = item.centros_de_custo || [];
+
+                // If filtered, the item MUST belong to AT LEAST ONE of the target CCs
                 if (isFiltered) {
-                    const hasCC = ccs.some((c: any) => c.id === costCenterId);
-                    if (!hasCC) return;
+                    const matchesTarget = ccs.some((c: any) => targetCcs.includes(c.id));
+                    if (!matchesTarget) return;
                 }
 
                 const categories = item.categorias || [];
@@ -342,13 +338,24 @@ async function aggregateTransactions(
                     const catId = categories[0].id;
                     if (catId) {
                         const key = `${catId}-${monthIdx}`;
-                        if (!isFiltered || ccs.length === 1) {
-                            // Single-CC or global mode: add directly
-                            singleCCByKey[key] = (singleCCByKey[key] || 0) + amount;
+
+                        // Modified rateio logic for Multi-select:
+                        // If multi-select is active, we just accumulate the proportional value of the matching CCs
+                        if (isMultiSelect) {
+                            // Find how many of the entry's CCs we actually want to sum
+                            // Usually Conta Azul returns Umbrella transactions with N CCs. 
+                            // We divide the total by N, and multiply by the number of selected CCs that match.
+                            const matchingCcs = ccs.filter((c: any) => targetCcs.includes(c.id)).length;
+                            const proportion = matchingCcs / (ccs.length || 1);
+                            targetValues[key] = (targetValues[key] || 0) + (amount * proportion);
                         } else {
-                            // Multi-CC umbrella entry
-                            if (!multiCCByKey[key]) multiCCByKey[key] = [];
-                            multiCCByKey[key].push({ amount, ccCount: ccs.length });
+                            // Original Single-Select Logic
+                            if (!isFiltered || ccs.length === 1) {
+                                singleCCByKey[key] = (singleCCByKey[key] || 0) + amount;
+                            } else {
+                                if (!multiCCByKey[key]) multiCCByKey[key] = [];
+                                multiCCByKey[key].push({ amount, ccCount: ccs.length });
+                            }
                         }
                     }
                 }
@@ -361,18 +368,16 @@ async function aggregateTransactions(
         }
     }
 
-    // Merge: for each key, use single-CC totals if any exist; else use equal-split of multi-CC
-    const allKeys = new Set([...Object.keys(singleCCByKey), ...Object.keys(multiCCByKey)]);
-    for (const key of allKeys) {
-        if (singleCCByKey[key] !== undefined) {
-            // Prefer individual entries - they carry the exact apportioned value
-            // Also add any multi-CC for safe measure (e.g. transactions split across 2 CCs)
-            // But if single-CC entries exist for a category, the multi-CC ones are the umbrella totals - skip them.
-            targetValues[key] = (targetValues[key] || 0) + singleCCByKey[key];
-        } else if (multiCCByKey[key]) {
-            // No individual entries for this category - use equal split of umbrella entries
-            const total = multiCCByKey[key].reduce((sum, b) => sum + (b.amount / b.ccCount), 0);
-            targetValues[key] = (targetValues[key] || 0) + total;
+    if (!isMultiSelect) {
+        // Run original Merge for Single CC approach
+        const allKeys = new Set([...Object.keys(singleCCByKey), ...Object.keys(multiCCByKey)]);
+        for (const key of allKeys) {
+            if (singleCCByKey[key] !== undefined) {
+                targetValues[key] = (targetValues[key] || 0) + singleCCByKey[key];
+            } else if (multiCCByKey[key]) {
+                const total = multiCCByKey[key].reduce((sum, b) => sum + (b.amount / b.ccCount), 0);
+                targetValues[key] = (targetValues[key] || 0) + total;
+            }
         }
     }
 }
@@ -427,8 +432,17 @@ async function fetchCostCenters(accessToken: string) {
             const data = await res.json();
 
             if (res.ok) {
-                const items = Array.isArray(data) ? data : (data.itens || data.items || data.centro_de_custos || data.centro_custo || []);
+                let items = Array.isArray(data) ? data : (data.itens || data.items || data.centro_de_custos || data.centro_custo || []);
                 if (items.length > 0) {
+                    // Filter for active CCs only. Conta Azul uses status='ATIVO' or 'INATIVO', or booleans 'ativo'/'inativo'
+                    items = items.filter((i: any) => {
+                        if (i.status) return i.status.toUpperCase() === 'ATIVO';
+                        if (typeof i.ativo === 'boolean') return i.ativo;
+                        if (typeof i.inativo === 'boolean') return !i.inativo;
+                        if (typeof i.is_active === 'boolean') return i.is_active;
+                        return true; // default to true if no status flag is found
+                    });
+
                     allItems = [...allItems, ...items];
                     if (items.length < 100) hasMore = false;
                     else page++;

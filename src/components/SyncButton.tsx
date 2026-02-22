@@ -3,13 +3,13 @@
 import { useState } from 'react';
 import { syncFinancialData } from '@/actions/sync';
 
-export function SyncButton({ onSyncComplete }: { onSyncComplete?: () => void }) {
+export function SyncButton({ onSyncComplete, onSyncStart }: { onSyncComplete?: () => void; onSyncStart?: () => void; }) {
     const [loading, setLoading] = useState(false);
     const [lastSync, setLastSync] = useState<string | null>(null);
-    const [data, setData] = useState<any>(null);
 
     const handleSync = async () => {
         setLoading(true);
+        if (onSyncStart) onSyncStart();
         const result = await syncFinancialData();
         setLoading(false);
 

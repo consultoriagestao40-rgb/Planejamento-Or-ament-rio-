@@ -6,6 +6,7 @@ import { MONTHS, MOCK_COST_CENTERS } from '@/lib/mock-data';
 
 interface BudgetGridProps {
     refreshKey?: number;
+    isExternalLoading?: boolean;
 }
 
 // Tree Node Interface
@@ -20,13 +21,14 @@ interface CategoryNode {
     isSynthetic?: boolean;
 }
 
-export default function BudgetGrid({ refreshKey = 0 }: BudgetGridProps) {
+export default function BudgetGrid({ refreshKey = 0, isExternalLoading = false }: BudgetGridProps) {
     const [budgetValues, setBudgetValues] = useState<Record<string, number>>({});
     const [realizedValues, setRealizedValues] = useState<Record<string, number>>({});
     const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
     const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set()); // New state for main groups
     const [loading, setLoading] = useState(true);
-    const [selectedCostCenter, setSelectedCostCenter] = useState('DEFAULT');
+    const [selectedCostCenter, setSelectedCostCenter] = useState<string[]>(['DEFAULT']);
+    const [costCenterDropdownOpen, setCostCenterDropdownOpen] = useState(false);
     const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
     const [viewMode, setViewMode] = useState<'caixa' | 'competencia'>('competencia');
 
@@ -40,7 +42,7 @@ export default function BudgetGrid({ refreshKey = 0 }: BudgetGridProps) {
         setLoadingTransactions(true);
         setTransactions([]);
         try {
-            const res = await fetch(`/api/transactions?categoryId=${categoryId}&month=${month}&year=${selectedYear}&costCenterId=${selectedCostCenter}&viewMode=${viewMode}`);
+            const res = await fetch(`/api/transactions?categoryId=${categoryId}&month=${month}&year=${selectedYear}&costCenterId=${selectedCostCenter.join(',')}&viewMode=${viewMode}`);
             const data = await res.json();
             if (data.success) {
                 setTransactions(data.transactions);
@@ -88,8 +90,8 @@ export default function BudgetGrid({ refreshKey = 0 }: BudgetGridProps) {
             setError(null);
             try {
                 const [budgetRes, syncRes] = await Promise.all([
-                    fetch(`/api/budgets?costCenterId=${selectedCostCenter}&year=${selectedYear}&t=${Date.now()}`, { cache: 'no-store' }),
-                    fetch(`/api/sync?costCenterId=${selectedCostCenter}&year=${selectedYear}&viewMode=${viewMode}&t=${Date.now()}`, { cache: 'no-store' })
+                    fetch(`/api/budgets?costCenterId=${selectedCostCenter.join(',')}&year=${selectedYear}&t=${Date.now()}`, { cache: 'no-store' }),
+                    fetch(`/api/sync?costCenterId=${selectedCostCenter.join(',')}&year=${selectedYear}&viewMode=${viewMode}&t=${Date.now()}`, { cache: 'no-store' })
                 ]);
 
                 const budgetData = await budgetRes.json();
@@ -498,7 +500,7 @@ export default function BudgetGrid({ refreshKey = 0 }: BudgetGridProps) {
     const handleBudgetChange = async (categoryId: string, monthIndex: number, value: string) => {
         const numericValue = parseFloat(value.replace(/\D/g, '')) / 100 || 0;
         setBudgetValues(prev => ({ ...prev, [`${categoryId}-${monthIndex}`]: numericValue }));
-        try { await fetch('/api/budgets', { method: 'POST', body: JSON.stringify({ categoryId, costCenterId: selectedCostCenter, year: selectedYear, month: monthIndex, amount: numericValue }), headers: { 'Content-Type': 'application/json' } }); } catch (e) { console.error("Save failed", e); }
+        try { await fetch('/api/budgets', { method: 'POST', body: JSON.stringify({ categoryId, costCenterId: selectedCostCenter.join(','), year: selectedYear, month: monthIndex, amount: numericValue }), headers: { 'Content-Type': 'application/json' } }); } catch (e) { console.error("Save failed", e); }
     };
 
     const renderNode = (node: CategoryNode) => {
@@ -561,22 +563,72 @@ export default function BudgetGrid({ refreshKey = 0 }: BudgetGridProps) {
         );
     };
 
+    const handleCostCenterToggle = (id: string) => {
+        setSelectedCostCenter(prev => {
+            if (prev.includes(id)) {
+                const next = prev.filter(c => c !== id);
+                return next.length === 0 ? ['DEFAULT'] : next; // Prevent empty selection
+            }
+            // If they pick something else while DEFAULT is selected, usually we just add it,
+            // or we remove DEFAULT if DEFAULT was the only one. Let's remove DEFAULT if it's there
+            // and they pick a specific CC.
+            const next = prev.includes('DEFAULT') ? [id] : [...prev, id];
+            return next;
+        });
+    };
+
+    const getSelectedCostCenterNames = () => {
+        if (selectedCostCenter.includes('DEFAULT') && selectedCostCenter.length === 1) return 'Geral (Todos)';
+        const names = costCenters.filter(c => selectedCostCenter.includes(c.id)).map(c => c.name);
+        if (names.length === 0) return 'Geral (Todos)';
+        if (names.length === 1) return names[0];
+        if (names.length === costCenters.length) return 'Todos Selecionados';
+        return `${names.length} Centros de Custo`;
+    };
+
     return (
         <>
-            {/* Controls bar - above the table container, aligned with section title */}
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                    <label style={{ fontSize: '0.75rem', fontWeight: 600, color: '#64748b', whiteSpace: 'nowrap' }}>Centro de Custo</label>
-                    <select value={selectedCostCenter} onChange={(e) => setSelectedCostCenter(e.target.value)} style={{ padding: '0.45rem 0.75rem', borderRadius: '6px', border: '1px solid #cbd5e1', minWidth: '220px', fontSize: '0.85rem' }}>
-                        {costCenters.map(cc => <option key={cc.id} value={cc.id}>{cc.name}</option>)}
-                    </select>
+            {/* Controls bar - Restored full width layout */}
+            <div style={{ display: 'flex', gap: '1rem', width: '100%', maxWidth: '800px', margin: '0 0 2rem 0', alignItems: 'flex-end' }}>
+                <div style={{ flex: 1, position: 'relative' }}>
+                    <label style={{ display: 'block', fontSize: '0.9rem', marginBottom: '0.5rem', fontWeight: 600, color: '#64748b' }}>Centro de Custo</label>
+                    <div
+                        onClick={() => setCostCenterDropdownOpen(!costCenterDropdownOpen)}
+                        style={{ padding: '0.5rem 0.75rem', borderRadius: '6px', border: '1px solid #cbd5e1', backgroundColor: '#fff', cursor: 'pointer', fontSize: '0.85rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', minHeight: '38px' }}
+                    >
+                        <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{getSelectedCostCenterNames()}</span>
+                        <span style={{ fontSize: '0.6rem', color: '#94a3b8' }}>▼</span>
+                    </div>
+
+                    {costCenterDropdownOpen && (
+                        <>
+                            <div
+                                style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, zIndex: 30 }}
+                                onClick={() => setCostCenterDropdownOpen(false)}
+                            />
+                            <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, marginTop: '4px', backgroundColor: '#fff', border: '1px solid #e2e8f0', borderRadius: '6px', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1)', zIndex: 40, maxHeight: '300px', overflowY: 'auto' }}>
+                                {costCenters.map(cc => (
+                                    <label key={cc.id} style={{ display: 'flex', alignItems: 'center', padding: '0.5rem 0.75rem', cursor: 'pointer', borderBottom: '1px solid #f1f5f9', fontSize: '0.85rem' }}>
+                                        <input
+                                            type="checkbox"
+                                            checked={selectedCostCenter.includes(cc.id)}
+                                            onChange={() => handleCostCenterToggle(cc.id)}
+                                            style={{ marginRight: '0.5rem', cursor: 'pointer' }}
+                                        />
+                                        <span style={{ flex: 1 }}>{cc.name}</span>
+                                    </label>
+                                ))}
+                            </div>
+                        </>
+                    )}
                 </div>
+
                 {/* View Mode Toggle */}
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', background: '#f1f5f9', borderRadius: '8px', padding: '0.25rem' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', background: '#f1f5f9', borderRadius: '8px', padding: '0.25rem', height: '38px' }}>
                     <button
                         onClick={() => setViewMode('competencia')}
                         style={{
-                            padding: '0.4rem 0.9rem',
+                            padding: '0.3rem 0.9rem',
                             borderRadius: '6px',
                             border: 'none',
                             cursor: 'pointer',
@@ -589,6 +641,7 @@ export default function BudgetGrid({ refreshKey = 0 }: BudgetGridProps) {
                     >
                         📊 Competência
                     </button>
+
                     <button
                         onClick={() => setViewMode('caixa')}
                         style={{
@@ -610,7 +663,7 @@ export default function BudgetGrid({ refreshKey = 0 }: BudgetGridProps) {
 
             {/* Table Container */}
             <div style={{ position: 'relative', overflowX: 'auto', border: '1px solid #e2e8f0', borderRadius: '8px', background: 'white', minHeight: '300px' }}>
-                {loading && (
+                {(loading || isExternalLoading) && (
                     <div style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(255, 255, 255, 0.7)', zIndex: 100, display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center' }}>
                         <div style={{ width: '40px', height: '40px', border: '4px solid #f1f5f9', borderTop: '4px solid #3b82f6', borderRadius: '50%', animation: 'spin-loading 1s linear infinite' }} />
                         <span style={{ marginTop: '1rem', color: '#1e293b', fontWeight: 600, fontSize: '0.9rem' }}>Atualizando...</span>

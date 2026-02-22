@@ -70,24 +70,25 @@ export async function GET(request: Request) {
     }
 }
 
-async function fetchTransactions(accessToken: string, baseUrl: string, costCenterId: string, categoryId: string, targetYear: number, targetMonth: number, viewMode: 'caixa' | 'competencia' = 'competencia') {
+async function fetchTransactions(accessToken: string, baseUrl: string, costCenterIdStr: string, categoryId: string, targetYear: number, targetMonth: number, viewMode: 'caixa' | 'competencia' = 'competencia') {
     let page = 1;
     let hasMore = true;
     const transactions: any[] = [];
 
-    const isFiltered = !!(costCenterId && costCenterId !== 'DEFAULT' && costCenterId !== 'Geral');
+    const targetCcs = costCenterIdStr.split(',').map(id => id.trim()).filter(id => id !== 'DEFAULT' && id !== 'Geral' && id !== '');
+    const isFiltered = targetCcs.length > 0;
+    const isMultiSelect = targetCcs.length > 1;
 
     let finalUrlBase = baseUrl;
-    // Filter by Cost Center if provided
-    if (isFiltered) {
-        finalUrlBase += `&centro_custo_id=${costCenterId}`;
+    // Filter by Cost Center if provided and only ONE is selected
+    if (isFiltered && !isMultiSelect) {
+        finalUrlBase += `&centro_custo_id=${targetCcs[0]}`;
     }
 
-    // TWO-PASS: same logic as DRE sync — prefer single-CC entries when CC filtered
+    // TWO-PASS approach for single CC
     const singleCCItems: any[] = [];
     const multiCCItems: any[] = [];
 
-    // Increased page limit to 50 (5000 items) to cover the whole year search
     while (hasMore && page <= 50) {
         const url = `${finalUrlBase}&pagina=${page}`;
         try {
@@ -102,19 +103,16 @@ async function fetchTransactions(accessToken: string, baseUrl: string, costCente
             items.forEach((item: any) => {
                 if ((item.status || '').toUpperCase().includes('CANCEL')) return;
 
-                // Cost Center filter
                 const ccs = item.centros_de_custo || [];
                 if (isFiltered) {
-                    const hasCC = ccs.some((c: any) => c.id === costCenterId);
-                    if (!hasCC) return;
+                    const matchesTarget = ccs.some((c: any) => targetCcs.includes(c.id));
+                    if (!matchesTarget) return;
                 }
 
-                // Category match
                 const cats = item.categorias || [];
                 const hasCategory = cats.some((c: any) => c.id === categoryId);
                 if (!hasCategory) return;
 
-                // Use same date logic as DRE sync
                 let dateStr: string;
                 let amount: number;
                 if (viewMode === 'caixa') {
@@ -128,21 +126,39 @@ async function fetchTransactions(accessToken: string, baseUrl: string, costCente
                 const dateObj = dateStr ? new Date(dateStr) : new Date();
                 if (dateObj.getMonth() !== targetMonth || dateObj.getFullYear() !== targetYear) return;
 
+                let finalAmount = amount;
+                let descriptionSuffix = '';
+
+                // If multi-select, calculate proportional value
+                if (isMultiSelect) {
+                    const matchingCcs = ccs.filter((c: any) => targetCcs.includes(c.id)).length;
+                    const ccsCount = ccs.length || 1;
+                    if (matchingCcs < ccsCount) { // Partial coverage of umbrella
+                        finalAmount = amount * (matchingCcs / ccsCount);
+                        descriptionSuffix = ` (Proporcional: ${matchingCcs}/${ccsCount} CCs)`;
+                    }
+                }
+
                 const txn = {
                     id: item.id,
                     date: dateStr,
-                    description: item.descricao || 'Sem descrição',
-                    value: amount,
+                    description: (item.descricao || 'Sem descrição') + descriptionSuffix,
+                    value: finalAmount,
                     customer: item.cliente ? item.cliente.nome : (item.fornecedor ? item.fornecedor.nome : 'N/A'),
                     status: item.status,
                     ccCount: ccs.length,
                     debug_info: `V:${item.valor} | VO:${item.valor_original} | T:${item.total} | VL:${item.valor_liquido}`
                 };
 
-                if (isFiltered && ccs.length > 1) {
-                    multiCCItems.push(txn);
+                if (isMultiSelect) {
+                    // Straight forward accumulation for multi-select
+                    transactions.push(txn);
                 } else {
-                    singleCCItems.push(txn);
+                    if (isFiltered && ccs.length > 1) {
+                        multiCCItems.push(txn);
+                    } else {
+                        singleCCItems.push(txn);
+                    }
                 }
             });
 
@@ -153,14 +169,14 @@ async function fetchTransactions(accessToken: string, baseUrl: string, costCente
         }
     }
 
-    // Merge: same two-pass rateio logic as DRE sync
-    // Group single-CC items by categoryId (they're already filtered)
-    const singleCCCatSet = new Set(singleCCItems.map(t => categoryId)); // trivially all same cat here
+    if (isMultiSelect) {
+        return transactions;
+    }
+
+    // Single select or global: prefer single-CC individual entries
     if (singleCCItems.length > 0) {
-        // Prefer single-CC individual entries
         return singleCCItems;
     } else if (multiCCItems.length > 0) {
-        // No individual entries - use multi-CC but show with note and divided value
         return multiCCItems.map(t => ({
             ...t,
             value: t.value / (t.ccCount || 1),

@@ -5,25 +5,32 @@ export async function POST(request: Request) {
     try {
         const accessToken = await getValidAccessToken();
 
-        async function runScan(endpoint: string) {
-            for (let i = 1; i <= 20; i++) {
-                let res = await fetch(`https://api-v2.contaazul.com/v1/financeiro/eventos-financeiros/${endpoint}/buscar?data_vencimento_de=2026-01-01&data_vencimento_ate=2026-12-31&tamanho_pagina=100&pagina=${i}&centro_custo_id=3b4f447c-5b2b-11f0-a3fb-43198f0f179f`, { headers: { 'Authorization': `Bearer ${accessToken}` } });
-                if (!res.ok) return { error: await res.text() };
-                const data = await res.json();
-                const items = data.itens || [];
-                if (items.length === 0) break;
+        const idEvento = '578d5465-b076-448e-8152-46aaa7190352';
+        let parcelasData: any = null;
+        try {
+            const res = await fetch(`https://api-v2.contaazul.com/v1/financeiro/eventos-financeiros/parcelas?id_evento=${idEvento}`, {
+                headers: { 'Authorization': `Bearer ${accessToken}` }
+            });
+            if (res.ok) {
+                parcelasData = await res.json();
+            } else {
+                parcelasData = { status: res.status, error: await res.text() };
 
-                for (const item of items) {
-                    const amount = item.valor || item.total || 0;
-                    if (Math.abs(amount - 18649.67) < 0.1 || Math.abs(amount - 39767) < 0.1) {
-                        return item; // RETURN THE ENTIRE OBJECT AS-IS!
-                    }
+                // fallback to the other URL format just in case
+                const res2 = await fetch(`https://api-v2.contaazul.com/v1/financeiro/eventos-financeiros/parcelas/${idEvento}`, {
+                    headers: { 'Authorization': `Bearer ${accessToken}` }
+                });
+                if (res2.ok) {
+                    parcelasData = await res2.json();
+                } else {
+                    parcelasData.fallbackError = await res2.text();
                 }
             }
-            return { error: 'not_found' };
+        } catch (err: any) {
+            parcelasData = { catchError: err.message };
         }
 
-        const payableRaw = await runScan('contas-a-pagar');
+        const payableRaw = parcelasData;
 
         return NextResponse.json({
             success: true,

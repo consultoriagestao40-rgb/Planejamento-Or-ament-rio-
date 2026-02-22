@@ -165,6 +165,23 @@ export default function BudgetGrid({ refreshKey = 0 }: BudgetGridProps) {
                 if (rawCode === '04.8') effectiveName = '04.8 Serviços Terceirizados';
             }
 
+            // Force naming for 05.1 to 05.13
+            if (rawCode.match(/^05\.([1-9]|1[0-3])$/)) {
+                if (rawCode === '05.1') effectiveName = '05.1 Salario e Remuneração';
+                if (rawCode === '05.2') effectiveName = '05.2 Encargos Sociais';
+                if (rawCode === '05.3') effectiveName = '05.3 Beneficios';
+                if (rawCode === '05.4') effectiveName = '05.4 SSMA';
+                if (rawCode === '05.5') effectiveName = '05.5 Viagens';
+                if (rawCode === '05.6') effectiveName = '05.6 Despesa com Socios';
+                if (rawCode === '05.7') effectiveName = '05.7 Serviços Contratados';
+                if (rawCode === '05.8') effectiveName = '05.8 Despesa Comercial/Marketing';
+                if (rawCode === '05.9') effectiveName = '05.9 Despesa com Estrutura';
+                if (rawCode === '05.10') effectiveName = '05.10 Despesa Copa e Cozinha';
+                if (rawCode === '05.11') effectiveName = '05.11 Despesa com Veículos';
+                if (rawCode === '05.12') effectiveName = '05.12 Despesa de Informatica';
+                if (rawCode === '05.13') effectiveName = '05.13 Taxas e Despesas Legais';
+            }
+
             const node: CategoryNode = {
                 ...cat,
                 name: effectiveName,
@@ -200,6 +217,20 @@ export default function BudgetGrid({ refreshKey = 0 }: BudgetGridProps) {
             { code: '04.6', name: '04.6 Custo com Veículos', parentCode: '04' },
             { code: '04.7', name: '04.7 Cartão Corporativo', parentCode: '04' },
             { code: '04.8', name: '04.8 Serviços Terceirizados', parentCode: '04' },
+            // DESPESAS ADMINISTRATIVAS (05.1 to 05.13)
+            { code: '05.1', name: '05.1 Salario e Remuneração', parentCode: '05' },
+            { code: '05.2', name: '05.2 Encargos Sociais', parentCode: '05' },
+            { code: '05.3', name: '05.3 Beneficios', parentCode: '05' },
+            { code: '05.4', name: '05.4 SSMA', parentCode: '05' },
+            { code: '05.5', name: '05.5 Viagens', parentCode: '05' },
+            { code: '05.6', name: '05.6 Despesa com Socios', parentCode: '05' },
+            { code: '05.7', name: '05.7 Serviços Contratados', parentCode: '05' },
+            { code: '05.8', name: '05.8 Despesa Comercial/Marketing', parentCode: '05' },
+            { code: '05.9', name: '05.9 Despesa com Estrutura', parentCode: '05' },
+            { code: '05.10', name: '05.10 Despesa Copa e Cozinha', parentCode: '05' },
+            { code: '05.11', name: '05.11 Despesa com Veículos', parentCode: '05' },
+            { code: '05.12', name: '05.12 Despesa de Informatica', parentCode: '05' },
+            { code: '05.13', name: '05.13 Taxas e Despesas Legais', parentCode: '05' },
         ];
 
         syntheticParents.forEach(synth => {
@@ -368,8 +399,8 @@ export default function BudgetGrid({ refreshKey = 0 }: BudgetGridProps) {
             if (code.startsWith('01') || code === '1') buckets.rev.push(root);
             else if (code.startsWith('02') || code === '2') buckets.taxes.push(root);
             else if (code.startsWith('3') || code.startsWith('03')) buckets.costs.push(root);
-            else if (code.startsWith('5') || code.startsWith('05') || code.startsWith('6') || code.startsWith('06') || code.startsWith('4') || code.startsWith('04')) buckets.opExp.push(root);
-            else if (code.startsWith('7') || code.startsWith('07') || code.startsWith('8') || code.startsWith('08')) buckets.adminExp.push(root);
+            else if (code.startsWith('4') || code.startsWith('04')) buckets.opExp.push(root);
+            else if (code.startsWith('5') || code.startsWith('05') || code.startsWith('6') || code.startsWith('06') || code.startsWith('7') || code.startsWith('07') || code.startsWith('8') || code.startsWith('08')) buckets.adminExp.push(root);
             else if (code.startsWith('9') || code.startsWith('09') || code.startsWith('10')) buckets.fin.push(root);
             else buckets.other.push(root);
         });

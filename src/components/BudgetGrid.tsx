@@ -609,11 +609,6 @@ export default function BudgetGrid({ refreshKey = 0, isExternalLoading = false }
                                 >
                                     <div style={{ textAlign: 'right', fontSize: '0.8rem', color: (!hasChildren && !node.isSynthetic) ? '#334155' : '#64748b', fontWeight: (!hasChildren && !node.isSynthetic) ? 500 : 400 }}>
                                         {formatCurrency(totals.budget[i])}
-                                        {showAV && (
-                                            <div style={{ fontSize: '0.65rem', color: '#94a3b8', fontWeight: 400 }}>
-                                                AV: {avBudget.toFixed(1)}%
-                                            </div>
-                                        )}
                                     </div>
                                 </td>
                                 <td onClick={() => handleCellClick(node.id, i, node.name)} style={{ textAlign: 'right', padding: '0.5rem', color: '#3b82f6', fontSize: '0.8rem', fontWeight: 500, cursor: 'pointer', minWidth: '120px', whiteSpace: 'nowrap' }}>
@@ -665,11 +660,6 @@ export default function BudgetGrid({ refreshKey = 0, isExternalLoading = false }
                         <React.Fragment key={i}>
                             <td style={{ textAlign: 'right', padding: '0.75rem', borderLeft: '1px solid #e2e8f0', color: bColor, fontSize: '0.8rem', minWidth: '120px', whiteSpace: 'nowrap' }}>
                                 <div>{formatCurrency(budgetVal)}</div>
-                                {showAV && (
-                                    <div style={{ fontSize: '0.65rem', color: '#94a3b8', fontWeight: 400 }}>
-                                        AV: {avBudget.toFixed(1)}%
-                                    </div>
-                                )}
                             </td>
                             <td style={{ textAlign: 'right', padding: '0.75rem', color: rColor, fontSize: '0.8rem', minWidth: '120px', whiteSpace: 'nowrap' }}>
                                 <div>{formatCurrency(realizedVal)}</div>

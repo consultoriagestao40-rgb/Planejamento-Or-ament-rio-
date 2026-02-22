@@ -28,8 +28,7 @@ export default function FinancialDashboard({
         <main style={{ width: '100%', padding: '2rem 4rem', boxSizing: 'border-box' }}>
             <header style={{ marginBottom: '2rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <div>
-                    <h1 style={{ color: 'hsl(var(--primary))' }}>Dashboard Financeiro</h1>
-                    <p className="text-muted">Visão Consolidada Orçado x Realizado</p>
+                    <h1 style={{ color: 'hsl(var(--primary))' }}>Budget Hub</h1>
                 </div>
                 {isConnected && (
                     <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>

@@ -21,8 +21,11 @@ interface ContaAzulSale {
 }
 
 // Helper to get a valid access token
-export async function getValidAccessToken() {
-    const tenant = await prisma.tenant.findFirst();
+export async function getValidAccessToken(tenantId?: string) {
+    const tenant = tenantId
+        ? await prisma.tenant.findUnique({ where: { id: tenantId } })
+        : await prisma.tenant.findFirst();
+
     if (!tenant) throw new Error("No connected tenant found");
 
     if (tenant.accessToken === 'test-token') {
@@ -32,9 +35,9 @@ export async function getValidAccessToken() {
     // Check if expired (give 5 min buffer)
     if (tenant.tokenExpiresAt && new Date(tenant.tokenExpiresAt).getTime() < Date.now() + 5 * 60 * 1000) {
         if (!tenant.refreshToken) {
-            throw new Error("Refreh token is missing, please reconnect.");
+            throw new Error("Refresh token is missing, please reconnect.");
         }
-        console.log("Token expired, refreshing...");
+        console.log(`Token expired for tenant ${tenant.name}, refreshing...`);
         const newToken = await refreshAccessToken(tenant.refreshToken);
 
         await prisma.tenant.update({
@@ -45,14 +48,14 @@ export async function getValidAccessToken() {
                 tokenExpiresAt: new Date(Date.now() + newToken.expires_in * 1000)
             }
         });
-        return newToken.access_token;
+        return { token: newToken.access_token, tenant };
     }
 
     if (!tenant.accessToken) {
         throw new Error("Access token is missing. Please reconnect.");
     }
 
-    return tenant.accessToken;
+    return { token: tenant.accessToken, tenant };
 }
 
 // --------------------------------------------------------
@@ -76,16 +79,18 @@ async function fetchUserInfo(accessToken: string) {
 }
 
 // V47.9.10: Updated signature to accept Cost Center & Year
-export async function syncData(costCenterId: string = 'DEFAULT', year: number = new Date().getFullYear(), viewMode: 'caixa' | 'competencia' = 'competencia') {
+export async function syncData(costCenterId: string = 'DEFAULT', year: number = new Date().getFullYear(), viewMode: 'caixa' | 'competencia' = 'competencia', tenantId?: string) {
     let accessToken: string;
+    let tenant: any;
     try {
-        accessToken = await getValidAccessToken();
+        const result = await getValidAccessToken(tenantId);
+        accessToken = result.token;
+        tenant = result.tenant;
     } catch (e: any) {
         console.error("Auth failed during sync:", e);
         return { success: false, error: `Auth Error: ${e.message}`, timestamp: new Date().toISOString() };
     }
 
-    const tenant = await prisma.tenant.findFirst();
     if (!tenant) return { success: false, error: "Tenant not found in DB", timestamp: new Date().toISOString() };
 
     console.log(`Starting syncData V47.10 (CC=${costCenterId}, Year=${year})...`);

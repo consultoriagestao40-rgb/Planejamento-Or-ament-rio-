@@ -1,16 +1,24 @@
-
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 
-export async function POST() {
+export async function POST(request: NextRequest) {
     try {
-        // Clear all dependent records first due to lack of Cascade Delete in Schema
-        await prisma.budgetEntry.deleteMany({});
-        await prisma.costCenter.deleteMany({});
-        await prisma.category.deleteMany({});
+        const body = await request.json().catch(() => ({}));
+        const { tenantId } = body;
 
-        // Then delete the tenant
-        await prisma.tenant.deleteMany({});
+        if (tenantId) {
+            // Delete only the specified tenant's data
+            await prisma.budgetEntry.deleteMany({ where: { tenantId } });
+            await prisma.costCenter.deleteMany({ where: { tenantId } });
+            await prisma.category.deleteMany({ where: { tenantId } });
+            await prisma.tenant.delete({ where: { id: tenantId } });
+        } else {
+            // Delete all tenants and their data
+            await prisma.budgetEntry.deleteMany({});
+            await prisma.costCenter.deleteMany({});
+            await prisma.category.deleteMany({});
+            await prisma.tenant.deleteMany({});
+        }
 
         return NextResponse.json({ success: true });
     } catch (error: any) {

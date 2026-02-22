@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import BudgetGrid from '@/components/BudgetGrid';
 import { SyncButton } from '@/components/SyncButton';
 
@@ -18,27 +18,73 @@ export default function FinancialDashboard({
     params
 }: FinancialDashboardProps) {
     const [refreshKey, setRefreshKey] = useState(0);
+    const [companies, setCompanies] = useState<any[]>([]);
+
+    useEffect(() => {
+        if (isConnected) {
+            fetch('/api/companies')
+                .then(res => res.json())
+                .then(data => {
+                    if (data.success) setCompanies(data.companies);
+                })
+                .catch(console.error);
+        }
+    }, [isConnected, refreshKey]);
 
     const triggerRefresh = () => {
         console.log('Refreshing grid...');
         setRefreshKey(prev => prev + 1);
     };
 
+    const handleDisconnect = async (tenantId: string, companyName: string) => {
+        if (confirm(`Tem certeza que deseja desconectar a empresa ${companyName}?`)) {
+            await fetch('/api/auth/disconnect', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ tenantId })
+            });
+            window.location.reload();
+        }
+    };
+
     return (
         <main style={{ width: '100%', padding: '2rem 4rem', boxSizing: 'border-box' }}>
-            <header style={{ marginBottom: '2rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '1.5rem' }}>
                 <div>
                     <h1 style={{ color: 'hsl(var(--primary))' }}>Budget Hub</h1>
+                    {isConnected && companies.length > 0 && (
+                        <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', marginTop: '0.75rem' }}>
+                            {companies.map(c => (
+                                <div key={c.id} style={{
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: '0.5rem',
+                                    padding: '0.25rem 0.75rem',
+                                    backgroundColor: 'hsl(var(--muted))',
+                                    border: '1px solid hsl(var(--border))',
+                                    borderRadius: '16px',
+                                    fontSize: '0.75rem',
+                                    fontWeight: 500
+                                }}>
+                                    <span style={{ color: 'hsl(var(--foreground))' }}>{c.name}</span>
+                                    <button
+                                        onClick={() => handleDisconnect(c.id, c.name)}
+                                        style={{
+                                            background: 'none', border: 'none', cursor: 'pointer', padding: 0,
+                                            color: 'hsl(var(--destructive))', fontSize: '1rem', lineHeight: 1
+                                        }}
+                                        title="Desconectar empresa"
+                                    >×</button>
+                                </div>
+                            ))}
+                        </div>
+                    )}
                 </div>
+
                 {isConnected && (
                     <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
-                        <button
-                            onClick={async () => {
-                                if (confirm('Tem certeza que deseja desconectar? Isso exigirá login novamente na Conta Azul.')) {
-                                    await fetch('/api/auth/disconnect', { method: 'POST' });
-                                    window.location.reload();
-                                }
-                            }}
+                        <a
+                            href={authUrl}
                             style={{
                                 padding: '0.5rem 1rem',
                                 height: '36px',
@@ -52,14 +98,16 @@ export default function FinancialDashboard({
                                 display: 'inline-flex',
                                 alignItems: 'center',
                                 whiteSpace: 'nowrap',
+                                textDecoration: 'none'
                             }}
                         >
-                            Desconectar / Trocar Conta
-                        </button>
+                            + Adicionar Empresa
+                        </a>
                         <SyncButton onSyncComplete={triggerRefresh} />
                     </div>
                 )}
             </header>
+
 
             {params.error && (
                 <div style={{

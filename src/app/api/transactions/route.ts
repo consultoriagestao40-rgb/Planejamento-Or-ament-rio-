@@ -11,27 +11,53 @@ export async function GET(request: Request) {
         const month = parseInt(searchParams.get('month') || '0', 10);
         const year = parseInt(searchParams.get('year') || '2026', 10);
         const viewMode = (searchParams.get('viewMode') || 'competencia') as 'caixa' | 'competencia';
+        const tenantId = searchParams.get('tenantId') || 'ALL';
 
         if (!categoryId) {
             return NextResponse.json({ success: false, error: 'Category ID is required' }, { status: 400 });
         }
 
-        const accessToken = await getValidAccessToken();
+        // Determine which tenants to query
+        const { prisma } = await import('@/lib/prisma');
+        const tenants = tenantId === 'ALL'
+            ? await prisma.tenant.findMany()
+            : await prisma.tenant.findMany({ where: { id: tenantId } });
+
+        if (tenants.length === 0) {
+            return NextResponse.json({ success: false, error: 'No connected companies found' }, { status: 400 });
+        }
 
         // Widen the search window to include prior year so we catch cross-year entries
-        // (e.g., competência Dec/2025 but vencimento Jan/2026)
         const startStr = `${year - 1}-10-01`;
         const endStr = `${year}-12-31`;
 
-        // Fetch Receivables
-        const receivablesUrl = `https://api-v2.contaazul.com/v1/financeiro/eventos-financeiros/contas-a-receber/buscar?data_vencimento_de=${startStr}&data_vencimento_ate=${endStr}&tamanho_pagina=100`;
-        const receivables = await fetchTransactions(accessToken, receivablesUrl, costCenterId, categoryId, year, month, viewMode);
+        let allTransactions: any[] = [];
 
-        // Fetch Payables
-        const payablesUrl = `https://api-v2.contaazul.com/v1/financeiro/eventos-financeiros/contas-a-pagar/buscar?data_vencimento_de=${startStr}&data_vencimento_ate=${endStr}&tamanho_pagina=100`;
-        const payables = await fetchTransactions(accessToken, payablesUrl, costCenterId, categoryId, year, month, viewMode);
+        for (const t of tenants) {
+            try {
+                const { token } = await getValidAccessToken(t.id);
 
-        const allTransactions = [...receivables, ...payables].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+                // Fetch Receivables
+                const receivablesUrl = `https://api-v2.contaazul.com/v1/financeiro/eventos-financeiros/contas-a-receber/buscar?data_vencimento_de=${startStr}&data_vencimento_ate=${endStr}&tamanho_pagina=100`;
+                const receivables = await fetchTransactions(token, receivablesUrl, costCenterId, categoryId, year, month, viewMode);
+
+                // Fetch Payables
+                const payablesUrl = `https://api-v2.contaazul.com/v1/financeiro/eventos-financeiros/contas-a-pagar/buscar?data_vencimento_de=${startStr}&data_vencimento_ate=${endStr}&tamanho_pagina=100`;
+                const payables = await fetchTransactions(token, payablesUrl, costCenterId, categoryId, year, month, viewMode);
+
+                // Add company name to description for clarity when aggregated
+                const tenantTxns = [...receivables, ...payables].map(txn => ({
+                    ...txn,
+                    description: tenants.length > 1 ? `[${t.name}] ${txn.description}` : txn.description
+                }));
+
+                allTransactions = [...allTransactions, ...tenantTxns];
+            } catch (err: any) {
+                console.error(`Failed to fetch transactions for tenant ${t.id}:`, err);
+            }
+        }
+
+        allTransactions.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
 
         return NextResponse.json({
             success: true,

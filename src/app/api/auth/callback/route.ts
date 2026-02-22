@@ -2,9 +2,30 @@ import { NextRequest, NextResponse } from 'next/server';
 import { exchangeCodeForToken } from '@/lib/contaazul';
 import { prisma } from '@/lib/prisma';
 
+// Try to get company name/CNPJ from Conta Azul API
+async function fetchCompanyInfo(accessToken: string): Promise<{ name: string; cnpj: string }> {
+    const endpoints = [
+        'https://api-v2.contaazul.com/v1/empresa',
+        'https://api.contaazul.com/v1/empresa',
+        'https://api-v2.contaazul.com/v1/tenants',
+    ];
+    for (const url of endpoints) {
+        try {
+            const res = await fetch(url, { headers: { 'Authorization': `Bearer ${accessToken}` } });
+            if (res.ok) {
+                const data = await res.json();
+                const name = data.nome || data.name || data.razao_social || data[0]?.nome || 'Empresa';
+                const cnpj = data.cnpj || data[0]?.cnpj || `unknown-${Date.now()}`;
+                return { name, cnpj };
+            }
+        } catch (_) { }
+    }
+    return { name: 'Empresa Desconhecida', cnpj: `unknown-${Date.now()}` };
+}
+
 export async function GET(request: NextRequest) {
     const searchParams = Object.fromEntries(request.nextUrl.searchParams);
-    const { code, state, error } = searchParams;
+    const { code, error } = searchParams;
 
     if (error) {
         return NextResponse.redirect(new URL(`/?error=${error}`, request.url));
@@ -15,28 +36,27 @@ export async function GET(request: NextRequest) {
     }
 
     try {
-        // 1. Troca o código pelo token
         const tokenResponse = await exchangeCodeForToken(code as string);
+        const { name, cnpj } = await fetchCompanyInfo(tokenResponse.access_token);
 
-        // 2. Salva no banco (Atualiza o primeiro Tenant encontrado ou cria um)
-        // Como é protótipo, vamos assumir single-tenant
-        let tenant = await prisma.tenant.findFirst();
+        // Upsert: if CNPJ already connected, refresh token; otherwise create new tenant
+        const existing = await prisma.tenant.findFirst({ where: { cnpj } });
 
-        if (tenant) {
+        if (existing) {
             await prisma.tenant.update({
-                where: { id: tenant.id },
+                where: { id: existing.id },
                 data: {
+                    name,
                     accessToken: tokenResponse.access_token,
                     refreshToken: tokenResponse.refresh_token,
                     tokenExpiresAt: new Date(Date.now() + tokenResponse.expires_in * 1000)
                 }
             });
         } else {
-            // Se não tem tenant, cria um (Cenário de first run)
             await prisma.tenant.create({
                 data: {
-                    name: "Minha Empresa (Conta Azul)",
-                    cnpj: "00000000000000", // Placeholder
+                    name,
+                    cnpj,
                     accessToken: tokenResponse.access_token,
                     refreshToken: tokenResponse.refresh_token,
                     tokenExpiresAt: new Date(Date.now() + tokenResponse.expires_in * 1000)
@@ -44,9 +64,7 @@ export async function GET(request: NextRequest) {
             });
         }
 
-        // 3. Redireciona de volta para a Home com sucesso
         return NextResponse.redirect(new URL('/?connected=true', request.url));
-
     } catch (err: any) {
         console.error("Callback Error:", err);
         return NextResponse.redirect(new URL(`/?error=${encodeURIComponent(err.message)}`, request.url));

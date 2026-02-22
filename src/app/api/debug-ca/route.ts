@@ -27,19 +27,16 @@ export async function GET(request: Request) {
                 items.forEach((item: any) => {
                     total++;
                     const ccs = item.centros_de_custo || [];
-                    if (ccs.length > 0) {
-                        const id = ccs[0].id;
-                        if (id === costCenterId) {
-                            matches++;
-                            itemsMatch.push({
-                                id: item.id,
-                                valor: item.valor,
-                                status: item.status,
-                                descricao: item.descricao,
-                                categorias: item.categorias,
-                                fornecedor: item.fornecedor || item.cliente
-                            });
-                        }
+                    const amount = item.valor || item.valor_original || item.total || 0;
+                    if ((amount > 18000 && amount < 19000) || (amount > 39000 && amount < 40000)) {
+                        matches++;
+                        itemsMatch.push({
+                            id: item.id,
+                            valor: amount,
+                            descricao: item.descricao,
+                            categorias: item.categorias,
+                            centros_de_custo: ccs
+                        });
                     }
                 });
             }

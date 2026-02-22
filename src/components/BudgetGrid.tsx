@@ -462,15 +462,21 @@ export default function BudgetGrid({ refreshKey = 0, isExternalLoading = false }
             calculateTotals: (monthIdx: number) => {
                 const vRev = { b: sumRoots(buckets.rev, monthIdx, 'budget'), r: sumRoots(buckets.rev, monthIdx, 'realized') };
                 const vTaxes = { b: sumRoots(buckets.taxes, monthIdx, 'budget'), r: sumRoots(buckets.taxes, monthIdx, 'realized') };
-                const vRecLiq = { b: vRev.b - Math.abs(vTaxes.b), r: vRev.r - Math.abs(vTaxes.r) };
+
+                // Receita Líquida = Receita Bruta - Tributos (se tributos já vierem negativos da API ou DRE, a gente soma?)
+                // A maioria das APIs de contabilidade traz todas as saídas como POSTIVAS, então a fórmula da DRE subtrai.
+                // Mas se a DRE já usar sinal negativo para saídas na árvore, Math.abs forçava elas a ficarem positivas e reduzia.
+                // Na lógica atual de 'nodeTotals', despesas normais vêm como (+) positivo. Então RECEITA - DESPESA é correto. 
+
+                const vRecLiq = { b: vRev.b - vTaxes.b, r: vRev.r - vTaxes.r };
                 const vCosts = { b: sumRoots(buckets.costs, monthIdx, 'budget'), r: sumRoots(buckets.costs, monthIdx, 'realized') };
-                const vGrossMarg = { b: vRecLiq.b - Math.abs(vCosts.b), r: vRecLiq.r - Math.abs(vCosts.r) };
+                const vGrossMarg = { b: vRecLiq.b - vCosts.b, r: vRecLiq.r - vCosts.r };
                 const vOpExp = { b: sumRoots(buckets.opExp, monthIdx, 'budget'), r: sumRoots(buckets.opExp, monthIdx, 'realized') };
-                const vContribMarg = { b: vGrossMarg.b - Math.abs(vOpExp.b), r: vGrossMarg.r - Math.abs(vOpExp.r) };
+                const vContribMarg = { b: vGrossMarg.b - vOpExp.b, r: vGrossMarg.r - vOpExp.r };
                 const vAdminExp = { b: sumRoots(buckets.adminExp, monthIdx, 'budget'), r: sumRoots(buckets.adminExp, monthIdx, 'realized') };
-                const vEbitda = { b: vContribMarg.b - Math.abs(vAdminExp.b), r: vContribMarg.r - Math.abs(vAdminExp.r) };
+                const vEbitda = { b: vContribMarg.b - vAdminExp.b, r: vContribMarg.r - vAdminExp.r };
                 const vFin = { b: sumRoots(buckets.fin, monthIdx, 'budget'), r: sumRoots(buckets.fin, monthIdx, 'realized') };
-                const vNetProfit = { b: vEbitda.b + vFin.b, r: vEbitda.r + vFin.r };
+                const vNetProfit = { b: vEbitda.b - vFin.b, r: vEbitda.r - vFin.r };
 
                 return { vRev, vTaxes, vRecLiq, vCosts, vGrossMarg, vOpExp, vContribMarg, vAdminExp, vEbitda, vFin, vNetProfit };
             }
@@ -553,12 +559,19 @@ export default function BudgetGrid({ refreshKey = 0, isExternalLoading = false }
                     {!groupId && <span style={{ width: '1.5rem' }}></span>}
                     {label}
                 </td>
-                {MONTHS.map((_, i) => (
-                    <React.Fragment key={i}>
-                        <td style={{ textAlign: 'right', padding: '0.75rem', borderLeft: '1px solid #e2e8f0', color: '#64748b', fontSize: '0.8rem' }}>{formatCurrency(dreStructure.calculateTotals(i)[validx].b)}</td>
-                        <td style={{ textAlign: 'right', padding: '0.75rem', color: textColor, fontSize: '0.8rem' }}>{formatCurrency(dreStructure.calculateTotals(i)[validx].r)}</td>
-                    </React.Fragment>
-                ))}
+                {MONTHS.map((_, i) => {
+                    const budgetVal = dreStructure.calculateTotals(i)[validx].b;
+                    const realizedVal = dreStructure.calculateTotals(i)[validx].r;
+                    const bColor = budgetVal < 0 ? '#ef4444' : '#64748b';
+                    const rColor = realizedVal < 0 ? '#ef4444' : textColor;
+
+                    return (
+                        <React.Fragment key={i}>
+                            <td style={{ textAlign: 'right', padding: '0.75rem', borderLeft: '1px solid #e2e8f0', color: bColor, fontSize: '0.8rem' }}>{formatCurrency(budgetVal)}</td>
+                            <td style={{ textAlign: 'right', padding: '0.75rem', color: rColor, fontSize: '0.8rem' }}>{formatCurrency(realizedVal)}</td>
+                        </React.Fragment>
+                    );
+                })}
             </tr>
         );
     };

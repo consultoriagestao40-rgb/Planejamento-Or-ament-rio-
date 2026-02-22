@@ -23,7 +23,7 @@ interface CategoryNode {
 
 export default function BudgetGrid({ refreshKey = 0, isExternalLoading = false }: BudgetGridProps) {
     // --- Budget State ---
-    const [budgetValues, setBudgetValues] = useState<Record<string, { amount: number, radarAmount: number, isLocked: boolean }>>({});
+    const [budgetValues, setBudgetValues] = useState<Record<string, { amount: number, radarAmount: number | null, isLocked: boolean }>>({});
     const [realizedValues, setRealizedValues] = useState<Record<string, number>>({});
     const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
     const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set()); // New state for main groups
@@ -440,7 +440,7 @@ export default function BudgetGrid({ refreshKey = 0, isExternalLoading = false }
                     myRealized[i] += sign * (realizedValues[`${node.id}-${i}`] || 0);
                     // Radar fallback to Orçado if not set
                     const hasRadar = bData.radarAmount !== undefined && bData.radarAmount !== null;
-                    const radarVal = hasRadar ? bData.radarAmount : bData.amount;
+                    const radarVal = hasRadar ? (bData.radarAmount as number) : bData.amount;
                     myRadar[i] += sign * radarVal;
                 }
             }
@@ -530,7 +530,8 @@ export default function BudgetGrid({ refreshKey = 0, isExternalLoading = false }
             const entries = [];
             for (let i = 0; i < 12; i++) {
                 const currentVal = modalValues[i];
-                const locked = budgetValues[`${budgetModal.categoryId}-${i}`]?.isLocked || false;
+                // Only send if not empty string to avoid wiping data to 0 unnecessarily
+                if (currentVal === '' && budgetValues[`${budgetModal.categoryId}-${i}`] === undefined) continue;
 
                 const entry: any = {
                     categoryId: budgetModal.categoryId,
@@ -539,35 +540,43 @@ export default function BudgetGrid({ refreshKey = 0, isExternalLoading = false }
                     costCenterId: selectedCostCenter[0]
                 };
 
+                const numericVal = evaluateFormula(currentVal);
+
                 if (budgetModal.type === 'budget') {
-                    if (!locked || userRole === 'MASTER') {
-                        entry.amount = evaluateFormula(currentVal);
+                    if (!lockedMonths[i] || userRole === 'MASTER') {
+                        entry.amount = numericVal;
                     }
                     if (userRole === 'MASTER') {
                         entry.isLocked = lockedMonths[i];
                     }
                 } else {
-                    entry.radarAmount = evaluateFormula(currentVal);
+                    entry.radarAmount = numericVal;
                 }
                 entries.push(entry);
             }
 
-            await fetch('/api/budgets', {
+            console.log("Saving entries:", entries);
+            const res = await fetch('/api/budgets', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ entries })
             });
+
+            if (!res.ok) {
+                const errData = await res.json();
+                throw new Error(errData.error || "Erro ao salvar");
+            }
 
             setBudgetModal(null);
             // Re-fetch to update state
             const budgetRes = await fetch(`/api/budgets?costCenterId=${selectedCostCenter.join(',')}`);
             const budgetData = await budgetRes.json();
             if (budgetData.success) {
-                const values: Record<string, { amount: number, radarAmount: number, isLocked: boolean }> = {};
+                const values: Record<string, { amount: number, radarAmount: number | null, isLocked: boolean }> = {};
                 budgetData.data.forEach((item: any) => {
                     values[`${item.categoryId}-${item.month}`] = {
-                        amount: item.amount,
-                        radarAmount: item.radarAmount || 0,
+                        amount: item.amount || 0,
+                        radarAmount: (item.radarAmount !== undefined && item.radarAmount !== null) ? item.radarAmount : null,
                         isLocked: item.isLocked || false
                     };
                 });
@@ -575,7 +584,7 @@ export default function BudgetGrid({ refreshKey = 0, isExternalLoading = false }
             }
         } catch (error) {
             console.error("Save error:", error);
-            alert("Erro ao salvar orçamentos");
+            alert("Erro ao salvar orçamentos. Verifique sua conexão.");
         } finally {
             setIsSavingBudget(false);
         }
@@ -634,11 +643,15 @@ export default function BudgetGrid({ refreshKey = 0, isExternalLoading = false }
                     </td>
                     {MONTHS.map((_, i) => {
                         const monthTotal = dreStructure.calculateTotals(i);
-                        const revBruta = monthTotal.vRev.b || 1; // Fallback to 1 to avoid / 0
-                        const revBrutaReal = monthTotal.vRev.r || 1;
                         const bData = budgetValues[`${node.id}-${i}`] || { isLocked: false };
+                        const revBrutaReal = monthTotal.vRev.r || 1;
+                        const revBrutaBudget = monthTotal.vRev.b || 1;
+                        const revBrutaRadar = monthTotal.vRev.rd || 1;
 
                         const avRealized = (totals.realized[i] / revBrutaReal) * 100;
+                        const avBudget = (totals.budget[i] / revBrutaBudget) * 100;
+                        const avRadar = (totals.radar[i] / revBrutaRadar) * 100;
+
                         const ahValue = totals.budget[i] !== 0 ? (totals.realized[i] / totals.budget[i]) * 100 : 0;
                         const arValue = totals.radar[i] !== 0 ? (totals.realized[i] / totals.radar[i]) * 100 : 0;
 
@@ -663,6 +676,7 @@ export default function BudgetGrid({ refreshKey = 0, isExternalLoading = false }
                                         {bData.isLocked && <span title="Orçamento Travado" style={{ fontSize: '0.7rem', color: '#ef4444' }}>🔒</span>}
                                         {formatCurrency(totals.budget[i])}
                                     </div>
+                                    {showAV && <div style={{ textAlign: 'right', fontSize: '0.65rem', color: '#94a3b8' }}>AV: {avBudget.toFixed(1)}%</div>}
                                 </td>
                                 <td
                                     onClick={() => isEditable && openBudgetModal(node.id, node.name, i, 'radar')}
@@ -681,7 +695,8 @@ export default function BudgetGrid({ refreshKey = 0, isExternalLoading = false }
                                     onMouseLeave={(e) => { if (isEditable) e.currentTarget.style.backgroundColor = '#fff'; }}
                                     title={!isEditable ? "Selecione um único Centro de Custo para editar" : ""}
                                 >
-                                    {formatCurrency(totals.radar[i])}
+                                    <div>{formatCurrency(totals.radar[i])}</div>
+                                    {showAV && <div style={{ textAlign: 'right', fontSize: '0.65rem', color: '#94a3b8' }}>AV: {avRadar.toFixed(1)}%</div>}
                                 </td>
                                 <td onClick={() => handleCellClick(node.id, i, node.name)} style={{ textAlign: 'right', padding: '0.5rem', borderLeft: '1px solid #f1f5f9', color: '#3b82f6', fontSize: '0.8rem', fontWeight: 500, cursor: 'pointer', minWidth: '120px', whiteSpace: 'nowrap' }}>
                                     {formatCurrency(totals.realized[i])}
@@ -721,8 +736,13 @@ export default function BudgetGrid({ refreshKey = 0, isExternalLoading = false }
                     const radarVal = monthTotal[validx].rd;
 
                     const revBrutaReal = monthTotal.vRev.r || 1;
+                    const revBrutaBudget = monthTotal.vRev.b || 1;
+                    const revBrutaRadar = monthTotal.vRev.rd || 1;
 
                     const avRealized = (realizedVal / revBrutaReal) * 100;
+                    const avBudget = (budgetVal / revBrutaBudget) * 100;
+                    const avRadar = (radarVal / revBrutaRadar) * 100;
+
                     const ahValue = budgetVal !== 0 ? (realizedVal / budgetVal) * 100 : 0;
                     const arValue = radarVal !== 0 ? (realizedVal / radarVal) * 100 : 0;
 
@@ -733,9 +753,11 @@ export default function BudgetGrid({ refreshKey = 0, isExternalLoading = false }
                         <React.Fragment key={i}>
                             <td style={{ textAlign: 'right', padding: '0.75rem', borderLeft: '1px solid #e2e8f0', color: bColor, fontSize: '0.8rem', minWidth: '100px', whiteSpace: 'nowrap' }}>
                                 <div>{formatCurrency(budgetVal)}</div>
+                                {showAV && <div style={{ fontSize: '0.65rem', color: '#94a3b8', fontWeight: 400 }}>AV: {avBudget.toFixed(1)}%</div>}
                             </td>
                             <td style={{ textAlign: 'right', padding: '0.75rem', borderLeft: '1px solid #e2e8f0', color: bColor, fontSize: '0.8rem', minWidth: '100px', whiteSpace: 'nowrap' }}>
                                 <div>{formatCurrency(radarVal)}</div>
+                                {showAV && <div style={{ fontSize: '0.65rem', color: '#94a3b8', fontWeight: 400 }}>AV: {avRadar.toFixed(1)}%</div>}
                             </td>
                             <td style={{ textAlign: 'right', padding: '0.75rem', borderLeft: '1px solid #e2e8f0', color: rColor, fontSize: '0.8rem', minWidth: '120px', whiteSpace: 'nowrap' }}>
                                 <div>{formatCurrency(realizedVal)}</div>

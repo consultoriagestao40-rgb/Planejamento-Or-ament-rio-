@@ -87,8 +87,8 @@ export async function POST(request: Request) {
           costCenterId: targetCostCenterId,
           month,
           year,
-          amount: entry.amount || 0,
-          radarAmount: entry.radarAmount || 0,
+          amount: entry.amount !== undefined ? entry.amount : 0,
+          radarAmount: entry.radarAmount !== undefined ? entry.radarAmount : null,
           isLocked: entry.isLocked || false,
         }
       });

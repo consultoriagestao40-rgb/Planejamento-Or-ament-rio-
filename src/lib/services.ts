@@ -325,8 +325,8 @@ async function aggregateTransactions(
                 if (status.includes('CANCEL')) return;
 
                 // Local Cost Center Filtering (API query param doesn't work reliably)
+                const ccs = item.centros_de_custo || [];
                 if (costCenterId && costCenterId !== 'DEFAULT' && costCenterId !== 'Geral') {
-                    const ccs = item.centros_de_custo || [];
                     const hasCC = ccs.some((c: any) => c.id === costCenterId);
                     if (!hasCC) return;
                 }
@@ -336,7 +336,16 @@ async function aggregateTransactions(
                     const catId = categories[0].id;
                     if (catId) {
                         const key = `${catId}-${monthIdx}`;
-                        targetValues[key] = (targetValues[key] || 0) + amount;
+                        // RATEIO: If filtering by a specific cost center AND the transaction
+                        // has multiple CCs (it's apportioned/rateado), divide amount equally.
+                        // Conta Azul API does not expose per-CC values for apportioned transactions,
+                        // so we use an equal split across all linked CCs as the best approximation.
+                        let effectiveAmount = amount;
+                        const isFiltered = costCenterId && costCenterId !== 'DEFAULT' && costCenterId !== 'Geral';
+                        if (isFiltered && ccs.length > 1) {
+                            effectiveAmount = amount / ccs.length;
+                        }
+                        targetValues[key] = (targetValues[key] || 0) + effectiveAmount;
                     }
                 }
             });

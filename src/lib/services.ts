@@ -123,6 +123,7 @@ export async function syncData(costCenterId: string = 'DEFAULT', year: number = 
     };
 
     // Persist Cost Centers with individual try/catch
+    const costCenterIdsToKeep: string[] = [];
     for (const cc of costCenters) {
         try {
             const ccId = cc.id;
@@ -134,11 +135,26 @@ export async function syncData(costCenterId: string = 'DEFAULT', year: number = 
                 create: { id: ccId, name: ccName, tenantId: tenant.id },
                 update: { name: ccName }
             });
+            costCenterIdsToKeep.push(ccId);
             report.costCentersSuccess++;
         } catch (e: any) {
             report.costCentersFailed++;
             report.lastError = `CC Upsert Error (${cc.id}): ${e.message}`;
         }
+    }
+
+    // Remover Centros de Custo Inativos (que não vieram na listagem atual)
+    try {
+        if (costCenterIdsToKeep.length > 0) {
+            await prisma.costCenter.deleteMany({
+                where: {
+                    tenantId: tenant.id,
+                    id: { notIn: costCenterIdsToKeep }
+                }
+            });
+        }
+    } catch (e: any) {
+        console.warn("Falha ao remover CCs inativos:", e.message);
     }
 
     // V47.1: Pre-process categories for robust mapping

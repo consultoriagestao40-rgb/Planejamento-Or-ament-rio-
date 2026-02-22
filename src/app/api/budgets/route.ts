@@ -29,8 +29,11 @@ export async function GET(request: Request) {
       const key = `${curr.categoryId}-${curr.month}`;
       if (!acc[key]) {
         acc[key] = { ...curr };
+        acc[key].radarAmount = curr.radarAmount || 0;
       } else {
         acc[key].amount += curr.amount;
+        acc[key].radarAmount = (acc[key].radarAmount || 0) + (curr.radarAmount || 0);
+        if (curr.isLocked) acc[key].isLocked = true;
       }
       return acc;
     }, {} as Record<string, any>);
@@ -71,7 +74,9 @@ export async function POST(request: Request) {
         }
       },
       update: {
-        amount,
+        amount: body.amount !== undefined ? body.amount : undefined,
+        radarAmount: body.radarAmount !== undefined ? body.radarAmount : undefined,
+        isLocked: body.isLocked !== undefined ? body.isLocked : undefined,
       },
       create: {
         tenantId: tenant.id,
@@ -79,7 +84,9 @@ export async function POST(request: Request) {
         costCenterId: targetCostCenterId,
         month,
         year,
-        amount
+        amount: body.amount || 0,
+        radarAmount: body.radarAmount || 0,
+        isLocked: body.isLocked || false,
       }
     });
 

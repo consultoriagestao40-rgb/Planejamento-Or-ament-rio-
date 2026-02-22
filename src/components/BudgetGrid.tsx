@@ -22,7 +22,8 @@ interface CategoryNode {
 }
 
 export default function BudgetGrid({ refreshKey = 0, isExternalLoading = false }: BudgetGridProps) {
-    const [budgetValues, setBudgetValues] = useState<Record<string, number>>({});
+    // --- Budget State ---
+    const [budgetValues, setBudgetValues] = useState<Record<string, { amount: number, radarAmount: number, isLocked: boolean }>>({});
     const [realizedValues, setRealizedValues] = useState<Record<string, number>>({});
     const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
     const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set()); // New state for main groups
@@ -34,6 +35,8 @@ export default function BudgetGrid({ refreshKey = 0, isExternalLoading = false }
     const [viewMode, setViewMode] = useState<'caixa' | 'competencia'>('competencia');
     const [showAV, setShowAV] = useState(false);
     const [showAH, setShowAH] = useState(false);
+    const [showAR, setShowAR] = useState(false);
+    const [userRole, setUserRole] = useState<'MASTER' | 'GESTOR'>('MASTER');
 
     // --- Transaction Drill-down State ---
     const [selectedCell, setSelectedCell] = useState<{ categoryId: string, month: number, categoryName: string } | null>(null);
@@ -43,6 +46,8 @@ export default function BudgetGrid({ refreshKey = 0, isExternalLoading = false }
     // --- Budget Modal State ---
     const [budgetModal, setBudgetModal] = useState<{ categoryId: string, categoryName: string, startMonth: number } | null>(null);
     const [modalValues, setModalValues] = useState<string[]>(new Array(12).fill(''));
+    const [radarModalValues, setRadarModalValues] = useState<string[]>(new Array(12).fill(''));
+    const [lockedMonths, setLockedMonths] = useState<boolean[]>(new Array(12).fill(false));
     const [activeMonth, setActiveMonth] = useState<number>(0);
     const [isSavingBudget, setIsSavingBudget] = useState(false);
 
@@ -123,9 +128,13 @@ export default function BudgetGrid({ refreshKey = 0, isExternalLoading = false }
                 const syncData = await syncRes.json();
 
                 if (budgetData.success) {
-                    const values: Record<string, number> = {};
+                    const values: Record<string, { amount: number, radarAmount: number, isLocked: boolean }> = {};
                     budgetData.data.forEach((item: any) => {
-                        values[`${item.categoryId}-${item.month}`] = item.amount;
+                        values[`${item.categoryId}-${item.month}`] = {
+                            amount: item.amount,
+                            radarAmount: item.radarAmount || 0,
+                            isLocked: item.isLocked || false
+                        };
                     });
                     setBudgetValues(values);
                 }
@@ -404,7 +413,7 @@ export default function BudgetGrid({ refreshKey = 0, isExternalLoading = false }
 
     // --- RECURSIVE TOTALS ---
     const nodeTotals = useMemo(() => {
-        const totalsMap = new Map<string, { budget: number[], realized: number[] }>();
+        const totalsMap = new Map<string, { budget: number[], realized: number[], radar: number[] }>();
         const isNegatedCode = (code: string) => code.startsWith('06.1');
 
         const calculateNode = (node: CategoryNode, parentNegated = false) => {
@@ -414,24 +423,30 @@ export default function BudgetGrid({ refreshKey = 0, isExternalLoading = false }
             const childrenTotals = uniqueChildren.map(child => calculateNode(child, negated));
             const myBudget = new Array(12).fill(0);
             const myRealized = new Array(12).fill(0);
+            const myRadar = new Array(12).fill(0);
 
             childrenTotals.forEach(childTotal => {
                 for (let i = 0; i < 12; i++) {
                     myBudget[i] += childTotal.budget[i];
                     myRealized[i] += childTotal.realized[i];
+                    myRadar[i] += childTotal.radar[i];
                 }
             });
 
             for (let i = 0; i < 12; i++) {
                 if (!node.isSynthetic) {
                     const sign = negated ? -1 : 1;
-                    myBudget[i] += sign * (budgetValues[`${node.id}-${i}`] || 0);
+                    const bData = budgetValues[`${node.id}-${i}`] || { amount: 0, radarAmount: 0, isLocked: false };
+                    myBudget[i] += sign * bData.amount;
                     myRealized[i] += sign * (realizedValues[`${node.id}-${i}`] || 0);
+                    // Radar fallback to Orçado
+                    const radarVal = bData.radarAmount !== 0 ? bData.radarAmount : bData.amount;
+                    myRadar[i] += sign * radarVal;
                 }
             }
 
-            totalsMap.set(node.id, { budget: myBudget, realized: myRealized });
-            return { budget: myBudget, realized: myRealized };
+            totalsMap.set(node.id, { budget: myBudget, realized: myRealized, radar: myRadar });
+            return { budget: myBudget, realized: myRealized, radar: myRadar };
         };
 
         treeRoots.forEach(root => calculateNode(root));
@@ -440,7 +455,7 @@ export default function BudgetGrid({ refreshKey = 0, isExternalLoading = false }
 
     // --- DRE STRUCTURE ---
     const dreStructure = useMemo(() => {
-        const sumRoots = (roots: CategoryNode[], monthIdx: number, type: 'budget' | 'realized') => {
+        const sumRoots = (roots: CategoryNode[], monthIdx: number, type: 'budget' | 'realized' | 'radar') => {
             return roots.reduce((acc, root) => {
                 const total = nodeTotals.get(root.id);
                 return acc + (total ? total[type][monthIdx] : 0);
@@ -471,17 +486,17 @@ export default function BudgetGrid({ refreshKey = 0, isExternalLoading = false }
         return {
             buckets,
             calculateTotals: (monthIdx: number) => {
-                const vRev = { b: sumRoots(buckets.rev, monthIdx, 'budget'), r: sumRoots(buckets.rev, monthIdx, 'realized') };
-                const vTaxes = { b: sumRoots(buckets.taxes, monthIdx, 'budget'), r: sumRoots(buckets.taxes, monthIdx, 'realized') };
-                const vRecLiq = { b: vRev.b - vTaxes.b, r: vRev.r - vTaxes.r };
-                const vCosts = { b: sumRoots(buckets.costs, monthIdx, 'budget'), r: sumRoots(buckets.costs, monthIdx, 'realized') };
-                const vGrossMarg = { b: vRecLiq.b - vCosts.b, r: vRecLiq.r - vCosts.r };
-                const vOpExp = { b: sumRoots(buckets.opExp, monthIdx, 'budget'), r: sumRoots(buckets.opExp, monthIdx, 'realized') };
-                const vContribMarg = { b: vGrossMarg.b - vOpExp.b, r: vGrossMarg.r - vOpExp.r };
-                const vAdminExp = { b: sumRoots(buckets.adminExp, monthIdx, 'budget'), r: sumRoots(buckets.adminExp, monthIdx, 'realized') };
-                const vEbitda = { b: vContribMarg.b - vAdminExp.b, r: vContribMarg.r - vAdminExp.r };
-                const vFin = { b: sumRoots(buckets.fin, monthIdx, 'budget'), r: sumRoots(buckets.fin, monthIdx, 'realized') };
-                const vNetProfit = { b: vEbitda.b - vFin.b, r: vEbitda.r - vFin.r };
+                const vRev = { b: sumRoots(buckets.rev, monthIdx, 'budget'), r: sumRoots(buckets.rev, monthIdx, 'realized'), rd: sumRoots(buckets.rev, monthIdx, 'radar') };
+                const vTaxes = { b: sumRoots(buckets.taxes, monthIdx, 'budget'), r: sumRoots(buckets.taxes, monthIdx, 'realized'), rd: sumRoots(buckets.taxes, monthIdx, 'radar') };
+                const vRecLiq = { b: vRev.b - vTaxes.b, r: vRev.r - vTaxes.r, rd: vRev.rd - vTaxes.rd };
+                const vCosts = { b: sumRoots(buckets.costs, monthIdx, 'budget'), r: sumRoots(buckets.costs, monthIdx, 'realized'), rd: sumRoots(buckets.costs, monthIdx, 'radar') };
+                const vGrossMarg = { b: vRecLiq.b - vCosts.b, r: vRecLiq.r - vCosts.r, rd: vRecLiq.rd - vCosts.rd };
+                const vOpExp = { b: sumRoots(buckets.opExp, monthIdx, 'budget'), r: sumRoots(buckets.opExp, monthIdx, 'realized'), rd: sumRoots(buckets.opExp, monthIdx, 'radar') };
+                const vContribMarg = { b: vGrossMarg.b - vOpExp.b, r: vGrossMarg.r - vOpExp.r, rd: vGrossMarg.rd - vOpExp.rd };
+                const vAdminExp = { b: sumRoots(buckets.adminExp, monthIdx, 'budget'), r: sumRoots(buckets.adminExp, monthIdx, 'realized'), rd: sumRoots(buckets.adminExp, monthIdx, 'radar') };
+                const vEbitda = { b: vContribMarg.b - vAdminExp.b, r: vContribMarg.r - vAdminExp.r, rd: vContribMarg.rd - vAdminExp.rd };
+                const vFin = { b: sumRoots(buckets.fin, monthIdx, 'budget'), r: sumRoots(buckets.fin, monthIdx, 'realized'), rd: sumRoots(buckets.fin, monthIdx, 'radar') };
+                const vNetProfit = { b: vEbitda.b - vFin.b, r: vEbitda.r - vFin.r, rd: vEbitda.rd - vFin.rd };
 
                 return { vRev, vTaxes, vRecLiq, vCosts, vGrossMarg, vOpExp, vContribMarg, vAdminExp, vEbitda, vFin, vNetProfit };
             }
@@ -512,30 +527,55 @@ export default function BudgetGrid({ refreshKey = 0, isExternalLoading = false }
         if (!budgetModal) return;
         setIsSavingBudget(true);
         try {
-            const ccId = selectedCostCenter[0];
-            const updates = modalValues.map((val, idx) => ({
-                month: idx,
-                amount: evaluateFormula(val)
-            }));
+            for (let i = 0; i < 12; i++) {
+                const currentVal = modalValues[i];
+                const currentRadarVal = radarModalValues[i];
+                const locked = budgetValues[`${budgetModal.categoryId}-${i}`]?.isLocked || false;
 
-            for (const update of updates) {
-                setBudgetValues(prev => ({ ...prev, [`${budgetModal.categoryId}-${update.month}`]: update.amount }));
+                const payload: any = {
+                    categoryId: budgetModal.categoryId,
+                    month: i,
+                    year: selectedYear,
+                    costCenterId: selectedCostCenter[0]
+                };
+
+                // Only allow editing original amount if not locked OR if user is MASTER
+                if (!locked || userRole === 'MASTER') {
+                    payload.amount = evaluateFormula(currentVal);
+                }
+
+                // Radar can always be edited
+                payload.radarAmount = evaluateFormula(currentRadarVal);
+
+                // Allow locking/unlocking only if MASTER
+                if (userRole === 'MASTER') {
+                    payload.isLocked = lockedMonths[i];
+                }
+
                 await fetch('/api/budgets', {
                     method: 'POST',
-                    body: JSON.stringify({
-                        categoryId: budgetModal.categoryId,
-                        costCenterId: ccId,
-                        year: selectedYear,
-                        month: update.month,
-                        amount: update.amount
-                    }),
-                    headers: { 'Content-Type': 'application/json' }
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
                 });
             }
             setBudgetModal(null);
-        } catch (e) {
-            console.error("Save failed", e);
-            alert("Erro ao salvar orçamento.");
+            // Re-fetch to update state
+            const budgetRes = await fetch(`/api/budgets?costCenterId=${selectedCostCenter.join(',')}`);
+            const budgetData = await budgetRes.json();
+            if (budgetData.success) {
+                const values: Record<string, { amount: number, radarAmount: number, isLocked: boolean }> = {};
+                budgetData.data.forEach((item: any) => {
+                    values[`${item.categoryId}-${item.month}`] = {
+                        amount: item.amount,
+                        radarAmount: item.radarAmount || 0,
+                        isLocked: item.isLocked || false
+                    };
+                });
+                setBudgetValues(values);
+            }
+        } catch (error) {
+            console.error("Save error:", error);
+            alert("Erro ao salvar orçamentos");
         } finally {
             setIsSavingBudget(false);
         }
@@ -547,11 +587,22 @@ export default function BudgetGrid({ refreshKey = 0, isExternalLoading = false }
             return;
         }
         const initialValues = new Array(12).fill('').map((_, i) => {
-            const val = budgetValues[`${nodeId}-${i}`];
-            return val ? val.toString() : '';
+            const data = budgetValues[`${nodeId}-${i}`];
+            return data?.amount ? data.amount.toString() : '';
         });
+        const initialRadarValues = new Array(12).fill('').map((_, i) => {
+            const data = budgetValues[`${nodeId}-${i}`];
+            return data?.radarAmount ? data.radarAmount.toString() : '';
+        });
+        const initialLocks = new Array(12).fill(false).map((_, i) => {
+            const data = budgetValues[`${nodeId}-${i}`];
+            return data?.isLocked || false;
+        });
+
         setBudgetModal({ categoryId: nodeId, categoryName: nodeName, startMonth: monthIndex });
         setModalValues(initialValues);
+        setRadarModalValues(initialRadarValues);
+        setLockedMonths(initialLocks);
         setActiveMonth(monthIndex);
     };
 
@@ -566,7 +617,7 @@ export default function BudgetGrid({ refreshKey = 0, isExternalLoading = false }
     };
 
     const renderNode = (node: CategoryNode) => {
-        const totals = nodeTotals.get(node.id) || { budget: new Array(12).fill(0), realized: new Array(12).fill(0) };
+        const totals = nodeTotals.get(node.id) || { budget: new Array(12).fill(0), realized: new Array(12).fill(0), radar: new Array(12).fill(0) };
         const isExpanded = expandedRows.has(node.id);
         const hasChildren = node.children.length > 0;
 
@@ -586,10 +637,11 @@ export default function BudgetGrid({ refreshKey = 0, isExternalLoading = false }
                         const monthTotal = dreStructure.calculateTotals(i);
                         const revBruta = monthTotal.vRev.b || 1; // Fallback to 1 to avoid / 0
                         const revBrutaReal = monthTotal.vRev.r || 1;
+                        const bData = budgetValues[`${node.id}-${i}`] || { isLocked: false };
 
-                        const avBudget = (totals.budget[i] / revBruta) * 100;
                         const avRealized = (totals.realized[i] / revBrutaReal) * 100;
                         const ahValue = totals.budget[i] !== 0 ? (totals.realized[i] / totals.budget[i]) * 100 : 0;
+                        const arValue = totals.radar[i] !== 0 ? (totals.realized[i] / totals.radar[i]) * 100 : 0;
 
                         return (
                             <React.Fragment key={i}>
@@ -598,7 +650,7 @@ export default function BudgetGrid({ refreshKey = 0, isExternalLoading = false }
                                     style={{
                                         borderLeft: '1px solid #f1f5f9',
                                         padding: '0.5rem',
-                                        minWidth: '120px',
+                                        minWidth: '100px',
                                         whiteSpace: 'nowrap',
                                         cursor: (!hasChildren && !node.isSynthetic) ? 'pointer' : 'default',
                                         backgroundColor: (!hasChildren && !node.isSynthetic) ? '#fff' : 'transparent',
@@ -607,15 +659,20 @@ export default function BudgetGrid({ refreshKey = 0, isExternalLoading = false }
                                     onMouseEnter={(e) => { if (!hasChildren && !node.isSynthetic) e.currentTarget.style.backgroundColor = '#f8fafc'; }}
                                     onMouseLeave={(e) => { if (!hasChildren && !node.isSynthetic) e.currentTarget.style.backgroundColor = '#fff'; }}
                                 >
-                                    <div style={{ textAlign: 'right', fontSize: '0.8rem', color: (!hasChildren && !node.isSynthetic) ? '#334155' : '#64748b', fontWeight: (!hasChildren && !node.isSynthetic) ? 500 : 400 }}>
+                                    <div style={{ textAlign: 'right', fontSize: '0.8rem', color: '#334155', display: 'flex', alignItems: 'center', gap: '0.3rem', justifyContent: 'flex-end' }}>
+                                        {bData.isLocked && <span title="Orçamento Travado" style={{ fontSize: '0.7rem', color: '#ef4444' }}>🔒</span>}
                                         {formatCurrency(totals.budget[i])}
                                     </div>
                                 </td>
-                                <td onClick={() => handleCellClick(node.id, i, node.name)} style={{ textAlign: 'right', padding: '0.5rem', color: '#3b82f6', fontSize: '0.8rem', fontWeight: 500, cursor: 'pointer', minWidth: '120px', whiteSpace: 'nowrap' }}>
+                                <td style={{ textAlign: 'right', padding: '0.5rem', borderLeft: '1px solid #f1f5f9', color: '#10b981', fontSize: '0.8rem', fontWeight: 600, minWidth: '100px', backgroundColor: '#f0fdf4' }}>
+                                    {formatCurrency(totals.radar[i])}
+                                </td>
+                                <td onClick={() => handleCellClick(node.id, i, node.name)} style={{ textAlign: 'right', padding: '0.5rem', borderLeft: '1px solid #f1f5f9', color: '#3b82f6', fontSize: '0.8rem', fontWeight: 500, cursor: 'pointer', minWidth: '120px', whiteSpace: 'nowrap' }}>
                                     {formatCurrency(totals.realized[i])}
                                     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end' }}>
                                         {showAV && <span style={{ fontSize: '0.65rem', color: '#94a3b8', fontWeight: 400 }}>AV: {avRealized.toFixed(1)}%</span>}
                                         {showAH && <span style={{ fontSize: '0.65rem', color: '#059669', fontWeight: 600 }}>AH: {ahValue.toFixed(1)}%</span>}
+                                        {showAR && <span style={{ fontSize: '0.65rem', color: '#8b5cf6', fontWeight: 700 }}>AR: {arValue.toFixed(1)}%</span>}
                                     </div>
                                 </td>
                             </React.Fragment>
@@ -645,27 +702,31 @@ export default function BudgetGrid({ refreshKey = 0, isExternalLoading = false }
                     const monthTotal = dreStructure.calculateTotals(i);
                     const budgetVal = monthTotal[validx].b;
                     const realizedVal = monthTotal[validx].r;
+                    const radarVal = monthTotal[validx].rd;
 
-                    const revBruta = monthTotal.vRev.b || 1;
                     const revBrutaReal = monthTotal.vRev.r || 1;
 
-                    const avBudget = (budgetVal / revBruta) * 100;
                     const avRealized = (realizedVal / revBrutaReal) * 100;
                     const ahValue = budgetVal !== 0 ? (realizedVal / budgetVal) * 100 : 0;
+                    const arValue = radarVal !== 0 ? (realizedVal / radarVal) * 100 : 0;
 
                     const bColor = budgetVal < 0 ? '#ef4444' : '#64748b';
                     const rColor = realizedVal < 0 ? '#ef4444' : textColor;
 
                     return (
                         <React.Fragment key={i}>
-                            <td style={{ textAlign: 'right', padding: '0.75rem', borderLeft: '1px solid #e2e8f0', color: bColor, fontSize: '0.8rem', minWidth: '120px', whiteSpace: 'nowrap' }}>
+                            <td style={{ textAlign: 'right', padding: '0.75rem', borderLeft: '1px solid #e2e8f0', color: bColor, fontSize: '0.8rem', minWidth: '100px', whiteSpace: 'nowrap' }}>
                                 <div>{formatCurrency(budgetVal)}</div>
                             </td>
-                            <td style={{ textAlign: 'right', padding: '0.75rem', color: rColor, fontSize: '0.8rem', minWidth: '120px', whiteSpace: 'nowrap' }}>
+                            <td style={{ textAlign: 'right', padding: '0.75rem', borderLeft: '1px solid #e2e8f0', color: '#059669', fontSize: '0.8rem', minWidth: '100px', whiteSpace: 'nowrap', backgroundColor: '#f0fdf4' }}>
+                                <div>{formatCurrency(radarVal)}</div>
+                            </td>
+                            <td style={{ textAlign: 'right', padding: '0.75rem', borderLeft: '1px solid #e2e8f0', color: rColor, fontSize: '0.8rem', minWidth: '120px', whiteSpace: 'nowrap' }}>
                                 <div>{formatCurrency(realizedVal)}</div>
                                 <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end' }}>
                                     {showAV && <span style={{ fontSize: '0.65rem', color: '#94a3b8', fontWeight: 400 }}>AV: {avRealized.toFixed(1)}%</span>}
                                     {showAH && <span style={{ fontSize: '0.65rem', color: '#059669', fontWeight: 600 }}>AH: {ahValue.toFixed(1)}%</span>}
+                                    {showAR && <span style={{ fontSize: '0.65rem', color: '#8b5cf6', fontWeight: 700 }}>AR: {arValue.toFixed(1)}%</span>}
                                 </div>
                             </td>
                         </React.Fragment>
@@ -740,12 +801,28 @@ export default function BudgetGrid({ refreshKey = 0, isExternalLoading = false }
                     <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginLeft: '1rem', borderLeft: '1px solid #e2e8f0', paddingLeft: '1rem' }}>
                         <label style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.8rem', fontWeight: 600, color: '#475569', cursor: 'pointer' }}>
                             <input type="checkbox" checked={showAV} onChange={(e) => setShowAV(e.target.checked)} style={{ cursor: 'pointer' }} />
-                            Análise Vertical (AV)
+                            AV
                         </label>
                         <label style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.8rem', fontWeight: 600, color: '#475569', cursor: 'pointer' }}>
                             <input type="checkbox" checked={showAH} onChange={(e) => setShowAH(e.target.checked)} style={{ cursor: 'pointer' }} />
-                            Análise Horizontal (AH)
+                            AH (O x R)
                         </label>
+                        <label style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.8rem', fontWeight: 600, color: '#475569', cursor: 'pointer' }}>
+                            <input type="checkbox" checked={showAR} onChange={(e) => setShowAR(e.target.checked)} style={{ cursor: 'pointer' }} />
+                            Radar (R x R)
+                        </label>
+                    </div>
+
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginLeft: '1rem', padding: '0.2rem 0.5rem', background: '#fef3c7', borderRadius: '6px', border: '1px solid #fcd34d' }}>
+                        <span style={{ fontSize: '0.7rem', fontWeight: 700, color: '#92400e' }}>PERFIL:</span>
+                        <select
+                            value={userRole}
+                            onChange={(e) => setUserRole(e.target.value as any)}
+                            style={{ fontSize: '0.75rem', border: 'none', background: 'transparent', fontWeight: 600, color: '#92400e', cursor: 'pointer', outline: 'none' }}
+                        >
+                            <option value="MASTER">MASTER</option>
+                            <option value="GESTOR">GESTOR</option>
+                        </select>
                     </div>
                 </div>
 
@@ -767,11 +844,17 @@ export default function BudgetGrid({ refreshKey = 0, isExternalLoading = false }
                     <thead>
                         <tr style={{ background: '#f8fafc', borderBottom: '2px solid #cbd5e1' }}>
                             <th style={{ padding: '0.75rem 1rem', textAlign: 'left', minWidth: '350px', position: 'sticky', left: 0, background: '#f8fafc', zIndex: 20, color: '#475569', whiteSpace: 'nowrap' }}>DRE Gerencial</th>
-                            {MONTHS.map((m) => <th key={m} colSpan={2} style={{ textAlign: 'center', padding: '0.75rem 0.5rem', borderLeft: '1px solid #cbd5e1', color: '#475569', minWidth: '180px' }}>{m}</th>)}
+                            {MONTHS.map((m) => <th key={m} colSpan={3} style={{ textAlign: 'center', padding: '0.75rem 0.5rem', borderLeft: '1px solid #cbd5e1', color: '#475569', minWidth: '240px' }}>{m}</th>)}
                         </tr>
                         <tr style={{ background: '#fff' }}>
                             <th style={{ position: 'sticky', left: 0, background: '#fff', zIndex: 20, borderBottom: '1px solid #e2e8f0' }}></th>
-                            {MONTHS.map((m) => (<React.Fragment key={m}><th style={{ fontSize: '0.7rem', color: '#94a3b8', borderLeft: '1px solid #f1f5f9', fontWeight: 500, paddingBottom: '0.5rem', borderBottom: '1px solid #e2e8f0', minWidth: '90px', whiteSpace: 'nowrap' }}>Orçado</th><th style={{ fontSize: '0.7rem', color: '#94a3b8', fontWeight: 500, paddingBottom: '0.5rem', borderBottom: '1px solid #e2e8f0', minWidth: '90px', whiteSpace: 'nowrap' }}>Realizado</th></React.Fragment>))}
+                            {MONTHS.map((m) => (
+                                <React.Fragment key={m}>
+                                    <th style={{ fontSize: '0.7rem', color: '#94a3b8', borderLeft: '1px solid #f1f5f9', fontWeight: 500, paddingBottom: '0.5rem', borderBottom: '1px solid #e2e8f0', minWidth: '80px', whiteSpace: 'nowrap' }}>Orçado</th>
+                                    <th style={{ fontSize: '0.7rem', color: '#10b981', fontWeight: 700, paddingBottom: '0.5rem', borderBottom: '1px solid #e2e8f0', minWidth: '80px', whiteSpace: 'nowrap', backgroundColor: '#ecfdf5' }}>Radar</th>
+                                    <th style={{ fontSize: '0.7rem', color: '#94a3b8', fontWeight: 500, paddingBottom: '0.5rem', borderBottom: '1px solid #e2e8f0', minWidth: '80px', whiteSpace: 'nowrap' }}>Realizado</th>
+                                </React.Fragment>
+                            ))}
                         </tr>
                     </thead>
                     <tbody>
@@ -834,49 +917,126 @@ export default function BudgetGrid({ refreshKey = 0, isExternalLoading = false }
                     <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
                         <div style={{ backgroundColor: '#fff', borderRadius: '16px', padding: '2rem', width: '600px', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.15)', color: '#1e293b', border: '1px solid #e2e8f0' }}>
                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
-                                <h3 style={{ margin: 0, fontSize: '1.4rem', fontWeight: 700 }}>Editar: {budgetModal.categoryName}</h3>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                                    <h3 style={{ margin: 0, fontSize: '1.4rem', fontWeight: 700 }}>{budgetModal.categoryName}</h3>
+                                    {userRole === 'MASTER' && (
+                                        <div style={{ display: 'flex', gap: '0.2rem' }}>
+                                            {MONTHS.map((_, i) => (
+                                                <button
+                                                    key={i}
+                                                    onClick={() => {
+                                                        const next = [...lockedMonths];
+                                                        next[i] = !next[i];
+                                                        setLockedMonths(next);
+                                                    }}
+                                                    title={`Travar/Destravar ${MONTHS[i]}`}
+                                                    style={{
+                                                        padding: '0.2rem 0.4rem',
+                                                        borderRadius: '4px',
+                                                        border: '1px solid #e2e8f0',
+                                                        background: lockedMonths[i] ? '#fee2e2' : '#f8fafc',
+                                                        cursor: 'pointer',
+                                                        fontSize: '0.7rem'
+                                                    }}
+                                                >
+                                                    {lockedMonths[i] ? '🔒' : '🔓'}
+                                                </button>
+                                            ))}
+                                        </div>
+                                    )}
+                                </div>
                                 <button onClick={() => setBudgetModal(null)} style={{ border: 'none', background: 'none', cursor: 'pointer', fontSize: '1.5rem', color: '#94a3b8', padding: '0.5rem' }}>✕</button>
                             </div>
 
-                            <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '1rem' }}>
-                                <button onClick={replicateValue} style={{ background: 'none', border: 'none', color: '#2563eb', cursor: 'pointer', fontSize: '0.85rem', fontWeight: 600, padding: '0.5rem' }}>
-                                    Replicar {MONTHS[activeMonth]} para todos
+                            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '1rem', marginBottom: '1rem' }}>
+                                <button onClick={replicateValue} style={{ background: 'none', border: 'none', color: '#2563eb', cursor: 'pointer', fontSize: '0.8rem', fontWeight: 600, padding: '0.4rem' }}>
+                                    Replicar Orçado ({MONTHS[activeMonth]})
+                                </button>
+                                <button
+                                    onClick={() => {
+                                        const valToRep = radarModalValues[activeMonth];
+                                        const next = [...radarModalValues];
+                                        for (let i = activeMonth; i < 12; i++) next[i] = valToRep;
+                                        setRadarModalValues(next);
+                                    }}
+                                    style={{ background: 'none', border: 'none', color: '#10b981', cursor: 'pointer', fontSize: '0.8rem', fontWeight: 600, padding: '0.4rem' }}
+                                >
+                                    Replicar Radar ({MONTHS[activeMonth]})
                                 </button>
                             </div>
 
-                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '1rem', marginBottom: '2rem' }}>
-                                {MONTHS.map((m, i) => (
-                                    <div key={m} style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
-                                        <label style={{ fontSize: '0.75rem', fontWeight: 700, color: '#64748b', textTransform: 'uppercase' }}>{m}</label>
-                                        <div style={{ position: 'relative' }}>
-                                            <span style={{ position: 'absolute', left: '0.75rem', top: '50%', transform: 'translateY(-50%)', color: '#94a3b8', fontSize: '0.9rem' }}>R$</span>
-                                            <input
-                                                type="text"
-                                                value={modalValues[i]}
-                                                onFocus={() => setActiveMonth(i)}
-                                                onChange={(e) => {
-                                                    const next = [...modalValues];
-                                                    next[i] = e.target.value;
-                                                    setModalValues(next);
-                                                }}
-                                                disabled={i < budgetModal.startMonth}
-                                                placeholder="0.00"
-                                                style={{
-                                                    width: '100%',
-                                                    padding: '0.75rem 0.75rem 0.75rem 2.2rem',
-                                                    borderRadius: '8px',
-                                                    backgroundColor: i < budgetModal.startMonth ? '#f1f5f9' : '#fff',
-                                                    border: activeMonth === i ? '2px solid #2563eb' : '1px solid #cbd5e1',
-                                                    color: i < budgetModal.startMonth ? '#94a3b8' : '#1e293b',
-                                                    fontSize: '0.95rem',
-                                                    outline: 'none',
-                                                    transition: 'all 0.2s',
-                                                    cursor: i < budgetModal.startMonth ? 'not-allowed' : 'text'
-                                                }}
-                                            />
+                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '1.5rem', marginBottom: '2rem', maxHeight: '400px', overflowY: 'auto', paddingRight: '0.5rem' }}>
+                                {MONTHS.map((m, i) => {
+                                    const isLocked = lockedMonths[i];
+                                    const canEditBudget = !isLocked || userRole === 'MASTER';
+
+                                    return (
+                                        <div key={m} style={{ padding: '1rem', borderRadius: '12px', background: '#f8fafc', border: '1px solid #e2e8f0' }}>
+                                            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.8rem' }}>
+                                                <label style={{ fontSize: '0.85rem', fontWeight: 800, color: '#1e293b' }}>{m}</label>
+                                                {isLocked && <span style={{ fontSize: '0.8rem', color: '#ef4444', fontWeight: 700 }}>LOCKED 🔒</span>}
+                                            </div>
+
+                                            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.8rem' }}>
+                                                <div>
+                                                    <label style={{ fontSize: '0.7rem', fontWeight: 700, color: '#64748b', marginBottom: '0.3rem', display: 'block' }}>ORÇADO (BASE)</label>
+                                                    <div style={{ position: 'relative' }}>
+                                                        <span style={{ position: 'absolute', left: '0.75rem', top: '50%', transform: 'translateY(-50%)', color: '#94a3b8', fontSize: '0.85rem' }}>R$</span>
+                                                        <input
+                                                            type="text"
+                                                            value={modalValues[i]}
+                                                            onFocus={() => setActiveMonth(i)}
+                                                            onChange={(e) => {
+                                                                const next = [...modalValues];
+                                                                next[i] = e.target.value;
+                                                                setModalValues(next);
+                                                            }}
+                                                            disabled={!canEditBudget}
+                                                            style={{
+                                                                width: '100%',
+                                                                padding: '0.6rem 0.6rem 0.6rem 2.2rem',
+                                                                borderRadius: '6px',
+                                                                border: activeMonth === i ? '2px solid #2563eb' : (isLocked ? '1px dashed #cbd5e1' : '1px solid #cbd5e1'),
+                                                                backgroundColor: !canEditBudget ? '#f1f5f9' : '#fff',
+                                                                fontSize: '0.9rem',
+                                                                outline: 'none',
+                                                                color: !canEditBudget ? '#94a3b8' : '#1e293b'
+                                                            }}
+                                                        />
+                                                    </div>
+                                                </div>
+
+                                                <div>
+                                                    <label style={{ fontSize: '0.7rem', fontWeight: 700, color: '#10b981', marginBottom: '0.3rem', display: 'block' }}>RADAR (PROJEÇÃO)</label>
+                                                    <div style={{ position: 'relative' }}>
+                                                        <span style={{ position: 'absolute', left: '0.75rem', top: '50%', transform: 'translateY(-50%)', color: '#10b981', opacity: 0.5, fontSize: '0.85rem' }}>R$</span>
+                                                        <input
+                                                            type="text"
+                                                            value={radarModalValues[i]}
+                                                            onFocus={() => setActiveMonth(i)}
+                                                            onChange={(e) => {
+                                                                const next = [...radarModalValues];
+                                                                next[i] = e.target.value;
+                                                                setRadarModalValues(next);
+                                                            }}
+                                                            style={{
+                                                                width: '100%',
+                                                                padding: '0.6rem 0.6rem 0.6rem 2.2rem',
+                                                                borderRadius: '6px',
+                                                                border: activeMonth === i ? '2px solid #10b981' : '1px solid #10b981',
+                                                                backgroundColor: '#ecfdf5',
+                                                                fontSize: '0.9rem',
+                                                                outline: 'none',
+                                                                color: '#065f46',
+                                                                fontWeight: 600
+                                                            }}
+                                                        />
+                                                    </div>
+                                                </div>
+                                            </div>
                                         </div>
-                                    </div>
-                                ))}
+                                    );
+                                })}
                             </div>
 
                             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '1rem', marginTop: '1rem' }}>

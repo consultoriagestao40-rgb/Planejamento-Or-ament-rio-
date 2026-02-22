@@ -24,6 +24,7 @@ export default function BudgetGrid({ refreshKey = 0 }: BudgetGridProps) {
     const [budgetValues, setBudgetValues] = useState<Record<string, number>>({});
     const [realizedValues, setRealizedValues] = useState<Record<string, number>>({});
     const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
+    const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set()); // New state for main groups
     const [loading, setLoading] = useState(true);
     const [selectedCostCenter, setSelectedCostCenter] = useState('DEFAULT');
     const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
@@ -459,6 +460,13 @@ export default function BudgetGrid({ refreshKey = 0 }: BudgetGridProps) {
         setExpandedRows(newSet);
     };
 
+    const toggleGroup = (groupName: string) => {
+        const newSet = new Set(expandedGroups);
+        if (newSet.has(groupName)) newSet.delete(groupName);
+        else newSet.add(groupName);
+        setExpandedGroups(newSet);
+    };
+
     const handleBudgetChange = async (categoryId: string, monthIndex: number, value: string) => {
         const numericValue = parseFloat(value.replace(/\D/g, '')) / 100 || 0;
         setBudgetValues(prev => ({ ...prev, [`${categoryId}-${monthIndex}`]: numericValue }));
@@ -501,17 +509,29 @@ export default function BudgetGrid({ refreshKey = 0 }: BudgetGridProps) {
         );
     };
 
-    const renderSummaryRow = (label: string, validx: keyof ReturnType<typeof dreStructure.calculateTotals>, isBold = false, bgColor = '#f8fafc', textColor = '#0f172a', onClick?: () => void) => (
-        <tr onClick={onClick} style={{ background: bgColor, borderBottom: '1px solid #e2e8f0', fontWeight: isBold ? 700 : 600, cursor: onClick ? 'pointer' : 'default', textTransform: 'uppercase' }}>
-            <td style={{ padding: '0.75rem', position: 'sticky', left: 0, background: bgColor, zIndex: 10, color: textColor, fontSize: '0.85rem' }}>{label}</td>
-            {MONTHS.map((_, i) => (
-                <React.Fragment key={i}>
-                    <td style={{ textAlign: 'right', padding: '0.75rem', borderLeft: '1px solid #e2e8f0', color: '#64748b', fontSize: '0.8rem' }}>{formatCurrency(dreStructure.calculateTotals(i)[validx].b)}</td>
-                    <td style={{ textAlign: 'right', padding: '0.75rem', color: textColor, fontSize: '0.8rem' }}>{formatCurrency(dreStructure.calculateTotals(i)[validx].r)}</td>
-                </React.Fragment>
-            ))}
-        </tr>
-    );
+    const renderSummaryRow = (label: string, validx: keyof ReturnType<typeof dreStructure.calculateTotals>, isBold = false, bgColor = '#f8fafc', textColor = '#0f172a', groupId?: string) => {
+        const isGroupExpanded = groupId ? expandedGroups.has(groupId) : true;
+
+        return (
+            <tr onClick={() => groupId && toggleGroup(groupId)} style={{ background: bgColor, borderBottom: '1px solid #e2e8f0', fontWeight: isBold ? 700 : 600, cursor: groupId ? 'pointer' : 'default', textTransform: 'uppercase' }}>
+                <td style={{ padding: '0.75rem', position: 'sticky', left: 0, background: bgColor, zIndex: 10, color: textColor, fontSize: '0.85rem', display: 'flex', alignItems: 'center' }}>
+                    {groupId && (
+                        <span style={{ marginRight: '0.5rem', fontSize: '0.8rem', width: '1rem', color: textColor, opacity: 0.7 }}>
+                            {isGroupExpanded ? '▼' : '▶'}
+                        </span>
+                    )}
+                    {!groupId && <span style={{ width: '1.5rem' }}></span>}
+                    {label}
+                </td>
+                {MONTHS.map((_, i) => (
+                    <React.Fragment key={i}>
+                        <td style={{ textAlign: 'right', padding: '0.75rem', borderLeft: '1px solid #e2e8f0', color: '#64748b', fontSize: '0.8rem' }}>{formatCurrency(dreStructure.calculateTotals(i)[validx].b)}</td>
+                        <td style={{ textAlign: 'right', padding: '0.75rem', color: textColor, fontSize: '0.8rem' }}>{formatCurrency(dreStructure.calculateTotals(i)[validx].r)}</td>
+                    </React.Fragment>
+                ))}
+            </tr>
+        );
+    };
 
     return (
         <div style={{ overflowX: 'auto', border: '1px solid #e2e8f0', borderRadius: '8px', padding: '1rem', background: 'white' }}>
@@ -535,22 +555,32 @@ export default function BudgetGrid({ refreshKey = 0 }: BudgetGridProps) {
                     </tr>
                 </thead>
                 <tbody>
-                    {renderSummaryRow('RECEITA BRUTA', 'vRev', true, '#eff6ff', '#1e3a8a')}
-                    {dreStructure.buckets.rev.map(root => renderNode(root))}
-                    {renderSummaryRow('TRIBUTO SOBRE FATURAMENTO', 'vTaxes', true, '#f1f5f9', '#64748b')}
-                    {dreStructure.buckets.taxes.map(root => renderNode(root))}
+                    {renderSummaryRow('RECEITA BRUTA', 'vRev', true, '#eff6ff', '#1e3a8a', 'rev')}
+                    {expandedGroups.has('rev') && dreStructure.buckets.rev.map(root => renderNode(root))}
+
+                    {renderSummaryRow('TRIBUTO SOBRE FATURAMENTO', 'vTaxes', true, '#f1f5f9', '#64748b', 'taxes')}
+                    {expandedGroups.has('taxes') && dreStructure.buckets.taxes.map(root => renderNode(root))}
+
                     {renderSummaryRow('(=) RECEITA LÍQUIDA', 'vRecLiq', true, '#e0f2fe', '#0369a1')}
-                    {renderSummaryRow('CUSTO OPERACIONAL', 'vCosts', true, '#f1f5f9', '#64748b')}
-                    {dreStructure.buckets.costs.map(root => renderNode(root))}
+
+                    {renderSummaryRow('CUSTO OPERACIONAL', 'vCosts', true, '#f1f5f9', '#64748b', 'costs')}
+                    {expandedGroups.has('costs') && dreStructure.buckets.costs.map(root => renderNode(root))}
+
                     {renderSummaryRow('(=) MARGEM BRUTA', 'vGrossMarg', true, '#dcfce7', '#15803d')}
-                    {renderSummaryRow('DESPESA OPERACIONAL', 'vOpExp', true, '#f1f5f9', '#64748b')}
-                    {dreStructure.buckets.opExp.map(root => renderNode(root))}
+
+                    {renderSummaryRow('DESPESA OPERACIONAL', 'vOpExp', true, '#f1f5f9', '#64748b', 'opExp')}
+                    {expandedGroups.has('opExp') && dreStructure.buckets.opExp.map(root => renderNode(root))}
+
                     {renderSummaryRow('(=) MARGEM DE CONTRIBUIÇÃO', 'vContribMarg', true, '#fff7ed', '#c2410c')}
-                    {renderSummaryRow('DESPESAS ADMINISTRATIVAS', 'vAdminExp', true, '#f1f5f9', '#64748b')}
-                    {dreStructure.buckets.adminExp.map(root => renderNode(root))}
+
+                    {renderSummaryRow('DESPESAS ADMINISTRATIVAS', 'vAdminExp', true, '#f1f5f9', '#64748b', 'adminExp')}
+                    {expandedGroups.has('adminExp') && dreStructure.buckets.adminExp.map(root => renderNode(root))}
+
                     {renderSummaryRow('(=) EBITDA', 'vEbitda', true, '#fef3c7', '#b45309')}
-                    {renderSummaryRow('DESPESAS FINANCEIRAS', 'vFin', true, '#f1f5f9', '#64748b')}
-                    {dreStructure.buckets.fin.map(root => renderNode(root))}
+
+                    {renderSummaryRow('DESPESAS FINANCEIRAS', 'vFin', true, '#f1f5f9', '#64748b', 'fin')}
+                    {expandedGroups.has('fin') && dreStructure.buckets.fin.map(root => renderNode(root))}
+
                     {renderSummaryRow('(=) LUCRO LÍQUIDO', 'vNetProfit', true, '#0f172a', '#fbbf24')}
                 </tbody>
             </table>

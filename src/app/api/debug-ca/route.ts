@@ -5,51 +5,49 @@ export const dynamic = 'force-dynamic';
 
 export async function GET(request: Request) {
     try {
-        const { searchParams } = new URL(request.url);
-        const costCenterId = searchParams.get('costCenterId');
-
         const accessToken = await getValidAccessToken();
-        let ccsEncontrados: any = {};
 
         async function runScan(endpoint: string, label: string) {
-            let matches = 0;
             let total = 0;
             const itemsMatch: any[] = [];
 
-            for (let i = 1; i <= 20; i++) {
+            for (let i = 1; i <= 10; i++) {
                 let url = `https://api-v2.contaazul.com/v1/financeiro/eventos-financeiros/${endpoint}/buscar?data_vencimento_de=2026-01-01&data_vencimento_ate=2026-12-31&tamanho_pagina=100&pagina=${i}`;
                 const res = await fetch(url, { headers: { 'Authorization': `Bearer ${accessToken}` } });
                 if (!res.ok) break;
                 const data = await res.json();
                 const items = data.itens || [];
                 if (items.length === 0) break;
-
-                items.forEach((item: any) => {
+                
+                for (const item of items) {
                     total++;
-                    const ccs = item.centros_de_custo || [];
                     const amount = item.valor || item.valor_original || item.total || 0;
-                    if ((amount > 18000 && amount < 19000) || (amount > 39000 && amount < 40000)) {
-                        matches++;
-                        itemsMatch.push({
-                            id: item.id,
-                            valor: amount,
-                            descricao: item.descricao,
-                            categorias: item.categorias,
-                            centros_de_custo: ccs
-                        });
+                    
+                    if (Math.abs(amount - 18649.67) < 0.1 || Math.abs(amount - 39767) < 0.1) {
+                        try {
+                            const detailRes = await fetch(`https://api-v2.contaazul.com/v1/financeiro/eventos-financeiros/${endpoint}/${item.id}`, { headers: { 'Authorization': `Bearer ${accessToken}` } });
+                            const detail = await detailRes.json();
+                            itemsMatch.push({
+                                id: item.id,
+                                amount: amount,
+                                base: item,
+                                detailed: detail
+                            });
+                        } catch (e) {
+                            itemsMatch.push({ id: item.id, error: 'detail failed' });
+                        }
                     }
-                });
+                }
+                if (itemsMatch.length >= 2) break;
             }
-            return { total, matches, itemsMatch };
+            return { total, itemsMatch };
         }
 
         const payables = await runScan('contas-a-pagar', 'pagar');
-        const receivables = await runScan('contas-a-receber', 'receber');
 
         return NextResponse.json({
             success: true,
-            payables,
-            receivables
+            payables
         });
     } catch (e: any) {
         return NextResponse.json({ success: false, error: e.message }, { status: 500 });

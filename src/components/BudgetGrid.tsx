@@ -483,8 +483,8 @@ export default function BudgetGrid({ refreshKey = 0 }: BudgetGridProps) {
                 <tr onClick={() => hasChildren && toggleRow(node.id)} style={{ background: hasChildren ? '#fdfdfd' : 'white', cursor: hasChildren ? 'pointer' : 'default', borderBottom: '1px solid #f1f5f9' }}>
                     <td style={{
                         padding: '0.5rem',
-                        // INCREASED INDENTATION MULTIPLIER (2.25rem per level)
-                        paddingLeft: `${0.5 + (node.level * 2.25)}rem`,
+                        // INCREASED INDENTATION MULTIPLIER (3.5rem per level)
+                        paddingLeft: `${0.5 + (node.level * 3.5)}rem`,
                         position: 'sticky', left: 0, background: hasChildren ? '#fdfdfd' : 'white', zIndex: 5, display: 'flex', alignItems: 'center', color: hasChildren ? '#1e293b' : '#334155', fontWeight: hasChildren ? 600 : 400, fontSize: '0.8rem'
                     }}>
                         {hasChildren && <span style={{ marginRight: '0.5rem', fontSize: '0.7rem', width: '1rem', color: '#94a3b8' }}>{isExpanded ? '▼' : '▶'}</span>}
@@ -534,7 +534,14 @@ export default function BudgetGrid({ refreshKey = 0 }: BudgetGridProps) {
     };
 
     return (
-        <div style={{ overflowX: 'auto', border: '1px solid #e2e8f0', borderRadius: '8px', background: 'white' }}>
+        <div style={{ position: 'relative', overflowX: 'auto', border: '1px solid #e2e8f0', borderRadius: '8px', background: 'white', minHeight: '300px' }}>
+            {loading && (
+                <div style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(255, 255, 255, 0.7)', zIndex: 100, display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center' }}>
+                    <div style={{ width: '40px', height: '40px', border: '4px solid #f1f5f9', borderTop: '4px solid #3b82f6', borderRadius: '50%', animation: 'spin-loading 1s linear infinite' }} />
+                    <span style={{ marginTop: '1rem', color: '#1e293b', fontWeight: 600, fontSize: '0.9rem' }}>Atualizando...</span>
+                    <style>{`@keyframes spin-loading { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }`}</style>
+                </div>
+            )}
             <div style={{ padding: '1rem', borderBottom: '1px solid #e2e8f0', marginBottom: '0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
                     <label style={{ fontSize: '0.75rem', fontWeight: 600, color: '#64748b' }}>Centro de Custo</label>

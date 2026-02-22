@@ -18,14 +18,14 @@ export async function GET(request: Request) {
                 const data = await res.json();
                 const items = data.itens || [];
                 if (items.length === 0) break;
-                
+
                 for (const item of items) {
                     total++;
                     const amount = item.valor || item.valor_original || item.total || 0;
-                    
+
                     if (Math.abs(amount - 18649.67) < 0.1 || Math.abs(amount - 39767) < 0.1) {
                         try {
-                            const detailRes = await fetch(`https://api-v2.contaazul.com/v1/financeiro/eventos-financeiros/${endpoint}/${item.id}`, { headers: { 'Authorization': `Bearer ${accessToken}` } });
+                            const detailRes = await fetch(`https://api-v2.contaazul.com/v1/financeiro/${endpoint}/${item.id}`, { headers: { 'Authorization': `Bearer ${accessToken}` } });
                             const detail = await detailRes.json();
                             itemsMatch.push({
                                 id: item.id,

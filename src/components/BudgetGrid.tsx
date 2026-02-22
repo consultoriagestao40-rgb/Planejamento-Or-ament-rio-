@@ -288,16 +288,35 @@ export default function BudgetGrid({ refreshKey = 0 }: BudgetGridProps) {
                 const parent = codeMap.get('02.1');
                 if (parent) { parent.children.push(node); return; }
             }
+
+            // Fix: Directly map any deep code to its closest synthetic parent if it starts with a match
+            // e.g., 03.3.2 -> matches synthetic parent '03.3'
+            let parentFound = false;
             if (code.includes('.')) {
                 let currentPrefix = code.substring(0, code.lastIndexOf('.'));
                 while (currentPrefix.length > 0) {
                     const potentialParent = Array.from(codeMap.values()).find(n => n.code === currentPrefix);
                     if (potentialParent) {
-                        potentialParent.children.push(node);
-                        return;
+                        if (!potentialParent.children.includes(node)) {
+                            potentialParent.children.push(node);
+                        }
+                        parentFound = true;
+                        break;
                     }
                     if (!currentPrefix.includes('.')) break;
                     currentPrefix = currentPrefix.substring(0, currentPrefix.lastIndexOf('.'));
+                }
+            }
+
+            // Fallback for codes like 03.3.2 if the above didn't catch (e.g., if codeMap doesn't have intermediate levels like 03.3.2 but has 03.3)
+            if (!parentFound && code.match(/^(0[3456])\.(\d+)\./)) {
+                const match = code.match(/^(0[3456])\.(\d+)/);
+                if (match) {
+                    const synthParentCode = match[0];
+                    const synthParent = codeMap.get(synthParentCode);
+                    if (synthParent && !synthParent.children.includes(node)) {
+                        synthParent.children.push(node);
+                    }
                 }
             }
         });

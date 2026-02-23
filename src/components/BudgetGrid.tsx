@@ -52,6 +52,7 @@ export default function BudgetGrid({
     const [costCenterDropdownOpen, setCostCenterDropdownOpen] = useState(false);
     const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
     const [viewMode, setViewMode] = useState<'caixa' | 'competencia'>('competencia');
+    const [viewPeriod, setViewPeriod] = useState<'month' | 'quarter'>('month');
 
     // --- Transaction Drill-down State ---
     const [selectedCell, setSelectedCell] = useState<{ categoryId: string, month: number, categoryName: string } | null>(null);
@@ -688,46 +689,72 @@ export default function BudgetGrid({
                             {node.name}
                         </div>
                     </td>
-                    {MONTHS.map((_, i) => {
-                        const monthTotal = dreStructure.calculateTotals(i);
-                        const bData = budgetValues[`${node.id}-${i}`] || { isLocked: false };
-                        const revBrutaReal = monthTotal.vRev.r || 1;
-                        const revBrutaBudget = monthTotal.vRev.b || 1;
-                        const revBrutaRadar = monthTotal.vRev.rd || 1;
+                    {(viewPeriod === 'month' ? MONTHS : [1, 2, 3, 4]).map((_, i) => {
+                        let bVal = 0, rVal = 0, rdVal = 0;
+                        let revBrutaReal = 0, revBrutaBudget = 0, revBrutaRadar = 0;
+                        let isLocked = false;
 
-                        const avRealized = (totals.realized[i] / revBrutaReal) * 100;
-                        const avBudget = (totals.budget[i] / revBrutaBudget) * 100;
-                        const avRadar = (totals.radar[i] / revBrutaRadar) * 100;
+                        if (viewPeriod === 'month') {
+                            bVal = totals.budget[i];
+                            rVal = totals.realized[i];
+                            rdVal = totals.radar[i];
+                            const monthTotal = dreStructure.calculateTotals(i);
+                            revBrutaReal = monthTotal.vRev.r;
+                            revBrutaBudget = monthTotal.vRev.b;
+                            revBrutaRadar = monthTotal.vRev.rd;
+                            isLocked = (budgetValues[`${node.id}-${i}`] || {}).isLocked || false;
+                        } else {
+                            for (let m = i * 3; m < i * 3 + 3; m++) {
+                                bVal += totals.budget[m];
+                                rVal += totals.realized[m];
+                                rdVal += totals.radar[m];
+                                const monthTotal = dreStructure.calculateTotals(m);
+                                revBrutaReal += monthTotal.vRev.r;
+                                revBrutaBudget += monthTotal.vRev.b;
+                                revBrutaRadar += monthTotal.vRev.rd;
+                                if ((budgetValues[`${node.id}-${m}`] || {}).isLocked) isLocked = true;
+                            }
+                        }
 
-                        const ahValue = totals.budget[i] !== 0 ? (totals.realized[i] / totals.budget[i]) * 100 : 0;
-                        const arValue = totals.radar[i] !== 0 ? (totals.realized[i] / totals.radar[i]) * 100 : 0;
-                        const ahRadarValue = totals.budget[i] !== 0 ? (totals.radar[i] / totals.budget[i]) * 100 : 0;
+                        revBrutaReal = revBrutaReal || 1;
+                        revBrutaBudget = revBrutaBudget || 1;
+                        revBrutaRadar = revBrutaRadar || 1;
+
+                        const avRealized = (rVal / revBrutaReal) * 100;
+                        const avBudget = (bVal / revBrutaBudget) * 100;
+                        const avRadar = (rdVal / revBrutaRadar) * 100;
+
+                        const ahValue = bVal !== 0 ? (rVal / bVal) * 100 : 0;
+                        const arValue = rdVal !== 0 ? (rVal / rdVal) * 100 : 0;
+                        const ahRadarValue = bVal !== 0 ? (rdVal / bVal) * 100 : 0;
+
+                        const isCellEditable = isEditable && viewPeriod === 'month';
 
                         return (
                             <React.Fragment key={i}>
                                 <td
-                                    onClick={() => isEditable && openBudgetModal(node.id, node.name, i, 'budget')}
+                                    onClick={() => isCellEditable && openBudgetModal(node.id, node.name, i, 'budget')}
                                     style={{
                                         borderLeft: '1px solid #f1f5f9',
                                         padding: '0.5rem',
                                         minWidth: '100px',
                                         whiteSpace: 'nowrap',
-                                        cursor: isEditable ? 'pointer' : 'not-allowed',
+                                        cursor: isCellEditable ? 'pointer' : (viewPeriod === 'quarter' ? 'default' : 'not-allowed'),
                                         backgroundColor: '#fff',
                                         transition: 'background 0.2s'
                                     }}
-                                    onMouseEnter={(e) => { if (isEditable) e.currentTarget.style.backgroundColor = '#f8fafc'; }}
-                                    onMouseLeave={(e) => { if (isEditable) e.currentTarget.style.backgroundColor = '#fff'; }}
-                                    title={!isEditable ? "Selecione um único Centro de Custo para editar" : ""}
+                                    onMouseEnter={(e) => { if (isCellEditable) e.currentTarget.style.backgroundColor = '#f8fafc'; }}
+                                    onMouseLeave={(e) => { if (isCellEditable) e.currentTarget.style.backgroundColor = '#fff'; }}
+                                    title={viewPeriod === 'quarter' ? "Mude para a Visão Mensal para editar" : (!isEditable ? "Selecione um único Centro de Custo para editar" : "")}
                                 >
                                     <div style={{ textAlign: 'right', fontSize: '0.8rem', color: '#334155', display: 'flex', alignItems: 'center', gap: '0.3rem', justifyContent: 'flex-end' }}>
-                                        {bData.isLocked && <span title="Orçamento Travado" style={{ fontSize: '0.7rem', color: '#ef4444' }}>🔒</span>}
-                                        {formatCurrency(totals.budget[i])}
+                                        {isLocked && <span title="Orçamento Travado" style={{ fontSize: '0.7rem', color: '#ef4444' }}>🔒</span>}
+                                        {formatCurrency(bVal)}
                                     </div>
                                     {showAV && <div style={{ textAlign: 'right', fontSize: '0.65rem', color: '#94a3b8' }}>AV: {avBudget.toFixed(1)}%</div>}
                                 </td>
                                 <td
-                                    onClick={() => isEditable && openBudgetModal(node.id, node.name, i, 'radar')}
+                                    onClick={() => isCellEditable && openBudgetModal(node.id, node.name, i, 'radar')}
                                     style={{
                                         textAlign: 'right',
                                         padding: '0.5rem',
@@ -737,20 +764,20 @@ export default function BudgetGrid({
                                         fontWeight: 400,
                                         minWidth: '100px',
                                         backgroundColor: '#fff',
-                                        cursor: isEditable ? 'pointer' : 'not-allowed'
+                                        cursor: isCellEditable ? 'pointer' : (viewPeriod === 'quarter' ? 'default' : 'not-allowed')
                                     }}
-                                    onMouseEnter={(e) => { if (isEditable) e.currentTarget.style.backgroundColor = '#f8fafc'; }}
-                                    onMouseLeave={(e) => { if (isEditable) e.currentTarget.style.backgroundColor = '#fff'; }}
-                                    title={!isEditable ? "Selecione um único Centro de Custo para editar" : ""}
+                                    onMouseEnter={(e) => { if (isCellEditable) e.currentTarget.style.backgroundColor = '#f8fafc'; }}
+                                    onMouseLeave={(e) => { if (isCellEditable) e.currentTarget.style.backgroundColor = '#fff'; }}
+                                    title={viewPeriod === 'quarter' ? "Mude para a Visão Mensal para editar" : (!isEditable ? "Selecione um único Centro de Custo para editar" : "")}
                                 >
-                                    <div>{formatCurrency(totals.radar[i])}</div>
+                                    <div>{formatCurrency(rdVal)}</div>
                                     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end' }}>
                                         {showAV && <span style={{ fontSize: '0.65rem', color: '#94a3b8', fontWeight: 400 }}>AV: {avRadar.toFixed(1)}%</span>}
                                         {showAH && <span style={{ fontSize: '0.65rem', color: '#0d9488', fontWeight: 600 }}>AH (O x R): {ahRadarValue.toFixed(1)}%</span>}
                                     </div>
                                 </td>
-                                <td onClick={() => handleCellClick(node.id, i, node.name)} style={{ textAlign: 'right', padding: '0.5rem', borderLeft: '1px solid #f1f5f9', color: '#3b82f6', fontSize: '0.8rem', fontWeight: 500, cursor: 'pointer', minWidth: '120px', whiteSpace: 'nowrap' }}>
-                                    {formatCurrency(totals.realized[i])}
+                                <td onClick={() => viewPeriod === 'month' && handleCellClick(node.id, i, node.name)} style={{ textAlign: 'right', padding: '0.5rem', borderLeft: '1px solid #f1f5f9', color: '#3b82f6', fontSize: '0.8rem', fontWeight: 500, cursor: viewPeriod === 'month' ? 'pointer' : 'default', minWidth: '120px', whiteSpace: 'nowrap' }} title={viewPeriod === 'quarter' ? "Visão detalhada indisponível no trimestre" : ""}>
+                                    {formatCurrency(rVal)}
                                     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end' }}>
                                         {showAV && <span style={{ fontSize: '0.65rem', color: '#94a3b8', fontWeight: 400 }}>AV: {avRealized.toFixed(1)}%</span>}
                                         {showAH && <span style={{ fontSize: '0.65rem', color: '#059669', fontWeight: 600 }}>AH: {ahValue.toFixed(1)}%</span>}
@@ -794,15 +821,33 @@ export default function BudgetGrid({
                         {label}
                     </div>
                 </td>
-                {MONTHS.map((_, i) => {
-                    const monthTotal = dreStructure.calculateTotals(i);
-                    const budgetVal = monthTotal[validx].b;
-                    const realizedVal = monthTotal[validx].r;
-                    const radarVal = monthTotal[validx].rd;
+                {(viewPeriod === 'month' ? MONTHS : [1, 2, 3, 4]).map((_, i) => {
+                    let budgetVal = 0, realizedVal = 0, radarVal = 0;
+                    let revBrutaReal = 0, revBrutaBudget = 0, revBrutaRadar = 0;
 
-                    const revBrutaReal = monthTotal.vRev.r || 1;
-                    const revBrutaBudget = monthTotal.vRev.b || 1;
-                    const revBrutaRadar = monthTotal.vRev.rd || 1;
+                    if (viewPeriod === 'month') {
+                        const monthTotal = dreStructure.calculateTotals(i);
+                        budgetVal = monthTotal[validx].b;
+                        realizedVal = monthTotal[validx].r;
+                        radarVal = monthTotal[validx].rd;
+                        revBrutaReal = monthTotal.vRev.r;
+                        revBrutaBudget = monthTotal.vRev.b;
+                        revBrutaRadar = monthTotal.vRev.rd;
+                    } else {
+                        for (let m = i * 3; m < i * 3 + 3; m++) {
+                            const monthTotal = dreStructure.calculateTotals(m);
+                            budgetVal += monthTotal[validx].b;
+                            realizedVal += monthTotal[validx].r;
+                            radarVal += monthTotal[validx].rd;
+                            revBrutaReal += monthTotal.vRev.r;
+                            revBrutaBudget += monthTotal.vRev.b;
+                            revBrutaRadar += monthTotal.vRev.rd;
+                        }
+                    }
+
+                    revBrutaReal = revBrutaReal || 1;
+                    revBrutaBudget = revBrutaBudget || 1;
+                    revBrutaRadar = revBrutaRadar || 1;
 
                     const avRealized = (realizedVal / revBrutaReal) * 100;
                     const avBudget = (budgetVal / revBrutaBudget) * 100;
@@ -906,9 +951,15 @@ export default function BudgetGrid({
                     <button onClick={clearFilter} style={{ padding: '0 1rem', height: '38px', backgroundColor: 'transparent', color: '#64748b', border: '1px solid #cbd5e1', borderRadius: '6px', fontSize: '0.85rem', fontWeight: 600, cursor: 'pointer', transition: 'all 0.2s' }}>Limpar</button>
                 </div>
 
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', background: '#f1f5f9', borderRadius: '8px', padding: '0.25rem', height: '38px', marginLeft: 'auto' }}>
-                    <button onClick={() => setViewMode('competencia')} style={{ padding: '0.3rem 0.9rem', borderRadius: '6px', border: 'none', cursor: 'pointer', fontSize: '0.75rem', fontWeight: 600, backgroundColor: viewMode === 'competencia' ? '#2563eb' : 'transparent', color: viewMode === 'competencia' ? 'white' : '#64748b', transition: 'all 0.2s' }}>📊 Competência</button>
-                    <button onClick={() => setViewMode('caixa')} style={{ padding: '0.4rem 0.9rem', borderRadius: '6px', border: 'none', cursor: 'pointer', fontSize: '0.75rem', fontWeight: 600, backgroundColor: viewMode === 'caixa' ? '#2563eb' : 'transparent', color: viewMode === 'caixa' ? 'white' : '#64748b', transition: 'all 0.2s' }}>💵 Caixa</button>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginLeft: 'auto' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', background: '#f1f5f9', borderRadius: '8px', padding: '0.25rem', height: '38px' }}>
+                        <button onClick={() => setViewPeriod('month')} style={{ padding: '0.3rem 0.9rem', borderRadius: '6px', border: 'none', cursor: 'pointer', fontSize: '0.75rem', fontWeight: 600, backgroundColor: viewPeriod === 'month' ? '#10b981' : 'transparent', color: viewPeriod === 'month' ? 'white' : '#64748b', transition: 'all 0.2s' }} title="Visão Mensal">📅 Mês</button>
+                        <button onClick={() => setViewPeriod('quarter')} style={{ padding: '0.4rem 0.9rem', borderRadius: '6px', border: 'none', cursor: 'pointer', fontSize: '0.75rem', fontWeight: 600, backgroundColor: viewPeriod === 'quarter' ? '#10b981' : 'transparent', color: viewPeriod === 'quarter' ? 'white' : '#64748b', transition: 'all 0.2s' }} title="Visão Trimestral">🗓️ Trimestre</button>
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', background: '#f1f5f9', borderRadius: '8px', padding: '0.25rem', height: '38px' }}>
+                        <button onClick={() => setViewMode('competencia')} style={{ padding: '0.3rem 0.9rem', borderRadius: '6px', border: 'none', cursor: 'pointer', fontSize: '0.75rem', fontWeight: 600, backgroundColor: viewMode === 'competencia' ? '#2563eb' : 'transparent', color: viewMode === 'competencia' ? 'white' : '#64748b', transition: 'all 0.2s' }}>📊 Competência</button>
+                        <button onClick={() => setViewMode('caixa')} style={{ padding: '0.4rem 0.9rem', borderRadius: '6px', border: 'none', cursor: 'pointer', fontSize: '0.75rem', fontWeight: 600, backgroundColor: viewMode === 'caixa' ? '#2563eb' : 'transparent', color: viewMode === 'caixa' ? 'white' : '#64748b', transition: 'all 0.2s' }}>💵 Caixa</button>
+                    </div>
                 </div>
             </div>
 
@@ -949,12 +1000,12 @@ export default function BudgetGrid({
                                     DRE Gerencial
                                 </div>
                             </th>
-                            {MONTHS.map((m) => <th key={m} colSpan={3} style={{ textAlign: 'center', padding: '0.75rem 0.5rem', borderLeft: '1px solid #cbd5e1', color: '#475569', minWidth: '240px' }}>{m}</th>)}
+                            {(viewPeriod === 'month' ? MONTHS : ['1º Tri', '2º Tri', '3º Tri', '4º Tri']).map((c, i) => <th key={i} colSpan={3} style={{ textAlign: 'center', padding: '0.75rem 0.5rem', borderLeft: '1px solid #cbd5e1', color: '#475569', minWidth: '240px' }}>{c}</th>)}
                         </tr>
                         <tr style={{ background: '#fff' }}>
-                            <th style={{ position: 'sticky', left: 0, background: '#fff', zIndex: 20, borderBottom: '1px solid #e2e8f0' }}></th>
-                            {MONTHS.map((m) => (
-                                <React.Fragment key={m}>
+                            <th style={{ position: 'sticky', left: 0, zIndex: 20, background: '#fff', borderBottom: '1px solid #e2e8f0' }}></th>
+                            {(viewPeriod === 'month' ? MONTHS : [1, 2, 3, 4]).map((_, i) => (
+                                <React.Fragment key={i}>
                                     <th style={{ fontSize: '0.7rem', color: '#94a3b8', borderLeft: '1px solid #f1f5f9', fontWeight: 500, paddingBottom: '0.5rem', borderBottom: '1px solid #e2e8f0', minWidth: '80px', whiteSpace: 'nowrap' }}>Orçado</th>
                                     <th style={{ fontSize: '0.7rem', color: '#94a3b8', borderLeft: '1px solid #f1f5f9', fontWeight: 500, paddingBottom: '0.5rem', borderBottom: '1px solid #e2e8f0', minWidth: '80px', whiteSpace: 'nowrap' }}>Radar</th>
                                     <th style={{ fontSize: '0.7rem', color: '#94a3b8', borderLeft: '1px solid #f1f5f9', fontWeight: 500, paddingBottom: '0.5rem', borderBottom: '1px solid #e2e8f0', minWidth: '80px', whiteSpace: 'nowrap' }}>Realizado</th>

@@ -20,6 +20,7 @@ model Tenant {
   budgets      BudgetEntry[]
   categories   Category[]
   costCenters  CostCenter[]
+  userAccess   UserTenantAccess[]
 }
 
 model Category {
@@ -41,6 +42,7 @@ model CostCenter {
   
   tenant    Tenant   @relation(fields: [tenantId], references: [id])
   budgets   BudgetEntry[]
+  userAccess UserCostCenterAccess[]
 }
 
 model BudgetEntry {
@@ -61,4 +63,46 @@ model BudgetEntry {
   costCenter   CostCenter? @relation(fields: [costCenterId], references: [id])
 
   @@unique([tenantId, categoryId, costCenterId, month, year])
+}
+
+model User {
+  id           String     @id @default(uuid())
+  name         String
+  email        String     @unique
+  passwordHash String
+  role         Role       @default(GESTOR)
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+
+  tenantAccess     UserTenantAccess[]
+  costCenterAccess UserCostCenterAccess[]
+}
+
+model UserTenantAccess {
+  id        String   @id @default(uuid())
+  userId    String
+  tenantId  String
+  createdAt DateTime @default(now())
+
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, tenantId])
+}
+
+model UserCostCenterAccess {
+  id           String   @id @default(uuid())
+  userId       String
+  costCenterId String
+  createdAt    DateTime @default(now())
+
+  user       User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  costCenter CostCenter @relation(fields: [costCenterId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, costCenterId])
+}
+
+enum Role {
+  MASTER
+  GESTOR
 }

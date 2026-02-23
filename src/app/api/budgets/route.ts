@@ -1,5 +1,7 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { verifyToken } from '@/lib/auth';
+import { cookies } from 'next/headers';
 
 // Helper to ensure database schema is up-to-date in production without manual migration
 async function ensureSchema() {
@@ -26,22 +28,58 @@ async function ensureSchema() {
 export async function GET(request: Request) {
   try {
     await ensureSchema();
-    const { searchParams } = new URL(request.url);
-    const costCenterIdParam = searchParams.get('costCenterId') || 'DEFAULT';
-    const costCenterIds = costCenterIdParam.split(',').map(id => id.trim()).filter(Boolean);
+    const cookieStore = await cookies();
+    const token = cookieStore.get('auth_token')?.value;
+    const user = token ? await verifyToken(token) : null;
 
-    const tenant = await prisma.tenant.findFirst();
-    if (!tenant) {
-      console.log("[GET] No tenant found");
-      return NextResponse.json({ success: true, data: [] });
+    if (!user) {
+      return NextResponse.json({ success: false, error: 'Não autorizado' }, { status: 401 });
     }
 
+    let allowedCostCenters: string[] | null = null;
+    let allowedTenants: string[] | null = null;
+    if (user.role === 'GESTOR') {
+      const dbUser = await prisma.user.findUnique({
+        where: { id: user.userId as string },
+        include: { tenantAccess: true, costCenterAccess: true }
+      });
+      if (dbUser) {
+        allowedCostCenters = dbUser.costCenterAccess.map(c => c.costCenterId);
+        allowedTenants = dbUser.tenantAccess.map(t => t.tenantId);
+      } else {
+        allowedCostCenters = [];
+        allowedTenants = [];
+      }
+    }
+
+    const { searchParams } = new URL(request.url);
+    const costCenterIdParam = searchParams.get('costCenterId') || 'DEFAULT';
+    let costCenterIds = costCenterIdParam.split(',').map(id => id.trim()).filter(Boolean);
+
     const isGeneralView = costCenterIds.includes('DEFAULT');
+
+    if (user.role === 'GESTOR') {
+      if (isGeneralView) {
+        costCenterIds = allowedCostCenters || []; // Restrict general view to allowed CCs
+      } else {
+        // Intersect requested CCs with allowed CCs
+        costCenterIds = costCenterIds.filter(id => allowedCostCenters?.includes(id));
+      }
+      if (costCenterIds.length === 0 && !isGeneralView) {
+        return NextResponse.json({ success: true, data: [] }); // User requested CCs they don't have access to
+      }
+    }
+
+    const tenant = await prisma.tenant.findFirst();
+    if (!tenant || (allowedTenants !== null && !allowedTenants.includes(tenant.id))) {
+      console.log("[GET] No tenant found or access denied");
+      return NextResponse.json({ success: true, data: [] });
+    }
 
     const budgets = await prisma.budgetEntry.findMany({
       where: {
         tenantId: tenant.id,
-        ...(isGeneralView ? {} : { costCenterId: { in: costCenterIds } })
+        ...(isGeneralView && user.role === 'MASTER' ? {} : { costCenterId: { in: costCenterIds } })
       }
     });
 
@@ -75,6 +113,30 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   try {
     await ensureSchema();
+    const cookieStore = await cookies();
+    const token = cookieStore.get('auth_token')?.value;
+    const user = token ? await verifyToken(token) : null;
+
+    if (!user) {
+      return NextResponse.json({ success: false, error: 'Não autorizado' }, { status: 401 });
+    }
+
+    let allowedCostCenters: string[] | null = null;
+    let allowedTenants: string[] | null = null;
+    if (user.role === 'GESTOR') {
+      const dbUser = await prisma.user.findUnique({
+        where: { id: user.userId as string },
+        include: { tenantAccess: true, costCenterAccess: true }
+      });
+      if (dbUser) {
+        allowedCostCenters = dbUser.costCenterAccess.map(c => c.costCenterId);
+        allowedTenants = dbUser.tenantAccess.map(t => t.tenantId);
+      } else {
+        allowedCostCenters = [];
+        allowedTenants = [];
+      }
+    }
+
     const body = await request.json();
     const entries = body.entries ? body.entries : [body];
 
@@ -85,10 +147,19 @@ export async function POST(request: Request) {
       });
     }
 
+    if (user.role === 'GESTOR' && allowedTenants !== null && !allowedTenants.includes(tenant.id)) {
+      return NextResponse.json({ success: false, error: 'Sem acesso a esta empresa' }, { status: 403 });
+    }
+
     const results = [];
     for (const entry of entries) {
       const { categoryId, month, year, costCenterId } = entry;
       const targetCostCenterId = (costCenterId || "DEFAULT").split(',')[0] || "DEFAULT";
+
+      if (user.role === 'GESTOR' && targetCostCenterId !== "DEFAULT" && allowedCostCenters !== null && !allowedCostCenters.includes(targetCostCenterId)) {
+        console.warn(`[API POST] User ${user.email} denied access to save on CC ${targetCostCenterId}`);
+        continue; // Skip unauthorized entries
+      }
 
       // Convert to 1-indexed for DB (1-12)
       const dbMonth = parseInt(month.toString()) + 1;

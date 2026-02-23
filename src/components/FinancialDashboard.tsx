@@ -9,13 +9,15 @@ interface FinancialDashboardProps {
     isTestMode: boolean;
     authUrl: string;
     params: { connected?: string; error?: string };
+    serverUserRole?: string;
 }
 
 export default function FinancialDashboard({
     isConnected,
     isTestMode,
     authUrl,
-    params
+    params,
+    serverUserRole
 }: FinancialDashboardProps) {
     const [refreshKey, setRefreshKey] = useState(0);
     const [companies, setCompanies] = useState<any[]>([]);
@@ -23,7 +25,7 @@ export default function FinancialDashboard({
     const [showAV, setShowAV] = useState(false);
     const [showAH, setShowAH] = useState(false);
     const [showAR, setShowAR] = useState(false);
-    const [userRole, setUserRole] = useState<'MASTER' | 'GESTOR'>('MASTER');
+    const [userRole, setUserRole] = useState<'MASTER' | 'GESTOR'>((serverUserRole as 'MASTER' | 'GESTOR') || 'GESTOR');
 
     useEffect(() => {
         if (isConnected) {
@@ -57,6 +59,14 @@ export default function FinancialDashboard({
             <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
                     <h1 style={{ color: 'hsl(var(--primary))', margin: 0 }}>Budget Hub</h1>
+                    {userRole === 'MASTER' && (
+                        <a href="/users" style={{ padding: '0.4rem 0.8rem', backgroundColor: '#e2e8f0', color: '#334155', borderRadius: '6px', fontSize: '0.85rem', fontWeight: 600, textDecoration: 'none', transition: 'background 0.2s', marginLeft: '1rem' }} onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#cbd5e1'} onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#e2e8f0'}>
+                            🪪 Usuários
+                        </a>
+                    )}
+                </div>
+
+                <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
                     {isConnected && companies.length > 0 && (
                         <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
                             {companies.map(c => (
@@ -85,17 +95,17 @@ export default function FinancialDashboard({
                         </div>
                     )}
                     {isConnected && (
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginLeft: '0.5rem', padding: '0.2rem 0.5rem', background: '#fef3c7', borderRadius: '6px', border: '1px solid #fcd34d' }}>
-                            <span style={{ fontSize: '0.7rem', fontWeight: 700, color: '#92400e' }}>PERFIL:</span>
-                            <select
-                                value={userRole}
-                                onChange={(e) => setUserRole(e.target.value as any)}
-                                style={{ fontSize: '0.75rem', border: 'none', background: 'transparent', fontWeight: 600, color: '#92400e', cursor: 'pointer', outline: 'none' }}
-                            >
-                                <option value="MASTER">MASTER</option>
-                                <option value="GESTOR">GESTOR</option>
-                            </select>
-                        </div>
+                        <button
+                            onClick={async () => {
+                                await fetch('/api/auth/logout', { method: 'POST' });
+                                window.location.href = '/login';
+                            }}
+                            style={{ marginLeft: '1rem', padding: '0.4rem 0.8rem', backgroundColor: '#fee2e2', color: '#b91c1c', border: '1px solid #fca5a5', borderRadius: '6px', fontSize: '0.85rem', fontWeight: 600, cursor: 'pointer', transition: 'all 0.2s' }}
+                            onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#fecaca'}
+                            onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#fee2e2'}
+                        >
+                            Sair
+                        </button>
                     )}
                 </div>
 

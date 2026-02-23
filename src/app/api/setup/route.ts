@@ -1,15 +1,45 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { verifyToken } from '@/lib/auth';
+import { cookies } from 'next/headers';
 
 export const dynamic = 'force-dynamic';
 
 export async function GET() {
     try {
+        const cookieStore = await cookies();
+        const token = cookieStore.get('auth_token')?.value;
+        const user = token ? await verifyToken(token) : null;
+
+        if (!user) {
+            return NextResponse.json({ success: false, error: 'Não autorizado' }, { status: 401 });
+        }
+
+        let categoryFilter = {};
+        let costCenterFilter = {};
+
+        if (user.role === 'GESTOR') {
+            const dbUser = await prisma.user.findUnique({
+                where: { id: user.userId as string },
+                include: { tenantAccess: true, costCenterAccess: true }
+            });
+
+            if (dbUser) {
+                const tenantIds = dbUser.tenantAccess.map(t => t.tenantId);
+                const costCenterIds = dbUser.costCenterAccess.map(c => c.costCenterId);
+
+                categoryFilter = { tenantId: { in: tenantIds } };
+                costCenterFilter = { id: { in: costCenterIds } };
+            }
+        }
+
         const [categories, costCenters] = await Promise.all([
             prisma.category.findMany({
+                where: categoryFilter,
                 orderBy: { name: 'asc' }
             }),
             prisma.costCenter.findMany({
+                where: costCenterFilter,
                 orderBy: { name: 'asc' }
             })
         ]);

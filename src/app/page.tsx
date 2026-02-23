@@ -1,6 +1,8 @@
 import { getAuthUrl } from '@/lib/contaazul';
 import { prisma } from '@/lib/prisma';
 import FinancialDashboard from '@/components/FinancialDashboard';
+import { cookies } from 'next/headers';
+import { verifyToken } from '@/lib/auth';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -16,6 +18,15 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ c
   const isConnected = tenantCount > 0;
   const isTestMode = tenant?.accessToken === 'test-token';
 
+  const cookieStore = await cookies();
+  const token = cookieStore.get('auth_token')?.value;
+  let userRole = 'GESTOR';
+  if (token) {
+    const payload = await verifyToken(token);
+    if (payload && payload.role) {
+      userRole = payload.role as string;
+    }
+  }
 
   return (
     <FinancialDashboard
@@ -23,6 +34,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ c
       isTestMode={isTestMode}
       authUrl={authUrl}
       params={params}
+      serverUserRole={userRole}
     />
   );
 }

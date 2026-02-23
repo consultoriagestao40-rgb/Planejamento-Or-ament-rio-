@@ -12,7 +12,7 @@ export async function POST(request: Request) {
             return NextResponse.json({ success: false, error: 'Email e senha são obrigatórios' }, { status: 400 });
         }
 
-        const user = await prisma.user.findUnique({
+        let user = await prisma.user.findUnique({
             where: { email },
             include: {
                 tenantAccess: true,
@@ -21,7 +21,25 @@ export async function POST(request: Request) {
         });
 
         if (!user) {
-            return NextResponse.json({ success: false, error: 'Credenciais inválidas' }, { status: 401 });
+            // Check if DB is completely empty. If so, create the default admin.
+            const userCount = await prisma.user.count();
+            if (userCount === 0 && email === 'admin@budgethub.com' && password === 'admin123') {
+                const passwordHash = await bcrypt.hash(password, 10);
+                user = await prisma.user.create({
+                    data: {
+                        name: 'System Admin',
+                        email,
+                        passwordHash,
+                        role: 'MASTER'
+                    },
+                    include: {
+                        tenantAccess: true,
+                        costCenterAccess: true
+                    }
+                });
+            } else {
+                return NextResponse.json({ success: false, error: 'Credenciais inválidas' }, { status: 401 });
+            }
         }
 
         const isValidPassword = await bcrypt.compare(password, user.passwordHash);

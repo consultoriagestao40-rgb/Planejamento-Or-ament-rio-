@@ -7,6 +7,14 @@ import { MONTHS, MOCK_COST_CENTERS } from '@/lib/mock-data';
 interface BudgetGridProps {
     refreshKey?: number;
     isExternalLoading?: boolean;
+    showAV: boolean;
+    setShowAV: (val: boolean) => void;
+    showAH: boolean;
+    setShowAH: (val: boolean) => void;
+    showAR: boolean;
+    setShowAR: (val: boolean) => void;
+    userRole: 'MASTER' | 'GESTOR';
+    setUserRole: (val: 'MASTER' | 'GESTOR') => void;
 }
 
 // Tree Node Interface
@@ -21,7 +29,18 @@ interface CategoryNode {
     isSynthetic?: boolean;
 }
 
-export default function BudgetGrid({ refreshKey = 0, isExternalLoading = false }: BudgetGridProps) {
+export default function BudgetGrid({
+    refreshKey = 0,
+    isExternalLoading = false,
+    showAV,
+    setShowAV,
+    showAH,
+    setShowAH,
+    showAR,
+    setShowAR,
+    userRole,
+    setUserRole
+}: BudgetGridProps) {
     // --- Budget State ---
     const [budgetValues, setBudgetValues] = useState<Record<string, { amount: number, radarAmount: number | null, isLocked: boolean }>>({});
     const [realizedValues, setRealizedValues] = useState<Record<string, number>>({});
@@ -33,10 +52,6 @@ export default function BudgetGrid({ refreshKey = 0, isExternalLoading = false }
     const [costCenterDropdownOpen, setCostCenterDropdownOpen] = useState(false);
     const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
     const [viewMode, setViewMode] = useState<'caixa' | 'competencia'>('competencia');
-    const [showAV, setShowAV] = useState(false);
-    const [showAH, setShowAH] = useState(false);
-    const [showAR, setShowAR] = useState(false);
-    const [userRole, setUserRole] = useState<'MASTER' | 'GESTOR'>('MASTER');
 
     // --- Transaction Drill-down State ---
     const [selectedCell, setSelectedCell] = useState<{ categoryId: string, month: number, categoryName: string } | null>(null);
@@ -864,33 +879,6 @@ export default function BudgetGrid({ refreshKey = 0, isExternalLoading = false }
                     </div>
                     <button onClick={applyFilter} style={{ padding: '0 1rem', height: '38px', backgroundColor: '#2563eb', color: 'white', border: 'none', borderRadius: '6px', fontSize: '0.85rem', fontWeight: 600, cursor: 'pointer', transition: 'all 0.2s', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>🔍 Filtrar</button>
                     <button onClick={clearFilter} style={{ padding: '0 1rem', height: '38px', backgroundColor: 'transparent', color: '#64748b', border: '1px solid #cbd5e1', borderRadius: '6px', fontSize: '0.85rem', fontWeight: 600, cursor: 'pointer', transition: 'all 0.2s' }}>Limpar</button>
-
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginLeft: '1rem', borderLeft: '1px solid #e2e8f0', paddingLeft: '1rem' }}>
-                        <label style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.8rem', fontWeight: 600, color: '#475569', cursor: 'pointer' }}>
-                            <input type="checkbox" checked={showAV} onChange={(e) => setShowAV(e.target.checked)} style={{ cursor: 'pointer' }} />
-                            AV
-                        </label>
-                        <label style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.8rem', fontWeight: 600, color: '#475569', cursor: 'pointer' }}>
-                            <input type="checkbox" checked={showAH} onChange={(e) => setShowAH(e.target.checked)} style={{ cursor: 'pointer' }} />
-                            AH (O x R)
-                        </label>
-                        <label style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.8rem', fontWeight: 600, color: '#475569', cursor: 'pointer' }}>
-                            <input type="checkbox" checked={showAR} onChange={(e) => setShowAR(e.target.checked)} style={{ cursor: 'pointer' }} />
-                            Radar (R x R)
-                        </label>
-                    </div>
-
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginLeft: '1rem', padding: '0.2rem 0.5rem', background: '#fef3c7', borderRadius: '6px', border: '1px solid #fcd34d' }}>
-                        <span style={{ fontSize: '0.7rem', fontWeight: 700, color: '#92400e' }}>PERFIL:</span>
-                        <select
-                            value={userRole}
-                            onChange={(e) => setUserRole(e.target.value as any)}
-                            style={{ fontSize: '0.75rem', border: 'none', background: 'transparent', fontWeight: 600, color: '#92400e', cursor: 'pointer', outline: 'none' }}
-                        >
-                            <option value="MASTER">MASTER</option>
-                            <option value="GESTOR">GESTOR</option>
-                        </select>
-                    </div>
                 </div>
 
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', background: '#f1f5f9', borderRadius: '8px', padding: '0.25rem', height: '38px', marginLeft: 'auto' }}>

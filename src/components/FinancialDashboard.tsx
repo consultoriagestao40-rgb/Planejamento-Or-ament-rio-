@@ -20,6 +20,10 @@ export default function FinancialDashboard({
     const [refreshKey, setRefreshKey] = useState(0);
     const [companies, setCompanies] = useState<any[]>([]);
     const [isSyncing, setIsSyncing] = useState(false);
+    const [showAV, setShowAV] = useState(false);
+    const [showAH, setShowAH] = useState(false);
+    const [showAR, setShowAR] = useState(false);
+    const [userRole, setUserRole] = useState<'MASTER' | 'GESTOR'>('MASTER');
 
     useEffect(() => {
         if (isConnected) {
@@ -78,6 +82,19 @@ export default function FinancialDashboard({
                                     >×</button>
                                 </div>
                             ))}
+                        </div>
+                    )}
+                    {isConnected && (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginLeft: '0.5rem', padding: '0.2rem 0.5rem', background: '#fef3c7', borderRadius: '6px', border: '1px solid #fcd34d' }}>
+                            <span style={{ fontSize: '0.7rem', fontWeight: 700, color: '#92400e' }}>PERFIL:</span>
+                            <select
+                                value={userRole}
+                                onChange={(e) => setUserRole(e.target.value as any)}
+                                style={{ fontSize: '0.75rem', border: 'none', background: 'transparent', fontWeight: 600, color: '#92400e', cursor: 'pointer', outline: 'none' }}
+                            >
+                                <option value="MASTER">MASTER</option>
+                                <option value="GESTOR">GESTOR</option>
+                            </select>
                         </div>
                     )}
                 </div>
@@ -150,8 +167,37 @@ export default function FinancialDashboard({
             ) : null}
 
             <section style={{ marginBottom: '2rem' }}>
-                <h2 style={{ marginBottom: '1rem' }}>Previsto x Realizado</h2>
-                <BudgetGrid refreshKey={refreshKey} isExternalLoading={isSyncing} />
+                <div style={{ display: 'flex', alignItems: 'center', gap: '2rem', marginBottom: '1rem' }}>
+                    <h2 style={{ margin: 0 }}>Previsto x Realizado</h2>
+                    {isConnected && (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                            <label style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.85rem', fontWeight: 600, color: '#475569', cursor: 'pointer' }}>
+                                <input type="checkbox" checked={showAV} onChange={(e) => setShowAV(e.target.checked)} style={{ cursor: 'pointer', width: '16px', height: '16px' }} />
+                                AV
+                            </label>
+                            <label style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.85rem', fontWeight: 600, color: '#475569', cursor: 'pointer' }}>
+                                <input type="checkbox" checked={showAH} onChange={(e) => setShowAH(e.target.checked)} style={{ cursor: 'pointer', width: '16px', height: '16px' }} />
+                                AH (O x R)
+                            </label>
+                            <label style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.85rem', fontWeight: 600, color: '#475569', cursor: 'pointer' }}>
+                                <input type="checkbox" checked={showAR} onChange={(e) => setShowAR(e.target.checked)} style={{ cursor: 'pointer', width: '16px', height: '16px' }} />
+                                Radar (R x R)
+                            </label>
+                        </div>
+                    )}
+                </div>
+                <BudgetGrid
+                    refreshKey={refreshKey}
+                    isExternalLoading={isSyncing}
+                    showAV={showAV}
+                    setShowAV={setShowAV}
+                    showAH={showAH}
+                    setShowAH={setShowAH}
+                    showAR={showAR}
+                    setShowAR={setShowAR}
+                    userRole={userRole}
+                    setUserRole={setUserRole}
+                />
             </section>
 
         </main>

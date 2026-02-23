@@ -684,6 +684,7 @@ export default function BudgetGrid({
 
                         const ahValue = totals.budget[i] !== 0 ? (totals.realized[i] / totals.budget[i]) * 100 : 0;
                         const arValue = totals.radar[i] !== 0 ? (totals.realized[i] / totals.radar[i]) * 100 : 0;
+                        const ahRadarValue = totals.budget[i] !== 0 ? (totals.radar[i] / totals.budget[i]) * 100 : 0;
 
                         return (
                             <React.Fragment key={i}>
@@ -726,7 +727,10 @@ export default function BudgetGrid({
                                     title={!isEditable ? "Selecione um único Centro de Custo para editar" : ""}
                                 >
                                     <div>{formatCurrency(totals.radar[i])}</div>
-                                    {showAV && <div style={{ textAlign: 'right', fontSize: '0.65rem', color: '#94a3b8' }}>AV: {avRadar.toFixed(1)}%</div>}
+                                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end' }}>
+                                        {showAV && <span style={{ fontSize: '0.65rem', color: '#94a3b8', fontWeight: 400 }}>AV: {avRadar.toFixed(1)}%</span>}
+                                        {showAH && <span style={{ fontSize: '0.65rem', color: '#059669', fontWeight: 600 }}>AH: {ahRadarValue.toFixed(1)}%</span>}
+                                    </div>
                                 </td>
                                 <td onClick={() => handleCellClick(node.id, i, node.name)} style={{ textAlign: 'right', padding: '0.5rem', borderLeft: '1px solid #f1f5f9', color: '#3b82f6', fontSize: '0.8rem', fontWeight: 500, cursor: 'pointer', minWidth: '120px', whiteSpace: 'nowrap' }}>
                                     {formatCurrency(totals.realized[i])}
@@ -789,6 +793,7 @@ export default function BudgetGrid({
 
                     const ahValue = budgetVal !== 0 ? (realizedVal / budgetVal) * 100 : 0;
                     const arValue = radarVal !== 0 ? (realizedVal / radarVal) * 100 : 0;
+                    const ahRadarValue = budgetVal !== 0 ? (radarVal / budgetVal) * 100 : 0;
 
                     const bColor = budgetVal < 0 ? '#ef4444' : '#64748b';
                     const rColor = realizedVal < 0 ? '#ef4444' : textColor;
@@ -801,7 +806,10 @@ export default function BudgetGrid({
                             </td>
                             <td style={{ textAlign: 'right', padding: '0.75rem', borderLeft: '1px solid #e2e8f0', color: bColor, fontSize: '0.8rem', minWidth: '100px', whiteSpace: 'nowrap' }}>
                                 <div>{formatCurrency(radarVal)}</div>
-                                {showAV && <div style={{ fontSize: '0.65rem', color: '#94a3b8', fontWeight: 400 }}>AV: {avRadar.toFixed(1)}%</div>}
+                                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end' }}>
+                                    {showAV && <span style={{ fontSize: '0.65rem', color: '#94a3b8', fontWeight: 400 }}>AV: {avRadar.toFixed(1)}%</span>}
+                                    {showAH && <span style={{ fontSize: '0.65rem', color: '#059669', fontWeight: 600 }}>AH: {ahRadarValue.toFixed(1)}%</span>}
+                                </div>
                             </td>
                             <td style={{ textAlign: 'right', padding: '0.75rem', borderLeft: '1px solid #e2e8f0', color: rColor, fontSize: '0.8rem', minWidth: '120px', whiteSpace: 'nowrap' }}>
                                 <div>{formatCurrency(realizedVal)}</div>

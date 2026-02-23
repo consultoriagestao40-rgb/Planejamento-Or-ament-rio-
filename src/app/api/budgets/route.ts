@@ -44,8 +44,8 @@ export async function GET(request: Request) {
         include: { tenantAccess: true, costCenterAccess: true }
       });
       if (dbUser) {
-        allowedCostCenters = dbUser.costCenterAccess.map(c => c.costCenterId);
-        allowedTenants = dbUser.tenantAccess.map(t => t.tenantId);
+        allowedCostCenters = dbUser.costCenterAccess.map((c: any) => c.costCenterId);
+        allowedTenants = dbUser.tenantAccess.map((t: any) => t.tenantId);
       } else {
         allowedCostCenters = [];
         allowedTenants = [];
@@ -70,15 +70,32 @@ export async function GET(request: Request) {
       }
     }
 
-    const tenant = await prisma.tenant.findFirst();
-    if (!tenant || (allowedTenants !== null && !allowedTenants.includes(tenant.id))) {
-      console.log("[GET] No tenant found or access denied");
+    const tenantIdParam = searchParams.get('tenantId') || 'ALL';
+
+    let tenantFilter: any = {};
+    if (tenantIdParam !== 'ALL') {
+      tenantFilter = { tenantId: tenantIdParam };
+      if (user.role === 'GESTOR' && allowedTenants !== null && !allowedTenants.includes(tenantIdParam)) {
+        console.log("[GET] User has no access to target tenant", tenantIdParam);
+        return NextResponse.json({ success: true, data: [] });
+      }
+    } else {
+      if (user.role === 'GESTOR' && allowedTenants !== null) {
+        tenantFilter = { tenantId: { in: allowedTenants } };
+      }
+      // If MASTER, leave tenantFilter as {} to allow all
+    }
+
+    // Check if we even have any tenants connected
+    const anyTenant = await prisma.tenant.findFirst();
+    if (!anyTenant) {
+      console.log("[GET] No tenants connected");
       return NextResponse.json({ success: true, data: [] });
     }
 
     const budgets = await prisma.budgetEntry.findMany({
       where: {
-        tenantId: tenant.id,
+        ...tenantFilter,
         ...(isGeneralView && user.role === 'MASTER' ? {} : { costCenterId: { in: costCenterIds } })
       }
     });
@@ -129,8 +146,8 @@ export async function POST(request: Request) {
         include: { tenantAccess: true, costCenterAccess: true }
       });
       if (dbUser) {
-        allowedCostCenters = dbUser.costCenterAccess.map(c => c.costCenterId);
-        allowedTenants = dbUser.tenantAccess.map(t => t.tenantId);
+        allowedCostCenters = dbUser.costCenterAccess.map((c: any) => c.costCenterId);
+        allowedTenants = dbUser.tenantAccess.map((t: any) => t.tenantId);
       } else {
         allowedCostCenters = [];
         allowedTenants = [];
@@ -140,14 +157,22 @@ export async function POST(request: Request) {
     const body = await request.json();
     const entries = body.entries ? body.entries : [body];
 
-    let tenant = await prisma.tenant.findFirst();
-    if (!tenant) {
-      tenant = await prisma.tenant.create({
-        data: { name: 'Empresa Padrão', cnpj: '00000000000000' }
-      });
+    let targetTenantId = body.tenantId;
+
+    if (!targetTenantId || targetTenantId === 'ALL') {
+      // Se o frontend mandar salvar sem especificar empresa, tentamos achar a primeira ou criar uma padrão pra test mode
+      const firstTenant = await prisma.tenant.findFirst();
+      if (!firstTenant) {
+        const newTenant = await prisma.tenant.create({
+          data: { name: 'Empresa Padrão', cnpj: '00000000000000' }
+        });
+        targetTenantId = newTenant.id;
+      } else {
+        targetTenantId = firstTenant.id;
+      }
     }
 
-    if (user.role === 'GESTOR' && allowedTenants !== null && !allowedTenants.includes(tenant.id)) {
+    if (user.role === 'GESTOR' && allowedTenants !== null && !allowedTenants.includes(targetTenantId)) {
       return NextResponse.json({ success: false, error: 'Sem acesso a esta empresa' }, { status: 403 });
     }
 
@@ -169,7 +194,7 @@ export async function POST(request: Request) {
       try {
         const whereClause = {
           tenantId_categoryId_costCenterId_month_year: {
-            tenantId: tenant.id,
+            tenantId: targetTenantId,
             categoryId: categoryId,
             costCenterId: targetCostCenterId,
             month: dbMonth,
@@ -183,7 +208,7 @@ export async function POST(request: Request) {
         if (entry.isLocked !== undefined) updateData.isLocked = !!entry.isLocked;
 
         const createData: any = {
-          tenantId: tenant.id,
+          tenantId: targetTenantId,
           categoryId: categoryId,
           costCenterId: targetCostCenterId,
           month: dbMonth,

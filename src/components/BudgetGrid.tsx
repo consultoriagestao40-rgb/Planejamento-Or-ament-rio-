@@ -15,6 +15,7 @@ interface BudgetGridProps {
     setShowAR: (val: boolean) => void;
     userRole: 'MASTER' | 'GESTOR';
     setUserRole: (val: 'MASTER' | 'GESTOR') => void;
+    companies: any[];
 }
 
 // Tree Node Interface
@@ -39,7 +40,8 @@ export default function BudgetGrid({
     showAR,
     setShowAR,
     userRole,
-    setUserRole
+    setUserRole,
+    companies
 }: BudgetGridProps) {
     // --- Budget State ---
     const [budgetValues, setBudgetValues] = useState<Record<string, { amount: number, radarAmount: number | null, isLocked: boolean }>>({});
@@ -47,6 +49,9 @@ export default function BudgetGrid({
     const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
     const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set()); // New state for main groups
     const [loading, setLoading] = useState(true);
+    const [selectedCompany, setSelectedCompany] = useState<string[]>(['DEFAULT']);
+    const [pendingCompany, setPendingCompany] = useState<string[]>(['DEFAULT']);
+    const [companyDropdownOpen, setCompanyDropdownOpen] = useState(false);
     const [selectedCostCenter, setSelectedCostCenter] = useState<string[]>(['DEFAULT']);
     const [pendingCostCenter, setPendingCostCenter] = useState<string[]>(['DEFAULT']);
     const [costCenterDropdownOpen, setCostCenterDropdownOpen] = useState(false);
@@ -87,7 +92,8 @@ export default function BudgetGrid({
         setLoadingTransactions(true);
         setTransactions([]);
         try {
-            const res = await fetch(`/api/transactions?categoryId=${categoryId}&month=${month}&year=${selectedYear}&costCenterId=${selectedCostCenter.join(',')}&viewMode=${viewMode}`);
+            const companyParam = selectedCompany.includes('DEFAULT') ? 'ALL' : selectedCompany.join(',');
+            const res = await fetch(`/api/transactions?categoryId=${categoryId}&month=${month}&year=${selectedYear}&costCenterId=${selectedCostCenter.join(',')}&tenantId=${companyParam}&viewMode=${viewMode}`);
             const data = await res.json();
             if (data.success) {
                 setTransactions(data.transactions);
@@ -134,9 +140,10 @@ export default function BudgetGrid({
             setLoading(true);
             setError(null);
             try {
+                const companyParam = selectedCompany.includes('DEFAULT') ? 'ALL' : selectedCompany.join(',');
                 const [budgetRes, syncRes] = await Promise.all([
-                    fetch(`/api/budgets?costCenterId=${selectedCostCenter.join(',')}&year=${selectedYear}&t=${Date.now()}`, { cache: 'no-store' }),
-                    fetch(`/api/sync?costCenterId=${selectedCostCenter.join(',')}&year=${selectedYear}&viewMode=${viewMode}&t=${Date.now()}`, { cache: 'no-store' })
+                    fetch(`/api/budgets?costCenterId=${selectedCostCenter.join(',')}&tenantId=${companyParam}&year=${selectedYear}&t=${Date.now()}`, { cache: 'no-store' }),
+                    fetch(`/api/sync?costCenterId=${selectedCostCenter.join(',')}&tenantId=${companyParam}&year=${selectedYear}&viewMode=${viewMode}&t=${Date.now()}`, { cache: 'no-store' })
                 ]);
 
                 const budgetData = await budgetRes.json();
@@ -167,7 +174,7 @@ export default function BudgetGrid({
         };
 
         loadValues();
-    }, [selectedCostCenter, selectedYear, refreshKey, viewMode]);
+    }, [selectedCostCenter, selectedCompany, selectedYear, refreshKey, viewMode]);
 
     // --- HIERARCHY BUILDER ---
     const treeRoots = useMemo(() => {
@@ -562,6 +569,7 @@ export default function BudgetGrid({
         setIsSavingBudget(true);
         try {
             const entries = [];
+            const companyParam = selectedCompany.includes('DEFAULT') ? 'ALL' : selectedCompany[0];
             for (let i = 0; i < 12; i++) {
                 const currentVal = modalValues[i];
                 // Only send if not empty string to avoid wiping data to 0 unnecessarily
@@ -571,7 +579,8 @@ export default function BudgetGrid({
                     categoryId: budgetModal.categoryId,
                     month: i,
                     year: selectedYear,
-                    costCenterId: selectedCostCenter[0]
+                    costCenterId: selectedCostCenter[0],
+                    tenantId: companyParam
                 };
 
                 const numericVal = evaluateFormula(currentVal);
@@ -605,7 +614,8 @@ export default function BudgetGrid({
 
             setBudgetModal(null);
             // Re-fetch to update state
-            const budgetRes = await fetch(`/api/budgets?costCenterId=${selectedCostCenter.join(',')}`);
+            const fetchCompanyParam = selectedCompany.includes('DEFAULT') ? 'ALL' : selectedCompany.join(',');
+            const budgetRes = await fetch(`/api/budgets?costCenterId=${selectedCostCenter.join(',')}&tenantId=${fetchCompanyParam}&year=${selectedYear}`);
             const budgetData = await budgetRes.json();
             if (budgetData.success) {
                 const values: Record<string, { amount: number, radarAmount: number | null, isLocked: boolean }> = {};
@@ -630,6 +640,10 @@ export default function BudgetGrid({
     const openBudgetModal = (nodeId: string, nodeName: string, monthIndex: number, type: 'budget' | 'radar') => {
         if (selectedCostCenter.includes('DEFAULT') || selectedCostCenter.length !== 1) {
             alert("Selecione um único centro de custo para lançar um valor");
+            return;
+        }
+        if (selectedCompany.includes('DEFAULT') || selectedCompany.length !== 1) {
+            alert("Selecione uma única Empresa para lançar um valor.\nNão é possível lançar valores na visão 'Geral (Todos)' das empresas.");
             return;
         }
         const initialValues = new Array(12).fill('').map((_, i) => {
@@ -899,15 +913,31 @@ export default function BudgetGrid({
         });
     };
 
+    const handleCompanyToggle = (id: string) => {
+        setPendingCompany(prev => {
+            if (prev.includes(id)) {
+                const next = prev.filter(c => c !== id);
+                return next.length === 0 ? ['DEFAULT'] : next;
+            }
+            const next = prev.includes('DEFAULT') ? [id] : [...prev, id];
+            return next;
+        });
+    };
+
     const applyFilter = () => {
         setSelectedCostCenter(pendingCostCenter);
+        setSelectedCompany(pendingCompany);
         setCostCenterDropdownOpen(false);
+        setCompanyDropdownOpen(false);
     };
 
     const clearFilter = () => {
         setPendingCostCenter(['DEFAULT']);
         setSelectedCostCenter(['DEFAULT']);
+        setPendingCompany(['DEFAULT']);
+        setSelectedCompany(['DEFAULT']);
         setCostCenterDropdownOpen(false);
+        setCompanyDropdownOpen(false);
     };
 
     const getSelectedCostCenterNames = (current: string[]) => {
@@ -916,15 +946,52 @@ export default function BudgetGrid({
         if (names.length === 0) return 'Geral (Todos)';
         if (names.length === 1) return names[0];
         if (names.length === costCenters.length) return 'Todos Selecionados';
-        return `${names.length} Centros de Custo`;
+        return `${names.length} selecionados`;
+    };
+
+    const getSelectedCompanyNames = (current: string[]) => {
+        if (current.includes('DEFAULT') && current.length === 1) return 'Geral (Todas)';
+        const names = companies.filter(c => current.includes(c.id)).map(c => c.name);
+        if (names.length === 0) return 'Geral (Todas)';
+        if (names.length === 1) return names[0];
+        if (names.length === companies.length) return 'Todas Selecionadas';
+        return `${names.length} selecionadas`;
     };
 
     return (
         <>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', margin: '0 0 1.5rem 0', width: '100%' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                    <label style={{ fontSize: '0.85rem', fontWeight: 600, color: '#64748b', whiteSpace: 'nowrap' }}>Centro de Custo</label>
-                    <div style={{ position: 'relative', minWidth: '350px' }}>
+
+                    {/* Empresa Filter */}
+                    <label style={{ fontSize: '0.85rem', fontWeight: 600, color: '#64748b', whiteSpace: 'nowrap' }}>Empresa</label>
+                    <div style={{ position: 'relative', minWidth: '220px' }}>
+                        <div
+                            onClick={() => setCompanyDropdownOpen(!companyDropdownOpen)}
+                            style={{ padding: '0.45rem 0.75rem', borderRadius: '6px', border: '1px solid #cbd5e1', backgroundColor: '#fff', cursor: 'pointer', fontSize: '0.85rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', minHeight: '38px' }}
+                        >
+                            <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{getSelectedCompanyNames(pendingCompany)}</span>
+                            <span style={{ fontSize: '0.6rem', color: '#94a3b8' }}>▼</span>
+                        </div>
+
+                        {companyDropdownOpen && (
+                            <>
+                                <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, zIndex: 30 }} onClick={() => setCompanyDropdownOpen(false)} />
+                                <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, marginTop: '4px', backgroundColor: '#fff', border: '1px solid #e2e8f0', borderRadius: '6px', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1)', zIndex: 40, maxHeight: '300px', overflowY: 'auto' }}>
+                                    {companies.map(c => (
+                                        <label key={c.id} style={{ display: 'flex', alignItems: 'center', padding: '0.5rem 0.75rem', cursor: 'pointer', borderBottom: '1px solid #f1f5f9', fontSize: '0.85rem' }}>
+                                            <input type="checkbox" checked={pendingCompany.includes(c.id)} onChange={() => handleCompanyToggle(c.id)} style={{ marginRight: '0.5rem', cursor: 'pointer' }} />
+                                            <span style={{ flex: 1 }}>{c.name}</span>
+                                        </label>
+                                    ))}
+                                </div>
+                            </>
+                        )}
+                    </div>
+
+                    {/* Cost Center Filter */}
+                    <label style={{ fontSize: '0.85rem', fontWeight: 600, color: '#64748b', whiteSpace: 'nowrap', marginLeft: '0.5rem' }}>Centro de Custo</label>
+                    <div style={{ position: 'relative', minWidth: '220px' }}>
                         <div
                             onClick={() => setCostCenterDropdownOpen(!costCenterDropdownOpen)}
                             style={{ padding: '0.45rem 0.75rem', borderRadius: '6px', border: '1px solid #cbd5e1', backgroundColor: '#fff', cursor: 'pointer', fontSize: '0.85rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', minHeight: '38px' }}

@@ -206,6 +206,7 @@ export default function FinancialDashboard({
                     setShowAR={setShowAR}
                     userRole={userRole}
                     setUserRole={setUserRole}
+                    companies={companies}
                 />
             </section>
 

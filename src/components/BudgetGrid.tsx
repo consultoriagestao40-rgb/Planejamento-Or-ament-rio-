@@ -729,7 +729,7 @@ export default function BudgetGrid({
                                     <div>{formatCurrency(totals.radar[i])}</div>
                                     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end' }}>
                                         {showAV && <span style={{ fontSize: '0.65rem', color: '#94a3b8', fontWeight: 400 }}>AV: {avRadar.toFixed(1)}%</span>}
-                                        {showAH && <span style={{ fontSize: '0.65rem', color: '#059669', fontWeight: 600 }}>AH: {ahRadarValue.toFixed(1)}%</span>}
+                                        {showAH && <span style={{ fontSize: '0.65rem', color: '#0d9488', fontWeight: 600 }}>AH (O x R): {ahRadarValue.toFixed(1)}%</span>}
                                     </div>
                                 </td>
                                 <td onClick={() => handleCellClick(node.id, i, node.name)} style={{ textAlign: 'right', padding: '0.5rem', borderLeft: '1px solid #f1f5f9', color: '#3b82f6', fontSize: '0.8rem', fontWeight: 500, cursor: 'pointer', minWidth: '120px', whiteSpace: 'nowrap' }}>
@@ -808,7 +808,7 @@ export default function BudgetGrid({
                                 <div>{formatCurrency(radarVal)}</div>
                                 <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end' }}>
                                     {showAV && <span style={{ fontSize: '0.65rem', color: '#94a3b8', fontWeight: 400 }}>AV: {avRadar.toFixed(1)}%</span>}
-                                    {showAH && <span style={{ fontSize: '0.65rem', color: '#059669', fontWeight: 600 }}>AH: {ahRadarValue.toFixed(1)}%</span>}
+                                    {showAH && <span style={{ fontSize: '0.65rem', color: '#0d9488', fontWeight: 600 }}>AH (O x R): {ahRadarValue.toFixed(1)}%</span>}
                                 </div>
                             </td>
                             <td style={{ textAlign: 'right', padding: '0.75rem', borderLeft: '1px solid #e2e8f0', color: rColor, fontSize: '0.8rem', minWidth: '120px', whiteSpace: 'nowrap' }}>

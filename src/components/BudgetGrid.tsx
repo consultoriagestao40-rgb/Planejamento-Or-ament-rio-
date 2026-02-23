@@ -539,6 +539,23 @@ export default function BudgetGrid({
         setExpandedGroups(newSet);
     };
 
+    const allGroupKeys = ['rev', 'taxes', 'costs', 'opExp', 'adminExp', 'fin'];
+    const expandableRowIds = useMemo(() => {
+        return categories.filter(c => categories.some(ch => ch.parentId === c.id)).map(c => c.id);
+    }, [categories]);
+
+    const isAllExpanded = expandedGroups.size === allGroupKeys.length && expandedRows.size === expandableRowIds.length && expandableRowIds.length > 0;
+
+    const handleToggleAll = () => {
+        if (isAllExpanded) {
+            setExpandedGroups(new Set());
+            setExpandedRows(new Set());
+        } else {
+            setExpandedGroups(new Set(allGroupKeys));
+            setExpandedRows(new Set(expandableRowIds));
+        }
+    };
+
     const handleSaveBudget = async () => {
         if (!budgetModal) return;
         setIsSavingBudget(true);
@@ -906,7 +923,32 @@ export default function BudgetGrid({
                 <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8rem', tableLayout: 'auto' }}>
                     <thead>
                         <tr style={{ background: '#f8fafc', borderBottom: '2px solid #cbd5e1' }}>
-                            <th style={{ padding: '0.75rem 1rem', textAlign: 'left', minWidth: '350px', position: 'sticky', left: 0, background: '#f8fafc', zIndex: 20, color: '#475569', whiteSpace: 'nowrap' }}>DRE Gerencial</th>
+                            <th style={{ padding: '0.75rem 1rem', textAlign: 'left', minWidth: '350px', position: 'sticky', left: 0, background: '#f8fafc', zIndex: 20, color: '#475569', whiteSpace: 'nowrap' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                    <button
+                                        onClick={handleToggleAll}
+                                        title={isAllExpanded ? "Recolher Todos" : "Expandir Todos"}
+                                        style={{
+                                            background: 'white', border: '1px solid #cbd5e1', borderRadius: '4px',
+                                            width: '24px', height: '24px', display: 'flex', alignItems: 'center',
+                                            justifyContent: 'center', cursor: 'pointer', color: '#2563eb', padding: 0
+                                        }}
+                                    >
+                                        {isAllExpanded ? (
+                                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                                <polyline points="8 14 12 10 16 14" />
+                                                <polyline points="16 10 12 14 8 10" />
+                                            </svg>
+                                        ) : (
+                                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                                <polyline points="16 17 12 21 8 17" />
+                                                <polyline points="8 7 12 3 16 7" />
+                                            </svg>
+                                        )}
+                                    </button>
+                                    DRE Gerencial
+                                </div>
+                            </th>
                             {MONTHS.map((m) => <th key={m} colSpan={3} style={{ textAlign: 'center', padding: '0.75rem 0.5rem', borderLeft: '1px solid #cbd5e1', color: '#475569', minWidth: '240px' }}>{m}</th>)}
                         </tr>
                         <tr style={{ background: '#fff' }}>

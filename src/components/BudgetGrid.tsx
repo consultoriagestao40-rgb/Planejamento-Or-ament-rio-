@@ -650,7 +650,7 @@ export default function BudgetGrid({ refreshKey = 0, isExternalLoading = false }
                         borderRight: '2px solid #f1f5f9',
                         boxShadow: '2px 0 5px -2px rgba(0,0,0,0.05)'
                     }}>
-                        <div style={{ display: 'flex', alignItems: 'center', paddingLeft: `${node.level * 1.5}rem` }}>
+                        <div style={{ display: 'flex', alignItems: 'center', paddingLeft: `${(node.level + 2) * 1.5}rem` }}>
                             {hasChildren && <span style={{ marginRight: '0.5rem', fontSize: '0.7rem', width: '1rem', color: '#94a3b8' }}>{isExpanded ? '▼' : '▶'}</span>}
                             {!hasChildren && <span style={{ width: '1.5rem' }}></span>}
                             {node.name}

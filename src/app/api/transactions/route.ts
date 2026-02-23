@@ -110,7 +110,8 @@ async function fetchTransactions(accessToken: string, baseUrl: string, costCente
                 }
 
                 const cats = item.categorias || [];
-                const hasCategory = cats.some((c: any) => c.id === categoryId);
+                const targetCategoryIds = categoryId.split(',');
+                const hasCategory = cats.some((c: any) => targetCategoryIds.includes(c.id));
                 if (!hasCategory) return;
 
                 let dateStr: string;

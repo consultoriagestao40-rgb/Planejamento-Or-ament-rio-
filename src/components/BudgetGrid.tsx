@@ -114,6 +114,13 @@ export default function BudgetGrid({
     const [costCenters, setCostCenters] = useState<any[]>(MOCK_COST_CENTERS);
     const [error, setError] = useState<string | null>(null);
 
+    // --- Dynamic Filters ---
+    const filteredCostCenters = useMemo(() => {
+        if (selectedCompany.includes('DEFAULT')) return costCenters;
+        // Se a empresa foi selecionada, mostre apenas os centros de custo daquela empresa (e os mocks/padrões que não têm tenantId)
+        return costCenters.filter(cc => !cc.tenantId || cc.id === 'DEFAULT' || selectedCompany.includes(cc.tenantId));
+    }, [costCenters, selectedCompany]);
+
     // 1. Setup Effect
     useEffect(() => {
         const loadSetup = async () => {
@@ -181,9 +188,14 @@ export default function BudgetGrid({
         const map = new Map<string, CategoryNode>();
         const potentialRoots: CategoryNode[] = [];
         const codeMap = new Map<string, CategoryNode>();
+        const nameMap = new Map<string, CategoryNode>();
+
+        const validCategories = categories.filter(c =>
+            selectedCompany.includes('DEFAULT') || selectedCompany.includes(c.tenantId)
+        );
 
         // 1. Initial Load
-        categories.forEach(cat => {
+        validCategories.forEach(cat => {
             const codeMatch = cat.name.match(/^([\d.]+)/);
             const rawCode = codeMatch ? codeMatch[1] : '';
             if (rawCode.startsWith('2.3') || rawCode.startsWith('2.4')) return;
@@ -201,7 +213,7 @@ export default function BudgetGrid({
                 }
             }
 
-            // Force naming for 03.1 to 03.9
+            // Force naming for prefixes...
             if (rawCode.match(/^03\.[1-9]$/)) {
                 if (rawCode === '03.1') effectiveName = '03.1 Salarios e Remuneração';
                 if (rawCode === '03.2') effectiveName = '03.2 Encargos Sociais';
@@ -213,8 +225,6 @@ export default function BudgetGrid({
                 if (rawCode === '03.8') effectiveName = '03.8 Comunicação/Sistema/Licenças';
                 if (rawCode === '03.9') effectiveName = '03.9 Custo com Veiculo';
             }
-
-            // Force naming for 04.1 to 04.8
             if (rawCode.match(/^04\.[1-8]$/)) {
                 if (rawCode === '04.1') effectiveName = '04.1 Salarios e Remuneração';
                 if (rawCode === '04.2') effectiveName = '04.2 Encargos Sociais';
@@ -225,8 +235,6 @@ export default function BudgetGrid({
                 if (rawCode === '04.7') effectiveName = '04.7 Cartão Corporativo';
                 if (rawCode === '04.8') effectiveName = '04.8 Serviços Terceirizados';
             }
-
-            // Force naming for 05.1 to 05.13
             if (rawCode.match(/^05\.([1-9]|1[0-3])$/)) {
                 if (rawCode === '05.1') effectiveName = '05.1 Salario e Remuneração';
                 if (rawCode === '05.2') effectiveName = '05.2 Encargos Sociais';
@@ -242,8 +250,6 @@ export default function BudgetGrid({
                 if (rawCode === '05.12') effectiveName = '05.12 Despesa de Informatica';
                 if (rawCode === '05.13') effectiveName = '05.13 Taxas e Despesas Legais';
             }
-
-            // Force naming for 06.1 to 06.8
             if (rawCode.match(/^06\.[1-8]$/)) {
                 if (rawCode === '06.1') effectiveName = '06.1 Entradas Financeiras';
                 if (rawCode === '06.2') effectiveName = '06.2 Saidas Financeiras';
@@ -255,6 +261,18 @@ export default function BudgetGrid({
                 if (rawCode === '06.8') effectiveName = '06.8 PDD';
             }
 
+            const uniqueKey = effectiveCode ? effectiveCode : effectiveName;
+
+            // Merge twin categories
+            if (nameMap.has(uniqueKey)) {
+                const existingNode = nameMap.get(uniqueKey)!;
+                if (!existingNode.id.split(',').includes(cat.id)) {
+                    existingNode.id += ',' + cat.id;
+                }
+                map.set(cat.id, existingNode);
+                return;
+            }
+
             const node: CategoryNode = {
                 ...cat,
                 name: effectiveName,
@@ -264,6 +282,7 @@ export default function BudgetGrid({
                 isSynthetic: false
             };
             map.set(cat.id, node);
+            if (uniqueKey) nameMap.set(uniqueKey, node);
             if (effectiveCode) codeMap.set(effectiveCode, node);
         });
 
@@ -432,7 +451,7 @@ export default function BudgetGrid({
         recalculateLevels(finalRoots, 0);
 
         return finalRoots;
-    }, [categories]);
+    }, [categories, selectedCompany]);
 
     // --- RECURSIVE TOTALS ---
     const nodeTotals = useMemo(() => {
@@ -459,13 +478,21 @@ export default function BudgetGrid({
             for (let i = 0; i < 12; i++) {
                 if (!node.isSynthetic) {
                     const sign = negated ? -1 : 1;
-                    const bData = budgetValues[`${node.id}-${i}`] || { amount: 0, radarAmount: 0, isLocked: false };
-                    myBudget[i] += sign * bData.amount;
-                    myRealized[i] += sign * (realizedValues[`${node.id}-${i}`] || 0);
-                    // Radar fallback to Orçado if not set
-                    const hasRadar = bData.radarAmount !== undefined && bData.radarAmount !== null;
-                    const radarVal = hasRadar ? (bData.radarAmount as number) : bData.amount;
-                    myRadar[i] += sign * radarVal;
+                    const idsToRead = node.id.split(',');
+                    let sumB = 0, sumR = 0, sumRadar = 0;
+
+                    for (const rawId of idsToRead) {
+                        const bData = budgetValues[`${rawId}-${i}`] || { amount: 0, radarAmount: 0, isLocked: false };
+                        sumB += bData.amount;
+                        sumR += (realizedValues[`${rawId}-${i}`] || 0);
+                        const hasRadar = bData.radarAmount !== undefined && bData.radarAmount !== null;
+                        const radarVal = hasRadar ? (bData.radarAmount as number) : bData.amount;
+                        sumRadar += radarVal;
+                    }
+
+                    myBudget[i] += sign * sumB;
+                    myRealized[i] += sign * sumR;
+                    myRadar[i] += sign * sumRadar;
                 }
             }
 
@@ -646,15 +673,19 @@ export default function BudgetGrid({
             alert("Selecione uma única Empresa para lançar um valor.\nNão é possível lançar valores na visão 'Geral (Todos)' das empresas.");
             return;
         }
+        // For UI safety, editing logic uses the FIRST id in the merged string if they somehow bypassed it.
+        // As defined earlier, the user can only launch the modal if one company is selected, meaning node.id only has 1 id anyway.
+        const targetIdToEdit = nodeId.split(',')[0];
+
         const initialValues = new Array(12).fill('').map((_, i) => {
-            const data = budgetValues[`${nodeId}-${i}`];
+            const data = budgetValues[`${targetIdToEdit}-${i}`];
             if (type === 'budget') {
                 return (data?.amount !== undefined && data.amount !== null) ? data.amount.toString() : '';
             }
             return (data?.radarAmount !== undefined && data.radarAmount !== null) ? data.radarAmount.toString() : '';
         });
         const initialLocks = new Array(12).fill(false).map((_, i) => {
-            const data = budgetValues[`${nodeId}-${i}`];
+            const data = budgetValues[`${targetIdToEdit}-${i}`];
             return data?.isLocked || false;
         });
 
@@ -942,10 +973,10 @@ export default function BudgetGrid({
 
     const getSelectedCostCenterNames = (current: string[]) => {
         if (current.includes('DEFAULT') && current.length === 1) return 'Geral (Todos)';
-        const names = costCenters.filter(c => current.includes(c.id)).map(c => c.name);
+        const names = filteredCostCenters.filter(c => current.includes(c.id)).map(c => c.name);
         if (names.length === 0) return 'Geral (Todos)';
         if (names.length === 1) return names[0];
-        if (names.length === costCenters.length) return 'Todos Selecionados';
+        if (names.length === filteredCostCenters.length) return 'Todos Selecionados';
         return `${names.length} selecionados`;
     };
 
@@ -1004,7 +1035,7 @@ export default function BudgetGrid({
                             <>
                                 <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, zIndex: 30 }} onClick={() => setCostCenterDropdownOpen(false)} />
                                 <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, marginTop: '4px', backgroundColor: '#fff', border: '1px solid #e2e8f0', borderRadius: '6px', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1)', zIndex: 40, maxHeight: '300px', overflowY: 'auto' }}>
-                                    {costCenters.map(cc => (
+                                    {filteredCostCenters.map(cc => (
                                         <label key={cc.id} style={{ display: 'flex', alignItems: 'center', padding: '0.5rem 0.75rem', cursor: 'pointer', borderBottom: '1px solid #f1f5f9', fontSize: '0.85rem' }}>
                                             <input type="checkbox" checked={pendingCostCenter.includes(cc.id)} onChange={() => handleCostCenterToggle(cc.id)} style={{ marginRight: '0.5rem', cursor: 'pointer' }} />
                                             <span style={{ flex: 1 }}>{cc.name}</span>

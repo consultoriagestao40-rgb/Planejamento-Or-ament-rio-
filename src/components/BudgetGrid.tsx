@@ -1019,16 +1019,9 @@ export default function BudgetGrid({
                             </>
                         )}
                     </div>
-                </div>
-            </div>
 
-            {/* DIREITA: Centro de Custo, Filtrar, Limpar, View Modes */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: '1.5rem', marginLeft: 'auto' }}>
-
-                {/* Cost Center Group */}
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
                     {/* Cost Center Filter */}
-                    <label style={{ fontSize: '0.85rem', fontWeight: 600, color: '#64748b', whiteSpace: 'nowrap' }}>Centro de Custo</label>
+                    <label style={{ fontSize: '0.85rem', fontWeight: 600, color: '#64748b', whiteSpace: 'nowrap', marginLeft: '0.5rem' }}>Centro de Custo</label>
                     <div style={{ position: 'relative', minWidth: '220px' }}>
                         <div
                             onClick={() => setCostCenterDropdownOpen(!costCenterDropdownOpen)}
@@ -1056,10 +1049,7 @@ export default function BudgetGrid({
                     <button onClick={clearFilter} style={{ padding: '0 1rem', height: '38px', backgroundColor: 'transparent', color: '#64748b', border: '1px solid #cbd5e1', borderRadius: '6px', fontSize: '0.85rem', fontWeight: 600, cursor: 'pointer', transition: 'all 0.2s' }}>Limpar</button>
                 </div>
 
-                <div style={{ width: '1px', height: '24px', backgroundColor: '#cbd5e1' }}></div>
-
-                {/* View Modes */}
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginLeft: 'auto' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', background: '#f1f5f9', borderRadius: '8px', padding: '0.25rem', height: '38px' }}>
                         <button onClick={() => setViewPeriod('month')} style={{ padding: '0.3rem 0.9rem', borderRadius: '6px', border: 'none', cursor: 'pointer', fontSize: '0.75rem', fontWeight: 600, backgroundColor: viewPeriod === 'month' ? '#10b981' : 'transparent', color: viewPeriod === 'month' ? 'white' : '#64748b', transition: 'all 0.2s' }} title="Visão Mensal">📅 Mês</button>
                         <button onClick={() => setViewPeriod('quarter')} style={{ padding: '0.4rem 0.9rem', borderRadius: '6px', border: 'none', cursor: 'pointer', fontSize: '0.75rem', fontWeight: 600, backgroundColor: viewPeriod === 'quarter' ? '#10b981' : 'transparent', color: viewPeriod === 'quarter' ? 'white' : '#64748b', transition: 'all 0.2s' }} title="Visão Trimestral">🗓️ Trimestre</button>

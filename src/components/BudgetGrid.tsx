@@ -544,10 +544,10 @@ export default function BudgetGrid({
         return categories.filter(c => categories.some(ch => ch.parentId === c.id)).map(c => c.id);
     }, [categories]);
 
-    const isAllExpanded = expandedGroups.size === allGroupKeys.length && expandedRows.size === expandableRowIds.length && expandableRowIds.length > 0;
+    const isAnyExpanded = expandedGroups.size > 0 || expandedRows.size > 0;
 
     const handleToggleAll = () => {
-        if (isAllExpanded) {
+        if (isAnyExpanded) {
             setExpandedGroups(new Set());
             setExpandedRows(new Set());
         } else {
@@ -927,14 +927,14 @@ export default function BudgetGrid({
                                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                                     <button
                                         onClick={handleToggleAll}
-                                        title={isAllExpanded ? "Recolher Todos" : "Expandir Todos"}
+                                        title={isAnyExpanded ? "Recolher Todos" : "Expandir Todos"}
                                         style={{
                                             background: 'white', border: '1px solid #cbd5e1', borderRadius: '4px',
                                             width: '24px', height: '24px', display: 'flex', alignItems: 'center',
                                             justifyContent: 'center', cursor: 'pointer', color: '#2563eb', padding: 0
                                         }}
                                     >
-                                        {isAllExpanded ? (
+                                        {isAnyExpanded ? (
                                             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                                                 <polyline points="8 14 12 10 16 14" />
                                                 <polyline points="16 10 12 14 8 10" />

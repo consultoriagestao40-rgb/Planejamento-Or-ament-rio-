@@ -75,7 +75,9 @@ body {
   width: 100%;
   margin: 0;
   padding: 0;
+  background-color: #f8fafc;
   background-color: hsl(var(--background));
+  color: #334155;
   color: hsl(var(--foreground));
   font-family: var(--font-inter), sans-serif;
   -webkit-font-smoothing: antialiased;

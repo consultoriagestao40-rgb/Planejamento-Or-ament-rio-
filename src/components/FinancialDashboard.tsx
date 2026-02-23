@@ -55,7 +55,7 @@ export default function FinancialDashboard({
     };
 
     return (
-        <main style={{ width: '100%', padding: '2rem 4rem', boxSizing: 'border-box' }}>
+        <main style={{ width: '100%', minHeight: '100vh', backgroundColor: '#f8fafc', padding: '2rem 4rem', boxSizing: 'border-box' }}>
             <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
                     <h1 style={{ color: 'hsl(var(--primary))', margin: 0 }}>Budget Hub</h1>
@@ -94,46 +94,45 @@ export default function FinancialDashboard({
                             ))}
                         </div>
                     )}
+
                     {isConnected && (
-                        <button
-                            onClick={async () => {
-                                await fetch('/api/auth/logout', { method: 'POST' });
-                                window.location.href = '/login';
-                            }}
-                            style={{ marginLeft: '1rem', padding: '0.4rem 0.8rem', backgroundColor: '#fee2e2', color: '#b91c1c', border: '1px solid #fca5a5', borderRadius: '6px', fontSize: '0.85rem', fontWeight: 600, cursor: 'pointer', transition: 'all 0.2s' }}
-                            onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#fecaca'}
-                            onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#fee2e2'}
-                        >
-                            Sair
-                        </button>
+                        <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
+                            <a
+                                href={authUrl}
+                                style={{
+                                    padding: '0.5rem 1rem',
+                                    height: '36px',
+                                    backgroundColor: '#2563eb',
+                                    border: 'none',
+                                    borderRadius: '6px',
+                                    cursor: 'pointer',
+                                    fontSize: '0.8rem',
+                                    fontWeight: 600,
+                                    color: 'white',
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    whiteSpace: 'nowrap',
+                                    textDecoration: 'none'
+                                }}
+                            >
+                                + Adicionar Empresa
+                            </a>
+                            <SyncButton onSyncStart={() => setIsSyncing(true)} onSyncComplete={triggerRefresh} />
+
+                            <button
+                                onClick={async () => {
+                                    await fetch('/api/auth/logout', { method: 'POST' });
+                                    window.location.href = '/login';
+                                }}
+                                style={{ marginLeft: '0.5rem', padding: '0.4rem 0.8rem', backgroundColor: '#fee2e2', color: '#b91c1c', border: '1px solid #fca5a5', borderRadius: '6px', fontSize: '0.85rem', fontWeight: 600, cursor: 'pointer', transition: 'all 0.2s', height: '36px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                                onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#fecaca'}
+                                onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#fee2e2'}
+                            >
+                                Sair
+                            </button>
+                        </div>
                     )}
                 </div>
-
-                {isConnected && (
-                    <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
-                        <a
-                            href={authUrl}
-                            style={{
-                                padding: '0.5rem 1rem',
-                                height: '36px',
-                                backgroundColor: '#2563eb',
-                                border: 'none',
-                                borderRadius: '6px',
-                                cursor: 'pointer',
-                                fontSize: '0.8rem',
-                                fontWeight: 600,
-                                color: 'white',
-                                display: 'inline-flex',
-                                alignItems: 'center',
-                                whiteSpace: 'nowrap',
-                                textDecoration: 'none'
-                            }}
-                        >
-                            + Adicionar Empresa
-                        </a>
-                        <SyncButton onSyncStart={() => setIsSyncing(true)} onSyncComplete={triggerRefresh} />
-                    </div>
-                )}
             </header>
 
 

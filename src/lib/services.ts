@@ -242,8 +242,9 @@ export async function syncData(costCenterId: string = 'DEFAULT', year: number = 
     let realizedValues: Record<string, number> = {};
     const transactionLogs: string[] = [];
     try {
-        (global as any).lastTransactionLogs = transactionLogs; // Pass the array to be filled
-        realizedValues = await fetchRealizedValues(accessToken, year, costCenterId, viewMode);
+        (global as any).lastTransactionLogs = transactionLogs;
+        // DEPRECATED: Realized values are no longer fetched natively on page load.
+        // We now use `runCronSync` (cronsync.ts) to populate the PostgreSQL `RealizedEntry` local caching layer.
     } catch (e: any) {
         console.warn("Could not fetch realized values:", e);
         transactionLogs.push(`Fatal Error: ${e.message}`);

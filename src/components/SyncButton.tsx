@@ -10,15 +10,33 @@ export function SyncButton({ onSyncComplete, onSyncStart }: { onSyncComplete?: (
     const handleSync = async () => {
         setLoading(true);
         if (onSyncStart) onSyncStart();
+
+        // 1. Fast Metadata Sync (categories & cost centers) via Server Action
         const result = await syncFinancialData();
-        setLoading(false);
 
         if (result.success && result.data) {
-            setLastSync(new Date().toLocaleTimeString());
-            if (onSyncComplete) onSyncComplete();
+            // 2. Heavy Data Sync (transactions crunching) via maxDuration API Route
+            try {
+                const year = new Date().getFullYear();
+                const cronRes = await fetch(`/api/cron/sync?year=${year}`);
+                const cronData = await cronRes.json();
+
+                if (cronData.success) {
+                    setLastSync(new Date().toLocaleTimeString());
+                    if (onSyncComplete) onSyncComplete();
+                } else {
+                    alert(`Rotina local falhou: ${cronData.error || 'Erro desconhecido'}`);
+                    if (onSyncComplete) onSyncComplete(); // Resume UI with existing data
+                }
+            } catch (err) {
+                console.error("Cron fetch error:", err);
+                alert("Erro ao disparar worker em segundo plano. Detalhes no console.");
+            }
         } else {
-            alert("Erro ao sincronizar. Veja o console.");
+            alert("Erro ao sincronizar informações (Categorias/CC). Veja o console.");
         }
+
+        setLoading(false);
     };
 
     return (

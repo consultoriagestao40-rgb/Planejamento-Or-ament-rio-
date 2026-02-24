@@ -6,8 +6,6 @@ import { runCronSync } from "@/lib/cronSync";
 export async function syncFinancialData() {
     try {
         const data = await syncData();
-        const year = new Date().getFullYear();
-        await runCronSync(year);
         return { success: true, data };
     } catch (error) {
         console.error("Sync failed:", error);

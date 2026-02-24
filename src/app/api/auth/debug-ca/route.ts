@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { getValidAccessToken } from '@/lib/services';
 
 export const dynamic = 'force-dynamic';
 
@@ -25,9 +26,17 @@ export async function GET() {
 
             const tokenReport: any = { company: t.name, responses: {} };
 
+            let validToken = t.accessToken;
+            try {
+                const result = await getValidAccessToken(t.id);
+                validToken = result.token;
+            } catch (e: any) {
+                tokenReport.tokenRefreshError = e.message;
+            }
+
             for (const url of urls) {
                 try {
-                    const res = await fetch(url, { headers: { 'Authorization': `Bearer ${t.accessToken}` } });
+                    const res = await fetch(url, { headers: { 'Authorization': `Bearer ${validToken}` } });
                     if (res.ok) {
                         tokenReport.responses[url] = await res.json();
                     } else {

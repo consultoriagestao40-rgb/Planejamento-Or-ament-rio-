@@ -10,6 +10,9 @@ export default function UsersPage() {
     const [loading, setLoading] = useState(true);
     const [modalOpen, setModalOpen] = useState(false);
     const [editingUser, setEditingUser] = useState<any>(null);
+    const [companyModal, setCompanyModal] = useState(false);
+    const [editingCompany, setEditingCompany] = useState<any>(null);
+    const [companyForm, setCompanyForm] = useState({ name: '' });
     const router = useRouter();
 
     const [form, setForm] = useState({
@@ -96,6 +99,40 @@ export default function UsersPage() {
     const toggleArrayItem = (array: string[], item: string, setArray: (val: string[]) => void) => {
         if (array.includes(item)) setArray(array.filter(i => i !== item));
         else setArray([...array, item]);
+    };
+
+    const handleEditCompany = (c: any) => {
+        setEditingCompany(c);
+        setCompanyForm({ name: c.name });
+        setCompanyModal(true);
+    };
+
+    const handleSaveCompany = async (e: React.FormEvent) => {
+        e.preventDefault();
+        try {
+            const res = await fetch(`/api/companies/${editingCompany.id}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(companyForm)
+            });
+            const data = await res.json();
+            if (data.success) {
+                setCompanyModal(false);
+                fetchData();
+            } else {
+                alert(data.error);
+            }
+        } catch (e) {
+            alert('Erro ao salvar empresa');
+        }
+    };
+
+    const handleDeleteCompany = async (id: string) => {
+        if (!confirm('Excluir esta empresa e todos os dados associados a ela? Isso não afetará sua conta no Conta Azul.')) return;
+        const res = await fetch(`/api/companies/${id}`, { method: 'DELETE' });
+        const data = await res.json();
+        if (data.success) fetchData();
+        else alert(data.error);
     };
 
     if (loading) return <div style={{ padding: '2rem' }}>Carregando...</div>;
@@ -203,6 +240,49 @@ export default function UsersPage() {
                             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '1rem', marginTop: '1rem' }}>
                                 <button type="button" onClick={() => setModalOpen(false)} style={{ padding: '0.6rem 1.2rem', backgroundColor: '#f1f5f9', color: '#475569', border: 'none', borderRadius: '6px', fontWeight: 600, cursor: 'pointer' }}>Cancelar</button>
                                 <button type="submit" style={{ padding: '0.6rem 1.2rem', backgroundColor: '#2563eb', color: 'white', border: 'none', borderRadius: '6px', fontWeight: 600, cursor: 'pointer' }}>Salvar Usuário</button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            )}
+
+            <div style={{ backgroundColor: 'white', borderRadius: '12px', boxShadow: '0 1px 3px rgba(0,0,0,0.1)', overflow: 'hidden', marginTop: '2rem' }}>
+                <div style={{ padding: '1.5rem', borderBottom: '1px solid #e2e8f0', backgroundColor: '#f8fafc' }}>
+                    <h2 style={{ margin: 0, color: '#0f172a', fontSize: '1.25rem' }}>Gestão de Empresas (Tenants)</h2>
+                </div>
+                <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
+                    <thead style={{ backgroundColor: '#f1f5f9', borderBottom: '1px solid #e2e8f0' }}>
+                        <tr>
+                            <th style={{ padding: '1rem', color: '#475569', fontSize: '0.875rem' }}>Nome da Empresa</th>
+                            <th style={{ padding: '1rem', color: '#475569', fontSize: '0.875rem' }}>CNPJ</th>
+                            <th style={{ padding: '1rem', color: '#475569', fontSize: '0.875rem', textAlign: 'right' }}>Ações</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {companies.map(c => (
+                            <tr key={c.id} style={{ borderBottom: '1px solid #f1f5f9' }}>
+                                <td style={{ padding: '1rem', color: '#334155', fontWeight: 500 }}>{c.name}</td>
+                                <td style={{ padding: '1rem', color: '#64748b' }}>{c.cnpj}</td>
+                                <td style={{ padding: '1rem', textAlign: 'right' }}>
+                                    <button onClick={() => handleEditCompany(c)} style={{ background: 'none', border: 'none', color: '#2563eb', cursor: 'pointer', marginRight: '1rem' }}>✏️ Renomear</button>
+                                    <button onClick={() => handleDeleteCompany(c.id)} style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer' }}>🗑️ Desconectar</button>
+                                </td>
+                            </tr>
+                        ))}
+                    </tbody>
+                </table>
+            </div>
+
+            {companyModal && (
+                <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100 }}>
+                    <div style={{ backgroundColor: 'white', padding: '2rem', borderRadius: '12px', width: '90%', maxWidth: '400px' }}>
+                        <h2 style={{ margin: '0 0 1.5rem 0', color: '#0f172a' }}>Renomear Empresa</h2>
+                        <form onSubmit={handleSaveCompany}>
+                            <label style={{ display: 'block', fontSize: '0.875rem', color: '#334155', marginBottom: '0.25rem', fontWeight: 600 }}>Nome da Empresa</label>
+                            <input required type="text" value={companyForm.name} onChange={e => setCompanyForm({ name: e.target.value })} style={{ width: '100%', padding: '0.5rem', borderRadius: '6px', border: '1px solid #cbd5e1', marginBottom: '1.5rem' }} />
+                            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '1rem' }}>
+                                <button type="button" onClick={() => setCompanyModal(false)} style={{ padding: '0.6rem 1.2rem', backgroundColor: '#f1f5f9', color: '#475569', border: 'none', borderRadius: '6px', fontWeight: 600, cursor: 'pointer' }}>Cancelar</button>
+                                <button type="submit" style={{ padding: '0.6rem 1.2rem', backgroundColor: '#2563eb', color: 'white', border: 'none', borderRadius: '6px', fontWeight: 600, cursor: 'pointer' }}>Salvar</button>
                             </div>
                         </form>
                     </div>

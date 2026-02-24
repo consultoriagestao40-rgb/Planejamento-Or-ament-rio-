@@ -5,20 +5,32 @@ import { prisma } from '@/lib/prisma';
 // Try to get company name/CNPJ from Conta Azul API
 async function fetchCompanyInfo(accessToken: string): Promise<{ name: string; cnpj: string }> {
     const endpoints = [
-        'https://api-v2.contaazul.com/v1/empresa',
-        'https://api.contaazul.com/v1/empresa',
+        'https://api-v2.contaazul.com/v1/user/info',
+        'https://api.contaazul.com/v1/user/info',
         'https://api-v2.contaazul.com/v1/tenants',
+        'https://api.contaazul.com/v1/tenants',
     ];
+
     for (const url of endpoints) {
         try {
             const res = await fetch(url, { headers: { 'Authorization': `Bearer ${accessToken}` } });
             if (res.ok) {
                 const data = await res.json();
-                const name = data.nome || data.name || data.razao_social || data[0]?.nome || 'Empresa';
-                const cnpj = data.cnpj || data[0]?.cnpj || `unknown-${Date.now()}`;
-                return { name, cnpj };
+                console.log(`[AUTH CALLBACK] Company Info Success from ${url}:`, JSON.stringify(data).substring(0, 100));
+
+                // Trata caso a API retorne um array de tenants
+                const tenantData = Array.isArray(data) ? data[0] : (data.tenant || data);
+
+                const name = tenantData?.nome || tenantData?.name || tenantData?.razao_social || 'Empresa';
+                const cnpj = tenantData?.cnpj || `unknown-${Date.now()}`;
+
+                if (name && name !== 'Empresa') {
+                    return { name, cnpj };
+                }
             }
-        } catch (_) { }
+        } catch (err: any) {
+            console.warn(`[AUTH CALLBACK] Failed to parse company info from ${url}: ${err.message}`);
+        }
     }
     return { name: 'Empresa Desconhecida', cnpj: `unknown-${Date.now()}` };
 }

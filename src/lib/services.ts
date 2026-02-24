@@ -98,6 +98,19 @@ export async function syncData(costCenterId: string = 'DEFAULT', year: number = 
     // Discovery step: Who are we?
     const userInfo = await fetchUserInfo(accessToken);
 
+    // Auto-heal "Empresa Desconhecida"
+    if (tenant.name.includes('Empresa') && !tenant.name.includes('SPOT')) {
+        const tenantData = Array.isArray(userInfo) ? userInfo[0] : (userInfo.tenant || userInfo);
+        const realName = tenantData?.nome || tenantData?.name || tenantData?.razao_social;
+        if (realName && realName !== 'Empresa') {
+            await prisma.tenant.update({
+                where: { id: tenant.id },
+                data: { name: realName }
+            });
+            tenant.name = realName;
+        }
+    }
+
     let categories: any[] = [];
     let costCenters: any[] = [];
     let fetchError: string | null = null;

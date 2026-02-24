@@ -54,6 +54,27 @@ export default function FinancialDashboard({
         }
     };
 
+    const handleRename = async (tenantId: string, currentName: string) => {
+        const newName = prompt(`Digite o novo nome para a empresa "${currentName}":`, currentName);
+        if (newName && newName.trim() !== '' && newName !== currentName) {
+            try {
+                const res = await fetch(`/api/companies/${tenantId}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ name: newName.trim() })
+                });
+                if (res.ok) {
+                    triggerRefresh();
+                } else {
+                    const data = await res.json();
+                    alert(`Erro ao salvar: ${data.error}`);
+                }
+            } catch (err) {
+                alert('Erro na requisição para renomear.');
+            }
+        }
+    };
+
     return (
         <main style={{ width: '100%', minHeight: '100vh', backgroundColor: '#f8fafc', padding: '2rem 4rem', boxSizing: 'border-box' }}>
             <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem', flexWrap: 'wrap', gap: '1rem' }}>
@@ -82,6 +103,16 @@ export default function FinancialDashboard({
                                     fontWeight: 500
                                 }}>
                                     <span style={{ color: 'hsl(var(--foreground))' }}>{c.name}</span>
+                                    {userRole === 'MASTER' && (
+                                        <button
+                                            onClick={() => handleRename(c.id, c.name)}
+                                            style={{
+                                                background: 'none', border: 'none', cursor: 'pointer', padding: 0,
+                                                color: '#64748b', fontSize: '0.8rem', lineHeight: 1, margin: '0 0.1rem'
+                                            }}
+                                            title="Renomear"
+                                        >✏️</button>
+                                    )}
                                     <button
                                         onClick={() => handleDisconnect(c.id, c.name)}
                                         style={{

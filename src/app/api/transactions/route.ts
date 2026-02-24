@@ -27,9 +27,13 @@ export async function GET(request: Request) {
             return NextResponse.json({ success: false, error: 'No connected companies found' }, { status: 400 });
         }
 
-        // Widen the search window to include prior year so we catch cross-year entries
-        const startStr = `${year - 1}-10-01`;
-        const endStr = `${year}-12-31`;
+        // Widen the search window by 1 month before and after to catch most Competência vs Caixa edge cases,
+        // without destroying performance by fetching the entire year.
+        const prevDate = new Date(year, month - 1, 1);
+        const startStr = `${prevDate.getFullYear()}-${String(prevDate.getMonth() + 1).padStart(2, '0')}-01`;
+
+        const nextDate = new Date(year, month + 2, 0); // Last day of next month
+        const endStr = `${nextDate.getFullYear()}-${String(nextDate.getMonth() + 1).padStart(2, '0')}-${String(nextDate.getDate()).padStart(2, '0')}`;
 
         let allTransactions: any[] = [];
 

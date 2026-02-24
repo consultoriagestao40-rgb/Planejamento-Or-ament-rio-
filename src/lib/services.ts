@@ -272,7 +272,7 @@ export async function syncData(costCenterId: string = 'DEFAULT', year: number = 
 }
 
 // V46: Aggregates transactions for DRE (Competence View - V47.9.5)
-async function fetchRealizedValues(accessToken: string, targetYear: number, costCenterId: string, viewMode: 'caixa' | 'competencia' = 'competencia'): Promise<Record<string, number>> {
+export async function fetchRealizedValues(accessToken: string, targetYear: number, costCenterId: string, viewMode: 'caixa' | 'competencia' = 'competencia'): Promise<Record<string, number>> {
     const values: Record<string, number> = {};
 
     // V47.9.10: Use targetYear passed from Frontend

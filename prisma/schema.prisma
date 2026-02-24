@@ -18,6 +18,7 @@ model Tenant {
   updatedAt    DateTime @updatedAt
   
   budgets      BudgetEntry[]
+  realized     RealizedEntry[]
   categories   Category[]
   costCenters  CostCenter[]
   userAccess   UserTenantAccess[]
@@ -33,6 +34,7 @@ model Category {
   
   tenant     Tenant   @relation(fields: [tenantId], references: [id])
   budgets    BudgetEntry[]
+  realized   RealizedEntry[]
 }
 
 model CostCenter {
@@ -42,6 +44,7 @@ model CostCenter {
   
   tenant    Tenant   @relation(fields: [tenantId], references: [id])
   budgets   BudgetEntry[]
+  realized  RealizedEntry[]
   userAccess UserCostCenterAccess[]
 }
 
@@ -63,6 +66,25 @@ model BudgetEntry {
   costCenter   CostCenter? @relation(fields: [costCenterId], references: [id])
 
   @@unique([tenantId, categoryId, costCenterId, month, year])
+}
+
+model RealizedEntry {
+  id           String   @id @default(uuid())
+  tenantId     String
+  categoryId   String   
+  costCenterId String?  
+  month        Int      // 1-12
+  year         Int
+  amount       Float    // Custo/Receita consolidada do Conta Azul
+  viewMode     String   @default("competencia") // "caixa" ou "competencia"
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  tenant       Tenant      @relation(fields: [tenantId], references: [id])
+  category     Category    @relation(fields: [categoryId], references: [id])
+  costCenter   CostCenter? @relation(fields: [costCenterId], references: [id])
+
+  @@unique([tenantId, categoryId, costCenterId, month, year, viewMode])
 }
 
 model User {

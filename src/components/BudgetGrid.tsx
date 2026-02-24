@@ -704,6 +704,10 @@ export default function BudgetGrid({
         setModalValues(next);
     };
 
+    const precomputedDreTotals = useMemo(() => {
+        return Array.from({ length: 12 }, (_, i) => dreStructure.calculateTotals(i));
+    }, [dreStructure]);
+
     const renderNode = (node: CategoryNode) => {
         const totals = nodeTotals.get(node.id) || { budget: new Array(12).fill(0), realized: new Array(12).fill(0), radar: new Array(12).fill(0) };
         const isExpanded = expandedRows.has(node.id);
@@ -742,7 +746,7 @@ export default function BudgetGrid({
                             bVal = totals.budget[i];
                             rVal = totals.realized[i];
                             rdVal = totals.radar[i];
-                            const monthTotal = dreStructure.calculateTotals(i);
+                            const monthTotal = precomputedDreTotals[i];
                             revBrutaReal = monthTotal.vRev.r;
                             revBrutaBudget = monthTotal.vRev.b;
                             revBrutaRadar = monthTotal.vRev.rd;
@@ -752,7 +756,7 @@ export default function BudgetGrid({
                                 bVal += totals.budget[m];
                                 rVal += totals.realized[m];
                                 rdVal += totals.radar[m];
-                                const monthTotal = dreStructure.calculateTotals(m);
+                                const monthTotal = precomputedDreTotals[m];
                                 revBrutaReal += monthTotal.vRev.r;
                                 revBrutaBudget += monthTotal.vRev.b;
                                 revBrutaRadar += monthTotal.vRev.rd;
@@ -870,7 +874,7 @@ export default function BudgetGrid({
                     let revBrutaReal = 0, revBrutaBudget = 0, revBrutaRadar = 0;
 
                     if (viewPeriod === 'month') {
-                        const monthTotal = dreStructure.calculateTotals(i);
+                        const monthTotal = precomputedDreTotals[i];
                         budgetVal = monthTotal[validx].b;
                         realizedVal = monthTotal[validx].r;
                         radarVal = monthTotal[validx].rd;
@@ -879,7 +883,7 @@ export default function BudgetGrid({
                         revBrutaRadar = monthTotal.vRev.rd;
                     } else {
                         for (let m = i * 3; m < i * 3 + 3; m++) {
-                            const monthTotal = dreStructure.calculateTotals(m);
+                            const monthTotal = precomputedDreTotals[m];
                             budgetVal += monthTotal[validx].b;
                             realizedVal += monthTotal[validx].r;
                             radarVal += monthTotal[validx].rd;

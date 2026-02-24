@@ -66,13 +66,22 @@ async function fetchUserInfo(accessToken: string) {
     const urls = [
         'https://api-v2.contaazul.com/v1/user/info',
         'https://api.contaazul.com/v1/user/info',
-        'https://api-v2.contaazul.com/v1/tenants'
+        'https://api-v2.contaazul.com/v1/tenants',
+        'https://api.contaazul.com/v1/tenants'
     ];
     for (const url of urls) {
         try {
             const res = await fetch(url, { headers: { 'Authorization': `Bearer ${accessToken}` } });
-            if (res.ok) return await res.json();
-            console.warn(`UserInfo failed (${url}): ${res.status}`);
+            if (res.ok) {
+                const data = await res.json();
+                console.log(`[SYNC] Tenant Info Object found at ${url}`);
+                const tenantData = Array.isArray(data) ? data[0] : (data.tenant || data);
+                if (tenantData?.nome || tenantData?.name || tenantData?.razao_social) {
+                    return tenantData;
+                }
+            } else {
+                console.warn(`[SYNC] UserInfo failed (${url}): ${res.status}`);
+            }
         } catch (e) { }
     }
     return { error: 'Could not fetch user/tenant info' };

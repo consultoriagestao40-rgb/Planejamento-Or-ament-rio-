@@ -1,27 +1,46 @@
 import { NextResponse } from 'next/server';
-import { getValidAccessToken } from '@/lib/services';
+import { prisma } from '@/lib/prisma';
 
-export async function GET(request: Request) {
+export const dynamic = 'force-dynamic';
+
+export async function GET() {
     try {
-        const accessToken = await getValidAccessToken();
-
-        const url = `https://api-v2.contaazul.com/v1/centro-de-custo?pagina=1&tamanho_pagina=100`;
-        const res = await fetch(url, { headers: { 'Authorization': `Bearer ${accessToken}` } });
-
-        if (!res.ok) {
-            return NextResponse.json({ success: false, error: `Conta Azul API replied with ${res.status}` }, { status: 500 });
-        }
-
-        const data = await res.json();
-
-        // Return exactly what Conta Azul returned so we can inspect the properties 
-        // that define whether a cost center is ACTIVE or INACTIVE
-        return NextResponse.json({
-            success: true,
-            message: "Por favor, copie o JSON abaixo (especialmente os items inativos como BALNEÁRIO) e envie para o programador:",
-            rawData: data
+        const tenants = await prisma.tenant.findMany({
+            where: {
+                name: {
+                    contains: 'Empresa',
+                }
+            }
         });
 
+        const reports = [];
+
+        for (const t of tenants) {
+            const urls = [
+                'https://api-v2.contaazul.com/v1/user/info',
+                'https://api.contaazul.com/v1/user/info',
+                'https://api-v2.contaazul.com/v1/tenants',
+                'https://api.contaazul.com/v1/tenants',
+            ];
+
+            const tokenReport: any = { company: t.name, responses: {} };
+
+            for (const url of urls) {
+                try {
+                    const res = await fetch(url, { headers: { 'Authorization': `Bearer ${t.accessToken}` } });
+                    if (res.ok) {
+                        tokenReport.responses[url] = await res.json();
+                    } else {
+                        tokenReport.responses[url] = `HTTP ${res.status}`;
+                    }
+                } catch (e: any) {
+                    tokenReport.responses[url] = `Error: ${e.message}`;
+                }
+            }
+            reports.push(tokenReport);
+        }
+
+        return NextResponse.json({ success: true, count: tenants.length, reports });
     } catch (e: any) {
         return NextResponse.json({ success: false, error: e.message }, { status: 500 });
     }

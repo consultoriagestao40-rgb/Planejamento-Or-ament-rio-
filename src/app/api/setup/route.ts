@@ -51,6 +51,7 @@ export async function GET() {
                 name: cat.name,
                 parentId: cat.parentId,
                 type: cat.type,
+                tenantId: cat.tenantId,
                 entradaDre: (cat as any).entradaDre || null
             })),
             costCenters: costCenters.map(cc => ({

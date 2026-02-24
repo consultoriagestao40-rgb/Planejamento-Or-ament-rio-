@@ -1,7 +1,7 @@
 'use server'
 
 import { syncData } from "@/lib/services";
-import { runCronSync } from "@/app/api/cron/sync/route";
+import { runCronSync } from "@/lib/cronSync";
 
 export async function syncFinancialData() {
     try {

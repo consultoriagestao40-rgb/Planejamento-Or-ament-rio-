@@ -76,6 +76,10 @@ export async function runCronSync(reqYear: number) {
             continue;
         }
 
+        // Fetch valid IDs to prevent Foreign Key Constraint errors from deleted items on Conta Azul
+        const validCategories = new Set((await prisma.category.findMany({ where: { tenantId: t.id }, select: { id: true } })).map(c => c.id));
+        const validCostCenters = new Set((await prisma.costCenter.findMany({ where: { tenantId: t.id }, select: { id: true } })).map(c => c.id));
+
         for (const viewMode of ['competencia', 'caixa'] as const) {
             const start = `${reqYear - 1}-01-01`;
             const end = `${reqYear + 1}-12-31`;
@@ -116,6 +120,11 @@ export async function runCronSync(reqYear: number) {
             const createData = [];
             for (const [key, amount] of aggregates.entries()) {
                 const [categoryId, costCenterId, monthStr] = key.split('|');
+
+                // Filter out invalid foreign keys (deleted categories/CCs that still appear in historical CA transactions)
+                if (!validCategories.has(categoryId)) continue;
+                if (costCenterId !== 'NONE' && !validCostCenters.has(costCenterId)) continue;
+
                 createData.push({
                     tenantId: t.id,
                     categoryId,

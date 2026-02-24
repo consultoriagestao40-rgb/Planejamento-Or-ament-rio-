@@ -191,9 +191,7 @@ export default function BudgetGrid({
         const codeMap = new Map<string, CategoryNode>();
         const nameMap = new Map<string, CategoryNode>();
 
-        const validCategories = categories.filter(c =>
-            selectedCompany.includes('DEFAULT') || selectedCompany.includes(c.tenantId)
-        );
+        const validCategories = categories;
 
         // 1. Initial Load
         validCategories.forEach(cat => {

@@ -729,7 +729,7 @@ export default function BudgetGrid({
             return data?.isLocked || false;
         });
 
-        setBudgetModal({ categoryId: nodeId, categoryName: nodeName, startMonth: monthIndex, type });
+        setBudgetModal({ categoryId: targetIdToEdit, categoryName: nodeName, startMonth: monthIndex, type });
         setModalValues(initialValues);
         setLockedMonths(initialLocks);
         setActiveMonth(monthIndex);

@@ -186,9 +186,12 @@ export async function POST(request: Request) {
     const results = [];
     for (const entry of entries) {
       const { categoryId, month, year, costCenterId } = entry;
-      const targetCostCenterId = (costCenterId || "DEFAULT").split(',')[0] || "DEFAULT";
+      // Convert 'DEFAULT' sentinel to null — there is no CostCenter with id='DEFAULT' in the DB.
+      // The BudgetEntry.costCenterId is optional (String?) so null is valid.
+      const rawCostCenterId = (costCenterId || "DEFAULT").split(',')[0] || "DEFAULT";
+      const targetCostCenterId: string | null = (rawCostCenterId === 'DEFAULT') ? null : rawCostCenterId;
 
-      if (user.role === 'GESTOR' && targetCostCenterId !== "DEFAULT" && allowedCostCenters !== null && !allowedCostCenters.includes(targetCostCenterId)) {
+      if (user.role === 'GESTOR' && targetCostCenterId !== null && allowedCostCenters !== null && !allowedCostCenters.includes(targetCostCenterId)) {
         console.warn(`[API POST] User ${user.email} denied access to save on CC ${targetCostCenterId}`);
         continue; // Skip unauthorized entries
       }
@@ -196,7 +199,7 @@ export async function POST(request: Request) {
       // Convert to 1-indexed for DB (1-12)
       const dbMonth = parseInt(month.toString()) + 1;
 
-      console.log(`[API POST] Upserting Cat: ${categoryId}, Month: ${dbMonth}`);
+      console.log(`[API POST] Upserting Cat: ${categoryId}, Tenant: ${targetTenantId}, CC: ${targetCostCenterId}, Month: ${dbMonth}`);
 
       try {
         const whereClause = {

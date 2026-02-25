@@ -155,11 +155,13 @@ export default function BudgetGrid({
     const [error, setError] = useState<string | null>(null);
 
     // --- Dynamic Filters ---
+    // React to pendingCompany so the CC dropdown updates IMMEDIATELY as the user picks a company,
+    // without requiring them to press "Filtrar" first.
     const filteredCostCenters = useMemo(() => {
-        if (selectedCompany.includes('DEFAULT')) return costCenters;
-        // Se a empresa foi selecionada, mostre apenas os centros de custo daquela empresa (e os mocks/padrões que não têm tenantId)
-        return costCenters.filter(cc => !cc.tenantId || cc.id === 'DEFAULT' || selectedCompany.includes(cc.tenantId));
-    }, [costCenters, selectedCompany]);
+        if (pendingCompany.includes('DEFAULT')) return costCenters;
+        // Only show CCs that belong to one of the pending companies
+        return costCenters.filter(cc => cc.id === 'DEFAULT' || !cc.tenantId || pendingCompany.includes(cc.tenantId));
+    }, [costCenters, pendingCompany]);
 
     // 1. Setup Effect
     useEffect(() => {
@@ -995,6 +997,8 @@ export default function BudgetGrid({
             const next = prev.includes('DEFAULT') ? [id] : [...prev, id];
             return next;
         });
+        // Auto-reset CC selection so stale CCs from other companies don't remain selected
+        setPendingCostCenter(['DEFAULT']);
     };
 
     const applyFilter = () => {

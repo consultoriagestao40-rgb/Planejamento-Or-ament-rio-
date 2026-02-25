@@ -1,11 +1,10 @@
 import { prisma } from '@/lib/prisma';
 import { getValidAccessToken } from '@/lib/services';
 
-async function fetchAllTransactionsForYear(accessToken: string, baseUrl: string, targetYear: number, viewMode: 'caixa' | 'competencia', isExpense: boolean) {
+async function fetchAllTransactionsForYear(accessToken: string, baseUrl: string, targetYear: number, viewMode: 'caixa' | 'competencia') {
     let page = 1;
     let hasMore = true;
     const transactions: any[] = [];
-    const sign = isExpense ? -1 : 1;
 
     while (hasMore && page <= 50) {
         const url = `${baseUrl}&pagina=${page}`;
@@ -43,7 +42,7 @@ async function fetchAllTransactionsForYear(accessToken: string, baseUrl: string,
                 transactions.push({
                     id: item.id,
                     month: dateObj.getMonth(), // 0-11
-                    amount: amount * sign,
+                    amount: Math.abs(amount), // ALWAYS positive, DRE frontend subtracts expenses
                     categories: cats,
                     costCenters: ccs
                 });
@@ -87,8 +86,8 @@ export async function runCronSync(reqYear: number) {
             const receivablesUrl = `https://api-v2.contaazul.com/v1/financeiro/eventos-financeiros/contas-a-receber/buscar?data_vencimento_de=${start}&data_vencimento_ate=${end}&tamanho_pagina=100`;
             const payablesUrl = `https://api-v2.contaazul.com/v1/financeiro/eventos-financeiros/contas-a-pagar/buscar?data_vencimento_de=${start}&data_vencimento_ate=${end}&tamanho_pagina=100`;
 
-            const receivables = await fetchAllTransactionsForYear(token, receivablesUrl, reqYear, viewMode, false);
-            const payables = await fetchAllTransactionsForYear(token, payablesUrl, reqYear, viewMode, true);
+            const receivables = await fetchAllTransactionsForYear(token, receivablesUrl, reqYear, viewMode);
+            const payables = await fetchAllTransactionsForYear(token, payablesUrl, reqYear, viewMode);
 
             const allTxns = [...receivables, ...payables];
 
@@ -98,20 +97,18 @@ export async function runCronSync(reqYear: number) {
                 if (txn.categories.length === 0) continue;
 
                 const ccsCount = txn.costCenters.length || 1;
+                const cat = txn.categories[0]; // Mirror exact behavior from services.ts to prevent data shifts
 
-                for (const cat of txn.categories) {
-                    const ratio = cat.percentual ? (cat.percentual / 100) : (1 / txn.categories.length);
-                    const amountForCat = txn.amount * ratio;
-                    const amountPerCc = amountForCat / ccsCount;
+                const amountForCat = txn.amount;
+                const amountPerCc = amountForCat / ccsCount;
 
-                    if (txn.costCenters.length === 0) {
-                        const key = `${cat.id}|NONE|${txn.month}`;
+                if (txn.costCenters.length === 0) {
+                    const key = `${cat.id}|NONE|${txn.month}`;
+                    aggregates.set(key, (aggregates.get(key) || 0) + amountPerCc);
+                } else {
+                    for (const cc of txn.costCenters) {
+                        const key = `${cat.id}|${cc.id}|${txn.month}`;
                         aggregates.set(key, (aggregates.get(key) || 0) + amountPerCc);
-                    } else {
-                        for (const cc of txn.costCenters) {
-                            const key = `${cat.id}|${cc.id}|${txn.month}`;
-                            aggregates.set(key, (aggregates.get(key) || 0) + amountPerCc);
-                        }
                     }
                 }
             }

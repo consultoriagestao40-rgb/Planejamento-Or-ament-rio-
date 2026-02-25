@@ -96,7 +96,18 @@ export async function GET(request: Request) {
     const budgets = await prisma.budgetEntry.findMany({
       where: {
         ...tenantFilter,
-        ...(isGeneralView && user.role === 'MASTER' ? {} : { costCenterId: { in: costCenterIds } })
+        // When in general view (MASTER), include ALL entries regardless of costCenterId (including null ones).
+        // When specific CCs are requested, use OR to also include entries with null costCenterId
+        // (entries saved without a specific CC, using the old 'DEFAULT' → null approach).
+        ...(isGeneralView && user.role === 'MASTER'
+          ? {}
+          : {
+            OR: [
+              { costCenterId: { in: costCenterIds } },
+              { costCenterId: null }
+            ]
+          }
+        )
       }
     });
 

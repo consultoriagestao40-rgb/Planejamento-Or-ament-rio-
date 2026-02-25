@@ -709,15 +709,44 @@ export default function BudgetGrid({
 
     const handleBudgetDrillDown = async (nodeId: string, nodeName: string, monthIndex: number) => {
         if (viewPeriod !== 'month') return;
-        const categoryId = nodeId.split(',')[0];
-        setBudgetDrillModal({ categoryId, categoryName: nodeName, month: monthIndex, entries: [], loading: true, drillStep: 'company', drillCompany: null, drillCC: null });
+
+        // Helper to find node and collect all its leaf category UUIDs (for parents or merged nodes)
+        const getAllLeafIds = (id: string): string[] => {
+            const ids: string[] = [];
+            const findNode = (nodes: CategoryNode[]): CategoryNode | null => {
+                for (const n of nodes) {
+                    if (n.id === id) return n;
+                    const found = findNode(n.children);
+                    if (found) return found;
+                }
+                return null;
+            }
+            const target = findNode(treeRoots);
+            if (!target) return id.split(',').filter(x => !x.startsWith('synth-'));
+
+            const collect = (n: CategoryNode) => {
+                if (n.children.length === 0) {
+                    n.id.split(',').filter(x => !x.startsWith('synth-')).forEach(x => ids.push(x));
+                } else {
+                    n.children.forEach(collect);
+                }
+            }
+            collect(target);
+            return Array.from(new Set(ids));
+        };
+
+        const categoryIds = getAllLeafIds(nodeId);
+        // We still use the first ID as a reference for the modal state index, but the filter will use categoryIds
+        const primaryId = categoryIds[0] || nodeId.split(',')[0];
+
+        setBudgetDrillModal({ categoryId: primaryId, categoryName: nodeName, month: monthIndex, entries: [], loading: true, drillStep: 'company', drillCompany: null, drillCC: null });
         try {
             const res = await fetch(`/api/budgets?costCenterId=DEFAULT&tenantId=ALL&year=${selectedYear}&detail=true`);
             const data = await res.json();
             if (data.success) {
-                // Filter to this specific category and month (1-indexed in DB)
+                // Filter to THESE categories and month (1-indexed in DB)
                 const dbMonth = monthIndex + 1;
-                const relevant = (data.data as any[]).filter(e => e.categoryId === categoryId && e.month === dbMonth && e.amount > 0);
+                const relevant = (data.data as any[]).filter(e => categoryIds.includes(e.categoryId) && e.month === dbMonth && e.amount > 0);
                 setBudgetDrillModal(prev => prev ? { ...prev, entries: relevant, loading: false } : null);
             } else {
                 setBudgetDrillModal(prev => prev ? { ...prev, loading: false } : null);

@@ -680,22 +680,20 @@ export default function BudgetGrid({
             }
 
             setBudgetModal(null);
-            // Re-fetch to update state
-            const fetchCompanyParam = selectedCompany.includes('DEFAULT') ? 'ALL' : selectedCompany.join(',');
-            const budgetRes = await fetch(`/api/budgets?costCenterId=${selectedCostCenter.join(',')}&tenantId=${fetchCompanyParam}&year=${selectedYear}`);
-            const budgetData = await budgetRes.json();
-            if (budgetData.success) {
-                const values: Record<string, { amount: number, radarAmount: number | null, isLocked: boolean }> = {};
-                budgetData.data.forEach((item: any) => {
-                    // Map 1-12 from DB to 0-11 for UI
-                    values[`${item.categoryId}-${item.month - 1}`] = {
-                        amount: item.amount || 0,
-                        radarAmount: (item.radarAmount !== undefined && item.radarAmount !== null) ? item.radarAmount : null,
-                        isLocked: item.isLocked || false
-                    };
+            // Update local state directly instead of re-fetching — this is faster and avoids
+            // all the CC/tenant filter matching issues in the GET endpoint.
+            setBudgetValues(prev => {
+                const next = { ...prev };
+                entries.forEach((entry: any) => {
+                    const key = `${entry.categoryId}-${entry.month}`; // month is 0-11 here
+                    const existing = next[key] || { amount: 0, radarAmount: null, isLocked: false };
+                    if (entry.amount !== undefined) existing.amount = parseFloat(entry.amount) || 0;
+                    if (entry.radarAmount !== undefined) existing.radarAmount = entry.radarAmount === null ? null : parseFloat(entry.radarAmount) || 0;
+                    if (entry.isLocked !== undefined) existing.isLocked = !!entry.isLocked;
+                    next[key] = existing;
                 });
-                setBudgetValues(values);
-            }
+                return next;
+            });
         } catch (error: any) {
             console.error("Save error:", error);
             alert(`Erro ao salvar orçamentos: ${error.message}${error.details ? '\nDetalhes: ' + error.details : ''}`);

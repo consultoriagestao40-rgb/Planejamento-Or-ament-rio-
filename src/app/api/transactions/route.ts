@@ -40,8 +40,8 @@ export async function GET(request: Request) {
             try {
                 const { token } = await getValidAccessToken(t.id);
 
-                const receivablesUrl = `https://api-v2.contaazul.com/v1/financeiro/eventos-financeiros/contas-a-receber/buscar?data_vencimento_de=${startStr}&data_vencimento_ate=${endStr}&tamanho_pagina=100`;
-                const payablesUrl = `https://api-v2.contaazul.com/v1/financeiro/eventos-financeiros/contas-a-pagar/buscar?data_vencimento_de=${startStr}&data_vencimento_ate=${endStr}&tamanho_pagina=100`;
+                const receivablesUrl = `https://api-v2.contaazul.com/v1/financeiro/eventos-financeiros/contas-a-receber/buscar?data_vencimento_de=${startStr}&data_vencimento_ate=${endStr}&categoria_id=${categoryId}&tamanho_pagina=100`;
+                const payablesUrl = `https://api-v2.contaazul.com/v1/financeiro/eventos-financeiros/contas-a-pagar/buscar?data_vencimento_de=${startStr}&data_vencimento_ate=${endStr}&categoria_id=${categoryId}&tamanho_pagina=100`;
 
                 const [receivables, payables] = await Promise.all([
                     fetchTransactions(token, receivablesUrl, costCenterId, categoryId, year, month, viewMode),

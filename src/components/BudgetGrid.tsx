@@ -709,7 +709,7 @@ export default function BudgetGrid({
         const categoryId = nodeId.split(',')[0];
         setBudgetDrillModal({ categoryId, categoryName: nodeName, month: monthIndex, entries: [], loading: true, drillStep: 'company', drillCompany: null, drillCC: null });
         try {
-            const res = await fetch(`/api/budgets?costCenterId=DEFAULT&tenantId=ALL&year=${selectedYear}`);
+            const res = await fetch(`/api/budgets?costCenterId=DEFAULT&tenantId=ALL&year=${selectedYear}&detail=true`);
             const data = await res.json();
             if (data.success) {
                 // Filter to this specific category and month (1-indexed in DB)

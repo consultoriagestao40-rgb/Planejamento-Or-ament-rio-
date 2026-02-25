@@ -117,6 +117,23 @@ export async function GET(request: Request) {
       }
     });
 
+    const isDetailMode = searchParams.get('detail') === 'true';
+
+    // In detail mode, return raw entries with tenantId + costCenterId for the drill-down modal
+    if (isDetailMode) {
+      const rawEntries = budgets.map((b: any) => ({
+        categoryId: b.categoryId,
+        tenantId: b.tenantId,
+        costCenterId: b.costCenterId,
+        month: b.month,
+        year: b.year,
+        amount: b.amount || 0,
+        radarAmount: b.radarAmount,
+        isLocked: b.isLocked || false
+      }));
+      return NextResponse.json({ success: true, data: rawEntries });
+    }
+
     const aggregatedBudgets = budgets.reduce((acc, curr: any) => {
       // Keep DB month as is (1-12)
       const key = `${curr.categoryId}-${curr.month}`;

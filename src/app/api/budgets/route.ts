@@ -93,21 +93,27 @@ export async function GET(request: Request) {
       return NextResponse.json({ success: true, data: [] });
     }
 
+    // Build the costCenter filter:
+    // - MASTER + isGeneralView → no filter at all (fetch everything)
+    // - MASTER + specific CCs → filter by those CCs
+    // - GESTOR + any view → filter by their allowed CCs (handled above)
+    let ccFilter: any = {};
+    if (isGeneralView && user.role === 'MASTER') {
+      // No CC filter — return all entries for the selected tenant(s)
+      ccFilter = {};
+    } else if (!isGeneralView) {
+      ccFilter = { costCenterId: { in: costCenterIds } };
+    } else {
+      // GESTOR general view: restricted to their CCs (costCenterIds already populated above)
+      ccFilter = costCenterIds.length > 0
+        ? { costCenterId: { in: costCenterIds } }
+        : {};
+    }
+
     const budgets = await prisma.budgetEntry.findMany({
       where: {
         ...tenantFilter,
-        // When in general view (MASTER), include ALL entries regardless of costCenterId (including null ones).
-        // When specific CCs are requested, use OR to also include entries with null costCenterId
-        // (entries saved without a specific CC, using the old 'DEFAULT' → null approach).
-        ...(isGeneralView && user.role === 'MASTER'
-          ? {}
-          : {
-            OR: [
-              { costCenterId: { in: costCenterIds } },
-              { costCenterId: null }
-            ]
-          }
-        )
+        ...ccFilter
       }
     });
 

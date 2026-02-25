@@ -56,7 +56,8 @@ export async function GET() {
             })),
             costCenters: costCenters.map(cc => ({
                 id: cc.id,
-                name: cc.name
+                name: cc.name,
+                tenantId: cc.tenantId
             }))
         });
     } catch (error: any) {

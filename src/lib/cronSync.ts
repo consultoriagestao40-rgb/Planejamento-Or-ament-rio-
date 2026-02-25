@@ -80,11 +80,13 @@ export async function runCronSync(reqYear: number) {
         const validCostCenters = new Set((await prisma.costCenter.findMany({ where: { tenantId: t.id }, select: { id: true } })).map(c => c.id));
 
         for (const viewMode of ['competencia', 'caixa'] as const) {
-            const start = `${reqYear - 1}-01-01`;
-            const end = `${reqYear + 1}-12-31`;
+            // Widen the search window by 2 months before/after to catch Competência vs Caixa mismatches,
+            // without blowing up Conta Azul's backend with a 500 error on large 3-year requests.
+            const startStr = `${reqYear - 1}-11-01`;
+            const endStr = `${reqYear + 1}-02-28`;
 
-            const receivablesUrl = `https://api-v2.contaazul.com/v1/financeiro/eventos-financeiros/contas-a-receber/buscar?data_vencimento_de=${start}&data_vencimento_ate=${end}&tamanho_pagina=100`;
-            const payablesUrl = `https://api-v2.contaazul.com/v1/financeiro/eventos-financeiros/contas-a-pagar/buscar?data_vencimento_de=${start}&data_vencimento_ate=${end}&tamanho_pagina=100`;
+            const receivablesUrl = `https://api-v2.contaazul.com/v1/financeiro/eventos-financeiros/contas-a-receber/buscar?data_vencimento_de=${startStr}&data_vencimento_ate=${endStr}&tamanho_pagina=100`;
+            const payablesUrl = `https://api-v2.contaazul.com/v1/financeiro/eventos-financeiros/contas-a-pagar/buscar?data_vencimento_de=${startStr}&data_vencimento_ate=${endStr}&tamanho_pagina=100`;
 
             const receivables = await fetchAllTransactionsForYear(token, receivablesUrl, reqYear, viewMode);
             const payables = await fetchAllTransactionsForYear(token, payablesUrl, reqYear, viewMode);

@@ -75,7 +75,7 @@ export default function BudgetGrid({
     const [activeMonth, setActiveMonth] = useState<number>(0);
     const [isSavingBudget, setIsSavingBudget] = useState(false);
     // --- Budget Drill-Down State ---
-    const [budgetDrillModal, setBudgetDrillModal] = useState<{ categoryId: string, categoryName: string, month: number, entries: any[], loading: boolean } | null>(null);
+    const [budgetDrillModal, setBudgetDrillModal] = useState<{ categoryId: string, categoryName: string, month: number, entries: any[], loading: boolean, drillStep: 'company' | 'costcenter' | 'detail', drillCompany: string | null, drillCC: string | null } | null>(null);
 
     const evaluateFormula = (formula: string): number => {
         if (!formula.startsWith('=')) {
@@ -707,7 +707,7 @@ export default function BudgetGrid({
     const handleBudgetDrillDown = async (nodeId: string, nodeName: string, monthIndex: number) => {
         if (viewPeriod !== 'month') return;
         const categoryId = nodeId.split(',')[0];
-        setBudgetDrillModal({ categoryId, categoryName: nodeName, month: monthIndex, entries: [], loading: true });
+        setBudgetDrillModal({ categoryId, categoryName: nodeName, month: monthIndex, entries: [], loading: true, drillStep: 'company', drillCompany: null, drillCC: null });
         try {
             const res = await fetch(`/api/budgets?costCenterId=DEFAULT&tenantId=ALL&year=${selectedYear}`);
             const data = await res.json();
@@ -1207,59 +1207,112 @@ export default function BudgetGrid({
                         {renderSummaryRow('(=) LUCRO LÍQUIDO', 'vNetProfit', true, '#0f172a', '#fbbf24')}
                     </tbody>
                 </table>
-                {/* Budget Drill-Down Modal */}
-                {budgetDrillModal && (
-                    <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', background: 'rgba(0,0,0,0.5)', zIndex: 50, display: 'flex', justifyContent: 'center', alignItems: 'center' }} onClick={() => setBudgetDrillModal(null)}>
-                        <div style={{ background: 'white', padding: '2rem', borderRadius: '12px', width: '90vw', maxWidth: '700px', maxHeight: '85vh', overflowY: 'auto', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.25)' }} onClick={e => e.stopPropagation()}>
-                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem', borderBottom: '1px solid #e2e8f0', paddingBottom: '0.75rem' }}>
-                                <div>
-                                    <h3 style={{ margin: 0, fontSize: '1.2rem', fontWeight: 'bold', color: '#1e293b' }}>📊 Detalhamento do Orçado</h3>
-                                    <div style={{ color: '#64748b', fontSize: '0.85rem', marginTop: '0.25rem' }}>
-                                        {budgetDrillModal.categoryName} — {MONTHS[budgetDrillModal.month]} / {selectedYear}
-                                    </div>
-                                </div>
-                                <button onClick={() => setBudgetDrillModal(null)} style={{ background: 'none', border: 'none', fontSize: '1.5rem', cursor: 'pointer', color: '#94a3b8' }}>×</button>
-                            </div>
+                {/* Budget Drill-Down Modal — 3-Step */}
+                {budgetDrillModal && (() => {
+                    const { entries, loading, categoryName, month, drillStep, drillCompany, drillCC } = budgetDrillModal;
 
-                            {budgetDrillModal.loading ? (
-                                <div style={{ textAlign: 'center', padding: '2rem', color: '#64748b' }}>Carregando...</div>
-                            ) : budgetDrillModal.entries.length === 0 ? (
-                                <div style={{ textAlign: 'center', padding: '2rem', color: '#94a3b8', fontSize: '0.9rem' }}>Nenhum orçamento lançado para esta categoria neste mês.</div>
-                            ) : (
-                                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem' }}>
-                                    <thead>
-                                        <tr style={{ background: '#f8fafc' }}>
-                                            <th style={{ padding: '0.6rem 0.75rem', textAlign: 'left', borderBottom: '2px solid #e2e8f0', color: '#475569', fontWeight: 600 }}>Empresa</th>
-                                            <th style={{ padding: '0.6rem 0.75rem', textAlign: 'left', borderBottom: '2px solid #e2e8f0', color: '#475569', fontWeight: 600 }}>Centro de Custo</th>
-                                            <th style={{ padding: '0.6rem 0.75rem', textAlign: 'right', borderBottom: '2px solid #e2e8f0', color: '#475569', fontWeight: 600 }}>Orçado</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        {budgetDrillModal.entries.map((e: any, idx: number) => {
-                                            const company = companies.find(c => c.id === e.tenantId);
-                                            const cc = costCenters.find(c => c.id === e.costCenterId);
-                                            return (
-                                                <tr key={idx} style={{ borderBottom: '1px solid #f1f5f9', background: idx % 2 === 0 ? '#fff' : '#fafafa' }}>
-                                                    <td style={{ padding: '0.6rem 0.75rem', color: '#334155' }}>{company?.name || e.tenantId}</td>
-                                                    <td style={{ padding: '0.6rem 0.75rem', color: '#64748b' }}>{cc?.name || (e.costCenterId ? e.costCenterId : 'Geral')}</td>
-                                                    <td style={{ padding: '0.6rem 0.75rem', textAlign: 'right', color: '#1e293b', fontWeight: 600 }}>{formatCurrency(e.amount)}</td>
+                    // Group entries by company
+                    const byCompany: Record<string, { name: string, total: number, entries: any[] }> = {};
+                    entries.forEach((e: any) => {
+                        if (!byCompany[e.tenantId]) {
+                            const comp = companies.find(c => c.id === e.tenantId);
+                            byCompany[e.tenantId] = { name: comp?.name || e.tenantId, total: 0, entries: [] };
+                        }
+                        byCompany[e.tenantId].total += e.amount || 0;
+                        byCompany[e.tenantId].entries.push(e);
+                    });
+
+                    // Group entries by CC for selected company
+                    const companyEntries = drillCompany ? (byCompany[drillCompany]?.entries || []) : [];
+                    const byCC: Record<string, { name: string, total: number, entries: any[] }> = {};
+                    companyEntries.forEach((e: any) => {
+                        const key = e.costCenterId || '__null__';
+                        if (!byCC[key]) {
+                            const cc = costCenters.find(c => c.id === e.costCenterId);
+                            byCC[key] = { name: cc?.name || (e.costCenterId ? e.costCenterId : 'Geral'), total: 0, entries: [] };
+                        }
+                        byCC[key].total += e.amount || 0;
+                        byCC[key].entries.push(e);
+                    });
+
+                    // Detail entries for selected CC
+                    const ccKey = drillCC || '__null__';
+                    const detailEntries = drillCC !== null ? (byCC[ccKey]?.entries || []) : [];
+
+                    const stepLabel = drillStep === 'company' ? 'Empresas' : drillStep === 'costcenter' ? byCompany[drillCompany!]?.name : (byCC[ccKey]?.name || 'Detalhe');
+
+                    return (
+                        <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', background: 'rgba(0,0,0,0.5)', zIndex: 50, display: 'flex', justifyContent: 'center', alignItems: 'center' }} onClick={() => setBudgetDrillModal(null)}>
+                            <div style={{ background: 'white', padding: '1.5rem 2rem', borderRadius: '12px', width: '90vw', maxWidth: '650px', maxHeight: '85vh', overflowY: 'auto', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.25)' }} onClick={e => e.stopPropagation()}>
+                                {/* Header */}
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '1rem', borderBottom: '1px solid #e2e8f0', paddingBottom: '0.75rem' }}>
+                                    <div>
+                                        <h3 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 'bold', color: '#1e293b' }}>📊 Orçado — {categoryName}</h3>
+                                        <div style={{ color: '#64748b', fontSize: '0.8rem', marginTop: '0.2rem' }}>{MONTHS[month]} / {selectedYear}</div>
+                                        {/* Breadcrumb */}
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', marginTop: '0.4rem', fontSize: '0.78rem', color: '#94a3b8' }}>
+                                            <span style={{ color: drillStep === 'company' ? '#2563eb' : '#94a3b8', fontWeight: drillStep === 'company' ? 700 : 400, cursor: drillStep !== 'company' ? 'pointer' : 'default' }} onClick={() => drillStep !== 'company' && setBudgetDrillModal(p => p ? { ...p, drillStep: 'company', drillCompany: null, drillCC: null } : null)}>Empresas</span>
+                                            {drillStep !== 'company' && <><span>›</span><span style={{ color: drillStep === 'costcenter' ? '#2563eb' : '#94a3b8', fontWeight: drillStep === 'costcenter' ? 700 : 400, cursor: drillStep === 'detail' ? 'pointer' : 'default' }} onClick={() => drillStep === 'detail' && setBudgetDrillModal(p => p ? { ...p, drillStep: 'costcenter', drillCC: null } : null)}>{byCompany[drillCompany!]?.name}</span></>}
+                                            {drillStep === 'detail' && <><span>›</span><span style={{ color: '#2563eb', fontWeight: 700 }}>{byCC[ccKey]?.name || 'Detalhe'}</span></>}
+                                        </div>
+                                    </div>
+                                    <button onClick={() => setBudgetDrillModal(null)} style={{ background: 'none', border: 'none', fontSize: '1.5rem', cursor: 'pointer', color: '#94a3b8', flexShrink: 0 }}>×</button>
+                                </div>
+
+                                {loading ? (
+                                    <div style={{ textAlign: 'center', padding: '2rem', color: '#64748b' }}>Carregando...</div>
+                                ) : entries.length === 0 ? (
+                                    <div style={{ textAlign: 'center', padding: '2rem', color: '#94a3b8', fontSize: '0.9rem' }}>Nenhum orçamento lançado para esta categoria neste mês.</div>
+                                ) : (
+                                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem' }}>
+                                        <thead>
+                                            <tr style={{ background: '#f8fafc' }}>
+                                                {drillStep === 'company' && <><th style={{ padding: '0.6rem 0.75rem', textAlign: 'left', borderBottom: '2px solid #e2e8f0', color: '#475569', fontWeight: 600 }}>Empresa</th><th style={{ padding: '0.6rem 0.75rem', textAlign: 'right', borderBottom: '2px solid #e2e8f0', color: '#475569', fontWeight: 600 }}>Orçado</th></>}
+                                                {drillStep === 'costcenter' && <><th style={{ padding: '0.6rem 0.75rem', textAlign: 'left', borderBottom: '2px solid #e2e8f0', color: '#475569', fontWeight: 600 }}>Centro de Custo</th><th style={{ padding: '0.6rem 0.75rem', textAlign: 'right', borderBottom: '2px solid #e2e8f0', color: '#475569', fontWeight: 600 }}>Orçado</th></>}
+                                                {drillStep === 'detail' && <><th style={{ padding: '0.6rem 0.75rem', textAlign: 'left', borderBottom: '2px solid #e2e8f0', color: '#475569', fontWeight: 600 }}>Empresa</th><th style={{ padding: '0.6rem 0.75rem', textAlign: 'left', borderBottom: '2px solid #e2e8f0', color: '#475569', fontWeight: 600 }}>Centro de Custo</th><th style={{ padding: '0.6rem 0.75rem', textAlign: 'right', borderBottom: '2px solid #e2e8f0', color: '#475569', fontWeight: 600 }}>Orçado</th></>}
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {drillStep === 'company' && Object.entries(byCompany).map(([tid, data], idx) => (
+                                                <tr key={tid} onClick={() => setBudgetDrillModal(p => p ? { ...p, drillStep: 'costcenter', drillCompany: tid } : null)} style={{ borderBottom: '1px solid #f1f5f9', background: idx % 2 === 0 ? '#fff' : '#fafafa', cursor: 'pointer' }} onMouseEnter={e => (e.currentTarget.style.background = '#f0f9ff')} onMouseLeave={e => (e.currentTarget.style.background = idx % 2 === 0 ? '#fff' : '#fafafa')}>
+                                                    <td style={{ padding: '0.65rem 0.75rem', color: '#2563eb', fontWeight: 600 }}>{data.name} ›</td>
+                                                    <td style={{ padding: '0.65rem 0.75rem', textAlign: 'right', color: '#1e293b', fontWeight: 600 }}>{formatCurrency(data.total)}</td>
                                                 </tr>
-                                            );
-                                        })}
-                                    </tbody>
-                                    <tfoot>
-                                        <tr style={{ background: '#f0f9ff', fontWeight: 700 }}>
-                                            <td colSpan={2} style={{ padding: '0.65rem 0.75rem', color: '#0369a1', borderTop: '2px solid #bae6fd' }}>Total</td>
-                                            <td style={{ padding: '0.65rem 0.75rem', textAlign: 'right', color: '#0369a1', borderTop: '2px solid #bae6fd' }}>
-                                                {formatCurrency(budgetDrillModal.entries.reduce((s: number, e: any) => s + (e.amount || 0), 0))}
-                                            </td>
-                                        </tr>
-                                    </tfoot>
-                                </table>
-                            )}
+                                            ))}
+                                            {drillStep === 'costcenter' && Object.entries(byCC).map(([key, data], idx) => (
+                                                <tr key={key} onClick={() => setBudgetDrillModal(p => p ? { ...p, drillStep: 'detail', drillCC: key === '__null__' ? null : key } : null)} style={{ borderBottom: '1px solid #f1f5f9', background: idx % 2 === 0 ? '#fff' : '#fafafa', cursor: 'pointer' }} onMouseEnter={e => (e.currentTarget.style.background = '#f0f9ff')} onMouseLeave={e => (e.currentTarget.style.background = idx % 2 === 0 ? '#fff' : '#fafafa')}>
+                                                    <td style={{ padding: '0.65rem 0.75rem', color: '#2563eb', fontWeight: 600 }}>{data.name} ›</td>
+                                                    <td style={{ padding: '0.65rem 0.75rem', textAlign: 'right', color: '#1e293b', fontWeight: 600 }}>{formatCurrency(data.total)}</td>
+                                                </tr>
+                                            ))}
+                                            {drillStep === 'detail' && detailEntries.map((e: any, idx: number) => {
+                                                const comp = companies.find(c => c.id === e.tenantId);
+                                                const cc = costCenters.find(c => c.id === e.costCenterId);
+                                                return (
+                                                    <tr key={idx} style={{ borderBottom: '1px solid #f1f5f9', background: idx % 2 === 0 ? '#fff' : '#fafafa' }}>
+                                                        <td style={{ padding: '0.65rem 0.75rem', color: '#334155' }}>{comp?.name || e.tenantId}</td>
+                                                        <td style={{ padding: '0.65rem 0.75rem', color: '#64748b' }}>{cc?.name || (e.costCenterId ? e.costCenterId : 'Geral')}</td>
+                                                        <td style={{ padding: '0.65rem 0.75rem', textAlign: 'right', color: '#1e293b', fontWeight: 600 }}>{formatCurrency(e.amount)}</td>
+                                                    </tr>
+                                                );
+                                            })}
+                                        </tbody>
+                                        <tfoot>
+                                            <tr style={{ background: '#f0f9ff', fontWeight: 700 }}>
+                                                <td colSpan={drillStep === 'detail' ? 2 : 1} style={{ padding: '0.65rem 0.75rem', color: '#0369a1', borderTop: '2px solid #bae6fd' }}>Total</td>
+                                                <td style={{ padding: '0.65rem 0.75rem', textAlign: 'right', color: '#0369a1', borderTop: '2px solid #bae6fd' }}>
+                                                    {drillStep === 'company' && formatCurrency(Object.values(byCompany).reduce((s, d) => s + d.total, 0))}
+                                                    {drillStep === 'costcenter' && formatCurrency(Object.values(byCC).reduce((s, d) => s + d.total, 0))}
+                                                    {drillStep === 'detail' && formatCurrency(detailEntries.reduce((s: number, e: any) => s + (e.amount || 0), 0))}
+                                                </td>
+                                            </tr>
+                                        </tfoot>
+                                    </table>
+                                )}
+                            </div>
                         </div>
-                    </div>
-                )}
+                    );
+                })()}
                 {selectedCell && (
                     <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', background: 'rgba(0,0,0,0.5)', zIndex: 50, display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
                         <div style={{ background: 'white', padding: '2rem', borderRadius: '12px', width: '90vw', maxWidth: '1000px', height: '90vh', maxHeight: '90vh', overflowY: 'auto', boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)', display: 'flex', flexDirection: 'column' }}>

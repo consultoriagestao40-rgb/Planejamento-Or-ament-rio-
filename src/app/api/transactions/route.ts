@@ -85,10 +85,6 @@ async function fetchTransactions(accessToken: string, baseUrl: string, costCente
 
     while (hasMore && page <= 50) {
         let url = `${baseUrl}&pagina=${page}`;
-        // Optimization: filter cost center strictly in the API query if it's uniquely targeting one
-        if (isFiltered && targetCcs.length === 1) {
-            url += `&centro_custo_id=${targetCcs[0]}`;
-        }
 
         try {
             const res = await fetch(url, { headers: { 'Authorization': `Bearer ${accessToken}` } });
@@ -136,7 +132,7 @@ async function fetchTransactions(accessToken: string, baseUrl: string, costCente
                     transactions.push({
                         id: item.id,
                         date: dateStr,
-                        description: item.descricao || 'Sem descrição',
+                        description: [item.descricao, item.observacao].filter(Boolean).join(' - ') || 'Sem descrição',
                         value: amountPerCc,
                         customer: item.cliente ? item.cliente.nome : (item.fornecedor ? item.fornecedor.nome : 'N/A'),
                         status: item.status,
@@ -149,7 +145,9 @@ async function fetchTransactions(accessToken: string, baseUrl: string, costCente
                         transactions.push({
                             id: `${item.id}-${cc.id}`,
                             date: dateStr,
-                            description: ccsCount > 1 ? `${item.descricao || 'Sem descrição'} (Rateio ${cc.nome})` : (item.descricao || 'Sem descrição'),
+                            description: ccsCount > 1
+                                ? `${[item.descricao, item.observacao].filter(Boolean).join(' - ') || 'Sem descrição'} (Rateio ${cc.nome})`
+                                : ([item.descricao, item.observacao].filter(Boolean).join(' - ') || 'Sem descrição'),
                             value: amountPerCc,
                             customer: item.cliente ? item.cliente.nome : (item.fornecedor ? item.fornecedor.nome : 'N/A'),
                             status: item.status,

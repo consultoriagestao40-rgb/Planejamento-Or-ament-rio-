@@ -1,8 +1,19 @@
 :root {
+  @keyframes spin-loading {
+    0% {
+      transform: rotate(0deg);
+    }
+
+    100% {
+      transform: rotate(360deg);
+    }
+  }
+
   /* Brand Colors */
-  --primary: 212 100% 48%; /* Blue 600 */
+  --primary: 212 100% 48%;
+  /* Blue 600 */
   --primary-foreground: 0 0% 100%;
-  
+
   --secondary: 210 40% 96.1%;
   --secondary-foreground: 222.2 47.4% 11.2%;
 
@@ -102,15 +113,36 @@ body {
 }
 
 /* Typography Utils */
-h1, h2, h3, h4, h5, h6 {
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
   margin: 0;
   font-weight: 600;
   letter-spacing: -0.025em;
 }
 
-h1 { font-size: 2rem; line-height: 2.5rem; }
-h2 { font-size: 1.5rem; line-height: 2rem; }
-h3 { font-size: 1.25rem; line-height: 1.75rem; }
+h1 {
+  font-size: 2rem;
+  line-height: 2.5rem;
+}
 
-.text-sm { font-size: 0.875rem; }
-.text-muted { color: hsl(var(--muted-foreground)); }
+h2 {
+  font-size: 1.5rem;
+  line-height: 2rem;
+}
+
+h3 {
+  font-size: 1.25rem;
+  line-height: 1.75rem;
+}
+
+.text-sm {
+  font-size: 0.875rem;
+}
+
+.text-muted {
+  color: hsl(var(--muted-foreground));
+}

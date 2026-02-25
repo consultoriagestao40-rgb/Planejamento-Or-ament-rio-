@@ -58,6 +58,7 @@ model BudgetEntry {
   amount       Float
   radarAmount  Float?
   isLocked     Boolean  @default(false)
+  observation  String?  // Optional justification/observation text
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 

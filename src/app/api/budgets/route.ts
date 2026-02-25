@@ -129,7 +129,8 @@ export async function GET(request: Request) {
         year: b.year,
         amount: b.amount || 0,
         radarAmount: b.radarAmount,
-        isLocked: b.isLocked || false
+        isLocked: b.isLocked || false,
+        observation: b.observation || null
       }));
       return NextResponse.json({ success: true, data: rawEntries });
     }
@@ -250,6 +251,7 @@ export async function POST(request: Request) {
         if (entry.amount !== undefined) updateData.amount = parseFloat(entry.amount.toString() || "0");
         if (entry.radarAmount !== undefined) updateData.radarAmount = entry.radarAmount === null ? null : parseFloat(entry.radarAmount.toString() || "0");
         if (entry.isLocked !== undefined) updateData.isLocked = !!entry.isLocked;
+        if (entry.observation !== undefined) updateData.observation = entry.observation || null;
 
         const createData: any = {
           tenantId: targetTenantId,
@@ -259,7 +261,8 @@ export async function POST(request: Request) {
           year: parseInt(year.toString()),
           amount: entry.amount !== undefined ? parseFloat(entry.amount.toString() || "0") : 0,
           radarAmount: entry.radarAmount !== undefined && entry.radarAmount !== null ? parseFloat(entry.radarAmount.toString() || "0") : null,
-          isLocked: !!entry.isLocked
+          isLocked: !!entry.isLocked,
+          observation: entry.observation || null
         };
 
         const budget = await (prisma.budgetEntry as any).upsert({

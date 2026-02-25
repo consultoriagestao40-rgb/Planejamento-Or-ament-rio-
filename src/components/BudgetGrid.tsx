@@ -74,6 +74,7 @@ export default function BudgetGrid({
     const [lockedMonths, setLockedMonths] = useState<boolean[]>(new Array(12).fill(false));
     const [activeMonth, setActiveMonth] = useState<number>(0);
     const [isSavingBudget, setIsSavingBudget] = useState(false);
+    const [modalObservation, setModalObservation] = useState<string>('');
     // --- Budget Drill-Down State ---
     const [budgetDrillModal, setBudgetDrillModal] = useState<{ categoryId: string, categoryName: string, month: number, entries: any[], loading: boolean, drillStep: 'company' | 'costcenter' | 'detail', drillCompany: string | null, drillCC: string | null } | null>(null);
 
@@ -664,6 +665,8 @@ export default function BudgetGrid({
                 } else {
                     entry.radarAmount = numericVal;
                 }
+                // Include observation on every entry (shared for all months of this category/CC)
+                entry.observation = modalObservation.trim() || null;
                 entries.push(entry);
             }
 
@@ -753,6 +756,10 @@ export default function BudgetGrid({
         setModalValues(initialValues);
         setLockedMonths(initialLocks);
         setActiveMonth(monthIndex);
+        // Load existing observation from the first month that has one
+        const existingObs = new Array(12).fill(null).map((_, i) => budgetValues[`${targetIdToEdit}-${i}`] as any);
+        const firstObs = existingObs.find((d: any) => d?.observation);
+        setModalObservation(firstObs?.observation || '');
     };
 
     const replicateValue = () => {
@@ -1309,6 +1316,15 @@ export default function BudgetGrid({
                                         </tfoot>
                                     </table>
                                 )}
+                                {/* Observation display for detail step */}
+                                {drillStep === 'detail' && detailEntries.some((e: any) => e.observation) && (
+                                    <div style={{ marginTop: '1rem', padding: '0.75rem 1rem', background: '#fefce8', border: '1px solid #fde68a', borderRadius: '8px', borderLeft: '4px solid #f59e0b' }}>
+                                        <div style={{ fontSize: '0.75rem', fontWeight: 700, color: '#92400e', marginBottom: '0.35rem' }}>📝 Observação / Justificativa</div>
+                                        {detailEntries.filter((e: any) => e.observation).map((e: any, idx: number) => (
+                                            <p key={idx} style={{ margin: 0, fontSize: '0.85rem', color: '#78350f', lineHeight: '1.5' }}>{e.observation}</p>
+                                        ))}
+                                    </div>
+                                )}
                             </div>
                         </div>
                     );
@@ -1556,6 +1572,21 @@ export default function BudgetGrid({
                                         </div>
                                     );
                                 })}
+                            </div>
+
+                            <div style={{ marginTop: '1.25rem', borderTop: '1px solid #e2e8f0', paddingTop: '1rem' }}>
+                                <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, color: '#475569', marginBottom: '0.4rem' }}>
+                                    📝 Observação / Justificativa
+                                </label>
+                                <textarea
+                                    value={modalObservation}
+                                    onChange={e => setModalObservation(e.target.value)}
+                                    placeholder="Ex: Aumento previsto por contratação, reajuste contratual, sazonalidade..."
+                                    rows={3}
+                                    style={{ width: '100%', padding: '0.6rem 0.75rem', border: '1px solid #e2e8f0', borderRadius: '8px', fontSize: '0.85rem', color: '#1e293b', resize: 'vertical', fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box', lineHeight: '1.5' }}
+                                    onFocus={e => (e.target.style.borderColor = '#2563eb')}
+                                    onBlur={e => (e.target.style.borderColor = '#e2e8f0')}
+                                />
                             </div>
 
                             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '1rem', marginTop: '1rem' }}>

@@ -74,6 +74,8 @@ export default function BudgetGrid({
     const [lockedMonths, setLockedMonths] = useState<boolean[]>(new Array(12).fill(false));
     const [activeMonth, setActiveMonth] = useState<number>(0);
     const [isSavingBudget, setIsSavingBudget] = useState(false);
+    // --- Budget Drill-Down State ---
+    const [budgetDrillModal, setBudgetDrillModal] = useState<{ categoryId: string, categoryName: string, month: number, entries: any[], loading: boolean } | null>(null);
 
     const evaluateFormula = (formula: string): number => {
         if (!formula.startsWith('=')) {
@@ -702,6 +704,26 @@ export default function BudgetGrid({
         }
     };
 
+    const handleBudgetDrillDown = async (nodeId: string, nodeName: string, monthIndex: number) => {
+        if (viewPeriod !== 'month') return;
+        const categoryId = nodeId.split(',')[0];
+        setBudgetDrillModal({ categoryId, categoryName: nodeName, month: monthIndex, entries: [], loading: true });
+        try {
+            const res = await fetch(`/api/budgets?costCenterId=DEFAULT&tenantId=ALL&year=${selectedYear}`);
+            const data = await res.json();
+            if (data.success) {
+                // Filter to this specific category and month (1-indexed in DB)
+                const dbMonth = monthIndex + 1;
+                const relevant = (data.data as any[]).filter(e => e.categoryId === categoryId && e.month === dbMonth && e.amount > 0);
+                setBudgetDrillModal(prev => prev ? { ...prev, entries: relevant, loading: false } : null);
+            } else {
+                setBudgetDrillModal(prev => prev ? { ...prev, loading: false } : null);
+            }
+        } catch {
+            setBudgetDrillModal(prev => prev ? { ...prev, loading: false } : null);
+        }
+    };
+
     const openBudgetModal = (nodeId: string, nodeName: string, monthIndex: number, type: 'budget' | 'radar') => {
         if (selectedCostCenter.includes('DEFAULT') || selectedCostCenter.length !== 1) {
             alert("Selecione um único centro de custo para lançar um valor");
@@ -820,19 +842,27 @@ export default function BudgetGrid({
                         return (
                             <React.Fragment key={i}>
                                 <td
-                                    onClick={() => isCellEditable && openBudgetModal(node.id, node.name, i, 'budget')}
+                                    onClick={() => {
+                                        if (viewPeriod === 'month') {
+                                            if (isCellEditable) {
+                                                openBudgetModal(node.id, node.name, i, 'budget');
+                                            } else {
+                                                handleBudgetDrillDown(node.id, node.name, i);
+                                            }
+                                        }
+                                    }}
                                     style={{
                                         borderLeft: '1px solid #f1f5f9',
                                         padding: '0.5rem',
                                         minWidth: '100px',
                                         whiteSpace: 'nowrap',
-                                        cursor: isCellEditable ? 'pointer' : (viewPeriod === 'quarter' ? 'default' : 'not-allowed'),
+                                        cursor: viewPeriod === 'month' ? 'pointer' : 'default',
                                         backgroundColor: '#fff',
                                         transition: 'background 0.2s'
                                     }}
-                                    onMouseEnter={(e) => { if (isCellEditable) e.currentTarget.style.backgroundColor = '#f8fafc'; }}
-                                    onMouseLeave={(e) => { if (isCellEditable) e.currentTarget.style.backgroundColor = '#fff'; }}
-                                    title={viewPeriod === 'quarter' ? "Mude para a Visão Mensal para editar" : (!isEditable ? "Selecione um único Centro de Custo para editar" : "")}
+                                    onMouseEnter={(e) => { if (viewPeriod === 'month') e.currentTarget.style.backgroundColor = '#f0f9ff'; }}
+                                    onMouseLeave={(e) => { if (viewPeriod === 'month') e.currentTarget.style.backgroundColor = '#fff'; }}
+                                    title={viewPeriod === 'quarter' ? 'Mude para a Visão Mensal para detalhes' : (isCellEditable ? 'Clique para editar o orçamento' : 'Clique para ver detalhes do orçamento')}
                                 >
                                     <div style={{ textAlign: 'right', fontSize: '0.8rem', color: '#334155', display: 'flex', alignItems: 'center', gap: '0.3rem', justifyContent: 'flex-end' }}>
                                         {isLocked && <span title="Orçamento Travado" style={{ fontSize: '0.7rem', color: '#ef4444' }}>🔒</span>}
@@ -1177,6 +1207,59 @@ export default function BudgetGrid({
                         {renderSummaryRow('(=) LUCRO LÍQUIDO', 'vNetProfit', true, '#0f172a', '#fbbf24')}
                     </tbody>
                 </table>
+                {/* Budget Drill-Down Modal */}
+                {budgetDrillModal && (
+                    <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', background: 'rgba(0,0,0,0.5)', zIndex: 50, display: 'flex', justifyContent: 'center', alignItems: 'center' }} onClick={() => setBudgetDrillModal(null)}>
+                        <div style={{ background: 'white', padding: '2rem', borderRadius: '12px', width: '90vw', maxWidth: '700px', maxHeight: '85vh', overflowY: 'auto', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.25)' }} onClick={e => e.stopPropagation()}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem', borderBottom: '1px solid #e2e8f0', paddingBottom: '0.75rem' }}>
+                                <div>
+                                    <h3 style={{ margin: 0, fontSize: '1.2rem', fontWeight: 'bold', color: '#1e293b' }}>📊 Detalhamento do Orçado</h3>
+                                    <div style={{ color: '#64748b', fontSize: '0.85rem', marginTop: '0.25rem' }}>
+                                        {budgetDrillModal.categoryName} — {MONTHS[budgetDrillModal.month]} / {selectedYear}
+                                    </div>
+                                </div>
+                                <button onClick={() => setBudgetDrillModal(null)} style={{ background: 'none', border: 'none', fontSize: '1.5rem', cursor: 'pointer', color: '#94a3b8' }}>×</button>
+                            </div>
+
+                            {budgetDrillModal.loading ? (
+                                <div style={{ textAlign: 'center', padding: '2rem', color: '#64748b' }}>Carregando...</div>
+                            ) : budgetDrillModal.entries.length === 0 ? (
+                                <div style={{ textAlign: 'center', padding: '2rem', color: '#94a3b8', fontSize: '0.9rem' }}>Nenhum orçamento lançado para esta categoria neste mês.</div>
+                            ) : (
+                                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem' }}>
+                                    <thead>
+                                        <tr style={{ background: '#f8fafc' }}>
+                                            <th style={{ padding: '0.6rem 0.75rem', textAlign: 'left', borderBottom: '2px solid #e2e8f0', color: '#475569', fontWeight: 600 }}>Empresa</th>
+                                            <th style={{ padding: '0.6rem 0.75rem', textAlign: 'left', borderBottom: '2px solid #e2e8f0', color: '#475569', fontWeight: 600 }}>Centro de Custo</th>
+                                            <th style={{ padding: '0.6rem 0.75rem', textAlign: 'right', borderBottom: '2px solid #e2e8f0', color: '#475569', fontWeight: 600 }}>Orçado</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {budgetDrillModal.entries.map((e: any, idx: number) => {
+                                            const company = companies.find(c => c.id === e.tenantId);
+                                            const cc = costCenters.find(c => c.id === e.costCenterId);
+                                            return (
+                                                <tr key={idx} style={{ borderBottom: '1px solid #f1f5f9', background: idx % 2 === 0 ? '#fff' : '#fafafa' }}>
+                                                    <td style={{ padding: '0.6rem 0.75rem', color: '#334155' }}>{company?.name || e.tenantId}</td>
+                                                    <td style={{ padding: '0.6rem 0.75rem', color: '#64748b' }}>{cc?.name || (e.costCenterId ? e.costCenterId : 'Geral')}</td>
+                                                    <td style={{ padding: '0.6rem 0.75rem', textAlign: 'right', color: '#1e293b', fontWeight: 600 }}>{formatCurrency(e.amount)}</td>
+                                                </tr>
+                                            );
+                                        })}
+                                    </tbody>
+                                    <tfoot>
+                                        <tr style={{ background: '#f0f9ff', fontWeight: 700 }}>
+                                            <td colSpan={2} style={{ padding: '0.65rem 0.75rem', color: '#0369a1', borderTop: '2px solid #bae6fd' }}>Total</td>
+                                            <td style={{ padding: '0.65rem 0.75rem', textAlign: 'right', color: '#0369a1', borderTop: '2px solid #bae6fd' }}>
+                                                {formatCurrency(budgetDrillModal.entries.reduce((s: number, e: any) => s + (e.amount || 0), 0))}
+                                            </td>
+                                        </tr>
+                                    </tfoot>
+                                </table>
+                            )}
+                        </div>
+                    </div>
+                )}
                 {selectedCell && (
                     <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', background: 'rgba(0,0,0,0.5)', zIndex: 50, display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
                         <div style={{ background: 'white', padding: '2rem', borderRadius: '12px', width: '90vw', maxWidth: '1000px', height: '90vh', maxHeight: '90vh', overflowY: 'auto', boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)', display: 'flex', flexDirection: 'column' }}>

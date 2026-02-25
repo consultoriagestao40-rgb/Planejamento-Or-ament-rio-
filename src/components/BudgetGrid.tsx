@@ -635,7 +635,7 @@ export default function BudgetGrid({
         if (!budgetModal) return;
         setIsSavingBudget(true);
         try {
-            const entries = [];
+            const entries: Record<string, any>[] = [];
             const companyParam = selectedCompany.includes('DEFAULT') ? 'ALL' : selectedCompany[0];
             for (let i = 0; i < 12; i++) {
                 const currentVal = modalValues[i];

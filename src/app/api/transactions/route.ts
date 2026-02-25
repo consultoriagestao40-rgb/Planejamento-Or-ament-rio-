@@ -52,7 +52,9 @@ export async function GET(request: Request) {
                 // Add company name to description for clarity when aggregated
                 const tenantTxns = [...receivables, ...payables].map(txn => ({
                     ...txn,
-                    description: tenants.length > 1 ? `[${t.name}] ${txn.description}` : txn.description
+                    description: tenants.length > 1 ? `[${t.name}] ${txn.description}` : txn.description,
+                    tenantName: t.name,
+                    tenantId: t.id
                 }));
 
                 allTransactions = [...allTransactions, ...tenantTxns];
@@ -152,6 +154,7 @@ async function fetchTransactions(accessToken: string, baseUrl: string, costCente
                     customer: item.cliente ? item.cliente.nome : (item.fornecedor ? item.fornecedor.nome : 'N/A'),
                     status: item.status,
                     ccCount: ccs.length,
+                    costCenters: ccs.length > 0 ? ccs.map((c: any) => ({ id: c.id, nome: c.nome })) : [{ id: 'NONE', nome: 'Geral' }],
                     debug_info: `V:${item.valor} | VO:${item.valor_original} | T:${item.total} | VL:${item.valor_liquido}`
                 };
 

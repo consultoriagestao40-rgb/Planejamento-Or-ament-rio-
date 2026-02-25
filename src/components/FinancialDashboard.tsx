@@ -77,8 +77,8 @@ export default function FinancialDashboard({
 
     return (
         <main style={{ width: '100%', minHeight: '100vh', backgroundColor: '#f8fafc', padding: '2rem 4rem', boxSizing: 'border-box' }}>
-            <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem', flexWrap: 'wrap', gap: '1rem' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', flexWrap: 'wrap' }}>
+            <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem', gap: '0.75rem', flexWrap: 'nowrap', overflow: 'hidden' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', flexShrink: 0 }}>
                     <h1 style={{ color: 'hsl(var(--primary))', margin: 0 }}>Budget Hub</h1>
                     {userRole === 'MASTER' && (
                         <a href="/users" style={{ padding: '0.4rem 0.8rem', backgroundColor: '#e2e8f0', color: '#334155', borderRadius: '6px', fontSize: '0.85rem', fontWeight: 600, textDecoration: 'none', transition: 'background 0.2s', marginLeft: '1rem' }} onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#cbd5e1'} onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#e2e8f0'}>
@@ -87,9 +87,9 @@ export default function FinancialDashboard({
                     )}
                 </div>
 
-                <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', flexWrap: 'wrap', flex: '1 1 auto', justifyContent: 'flex-end' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flex: '1 1 0', overflow: 'hidden', justifyContent: 'flex-end' }}>
                     {isConnected && companies.length > 0 && (
-                        <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+                        <div style={{ display: 'flex', gap: '0.5rem', overflowX: 'auto', flexShrink: 1, flexGrow: 1, maxWidth: '100%', msOverflowStyle: 'none', scrollbarWidth: 'none' }}>
                             {companies.map(c => (
                                 <div key={c.id} style={{
                                     display: 'inline-flex',
@@ -127,7 +127,7 @@ export default function FinancialDashboard({
                     )}
 
                     {isConnected && (
-                        <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
+                        <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center', flexShrink: 0 }}>
                             <a
                                 href={authUrl}
                                 style={{

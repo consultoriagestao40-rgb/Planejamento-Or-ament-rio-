@@ -773,7 +773,7 @@ export default function BudgetGrid({
         const totals = nodeTotals.get(node.id) || { budget: new Array(12).fill(0), realized: new Array(12).fill(0), radar: new Array(12).fill(0) };
         const isExpanded = expandedRows.has(node.id);
         const hasChildren = node.children.length > 0;
-        const isEditable = !hasChildren && !node.isSynthetic && selectedCostCenter.length === 1;
+        const isEditable = !hasChildren && !node.isSynthetic && selectedCostCenter.length === 1 && !selectedCostCenter.includes('DEFAULT');
 
         return (
             <React.Fragment key={node.id}>

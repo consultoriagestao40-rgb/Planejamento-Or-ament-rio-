@@ -174,13 +174,13 @@ export async function POST(request: Request) {
     const body = await request.json();
     const entries = body.entries ? body.entries : [body];
 
-    let targetTenantId = body.tenantId;
+    let targetTenantId = body.tenantId
+      // The frontend sends tenantId inside each entry, not at the body level.
+      // So also check entries[0].tenantId as the primary source.
+      || (entries[0]?.tenantId && entries[0].tenantId !== 'ALL' ? entries[0].tenantId : null);
 
     if (!targetTenantId || targetTenantId === 'ALL') {
-      // When the frontend doesn't specify a single company (viewing "Geral"),
-      // derive the correct tenant from the categoryId being saved.
-      // This prevents the FK constraint violation that happens when findFirst()
-      // returns a different company than the one that owns the category.
+      // Fallback: derive the correct tenant from the categoryId being saved.
       const firstEntry = entries[0];
       if (firstEntry?.categoryId) {
         const cat = await prisma.category.findUnique({ where: { id: firstEntry.categoryId }, select: { tenantId: true } });

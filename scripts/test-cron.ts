@@ -1,4 +1,4 @@
-import { runCronSync } from '../src/app/api/cron/sync/route';
+import { runCronSync } from '../src/lib/cronSync';
 
 async function test() {
     console.log("Starting runCronSync...");

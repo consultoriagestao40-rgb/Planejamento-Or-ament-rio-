@@ -98,9 +98,12 @@ export async function runCronSync(reqYear: number) {
                 if (txn.categories.length === 0) continue;
 
                 const ccsCount = txn.costCenters.length || 1;
-                const amountPerCc = txn.amount / ccsCount;
 
                 for (const cat of txn.categories) {
+                    const ratio = cat.percentual ? (cat.percentual / 100) : (1 / txn.categories.length);
+                    const amountForCat = txn.amount * ratio;
+                    const amountPerCc = amountForCat / ccsCount;
+
                     if (txn.costCenters.length === 0) {
                         const key = `${cat.id}|NONE|${txn.month}`;
                         aggregates.set(key, (aggregates.get(key) || 0) + amountPerCc);
@@ -137,7 +140,24 @@ export async function runCronSync(reqYear: number) {
             }
 
             if (createData.length > 0) {
-                await prisma.realizedEntry.createMany({ data: createData });
+                try {
+                    await prisma.realizedEntry.createMany({ data: createData });
+                } catch (batchError) {
+                    console.error(`Batch insert failed for ${viewMode}. Falling back to individual inserts...`);
+                    // Robust Fallback: If one ghost ID skips our filter and ruins the batch, insert the rest manually.
+                    let successCount = 0;
+                    let failCount = 0;
+                    for (const row of createData) {
+                        try {
+                            await prisma.realizedEntry.create({ data: row });
+                            successCount++;
+                        } catch (singleError: any) {
+                            failCount++;
+                            console.error(`Skipped invalid RealizedEntry row: cat=${row.categoryId} cc=${row.costCenterId}. Error: ${singleError.message}`);
+                        }
+                    }
+                    console.log(`Fallback complete: ${successCount} inserted, ${failCount} skipped.`);
+                }
             }
         }
         report.push({ tenant: t.name, status: 'Success' });

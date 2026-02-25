@@ -160,15 +160,22 @@ export async function POST(request: Request) {
     let targetTenantId = body.tenantId;
 
     if (!targetTenantId || targetTenantId === 'ALL') {
-      // Se o frontend mandar salvar sem especificar empresa, tentamos achar a primeira ou criar uma padrão pra test mode
-      const firstTenant = await prisma.tenant.findFirst();
-      if (!firstTenant) {
-        const newTenant = await prisma.tenant.create({
-          data: { name: 'Empresa Padrão', cnpj: '00000000000000' }
-        });
-        targetTenantId = newTenant.id;
-      } else {
-        targetTenantId = firstTenant.id;
+      // When the frontend doesn't specify a single company (viewing "Geral"),
+      // derive the correct tenant from the categoryId being saved.
+      // This prevents the FK constraint violation that happens when findFirst()
+      // returns a different company than the one that owns the category.
+      const firstEntry = entries[0];
+      if (firstEntry?.categoryId) {
+        const cat = await prisma.category.findUnique({ where: { id: firstEntry.categoryId }, select: { tenantId: true } });
+        targetTenantId = cat?.tenantId || null;
+      }
+      if (!targetTenantId) {
+        const firstTenant = await prisma.tenant.findFirst();
+        targetTenantId = firstTenant?.id || null;
+        if (!targetTenantId) {
+          const newTenant = await prisma.tenant.create({ data: { name: 'Empresa Padrão', cnpj: '00000000000000' } });
+          targetTenantId = newTenant.id;
+        }
       }
     }
 

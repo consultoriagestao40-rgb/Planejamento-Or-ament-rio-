@@ -35,35 +35,33 @@ export async function GET(request: Request) {
         const nextDate = new Date(year, month + 2, 0); // Last day of next month
         const endStr = `${nextDate.getFullYear()}-${String(nextDate.getMonth() + 1).padStart(2, '0')}-${String(nextDate.getDate()).padStart(2, '0')}`;
 
-        let allTransactions: any[] = [];
-
-        for (const t of tenants) {
+        // Fetch concurrently to prevent Vercel 15s Timeout
+        const tenantPromises = tenants.map(async (t) => {
             try {
                 const { token } = await getValidAccessToken(t.id);
 
-                // Fetch Receivables
                 const receivablesUrl = `https://api-v2.contaazul.com/v1/financeiro/eventos-financeiros/contas-a-receber/buscar?data_vencimento_de=${startStr}&data_vencimento_ate=${endStr}&tamanho_pagina=100`;
-                const receivables = await fetchTransactions(token, receivablesUrl, costCenterId, categoryId, year, month, viewMode);
-
-                // Fetch Payables
                 const payablesUrl = `https://api-v2.contaazul.com/v1/financeiro/eventos-financeiros/contas-a-pagar/buscar?data_vencimento_de=${startStr}&data_vencimento_ate=${endStr}&tamanho_pagina=100`;
-                const payables = await fetchTransactions(token, payablesUrl, costCenterId, categoryId, year, month, viewMode);
 
-                // Add company name to description for clarity when aggregated
-                const tenantTxns = [...receivables, ...payables].map(txn => ({
+                const [receivables, payables] = await Promise.all([
+                    fetchTransactions(token, receivablesUrl, costCenterId, categoryId, year, month, viewMode),
+                    fetchTransactions(token, payablesUrl, costCenterId, categoryId, year, month, viewMode)
+                ]);
+
+                return [...receivables, ...payables].map(txn => ({
                     ...txn,
                     description: tenants.length > 1 ? `[${t.name}] ${txn.description}` : txn.description,
                     tenantName: t.name,
                     tenantId: t.id
                 }));
-
-                allTransactions = [...allTransactions, ...tenantTxns];
             } catch (err: any) {
                 console.error(`Failed to fetch transactions for tenant ${t.id}:`, err);
+                return [];
             }
-        }
+        });
 
-        allTransactions.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+        const results = await Promise.all(tenantPromises);
+        const allTransactions = results.flat().sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
 
         return NextResponse.json({
             success: true,
@@ -83,20 +81,15 @@ async function fetchTransactions(accessToken: string, baseUrl: string, costCente
 
     const targetCcs = costCenterIdStr.split(',').map(id => id.trim()).filter(id => id !== 'DEFAULT' && id !== 'Geral' && id !== '');
     const isFiltered = targetCcs.length > 0;
-    const isMultiSelect = targetCcs.length > 1;
-
-    let finalUrlBase = baseUrl;
-    // Filter by Cost Center if provided and only ONE is selected
-    if (isFiltered && !isMultiSelect) {
-        finalUrlBase += `&centro_custo_id=${targetCcs[0]}`;
-    }
-
-    // TWO-PASS approach for single CC
-    const singleCCItems: any[] = [];
-    const multiCCItems: any[] = [];
+    const targetCategoryIds = categoryId.split(',');
 
     while (hasMore && page <= 50) {
-        const url = `${finalUrlBase}&pagina=${page}`;
+        let url = `${baseUrl}&pagina=${page}`;
+        // Optimization: filter cost center strictly in the API query if it's uniquely targeting one
+        if (isFiltered && targetCcs.length === 1) {
+            url += `&centro_custo_id=${targetCcs[0]}`;
+        }
+
         try {
             const res = await fetch(url, { headers: { 'Authorization': `Bearer ${accessToken}` } });
             if (!res.ok) break;
@@ -109,19 +102,19 @@ async function fetchTransactions(accessToken: string, baseUrl: string, costCente
             items.forEach((item: any) => {
                 if ((item.status || '').toUpperCase().includes('CANCEL')) return;
 
-                const ccs = item.centros_de_custo || [];
-                if (isFiltered) {
-                    const matchesTarget = ccs.some((c: any) => targetCcs.includes(c.id));
-                    if (!matchesTarget) return;
-                }
-
                 const cats = item.categorias || [];
-                const targetCategoryIds = categoryId.split(',');
-                const hasCategory = cats.some((c: any) => targetCategoryIds.includes(c.id));
-                if (!hasCategory) return;
+                if (cats.length === 0) return;
+
+                // Align exactly with cronSync.ts: we assign 100% of the value solely to the FIRST category linked.
+                const primaryCat = cats[0];
+                if (!targetCategoryIds.includes(primaryCat.id)) return;
+
+                const ccs = item.centros_de_custo || [];
+                const ccsCount = ccs.length || 1;
 
                 let dateStr: string;
                 let amount: number;
+
                 if (viewMode === 'caixa') {
                     dateStr = item.data_vencimento || item.vencimento || item.data_competencia || item.data_pagamento;
                     amount = item.valor || item.valor_original || item.valor_liquido || item.total || 0;
@@ -133,39 +126,35 @@ async function fetchTransactions(accessToken: string, baseUrl: string, costCente
                 const dateObj = dateStr ? new Date(dateStr) : new Date();
                 if (dateObj.getMonth() !== targetMonth || dateObj.getFullYear() !== targetYear) return;
 
-                let finalAmount = amount;
-                let descriptionSuffix = '';
+                // Enforce positive absolute amounts to match BudgetGrid's subtraction matrix
+                const absAmount = Math.abs(amount);
+                const amountPerCc = absAmount / ccsCount;
 
-                // If multi-select, calculate proportional value
-                if (isMultiSelect) {
-                    const matchingCcs = ccs.filter((c: any) => targetCcs.includes(c.id)).length;
-                    const ccsCount = ccs.length || 1;
-                    if (matchingCcs < ccsCount) { // Partial coverage of umbrella
-                        finalAmount = amount * (matchingCcs / ccsCount);
-                        descriptionSuffix = ` (Proporcional: ${matchingCcs}/${ccsCount} CCs)`;
-                    }
-                }
+                if (ccs.length === 0) {
+                    if (isFiltered) return; // Ignore if user explicitly restricted by CC
 
-                const txn = {
-                    id: item.id,
-                    date: dateStr,
-                    description: (item.descricao || 'Sem descrição') + descriptionSuffix,
-                    value: finalAmount,
-                    customer: item.cliente ? item.cliente.nome : (item.fornecedor ? item.fornecedor.nome : 'N/A'),
-                    status: item.status,
-                    ccCount: ccs.length,
-                    costCenters: ccs.length > 0 ? ccs.map((c: any) => ({ id: c.id, nome: c.nome })) : [{ id: 'NONE', nome: 'Geral' }],
-                    debug_info: `V:${item.valor} | VO:${item.valor_original} | T:${item.total} | VL:${item.valor_liquido}`
-                };
-
-                if (isMultiSelect) {
-                    // Straight forward accumulation for multi-select
-                    transactions.push(txn);
+                    transactions.push({
+                        id: item.id,
+                        date: dateStr,
+                        description: item.descricao || 'Sem descrição',
+                        value: amountPerCc,
+                        customer: item.cliente ? item.cliente.nome : (item.fornecedor ? item.fornecedor.nome : 'N/A'),
+                        status: item.status,
+                        costCenters: [{ id: 'NONE', nome: 'Geral' }]
+                    });
                 } else {
-                    if (isFiltered && ccs.length > 1) {
-                        multiCCItems.push(txn);
-                    } else {
-                        singleCCItems.push(txn);
+                    for (const cc of ccs) {
+                        if (isFiltered && !targetCcs.includes(cc.id)) continue;
+
+                        transactions.push({
+                            id: `${item.id}-${cc.id}`,
+                            date: dateStr,
+                            description: ccsCount > 1 ? `${item.descricao || 'Sem descrição'} (Rateio ${cc.nome})` : (item.descricao || 'Sem descrição'),
+                            value: amountPerCc,
+                            customer: item.cliente ? item.cliente.nome : (item.fornecedor ? item.fornecedor.nome : 'N/A'),
+                            status: item.status,
+                            costCenters: [{ id: cc.id, nome: cc.nome }]
+                        });
                     }
                 }
             });
@@ -175,21 +164,6 @@ async function fetchTransactions(accessToken: string, baseUrl: string, costCente
         } catch (e) {
             hasMore = false;
         }
-    }
-
-    if (isMultiSelect) {
-        return transactions;
-    }
-
-    // Single select or global: prefer single-CC individual entries
-    if (singleCCItems.length > 0) {
-        return singleCCItems;
-    } else if (multiCCItems.length > 0) {
-        return multiCCItems.map(t => ({
-            ...t,
-            value: t.value / (t.ccCount || 1),
-            description: `${t.description} (÷${t.ccCount} CCs)`
-        }));
     }
 
     return transactions;

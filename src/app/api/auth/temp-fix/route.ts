@@ -22,6 +22,7 @@ export async function GET(req: NextRequest) {
             entryCC: e.costCenter?.name || 'Geral',
             categoryOwnerTenantId: e.category.tenantId,
             categoryName: e.category.name,
+            observation: e.observation,
             month: e.month,
             year: e.year
         }));

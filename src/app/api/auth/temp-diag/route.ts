@@ -4,43 +4,30 @@ import { prisma } from '@/lib/prisma';
 export async function GET(req: NextRequest) {
     try {
         const entries = await prisma.realizedEntry.findMany({
-            take: 2000,
-            orderBy: { createdAt: 'desc' }
+            where: { month: 0, year: 2026, viewMode: 'competencia' }, // Jan, Competencia
+            include: { category: { select: { name: true } } }
         });
 
-        const grouped: Record<string, { competencia?: number, caixa?: number }> = {};
+        const byCategory: Record<string, number> = {};
+        let totalJan = 0;
 
         for (const e of entries) {
-            const key = `${e.tenantId.substring(0, 4)}-${e.categoryId.substring(0, 4)}-${e.month}-${e.year}`;
-            if (!grouped[key]) grouped[key] = {};
-            if (e.viewMode === 'competencia') grouped[key].competencia = e.amount;
-            if (e.viewMode === 'caixa') grouped[key].caixa = e.amount;
+            const name = e.category?.name || 'Unknown';
+            byCategory[name] = (byCategory[name] || 0) + e.amount;
+            totalJan += e.amount;
         }
 
-        let diffCount = 0;
-        let totalCount = 0;
-        const diffs = [];
-
-        for (const key in grouped) {
-            totalCount++;
-            const vals = grouped[key];
-            if (vals.competencia !== vals.caixa) {
-                diffCount++;
-                if (diffs.length < 20) {
-                    diffs.push({ key, comp: vals.competencia, caixa: vals.caixa });
-                }
-            }
-        }
+        const topCategories = Object.entries(byCategory)
+            .sort((a, b) => b[1] - a[1])
+            .slice(0, 30)
+            .map(([name, amount]) => ({ name, amount }));
 
         return NextResponse.json({
             success: true,
-            stats: {
-                totalEntries: entries.length,
-                uniqueGroupsChecked: totalCount,
-                groupsWithDifferences: diffCount,
-                percentIdentical: totalCount > 0 ? ((totalCount - diffCount) / totalCount * 100).toFixed(2) + '%' : '0%'
-            },
-            sampleDiffs: diffs
+            month: "January 2026 (Competencia)",
+            totalRealized: totalJan,
+            entryCount: entries.length,
+            topCategories
         });
     } catch (error: any) {
         return NextResponse.json({ success: false, error: error.message }, { status: 500 });

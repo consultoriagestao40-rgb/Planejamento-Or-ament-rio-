@@ -486,7 +486,16 @@ export default function BudgetGrid({
 
         const finalRoots = Array.from(uniqueRootsMap.values());
 
-        // 6. FIX LEVELS & SORT
+        // 6. DEDUPLICATE CHILDREN (Critical for merged nodes across 4 companies)
+        map.forEach(node => {
+            if (node.children.length > 0) {
+                const uniqueChildren = new Map<string, CategoryNode>();
+                node.children.forEach(c => uniqueChildren.set(c.id, c));
+                node.children = Array.from(uniqueChildren.values());
+            }
+        });
+
+        // 7. FIX LEVELS & SORT
         const recalculateLevels = (nodes: CategoryNode[], lvl: number) => {
             nodes.sort((a, b) => (a.code || a.name).localeCompare(b.code || b.name, undefined, { numeric: true }));
             nodes.forEach(n => {

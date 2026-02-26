@@ -433,8 +433,11 @@ export default function BudgetGrid({
                 if (match) {
                     const synthParentCode = match[0];
                     const synthParent = codeMap.get(synthParentCode);
-                    if (synthParent && !synthParent.children.includes(node)) {
-                        synthParent.children.push(node);
+                    if (synthParent) {
+                        const alreadyHas = synthParent.children.some(c => c.id === node.id);
+                        if (!alreadyHas) {
+                            synthParent.children.push(node);
+                        }
                     }
                 }
             }
@@ -502,10 +505,8 @@ export default function BudgetGrid({
         const isNegatedCode = (code: string) => code.startsWith('06.1');
 
         const calculateNode = (node: CategoryNode, parentNegated = false) => {
-            const uniqueChildren = Array.from(new Set(node.children.map(c => c.id))).map(id => node.children.find(c => c.id === id)!);
-            node.children = uniqueChildren;
             const negated = parentNegated || isNegatedCode(node.code || '');
-            const childrenTotals = uniqueChildren.map(child => calculateNode(child, negated));
+            const childrenTotals = node.children.map(child => calculateNode(child, negated));
             const myBudget = new Array(12).fill(0);
             const myRealized = new Array(12).fill(0);
             const myRadar = new Array(12).fill(0);
@@ -545,7 +546,7 @@ export default function BudgetGrid({
 
         treeRoots.forEach(root => calculateNode(root));
         return totalsMap;
-    }, [treeRoots, budgetValues, realizedValues]);
+    }, [treeRoots, budgetValues, realizedValues, viewMode]);
 
     // --- DRE STRUCTURE ---
     const dreStructure = useMemo(() => {

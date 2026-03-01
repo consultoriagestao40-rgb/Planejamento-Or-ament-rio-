@@ -330,8 +330,8 @@ export default function BudgetGrid({
         });
 
         const syntheticParents = [
-            { code: '01.1', name: 'RECEITA DE SERVIÇOS', parentCode: '01' },
-            { code: '01.2', name: 'RECEITAS DE VENDAS', parentCode: '01' },
+            { code: '01.1', name: '01.1 - Receita de Serviços', parentCode: '01' },
+            { code: '01.2', name: '01.2 - Receitas de Vendas', parentCode: '01' },
             { code: '02.1', name: 'TRIBUTOS', parentCode: null },
             // CUSTOS OPERACIONAIS (03.1 to 03.9)
             { code: '03.1', name: '03.1 Salarios e Remuneração', parentCode: '03' },

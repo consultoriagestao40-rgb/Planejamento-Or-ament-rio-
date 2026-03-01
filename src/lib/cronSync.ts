@@ -29,8 +29,9 @@ async function fetchAllTransactionsForYear(accessToken: string, baseUrl: string,
                 let amount: number;
 
                 if (viewMode === 'caixa') {
-                    // Cash mode: Prioritize effective payment date, then due date
-                    dateStr = item.data_pagamento || item.vencimento || item.data_vencimento || item.data_competencia;
+                    // Cash mode: STRICTLY require a payment date. If not paid, it's not cash flow.
+                    if (!item.data_pagamento) return;
+                    dateStr = item.data_pagamento;
                     amount = item.valor || item.valor_liquido || item.valor_original || item.total || 0;
                 } else {
                     // Accrual mode: Prioritize competence date, then due date

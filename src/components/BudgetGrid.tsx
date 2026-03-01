@@ -449,19 +449,6 @@ export default function BudgetGrid({
 
         map.forEach(node => {
             if (!allChildren.has(node.id)) {
-                if ((node.code === '01.1' || node.code === '01.2') && !codeMap.has('01')) {
-                    const p01 = { id: `synth-01`, name: 'RECEITAS', parentId: null, children: [node], level: 0, code: '01', isSynthetic: true };
-                    map.set(p01.id, p01);
-                    codeMap.set('01', p01);
-                    allChildren.add(node.id);
-                    potentialRoots.push(p01);
-                    return;
-                } else if ((node.code === '01.1' || node.code === '01.2') && codeMap.has('01')) {
-                    const p01 = codeMap.get('01')!;
-                    if (!p01.children.includes(node)) p01.children.push(node);
-                    allChildren.add(node.id);
-                    return;
-                }
                 potentialRoots.push(node);
             }
         });
@@ -1234,21 +1221,21 @@ export default function BudgetGrid({
                         </tr>
                     </thead>
                     <tbody>
-                        {renderSummaryRow('RECEITA BRUTA', 'vRev', true, '#eff6ff', '#1e3a8a', 'rev')}
+                        {renderSummaryRow('01. RECEITA BRUTA', 'vRev', true, '#eff6ff', '#1e3a8a', 'rev')}
                         {expandedGroups.has('rev') && dreStructure.buckets.rev.map(root => renderNode(root))}
-                        {renderSummaryRow('TRIBUTO SOBRE FATURAMENTO', 'vTaxes', true, '#f1f5f9', '#64748b', 'taxes')}
+                        {renderSummaryRow('02. TRIBUTO SOBRE FATURAMENTO', 'vTaxes', true, '#f1f5f9', '#64748b', 'taxes')}
                         {expandedGroups.has('taxes') && dreStructure.buckets.taxes.map(root => renderNode(root))}
                         {renderSummaryRow('(=) RECEITA LÍQUIDA', 'vRecLiq', true, '#e0f2fe', '#0369a1')}
-                        {renderSummaryRow('CUSTO OPERACIONAL', 'vCosts', true, '#f1f5f9', '#64748b', 'costs')}
+                        {renderSummaryRow('03. CUSTO OPERACIONAL', 'vCosts', true, '#f1f5f9', '#64748b', 'costs')}
                         {expandedGroups.has('costs') && dreStructure.buckets.costs.map(root => renderNode(root))}
                         {renderSummaryRow('(=) MARGEM BRUTA', 'vGrossMarg', true, '#dcfce7', '#15803d')}
-                        {renderSummaryRow('DESPESA OPERACIONAL', 'vOpExp', true, '#f1f5f9', '#64748b', 'opExp')}
+                        {renderSummaryRow('04. DESPESA OPERACIONAL', 'vOpExp', true, '#f1f5f9', '#64748b', 'opExp')}
                         {expandedGroups.has('opExp') && dreStructure.buckets.opExp.map(root => renderNode(root))}
                         {renderSummaryRow('(=) MARGEM DE CONTRIBUIÇÃO', 'vContribMarg', true, '#fff7ed', '#c2410c')}
-                        {renderSummaryRow('DESPESAS ADMINISTRATIVAS', 'vAdminExp', true, '#f1f5f9', '#64748b', 'adminExp')}
+                        {renderSummaryRow('05. DESPESAS ADMINISTRATIVAS', 'vAdminExp', true, '#f1f5f9', '#64748b', 'adminExp')}
                         {expandedGroups.has('adminExp') && dreStructure.buckets.adminExp.map(root => renderNode(root))}
                         {renderSummaryRow('(=) EBITDA', 'vEbitda', true, '#fef3c7', '#b45309')}
-                        {renderSummaryRow('DESPESAS FINANCEIRAS', 'vFin', true, '#f1f5f9', '#64748b', 'fin')}
+                        {renderSummaryRow('06. DESPESAS FINANCEIRAS', 'vFin', true, '#f1f5f9', '#64748b', 'fin')}
                         {expandedGroups.has('fin') && dreStructure.buckets.fin.map(root => renderNode(root))}
                         {renderSummaryRow('(=) LUCRO LÍQUIDO', 'vNetProfit', true, '#0f172a', '#fbbf24')}
                     </tbody>

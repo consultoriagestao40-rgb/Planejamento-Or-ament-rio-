@@ -24,6 +24,7 @@ export default function FinancialDashboard({
     const [isSyncing, setIsSyncing] = useState(false);
     const [showAV, setShowAV] = useState(false);
     const [showAH, setShowAH] = useState(false);
+    const [showAH_MoM, setShowAH_MoM] = useState(false);
     const [showAR, setShowAR] = useState(false);
     const [userRole, setUserRole] = useState<'MASTER' | 'GESTOR'>((serverUserRole as 'MASTER' | 'GESTOR') || 'GESTOR');
 
@@ -220,6 +221,10 @@ export default function FinancialDashboard({
                                 AH (O x R)
                             </label>
                             <label style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.85rem', fontWeight: 600, color: '#475569', cursor: 'pointer' }}>
+                                <input type="checkbox" checked={showAH_MoM} onChange={(e) => setShowAH_MoM(e.target.checked)} style={{ cursor: 'pointer', width: '16px', height: '16px' }} />
+                                AH (R x Rant)
+                            </label>
+                            <label style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.85rem', fontWeight: 600, color: '#475569', cursor: 'pointer' }}>
                                 <input type="checkbox" checked={showAR} onChange={(e) => setShowAR(e.target.checked)} style={{ cursor: 'pointer', width: '16px', height: '16px' }} />
                                 Radar (R x R)
                             </label>
@@ -233,6 +238,8 @@ export default function FinancialDashboard({
                     setShowAV={setShowAV}
                     showAH={showAH}
                     setShowAH={setShowAH}
+                    showAH_MoM={showAH_MoM}
+                    setShowAH_MoM={setShowAH_MoM}
                     showAR={showAR}
                     setShowAR={setShowAR}
                     userRole={userRole}

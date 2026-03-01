@@ -11,6 +11,8 @@ interface BudgetGridProps {
     setShowAV: (val: boolean) => void;
     showAH: boolean;
     setShowAH: (val: boolean) => void;
+    showAH_MoM: boolean;
+    setShowAH_MoM: (val: boolean) => void;
     showAR: boolean;
     setShowAR: (val: boolean) => void;
     userRole: 'MASTER' | 'GESTOR';
@@ -38,6 +40,8 @@ export default function BudgetGrid({
     setShowAV,
     showAH,
     setShowAH,
+    showAH_MoM,
+    setShowAH_MoM,
     showAR,
     setShowAR,
     userRole,
@@ -931,6 +935,12 @@ export default function BudgetGrid({
                                     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end' }}>
                                         {showAV && <span style={{ fontSize: '0.65rem', color: '#94a3b8', fontWeight: 400 }}>AV: {avRealized.toFixed(1)}%</span>}
                                         {showAH && <span style={{ fontSize: '0.65rem', color: '#059669', fontWeight: 600 }}>AH: {ahValue.toFixed(1)}%</span>}
+                                        {showAH_MoM && i > 0 && viewPeriod === 'month' && (() => {
+                                            const prevR = totals.realized[i - 1];
+                                            const mom = prevR !== 0 ? ((totals.realized[i] / prevR) - 1) * 100 : 0;
+                                            const color = mom >= 0 ? '#059669' : '#ef4444';
+                                            return <span style={{ fontSize: '0.65rem', color, fontWeight: 700 }}>MoM: {mom > 0 ? '+' : ''}{mom.toFixed(1)}%</span>;
+                                        })()}
                                         {showAR && <span style={{ fontSize: '0.65rem', color: '#8b5cf6', fontWeight: 700 }}>AR: {arValue.toFixed(1)}%</span>}
                                     </div>
                                 </td>
@@ -1028,6 +1038,13 @@ export default function BudgetGrid({
                                 <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end' }}>
                                     {showAV && <span style={{ fontSize: '0.65rem', color: '#94a3b8', fontWeight: 400 }}>AV: {avRealized.toFixed(1)}%</span>}
                                     {showAH && <span style={{ fontSize: '0.65rem', color: '#059669', fontWeight: 600 }}>AH: {ahValue.toFixed(1)}%</span>}
+                                    {showAH_MoM && i > 0 && viewPeriod === 'month' && (() => {
+                                        const prevMonthTotal = precomputedDreTotals[i - 1];
+                                        const prevR = prevMonthTotal[validx].r;
+                                        const mom = prevR !== 0 ? ((realizedVal / prevR) - 1) * 100 : 0;
+                                        const color = mom >= 0 ? '#059669' : '#ef4444';
+                                        return <span style={{ fontSize: '0.65rem', color, fontWeight: 700 }}>MoM: {mom > 0 ? '+' : ''}{mom.toFixed(1)}%</span>;
+                                    })()}
                                     {showAR && <span style={{ fontSize: '0.65rem', color: '#8b5cf6', fontWeight: 700 }}>AR: {arValue.toFixed(1)}%</span>}
                                 </div>
                             </td>

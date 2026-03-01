@@ -935,14 +935,24 @@ export default function BudgetGrid({
                                     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end' }}>
                                         {showAV && <span style={{ fontSize: '0.65rem', color: '#94a3b8', fontWeight: 400 }}>AV: {avRealized.toFixed(1)}%</span>}
                                         {showAH && <span style={{ fontSize: '0.65rem', color: '#059669', fontWeight: 600 }}>AH: {ahValue.toFixed(1)}%</span>}
-                                        {showAH_MoM && i > 0 && viewPeriod === 'month' && (() => {
-                                            const prevR = totals.realized[i - 1];
-                                            const mom = prevR !== 0 ? ((totals.realized[i] / prevR) - 1) * 100 : 0;
+                                        {showAH_MoM && i > 0 && (() => {
+                                            let prevR = 0;
+                                            let currR = rVal;
+                                            if (viewPeriod === 'month') {
+                                                prevR = totals.realized[i - 1];
+                                            } else {
+                                                // Previous quarter
+                                                for (let m = (i - 1) * 3; m < (i - 1) * 3 + 3; m++) {
+                                                    prevR += totals.realized[m] || 0;
+                                                }
+                                            }
+                                            const delta = prevR !== 0 ? ((currR / prevR) - 1) * 100 : 0;
                                             const isCost = node.code && !node.code.startsWith('01');
                                             let color = '#64748b';
-                                            if (mom > 0.01) color = isCost ? '#ef4444' : '#059669';
-                                            else if (mom < -0.01) color = isCost ? '#059669' : '#ef4444';
-                                            return <span style={{ fontSize: '0.65rem', color, fontWeight: 700 }}>MoM: {mom > 0 ? '+' : ''}{mom.toFixed(1)}%</span>;
+                                            if (delta > 0.01) color = isCost ? '#ef4444' : '#059669';
+                                            else if (delta < -0.01) color = isCost ? '#059669' : '#ef4444';
+                                            const label = viewPeriod === 'month' ? 'MoM' : 'QoQ';
+                                            return <span style={{ fontSize: '0.65rem', color, fontWeight: 700 }}>{label}: {delta > 0 ? '+' : ''}{delta.toFixed(1)}%</span>;
                                         })()}
                                         {showAR && <span style={{ fontSize: '0.65rem', color: '#8b5cf6', fontWeight: 700 }}>AR: {arValue.toFixed(1)}%</span>}
                                     </div>
@@ -1041,16 +1051,25 @@ export default function BudgetGrid({
                                 <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end' }}>
                                     {showAV && <span style={{ fontSize: '0.65rem', color: '#94a3b8', fontWeight: 400 }}>AV: {avRealized.toFixed(1)}%</span>}
                                     {showAH && <span style={{ fontSize: '0.65rem', color: '#059669', fontWeight: 600 }}>AH: {ahValue.toFixed(1)}%</span>}
-                                    {showAH_MoM && i > 0 && viewPeriod === 'month' && (() => {
-                                        const prevMonthTotal = precomputedDreTotals[i - 1];
-                                        const prevR = prevMonthTotal[validx].r;
-                                        const mom = prevR !== 0 ? ((realizedVal / prevR) - 1) * 100 : 0;
+                                    {showAH_MoM && i > 0 && (() => {
+                                        let prevR = 0;
+                                        if (viewPeriod === 'month') {
+                                            const prevMonthTotal = precomputedDreTotals[i - 1];
+                                            prevR = prevMonthTotal[validx].r;
+                                        } else {
+                                            // Previous quarter totals
+                                            for (let m = (i - 1) * 3; m < (i - 1) * 3 + 3; m++) {
+                                                prevR += precomputedDreTotals[m][validx].r;
+                                            }
+                                        }
+                                        const delta = prevR !== 0 ? ((realizedVal / prevR) - 1) * 100 : 0;
                                         const resultsIndices = ['vRev', 'vRecLiq', 'vGrossMarg', 'vContribMarg', 'vEbitda', 'vNetProfit'];
                                         const isResult = resultsIndices.includes(validx as string);
                                         let color = '#64748b';
-                                        if (mom > 0.01) color = isResult ? '#059669' : '#ef4444';
-                                        else if (mom < -0.01) color = isResult ? '#ef4444' : '#059669';
-                                        return <span style={{ fontSize: '0.65rem', color, fontWeight: 700 }}>MoM: {mom > 0 ? '+' : ''}{mom.toFixed(1)}%</span>;
+                                        if (delta > 0.01) color = isResult ? '#059669' : '#ef4444';
+                                        else if (delta < -0.01) color = isResult ? '#ef4444' : '#059669';
+                                        const label = viewPeriod === 'month' ? 'MoM' : 'QoQ';
+                                        return <span style={{ fontSize: '0.65rem', color, fontWeight: 700 }}>{label}: {delta > 0 ? '+' : ''}{delta.toFixed(1)}%</span>;
                                     })()}
                                     {showAR && <span style={{ fontSize: '0.65rem', color: '#8b5cf6', fontWeight: 700 }}>AR: {arValue.toFixed(1)}%</span>}
                                 </div>

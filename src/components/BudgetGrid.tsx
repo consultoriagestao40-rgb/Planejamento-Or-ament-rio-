@@ -938,7 +938,10 @@ export default function BudgetGrid({
                                         {showAH_MoM && i > 0 && viewPeriod === 'month' && (() => {
                                             const prevR = totals.realized[i - 1];
                                             const mom = prevR !== 0 ? ((totals.realized[i] / prevR) - 1) * 100 : 0;
-                                            const color = mom >= 0 ? '#059669' : '#ef4444';
+                                            const isCost = node.code && !node.code.startsWith('01');
+                                            let color = '#64748b';
+                                            if (mom > 0.01) color = isCost ? '#ef4444' : '#059669';
+                                            else if (mom < -0.01) color = isCost ? '#059669' : '#ef4444';
                                             return <span style={{ fontSize: '0.65rem', color, fontWeight: 700 }}>MoM: {mom > 0 ? '+' : ''}{mom.toFixed(1)}%</span>;
                                         })()}
                                         {showAR && <span style={{ fontSize: '0.65rem', color: '#8b5cf6', fontWeight: 700 }}>AR: {arValue.toFixed(1)}%</span>}
@@ -1042,7 +1045,11 @@ export default function BudgetGrid({
                                         const prevMonthTotal = precomputedDreTotals[i - 1];
                                         const prevR = prevMonthTotal[validx].r;
                                         const mom = prevR !== 0 ? ((realizedVal / prevR) - 1) * 100 : 0;
-                                        const color = mom >= 0 ? '#059669' : '#ef4444';
+                                        const resultsIndices = ['vRev', 'vRecLiq', 'vGrossMarg', 'vContribMarg', 'vEbitda', 'vNetProfit'];
+                                        const isResult = resultsIndices.includes(validx as string);
+                                        let color = '#64748b';
+                                        if (mom > 0.01) color = isResult ? '#059669' : '#ef4444';
+                                        else if (mom < -0.01) color = isResult ? '#ef4444' : '#059669';
                                         return <span style={{ fontSize: '0.65rem', color, fontWeight: 700 }}>MoM: {mom > 0 ? '+' : ''}{mom.toFixed(1)}%</span>;
                                     })()}
                                     {showAR && <span style={{ fontSize: '0.65rem', color: '#8b5cf6', fontWeight: 700 }}>AR: {arValue.toFixed(1)}%</span>}

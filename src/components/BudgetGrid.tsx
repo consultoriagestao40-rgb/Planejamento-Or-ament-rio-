@@ -845,9 +845,9 @@ export default function BudgetGrid({
                             rVal = totals.realized[i];
                             rdVal = totals.radar[i];
                             const monthTotal = precomputedDreTotals[i];
-                            revBrutaReal = monthTotal.vRev.r;
-                            revBrutaBudget = monthTotal.vRev.b;
-                            revBrutaRadar = monthTotal.vRev.rd;
+                            revBrutaReal = monthTotal.vRecLiq.r;
+                            revBrutaBudget = monthTotal.vRecLiq.b;
+                            revBrutaRadar = monthTotal.vRecLiq.rd;
                             isLocked = (budgetValues[`${node.id}-${i}`] || {}).isLocked || false;
                         } else {
                             for (let m = i * 3; m < i * 3 + 3; m++) {
@@ -855,9 +855,9 @@ export default function BudgetGrid({
                                 rVal += totals.realized[m];
                                 rdVal += totals.radar[m];
                                 const monthTotal = precomputedDreTotals[m];
-                                revBrutaReal += monthTotal.vRev.r;
-                                revBrutaBudget += monthTotal.vRev.b;
-                                revBrutaRadar += monthTotal.vRev.rd;
+                                revBrutaReal += monthTotal.vRecLiq.r;
+                                revBrutaBudget += monthTotal.vRecLiq.b;
+                                revBrutaRadar += monthTotal.vRecLiq.rd;
                                 if ((budgetValues[`${node.id}-${m}`] || {}).isLocked) isLocked = true;
                             }
                         }
@@ -1003,18 +1003,18 @@ export default function BudgetGrid({
                         budgetVal = monthTotal[validx].b;
                         realizedVal = monthTotal[validx].r;
                         radarVal = monthTotal[validx].rd;
-                        revBrutaReal = monthTotal.vRev.r;
-                        revBrutaBudget = monthTotal.vRev.b;
-                        revBrutaRadar = monthTotal.vRev.rd;
+                        revBrutaReal = monthTotal.vRecLiq.r;
+                        revBrutaBudget = monthTotal.vRecLiq.b;
+                        revBrutaRadar = monthTotal.vRecLiq.rd;
                     } else {
                         for (let m = i * 3; m < i * 3 + 3; m++) {
                             const monthTotal = precomputedDreTotals[m];
                             budgetVal += monthTotal[validx].b;
                             realizedVal += monthTotal[validx].r;
                             radarVal += monthTotal[validx].rd;
-                            revBrutaReal += monthTotal.vRev.r;
-                            revBrutaBudget += monthTotal.vRev.b;
-                            revBrutaRadar += monthTotal.vRev.rd;
+                            revBrutaReal += monthTotal.vRecLiq.r;
+                            revBrutaBudget += monthTotal.vRecLiq.b;
+                            revBrutaRadar += monthTotal.vRecLiq.rd;
                         }
                     }
 

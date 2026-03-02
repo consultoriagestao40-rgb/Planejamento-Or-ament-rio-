@@ -46,3 +46,17 @@ next-env.d.ts
 *.db
 *.db-journal
 
+# diagnostic data
+*.json
+!package.json
+!tsconfig.json
+!package-lock.json
+!vercel.json
+*.txt
+*.log
+*.sh
+
+# test scripts
+test-*.ts
+/scripts/temp-*
+

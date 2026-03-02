@@ -21,7 +21,7 @@ export async function GET() {
         const [tenants, costCenters, categories, budgetEntries] = await Promise.all([
             prisma.tenant.findMany({ select: { id: true, name: true } }),
             prisma.costCenter.findMany({ select: { id: true, name: true, tenantId: true } }),
-            prisma.category.findMany({ select: { id: true, type: true } }),
+            prisma.category.findMany({ select: { id: true, type: true, name: true } }),
             prisma.budgetEntry.findMany({
                 where: { year: currentYear },
                 select: { amount: true, categoryId: true, costCenterId: true, tenantId: true }
@@ -29,7 +29,11 @@ export async function GET() {
         ]);
 
         // 2. Mapear tipos de categoria para busca rápida
-        const categoryTypeMap = new Map(categories.map(c => [c.id, c.type]));
+        // V50: Considerar '01' no nome como REVENUE, independente do tipo vindo do CA
+        const categoryTypeMap = new Map(categories.map(c => {
+            const isRevenue = c.type === 'REVENUE' || c.name.startsWith('01') || c.name.startsWith('1.');
+            return [c.id, isRevenue ? 'REVENUE' : 'EXPENSE'];
+        }));
 
         // 3. Inicializar extrutura de resumo
         const summaryMap = new Map();

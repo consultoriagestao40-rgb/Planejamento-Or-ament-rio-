@@ -55,6 +55,7 @@ export default function BudgetSummaryPage() {
     }, [data]);
 
     const formatCurrency = (value: number) => {
+        if (value === 0) return '-';
         return new Intl.NumberFormat('pt-BR', {
             style: 'currency',
             currency: 'BRL',
@@ -64,106 +65,121 @@ export default function BudgetSummaryPage() {
 
     if (loading) {
         return (
-            <div className="min-h-screen bg-slate-900 flex items-center justify-center text-white">
-                <div className="flex flex-col items-center gap-4">
-                    <div className="w-12 h-12 border-4 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
-                    <p className="text-slate-400 font-medium anim-pulse">Carregando resumo estratégico...</p>
+            <div style={{ minHeight: '100vh', backgroundColor: '#0f172a', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', fontFamily: 'sans-serif' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '1rem' }}>
+                    <div className="spinner"></div>
+                    <p style={{ color: '#94a3b8', fontWeight: 500 }}>Carregando dados estratégicos...</p>
                 </div>
+                <style jsx>{`
+                    .spinner {
+                        width: 48px;
+                        height: 48px;
+                        border: 4px solid #3b82f6;
+                        border-top-color: transparent;
+                        border-radius: 50%;
+                        animation: spin 1s linear infinite;
+                    }
+                    @keyframes spin {
+                        to { transform: rotate(360deg); }
+                    }
+                `}</style>
             </div>
         );
     }
 
+    const styles = {
+        container: { maxWidth: '1280px', margin: '0 auto', padding: '2.5rem 1.5rem', spaceY: '2rem' },
+        header: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #1e293b', paddingBottom: '2rem', marginBottom: '2rem' },
+        card: { backgroundColor: '#1e293b80', padding: '1.5rem', borderRadius: '1rem', border: '1px solid #334155', boxShadow: '0 4px 6px -1px #0000001a' },
+        table: { width: '100%', borderCollapse: 'collapse' as const, textAlign: 'left' as const },
+        th: { padding: '1.25rem 2rem', color: '#94a3b8', fontSize: '0.75rem', fontWeight: 700, textTransform: 'uppercase' as const, letterSpacing: '0.1em', borderBottom: '1px solid #334155', backgroundColor: '#1e293b' },
+        td: { padding: '1.25rem 2rem', borderBottom: '1px solid #1e293b40', color: '#cbd5e1' },
+        badge: (success: boolean) => ({
+            padding: '0.4rem 1rem',
+            borderRadius: '9999px',
+            fontSize: '0.75rem',
+            fontWeight: 700,
+            backgroundColor: success ? '#10b98120' : '#f43f5e20',
+            color: success ? '#34d399' : '#fb7185',
+            border: `1px solid ${success ? '#10b98130' : '#f43f5e30'}`
+        })
+    };
+
     return (
-        <div className="min-h-screen bg-slate-900 text-slate-200 p-6 md:p-10 font-[var(--font-inter)]">
-            <div className="max-w-7xl mx-auto space-y-8">
+        <div style={{ minHeight: '100vh', backgroundColor: '#0f172a', color: '#e2e8f0', fontFamily: 'Inter, system-ui, sans-serif' }}>
+            <div style={styles.container}>
 
                 {/* Header */}
-                <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 border-b border-slate-800 pb-8">
+                <div style={styles.header}>
                     <div>
-                        <h1 className="text-3xl font-bold text-white tracking-tight flex items-center gap-3">
-                            <span className="text-blue-500 text-4xl">📊</span> Resumo de Orçamentos por CC
+                        <h1 style={{ fontSize: '1.875rem', fontWeight: 800, color: 'white', display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                            <span style={{ fontSize: '2.5rem' }}>📊</span> Resumo de Orçamentos por CC
                         </h1>
-                        <p className="text-slate-400 mt-2 text-lg">Acompanhamento anual consolidado de todas as unidades.</p>
+                        <p style={{ color: '#94a3b8', marginTop: '0.5rem' }}>Acompanhamento consolidado de todas as unidades ativas.</p>
                     </div>
-                    <Link href="/" className="px-6 py-3 bg-slate-800 hover:bg-slate-700 text-white rounded-xl transition-all flex items-center gap-2 border border-slate-700 shadow-xl font-medium">
-                        <span>⬅️</span> Voltar ao Painel
+                    <Link href="/" style={{ padding: '0.75rem 1.5rem', backgroundColor: '#1e293b', color: 'white', borderRadius: '0.75rem', textDecoration: 'none', fontWeight: 600, border: '1px solid #334155', transition: 'all 0.2s', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                        ⬅️ Voltar ao Painel
                     </Link>
                 </div>
 
-                {/* Stats Cards */}
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                    <div className="bg-slate-800/50 p-6 rounded-2xl border border-slate-700/50 shadow-sm">
-                        <p className="text-slate-400 text-sm font-semibold uppercase tracking-wider">Total de Centros de Custo</p>
-                        <p className="text-4xl font-bold text-white mt-2">{stats.totalCCs}</p>
+                {/* Stats */}
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '1.5rem', marginBottom: '2.5rem' }}>
+                    <div style={styles.card}>
+                        <p style={{ color: '#94a3b8', fontSize: '0.875rem', fontWeight: 600, textTransform: 'uppercase' }}>Total de C. Custos</p>
+                        <p style={{ fontSize: '2.25rem', fontWeight: 800, color: 'white', marginTop: '0.5rem' }}>{stats.totalCCs}</p>
                     </div>
-                    <div className="bg-emerald-900/20 p-6 rounded-2xl border border-emerald-500/30 shadow-sm">
-                        <p className="text-emerald-400 text-sm font-semibold uppercase tracking-wider">Com Orçamento Lançado</p>
-                        <p className="text-4xl font-bold text-emerald-400 mt-2">{stats.withBudget}</p>
+                    <div style={{ ...styles.card, borderColor: '#10b98150', backgroundColor: '#064e3b20' }}>
+                        <p style={{ color: '#34d399', fontSize: '0.875rem', fontWeight: 600, textTransform: 'uppercase' }}>Com Orçamento</p>
+                        <p style={{ fontSize: '2.25rem', fontWeight: 800, color: '#34d399', marginTop: '0.5rem' }}>{stats.withBudget}</p>
                     </div>
-                    <div className="bg-rose-900/20 p-6 rounded-2xl border border-rose-500/30 shadow-sm">
-                        <p className="text-rose-400 text-sm font-semibold uppercase tracking-wider">Pendente de Lançamento</p>
-                        <p className="text-4xl font-bold text-rose-400 mt-2">{stats.withoutBudget}</p>
+                    <div style={{ ...styles.card, borderColor: '#f43f5e50', backgroundColor: '#4c051920' }}>
+                        <p style={{ color: '#fb7185', fontSize: '0.875rem', fontWeight: 600, textTransform: 'uppercase' }}>Pendente</p>
+                        <p style={{ fontSize: '2.25rem', fontWeight: 800, color: '#fb7185', marginTop: '0.5rem' }}>{stats.withoutBudget}</p>
                     </div>
                 </div>
 
-                {/* Filters */}
-                <div className="bg-slate-800/30 p-4 rounded-xl border border-slate-700/50 flex items-center gap-4">
-                    <span className="text-slate-400">🔍</span>
+                {/* Filter Box */}
+                <div style={{ ...styles.card, padding: '1rem 1.5rem', display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '2rem' }}>
+                    <span style={{ fontSize: '1.25rem' }}>🔍</span>
                     <input
                         type="text"
-                        placeholder="Filtrar por empresa ou centro de custo..."
-                        className="bg-transparent border-none outline-none text-white w-full placeholder:text-slate-500 text-lg"
+                        placeholder="Pesquisar por empresa ou centro de custo..."
+                        style={{ background: 'transparent', border: 'none', outline: 'none', color: 'white', width: '100%', fontSize: '1rem' }}
                         value={searchTerm}
                         onChange={(e) => setSearchTerm(e.target.value)}
                     />
                 </div>
 
-                {/* Table */}
-                <div className="bg-slate-800/40 rounded-3xl border border-slate-700/50 overflow-hidden shadow-2xl backdrop-blur-sm">
-                    <div className="overflow-x-auto">
-                        <table className="w-full text-left border-collapse">
+                {/* Table Wrapper */}
+                <div style={{ backgroundColor: '#1e293b40', borderRadius: '1.5rem', border: '1px solid #334155', overflow: 'hidden', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.5)' }}>
+                    <div style={{ overflowX: 'auto' }}>
+                        <table style={styles.table}>
                             <thead>
-                                <tr className="bg-slate-800 text-slate-400 text-sm font-bold uppercase tracking-widest border-b border-slate-700">
-                                    <th className="px-8 py-5">Empresa</th>
-                                    <th className="px-8 py-5">Centro de Custo</th>
-                                    <th className="px-8 py-5 text-right">Receita Anual</th>
-                                    <th className="px-8 py-5 text-right">Despesa Anual</th>
-                                    <th className="px-8 py-5 text-center">Status</th>
+                                <tr>
+                                    <th style={styles.th}>Empresa</th>
+                                    <th style={styles.th}>Centro de Custo</th>
+                                    <th style={{ ...styles.th, textAlign: 'right' }}>Receita Anual</th>
+                                    <th style={{ ...styles.th, textAlign: 'right' }}>Despesa Anual</th>
+                                    <th style={{ ...styles.th, textAlign: 'center' }}>Status</th>
                                 </tr>
                             </thead>
                             <tbody>
                                 {filteredData.length > 0 ? filteredData.map((item, idx) => (
-                                    <tr
-                                        key={`${item.tenantId}-${item.costCenterId}`}
-                                        className={`
-                                            group border-b border-slate-800/50 hover:bg-slate-700/30 transition-colors
-                                            ${!item.hasBudget ? 'bg-rose-900/5' : ''}
-                                        `}
-                                    >
-                                        <td className="px-8 py-5 font-medium text-slate-300 group-hover:text-white transition-colors">{item.tenantName}</td>
-                                        <td className="px-8 py-5 font-bold text-slate-100 group-hover:text-blue-400 transition-colors">{item.costCenterName}</td>
-                                        <td className="px-8 py-5 text-right font-mono text-emerald-500 tabular-nums">
-                                            {item.totalRevenue > 0 ? formatCurrency(item.totalRevenue) : '-'}
-                                        </td>
-                                        <td className="px-8 py-5 text-right font-mono text-rose-500 tabular-nums">
-                                            {item.totalExpense > 0 ? formatCurrency(item.totalExpense) : '-'}
-                                        </td>
-                                        <td className="px-8 py-5 text-center">
-                                            {item.hasBudget ? (
-                                                <span className="px-4 py-1.5 bg-emerald-500/20 text-emerald-400 text-xs font-bold rounded-full border border-emerald-500/20 shadow-sm">
-                                                    LANÇADO
-                                                </span>
-                                            ) : (
-                                                <span className="px-4 py-1.5 bg-rose-500/20 text-rose-400 text-xs font-bold rounded-full border border-rose-500/20 shadow-sm">
-                                                    PENDENTE
-                                                </span>
-                                            )}
+                                    <tr key={`${item.tenantId}-${item.costCenterId}`} style={{ borderBottom: '1px solid #1e293b80', backgroundColor: !item.hasBudget ? '#f43f5e05' : 'transparent' }}>
+                                        <td style={styles.td}>{item.tenantName}</td>
+                                        <td style={{ ...styles.td, fontWeight: 700, color: 'white' }}>{item.costCenterName}</td>
+                                        <td style={{ ...styles.td, textAlign: 'right', fontFamily: 'monospace', color: '#34d399', fontSize: '1.1rem' }}>{formatCurrency(item.totalRevenue)}</td>
+                                        <td style={{ ...styles.td, textAlign: 'right', fontFamily: 'monospace', color: '#fb7185', fontSize: '1.1rem' }}>{formatCurrency(item.totalExpense)}</td>
+                                        <td style={{ ...styles.td, textAlign: 'center' }}>
+                                            <span style={styles.badge(item.hasBudget)}>
+                                                {item.hasBudget ? 'LANÇADO' : 'PENDENTE'}
+                                            </span>
                                         </td>
                                     </tr>
                                 )) : (
                                     <tr>
-                                        <td colSpan={5} className="px-8 py-20 text-center text-slate-500 text-lg italic">
-                                            Nenhum resultado encontrado para "{searchTerm}"
+                                        <td colSpan={5} style={{ padding: '5rem', textAlign: 'center', color: '#64748b', fontStyle: 'italic' }}>
+                                            Nenhum centro de custo encontrado...
                                         </td>
                                     </tr>
                                 )}
@@ -172,22 +188,10 @@ export default function BudgetSummaryPage() {
                     </div>
                 </div>
 
-                <div className="text-center pb-10">
-                    <p className="text-slate-500 text-sm tracking-wide">
-                        VISTO EM {new Date().toLocaleDateString('pt-BR')} • DADOS Sincronizados com Conta Azul
-                    </p>
+                <div style={{ textAlign: 'center', padding: '3rem 0', color: '#475569', fontSize: '0.875rem', letterSpacing: '0.05em' }}>
+                    Sincronizado com Conta Azul em {new Date().toLocaleDateString('pt-BR')}
                 </div>
             </div>
-
-            <style jsx>{`
-                @keyframes pulse-slow {
-                    0%, 100% { opacity: 1; }
-                    50% { opacity: 0.5; }
-                }
-                .anim-pulse {
-                    animation: pulse-slow 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
-                }
-            `}</style>
         </div>
     );
 }

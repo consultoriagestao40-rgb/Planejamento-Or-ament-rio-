@@ -114,7 +114,17 @@ export default function BudgetSummaryPage() {
         const totalCCs = data.length;
         const withBudget = data.filter(i => i.hasBudget).length;
         const withoutBudget = totalCCs - withBudget;
-        return { totalCCs, withBudget, withoutBudget };
+
+        const totalRevenueBudgeted = data.reduce((acc, curr) => acc + curr.totalRevenue, 0);
+        const totalExpenseBudgeted = data.reduce((acc, curr) => acc + curr.totalExpense, 0);
+        const resultValue = totalRevenueBudgeted - totalExpenseBudgeted;
+        const resultPercent = totalRevenueBudgeted !== 0 ? (resultValue / totalRevenueBudgeted) * 100 : 0;
+
+        return {
+            totalCCs, withBudget, withoutBudget,
+            totalRevenueBudgeted, totalExpenseBudgeted,
+            resultValue, resultPercent
+        };
     }, [data]);
 
     const formatCurrency = (value: number) => {
@@ -131,7 +141,7 @@ export default function BudgetSummaryPage() {
             <div style={{ minHeight: '100vh', backgroundColor: '#f8fafc', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#1e293b', fontFamily: 'Inter, sans-serif' }}>
                 <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '1rem' }}>
                     <div className="spinner"></div>
-                    <p style={{ color: '#64748b', fontWeight: 500 }}>Sincronizando resumo...</p>
+                    <p style={{ color: '#64748b', fontWeight: 500 }}>Sincronizando resumo financeiro...</p>
                 </div>
                 <style jsx>{`
                     .spinner {
@@ -167,7 +177,7 @@ export default function BudgetSummaryPage() {
         },
         card: {
             backgroundColor: '#fff',
-            padding: '1.5rem',
+            padding: '1.25rem',
             borderRadius: '12px',
             border: '1px solid #e2e8f0',
             boxShadow: '0 1px 3px rgba(0,0,0,0.05)'
@@ -182,7 +192,7 @@ export default function BudgetSummaryPage() {
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2.5rem' }}>
                     <div>
                         <h1 style={{ fontSize: '1.75rem', fontWeight: 700, margin: 0 }}>📊 Resumo por Empresa & CC</h1>
-                        <p style={{ color: '#64748b', marginTop: '0.4rem', fontSize: '1rem' }}>Controle consolidado e detalhamento por unidade.</p>
+                        <p style={{ color: '#64748b', marginTop: '0.4rem', fontSize: '1rem' }}>Controle consolidado e indicadores de lucratividade.</p>
                     </div>
                     <Link href="/" style={{
                         padding: '0.6rem 1.2rem',
@@ -202,19 +212,43 @@ export default function BudgetSummaryPage() {
                     </Link>
                 </div>
 
-                {/* KPI Section */}
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '1.5rem', marginBottom: '2rem' }}>
+                {/* KPI Section - Row 1: Operations */}
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '1.25rem', marginBottom: '1.25rem' }}>
                     <div style={styles.card}>
-                        <p style={{ margin: 0, color: '#64748b', fontSize: '0.7rem', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Total de C. Custos</p>
-                        <p style={{ margin: '0.5rem 0 0', fontSize: '2.25rem', fontWeight: 700 }}>{stats.totalCCs}</p>
+                        <p style={{ margin: 0, color: '#64748b', fontSize: '0.65rem', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Total de Unidades</p>
+                        <p style={{ margin: '0.4rem 0 0', fontSize: '1.75rem', fontWeight: 700 }}>{stats.totalCCs}</p>
                     </div>
                     <div style={{ ...styles.card, borderLeft: '4px solid #10b981' }}>
-                        <p style={{ margin: 0, color: '#10b981', fontSize: '0.7rem', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Digitados</p>
-                        <p style={{ margin: '0.5rem 0 0', fontSize: '2.25rem', fontWeight: 700, color: '#10b981' }}>{stats.withBudget}</p>
+                        <p style={{ margin: 0, color: '#10b981', fontSize: '0.65rem', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Digitados</p>
+                        <p style={{ margin: '0.4rem 0 0', fontSize: '1.75rem', fontWeight: 700, color: '#10b981' }}>{stats.withBudget}</p>
                     </div>
                     <div style={{ ...styles.card, borderLeft: '4px solid #ef4444' }}>
-                        <p style={{ margin: 0, color: '#ef4444', fontSize: '0.7rem', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Pendentes</p>
-                        <p style={{ margin: '0.5rem 0 0', fontSize: '2.25rem', fontWeight: 700, color: '#ef4444' }}>{stats.withoutBudget}</p>
+                        <p style={{ margin: 0, color: '#ef4444', fontSize: '0.65rem', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Pendentes</p>
+                        <p style={{ margin: '0.4rem 0 0', fontSize: '1.75rem', fontWeight: 700, color: '#ef4444' }}>{stats.withoutBudget}</p>
+                    </div>
+                    <div style={{ ...styles.card, background: '#f1f5f9', borderStyle: 'dashed' }}>
+                        <p style={{ margin: 0, color: '#64748b', fontSize: '0.65rem', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Ano Referência</p>
+                        <p style={{ margin: '0.4rem 0 0', fontSize: '1.75rem', fontWeight: 700 }}>{new Date().getFullYear()}</p>
+                    </div>
+                </div>
+
+                {/* KPI Section - Row 2: Financials */}
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '1.25rem', marginBottom: '2.5rem' }}>
+                    <div style={{ ...styles.card, background: '#ecfdf5' }}>
+                        <p style={{ margin: 0, color: '#047857', fontSize: '0.65rem', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.05em' }}>1. Receita Orçada</p>
+                        <p style={{ margin: '0.4rem 0 0', fontSize: '1.5rem', fontWeight: 800, color: '#047857' }}>{formatCurrency(stats.totalRevenueBudgeted)}</p>
+                    </div>
+                    <div style={{ ...styles.card, background: '#fff1f2' }}>
+                        <p style={{ margin: 0, color: '#be123c', fontSize: '0.65rem', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.05em' }}>2. Despesa Orçada</p>
+                        <p style={{ margin: '0.4rem 0 0', fontSize: '1.5rem', fontWeight: 800, color: '#be123c' }}>{formatCurrency(stats.totalExpenseBudgeted)}</p>
+                    </div>
+                    <div style={{ ...styles.card, background: '#f8fafc', borderLeft: '4px solid #1e293b' }}>
+                        <p style={{ margin: 0, color: '#475569', fontSize: '0.65rem', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.05em' }}>3. Resultado</p>
+                        <p style={{ margin: '0.4rem 0 0', fontSize: '1.5rem', fontWeight: 800, color: '#1e293b' }}>{formatCurrency(stats.resultValue)}</p>
+                    </div>
+                    <div style={{ ...styles.card, background: '#eff6ff' }}>
+                        <p style={{ margin: 0, color: '#2563eb', fontSize: '0.65rem', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.05em' }}>4. % Margem</p>
+                        <p style={{ margin: '0.4rem 0 0', fontSize: '1.75rem', fontWeight: 900, color: '#2563eb' }}>{stats.resultPercent.toFixed(1)}%</p>
                     </div>
                 </div>
 
@@ -232,7 +266,7 @@ export default function BudgetSummaryPage() {
                     <span style={{ fontSize: '1.1rem', color: '#94a3b8' }}>🔍</span>
                     <input
                         type="text"
-                        placeholder="Busca rápida (Empresa ou Centro de Custo)..."
+                        placeholder="Pesquisa rápida de orçamento..."
                         style={{ border: 'none', outline: 'none', background: 'transparent', width: '100%', fontSize: '0.95rem', color: '#1e293b' }}
                         value={searchTerm}
                         onChange={(e) => setSearchTerm(e.target.value)}
@@ -258,7 +292,6 @@ export default function BudgetSummaryPage() {
 
                                     return (
                                         <React.Fragment key={group.tenantId}>
-                                            {/* Tenant Row */}
                                             <tr
                                                 onClick={() => toggleTenant(group.tenantId)}
                                                 style={{
@@ -279,10 +312,10 @@ export default function BudgetSummaryPage() {
                                                     }}>▶</span>
                                                     {group.tenantName}
                                                 </td>
-                                                <td style={{ ...styles.td, textAlign: 'right', fontWeight: 800, color: group.totalRevenue > 0 ? '#10b981' : '#1e293b' }}>
+                                                <td style={{ ...styles.td, textAlign: 'right', fontWeight: 800, color: group.totalRevenue > 0 ? '#059669' : '#1e293b' }}>
                                                     {formatCurrency(group.totalRevenue)}
                                                 </td>
-                                                <td style={{ ...styles.td, textAlign: 'right', fontWeight: 800, color: group.totalExpense > 0 ? '#ef4444' : '#1e293b' }}>
+                                                <td style={{ ...styles.td, textAlign: 'right', fontWeight: 800, color: group.totalExpense > 0 ? '#be123c' : '#1e293b' }}>
                                                     {formatCurrency(group.totalExpense)}
                                                 </td>
                                                 <td style={{ ...styles.td, textAlign: 'center' }}>
@@ -292,17 +325,15 @@ export default function BudgetSummaryPage() {
                                                         fontSize: '0.7rem',
                                                         fontWeight: 800,
                                                         backgroundColor: isComplete ? '#d1fae5' : '#fee2e2',
-                                                        color: isComplete ? '#065f46' : '#991b1b',
+                                                        color: isComplete ? '#065f46' : '#b91c1c',
                                                         display: 'inline-block',
-                                                        minWidth: '100px',
-                                                        boxShadow: '0 1px 2px rgba(0,0,0,0.05)'
+                                                        minWidth: '100px'
                                                     }}>
-                                                        {isComplete ? 'LANÇADO' : `PENDENTE (${group.finishedCount}/${group.totalCount})`}
+                                                        {isComplete ? 'OK' : `PENDENTE (${group.finishedCount}/${group.totalCount})`}
                                                     </span>
                                                 </td>
                                             </tr>
 
-                                            {/* Cost Center Rows */}
                                             {isExpanded && group.costCenters.map((cc) => (
                                                 <tr key={cc.costCenterId} className="cc-row" style={{ background: '#fff' }}>
                                                     <td style={{ ...styles.td, paddingLeft: '3rem', color: '#475569', fontWeight: 500 }}>
@@ -316,9 +347,9 @@ export default function BudgetSummaryPage() {
                                                     </td>
                                                     <td style={{ ...styles.td, textAlign: 'center' }}>
                                                         {cc.hasBudget ? (
-                                                            <span style={{ fontSize: '0.8rem', color: '#10b981' }}>✓ Finalizado</span>
+                                                            <span style={{ fontSize: '0.8rem', color: '#10b981' }}>✓ OK</span>
                                                         ) : (
-                                                            <span style={{ color: '#ef4444', fontSize: '0.65rem', fontWeight: 700, letterSpacing: '0.05em' }}>EM ABERTO</span>
+                                                            <span style={{ color: '#ef4444', fontSize: '0.65rem', fontWeight: 700 }}>EM ABERTO</span>
                                                         )}
                                                     </td>
                                                 </tr>
@@ -327,8 +358,8 @@ export default function BudgetSummaryPage() {
                                     );
                                 }) : (
                                     <tr>
-                                        <td colSpan={5} style={{ padding: '6rem', textAlign: 'center', color: '#94a3b8', fontStyle: 'italic', fontSize: '1rem' }}>
-                                            Nenhum resultado encontrado para "{searchTerm}"
+                                        <td colSpan={4} style={{ padding: '6rem', textAlign: 'center', color: '#94a3b8', fontStyle: 'italic', fontSize: '1rem' }}>
+                                            Nenhum resultado encontrado.
                                         </td>
                                     </tr>
                                 )}
@@ -338,7 +369,7 @@ export default function BudgetSummaryPage() {
                 </div>
 
                 <div style={{ marginTop: '2.5rem', textAlign: 'center', color: '#cbd5e1', fontSize: '0.75rem', fontWeight: 600, letterSpacing: '0.1em' }}>
-                    SISTEMA DE PLANEJAMENTO SINCRONIZADO • GESTÃO 4.0
+                    SISTEMA DE GESTÃO ESTRATÉGICA • GESTÃO 4.0
                 </div>
 
             </div>

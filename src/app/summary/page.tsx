@@ -1,7 +1,8 @@
 'use client';
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import Link from 'next/link';
+import { SyncButton } from '@/components/SyncButton';
 
 interface SummaryItem {
     tenantId: string;
@@ -31,23 +32,24 @@ export default function BudgetSummaryPage() {
     const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
     const [expandedTenants, setExpandedTenants] = useState<Set<string>>(new Set());
 
-    useEffect(() => {
-        const fetchData = async () => {
-            setLoading(true);
-            try {
-                const res = await fetch(`/api/cost-centers/summary?year=${selectedYear}`);
-                const result = await res.json();
-                if (result.success) {
-                    setData(result.data);
-                }
-            } catch (e: any) {
-                console.error(e);
-            } finally {
-                setLoading(false);
+    const fetchData = useCallback(async () => {
+        setLoading(true);
+        try {
+            const res = await fetch(`/api/cost-centers/summary?year=${selectedYear}`);
+            const result = await res.json();
+            if (result.success) {
+                setData(result.data);
             }
-        };
-        fetchData();
+        } catch (e: any) {
+            console.error(e);
+        } finally {
+            setLoading(false);
+        }
     }, [selectedYear]);
+
+    useEffect(() => {
+        fetchData();
+    }, [fetchData]);
 
     const groupedData = useMemo(() => {
         const groups = new Map<string, TenantGroup>();
@@ -196,22 +198,25 @@ export default function BudgetSummaryPage() {
                         <h1 style={{ fontSize: '1.75rem', fontWeight: 700, margin: 0 }}>📊 Resumo por Empresa & CC</h1>
                         <p style={{ color: '#64748b', marginTop: '0.4rem', fontSize: '1rem' }}>Controle consolidado e indicadores de lucratividade.</p>
                     </div>
-                    <Link href="/" style={{
-                        padding: '0.6rem 1.2rem',
-                        backgroundColor: '#fff',
-                        color: '#1e293b',
-                        borderRadius: '8px',
-                        textDecoration: 'none',
-                        fontWeight: 600,
-                        fontSize: '0.85rem',
-                        border: '1px solid #e2e8f0',
-                        boxShadow: '0 1px 2px rgba(0,0,0,0.05)',
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '0.5rem'
-                    }}>
-                        ⬅️ Voltar ao Dashboard
-                    </Link>
+                    <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
+                        <SyncButton year={selectedYear} onSyncStart={() => setLoading(true)} onSyncComplete={fetchData} />
+                        <Link href="/" style={{
+                            padding: '0.6rem 1.2rem',
+                            backgroundColor: '#fff',
+                            color: '#1e293b',
+                            borderRadius: '8px',
+                            textDecoration: 'none',
+                            fontWeight: 600,
+                            fontSize: '0.85rem',
+                            border: '1px solid #e2e8f0',
+                            boxShadow: '0 1px 2px rgba(0,0,0,0.05)',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '0.5rem'
+                        }}>
+                            ⬅️ Voltar ao Dashboard
+                        </Link>
+                    </div>
                 </div>
 
                 {/* KPI Section - Row 1: Operations */}

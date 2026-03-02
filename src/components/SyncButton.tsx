@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { syncFinancialData } from '@/actions/sync';
 
-export function SyncButton({ onSyncComplete, onSyncStart }: { onSyncComplete?: () => void; onSyncStart?: () => void; }) {
+export function SyncButton({ onSyncComplete, onSyncStart, year }: { onSyncComplete?: () => void; onSyncStart?: () => void; year?: number }) {
     const [loading, setLoading] = useState(false);
     const [lastSync, setLastSync] = useState<string | null>(null);
 
@@ -17,8 +17,8 @@ export function SyncButton({ onSyncComplete, onSyncStart }: { onSyncComplete?: (
         if (result.success && result.data) {
             // 2. Heavy Data Sync (transactions crunching) via maxDuration API Route
             try {
-                const year = new Date().getFullYear();
-                const cronRes = await fetch(`/api/cron/sync?year=${year}`);
+                const targetYear = year || new Date().getFullYear();
+                const cronRes = await fetch(`/api/cron/sync?year=${targetYear}`);
                 const cronData = await cronRes.json();
 
                 if (cronData.success) {

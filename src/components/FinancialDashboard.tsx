@@ -164,7 +164,7 @@ export default function FinancialDashboard({
                                 </select>
                             </div>
 
-                            <SyncButton onSyncStart={() => setIsSyncing(true)} onSyncComplete={triggerRefresh} />
+                            <SyncButton onSyncStart={() => setIsSyncing(true)} onSyncComplete={triggerRefresh} year={selectedYear} />
 
                             <a
                                 href="/summary"

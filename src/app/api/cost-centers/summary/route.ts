@@ -15,7 +15,9 @@ export async function GET() {
             return NextResponse.json({ success: false, error: 'Não autorizado' }, { status: 401 });
         }
 
-        const currentYear = new Date().getFullYear();
+        const { searchParams } = new URL(request.url);
+        const yearParam = searchParams.get('year');
+        const currentYear = yearParam ? parseInt(yearParam) : new Date().getFullYear();
 
         // 1. Buscar todos os dados necessários
         const [tenants, costCenters, categories, budgetEntries] = await Promise.all([

@@ -28,12 +28,14 @@ export default function BudgetSummaryPage() {
     const [data, setData] = useState<SummaryItem[]>([]);
     const [loading, setLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState('');
+    const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
     const [expandedTenants, setExpandedTenants] = useState<Set<string>>(new Set());
 
     useEffect(() => {
         const fetchData = async () => {
+            setLoading(true);
             try {
-                const res = await fetch('/api/cost-centers/summary');
+                const res = await fetch(`/api/cost-centers/summary?year=${selectedYear}`);
                 const result = await res.json();
                 if (result.success) {
                     setData(result.data);
@@ -45,7 +47,7 @@ export default function BudgetSummaryPage() {
             }
         };
         fetchData();
-    }, []);
+    }, [selectedYear]);
 
     const groupedData = useMemo(() => {
         const groups = new Map<string, TenantGroup>();
@@ -226,9 +228,31 @@ export default function BudgetSummaryPage() {
                         <p style={{ margin: 0, color: '#ef4444', fontSize: '0.65rem', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Pendentes</p>
                         <p style={{ margin: '0.4rem 0 0', fontSize: '1.75rem', fontWeight: 700, color: '#ef4444' }}>{stats.withoutBudget}</p>
                     </div>
-                    <div style={{ ...styles.card, background: '#f1f5f9', borderStyle: 'dashed' }}>
+                    <div style={{ ...styles.card, background: '#f1f5f9', borderStyle: 'dashed', position: 'relative' }}>
                         <p style={{ margin: 0, color: '#64748b', fontSize: '0.65rem', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Ano Referência</p>
-                        <p style={{ margin: '0.4rem 0 0', fontSize: '1.75rem', fontWeight: 700 }}>{new Date().getFullYear()}</p>
+                        <select
+                            value={selectedYear}
+                            onChange={(e) => setSelectedYear(parseInt(e.target.value))}
+                            style={{
+                                width: '100%',
+                                marginTop: '0.4rem',
+                                fontSize: '1.75rem',
+                                fontWeight: 700,
+                                background: 'transparent',
+                                border: 'none',
+                                color: '#1e293b',
+                                outline: 'none',
+                                cursor: 'pointer',
+                                padding: 0,
+                                appearance: 'none',
+                                fontFamily: 'inherit'
+                            }}
+                        >
+                            {[2024, 2025, 2026, 2027, 2028].map(y => (
+                                <option key={y} value={y}>{y}</option>
+                            ))}
+                        </select>
+                        <span style={{ position: 'absolute', right: '1.25rem', bottom: '1.5rem', fontSize: '0.8rem', color: '#64748b' }}>▼</span>
                     </div>
                 </div>
 

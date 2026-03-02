@@ -26,6 +26,7 @@ export default function FinancialDashboard({
     const [showAH, setShowAH] = useState(false);
     const [showAH_MoM, setShowAH_MoM] = useState(false);
     const [showAR, setShowAR] = useState(false);
+    const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
     const [userRole, setUserRole] = useState<'MASTER' | 'GESTOR'>((serverUserRole as 'MASTER' | 'GESTOR') || 'GESTOR');
 
     useEffect(() => {
@@ -149,6 +150,20 @@ export default function FinancialDashboard({
                             >
                                 + Adicionar Empresa
                             </a>
+
+                            <div style={{ display: 'flex', alignItems: 'center', backgroundColor: '#fff', border: '1px solid #cbd5e1', borderRadius: '6px', padding: '0 0.5rem', height: '36px' }}>
+                                <span style={{ fontSize: '0.8rem', marginRight: '0.4rem' }}>📅</span>
+                                <select
+                                    value={selectedYear}
+                                    onChange={(e) => setSelectedYear(parseInt(e.target.value))}
+                                    style={{ border: 'none', outline: 'none', background: 'transparent', fontSize: '0.85rem', fontWeight: 600, color: '#334155', cursor: 'pointer' }}
+                                >
+                                    {[2024, 2025, 2026, 2027, 2028].map(y => (
+                                        <option key={y} value={y}>{y}</option>
+                                    ))}
+                                </select>
+                            </div>
+
                             <SyncButton onSyncStart={() => setIsSyncing(true)} onSyncComplete={triggerRefresh} />
 
                             <a
@@ -269,6 +284,7 @@ export default function FinancialDashboard({
                     userRole={userRole}
                     setUserRole={setUserRole}
                     companies={companies}
+                    externalYear={selectedYear}
                 />
             </section>
 

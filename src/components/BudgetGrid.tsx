@@ -18,6 +18,7 @@ interface BudgetGridProps {
     userRole: 'MASTER' | 'GESTOR';
     setUserRole: (val: 'MASTER' | 'GESTOR') => void;
     companies: any[];
+    externalYear?: number;
 }
 
 // Tree Node Interface
@@ -46,7 +47,8 @@ export default function BudgetGrid({
     setShowAR,
     userRole,
     setUserRole,
-    companies
+    companies,
+    externalYear = new Date().getFullYear()
 }: BudgetGridProps) {
     // --- Budget State ---
     const [budgetValues, setBudgetValues] = useState<Record<string, { amount: number, radarAmount: number | null, isLocked: boolean }>>({});
@@ -60,9 +62,14 @@ export default function BudgetGrid({
     const [selectedCostCenter, setSelectedCostCenter] = useState<string[]>(['DEFAULT']);
     const [pendingCostCenter, setPendingCostCenter] = useState<string[]>(['DEFAULT']);
     const [costCenterDropdownOpen, setCostCenterDropdownOpen] = useState(false);
-    const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
+    const [selectedYear, setSelectedYear] = useState(externalYear);
     const [viewMode, setViewMode] = useState<'caixa' | 'competencia'>('competencia');
     const [viewPeriod, setViewPeriod] = useState<'month' | 'quarter'>('month');
+
+    // Sync selectedYear with externalYear
+    useEffect(() => {
+        setSelectedYear(externalYear);
+    }, [externalYear]);
 
     // --- Transaction Drill-down State ---
     const [selectedCell, setSelectedCell] = useState<{ categoryId: string, month: number, categoryName: string } | null>(null);

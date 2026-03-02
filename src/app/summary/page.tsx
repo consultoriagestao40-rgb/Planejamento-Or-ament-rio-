@@ -13,10 +13,22 @@ interface SummaryItem {
     hasBudget: boolean;
 }
 
+interface TenantGroup {
+    tenantId: string;
+    tenantName: string;
+    totalRevenue: number;
+    totalExpense: number;
+    hasBudget: boolean;
+    finishedCount: number;
+    totalCount: number;
+    costCenters: SummaryItem[];
+}
+
 export default function BudgetSummaryPage() {
     const [data, setData] = useState<SummaryItem[]>([]);
     const [loading, setLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState('');
+    const [expandedTenants, setExpandedTenants] = useState<Set<string>>(new Set());
 
     useEffect(() => {
         const fetchData = async () => {
@@ -35,14 +47,68 @@ export default function BudgetSummaryPage() {
         fetchData();
     }, []);
 
-    const filteredData = useMemo(() => {
-        if (!searchTerm) return data;
-        const lowTerm = searchTerm.toLowerCase();
-        return data.filter(item =>
-            item.tenantName.toLowerCase().includes(lowTerm) ||
-            item.costCenterName.toLowerCase().includes(lowTerm)
-        );
+    const groupedData = useMemo(() => {
+        const groups = new Map<string, TenantGroup>();
+
+        data.forEach(item => {
+            if (!groups.has(item.tenantId)) {
+                groups.set(item.tenantId, {
+                    tenantId: item.tenantId,
+                    tenantName: item.tenantName,
+                    totalRevenue: 0,
+                    totalExpense: 0,
+                    hasBudget: false,
+                    finishedCount: 0,
+                    totalCount: 0,
+                    costCenters: []
+                });
+            }
+            const group = groups.get(item.tenantId)!;
+            group.totalRevenue += item.totalRevenue;
+            group.totalExpense += item.totalExpense;
+            group.totalCount++;
+            if (item.hasBudget) group.finishedCount++;
+            group.costCenters.push(item);
+        });
+
+        groups.forEach(group => {
+            group.hasBudget = group.finishedCount === group.totalCount;
+            group.costCenters.sort((a, b) => a.costCenterName.localeCompare(b.costCenterName));
+        });
+
+        const sortedGroups = Array.from(groups.values()).sort((a, b) => a.tenantName.localeCompare(b.tenantName));
+
+        if (searchTerm) {
+            const lowTerm = searchTerm.toLowerCase();
+            return sortedGroups.filter(group => {
+                const matchesTenant = group.tenantName.toLowerCase().includes(lowTerm);
+                const hasMatchingCC = group.costCenters.some(cc =>
+                    cc.costCenterName.toLowerCase().includes(lowTerm)
+                );
+                return matchesTenant || hasMatchingCC;
+            }).map(group => {
+                const filteredCCs = group.costCenters.filter(cc =>
+                    cc.costCenterName.toLowerCase().includes(lowTerm) ||
+                    group.tenantName.toLowerCase().includes(lowTerm)
+                );
+                return {
+                    ...group,
+                    costCenters: filteredCCs
+                };
+            });
+        }
+
+        return sortedGroups;
     }, [data, searchTerm]);
+
+    const toggleTenant = (id: string) => {
+        setExpandedTenants(prev => {
+            const next = new Set(prev);
+            if (next.has(id)) next.delete(id);
+            else next.add(id);
+            return next;
+        });
+    };
 
     const stats = useMemo(() => {
         const totalCCs = data.length;
@@ -52,6 +118,7 @@ export default function BudgetSummaryPage() {
     }, [data]);
 
     const formatCurrency = (value: number) => {
+        if (value === 0) return '-';
         return new Intl.NumberFormat('pt-BR', {
             style: 'currency',
             currency: 'BRL',
@@ -64,7 +131,7 @@ export default function BudgetSummaryPage() {
             <div style={{ minHeight: '100vh', backgroundColor: '#f8fafc', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#1e293b', fontFamily: 'Inter, sans-serif' }}>
                 <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '1rem' }}>
                     <div className="spinner"></div>
-                    <p style={{ color: '#64748b', fontWeight: 500 }}>Sincronizando dados...</p>
+                    <p style={{ color: '#64748b', fontWeight: 500 }}>Sincronizando resumo...</p>
                 </div>
                 <style jsx>{`
                     .spinner {
@@ -114,8 +181,8 @@ export default function BudgetSummaryPage() {
                 {/* Header */}
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2.5rem' }}>
                     <div>
-                        <h1 style={{ fontSize: '1.75rem', fontWeight: 700, margin: 0 }}>📊 Resumo Orçamentário por CC</h1>
-                        <p style={{ color: '#64748b', marginTop: '0.4rem', fontSize: '1rem' }}>Acompanhamento anual consolidado de todas as unidades.</p>
+                        <h1 style={{ fontSize: '1.75rem', fontWeight: 700, margin: 0 }}>📊 Resumo por Empresa & CC</h1>
+                        <p style={{ color: '#64748b', marginTop: '0.4rem', fontSize: '1rem' }}>Controle consolidado e detalhamento por unidade.</p>
                     </div>
                     <Link href="/" style={{
                         padding: '0.6rem 1.2rem',
@@ -138,11 +205,11 @@ export default function BudgetSummaryPage() {
                 {/* KPI Section */}
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '1.5rem', marginBottom: '2rem' }}>
                     <div style={styles.card}>
-                        <p style={{ margin: 0, color: '#64748b', fontSize: '0.7rem', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Total de Unidades</p>
+                        <p style={{ margin: 0, color: '#64748b', fontSize: '0.7rem', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Total de C. Custos</p>
                         <p style={{ margin: '0.5rem 0 0', fontSize: '2.25rem', fontWeight: 700 }}>{stats.totalCCs}</p>
                     </div>
                     <div style={{ ...styles.card, borderLeft: '4px solid #10b981' }}>
-                        <p style={{ margin: 0, color: '#10b981', fontSize: '0.7rem', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Com Orçamento</p>
+                        <p style={{ margin: 0, color: '#10b981', fontSize: '0.7rem', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Digitados</p>
                         <p style={{ margin: '0.5rem 0 0', fontSize: '2.25rem', fontWeight: 700, color: '#10b981' }}>{stats.withBudget}</p>
                     </div>
                     <div style={{ ...styles.card, borderLeft: '4px solid #ef4444' }}>
@@ -165,7 +232,7 @@ export default function BudgetSummaryPage() {
                     <span style={{ fontSize: '1.1rem', color: '#94a3b8' }}>🔍</span>
                     <input
                         type="text"
-                        placeholder="Filtrar por empresa ou centro de custo..."
+                        placeholder="Busca rápida (Empresa ou Centro de Custo)..."
                         style={{ border: 'none', outline: 'none', background: 'transparent', width: '100%', fontSize: '0.95rem', color: '#1e293b' }}
                         value={searchTerm}
                         onChange={(e) => setSearchTerm(e.target.value)}
@@ -178,42 +245,91 @@ export default function BudgetSummaryPage() {
                         <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                             <thead>
                                 <tr>
-                                    <th style={{ ...styles.th, textAlign: 'left' }}>Empresa</th>
-                                    <th style={{ ...styles.th, textAlign: 'left' }}>Centro de Custo</th>
+                                    <th style={{ ...styles.th, textAlign: 'left', width: '400px' }}>Organização / Centro de Custo</th>
                                     <th style={{ ...styles.th, textAlign: 'right' }}>Receita Anual</th>
                                     <th style={{ ...styles.th, textAlign: 'right' }}>Despesa Anual</th>
-                                    <th style={{ ...styles.th, textAlign: 'center' }}>Situação</th>
+                                    <th style={{ ...styles.th, textAlign: 'center' }}>Progresso</th>
                                 </tr>
                             </thead>
                             <tbody>
-                                {filteredData.length > 0 ? filteredData.map((item) => (
-                                    <tr key={`${item.tenantId}-${item.costCenterId}`} style={{ background: '#fff' }}>
-                                        <td style={styles.td}>{item.tenantName}</td>
-                                        <td style={{ ...styles.td, fontWeight: 700, color: '#1e293b' }}>{item.costCenterName}</td>
-                                        <td style={{ ...styles.td, textAlign: 'right', fontWeight: 500, color: item.totalRevenue > 0 ? '#10b981' : '#94a3b8' }}>
-                                            {item.totalRevenue > 0 ? formatCurrency(item.totalRevenue) : '-'}
-                                        </td>
-                                        <td style={{ ...styles.td, textAlign: 'right', fontWeight: 500, color: item.totalExpense > 0 ? '#ef4444' : '#94a3b8' }}>
-                                            {item.totalExpense > 0 ? formatCurrency(item.totalExpense) : '-'}
-                                        </td>
-                                        <td style={{ ...styles.td, textAlign: 'center' }}>
-                                            <span style={{
-                                                padding: '0.25rem 0.75rem',
-                                                borderRadius: '6px',
-                                                fontSize: '0.7rem',
-                                                fontWeight: 700,
-                                                backgroundColor: item.hasBudget ? '#d1fae5' : '#fee2e2',
-                                                color: item.hasBudget ? '#065f46' : '#991b1b',
-                                                display: 'inline-block',
-                                                minWidth: '100px'
-                                            }}>
-                                                {item.hasBudget ? 'LANÇADO' : 'PENDENTE'}
-                                            </span>
-                                        </td>
-                                    </tr>
-                                )) : (
+                                {groupedData.length > 0 ? groupedData.map((group) => {
+                                    const isExpanded = expandedTenants.has(group.tenantId) || searchTerm !== '';
+                                    const isComplete = group.finishedCount === group.totalCount;
+
+                                    return (
+                                        <React.Fragment key={group.tenantId}>
+                                            {/* Tenant Row */}
+                                            <tr
+                                                onClick={() => toggleTenant(group.tenantId)}
+                                                style={{
+                                                    background: '#f1f5f9',
+                                                    cursor: 'pointer',
+                                                    borderBottom: '1px solid #e2e8f0',
+                                                    transition: 'all 0.15s ease'
+                                                }}
+                                                onMouseEnter={(e) => (e.currentTarget.style.background = '#e2e8f0')}
+                                                onMouseLeave={(e) => (e.currentTarget.style.background = '#f1f5f9')}
+                                            >
+                                                <td style={{ ...styles.td, fontWeight: 800, color: '#1e293b', display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                                                    <span style={{
+                                                        fontSize: '0.7rem',
+                                                        color: '#64748b',
+                                                        transition: 'transform 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
+                                                        transform: isExpanded ? 'rotate(90deg)' : 'rotate(0deg)'
+                                                    }}>▶</span>
+                                                    {group.tenantName}
+                                                </td>
+                                                <td style={{ ...styles.td, textAlign: 'right', fontWeight: 800, color: group.totalRevenue > 0 ? '#10b981' : '#1e293b' }}>
+                                                    {formatCurrency(group.totalRevenue)}
+                                                </td>
+                                                <td style={{ ...styles.td, textAlign: 'right', fontWeight: 800, color: group.totalExpense > 0 ? '#ef4444' : '#1e293b' }}>
+                                                    {formatCurrency(group.totalExpense)}
+                                                </td>
+                                                <td style={{ ...styles.td, textAlign: 'center' }}>
+                                                    <span style={{
+                                                        padding: '0.25rem 0.75rem',
+                                                        borderRadius: '6px',
+                                                        fontSize: '0.7rem',
+                                                        fontWeight: 800,
+                                                        backgroundColor: isComplete ? '#d1fae5' : '#fee2e2',
+                                                        color: isComplete ? '#065f46' : '#991b1b',
+                                                        display: 'inline-block',
+                                                        minWidth: '100px',
+                                                        boxShadow: '0 1px 2px rgba(0,0,0,0.05)'
+                                                    }}>
+                                                        {isComplete ? 'LANÇADO' : `PENDENTE (${group.finishedCount}/${group.totalCount})`}
+                                                    </span>
+                                                </td>
+                                            </tr>
+
+                                            {/* Cost Center Rows */}
+                                            {isExpanded && group.costCenters.map((cc) => (
+                                                <tr key={cc.costCenterId} className="cc-row" style={{ background: '#fff' }}>
+                                                    <td style={{ ...styles.td, paddingLeft: '3rem', color: '#475569', fontWeight: 500 }}>
+                                                        {cc.costCenterName}
+                                                    </td>
+                                                    <td style={{ ...styles.td, textAlign: 'right', color: cc.totalRevenue > 0 ? '#10b981' : '#94a3b8' }}>
+                                                        {formatCurrency(cc.totalRevenue)}
+                                                    </td>
+                                                    <td style={{ ...styles.td, textAlign: 'right', color: cc.totalExpense > 0 ? '#ef4444' : '#94a3b8' }}>
+                                                        {formatCurrency(cc.totalExpense)}
+                                                    </td>
+                                                    <td style={{ ...styles.td, textAlign: 'center' }}>
+                                                        {cc.hasBudget ? (
+                                                            <span style={{ fontSize: '0.8rem', color: '#10b981' }}>✓ Finalizado</span>
+                                                        ) : (
+                                                            <span style={{ color: '#ef4444', fontSize: '0.65rem', fontWeight: 700, letterSpacing: '0.05em' }}>EM ABERTO</span>
+                                                        )}
+                                                    </td>
+                                                </tr>
+                                            ))}
+                                        </React.Fragment>
+                                    );
+                                }) : (
                                     <tr>
-                                        <td colSpan={5} style={{ padding: '4rem', textAlign: 'center', color: '#94a3b8', fontStyle: 'italic' }}>Nenhum resultado encontrado.</td>
+                                        <td colSpan={5} style={{ padding: '6rem', textAlign: 'center', color: '#94a3b8', fontStyle: 'italic', fontSize: '1rem' }}>
+                                            Nenhum resultado encontrado para "{searchTerm}"
+                                        </td>
                                     </tr>
                                 )}
                             </tbody>
@@ -221,11 +337,17 @@ export default function BudgetSummaryPage() {
                     </div>
                 </div>
 
-                <div style={{ marginTop: '2.5rem', textAlign: 'center', color: '#94a3b8', fontSize: '0.75rem', fontWeight: 600, letterSpacing: '0.1em' }}>
-                    DADOS SINCRONIZADOS EM {new Date().toLocaleDateString('pt-BR')} • GESTÃO 4.0
+                <div style={{ marginTop: '2.5rem', textAlign: 'center', color: '#cbd5e1', fontSize: '0.75rem', fontWeight: 600, letterSpacing: '0.1em' }}>
+                    SISTEMA DE PLANEJAMENTO SINCRONIZADO • GESTÃO 4.0
                 </div>
 
             </div>
+
+            <style jsx>{`
+                .cc-row:hover {
+                    background-color: #f8fafc !important;
+                }
+            `}</style>
         </div>
     );
 }

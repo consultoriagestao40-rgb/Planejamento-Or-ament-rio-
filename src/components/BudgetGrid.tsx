@@ -692,10 +692,11 @@ export default function BudgetGrid({
                 const next = { ...prev };
                 entries.forEach((entry: any) => {
                     const key = `${entry.categoryId}-${entry.month}`; // month is 0-11 here
-                    const existing = next[key] || { amount: 0, radarAmount: null, isLocked: false };
+                    const existing = next[key] || { amount: 0, radarAmount: null, isLocked: false, observation: null };
                     if (entry.amount !== undefined) existing.amount = parseFloat(entry.amount) || 0;
                     if (entry.radarAmount !== undefined) existing.radarAmount = entry.radarAmount === null ? null : parseFloat(entry.radarAmount) || 0;
                     if (entry.isLocked !== undefined) existing.isLocked = !!entry.isLocked;
+                    if (entry.observation !== undefined) (existing as any).observation = entry.observation || null;
                     next[key] = existing;
                 });
                 return next;

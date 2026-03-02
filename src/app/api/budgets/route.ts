@@ -145,12 +145,14 @@ export async function GET(request: Request) {
           year: curr.year,
           amount: curr.amount || 0,
           radarAmount: curr.radarAmount,
-          isLocked: curr.isLocked || false
+          isLocked: curr.isLocked || false,
+          observation: curr.observation || null
         };
       } else {
         acc[key].amount += curr.amount || 0;
         acc[key].radarAmount = (acc[key].radarAmount || 0) + (curr.radarAmount || 0);
         if (curr.isLocked) acc[key].isLocked = true;
+        if (curr.observation && !acc[key].observation) acc[key].observation = curr.observation;
       }
       return acc;
     }, {} as Record<string, any>);

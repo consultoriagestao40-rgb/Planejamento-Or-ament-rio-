@@ -151,6 +151,30 @@ export default function FinancialDashboard({
                             </a>
                             <SyncButton onSyncStart={() => setIsSyncing(true)} onSyncComplete={triggerRefresh} />
 
+                            <a
+                                href="/summary"
+                                style={{
+                                    marginLeft: '0.5rem',
+                                    padding: '0.4rem 0.8rem',
+                                    backgroundColor: '#f1f5f9',
+                                    color: '#334155',
+                                    border: '1px solid #cbd5e1',
+                                    borderRadius: '6px',
+                                    fontSize: '0.85rem',
+                                    fontWeight: 600,
+                                    textDecoration: 'none',
+                                    height: '36px',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    transition: 'all 0.2s'
+                                }}
+                                onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#e2e8f0'}
+                                onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#f1f5f9'}
+                            >
+                                📋 Resumo por CC
+                            </a>
+
                             <button
                                 onClick={async () => {
                                     await fetch('/api/auth/logout', { method: 'POST' });

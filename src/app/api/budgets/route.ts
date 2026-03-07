@@ -121,6 +121,20 @@ export async function GET(request: Request) {
     });
 
 
+    let isCCLocked = false;
+    if (!isGeneralView && costCenterIds.length === 1) {
+      const lock = await (prisma as any).costCenterLock.findUnique({
+        where: {
+          tenantId_costCenterId_year: {
+            tenantId: tenantIdParam === 'ALL' ? anyTenant?.id : tenantIdParam,
+            costCenterId: costCenterIds[0],
+            year: selectedYear
+          }
+        }
+      });
+      isCCLocked = lock?.isLocked || false;
+    }
+
     const isDetailMode = searchParams.get('detail') === 'true';
 
     // In detail mode, return raw entries with tenantId + costCenterId for the drill-down modal
@@ -133,20 +147,21 @@ export async function GET(request: Request) {
         year: b.year,
         amount: b.amount || 0,
         radarAmount: b.radarAmount,
-        isLocked: b.isLocked || false,
+        isLocked: b.isLocked || isCCLocked, // Use global lock as fallback
         observation: b.observation || null
       }));
-      return NextResponse.json({ success: true, data: rawEntries });
+      return NextResponse.json({ success: true, data: rawEntries, isCCLocked });
     }
 
     const aggregatedBudgets = budgets.reduce((acc, curr: any) => {
       const key = `${curr.categoryId}-${curr.month}`;
       if (!acc[key]) {
         acc[key] = { ...curr };
+        if (isCCLocked) acc[key].isLocked = true;
       } else {
         acc[key].amount += curr.amount || 0;
         acc[key].radarAmount = (acc[key].radarAmount || 0) + (curr.radarAmount || 0);
-        if (curr.isLocked) acc[key].isLocked = true;
+        if (curr.isLocked || isCCLocked) acc[key].isLocked = true;
         
         // IMPROVEMENT: Join observations/comments with newlines if they differ
         if (curr.observation && curr.observation.trim()) {
@@ -160,13 +175,14 @@ export async function GET(request: Request) {
       return acc;
     }, {} as Record<string, any>);
 
-    return NextResponse.json({ success: true, data: Object.values(aggregatedBudgets) });
+    return NextResponse.json({ success: true, data: Object.values(aggregatedBudgets), isCCLocked });
 
   } catch (error: any) {
     console.error('Error fetching budgets:', error);
     return NextResponse.json({ success: false, error: 'Failed to fetch budgets', details: error.message }, { status: 500 });
   }
 }
+
 
 
 export async function POST(request: Request) {

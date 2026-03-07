@@ -52,10 +52,11 @@ export default function BudgetGrid({
 }: BudgetGridProps) {
     // --- Budget State ---
     const [budgetValues, setBudgetValues] = useState<Record<string, { amount: number, radarAmount: number | null, isLocked: boolean, observation?: string | null }>>({});
-
+    const [isCCLocked, setIsCCLocked] = useState(false);
     const [realizedValues, setRealizedValues] = useState<Record<string, number>>({});
     const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
     const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set()); // New state for main groups
+
     const [loading, setLoading] = useState(true);
     const [selectedCompany, setSelectedCompany] = useState<string[]>(['DEFAULT']);
     const [pendingCompany, setPendingCompany] = useState<string[]>(['DEFAULT']);
@@ -214,7 +215,9 @@ export default function BudgetGrid({
                 const syncData = await syncRes.json();
 
                 if (budgetData.success) {
+                    setIsCCLocked(budgetData.isCCLocked || false);
                     const values: Record<string, { amount: number, radarAmount: number | null, isLocked: boolean, observation: string | null }> = {};
+
                     budgetData.data.forEach((item: any) => {
                         // Map 1-12 from DB to 0-11 for UI
                         values[`${item.categoryId}-${item.month - 1}`] = {
@@ -706,17 +709,19 @@ export default function BudgetGrid({
             const refreshData = await refreshRes.json();
             
             if (refreshData.success) {
+                setIsCCLocked(refreshData.isCCLocked || false);
                 const values: Record<string, { amount: number, radarAmount: number | null, isLocked: boolean, observation: string | null }> = {};
                 refreshData.data.forEach((item: any) => {
                     values[`${item.categoryId}-${item.month - 1}`] = {
                         amount: item.amount || 0,
                         radarAmount: (item.radarAmount !== undefined && item.radarAmount !== null) ? item.radarAmount : null,
-                        isLocked: item.isLocked || false,
+                        isLocked: (item.isLocked || refreshData.isCCLocked) || false,
                         observation: item.observation || null
                     };
                 });
                 setBudgetValues(values);
             }
+
         } catch (error: any) {
 
             console.error("Save error:", error);
@@ -797,8 +802,9 @@ export default function BudgetGrid({
         });
         const initialLocks = new Array(12).fill(false).map((_, i) => {
             const data = budgetValues[`${targetIdToEdit}-${i}`];
-            return data?.isLocked || false;
+            return (data?.isLocked || isCCLocked) || false;
         });
+
 
         setBudgetModal({ categoryId: targetIdToEdit, categoryName: nodeName, startMonth: monthIndex, type });
         setModalValues(initialValues);
@@ -877,9 +883,9 @@ export default function BudgetGrid({
                             revBrutaReal = monthTotal.vRecLiq.r;
                             revBrutaBudget = monthTotal.vRecLiq.b;
                             revBrutaRadar = monthTotal.vRecLiq.rd;
-                            isLocked = node.id.split(',').some(id => (budgetValues[`${id}-${i}`] || {}).isLocked);
-
+                            isLocked = isCCLocked || node.id.split(',').some(id => (budgetValues[`${id}-${i}`] || {}).isLocked);
                         } else {
+
                             for (let m = i * 3; m < i * 3 + 3; m++) {
                                 bVal += totals.budget[m];
                                 rVal += totals.realized[m];
@@ -888,9 +894,9 @@ export default function BudgetGrid({
                                 revBrutaReal += monthTotal.vRecLiq.r;
                                 revBrutaBudget += monthTotal.vRecLiq.b;
                                 revBrutaRadar += monthTotal.vRecLiq.rd;
-                                if (node.id.split(',').some(id => (budgetValues[`${id}-${m}`] || {}).isLocked)) isLocked = true;
-
+                                if (isCCLocked || node.id.split(',').some(id => (budgetValues[`${id}-${m}`] || {}).isLocked)) isLocked = true;
                             }
+
                         }
 
                         revBrutaReal = revBrutaReal || 1;

@@ -23,9 +23,9 @@ export async function GET(request: Request) {
         const [tenants, costCenters, categories, budgetEntries] = await Promise.all([
             prisma.tenant.findMany({ select: { id: true, name: true } }),
             prisma.costCenter.findMany({ 
-                where: { isActive: true },
                 select: { id: true, name: true, tenantId: true } 
             }),
+
 
             prisma.category.findMany({ select: { id: true, type: true, name: true } }),
             prisma.budgetEntry.findMany({

@@ -15,8 +15,9 @@ export async function GET() {
             return NextResponse.json({ success: false, error: 'Não autorizado' }, { status: 401 });
         }
 
-        let categoryFilter: any = { isActive: true };
-        let costCenterFilter: any = { isActive: true };
+        let categoryFilter: any = {};
+        let costCenterFilter: any = {};
+
 
 
         if (user.role === 'GESTOR') {
@@ -29,8 +30,9 @@ export async function GET() {
                 const tenantIds = dbUser.tenantAccess.map(t => t.tenantId);
                 const costCenterIds = dbUser.costCenterAccess.map(c => c.costCenterId);
 
-                categoryFilter = { tenantId: { in: tenantIds }, isActive: true };
-                costCenterFilter = { id: { in: costCenterIds }, isActive: true };
+                categoryFilter = { tenantId: { in: tenantIds } };
+                costCenterFilter = { id: { in: costCenterIds } };
+
 
             }
         }

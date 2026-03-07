@@ -869,7 +869,7 @@ export default function BudgetGrid({
                         padding: '0.65rem 1rem',
                         position: 'sticky',
                         left: 0,
-                        background: 'var(--bg-surface)',
+                        background: 'white', // Force solid white to block scroll content
                         zIndex: 5,
                         color: hasChildren ? 'var(--text-primary)' : 'var(--text-secondary)',
                         fontWeight: hasChildren ? 700 : 500,
@@ -1042,7 +1042,7 @@ export default function BudgetGrid({
                     padding: '0.85rem 1rem',
                     position: 'sticky',
                     left: 0,
-                    background: bgColor,
+                    background: bgColor === 'var(--bg-elevated)' ? '#f8fafc' : 'white', // Force solid background
                     zIndex: 10,
                     color: textColor,
                     fontSize: '0.85rem',
@@ -1295,7 +1295,7 @@ export default function BudgetGrid({
                 <table className="premium-table" style={{ fontSize: '0.8rem' }}>
                     <thead>
                         <tr>
-                            <th style={{ padding: '1rem', textAlign: 'left', minWidth: '400px', position: 'sticky', left: 0, background: 'var(--bg-elevated)', zIndex: 25, color: 'var(--text-primary)' }}>
+                            <th style={{ padding: '1rem', textAlign: 'left', minWidth: '400px', position: 'sticky', left: 0, background: '#f8fafc', zIndex: 25, color: 'var(--text-primary)', borderRight: '1px solid var(--border-subtle)' }}>
                                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
                                     <button
                                         onClick={handleToggleAll}
@@ -1327,7 +1327,7 @@ export default function BudgetGrid({
                             ))}
                         </tr>
                         <tr style={{ background: 'var(--bg-surface)' }}>
-                            <th style={{ position: 'sticky', left: 0, zIndex: 20, background: 'var(--bg-surface)', borderBottom: '1px solid var(--border-default)' }}></th>
+                            <th style={{ position: 'sticky', left: 0, zIndex: 20, background: 'white', borderBottom: '1px solid var(--border-default)', borderRight: '1px solid var(--border-subtle)' }}></th>
                             {(viewPeriod === 'month' ? MONTHS : [1, 2, 3, 4]).map((_, i) => (
                                 <React.Fragment key={i}>
                                     <th style={{ fontSize: '0.65rem', color: 'var(--text-muted)', borderLeft: '1px solid var(--border-subtle)', fontWeight: 600, paddingBottom: '0.5rem', borderBottom: '1px solid var(--border-default)', minWidth: '80px', textAlign: 'center' }}>ORÇADO</th>
@@ -1643,17 +1643,13 @@ export default function BudgetGrid({
                                 <button onClick={() => setBudgetModal(null)} style={{ border: 'none', background: 'none', cursor: 'pointer', fontSize: '1.5rem', color: '#94a3b8', padding: '0.5rem' }}>✕</button>
                             </div>
 
-                            {lockedMonths.some(l => l) && (
-                                <div style={{ backgroundColor: '#fff1f2', border: '1px solid #fda4af', borderRadius: '8px', padding: '0.75rem', marginBottom: '1.25rem', display: 'flex', alignItems: 'center', gap: '0.5rem', color: '#be123c', fontSize: '0.85rem', fontWeight: 600 }}>
-                                    🔒 Este orçamento está bloqueado para edições.
-                                </div>
-                            )}
+                            {/* Global locked banner removed to allow month-by-month editing */}
 
                             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '1rem', marginBottom: '2.2rem' }}>
 
                                 {MONTHS.map((m, i) => {
                                     const isLocked = lockedMonths[i];
-                                    const canEditBudget = budgetModal.type === 'radar' || !isLocked;
+                                    const canEdit = !isLocked;
 
 
                                     return (
@@ -1674,19 +1670,19 @@ export default function BudgetGrid({
                                                         next[i] = e.target.value;
                                                         setModalValues(next);
                                                     }}
-                                                    disabled={!canEditBudget}
+                                                    disabled={!canEdit}
                                                     placeholder="0.00"
                                                     style={{
                                                         width: '100%',
                                                         padding: '0.75rem 0.75rem 0.75rem 2.2rem',
                                                         borderRadius: '8px',
                                                         border: activeMonth === i ? '2px solid #2563eb' : (isLocked && budgetModal.type === 'budget' ? '1px dashed #cbd5e1' : '1px solid #cbd5e1'),
-                                                        backgroundColor: !canEditBudget ? '#f1f5f9' : '#fff',
+                                                        backgroundColor: !canEdit ? '#f8fafc' : '#fff',
                                                         fontSize: '0.95rem',
                                                         outline: 'none',
-                                                        color: !canEditBudget ? '#94a3b8' : '#1e293b',
+                                                        color: !canEdit ? '#94a3b8' : '#1e293b',
                                                         transition: 'all 0.2s',
-                                                        cursor: !canEditBudget ? 'not-allowed' : 'text'
+                                                        cursor: !canEdit ? 'not-allowed' : 'text'
                                                     }}
                                                 />
                                             </div>

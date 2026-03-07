@@ -90,16 +90,15 @@ export async function runCronSync(reqYear: number) {
 
         for (const viewMode of ['competencia', 'caixa'] as const) {
             // Widen the search window by 2 months before/after to catch Competência vs Caixa mismatches.
-            // CAUTION: Conta Azul API requires either data_emissao, data_vencimento or data_competencia.
-            // For 'caixa', a bill from last year can be paid this year. We must ask broadly by competence or emission
-            // since there is no data_pagamento filter. To not explode the payload, we ask for a 1-year radius around the target year.
+            // CAUTION: Conta Azul API requires either data_emissao, data_vencimento or data_pagamento.
+            // For 'caixa', a bill from last year can be paid this year.
             let startStr, endStr;
             let filterType = 'data_vencimento';
 
             if (viewMode === 'caixa') {
-                startStr = `${reqYear - 1}-01-01`; // Look deeply into the past to find delayed payments
-                endStr = `${reqYear + 1}-12-31`;
-                filterType = 'data_competencia'; // Best broad filter for historical paid stuff
+                startStr = `${reqYear - 1}-10-01`; // Look back to catch late payments
+                endStr = `${reqYear + 1}-03-31`;
+                filterType = 'data_pagamento'; // Official Conta Azul filter for Cash Flow
             } else {
                 startStr = `${reqYear - 1}-11-01`;
                 endStr = `${reqYear + 1}-02-28`;

@@ -29,15 +29,15 @@ async function fetchAllTransactionsForYear(accessToken: string, baseUrl: string,
                 let amount: number;
 
                 if (viewMode === 'caixa') {
-                    // Cash mode: only include items that have been (at least partially) paid.
-                    // Conta Azul's API does NOT return "data_pagamento" in this endpoint.
-                    // "pago" = amount already paid, "data_competencia" = date cash moved.
+                    // Cash mode: CA API uses "ACQUITTED" status (not PAGO) for paid items.
+                    // There is NO data_pagamento field in this CA endpoint.
+                    // "pago" = amount paid (>0 means settled), "data_vencimento" = best available date proxy.
                     if (!item.pago || item.pago <= 0) return;
-                    dateStr = item.data_competencia || item.data_vencimento;
+                    dateStr = item.data_vencimento;
                     amount = item.pago;
                 } else {
                     // Accrual mode: Prioritize competence date, then due date
-                    dateStr = item.data_competencia || item.data_vencimento || item.vencimento || item.data_pagamento;
+                    dateStr = item.data_competencia || item.data_vencimento || item.vencimento;
                     amount = item.total || item.valor_original || item.valor || item.valor_liquido || 0;
                 }
 
@@ -47,7 +47,7 @@ async function fetchAllTransactionsForYear(accessToken: string, baseUrl: string,
                 transactions.push({
                     id: item.id,
                     month: dateObj.getMonth(), // 0-11
-                    amount: Math.abs(amount), // ALWAYS positive, DRE frontend subtracts expenses
+                    amount: Math.abs(amount),
                     categories: cats,
                     costCenters: ccs
                 });

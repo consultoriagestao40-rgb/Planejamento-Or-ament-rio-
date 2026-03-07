@@ -1285,7 +1285,7 @@ export default function BudgetGrid({
                 </div>
             </div>
 
-            <div className="glass-card" style={{ minHeight: '300px', overflow: 'hidden' }}>
+            <div className="glass-card" style={{ minHeight: '300px', overflow: 'auto', position: 'relative' }}>
                 {(loading || isExternalLoading) && (
                     <div style={{ position: 'absolute', inset: 0, background: 'rgba(255, 255, 255, 0.6)', zIndex: 100, display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', backdropFilter: 'blur(2px)' }}>
                         <div className="spinner" />

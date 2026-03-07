@@ -41,11 +41,13 @@ async function fetchAllTransactionsForYear(accessToken: string, baseUrl: string,
 
                 const dateObj = dateStr ? new Date(dateStr) : new Date();
                 
-                // Adjust for timezones strictly so a "2026-06-01T00:00:00Z" falls in month 5, not month 4 in BRT
                 const splitDate = dateStr.includes('T') ? dateStr.split('T')[0] : dateStr;
-                const [y, m, d] = splitDate.split('T')[0].split('-').map(Number);
+                const [y, m, d] = splitDate.split('-').map(Number);
                 const localDateObj = new Date(y, m - 1, d || 1);
 
+                // This is the critical fix for Cash Flow:
+                // Only drop the transaction if the *resolved* date (payment for Caixa, accrual for Competência)
+                // is completely outside the targetYear.
                 if (localDateObj.getFullYear() !== targetYear) return;
 
                 transactions.push({
@@ -98,10 +100,11 @@ export async function runCronSync(reqYear: number) {
             const filterType = 'data_vencimento';
 
             if (viewMode === 'caixa') {
-                // To find cash flow for 2026, we might need bills that expired in 2025 but were paid in 2026
-                // and bills that expire in 2027 but were prepaid in 2026.
-                startStr = `${reqYear - 1}-01-01`; 
-                endStr = `${reqYear + 1}-12-31`;
+                // To find cash flow for reqYear, we fetch bills that expired a bit earlier
+                // but we CANNOT go back to Jan 1st of the previous year, otherwise we exhaust 
+                // the 50 page (5000 items) limit with old transactions before reaching the target year!
+                startStr = `${reqYear - 1}-11-01`; 
+                endStr = `${reqYear + 1}-02-28`;
             } else {
                 startStr = `${reqYear - 1}-11-01`;
                 endStr = `${reqYear + 1}-02-28`;

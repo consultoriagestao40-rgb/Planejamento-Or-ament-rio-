@@ -17,16 +17,16 @@ export async function GET(request: Request) {
         const t = tenants[0];
         const res = await getValidAccessToken(t.id);
         
-        const url = `https://api-v2.contaazul.com/v1/financeiro/eventos-financeiros/contas-a-receber/buscar?data_vencimento_de=2026-03-01&data_vencimento_ate=2026-03-31&tamanho_pagina=5`;
+        const url = `https://api-v2.contaazul.com/v1/financeiro/eventos-financeiros/contas-a-receber/buscar?data_vencimento_de=2025-01-01&data_vencimento_ate=2025-12-31&tamanho_pagina=100`;
         const fetchRes = await fetch(url, { headers: { 'Authorization': `Bearer ${res.token}` } });
         const data = await fetchRes.json();
         
-        // Return first item raw to see all field names
-        const firstItem = data?.itens?.[0] || null;
+        // Find first PAID item
+        const paidItem = (data?.itens || []).find((x: any) => (x.status || '').toUpperCase() === 'PAGO' || (x.status || '').toUpperCase() === 'LIQUIDADO');
         return NextResponse.json({ 
             total: data?.itens?.length, 
-            firstItemKeys: firstItem ? Object.keys(firstItem) : [],
-            firstItem
+            paidItemKeys: paidItem ? Object.keys(paidItem) : 'NO PAID ITEM FOUND',
+            paidItem
         });
     } catch (e: any) {
         console.error('[DEBUG] Sync error:', e);

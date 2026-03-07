@@ -38,7 +38,18 @@ export async function GET(request: Request) {
 
 
 
-            prisma.category.findMany({ select: { id: true, type: true, name: true } }),
+            prisma.category.findMany({ 
+                where: {
+                    NOT: {
+                        OR: [
+                            { name: { contains: '[INATIVO]' } },
+                            { name: { contains: 'ENCERRADO', mode: 'insensitive' } }
+                        ]
+                    }
+                },
+                select: { id: true, type: true, name: true } 
+            }),
+
             prisma.budgetEntry.findMany({
                 where: { year: currentYear },
                 select: { amount: true, categoryId: true, costCenterId: true, tenantId: true }

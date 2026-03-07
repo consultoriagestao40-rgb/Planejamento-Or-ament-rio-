@@ -18,8 +18,8 @@ export async function GET(request: Request) {
         const res = await getValidAccessToken(t.id);
         
         const filterType = "data_vencimento";
-        const startStr = "2025-11-01";
-        const endStr = "2025-11-20"; // very short to prevent timeout
+        const startStr = "2026-03-01";
+        const endStr = "2026-03-31"; // very short to prevent timeout
         const url = `https://api-v2.contaazul.com/v1/financeiro/eventos-financeiros/contas-a-receber/buscar?${filterType}_de=${startStr}&${filterType}_ate=${endStr}&tamanho_pagina=100`;
 
         const fetchRes = await fetch(url, { headers: { 'Authorization': `Bearer ${res.token}` } });

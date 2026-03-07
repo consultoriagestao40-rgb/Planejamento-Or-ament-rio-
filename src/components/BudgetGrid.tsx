@@ -51,7 +51,8 @@ export default function BudgetGrid({
     externalYear = new Date().getFullYear()
 }: BudgetGridProps) {
     // --- Budget State ---
-    const [budgetValues, setBudgetValues] = useState<Record<string, { amount: number, radarAmount: number | null, isLocked: boolean }>>({});
+    const [budgetValues, setBudgetValues] = useState<Record<string, { amount: number, radarAmount: number | null, isLocked: boolean, observation?: string | null }>>({});
+
     const [realizedValues, setRealizedValues] = useState<Record<string, number>>({});
     const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
     const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set()); // New state for main groups
@@ -647,7 +648,8 @@ export default function BudgetGrid({
         setIsSavingBudget(true);
         try {
             const entries: Record<string, any>[] = [];
-            const companyParam = selectedCompany.includes('DEFAULT') ? 'ALL' : selectedCompany[0];
+            const targetCompanyParam = selectedCompany.includes('DEFAULT') ? 'ALL' : selectedCompany[0];
+
             for (let i = 0; i < 12; i++) {
                 const currentVal = modalValues[i];
                 // Only send if not empty string to avoid wiping data to 0 unnecessarily
@@ -658,7 +660,8 @@ export default function BudgetGrid({
                     month: i,
                     year: selectedYear,
                     costCenterId: selectedCostCenter[0],
-                    tenantId: companyParam
+                    tenantId: targetCompanyParam
+
                 };
 
                 const numericVal = evaluateFormula(currentVal);
@@ -693,22 +696,26 @@ export default function BudgetGrid({
             }
 
             setBudgetModal(null);
-            // Update local state directly instead of re-fetching — this is faster and avoids
-            // all the CC/tenant filter matching issues in the GET endpoint.
-            setBudgetValues(prev => {
-                const next = { ...prev };
-                entries.forEach((entry: any) => {
-                    const key = `${entry.categoryId}-${entry.month}`; // month is 0-11 here
-                    const existing = next[key] || { amount: 0, radarAmount: null, isLocked: false, observation: null };
-                    if (entry.amount !== undefined) existing.amount = parseFloat(entry.amount) || 0;
-                    if (entry.radarAmount !== undefined) existing.radarAmount = entry.radarAmount === null ? null : parseFloat(entry.radarAmount) || 0;
-                    if (entry.isLocked !== undefined) existing.isLocked = !!entry.isLocked;
-                    if (entry.observation !== undefined) (existing as any).observation = entry.observation || null;
-                    next[key] = existing;
+            
+            // Refresh server data to ensure consistency with other cost centers/tenants
+            const companyParam = selectedCompany.includes('DEFAULT') ? 'ALL' : selectedCompany.join(',');
+            const refreshRes = await fetch(`/api/budgets?costCenterId=${selectedCostCenter.join(',')}&tenantId=${companyParam}&year=${selectedYear}&t=${Date.now()}`, { cache: 'no-store' });
+            const refreshData = await refreshRes.json();
+            
+            if (refreshData.success) {
+                const values: Record<string, { amount: number, radarAmount: number | null, isLocked: boolean, observation: string | null }> = {};
+                refreshData.data.forEach((item: any) => {
+                    values[`${item.categoryId}-${item.month - 1}`] = {
+                        amount: item.amount || 0,
+                        radarAmount: (item.radarAmount !== undefined && item.radarAmount !== null) ? item.radarAmount : null,
+                        isLocked: item.isLocked || false,
+                        observation: item.observation || null
+                    };
                 });
-                return next;
-            });
+                setBudgetValues(values);
+            }
         } catch (error: any) {
+
             console.error("Save error:", error);
             alert(`Erro ao salvar orçamentos: ${error.message}${error.details ? '\nDetalhes: ' + error.details : ''}`);
         } finally {
@@ -932,9 +939,17 @@ export default function BudgetGrid({
                                     onMouseLeave={(e) => { if (isCellEditable) e.currentTarget.style.backgroundColor = '#fff'; }}
                                     title={viewPeriod === 'quarter' ? "Mude para a Visão Mensal para editar" : (!isEditable ? "Selecione um único Centro de Custo para editar" : "")}
                                 >
-                                    <div>{formatCurrency(rdVal)}</div>
+                                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', justifyContent: 'center' }}>
+                                            <div style={{ fontSize: '0.85rem', fontWeight: 700, color: node.isSynthetic ? '#64748b' : '#334155', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                                {formatCurrency(rdVal)}
+                                                {!node.isSynthetic && budgetValues[`${node.id.split(',')[0]}-${i}`]?.observation && (
+                                                    <span style={{ color: '#f59e0b', fontSize: '0.6rem' }} title={budgetValues[`${node.id.split(',')[0]}-${i}`].observation!}>●</span>
+                                                )}
+                                            </div>
+                                            {showAV && <div style={{ fontSize: '0.65rem', color: '#94a3b8' }}>AV: {avRadar.toFixed(1)}%</div>}
+                                        </div>
+
                                     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end' }}>
-                                        {showAV && <span style={{ fontSize: '0.65rem', color: '#94a3b8', fontWeight: 400 }}>AV: {avRadar.toFixed(1)}%</span>}
                                         {showAH && <span style={{ fontSize: '0.65rem', color: '#0d9488', fontWeight: 600 }}>AH (O x R): {ahRadarValue.toFixed(1)}%</span>}
                                     </div>
                                 </td>

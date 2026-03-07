@@ -869,7 +869,7 @@ export default function BudgetGrid({
                         padding: '0.65rem 1rem',
                         position: 'sticky',
                         left: 0,
-                        background: 'white', // Force solid white to block scroll content
+                        background: 'var(--bg-surface)', // Matches row and ensures solid coverage
                         zIndex: 5,
                         color: hasChildren ? 'var(--text-primary)' : 'var(--text-secondary)',
                         fontWeight: hasChildren ? 700 : 500,
@@ -1042,7 +1042,7 @@ export default function BudgetGrid({
                     padding: '0.85rem 1rem',
                     position: 'sticky',
                     left: 0,
-                    background: bgColor === 'var(--bg-elevated)' ? '#f8fafc' : 'white', // Force solid background
+                    background: bgColor, // Matches row color exactly (important for highlighted rows)
                     zIndex: 10,
                     color: textColor,
                     fontSize: '0.85rem',
@@ -1295,7 +1295,7 @@ export default function BudgetGrid({
                 <table className="premium-table" style={{ fontSize: '0.8rem' }}>
                     <thead>
                         <tr>
-                            <th style={{ padding: '1rem', textAlign: 'left', minWidth: '400px', position: 'sticky', left: 0, background: '#f8fafc', zIndex: 25, color: 'var(--text-primary)', borderRight: '1px solid var(--border-subtle)' }}>
+                            <th style={{ padding: '1rem', textAlign: 'left', minWidth: '400px', position: 'sticky', left: 0, background: 'var(--bg-elevated)', zIndex: 25, color: 'var(--text-primary)', borderRight: '1px solid var(--border-subtle)' }}>
                                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
                                     <button
                                         onClick={handleToggleAll}
@@ -1327,7 +1327,7 @@ export default function BudgetGrid({
                             ))}
                         </tr>
                         <tr style={{ background: 'var(--bg-surface)' }}>
-                            <th style={{ position: 'sticky', left: 0, zIndex: 20, background: 'white', borderBottom: '1px solid var(--border-default)', borderRight: '1px solid var(--border-subtle)' }}></th>
+                            <th style={{ position: 'sticky', left: 0, zIndex: 20, background: 'var(--bg-surface)', borderBottom: '1px solid var(--border-default)', borderRight: '1px solid var(--border-subtle)' }}></th>
                             {(viewPeriod === 'month' ? MONTHS : [1, 2, 3, 4]).map((_, i) => (
                                 <React.Fragment key={i}>
                                     <th style={{ fontSize: '0.65rem', color: 'var(--text-muted)', borderLeft: '1px solid var(--border-subtle)', fontWeight: 600, paddingBottom: '0.5rem', borderBottom: '1px solid var(--border-default)', minWidth: '80px', textAlign: 'center' }}>ORÇADO</th>

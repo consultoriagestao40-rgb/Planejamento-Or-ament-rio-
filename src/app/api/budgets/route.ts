@@ -110,12 +110,16 @@ export async function GET(request: Request) {
         : {};
     }
 
+    const selectedYear = parseInt(searchParams.get('year') || new Date().getFullYear().toString());
+    
     const budgets = await prisma.budgetEntry.findMany({
       where: {
         ...tenantFilter,
-        ...ccFilter
+        ...ccFilter,
+        year: selectedYear
       }
     });
+
 
     const isDetailMode = searchParams.get('detail') === 'true';
 

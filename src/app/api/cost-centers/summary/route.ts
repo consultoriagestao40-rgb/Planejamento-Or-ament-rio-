@@ -102,12 +102,15 @@ export async function GET(request: Request) {
             }
         });
 
-        // 5. Converter para array e ordenar
-        const result = Array.from(summaryMap.values()).sort((a, b) => {
-            // Ordenar por Empresa e depois por Centro de Custo
-            if (a.tenantName !== b.tenantName) return a.tenantName.localeCompare(b.tenantName);
-            return a.costCenterName.localeCompare(b.costCenterName);
-        });
+        // 5. Converter para array, filtrar apenas quem tem dados (DRE) e ordenar
+        const result = Array.from(summaryMap.values())
+            .filter(item => item.hasBudget)
+            .sort((a, b) => {
+                // Ordenar por Empresa e depois por Centro de Custo
+                if (a.tenantName !== b.tenantName) return a.tenantName.localeCompare(b.tenantName);
+                return a.costCenterName.localeCompare(b.costCenterName);
+            });
+
 
         return NextResponse.json({
             success: true,

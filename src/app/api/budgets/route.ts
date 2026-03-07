@@ -208,6 +208,7 @@ export async function POST(request: Request) {
 
     let allowedCostCenters: string[] | null = null;
     let allowedTenants: string[] | null = null;
+    let costCenterAccessMap: Record<string, string> = {};
     if (user.role === 'GESTOR') {
       const dbUser = await prisma.user.findUnique({
         where: { id: user.userId as string },
@@ -215,6 +216,9 @@ export async function POST(request: Request) {
       });
       if (dbUser) {
         allowedCostCenters = dbUser.costCenterAccess.map((c: any) => c.costCenterId);
+        dbUser.costCenterAccess.forEach((c: any) => {
+            costCenterAccessMap[c.costCenterId] = c.accessLevel;
+        });
         allowedTenants = dbUser.tenantAccess.map((t: any) => t.tenantId);
       } else {
         allowedCostCenters = [];
@@ -259,9 +263,18 @@ export async function POST(request: Request) {
       const rawCostCenterId = (costCenterId || "DEFAULT").split(',')[0] || "DEFAULT";
       const targetCostCenterId: string | null = (rawCostCenterId === 'DEFAULT') ? null : rawCostCenterId;
 
-      if (user.role === 'GESTOR' && targetCostCenterId !== null && allowedCostCenters !== null && !allowedCostCenters.includes(targetCostCenterId)) {
-        console.warn(`[API POST] User ${user.email} denied access to save on CC ${targetCostCenterId}`);
-        continue; // Skip unauthorized entries
+      if (user.role === 'GESTOR' && targetCostCenterId !== null && allowedCostCenters !== null) {
+        if (!allowedCostCenters.includes(targetCostCenterId)) {
+          console.warn(`[API POST] User ${user.email} denied access to save on CC ${targetCostCenterId}`);
+          continue; // Skip unauthorized entries
+        }
+        
+        if (costCenterAccessMap[targetCostCenterId] === 'LEITOR') {
+            return NextResponse.json({ 
+                success: false, 
+                error: `Você possui apenas permissão de leitura (LEITOR) para este Centro de Custo.` 
+            }, { status: 403 });
+        }
       }
 
       // Check for Global Cost Center Lock

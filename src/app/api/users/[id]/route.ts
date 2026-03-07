@@ -25,7 +25,7 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
         }
 
         const body = await request.json();
-        const { name, email, password, role, tenantIds, costCenterIds } = body;
+        const { name, email, password, role, tenantIds, costCenterAccess } = body;
 
         const dataToUpdate: any = { name, email, role };
 
@@ -45,7 +45,10 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
                     create: (tenantIds || []).map((id: string) => ({ tenantId: id }))
                 },
                 costCenterAccess: {
-                    create: (costCenterIds || []).map((id: string) => ({ costCenterId: id }))
+                    create: (costCenterAccess || []).map((cc: any) => ({
+                        costCenterId: cc.costCenterId,
+                        accessLevel: cc.accessLevel || 'EDITAR'
+                    }))
                 }
             }
         });

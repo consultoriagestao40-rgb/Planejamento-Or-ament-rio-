@@ -61,6 +61,19 @@ export async function GET(request: Request) {
 
         await ensureLockSchema();
 
+        let costCenterAccessMap: Record<string, string> = {};
+        if (user.role === 'GESTOR') {
+            const dbUser = await prisma.user.findUnique({
+                where: { id: user.userId as string },
+                include: { costCenterAccess: true }
+            });
+            if (dbUser) {
+                dbUser.costCenterAccess.forEach(c => {
+                    costCenterAccessMap[c.costCenterId] = c.accessLevel;
+                });
+            }
+        }
+
         // 1. Buscar todos os dados necessários
         const [tenants, costCenters, categories, budgetEntries, realizedEntries, locks] = await Promise.all([
             prisma.tenant.findMany({ select: { id: true, name: true } }),
@@ -134,7 +147,8 @@ export async function GET(request: Request) {
                 n1ApprovedBy: lock?.n1ApprovedBy || null,
                 n1ApprovedAt: lock?.n1ApprovedAt ? new Date(lock.n1ApprovedAt).toISOString() : null,
                 n2ApprovedBy: lock?.n2ApprovedBy || null,
-                n2ApprovedAt: lock?.n2ApprovedAt ? new Date(lock.n2ApprovedAt).toISOString() : null
+                n2ApprovedAt: lock?.n2ApprovedAt ? new Date(lock.n2ApprovedAt).toISOString() : null,
+                currentUserAccessLevel: user.role === 'MASTER' ? 'MASTER' : (costCenterAccessMap[cc.id] || 'NONE')
             });
 
 

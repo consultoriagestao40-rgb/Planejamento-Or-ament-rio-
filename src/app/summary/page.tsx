@@ -19,6 +19,7 @@ interface SummaryItem {
     n1ApprovedAt: string | null;
     n2ApprovedBy: string | null;
     n2ApprovedAt: string | null;
+    currentUserAccessLevel: string;
 }
 
 
@@ -486,9 +487,19 @@ export default function BudgetSummaryPage() {
                                                                 transition: 'all 0.2s'
                                                             }}
                                                         >
-                                                            {cc.status === 'APPROVED' ? '🔒 Aprovado' : 
-                                                             cc.status === 'AWAITING_N2' ? '⏳ Esperando N2' : 
-                                                             cc.status === 'REJECTED' ? '❌ Rejeitado' : '🔍 Analisar N1'}
+                                                            {(() => {
+                                                                const access = cc.currentUserAccessLevel;
+                                                                const isMaster = userRole === 'MASTER' || access === 'MASTER';
+                                                                if (cc.status === 'APPROVED') return '🔒 Aprovado';
+                                                                if (cc.status === 'REJECTED') return '❌ Rejeitado';
+                                                                if (cc.status === 'AWAITING_N2') {
+                                                                    const canApprove = isMaster || ['APROVADOR_N2', 'APROVADOR_N1_N2'].includes(access);
+                                                                    return canApprove ? '⏳ Aprovar N2' : '⏳ Esperando N2';
+                                                                }
+                                                                // PENDING
+                                                                const canSubmit = isMaster || ['APROVADOR_N1', 'APROVADOR_N1_N2'].includes(access);
+                                                                return canSubmit ? '📤 Enviar N1' : '🔍 Ver Detalhes';
+                                                            })()}
                                                         </button>
                                                     </td>
 
@@ -579,44 +590,55 @@ export default function BudgetSummaryPage() {
 
                             {/* Actions Group */}
                             <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'flex-end', borderTop: '1px solid #e2e8f0', paddingTop: '1.5rem' }}>
-                                {(selectedForAudit.status === 'PENDING' || selectedForAudit.status === 'REJECTED') && (
-                                    <button 
-                                        onClick={() => handleApprovalAction('SUBMIT_N1')} 
-                                        disabled={auditActionLoading}
-                                        style={{ background: '#2563eb', color: 'white', border: 'none', padding: '0.5rem 1rem', borderRadius: '6px', fontWeight: 600, cursor: 'pointer', transition: 'all 0.2s', opacity: auditActionLoading ? 0.7 : 1 }}
-                                    >
-                                        📤 Enviar P/ Aprovação (N1)
-                                    </button>
-                                )}
+                                {(() => {
+                                    const access = selectedForAudit.currentUserAccessLevel;
+                                    const isMaster = userRole === 'MASTER';
+                                    const isN1 = isMaster || ['APROVADOR_N1', 'APROVADOR_N1_N2'].includes(access);
+                                    const isN2 = isMaster || ['APROVADOR_N2', 'APROVADOR_N1_N2'].includes(access);
+                                    
+                                    return (
+                                        <>
+                                            {(selectedForAudit.status === 'PENDING' || selectedForAudit.status === 'REJECTED') && isN1 && (
+                                                <button 
+                                                    onClick={() => handleApprovalAction('SUBMIT_N1')} 
+                                                    disabled={auditActionLoading}
+                                                    style={{ background: '#2563eb', color: 'white', border: 'none', padding: '0.5rem 1rem', borderRadius: '6px', fontWeight: 600, cursor: 'pointer', transition: 'all 0.2s', opacity: auditActionLoading ? 0.7 : 1 }}
+                                                >
+                                                    📤 Enviar P/ Aprovação (N1)
+                                                </button>
+                                            )}
 
-                                {selectedForAudit.status === 'AWAITING_N2' && userRole === 'MASTER' && (
-                                    <>
-                                        <button 
-                                            onClick={() => handleApprovalAction('REJECT')} 
-                                            disabled={auditActionLoading}
-                                            style={{ background: '#fee2e2', color: '#dc2626', border: '1px solid #fecaca', padding: '0.5rem 1rem', borderRadius: '6px', fontWeight: 600, cursor: 'pointer', transition: 'all 0.2s', opacity: auditActionLoading ? 0.7 : 1 }}
-                                        >
-                                            ❌ Rejeitar N1
-                                        </button>
-                                        <button 
-                                            onClick={() => handleApprovalAction('APPROVE_N2')} 
-                                            disabled={auditActionLoading}
-                                            style={{ background: '#16a34a', color: 'white', border: 'none', padding: '0.5rem 1rem', borderRadius: '6px', fontWeight: 600, cursor: 'pointer', transition: 'all 0.2s', opacity: auditActionLoading ? 0.7 : 1 }}
-                                        >
-                                            ✅ Aprovar Definitivo (N2)
-                                        </button>
-                                    </>
-                                )}
+                                            {selectedForAudit.status === 'AWAITING_N2' && isN2 && (
+                                                <>
+                                                    <button 
+                                                        onClick={() => handleApprovalAction('REJECT')} 
+                                                        disabled={auditActionLoading}
+                                                        style={{ background: '#fee2e2', color: '#dc2626', border: '1px solid #fecaca', padding: '0.5rem 1rem', borderRadius: '6px', fontWeight: 600, cursor: 'pointer', transition: 'all 0.2s', opacity: auditActionLoading ? 0.7 : 1 }}
+                                                    >
+                                                        ❌ Rejeitar N1
+                                                    </button>
+                                                    <button 
+                                                        onClick={() => handleApprovalAction('APPROVE_N2')} 
+                                                        disabled={auditActionLoading}
+                                                        style={{ background: '#16a34a', color: 'white', border: 'none', padding: '0.5rem 1rem', borderRadius: '6px', fontWeight: 600, cursor: 'pointer', transition: 'all 0.2s', opacity: auditActionLoading ? 0.7 : 1 }}
+                                                    >
+                                                        ✅ Aprovar Definitivo (N2)
+                                                    </button>
+                                                </>
+                                            )}
 
-                                {selectedForAudit.status === 'APPROVED' && userRole === 'MASTER' && (
-                                    <button 
-                                        onClick={() => handleApprovalAction('REOPEN')} 
-                                        disabled={auditActionLoading}
-                                        style={{ background: '#f1f5f9', color: '#475569', border: '1px solid #cbd5e1', padding: '0.5rem 1rem', borderRadius: '6px', fontWeight: 600, cursor: 'pointer', transition: 'all 0.2s', opacity: auditActionLoading ? 0.7 : 1 }}
-                                    >
-                                        🔓 Reabrir P/ Ajustes
-                                    </button>
-                                )}
+                                            {selectedForAudit.status === 'APPROVED' && isN2 && (
+                                                <button 
+                                                    onClick={() => handleApprovalAction('REOPEN')} 
+                                                    disabled={auditActionLoading}
+                                                    style={{ background: '#f1f5f9', color: '#475569', border: '1px solid #cbd5e1', padding: '0.5rem 1rem', borderRadius: '6px', fontWeight: 600, cursor: 'pointer', transition: 'all 0.2s', opacity: auditActionLoading ? 0.7 : 1 }}
+                                                >
+                                                    🔓 Reabrir P/ Ajustes
+                                                </button>
+                                            )}
+                                        </>
+                                    );
+                                })()}
                             </div>
                         </div>
                     </div>

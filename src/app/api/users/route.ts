@@ -4,6 +4,21 @@ import bcrypt from 'bcryptjs';
 import { verifyToken } from '@/lib/auth';
 import { cookies } from 'next/headers';
 
+async function ensureSchema() {
+    try {
+        await prisma.$executeRawUnsafe(`
+            DO $$ 
+            BEGIN 
+                IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='UserCostCenterAccess' AND column_name='accessLevel') THEN
+                    ALTER TABLE "UserCostCenterAccess" ADD COLUMN "accessLevel" TEXT NOT NULL DEFAULT 'EDITAR';
+                END IF;
+            END $$;
+        `);
+    } catch (e) {
+        console.error("Error migrating UserCostCenterAccess:", e);
+    }
+}
+
 async function getMasterUser() {
     const cookieStore = await cookies();
     const token = cookieStore.get('auth_token')?.value;
@@ -18,6 +33,7 @@ async function getMasterUser() {
 
 export async function GET(request: Request) {
     try {
+        await ensureSchema();
         const master = await getMasterUser();
         if (!master) {
             return NextResponse.json({ success: false, error: 'Acesso negado' }, { status: 403 });
@@ -42,7 +58,10 @@ export async function GET(request: Request) {
             email: u.email,
             role: u.role,
             tenantIds: u.tenantAccess.map(t => t.tenantId),
-            costCenterIds: u.costCenterAccess.map(c => c.costCenterId)
+            costCenterAccess: u.costCenterAccess.map(c => ({
+                costCenterId: c.costCenterId,
+                accessLevel: c.accessLevel
+            }))
         }));
 
         return NextResponse.json({ success: true, users: mappedUsers });
@@ -60,7 +79,7 @@ export async function POST(request: Request) {
         }
 
         const body = await request.json();
-        const { name, email, password, role, tenantIds, costCenterIds } = body;
+        const { name, email, password, role, tenantIds, costCenterAccess } = body;
 
         if (!name || !email || !password) {
             return NextResponse.json({ success: false, error: 'Nome, email e senha são obrigatórios' }, { status: 400 });
@@ -83,7 +102,10 @@ export async function POST(request: Request) {
                     create: (tenantIds || []).map((id: string) => ({ tenantId: id }))
                 },
                 costCenterAccess: {
-                    create: (costCenterIds || []).map((id: string) => ({ costCenterId: id }))
+                    create: (costCenterAccess || []).map((cc: any) => ({
+                        costCenterId: cc.costCenterId,
+                        accessLevel: cc.accessLevel || 'EDITAR'
+                    }))
                 }
             }
         });

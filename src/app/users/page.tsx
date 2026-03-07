@@ -17,7 +17,7 @@ export default function UsersPage() {
 
     const [form, setForm] = useState({
         name: '', email: '', password: '', role: 'GESTOR',
-        tenantIds: [] as string[], costCenterIds: [] as string[]
+        tenantIds: [] as string[], costCenterAccess: [] as { costCenterId: string, accessLevel: string }[]
     });
 
     useEffect(() => {
@@ -56,10 +56,10 @@ export default function UsersPage() {
         if (user) {
             setForm({
                 name: user.name, email: user.email, password: '', role: user.role,
-                tenantIds: user.tenantIds || [], costCenterIds: user.costCenterIds || []
+                tenantIds: user.tenantIds || [], costCenterAccess: user.costCenterAccess || []
             });
         } else {
-            setForm({ name: '', email: '', password: '', role: 'GESTOR', tenantIds: [], costCenterIds: [] });
+            setForm({ name: '', email: '', password: '', role: 'GESTOR', tenantIds: [], costCenterAccess: [] });
         }
         setModalOpen(true);
     };
@@ -167,7 +167,7 @@ export default function UsersPage() {
                                     <span style={{ padding: '0.2rem 0.6rem', backgroundColor: u.role === 'MASTER' ? '#dbeafe' : '#f1f5f9', color: u.role === 'MASTER' ? '#1d4ed8' : '#475569', borderRadius: '12px', fontSize: '0.75rem', fontWeight: 600 }}>{u.role}</span>
                                 </td>
                                 <td style={{ padding: '1rem', color: '#64748b', fontSize: '0.875rem' }}>
-                                    {u.role === 'MASTER' ? 'Todos' : `${u.costCenterIds.length} centro(s)`}
+                                    {u.role === 'MASTER' ? 'Todos' : `${u.costCenterAccess?.length || 0} centro(s)`}
                                 </td>
                                 <td style={{ padding: '1rem', textAlign: 'right' }}>
                                     <button onClick={() => handleOpenModal(u)} style={{ background: 'none', border: 'none', color: '#2563eb', cursor: 'pointer', marginRight: '1rem' }}>✏️ Editar</button>
@@ -224,14 +224,45 @@ export default function UsersPage() {
                                     </div>
 
                                     <div>
-                                        <label style={{ display: 'block', fontSize: '0.875rem', color: '#334155', marginBottom: '0.5rem', fontWeight: 600 }}>Atribuir como Gestor das seguintes áreas (Centros de Custo)</label>
-                                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem', maxHeight: '200px', overflowY: 'auto', padding: '0.5rem', border: '1px solid #cbd5e1', borderRadius: '6px' }}>
-                                            {costCenters.map(cc => (
-                                                <label key={cc.id} style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.8rem' }}>
-                                                    <input type="checkbox" checked={form.costCenterIds.includes(cc.id)} onChange={() => toggleArrayItem(form.costCenterIds, cc.id, (val) => setForm({ ...form, costCenterIds: val }))} />
-                                                    {cc.name}
-                                                </label>
-                                            ))}
+                                        <label style={{ display: 'block', fontSize: '0.875rem', color: '#334155', marginBottom: '0.5rem', fontWeight: 600 }}>Acesso e Nível de Permissão por Área</label>
+                                        <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '0.5rem', maxHeight: '300px', overflowY: 'auto', padding: '0.5rem', border: '1px solid #cbd5e1', borderRadius: '6px' }}>
+                                            {costCenters.map(cc => {
+                                                const currentAccess = form.costCenterAccess.find(a => a.costCenterId === cc.id);
+                                                const hasAccess = !!currentAccess;
+                                                return (
+                                                    <div key={cc.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.4rem', backgroundColor: hasAccess ? '#f0f9ff' : 'transparent', borderRadius: '4px' }}>
+                                                        <label style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.8rem', cursor: 'pointer', flex: 1 }}>
+                                                            <input type="checkbox" checked={hasAccess} onChange={(e) => {
+                                                                if (e.target.checked) {
+                                                                    setForm({ ...form, costCenterAccess: [...form.costCenterAccess, { costCenterId: cc.id, accessLevel: 'EDITAR' }] })
+                                                                } else {
+                                                                    setForm({ ...form, costCenterAccess: form.costCenterAccess.filter(a => a.costCenterId !== cc.id) })
+                                                                }
+                                                            }} />
+                                                            {cc.name}
+                                                        </label>
+                                                        
+                                                        {hasAccess && (
+                                                            <select 
+                                                                value={currentAccess.accessLevel}
+                                                                onChange={(e) => {
+                                                                    setForm({
+                                                                        ...form, 
+                                                                        costCenterAccess: form.costCenterAccess.map(a => a.costCenterId === cc.id ? { ...a, accessLevel: e.target.value } : a)
+                                                                    })
+                                                                }}
+                                                                style={{ padding: '0.2rem', fontSize: '0.75rem', borderRadius: '4px', border: '1px solid #94a3b8', backgroundColor: 'white', cursor: 'pointer', maxWidth: '180px' }}
+                                                            >
+                                                                <option value="LEITOR">Leitor (Apenas Visualiza)</option>
+                                                                <option value="EDITAR">Editor (Digita Valores)</option>
+                                                                <option value="APROVADOR_N1">Aprovador N1</option>
+                                                                <option value="APROVADOR_N2">Aprovador N2</option>
+                                                                <option value="APROVADOR_N1_N2">Aprovador Full N1/N2</option>
+                                                            </select>
+                                                        )}
+                                                    </div>
+                                                );
+                                            })}
                                         </div>
                                     </div>
                                 </>

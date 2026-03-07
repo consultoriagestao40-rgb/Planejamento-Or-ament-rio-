@@ -24,8 +24,25 @@ export async function POST(request: Request) {
             return NextResponse.json({ success: false, error: 'Ação inválida' }, { status: 400 });
         }
 
-        if (['APPROVE_N2', 'REJECT', 'REOPEN'].includes(action) && user.role !== 'MASTER') {
-            return NextResponse.json({ success: false, error: 'Apenas MASTER pode realizar esta ação' }, { status: 403 });
+        let hasN1Power = user.role === 'MASTER';
+        let hasN2Power = user.role === 'MASTER';
+
+        if (user.role === 'GESTOR') {
+            const access = await prisma.userCostCenterAccess.findUnique({
+                where: { userId_costCenterId: { userId: user.userId as string, costCenterId } }
+            });
+
+            const level = access?.accessLevel || 'LEITOR';
+            if (['APROVADOR_N1', 'APROVADOR_N1_N2'].includes(level)) hasN1Power = true;
+            if (['APROVADOR_N2', 'APROVADOR_N1_N2'].includes(level)) hasN2Power = true;
+        }
+
+        if (action === 'SUBMIT_N1' && !hasN1Power) {
+            return NextResponse.json({ success: false, error: 'Sem permissão de Aprovador N1 para esta área' }, { status: 403 });
+        }
+
+        if (['APPROVE_N2', 'REJECT', 'REOPEN'].includes(action) && !hasN2Power) {
+            return NextResponse.json({ success: false, error: 'Sem permissão de Aprovador N2/Master para esta ação' }, { status: 403 });
         }
 
         const currentLock = await (prisma as any).costCenterLock.findUnique({

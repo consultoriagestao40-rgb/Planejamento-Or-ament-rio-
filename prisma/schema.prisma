@@ -164,6 +164,7 @@ model UserCostCenterAccess {
   id           String   @id @default(uuid())
   userId       String
   costCenterId String
+  accessLevel  String   @default("EDITAR") // "LEITOR", "EDITAR", "APROVADOR_N1", "APROVADOR_N2", "APROVADOR_N1_N2"
   createdAt    DateTime @default(now())
 
   user       User       @relation(fields: [userId], references: [id], onDelete: Cascade)

@@ -40,19 +40,11 @@ async function fetchAllTransactionsForYear(accessToken: string, baseUrl: string,
                 }
 
                 const dateObj = dateStr ? new Date(dateStr) : new Date();
-                
-                const splitDate = dateStr.includes('T') ? dateStr.split('T')[0] : dateStr;
-                const [y, m, d] = splitDate.split('-').map(Number);
-                const localDateObj = new Date(y, m - 1, d || 1);
-
-                // This is the critical fix for Cash Flow:
-                // Only drop the transaction if the *resolved* date (payment for Caixa, accrual for Competência)
-                // is completely outside the targetYear.
-                if (localDateObj.getFullYear() !== targetYear) return;
+                if (dateObj.getFullYear() !== targetYear) return;
 
                 transactions.push({
                     id: item.id,
-                    month: localDateObj.getMonth(), // 0-11
+                    month: dateObj.getMonth(), // 0-11
                     amount: Math.abs(amount), // ALWAYS positive, DRE frontend subtracts expenses
                     categories: cats,
                     costCenters: ccs
@@ -95,16 +87,14 @@ export async function runCronSync(reqYear: number) {
             // without blowing up Conta Azul's backend with a 500 error on large 3-year requests.
             const startStr = `${reqYear - 1}-11-01`;
             const endStr = `${reqYear + 1}-02-28`;
-            const filterType = 'data_vencimento';
 
-            const receivablesUrl = `https://api-v2.contaazul.com/v1/financeiro/eventos-financeiros/contas-a-receber/buscar?${filterType}_de=${startStr}&${filterType}_ate=${endStr}&tamanho_pagina=100`;
-            const payablesUrl = `https://api-v2.contaazul.com/v1/financeiro/eventos-financeiros/contas-a-pagar/buscar?${filterType}_de=${startStr}&${filterType}_ate=${endStr}&tamanho_pagina=100`;
+            const receivablesUrl = `https://api-v2.contaazul.com/v1/financeiro/eventos-financeiros/contas-a-receber/buscar?data_vencimento_de=${startStr}&data_vencimento_ate=${endStr}&tamanho_pagina=100`;
+            const payablesUrl = `https://api-v2.contaazul.com/v1/financeiro/eventos-financeiros/contas-a-pagar/buscar?data_vencimento_de=${startStr}&data_vencimento_ate=${endStr}&tamanho_pagina=100`;
 
             const receivables = await fetchAllTransactionsForYear(token, receivablesUrl, reqYear, viewMode);
             const payables = await fetchAllTransactionsForYear(token, payablesUrl, reqYear, viewMode);
 
             const allTxns = [...receivables, ...payables];
-            console.log(`[DEBUG] Syncing ${reqYear} ${viewMode} for ${t.name}: ${receivables.length} REC + ${payables.length} PAY = ${allTxns.length} total. Params: ${filterType}`);
 
             const aggregates = new Map<string, number>();
 

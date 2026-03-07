@@ -20,7 +20,7 @@ export async function GET(request: Request) {
         const currentYear = yearParam ? parseInt(yearParam) : new Date().getFullYear();
 
         // 1. Buscar todos os dados necessários
-        const [tenants, costCenters, categories, budgetEntries] = await Promise.all([
+        const [tenants, costCenters, categories, budgetEntries, realizedEntries] = await Promise.all([
             prisma.tenant.findMany({ select: { id: true, name: true } }),
             prisma.costCenter.findMany({ 
                 where: { 
@@ -33,11 +33,6 @@ export async function GET(request: Request) {
                 },
                 select: { id: true, name: true, tenantId: true } 
             }),
-
-
-
-
-
             prisma.category.findMany({ 
                 where: {
                     NOT: {
@@ -49,12 +44,16 @@ export async function GET(request: Request) {
                 },
                 select: { id: true, type: true, name: true } 
             }),
-
             prisma.budgetEntry.findMany({
+                where: { year: currentYear },
+                select: { amount: true, categoryId: true, costCenterId: true, tenantId: true }
+            }),
+            prisma.realizedEntry.findMany({
                 where: { year: currentYear },
                 select: { amount: true, categoryId: true, costCenterId: true, tenantId: true }
             })
         ]);
+
 
         // 2. Mapear tipos de categoria para busca rápida
         // V50: Considerar '01' no nome como REVENUE, independente do tipo vindo do CA
@@ -79,8 +78,9 @@ export async function GET(request: Request) {
                 costCenterName: cc.name,
                 totalRevenue: 0,
                 totalExpense: 0,
-                hasBudget: false
+                hasData: false
             });
+
         });
 
         // 4. Agregar valores do orçamento

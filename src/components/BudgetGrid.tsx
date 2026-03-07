@@ -804,11 +804,22 @@ export default function BudgetGrid({
         setModalValues(initialValues);
         setLockedMonths(initialLocks);
         setActiveMonth(monthIndex);
-        // Load existing observation from the first month that has one
-        const existingObs = new Array(12).fill(null).map((_, i) => budgetValues[`${targetIdToEdit}-${i}`] as any);
-        const firstObs = existingObs.find((d: any) => d?.observation);
-        setModalObservation(firstObs?.observation || '');
+        // Load existing observation from ANY of the merged IDs for this category
+        const nodeIds = nodeId.split(',');
+        let foundObs = '';
+        for (let i = 0; i < 12; i++) {
+            for (const id of nodeIds) {
+                const obs = budgetValues[`${id}-${i}`]?.observation;
+                if (obs) {
+                    foundObs = obs;
+                    break;
+                }
+            }
+            if (foundObs) break;
+        }
+        setModalObservation(foundObs);
     };
+
 
     const replicateValue = () => {
         if (!budgetModal) return;
@@ -866,7 +877,8 @@ export default function BudgetGrid({
                             revBrutaReal = monthTotal.vRecLiq.r;
                             revBrutaBudget = monthTotal.vRecLiq.b;
                             revBrutaRadar = monthTotal.vRecLiq.rd;
-                            isLocked = (budgetValues[`${node.id}-${i}`] || {}).isLocked || false;
+                            isLocked = node.id.split(',').some(id => (budgetValues[`${id}-${i}`] || {}).isLocked);
+
                         } else {
                             for (let m = i * 3; m < i * 3 + 3; m++) {
                                 bVal += totals.budget[m];
@@ -876,7 +888,8 @@ export default function BudgetGrid({
                                 revBrutaReal += monthTotal.vRecLiq.r;
                                 revBrutaBudget += monthTotal.vRecLiq.b;
                                 revBrutaRadar += monthTotal.vRecLiq.rd;
-                                if ((budgetValues[`${node.id}-${m}`] || {}).isLocked) isLocked = true;
+                                if (node.id.split(',').some(id => (budgetValues[`${id}-${m}`] || {}).isLocked)) isLocked = true;
+
                             }
                         }
 
@@ -945,9 +958,10 @@ export default function BudgetGrid({
                                         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', justifyContent: 'center' }}>
                                             <div style={{ fontSize: '0.85rem', fontWeight: 700, color: node.isSynthetic ? '#64748b' : '#334155', display: 'flex', alignItems: 'center', gap: '4px' }}>
                                                 {formatCurrency(rdVal)}
-                                                {!node.isSynthetic && budgetValues[`${node.id.split(',')[0]}-${i}`]?.observation && (
-                                                    <span style={{ color: '#f59e0b', fontSize: '0.6rem' }} title={budgetValues[`${node.id.split(',')[0]}-${i}`].observation!}>●</span>
+                                                {!node.isSynthetic && node.id.split(',').some(id => budgetValues[`${id}-${i}`]?.observation) && (
+                                                    <span style={{ color: '#f59e0b', fontSize: '0.6rem' }} title={node.id.split(',').map(id => budgetValues[`${id}-${i}`]?.observation).filter(Boolean).join('\n')}>●</span>
                                                 )}
+
                                             </div>
                                             {showAV && <div style={{ fontSize: '0.65rem', color: '#94a3b8' }}>AV: {avRadar.toFixed(1)}%</div>}
                                         </div>

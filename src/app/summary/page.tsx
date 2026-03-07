@@ -255,22 +255,25 @@ export default function BudgetSummaryPage() {
                         <p style={{ color: '#64748b', marginTop: '0.4rem', fontSize: '1rem' }}>Controle consolidado e indicadores de lucratividade.</p>
                     </div>
                     <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
-                        <Link href="/radar" style={{
-                            padding: '0.6rem 1.2rem',
-                            backgroundColor: '#2563eb',
-                            color: '#fff',
-                            borderRadius: '8px',
-                            textDecoration: 'none',
-                            fontWeight: 700,
-                            fontSize: '0.85rem',
-                            boxShadow: '0 4px 6px -1px rgba(37, 99, 235, 0.2)',
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: '0.5rem'
-                        }}>
-                            🎯 Gestão de Radar
-                        </Link>
+                        {userRole === 'MASTER' && (
+                            <Link href="/radar" style={{
+                                padding: '0.6rem 1.2rem',
+                                backgroundColor: '#2563eb',
+                                color: '#fff',
+                                borderRadius: '8px',
+                                textDecoration: 'none',
+                                fontWeight: 700,
+                                fontSize: '0.85rem',
+                                boxShadow: '0 4px 6px -1px rgba(37, 99, 235, 0.2)',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '0.5rem'
+                            }}>
+                                🎯 Gestão de Radar
+                            </Link>
+                        )}
                         <SyncButton year={selectedYear} onSyncStart={() => setLoading(true)} onSyncComplete={fetchData} />
+
                         <Link href="/" style={{
                             padding: '0.6rem 1.2rem',
                             backgroundColor: '#fff',

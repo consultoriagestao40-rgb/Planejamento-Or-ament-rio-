@@ -44,96 +44,109 @@ export default function LoginPage() {
             position: 'relative',
             overflow: 'hidden',
         }}>
-            {/* Background glow effects */}
+            {/* Background decorative elements - Soft & Modern */}
             <div style={{
                 position: 'absolute',
-                width: '600px', height: '600px',
+                width: '80vw', height: '80vw',
                 borderRadius: '50%',
-                background: 'radial-gradient(circle, rgba(99, 102, 241, 0.12) 0%, transparent 70%)',
-                top: '-100px', left: '-200px',
+                background: 'radial-gradient(circle, rgba(37, 99, 235, 0.03) 0%, transparent 70%)',
+                top: '-20%', left: '-20%',
                 pointerEvents: 'none'
             }} />
             <div style={{
                 position: 'absolute',
-                width: '400px', height: '400px',
+                width: '60vw', height: '60vw',
                 borderRadius: '50%',
-                background: 'radial-gradient(circle, rgba(59, 130, 246, 0.1) 0%, transparent 70%)',
-                bottom: '-100px', right: '-100px',
+                background: 'radial-gradient(circle, rgba(79, 70, 229, 0.04) 0%, transparent 70%)',
+                bottom: '-10%', right: '-10%',
                 pointerEvents: 'none'
             }} />
 
             {/* Login Card */}
             <div className="animate-slide-up" style={{
-                background: 'var(--bg-card)',
+                background: 'var(--bg-surface)',
                 border: '1px solid var(--border-default)',
-                borderRadius: '20px',
-                boxShadow: '0 24px 80px rgba(0, 0, 0, 0.5), 0 1px 0 rgba(255,255,255,0.05) inset',
+                borderRadius: 'var(--radius-lg)',
+                boxShadow: 'var(--shadow-card)',
                 width: '100%',
-                maxWidth: '420px',
-                padding: '2.5rem',
+                maxWidth: '440px',
+                padding: '3rem',
                 position: 'relative',
                 zIndex: 1
             }}>
-                {/* Header */}
-                <div style={{ textAlign: 'center', marginBottom: '2rem' }}>
-                    <h1 className="brand-text" style={{ fontSize: '2rem', marginBottom: '0.5rem' }}>Budget Hub</h1>
-                    <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem' }}>Planejamento orçamentário consolidado</p>
+                {/* Brand */}
+                <div style={{ textAlign: 'center', marginBottom: '2.5rem' }}>
+                    <div style={{ 
+                        width: '48px', height: '48px', 
+                        background: 'var(--gradient-brand)', 
+                        borderRadius: '12px', 
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        margin: '0 auto 1.25rem',
+                        boxShadow: 'var(--shadow-blue)'
+                    }}>
+                        <span style={{ fontSize: '1.5rem' }}>📊</span>
+                    </div>
+                    <h1 className="brand-text" style={{ fontSize: '2.25rem', marginBottom: '0.75rem' }}>Budget Hub</h1>
+                    <p style={{ color: 'var(--text-secondary)', fontSize: '1rem', fontWeight: 500 }}>Gestão Orçamentária Inteligente</p>
                 </div>
 
                 {error && (
-                    <div style={{
-                        background: 'rgba(239, 68, 68, 0.1)',
-                        border: '1px solid rgba(239, 68, 68, 0.3)',
-                        color: '#f87171',
-                        padding: '0.75rem 1rem',
-                        borderRadius: '10px',
-                        marginBottom: '1.25rem',
+                    <div className="animate-fade-in" style={{
+                        background: 'rgba(220, 38, 38, 0.05)',
+                        border: '1px solid var(--accent-red-glow)',
+                        color: 'var(--accent-red)',
+                        padding: '1rem',
+                        borderRadius: 'var(--radius-sm)',
+                        marginBottom: '1.5rem',
                         fontSize: '0.875rem',
-                        textAlign: 'center'
+                        textAlign: 'center',
+                        fontWeight: 600
                     }}>
                         {error}
                     </div>
                 )}
 
-                <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1.1rem' }}>
-                    <div>
+                <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
                         <label style={{
-                            display: 'block',
-                            fontSize: '0.78rem',
+                            fontSize: '0.85rem',
                             fontWeight: 700,
-                            textTransform: 'uppercase',
-                            letterSpacing: '0.06em',
-                            color: 'var(--text-muted)',
-                            marginBottom: '0.5rem'
-                        }}>E-mail</label>
+                            color: 'var(--text-primary)',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '0.4rem'
+                        }}>
+                             E-mail
+                        </label>
                         <input
                             type="email"
                             value={email}
                             onChange={e => setEmail(e.target.value)}
                             required
                             className="premium-input"
-                            style={{ width: '100%' }}
+                            style={{ width: '100%', height: '48px' }}
                             placeholder="admin@budgethub.com"
                         />
                     </div>
 
-                    <div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
                         <label style={{
-                            display: 'block',
-                            fontSize: '0.78rem',
+                            fontSize: '0.85rem',
                             fontWeight: 700,
-                            textTransform: 'uppercase',
-                            letterSpacing: '0.06em',
-                            color: 'var(--text-muted)',
-                            marginBottom: '0.5rem'
-                        }}>Senha</label>
+                            color: 'var(--text-primary)',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '0.4rem'
+                        }}>
+                             Senha
+                        </label>
                         <input
                             type="password"
                             value={password}
                             onChange={e => setPassword(e.target.value)}
                             required
                             className="premium-input"
-                            style={{ width: '100%' }}
+                            style={{ width: '100%', height: '48px' }}
                             placeholder="••••••••"
                         />
                     </div>
@@ -143,23 +156,29 @@ export default function LoginPage() {
                         disabled={loading}
                         className="btn btn-primary"
                         style={{
-                            marginTop: '0.5rem',
+                            marginTop: '0.75rem',
                             width: '100%',
+                            height: '52px',
                             justifyContent: 'center',
-                            padding: '0.8rem',
-                            fontSize: '0.9rem',
+                            fontSize: '1.05rem',
+                            borderRadius: 'var(--radius-sm)',
                             opacity: loading ? 0.7 : 1,
-                            cursor: loading ? 'not-allowed' : 'pointer',
                         }}
                     >
                         {loading ? (
                             <>
-                                <span className="spinner" style={{ width: '16px', height: '16px', borderWidth: '2px' }} />
-                                Entrando...
+                                <span className="spinner" style={{ width: '18px', height: '18px', borderTopColor: 'white' }} />
+                                Processando...
                             </>
-                        ) : 'Entrar'}
+                        ) : 'Acessar Painel'}
                     </button>
                 </form>
+
+                <div style={{ marginTop: '2.5rem', textAlign: 'center' }}>
+                    <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>
+                        © {new Date().getFullYear()} • Consultoria Gestão 4.0
+                    </p>
+                </div>
             </div>
         </div>
     );

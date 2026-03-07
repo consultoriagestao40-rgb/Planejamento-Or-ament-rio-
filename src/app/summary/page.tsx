@@ -310,15 +310,16 @@ export default function BudgetSummaryPage() {
 
                 {/* Filter */}
                 <div style={{
-                    backgroundColor: 'var(--bg-elevated)',
-                    padding: '0.85rem 1.5rem',
+                    backgroundColor: 'var(--bg-card)',
+                    padding: '1rem 1.5rem',
                     borderRadius: 'var(--radius)',
                     border: '1px solid var(--border-default)',
                     display: 'flex',
                     alignItems: 'center',
                     gap: '1rem',
                     marginBottom: '2rem',
-                    boxShadow: 'inset 0 2px 4px rgba(0,0,0,0.2)'
+                    boxShadow: 'var(--shadow-card)',
+                    backdropFilter: 'blur(10px)'
                 }}>
                     <span style={{ fontSize: '1.25rem', opacity: 0.5 }}>🔍</span>
                     <input
@@ -355,41 +356,43 @@ export default function BudgetSummaryPage() {
                                             <tr
                                                 onClick={() => toggleTenant(group.tenantId)}
                                                 style={{
-                                                    background: '#f1f5f9',
+                                                    background: 'var(--bg-elevated)',
                                                     cursor: 'pointer',
-                                                    borderBottom: '1px solid #e2e8f0',
+                                                    borderBottom: '1px solid var(--border-subtle)',
                                                     transition: 'all 0.15s ease'
                                                 }}
-                                                onMouseEnter={(e) => (e.currentTarget.style.background = '#e2e8f0')}
-                                                onMouseLeave={(e) => (e.currentTarget.style.background = '#f1f5f9')}
+                                                className="hover-row"
                                             >
-                                                <td style={{ ...td, fontWeight: 800, color: '#1e293b', display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                                                <td style={{ ...td, fontWeight: 900, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '0.85rem', padding: '1rem' }}>
                                                     <span style={{
-                                                        fontSize: '0.7rem',
-                                                        color: '#64748b',
+                                                        fontSize: '0.75rem',
+                                                        color: 'var(--accent-blue)',
                                                         transition: 'transform 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
-                                                        transform: isExpanded ? 'rotate(90deg)' : 'rotate(0deg)'
+                                                        transform: isExpanded ? 'rotate(90deg)' : 'rotate(0deg)',
+                                                        opacity: 0.8
                                                     }}>▶</span>
                                                     {group.tenantName}
                                                 </td>
-                                                <td style={{ ...td, textAlign: 'right', fontWeight: 800, color: group.totalRevenue > 0 ? '#059669' : '#1e293b' }}>
+                                                <td style={{ ...td, textAlign: 'right', fontWeight: 800, color: group.totalRevenue > 0 ? 'var(--accent-green)' : 'var(--text-primary)' }}>
                                                     {formatCurrency(group.totalRevenue)}
                                                 </td>
-                                                <td style={{ ...td, textAlign: 'right', fontWeight: 800, color: group.totalExpense > 0 ? '#be123c' : '#1e293b' }}>
+                                                <td style={{ ...td, textAlign: 'right', fontWeight: 800, color: group.totalExpense > 0 ? 'var(--accent-red)' : 'var(--text-primary)' }}>
                                                     {formatCurrency(group.totalExpense)}
                                                 </td>
                                                 <td style={{ ...td, textAlign: 'center' }}>
                                                     <span style={{
-                                                        padding: '0.25rem 0.75rem',
-                                                        borderRadius: '6px',
-                                                        fontSize: '0.7rem',
+                                                        padding: '0.35rem 0.85rem',
+                                                        borderRadius: '99px',
+                                                        fontSize: '0.65rem',
                                                         fontWeight: 800,
-                                                        backgroundColor: isComplete ? '#d1fae5' : '#fee2e2',
-                                                        color: isComplete ? '#065f46' : '#b91c1c',
+                                                        backgroundColor: isComplete ? 'var(--accent-green-glow)' : 'var(--accent-red-glow)',
+                                                        color: isComplete ? 'var(--accent-green)' : 'var(--accent-red)',
+                                                        border: `1px solid ${isComplete ? 'var(--accent-green-glow)' : 'var(--accent-red-glow)'}`,
                                                         display: 'inline-block',
-                                                        minWidth: '100px'
+                                                        minWidth: '110px',
+                                                        letterSpacing: '0.02em'
                                                     }}>
-                                                        {isComplete ? 'OK' : `PENDENTE (${group.finishedCount}/${group.totalCount})`}
+                                                        {isComplete ? 'FINALIZADO' : `PENDENTE (${group.finishedCount}/${group.totalCount})`}
                                                     </span>
                                                 </td>
                                                 <td style={{ ...td, textAlign: 'center' }}>
@@ -400,14 +403,14 @@ export default function BudgetSummaryPage() {
 
 
                                             {isExpanded && group.costCenters.map((cc) => (
-                                                <tr key={cc.costCenterId} className="cc-row" style={{ background: '#fff' }}>
-                                                    <td style={{ ...td, paddingLeft: '3rem', color: '#475569', fontWeight: 500 }}>
+                                                <tr key={cc.costCenterId} className="cc-row" style={{ background: 'var(--bg-surface)' }}>
+                                                    <td style={{ ...td, paddingLeft: '3.5rem', color: 'var(--text-secondary)', fontWeight: 500, padding: '0.75rem 1rem 0.75rem 3.5rem' }}>
                                                         {cc.costCenterName}
                                                     </td>
-                                                    <td style={{ ...td, textAlign: 'right', color: cc.totalRevenue > 0 ? '#10b981' : '#94a3b8' }}>
+                                                    <td style={{ ...td, textAlign: 'right', color: cc.totalRevenue > 0 ? 'var(--accent-green)' : 'var(--text-muted)', fontWeight: 600 }}>
                                                         {formatCurrency(cc.totalRevenue)}
                                                     </td>
-                                                    <td style={{ ...td, textAlign: 'right', color: cc.totalExpense > 0 ? '#ef4444' : '#94a3b8' }}>
+                                                    <td style={{ ...td, textAlign: 'right', color: cc.totalExpense > 0 ? 'var(--accent-red)' : 'var(--text-muted)', fontWeight: 600 }}>
                                                         {formatCurrency(cc.totalExpense)}
                                                     </td>
                                                     <td style={{ ...td, textAlign: 'center' }}>

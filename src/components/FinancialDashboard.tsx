@@ -90,15 +90,15 @@ export default function FinancialDashboard({
                 position: 'sticky',
                 top: 0,
                 zIndex: 40,
-                backgroundColor: 'rgba(10, 14, 26, 0.85)',
+                backgroundColor: 'rgba(255, 255, 255, 0.8)',
                 backdropFilter: 'blur(20px)',
-                borderBottom: '1px solid var(--border-subtle)',
-                boxShadow: '0 1px 0 var(--border-subtle)',
+                borderBottom: '1px solid var(--border-default)',
+                boxShadow: 'var(--shadow-card)',
             }}>
                 <div style={{
                     maxWidth: '1600px',
                     margin: '0 auto',
-                    padding: '0 2rem',
+                    padding: '0 2.5rem',
                     display: 'flex',
                     flexDirection: 'column',
                     gap: '0',
@@ -176,7 +176,7 @@ export default function FinancialDashboard({
                             display: 'flex',
                             gap: '0.4rem',
                             flexWrap: 'wrap',
-                            padding: '0.6rem 0',
+                            padding: '0.75rem 0',
                             borderTop: '1px solid var(--border-subtle)',
                         }}>
                             {companies.map(c => (

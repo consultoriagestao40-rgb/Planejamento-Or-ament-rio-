@@ -864,24 +864,23 @@ export default function BudgetGrid({
 
         return (
             <React.Fragment key={node.id}>
-                <tr style={{ background: '#fff', cursor: hasChildren ? 'pointer' : 'default', borderBottom: '1px solid #f1f5f9' }}>
-                    <td onClick={() => hasChildren && toggleRow(node.id)} style={{
-                        padding: '0.5rem',
+                <tr style={{ background: 'var(--bg-surface)', cursor: hasChildren ? 'pointer' : 'default', borderBottom: '1px solid var(--border-subtle)' }}>
+                    <td onClick={() => hasChildren && toggleRow(node.id)} className="premium-td" style={{
+                        padding: '0.65rem 1rem',
                         position: 'sticky',
                         left: 0,
-                        background: '#fff',
+                        background: 'var(--bg-surface)',
                         zIndex: 5,
-                        color: hasChildren ? '#1e293b' : '#334155',
-                        fontWeight: hasChildren ? 600 : 400,
+                        color: hasChildren ? 'var(--text-primary)' : 'var(--text-secondary)',
+                        fontWeight: hasChildren ? 700 : 500,
                         fontSize: '0.8rem',
-                        minWidth: '350px',
-                        width: '350px',
-                        borderRight: '2px solid #f1f5f9',
-                        boxShadow: '2px 0 5px -2px rgba(0,0,0,0.05)'
+                        minWidth: '400px',
+                        width: '400px',
+                        borderRight: '1px solid var(--border-subtle)',
                     }}>
-                        <div style={{ display: 'flex', alignItems: 'center', paddingLeft: `${(node.level + 1) * 1.25}rem` }}>
-                            {hasChildren && <span style={{ marginRight: '0.5rem', fontSize: '0.7rem', width: '1rem', color: '#94a3b8' }}>{isExpanded ? '▼' : '▶'}</span>}
-                            {!hasChildren && <span style={{ width: '1.5rem' }}></span>}
+                        <div style={{ display: 'flex', alignItems: 'center', paddingLeft: `${(node.level) * 1.5}rem` }}>
+                            {hasChildren && <span style={{ marginRight: '0.6rem', fontSize: '0.8rem', width: '1rem', color: 'var(--accent-blue)', opacity: 0.8 }}>{isExpanded ? '▼' : '▶'}</span>}
+                            {!hasChildren && <span style={{ width: '1.6rem' }}></span>}
                             {node.name}
                         </div>
                     </td>
@@ -953,23 +952,22 @@ export default function BudgetGrid({
                                         }
                                     }}
                                     style={{
-                                        borderLeft: '1px solid #f1f5f9',
-                                        padding: '0.5rem',
+                                        borderLeft: '1px solid var(--border-subtle)',
+                                        padding: '0.65rem 0.75rem',
                                         minWidth: '100px',
                                         whiteSpace: 'nowrap',
                                         cursor: viewPeriod === 'month' ? 'pointer' : 'default',
-                                        backgroundColor: '#fff',
-                                        transition: 'background 0.2s'
+                                        transition: 'background 0.2s',
+                                        textAlign: 'right'
                                     }}
-                                    onMouseEnter={(e) => { if (viewPeriod === 'month') e.currentTarget.style.backgroundColor = '#f0f9ff'; }}
-                                    onMouseLeave={(e) => { if (viewPeriod === 'month') e.currentTarget.style.backgroundColor = '#fff'; }}
+                                    className="hover-cell"
                                     title={viewPeriod === 'quarter' ? 'Mude para a Visão Mensal para detalhes' : (isCellEditable ? 'Clique para editar o orçamento' : 'Clique para ver detalhes do orçamento')}
                                 >
-                                    <div style={{ textAlign: 'right', fontSize: '0.8rem', color: '#334155', display: 'flex', alignItems: 'center', gap: '0.3rem', justifyContent: 'flex-end' }}>
-                                        {isLocked && <span title="Orçamento Travado" style={{ fontSize: '0.7rem', color: '#ef4444' }}>🔒</span>}
+                                    <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: '0.3rem', justifyContent: 'flex-end', fontWeight: 500 }}>
+                                        {isLocked && <span title="Orçamento Travado" style={{ fontSize: '0.7rem', color: 'var(--accent-red)' }}>🔒</span>}
                                         {formatCurrency(bVal)}
                                     </div>
-                                    {showAV && <div style={{ textAlign: 'right', fontSize: '0.65rem', color: '#94a3b8' }}>AV: {avBudget.toFixed(1)}%</div>}
+                                    {showAV && <div style={{ fontSize: '0.65rem', color: 'var(--text-muted)' }}>AV: {avBudget.toFixed(1)}%</div>}
                                 </td>
                                 <td
                                     onClick={() => isCellEditable && openBudgetModal(node.id, node.name, i, 'radar')}
@@ -1005,31 +1003,25 @@ export default function BudgetGrid({
                                         {showAH && <span style={{ fontSize: '0.65rem', color: '#0d9488', fontWeight: 600 }}>AH (O x R): {ahRadarValue.toFixed(1)}%</span>}
                                     </div>
                                 </td>
-                                <td onClick={() => viewPeriod === 'month' && handleCellClick(node.id, i, node.name)} style={{ textAlign: 'right', padding: '0.5rem', borderLeft: '1px solid #f1f5f9', color: '#3b82f6', fontSize: '0.8rem', fontWeight: 500, cursor: viewPeriod === 'month' ? 'pointer' : 'default', minWidth: '120px', whiteSpace: 'nowrap' }} title={viewPeriod === 'quarter' ? "Visão detalhada indisponível no trimestre" : ""}>
+                                <td onClick={() => viewPeriod === 'month' && handleCellClick(node.id, i, node.name)} className="hover-cell" style={{ textAlign: 'right', padding: '0.65rem 0.75rem', borderLeft: '1px solid var(--border-subtle)', color: 'var(--accent-blue)', fontSize: '0.8rem', fontWeight: 700, cursor: viewPeriod === 'month' ? 'pointer' : 'default', minWidth: '120px', whiteSpace: 'nowrap' }} title={viewPeriod === 'quarter' ? "Visão detalhada indisponível no trimestre" : ""}>
                                     {formatCurrency(rVal)}
                                     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end' }}>
-                                        {showAV && <span style={{ fontSize: '0.65rem', color: '#94a3b8', fontWeight: 400 }}>AV: {avRealized.toFixed(1)}%</span>}
-                                        {showAH && <span style={{ fontSize: '0.65rem', color: '#059669', fontWeight: 600 }}>AH: {ahValue.toFixed(1)}%</span>}
+                                        {showAV && <span style={{ fontSize: '0.65rem', color: 'var(--text-muted)', fontWeight: 500 }}>AV: {avRealized.toFixed(1)}%</span>}
+                                        {showAH && <span style={{ fontSize: '0.65rem', color: 'var(--accent-green)', fontWeight: 800 }}>AH: {ahValue.toFixed(1)}%</span>}
                                         {showAH_MoM && i > 0 && (() => {
                                             let prevR = 0;
                                             let currR = rVal;
-                                            if (viewPeriod === 'month') {
-                                                prevR = totals.realized[i - 1];
-                                            } else {
-                                                // Previous quarter
-                                                for (let m = (i - 1) * 3; m < (i - 1) * 3 + 3; m++) {
-                                                    prevR += totals.realized[m] || 0;
-                                                }
-                                            }
+                                            if (viewPeriod === 'month') prevR = totals.realized[i - 1];
+                                            else for (let m = (i - 1) * 3; m < (i - 1) * 3 + 3; m++) prevR += totals.realized[m] || 0;
                                             const delta = prevR !== 0 ? ((currR / prevR) - 1) * 100 : 0;
                                             const isCost = node.code && !node.code.startsWith('01');
-                                            let color = '#64748b';
-                                            if (delta > 0.01) color = isCost ? '#ef4444' : '#059669';
-                                            else if (delta < -0.01) color = isCost ? '#059669' : '#ef4444';
+                                            let color = 'var(--text-muted)';
+                                            if (delta > 0.01) color = isCost ? 'var(--accent-red)' : 'var(--accent-green)';
+                                            else if (delta < -0.01) color = isCost ? 'var(--accent-green)' : 'var(--accent-red)';
                                             const label = viewPeriod === 'month' ? 'MoM' : 'QoQ';
-                                            return <span style={{ fontSize: '0.65rem', color, fontWeight: 700 }}>{label}: {delta > 0 ? '+' : ''}{delta.toFixed(1)}%</span>;
+                                            return <span style={{ fontSize: '0.65rem', color, fontWeight: 800 }}>{label}: {delta > 0 ? '+' : ''}{delta.toFixed(1)}%</span>;
                                         })()}
-                                        {showAR && <span style={{ fontSize: '0.65rem', color: '#8b5cf6', fontWeight: 700 }}>AR: {arValue.toFixed(1)}%</span>}
+                                        {showAR && <span style={{ fontSize: '0.65rem', color: 'var(--accent-indigo)', fontWeight: 800 }}>AR: {arValue.toFixed(1)}%</span>}
                                     </div>
                                 </td>
                             </React.Fragment>
@@ -1041,31 +1033,32 @@ export default function BudgetGrid({
         );
     };
 
-    const renderSummaryRow = (label: string, validx: keyof ReturnType<typeof dreStructure.calculateTotals>, isBold = false, bgColor = '#f8fafc', textColor = '#0f172a', groupId?: string) => {
+    const renderSummaryRow = (label: string, validx: keyof ReturnType<typeof dreStructure.calculateTotals>, isBold = false, bgColor = 'var(--bg-elevated)', textColor = 'var(--text-primary)', groupId?: string) => {
         const isGroupExpanded = groupId ? expandedGroups.has(groupId) : true;
 
         return (
-            <tr onClick={() => groupId && toggleGroup(groupId)} style={{ background: bgColor, borderBottom: '1px solid #e2e8f0', fontWeight: isBold ? 700 : 600, cursor: groupId ? 'pointer' : 'default', textTransform: 'uppercase' }}>
+            <tr onClick={() => groupId && toggleGroup(groupId)} style={{ background: bgColor, borderBottom: '1px solid var(--border-default)', fontWeight: 800, cursor: groupId ? 'pointer' : 'default' }}>
                 <td style={{
-                    padding: '0.75rem',
+                    padding: '0.85rem 1rem',
                     position: 'sticky',
                     left: 0,
                     background: bgColor,
                     zIndex: 10,
                     color: textColor,
                     fontSize: '0.85rem',
-                    minWidth: '350px',
-                    width: '350px',
-                    borderRight: '2px solid #e2e8f0',
-                    boxShadow: '2px 0 5px -2px rgba(0,0,0,0.05)'
+                    minWidth: '400px',
+                    width: '400px',
+                    borderRight: '1px solid var(--border-default)',
+                    textTransform: 'uppercase',
+                    letterSpacing: '0.02em'
                 }}>
                     <div style={{ display: 'flex', alignItems: 'center' }}>
                         {groupId && (
-                            <span style={{ marginRight: '0.5rem', fontSize: '0.8rem', width: '1rem', color: textColor, opacity: 0.7 }}>
+                            <span style={{ marginRight: '0.75rem', fontSize: '0.9rem', width: '1rem', color: textColor, opacity: 0.6 }}>
                                 {isGroupExpanded ? '▼' : '▶'}
                             </span>
                         )}
-                        {!groupId && <span style={{ width: '1.5rem' }}></span>}
+                        {!groupId && <span style={{ width: '1.75rem' }}></span>}
                         {label}
                     </div>
                 </td>
@@ -1110,43 +1103,40 @@ export default function BudgetGrid({
 
                     return (
                         <React.Fragment key={i}>
-                            <td style={{ textAlign: 'right', padding: '0.75rem', borderLeft: '1px solid #e2e8f0', color: bColor, fontSize: '0.8rem', minWidth: '100px', whiteSpace: 'nowrap' }}>
-                                <div>{formatCurrency(budgetVal)}</div>
-                                {showAV && <div style={{ fontSize: '0.65rem', color: '#94a3b8', fontWeight: 400 }}>AV: {avBudget.toFixed(1)}%</div>}
+                            <td style={{ textAlign: 'right', padding: '0.85rem 0.75rem', borderLeft: '1px solid var(--border-default)', color: bColor, fontSize: '0.8rem', minWidth: '100px', whiteSpace: 'nowrap' }}>
+                                <div style={{ fontWeight: 800 }}>{formatCurrency(budgetVal)}</div>
+                                {showAV && <div style={{ fontSize: '0.65rem', color: 'var(--text-muted)', fontWeight: 500 }}>AV: {avBudget.toFixed(1)}%</div>}
                             </td>
-                            <td style={{ textAlign: 'right', padding: '0.75rem', borderLeft: '1px solid #e2e8f0', color: bColor, fontSize: '0.8rem', minWidth: '100px', whiteSpace: 'nowrap' }}>
-                                <div>{formatCurrency(radarVal)}</div>
+                            <td style={{ textAlign: 'right', padding: '0.85rem 0.75rem', borderLeft: '1px solid var(--border-default)', fontSize: '0.8rem', minWidth: '100px', whiteSpace: 'nowrap' }}>
+                                <div style={{ fontWeight: 800, color: 'var(--text-primary)' }}>{formatCurrency(radarVal)}</div>
                                 <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end' }}>
-                                    {showAV && <span style={{ fontSize: '0.65rem', color: '#94a3b8', fontWeight: 400 }}>AV: {avRadar.toFixed(1)}%</span>}
-                                    {showAH && <span style={{ fontSize: '0.65rem', color: '#0d9488', fontWeight: 600 }}>AH (O x R): {ahRadarValue.toFixed(1)}%</span>}
+                                    {showAV && <span style={{ fontSize: '0.65rem', color: 'var(--text-muted)', fontWeight: 500 }}>AV: {avRadar.toFixed(1)}%</span>}
+                                    {showAH && <span style={{ fontSize: '0.65rem', color: 'var(--accent-indigo)', fontWeight: 800 }}>AH (O x R): {ahRadarValue.toFixed(1)}%</span>}
                                 </div>
                             </td>
-                            <td style={{ textAlign: 'right', padding: '0.75rem', borderLeft: '1px solid #e2e8f0', color: rColor, fontSize: '0.8rem', minWidth: '120px', whiteSpace: 'nowrap' }}>
-                                <div>{formatCurrency(realizedVal)}</div>
+                            <td style={{ textAlign: 'right', padding: '0.85rem 0.75rem', borderLeft: '1px solid var(--border-default)', color: rColor, fontSize: '0.8rem', minWidth: '120px', whiteSpace: 'nowrap' }}>
+                                <div style={{ fontWeight: 800 }}>{formatCurrency(realizedVal)}</div>
                                 <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end' }}>
-                                    {showAV && <span style={{ fontSize: '0.65rem', color: '#94a3b8', fontWeight: 400 }}>AV: {avRealized.toFixed(1)}%</span>}
-                                    {showAH && <span style={{ fontSize: '0.65rem', color: '#059669', fontWeight: 600 }}>AH: {ahValue.toFixed(1)}%</span>}
+                                    {showAV && <span style={{ fontSize: '0.65rem', color: 'var(--text-muted)', fontWeight: 500 }}>AV: {avRealized.toFixed(1)}%</span>}
+                                    {showAH && <span style={{ fontSize: '0.65rem', color: 'var(--accent-green)', fontWeight: 800 }}>AH: {ahValue.toFixed(1)}%</span>}
                                     {showAH_MoM && i > 0 && (() => {
                                         let prevR = 0;
                                         if (viewPeriod === 'month') {
                                             const prevMonthTotal = precomputedDreTotals[i - 1];
                                             prevR = prevMonthTotal[validx].r;
                                         } else {
-                                            // Previous quarter totals
-                                            for (let m = (i - 1) * 3; m < (i - 1) * 3 + 3; m++) {
-                                                prevR += precomputedDreTotals[m][validx].r;
-                                            }
+                                            for (let m = (i - 1) * 3; m < (i - 1) * 3 + 3; m++) prevR += precomputedDreTotals[m][validx].r;
                                         }
                                         const delta = prevR !== 0 ? ((realizedVal / prevR) - 1) * 100 : 0;
                                         const resultsIndices = ['vRev', 'vRecLiq', 'vGrossMarg', 'vContribMarg', 'vEbitda', 'vNetProfit'];
                                         const isResult = resultsIndices.includes(validx as string);
-                                        let color = '#64748b';
-                                        if (delta > 0.01) color = isResult ? '#059669' : '#ef4444';
-                                        else if (delta < -0.01) color = isResult ? '#ef4444' : '#059669';
+                                        let color = 'var(--text-muted)';
+                                        if (delta > 0.01) color = isResult ? 'var(--accent-green)' : 'var(--accent-red)';
+                                        else if (delta < -0.01) color = isResult ? 'var(--accent-red)' : 'var(--accent-green)';
                                         const label = viewPeriod === 'month' ? 'MoM' : 'QoQ';
-                                        return <span style={{ fontSize: '0.65rem', color, fontWeight: 700 }}>{label}: {delta > 0 ? '+' : ''}{delta.toFixed(1)}%</span>;
+                                        return <span style={{ fontSize: '0.65rem', color, fontWeight: 800 }}>{label}: {delta > 0 ? '+' : ''}{delta.toFixed(1)}%</span>;
                                     })()}
-                                    {showAR && <span style={{ fontSize: '0.65rem', color: '#8b5cf6', fontWeight: 700 }}>AR: {arValue.toFixed(1)}%</span>}
+                                    {showAR && <span style={{ fontSize: '0.65rem', color: 'var(--accent-indigo)', fontWeight: 800 }}>AR: {arValue.toFixed(1)}%</span>}
                                 </div>
                             </td>
                         </React.Fragment>
@@ -1216,146 +1206,155 @@ export default function BudgetGrid({
 
     return (
         <>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', margin: '0 0 1.5rem 0', width: '100%', flexWrap: 'wrap', gap: '1rem' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', margin: '0 0 2rem 0', width: '100%', flexWrap: 'wrap', gap: '1.25rem' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', flexWrap: 'wrap' }}>
 
                     {/* Empresa Filter */}
-                    <label style={{ fontSize: '0.85rem', fontWeight: 600, color: '#64748b', whiteSpace: 'nowrap' }}>Empresa</label>
-                    <div style={{ position: 'relative', minWidth: '220px' }}>
-                        <div
-                            onClick={() => setCompanyDropdownOpen(!companyDropdownOpen)}
-                            style={{ padding: '0.45rem 0.75rem', borderRadius: '6px', border: '1px solid #cbd5e1', backgroundColor: '#fff', cursor: 'pointer', fontSize: '0.85rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', minHeight: '38px' }}
-                        >
-                            <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{getSelectedCompanyNames(pendingCompany)}</span>
-                            <span style={{ fontSize: '0.6rem', color: '#94a3b8' }}>▼</span>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
+                        <label className="stat-label" style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>Empresa</label>
+                        <div style={{ position: 'relative', minWidth: '240px' }}>
+                            <div
+                                onClick={() => setCompanyDropdownOpen(!companyDropdownOpen)}
+                                className="premium-input"
+                                style={{ cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingRight: '0.75rem' }}
+                            >
+                                <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{getSelectedCompanyNames(pendingCompany)}</span>
+                                <span style={{ fontSize: '0.6rem', opacity: 0.5 }}>▼</span>
+                            </div>
+
+                            {companyDropdownOpen && (
+                                <>
+                                    <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, zIndex: 30 }} onClick={() => setCompanyDropdownOpen(false)} />
+                                    <div className="glass-card" style={{ position: 'absolute', top: 'calc(100% + 8px)', left: 0, right: 0, zIndex: 40, maxHeight: '300px', overflowY: 'auto', background: 'var(--bg-surface)' }}>
+                                        {companies.map(c => (
+                                            <label key={c.id} style={{ display: 'flex', alignItems: 'center', padding: '0.75rem 1rem', cursor: 'pointer', borderBottom: '1px solid var(--border-subtle)', fontSize: '0.85rem' }}>
+                                                <input type="checkbox" checked={pendingCompany.includes(c.id)} onChange={() => handleCompanyToggle(c.id)} style={{ marginRight: '0.75rem', accentColor: 'var(--accent-blue)' }} />
+                                                <span style={{ flex: 1, color: 'var(--text-primary)' }}>{c.name}</span>
+                                            </label>
+                                        ))}
+                                    </div>
+                                </>
+                            )}
                         </div>
-
-                        {companyDropdownOpen && (
-                            <>
-                                <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, zIndex: 30 }} onClick={() => setCompanyDropdownOpen(false)} />
-                                <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, marginTop: '4px', backgroundColor: '#fff', border: '1px solid #e2e8f0', borderRadius: '6px', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1)', zIndex: 40, maxHeight: '300px', overflowY: 'auto' }}>
-                                    {companies.map(c => (
-                                        <label key={c.id} style={{ display: 'flex', alignItems: 'center', padding: '0.5rem 0.75rem', cursor: 'pointer', borderBottom: '1px solid #f1f5f9', fontSize: '0.85rem' }}>
-                                            <input type="checkbox" checked={pendingCompany.includes(c.id)} onChange={() => handleCompanyToggle(c.id)} style={{ marginRight: '0.5rem', cursor: 'pointer' }} />
-                                            <span style={{ flex: 1 }}>{c.name}</span>
-                                        </label>
-                                    ))}
-                                </div>
-                            </>
-                        )}
                     </div>
-
-                    <div style={{ width: '1px', height: '24px', backgroundColor: '#cbd5e1', margin: '0 0.5rem' }}></div>
 
                     {/* Cost Center Filter */}
-                    <label style={{ fontSize: '0.85rem', fontWeight: 600, color: '#64748b', whiteSpace: 'nowrap' }}>Centro de Custo</label>
-                    <div style={{ position: 'relative', minWidth: '220px' }}>
-                        <div
-                            onClick={() => setCostCenterDropdownOpen(!costCenterDropdownOpen)}
-                            style={{ padding: '0.45rem 0.75rem', borderRadius: '6px', border: '1px solid #cbd5e1', backgroundColor: '#fff', cursor: 'pointer', fontSize: '0.85rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', minHeight: '38px' }}
-                        >
-                            <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{getSelectedCostCenterNames(pendingCostCenter)}</span>
-                            <span style={{ fontSize: '0.6rem', color: '#94a3b8' }}>▼</span>
-                        </div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
+                        <label className="stat-label" style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>Centro de Custo</label>
+                        <div style={{ position: 'relative', minWidth: '240px' }}>
+                            <div
+                                onClick={() => setCostCenterDropdownOpen(!costCenterDropdownOpen)}
+                                className="premium-input"
+                                style={{ cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingRight: '0.75rem' }}
+                            >
+                                <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{getSelectedCostCenterNames(pendingCostCenter)}</span>
+                                <span style={{ fontSize: '0.6rem', opacity: 0.5 }}>▼</span>
+                            </div>
 
-                        {costCenterDropdownOpen && (
-                            <>
-                                <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, zIndex: 30 }} onClick={() => setCostCenterDropdownOpen(false)} />
-                                <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, marginTop: '4px', backgroundColor: '#fff', border: '1px solid #e2e8f0', borderRadius: '6px', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1)', zIndex: 40, maxHeight: '300px', overflowY: 'auto' }}>
-                                    {filteredCostCenters.map(cc => (
-                                        <label key={cc.id} style={{ display: 'flex', alignItems: 'center', padding: '0.5rem 0.75rem', cursor: 'pointer', borderBottom: '1px solid #f1f5f9', fontSize: '0.85rem' }}>
-                                            <input type="checkbox" checked={pendingCostCenter.includes(cc.id)} onChange={() => handleCostCenterToggle(cc.id)} style={{ marginRight: '0.5rem', cursor: 'pointer' }} />
-                                            <span style={{ flex: 1 }}>{cc.name}</span>
-                                        </label>
-                                    ))}
-                                </div>
-                            </>
-                        )}
+                            {costCenterDropdownOpen && (
+                                <>
+                                    <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, zIndex: 30 }} onClick={() => setCostCenterDropdownOpen(false)} />
+                                    <div className="glass-card" style={{ position: 'absolute', top: 'calc(100% + 8px)', left: 0, right: 0, zIndex: 40, maxHeight: '300px', overflowY: 'auto', background: 'var(--bg-surface)' }}>
+                                        {filteredCostCenters.map(cc => (
+                                            <label key={cc.id} style={{ display: 'flex', alignItems: 'center', padding: '0.75rem 1rem', cursor: 'pointer', borderBottom: '1px solid var(--border-subtle)', fontSize: '0.85rem' }}>
+                                                <input type="checkbox" checked={pendingCostCenter.includes(cc.id)} onChange={() => handleCostCenterToggle(cc.id)} style={{ marginRight: '0.75rem', accentColor: 'var(--accent-blue)' }} />
+                                                <span style={{ flex: 1, color: 'var(--text-primary)' }}>{cc.name}</span>
+                                            </label>
+                                        ))}
+                                    </div>
+                                </>
+                            )}
+                        </div>
                     </div>
-                    <button onClick={applyFilter} style={{ padding: '0 1rem', height: '38px', backgroundColor: '#2563eb', color: 'white', border: 'none', borderRadius: '6px', fontSize: '0.85rem', fontWeight: 600, cursor: 'pointer', transition: 'all 0.2s', display: 'flex', alignItems: 'center', gap: '0.5rem', whiteSpace: 'nowrap' }}>🔍 Filtrar</button>
-                    <button onClick={clearFilter} style={{ padding: '0 1rem', height: '38px', backgroundColor: 'transparent', color: '#64748b', border: '1px solid #cbd5e1', borderRadius: '6px', fontSize: '0.85rem', fontWeight: 600, cursor: 'pointer', transition: 'all 0.2s', whiteSpace: 'nowrap' }}>Limpar</button>
+
+                    <div style={{ display: 'flex', gap: '0.6rem', marginTop: 'auto', height: '42px' }}>
+                        <button onClick={applyFilter} className="btn btn-primary" style={{ padding: '0 1.5rem' }}>🔍 Filtrar</button>
+                        <button onClick={clearFilter} className="btn btn-secondary" style={{ padding: '0 1.5rem' }}>Limpar</button>
+                    </div>
                 </div>
 
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginLeft: 'auto' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', background: '#f1f5f9', borderRadius: '8px', padding: '0.25rem', height: '38px' }}>
-                        <button onClick={() => setViewPeriod('month')} style={{ padding: '0.3rem 0.9rem', borderRadius: '6px', border: 'none', cursor: 'pointer', fontSize: '0.75rem', fontWeight: 600, backgroundColor: viewPeriod === 'month' ? '#10b981' : 'transparent', color: viewPeriod === 'month' ? 'white' : '#64748b', transition: 'all 0.2s' }} title="Visão Mensal">📅 Mês</button>
-                        <button onClick={() => setViewPeriod('quarter')} style={{ padding: '0.4rem 0.9rem', borderRadius: '6px', border: 'none', cursor: 'pointer', fontSize: '0.75rem', fontWeight: 600, backgroundColor: viewPeriod === 'quarter' ? '#10b981' : 'transparent', color: viewPeriod === 'quarter' ? 'white' : '#64748b', transition: 'all 0.2s' }} title="Visão Trimestral">🗓️ Trimestre</button>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginLeft: 'auto', marginTop: 'auto' }}>
+                    <div className="toggle-group">
+                        <button onClick={() => setViewPeriod('month')} className={`toggle-btn ${viewPeriod === 'month' ? 'active' : ''}`}>Mês</button>
+                        <button onClick={() => setViewPeriod('quarter')} className={`toggle-btn ${viewPeriod === 'quarter' ? 'active' : ''}`}>Trimestre</button>
                     </div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', background: '#f1f5f9', borderRadius: '8px', padding: '0.25rem', height: '38px' }}>
-                        <button onClick={() => setViewMode('competencia')} style={{ padding: '0.3rem 0.9rem', borderRadius: '6px', border: 'none', cursor: 'pointer', fontSize: '0.75rem', fontWeight: 600, backgroundColor: viewMode === 'competencia' ? '#2563eb' : 'transparent', color: viewMode === 'competencia' ? 'white' : '#64748b', transition: 'all 0.2s' }}>📊 Competência</button>
-                        <button onClick={() => setViewMode('caixa')} style={{ padding: '0.4rem 0.9rem', borderRadius: '6px', border: 'none', cursor: 'pointer', fontSize: '0.75rem', fontWeight: 600, backgroundColor: viewMode === 'caixa' ? '#2563eb' : 'transparent', color: viewMode === 'caixa' ? 'white' : '#64748b', transition: 'all 0.2s' }}>💵 Caixa</button>
+                    <div className="toggle-group">
+                        <button onClick={() => setViewMode('competencia')} className={`toggle-btn ${viewMode === 'competencia' ? 'active' : ''}`}>Competência</button>
+                        <button onClick={() => setViewMode('caixa')} className={`toggle-btn ${viewMode === 'caixa' ? 'active' : ''}`}>Caixa</button>
                     </div>
                 </div>
             </div>
 
-            <div style={{ position: 'relative', overflowX: 'auto', border: '1px solid #e2e8f0', borderRadius: '8px', background: 'white', minHeight: '300px' }}>
+            <div className="glass-card" style={{ minHeight: '300px', overflow: 'hidden' }}>
                 {(loading || isExternalLoading) && (
-                    <div style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(255, 255, 255, 0.7)', zIndex: 100, display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center' }}>
-                        <div style={{ width: '40px', height: '40px', border: '4px solid #f1f5f9', borderTop: '4px solid #3b82f6', borderRadius: '50%', animation: 'spin-loading 1s linear infinite' }} />
-                        <span style={{ marginTop: '1rem', color: '#1e293b', fontWeight: 600, fontSize: '0.9rem' }}>Atualizando...</span>
-                        <style>{`@keyframes spin-loading { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }`}</style>
+                    <div style={{ position: 'absolute', inset: 0, background: 'rgba(255, 255, 255, 0.6)', zIndex: 100, display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', backdropFilter: 'blur(2px)' }}>
+                        <div className="spinner" />
+                        <span style={{ marginTop: '1rem', color: 'var(--text-primary)', fontWeight: 700, fontSize: '0.95rem' }}>Atualizando dados...</span>
                     </div>
                 )}
-                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8rem', tableLayout: 'auto' }}>
+                <table className="premium-table" style={{ fontSize: '0.8rem' }}>
                     <thead>
-                        <tr style={{ background: '#f8fafc', borderBottom: '2px solid #cbd5e1' }}>
-                            <th style={{ padding: '0.75rem 1rem', textAlign: 'left', minWidth: '350px', position: 'sticky', left: 0, background: '#f8fafc', zIndex: 20, color: '#475569', whiteSpace: 'nowrap' }}>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                        <tr>
+                            <th style={{ padding: '1rem', textAlign: 'left', minWidth: '400px', position: 'sticky', left: 0, background: 'var(--bg-elevated)', zIndex: 25, color: 'var(--text-primary)' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
                                     <button
                                         onClick={handleToggleAll}
                                         title={isAnyExpanded ? "Recolher Todos" : "Expandir Todos"}
                                         style={{
-                                            background: 'white', border: '1px solid #cbd5e1', borderRadius: '4px',
-                                            width: '24px', height: '24px', display: 'flex', alignItems: 'center',
-                                            justifyContent: 'center', cursor: 'pointer', color: '#2563eb', padding: 0
+                                            background: 'var(--bg-surface)', border: '1px solid var(--border-default)', borderRadius: '8px',
+                                            width: '28px', height: '28px', display: 'flex', alignItems: 'center',
+                                            justifyContent: 'center', cursor: 'pointer', color: 'var(--accent-blue)', padding: 0,
+                                            boxShadow: 'var(--shadow-card)'
                                         }}
                                     >
                                         {isAnyExpanded ? (
-                                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                                <polyline points="8 14 12 10 16 14" />
-                                                <polyline points="16 10 12 14 8 10" />
+                                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                                                <polyline points="4 14 12 6 20 14" />
                                             </svg>
                                         ) : (
-                                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                                <polyline points="16 17 12 21 8 17" />
-                                                <polyline points="8 7 12 3 16 7" />
+                                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                                                <polyline points="4 10 12 18 20 10" />
                                             </svg>
                                         )}
                                     </button>
-                                    DRE Gerencial
+                                    <span style={{ fontSize: '0.75rem', fontWeight: 900, letterSpacing: '0.05em' }}>ESTRUTURA DRE</span>
                                 </div>
                             </th>
-                            {(viewPeriod === 'month' ? MONTHS : ['1º Tri', '2º Tri', '3º Tri', '4º Tri']).map((c, i) => <th key={i} colSpan={3} style={{ textAlign: 'center', padding: '0.75rem 0.5rem', borderLeft: '1px solid #cbd5e1', color: '#475569', minWidth: '240px' }}>{c}</th>)}
+                            {(viewPeriod === 'month' ? MONTHS : ['1º Tri', '2º Tri', '3º Tri', '4º Tri']).map((c, i) => (
+                                <th key={i} colSpan={3} style={{ textAlign: 'center', padding: '0.75rem 0.5rem', borderLeft: '1px solid var(--border-subtle)', color: 'var(--text-primary)', minWidth: '240px', background: 'var(--bg-elevated)' }}>
+                                    {c}
+                                </th>
+                            ))}
                         </tr>
-                        <tr style={{ background: '#fff' }}>
-                            <th style={{ position: 'sticky', left: 0, zIndex: 20, background: '#fff', borderBottom: '1px solid #e2e8f0' }}></th>
+                        <tr style={{ background: 'var(--bg-surface)' }}>
+                            <th style={{ position: 'sticky', left: 0, zIndex: 20, background: 'var(--bg-surface)', borderBottom: '1px solid var(--border-default)' }}></th>
                             {(viewPeriod === 'month' ? MONTHS : [1, 2, 3, 4]).map((_, i) => (
                                 <React.Fragment key={i}>
-                                    <th style={{ fontSize: '0.7rem', color: '#94a3b8', borderLeft: '1px solid #f1f5f9', fontWeight: 500, paddingBottom: '0.5rem', borderBottom: '1px solid #e2e8f0', minWidth: '80px', whiteSpace: 'nowrap' }}>Orçado</th>
-                                    <th style={{ fontSize: '0.7rem', color: '#94a3b8', borderLeft: '1px solid #f1f5f9', fontWeight: 500, paddingBottom: '0.5rem', borderBottom: '1px solid #e2e8f0', minWidth: '80px', whiteSpace: 'nowrap' }}>Radar</th>
-                                    <th style={{ fontSize: '0.7rem', color: '#94a3b8', borderLeft: '1px solid #f1f5f9', fontWeight: 500, paddingBottom: '0.5rem', borderBottom: '1px solid #e2e8f0', minWidth: '80px', whiteSpace: 'nowrap' }}>Realizado</th>
+                                    <th style={{ fontSize: '0.65rem', color: 'var(--text-muted)', borderLeft: '1px solid var(--border-subtle)', fontWeight: 600, paddingBottom: '0.5rem', borderBottom: '1px solid var(--border-default)', minWidth: '80px', textAlign: 'center' }}>ORÇADO</th>
+                                    <th style={{ fontSize: '0.65rem', color: 'var(--text-muted)', borderLeft: '1px solid var(--border-subtle)', fontWeight: 600, paddingBottom: '0.5rem', borderBottom: '1px solid var(--border-default)', minWidth: '80px', textAlign: 'center' }}>RADAR</th>
+                                    <th style={{ fontSize: '0.65rem', color: 'var(--text-muted)', borderLeft: '1px solid var(--border-subtle)', fontWeight: 600, paddingBottom: '0.5rem', borderBottom: '1px solid var(--border-default)', minWidth: '80px', textAlign: 'center' }}>REALIZADO</th>
                                 </React.Fragment>
                             ))}
                         </tr>
                     </thead>
                     <tbody>
-                        {renderSummaryRow('01. RECEITA BRUTA', 'vRev', true, '#eff6ff', '#1e3a8a', 'rev')}
+                        {renderSummaryRow('01. RECEITA BRUTA', 'vRev', true, 'var(--bg-elevated)', 'var(--accent-blue)', 'rev')}
                         {expandedGroups.has('rev') && dreStructure.buckets.rev.map(root => renderNode(root))}
-                        {renderSummaryRow('02. TRIBUTO SOBRE FATURAMENTO', 'vTaxes', true, '#f1f5f9', '#64748b', 'taxes')}
+                        {renderSummaryRow('02. TRIBUTO SOBRE FATURAMENTO', 'vTaxes', true, 'var(--bg-surface)', 'var(--text-secondary)', 'taxes')}
                         {expandedGroups.has('taxes') && dreStructure.buckets.taxes.map(root => renderNode(root))}
-                        {renderSummaryRow('(=) RECEITA LÍQUIDA', 'vRecLiq', true, '#e0f2fe', '#0369a1')}
-                        {renderSummaryRow('03. CUSTO OPERACIONAL', 'vCosts', true, '#f1f5f9', '#64748b', 'costs')}
+                        {renderSummaryRow('(=) RECEITA LÍQUIDA', 'vRecLiq', true, 'rgba(37, 99, 235, 0.05)', 'var(--accent-blue)')}
+                        {renderSummaryRow('03. CUSTO OPERACIONAL', 'vCosts', true, 'var(--bg-surface)', 'var(--text-secondary)', 'costs')}
                         {expandedGroups.has('costs') && dreStructure.buckets.costs.map(root => renderNode(root))}
-                        {renderSummaryRow('(=) MARGEM BRUTA', 'vGrossMarg', true, '#dcfce7', '#15803d')}
-                        {renderSummaryRow('04. DESPESA OPERACIONAL', 'vOpExp', true, '#f1f5f9', '#64748b', 'opExp')}
+                        {renderSummaryRow('(=) MARGEM BRUTA', 'vGrossMarg', true, 'rgba(5, 150, 105, 0.05)', 'var(--accent-green)')}
+                        {renderSummaryRow('04. DESPESA OPERACIONAL', 'vOpExp', true, 'var(--bg-surface)', 'var(--text-secondary)', 'opExp')}
                         {expandedGroups.has('opExp') && dreStructure.buckets.opExp.map(root => renderNode(root))}
-                        {renderSummaryRow('(=) MARGEM DE CONTRIBUIÇÃO', 'vContribMarg', true, '#fff7ed', '#c2410c')}
-                        {renderSummaryRow('05. DESPESAS ADMINISTRATIVAS', 'vAdminExp', true, '#f1f5f9', '#64748b', 'adminExp')}
+                        {renderSummaryRow('(=) MARGEM DE CONTRIBUIÇÃO', 'vContribMarg', true, 'rgba(217, 119, 6, 0.05)', 'var(--accent-amber)')}
+                        {renderSummaryRow('05. DESPESAS ADMINISTRATIVAS', 'vAdminExp', true, 'var(--bg-surface)', 'var(--text-secondary)', 'adminExp')}
                         {expandedGroups.has('adminExp') && dreStructure.buckets.adminExp.map(root => renderNode(root))}
-                        {renderSummaryRow('(=) EBITDA', 'vEbitda', true, '#fef3c7', '#b45309')}
-                        {renderSummaryRow('06. DESPESAS FINANCEIRAS', 'vFin', true, '#f1f5f9', '#64748b', 'fin')}
+                        {renderSummaryRow('(=) EBITDA', 'vEbitda', true, 'rgba(79, 70, 229, 0.08)', 'var(--accent-indigo)')}
+                        {renderSummaryRow('06. DESPESAS FINANCEIRAS', 'vFin', true, 'var(--bg-surface)', 'var(--text-secondary)', 'fin')}
                         {expandedGroups.has('fin') && dreStructure.buckets.fin.map(root => renderNode(root))}
-                        {renderSummaryRow('(=) LUCRO LÍQUIDO', 'vNetProfit', true, '#0f172a', '#fbbf24')}
+                        {renderSummaryRow('(=) LUCRO LÍQUIDO', 'vNetProfit', true, 'var(--gradient-brand)', 'white')}
                     </tbody>
                 </table>
                 {/* Budget Drill-Down Modal — 3-Step */}

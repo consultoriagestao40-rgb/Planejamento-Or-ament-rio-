@@ -101,6 +101,7 @@ export async function runCronSync(reqYear: number) {
             const payables = await fetchAllTransactionsForYear(token, payablesUrl, reqYear, viewMode);
 
             const allTxns = [...receivables, ...payables];
+            console.log(`[DEBUG] Syncing ${reqYear} ${viewMode} for ${t.name}: ${receivables.length} REC + ${payables.length} PAY = ${allTxns.length} total.`);
 
             const aggregates = new Map<string, number>();
 

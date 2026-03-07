@@ -1,14 +1,12 @@
 'use client';
 
 import React, { useState } from 'react';
-import { useRouter } from 'next/navigation';
 
 export default function LoginPage() {
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [error, setError] = useState('');
     const [loading, setLoading] = useState(false);
-    const router = useRouter();
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -25,52 +23,117 @@ export default function LoginPage() {
             const data = await res.json();
 
             if (data.success) {
-                // To force middleware re-evaluation and state clear
                 window.location.href = '/';
             } else {
-                setError(data.error || 'Falha no login');
+                setError(data.error || 'Credenciais inválidas');
             }
         } catch (err) {
-            setError('Erro ao se conectar ao servidor');
+            setError('Erro ao conectar ao servidor');
         } finally {
             setLoading(false);
         }
     };
 
     return (
-        <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: '#f1f5f9' }}>
-            <div style={{ backgroundColor: '#fff', padding: '2.5rem', borderRadius: '12px', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)', width: '100%', maxWidth: '400px' }}>
+        <div style={{
+            minHeight: '100vh',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            backgroundColor: 'var(--bg-base)',
+            position: 'relative',
+            overflow: 'hidden',
+        }}>
+            {/* Background glow effects */}
+            <div style={{
+                position: 'absolute',
+                width: '600px', height: '600px',
+                borderRadius: '50%',
+                background: 'radial-gradient(circle, rgba(99, 102, 241, 0.12) 0%, transparent 70%)',
+                top: '-100px', left: '-200px',
+                pointerEvents: 'none'
+            }} />
+            <div style={{
+                position: 'absolute',
+                width: '400px', height: '400px',
+                borderRadius: '50%',
+                background: 'radial-gradient(circle, rgba(59, 130, 246, 0.1) 0%, transparent 70%)',
+                bottom: '-100px', right: '-100px',
+                pointerEvents: 'none'
+            }} />
+
+            {/* Login Card */}
+            <div className="animate-slide-up" style={{
+                background: 'var(--bg-card)',
+                border: '1px solid var(--border-default)',
+                borderRadius: '20px',
+                boxShadow: '0 24px 80px rgba(0, 0, 0, 0.5), 0 1px 0 rgba(255,255,255,0.05) inset',
+                width: '100%',
+                maxWidth: '420px',
+                padding: '2.5rem',
+                position: 'relative',
+                zIndex: 1
+            }}>
+                {/* Header */}
                 <div style={{ textAlign: 'center', marginBottom: '2rem' }}>
-                    <h1 style={{ color: '#0f172a', margin: '0 0 0.5rem 0', fontSize: '1.5rem' }}>Budget Hub</h1>
-                    <p style={{ color: '#64748b', margin: 0, fontSize: '0.875rem' }}>Faça login para continuar</p>
+                    <h1 className="brand-text" style={{ fontSize: '2rem', marginBottom: '0.5rem' }}>Budget Hub</h1>
+                    <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem' }}>Planejamento orçamentário consolidado</p>
                 </div>
 
                 {error && (
-                    <div style={{ backgroundColor: '#fee2e2', color: '#b91c1c', padding: '0.75rem', borderRadius: '6px', marginBottom: '1.5rem', fontSize: '0.875rem', textAlign: 'center' }}>
+                    <div style={{
+                        background: 'rgba(239, 68, 68, 0.1)',
+                        border: '1px solid rgba(239, 68, 68, 0.3)',
+                        color: '#f87171',
+                        padding: '0.75rem 1rem',
+                        borderRadius: '10px',
+                        marginBottom: '1.25rem',
+                        fontSize: '0.875rem',
+                        textAlign: 'center'
+                    }}>
                         {error}
                     </div>
                 )}
 
-                <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1.1rem' }}>
                     <div>
-                        <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: 500, color: '#334155', marginBottom: '0.25rem' }}>E-mail</label>
+                        <label style={{
+                            display: 'block',
+                            fontSize: '0.78rem',
+                            fontWeight: 700,
+                            textTransform: 'uppercase',
+                            letterSpacing: '0.06em',
+                            color: 'var(--text-muted)',
+                            marginBottom: '0.5rem'
+                        }}>E-mail</label>
                         <input
                             type="email"
                             value={email}
                             onChange={e => setEmail(e.target.value)}
                             required
-                            style={{ width: '100%', padding: '0.5rem 0.75rem', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '1rem', boxSizing: 'border-box' }}
+                            className="premium-input"
+                            style={{ width: '100%' }}
                             placeholder="admin@budgethub.com"
                         />
                     </div>
+
                     <div>
-                        <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: 500, color: '#334155', marginBottom: '0.25rem' }}>Senha</label>
+                        <label style={{
+                            display: 'block',
+                            fontSize: '0.78rem',
+                            fontWeight: 700,
+                            textTransform: 'uppercase',
+                            letterSpacing: '0.06em',
+                            color: 'var(--text-muted)',
+                            marginBottom: '0.5rem'
+                        }}>Senha</label>
                         <input
                             type="password"
                             value={password}
                             onChange={e => setPassword(e.target.value)}
                             required
-                            style={{ width: '100%', padding: '0.5rem 0.75rem', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '1rem', boxSizing: 'border-box' }}
+                            className="premium-input"
+                            style={{ width: '100%' }}
                             placeholder="••••••••"
                         />
                     </div>
@@ -78,21 +141,23 @@ export default function LoginPage() {
                     <button
                         type="submit"
                         disabled={loading}
+                        className="btn btn-primary"
                         style={{
-                            marginTop: '1rem',
-                            padding: '0.75rem',
-                            backgroundColor: '#2563eb',
-                            color: '#fff',
-                            border: 'none',
-                            borderRadius: '6px',
-                            fontSize: '1rem',
-                            fontWeight: 600,
-                            cursor: loading ? 'not-allowed' : 'pointer',
+                            marginTop: '0.5rem',
+                            width: '100%',
+                            justifyContent: 'center',
+                            padding: '0.8rem',
+                            fontSize: '0.9rem',
                             opacity: loading ? 0.7 : 1,
-                            transition: 'opacity 0.2s'
+                            cursor: loading ? 'not-allowed' : 'pointer',
                         }}
                     >
-                        {loading ? 'Entrando...' : 'Entrar'}
+                        {loading ? (
+                            <>
+                                <span className="spinner" style={{ width: '16px', height: '16px', borderWidth: '2px' }} />
+                                Entrando...
+                            </>
+                        ) : 'Entrar'}
                     </button>
                 </form>
             </div>

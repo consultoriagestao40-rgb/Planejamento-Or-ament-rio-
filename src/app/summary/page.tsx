@@ -200,196 +200,148 @@ export default function BudgetSummaryPage() {
 
     if (loading) {
         return (
-            <div style={{ minHeight: '100vh', backgroundColor: '#f8fafc', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#1e293b', fontFamily: 'Inter, sans-serif' }}>
+            <div style={{ minHeight: '100vh', backgroundColor: 'var(--bg-base)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                 <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '1rem' }}>
                     <div className="spinner"></div>
-                    <p style={{ color: '#64748b', fontWeight: 500 }}>Sincronizando resumo financeiro...</p>
+                    <p style={{ color: 'var(--text-muted)', fontWeight: 500 }}>Carregando resumo financeiro...</p>
                 </div>
-                <style jsx>{`
-                    .spinner {
-                        width: 40px;
-                        height: 40px;
-                        border: 3px solid #e2e8f0;
-                        border-top-color: #2563eb;
-                        border-radius: 50%;
-                        animation: spin 1s linear infinite;
-                    }
-                    @keyframes spin { to { transform: rotate(360deg); } }
-                `}</style>
             </div>
         );
     }
 
-    const styles = {
-        th: {
-            backgroundColor: '#f8fafc',
-            padding: '0.75rem 1.5rem',
-            borderBottom: '2px solid #e2e8f0',
-            color: '#64748b',
-            fontSize: '0.75rem',
-            fontWeight: 800,
-            textTransform: 'uppercase' as const,
-            letterSpacing: '0.05em'
-        },
-        td: {
-            padding: '1rem 1.5rem',
-            borderBottom: '1px solid #f1f5f9',
-            fontSize: '0.85rem',
-            color: '#334155'
-        },
-        card: {
-            backgroundColor: '#fff',
-            padding: '1.25rem',
-            borderRadius: '12px',
-            border: '1px solid #e2e8f0',
-            boxShadow: '0 1px 3px rgba(0,0,0,0.05)'
-        }
+    const th: React.CSSProperties = {
+        background: 'var(--bg-surface)',
+        padding: '0.75rem 1.5rem',
+        borderBottom: '1px solid var(--border-subtle)',
+        color: 'var(--text-muted)',
+        fontSize: '0.65rem',
+        fontWeight: 800,
+        textTransform: 'uppercase',
+        letterSpacing: '0.07em',
+        whiteSpace: 'nowrap'
     };
-
+    const td: React.CSSProperties = {
+        padding: '1rem 1.5rem',
+        borderBottom: '1px solid var(--border-subtle)',
+        fontSize: '0.85rem',
+        color: 'var(--text-secondary)'
+    };
     return (
-        <div style={{ minHeight: '100vh', backgroundColor: '#f8fafc', color: '#1e293b', fontFamily: 'Inter, system-ui, sans-serif', padding: '2.5rem 2rem' }}>
-            <div style={{ maxWidth: '1280px', margin: '0 auto' }}>
+        <div style={{ minHeight: '100vh', backgroundColor: 'var(--bg-base)', color: 'var(--text-primary)', fontFamily: 'Inter, system-ui, sans-serif', padding: '2.5rem 2rem' }}>
+            <div className="container">
 
                 {/* Header */}
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2.5rem' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: '3rem', borderBottom: '1px solid var(--border-subtle)', paddingBottom: '1.5rem' }}>
                     <div>
-                        <h1 style={{ fontSize: '1.75rem', fontWeight: 700, margin: 0 }}>📊 Resumo por Empresa & CC</h1>
-                        <p style={{ color: '#64748b', marginTop: '0.4rem', fontSize: '1rem' }}>Controle consolidado e indicadores de lucratividade.</p>
+                        <h1 className="brand-text" style={{ fontSize: '2.25rem', marginBottom: '0.5rem' }}>Resumo Consolidado</h1>
+                        <p style={{ color: 'var(--text-secondary)', fontSize: '1rem' }}>Visão geral de orçamentos e centros de custo.</p>
                     </div>
-                    <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
+                    <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
                         {userRole === 'MASTER' && (
-                            <Link href="/radar" style={{
-                                padding: '0.6rem 1.2rem',
-                                backgroundColor: '#2563eb',
-                                color: '#fff',
-                                borderRadius: '8px',
-                                textDecoration: 'none',
-                                fontWeight: 700,
-                                fontSize: '0.85rem',
-                                boxShadow: '0 4px 6px -1px rgba(37, 99, 235, 0.2)',
-                                display: 'flex',
-                                alignItems: 'center',
-                                gap: '0.5rem'
-                            }}>
+                            <Link href="/radar" className="btn btn-primary" style={{ padding: '0.75rem 1.25rem' }}>
                                 🎯 Gestão de Radar
                             </Link>
                         )}
                         <SyncButton year={selectedYear} onSyncStart={() => setLoading(true)} onSyncComplete={fetchData} />
 
-                        <Link href="/" style={{
-                            padding: '0.6rem 1.2rem',
-                            backgroundColor: '#fff',
-                            color: '#1e293b',
-                            borderRadius: '8px',
-                            textDecoration: 'none',
-                            fontWeight: 600,
-                            fontSize: '0.85rem',
-                            border: '1px solid #e2e8f0',
-                            boxShadow: '0 1px 2px rgba(0,0,0,0.05)',
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: '0.5rem'
-                        }}>
-                            ⬅️ Voltar ao Dashboard
+                        <Link href="/" className="btn btn-secondary" style={{ padding: '0.75rem 1.25rem' }}>
+                            ⬅️ Dashboard
                         </Link>
                     </div>
-
                 </div>
 
                 {/* KPI Section - Row 1: Operations */}
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '1.25rem', marginBottom: '1.25rem' }}>
-                    <div style={styles.card}>
-                        <p style={{ margin: 0, color: '#64748b', fontSize: '0.65rem', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Total de Unidades</p>
-                        <p style={{ margin: '0.4rem 0 0', fontSize: '1.75rem', fontWeight: 700 }}>{stats.totalCCs}</p>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '1.5rem', marginBottom: '1.5rem' }}>
+                    <div className="stat-card">
+                        <p className="stat-label">Total de Unidades</p>
+                        <p className="stat-value">{stats.totalCCs}</p>
                     </div>
-                    <div style={{ ...styles.card, borderLeft: '4px solid #10b981' }}>
-                        <p style={{ margin: 0, color: '#10b981', fontSize: '0.65rem', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Digitados</p>
-                        <p style={{ margin: '0.4rem 0 0', fontSize: '1.75rem', fontWeight: 700, color: '#10b981' }}>{stats.withBudget}</p>
+                    <div className="stat-card">
+                        <p className="stat-label" style={{ color: 'var(--accent-green)' }}>Digitados</p>
+                        <p className="stat-value" style={{ color: 'var(--accent-green)' }}>{stats.withBudget}</p>
                     </div>
-                    <div style={{ ...styles.card, borderLeft: '4px solid #ef4444' }}>
-                        <p style={{ margin: 0, color: '#ef4444', fontSize: '0.65rem', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Pendentes</p>
-                        <p style={{ margin: '0.4rem 0 0', fontSize: '1.75rem', fontWeight: 700, color: '#ef4444' }}>{stats.withoutBudget}</p>
+                    <div className="stat-card">
+                        <p className="stat-label" style={{ color: 'var(--accent-red)' }}>Pendentes</p>
+                        <p className="stat-value" style={{ color: 'var(--accent-red)' }}>{stats.withoutBudget}</p>
                     </div>
-                    <div style={{ ...styles.card, background: '#f1f5f9', borderStyle: 'dashed', position: 'relative' }}>
-                        <p style={{ margin: 0, color: '#64748b', fontSize: '0.65rem', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Ano Referência</p>
+                    <div className="stat-card" style={{ borderStyle: 'dashed', borderColor: 'var(--border-strong)' }}>
+                        <p className="stat-label">Ano Referência</p>
                         <select
                             value={selectedYear}
                             onChange={(e) => setSelectedYear(parseInt(e.target.value))}
-                            style={{
-                                width: '100%',
+                            className="premium-select"
+                            style={{ 
+                                width: '100%', 
+                                border: 'none', 
+                                background: 'transparent', 
+                                fontSize: '1.5rem', 
+                                fontWeight: 800, 
+                                padding: 0, 
                                 marginTop: '0.4rem',
-                                fontSize: '1.75rem',
-                                fontWeight: 700,
-                                background: 'transparent',
-                                border: 'none',
-                                color: '#1e293b',
-                                outline: 'none',
-                                cursor: 'pointer',
-                                padding: 0,
-                                appearance: 'none',
-                                fontFamily: 'inherit'
+                                color: 'var(--text-primary)'
                             }}
                         >
                             {[2024, 2025, 2026, 2027, 2028].map(y => (
-                                <option key={y} value={y}>{y}</option>
+                                <option key={y} value={y} style={{ background: 'var(--bg-elevated)' }}>{y}</option>
                             ))}
                         </select>
-                        <span style={{ position: 'absolute', right: '1.25rem', bottom: '1.5rem', fontSize: '0.8rem', color: '#64748b' }}>▼</span>
                     </div>
                 </div>
 
                 {/* KPI Section - Row 2: Financials */}
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '1.25rem', marginBottom: '2.5rem' }}>
-                    <div style={{ ...styles.card, background: '#ecfdf5' }}>
-                        <p style={{ margin: 0, color: '#047857', fontSize: '0.65rem', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.05em' }}>1. Receita Orçada</p>
-                        <p style={{ margin: '0.4rem 0 0', fontSize: '1.5rem', fontWeight: 800, color: '#047857' }}>{formatCurrency(stats.totalRevenueBudgeted)}</p>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '1.5rem', marginBottom: '3rem' }}>
+                    <div className="stat-card" style={{ background: 'rgba(16, 185, 129, 0.05)', borderColor: 'rgba(16, 185, 129, 0.2)' }}>
+                        <p className="stat-label" style={{ color: 'var(--accent-green)' }}>1. Receita Orçada</p>
+                        <p className="stat-value" style={{ color: 'var(--accent-green)' }}>{formatCurrency(stats.totalRevenueBudgeted)}</p>
                     </div>
-                    <div style={{ ...styles.card, background: '#fff1f2' }}>
-                        <p style={{ margin: 0, color: '#be123c', fontSize: '0.65rem', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.05em' }}>2. Despesa Orçada</p>
-                        <p style={{ margin: '0.4rem 0 0', fontSize: '1.5rem', fontWeight: 800, color: '#be123c' }}>{formatCurrency(stats.totalExpenseBudgeted)}</p>
+                    <div className="stat-card" style={{ background: 'rgba(239, 68, 68, 0.05)', borderColor: 'rgba(239, 68, 68, 0.2)' }}>
+                        <p className="stat-label" style={{ color: 'var(--accent-red)' }}>2. Despesa Orçada</p>
+                        <p className="stat-value" style={{ color: 'var(--accent-red)' }}>{formatCurrency(stats.totalExpenseBudgeted)}</p>
                     </div>
-                    <div style={{ ...styles.card, background: '#f8fafc', borderLeft: '4px solid #1e293b' }}>
-                        <p style={{ margin: 0, color: '#475569', fontSize: '0.65rem', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.05em' }}>3. Resultado</p>
-                        <p style={{ margin: '0.4rem 0 0', fontSize: '1.5rem', fontWeight: 800, color: '#1e293b' }}>{formatCurrency(stats.resultValue)}</p>
+                    <div className="stat-card" style={{ borderLeft: '4px solid var(--accent-blue)' }}>
+                        <p className="stat-label">3. Resultado</p>
+                        <p className="stat-value">{formatCurrency(stats.resultValue)}</p>
                     </div>
-                    <div style={{ ...styles.card, background: '#eff6ff' }}>
-                        <p style={{ margin: 0, color: '#2563eb', fontSize: '0.65rem', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.05em' }}>4. % Margem</p>
-                        <p style={{ margin: '0.4rem 0 0', fontSize: '1.75rem', fontWeight: 900, color: '#2563eb' }}>{stats.resultPercent.toFixed(1)}%</p>
+                    <div className="stat-card" style={{ background: 'var(--gradient-brand)', border: 'none' }}>
+                        <p className="stat-label" style={{ color: 'rgba(255,255,255,0.7)' }}>4. % Margem</p>
+                        <p className="stat-value" style={{ color: '#fff' }}>{stats.resultPercent.toFixed(1)}%</p>
                     </div>
                 </div>
 
                 {/* Filter */}
                 <div style={{
-                    backgroundColor: '#fff',
-                    padding: '0.75rem 1.25rem',
-                    borderRadius: '10px',
-                    border: '1px solid #e2e8f0',
+                    backgroundColor: 'var(--bg-elevated)',
+                    padding: '0.85rem 1.5rem',
+                    borderRadius: 'var(--radius)',
+                    border: '1px solid var(--border-default)',
                     display: 'flex',
                     alignItems: 'center',
-                    gap: '0.75rem',
-                    marginBottom: '1.5rem'
+                    gap: '1rem',
+                    marginBottom: '2rem',
+                    boxShadow: 'inset 0 2px 4px rgba(0,0,0,0.2)'
                 }}>
-                    <span style={{ fontSize: '1.1rem', color: '#94a3b8' }}>🔍</span>
+                    <span style={{ fontSize: '1.25rem', opacity: 0.5 }}>🔍</span>
                     <input
                         type="text"
-                        placeholder="Pesquisa rápida de orçamento..."
-                        style={{ border: 'none', outline: 'none', background: 'transparent', width: '100%', fontSize: '0.95rem', color: '#1e293b' }}
+                        placeholder="Pesquisar organização ou centro de custo..."
+                        className="premium-input"
+                        style={{ border: 'none', background: 'transparent', width: '100%', fontSize: '1rem', padding: 0, boxShadow: 'none' }}
                         value={searchTerm}
                         onChange={(e) => setSearchTerm(e.target.value)}
                     />
                 </div>
 
                 {/* Main Table */}
-                <div style={{ backgroundColor: '#fff', borderRadius: '12px', border: '1px solid #e2e8f0', overflow: 'hidden', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)' }}>
+                <div className="glass-card" style={{ overflow: 'hidden' }}>
                     <div style={{ overflowX: 'auto' }}>
-                        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                        <table className="premium-table">
                             <thead>
                                 <tr>
-                                    <th style={{ ...styles.th, textAlign: 'left', width: '400px' }}>Organização / Centro de Custo</th>
-                                    <th style={{ ...styles.th, textAlign: 'right' }}>Receita Anual</th>
-                                    <th style={{ ...styles.th, textAlign: 'right' }}>Despesa Anual</th>
-                                    <th style={{ ...styles.th, textAlign: 'center' }}>Progresso</th>
-                                    <th style={{ ...styles.th, textAlign: 'center', width: '130px' }}>Ação / Status</th>
+                                    <th style={{ ...th, textAlign: 'left', width: '400px' }}>Organização / Centro de Custo</th>
+                                    <th style={{ ...th, textAlign: 'right' }}>Receita Anual</th>
+                                    <th style={{ ...th, textAlign: 'right' }}>Despesa Anual</th>
+                                    <th style={{ ...th, textAlign: 'center' }}>Progresso</th>
+                                    <th style={{ ...th, textAlign: 'center', width: '130px' }}>Ação / Status</th>
                                 </tr>
                             </thead>
 
@@ -411,7 +363,7 @@ export default function BudgetSummaryPage() {
                                                 onMouseEnter={(e) => (e.currentTarget.style.background = '#e2e8f0')}
                                                 onMouseLeave={(e) => (e.currentTarget.style.background = '#f1f5f9')}
                                             >
-                                                <td style={{ ...styles.td, fontWeight: 800, color: '#1e293b', display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                                                <td style={{ ...td, fontWeight: 800, color: '#1e293b', display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
                                                     <span style={{
                                                         fontSize: '0.7rem',
                                                         color: '#64748b',
@@ -420,13 +372,13 @@ export default function BudgetSummaryPage() {
                                                     }}>▶</span>
                                                     {group.tenantName}
                                                 </td>
-                                                <td style={{ ...styles.td, textAlign: 'right', fontWeight: 800, color: group.totalRevenue > 0 ? '#059669' : '#1e293b' }}>
+                                                <td style={{ ...td, textAlign: 'right', fontWeight: 800, color: group.totalRevenue > 0 ? '#059669' : '#1e293b' }}>
                                                     {formatCurrency(group.totalRevenue)}
                                                 </td>
-                                                <td style={{ ...styles.td, textAlign: 'right', fontWeight: 800, color: group.totalExpense > 0 ? '#be123c' : '#1e293b' }}>
+                                                <td style={{ ...td, textAlign: 'right', fontWeight: 800, color: group.totalExpense > 0 ? '#be123c' : '#1e293b' }}>
                                                     {formatCurrency(group.totalExpense)}
                                                 </td>
-                                                <td style={{ ...styles.td, textAlign: 'center' }}>
+                                                <td style={{ ...td, textAlign: 'center' }}>
                                                     <span style={{
                                                         padding: '0.25rem 0.75rem',
                                                         borderRadius: '6px',
@@ -440,7 +392,7 @@ export default function BudgetSummaryPage() {
                                                         {isComplete ? 'OK' : `PENDENTE (${group.finishedCount}/${group.totalCount})`}
                                                     </span>
                                                 </td>
-                                                <td style={{ ...styles.td, textAlign: 'center' }}>
+                                                <td style={{ ...td, textAlign: 'center' }}>
                                                     {/* Company headers usually don't have a single lock, they are CC based */}
                                                     <span style={{ color: '#cbd5e1' }}>-</span>
                                                 </td>
@@ -449,23 +401,23 @@ export default function BudgetSummaryPage() {
 
                                             {isExpanded && group.costCenters.map((cc) => (
                                                 <tr key={cc.costCenterId} className="cc-row" style={{ background: '#fff' }}>
-                                                    <td style={{ ...styles.td, paddingLeft: '3rem', color: '#475569', fontWeight: 500 }}>
+                                                    <td style={{ ...td, paddingLeft: '3rem', color: '#475569', fontWeight: 500 }}>
                                                         {cc.costCenterName}
                                                     </td>
-                                                    <td style={{ ...styles.td, textAlign: 'right', color: cc.totalRevenue > 0 ? '#10b981' : '#94a3b8' }}>
+                                                    <td style={{ ...td, textAlign: 'right', color: cc.totalRevenue > 0 ? '#10b981' : '#94a3b8' }}>
                                                         {formatCurrency(cc.totalRevenue)}
                                                     </td>
-                                                    <td style={{ ...styles.td, textAlign: 'right', color: cc.totalExpense > 0 ? '#ef4444' : '#94a3b8' }}>
+                                                    <td style={{ ...td, textAlign: 'right', color: cc.totalExpense > 0 ? '#ef4444' : '#94a3b8' }}>
                                                         {formatCurrency(cc.totalExpense)}
                                                     </td>
-                                                    <td style={{ ...styles.td, textAlign: 'center' }}>
+                                                    <td style={{ ...td, textAlign: 'center' }}>
                                                         {cc.hasBudgetData ? (
                                                             <span style={{ fontSize: '0.8rem', color: '#10b981' }}>✓ OK</span>
                                                         ) : (
                                                             <span style={{ color: '#ef4444', fontSize: '0.65rem', fontWeight: 700 }}>EM ABERTO</span>
                                                         )}
                                                     </td>
-                                                    <td style={{ ...styles.td, textAlign: 'center' }}>
+                                                    <td style={{ ...td, textAlign: 'center' }}>
                                                         <button
                                                             onClick={(e) => {
                                                                 e.stopPropagation();

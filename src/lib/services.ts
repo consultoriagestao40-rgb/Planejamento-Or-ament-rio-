@@ -173,7 +173,12 @@ export async function syncData(costCenterId: string = 'DEFAULT', year: number = 
             where: {
                 tenantId: tenant.id,
                 id: { notIn: costCenterIdsToKeep },
-                NOT: { name: { startsWith: '[INATIVO]' } }
+                NOT: { 
+                    OR: [
+                        { name: { contains: '[INATIVO]' } },
+                        { name: { contains: 'ENCERRADO', mode: 'insensitive' } }
+                    ]
+                }
             }
         });
 
@@ -186,6 +191,8 @@ export async function syncData(costCenterId: string = 'DEFAULT', year: number = 
     } catch (e: any) {
         console.warn("Falha ao inativar CCs por nome:", e.message);
     }
+
+
 
 
 

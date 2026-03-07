@@ -29,6 +29,7 @@ export async function GET(request: Request) {
 
 
 
+
             prisma.category.findMany({ select: { id: true, type: true, name: true } }),
             prisma.budgetEntry.findMany({
                 where: { year: currentYear },

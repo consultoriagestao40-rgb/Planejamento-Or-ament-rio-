@@ -102,12 +102,19 @@ export async function GET(request: Request) {
             }
         });
 
-        // 5. Converter para array e ordenar
-        const result = Array.from(summaryMap.values()).sort((a, b) => {
-            // Ordenar por Empresa e depois por Centro de Custo
-            if (a.tenantName !== b.tenantName) return a.tenantName.localeCompare(b.tenantName);
-            return a.costCenterName.localeCompare(b.costCenterName);
-        });
+        // 5. Converter para array, filtrar centros de custo inativos e ordenar
+        const result = Array.from(summaryMap.values())
+            .filter(item => {
+                // Manter centros de custo que têm orçamento OU são o centro DEFAULT (Geral)
+                // Isso garante que empresas com orçamentos gerais não sumam.
+                return item.hasBudget || item.costCenterId === 'DEFAULT' || item.costCenterName.toLowerCase() === 'geral';
+            })
+            .sort((a, b) => {
+                // Ordenar por Empresa e depois por Centro de Custo
+                if (a.tenantName !== b.tenantName) return a.tenantName.localeCompare(b.tenantName);
+                return a.costCenterName.localeCompare(b.costCenterName);
+            });
+
 
 
 

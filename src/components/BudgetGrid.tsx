@@ -214,13 +214,14 @@ export default function BudgetGrid({
                 const syncData = await syncRes.json();
 
                 if (budgetData.success) {
-                    const values: Record<string, { amount: number, radarAmount: number | null, isLocked: boolean }> = {};
+                    const values: Record<string, { amount: number, radarAmount: number | null, isLocked: boolean, observation: string | null }> = {};
                     budgetData.data.forEach((item: any) => {
                         // Map 1-12 from DB to 0-11 for UI
                         values[`${item.categoryId}-${item.month - 1}`] = {
                             amount: item.amount || 0,
                             radarAmount: (item.radarAmount !== undefined && item.radarAmount !== null) ? item.radarAmount : null,
-                            isLocked: item.isLocked || false
+                            isLocked: item.isLocked || false,
+                            observation: item.observation || null
                         };
                     });
                     setBudgetValues(values);

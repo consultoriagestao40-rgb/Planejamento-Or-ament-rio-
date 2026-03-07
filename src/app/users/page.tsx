@@ -224,7 +224,7 @@ export default function UsersPage() {
                                     </div>
 
                                     <div>
-                                        <label style={{ display: 'block', fontSize: '0.875rem', color: '#334155', marginBottom: '0.5rem', fontWeight: 600 }}>Acesso a Centros de Custo</label>
+                                        <label style={{ display: 'block', fontSize: '0.875rem', color: '#334155', marginBottom: '0.5rem', fontWeight: 600 }}>Atribuir como Gestor das seguintes áreas (Centros de Custo)</label>
                                         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem', maxHeight: '200px', overflowY: 'auto', padding: '0.5rem', border: '1px solid #cbd5e1', borderRadius: '6px' }}>
                                             {costCenters.map(cc => (
                                                 <label key={cc.id} style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.8rem' }}>

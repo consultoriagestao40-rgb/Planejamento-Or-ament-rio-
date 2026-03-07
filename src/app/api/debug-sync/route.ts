@@ -12,13 +12,28 @@ export async function GET(request: Request) {
 
         console.log(`[DEBUG] Starting debug sync for year ${reqYear}`);
         const { prisma } = await import('@/lib/prisma');
-        const count = await prisma.realizedEntry.groupBy({
-            by: ['viewMode'],
-            _count: true
-        });
-        console.log('[DEBUG] DB Counts:', JSON.stringify(count, null, 2));
+        const { getValidAccessToken } = await import('@/lib/services');
+        const tenants = await prisma.tenant.findMany();
+        const t = tenants[0];
+        const res = await getValidAccessToken(t.id);
+        
+        const filterType = "data_vencimento";
+        const startStr = "2025-11-01";
+        const endStr = "2025-11-20"; // very short to prevent timeout
+        const url = `https://api-v2.contaazul.com/v1/financeiro/eventos-financeiros/contas-a-receber/buscar?${filterType}_de=${startStr}&${filterType}_ate=${endStr}&tamanho_pagina=100`;
 
-        return NextResponse.json(count);
+        const fetchRes = await fetch(url, { headers: { 'Authorization': `Bearer ${res.token}` } });
+        const data = await fetchRes.json();
+        
+        const paidItems = (data.itens || []).filter((x: any) => x.data_pagamento);
+        const mapped = paidItems.map((x: any) => ({
+             id: x.id, 
+             vencimento: x.vencimento || x.data_vencimento, 
+             pagamento: x.data_pagamento, 
+             valor: x.valor
+        }));
+
+        return NextResponse.json({ total: data.itens?.length, paid: paidItems.length, sample: mapped.slice(0, 5) });
     } catch (e: any) {
         console.error('[DEBUG] Sync error:', e);
         return NextResponse.json({ success: false, error: e.message }, { status: 500 });

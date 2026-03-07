@@ -144,7 +144,7 @@ export async function GET(request: Request) {
         acc[key].radarAmount = (acc[key].radarAmount || 0) + (curr.radarAmount || 0);
         if (curr.isLocked) acc[key].isLocked = true;
         
-        // IMPROVEMENT: Join observations/comments with newlines
+        // IMPROVEMENT: Join observations/comments with newlines if they differ
         if (curr.observation && curr.observation.trim()) {
           if (!acc[key].observation) {
             acc[key].observation = curr.observation;
@@ -157,6 +157,7 @@ export async function GET(request: Request) {
     }, {} as Record<string, any>);
 
     return NextResponse.json({ success: true, data: Object.values(aggregatedBudgets) });
+
   } catch (error: any) {
     console.error('Error fetching budgets:', error);
     return NextResponse.json({ success: false, error: 'Failed to fetch budgets', details: error.message }, { status: 500 });

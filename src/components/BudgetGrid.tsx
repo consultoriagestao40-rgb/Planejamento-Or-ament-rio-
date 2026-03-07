@@ -650,10 +650,12 @@ export default function BudgetGrid({
             const entries: Record<string, any>[] = [];
             const targetCompanyParam = selectedCompany.includes('DEFAULT') ? 'ALL' : selectedCompany[0];
 
+            const hasObservation = modalObservation.trim().length > 0;
             for (let i = 0; i < 12; i++) {
                 const currentVal = modalValues[i];
-                // Only send if not empty string to avoid wiping data to 0 unnecessarily
-                if (currentVal === '' && budgetValues[`${budgetModal.categoryId}-${i}`] === undefined) continue;
+                // Only skip if: amount is empty AND there's no existing data AND there's no new observation
+                if (currentVal === '' && budgetValues[`${budgetModal.categoryId}-${i}`] === undefined && !hasObservation) continue;
+
 
                 const entry: any = {
                     categoryId: budgetModal.categoryId,

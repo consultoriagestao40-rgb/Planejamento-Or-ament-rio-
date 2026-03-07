@@ -18,7 +18,9 @@ export function SyncButton({ onSyncComplete, onSyncStart, year }: { onSyncComple
             // 2. Heavy Data Sync (transactions crunching) via maxDuration API Route
             try {
                 const targetYear = year || new Date().getFullYear();
-                const cronRes = await fetch(`/api/cron/sync?year=${targetYear}`);
+                const cronRes = await fetch(`/api/cron/sync?year=${targetYear}`, {
+                    method: 'GET'
+                });
                 const cronData = await cronRes.json();
 
                 if (cronData.success) {

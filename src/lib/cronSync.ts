@@ -40,11 +40,17 @@ async function fetchAllTransactionsForYear(accessToken: string, baseUrl: string,
                 }
 
                 const dateObj = dateStr ? new Date(dateStr) : new Date();
-                if (dateObj.getFullYear() !== targetYear) return;
+                
+                // Adjust for timezones strictly so a "2026-06-01T00:00:00Z" falls in month 5, not month 4 in BRT
+                const splitDate = dateStr.includes('T') ? dateStr.split('T')[0] : dateStr;
+                const [y, m, d] = splitDate.split('T')[0].split('-').map(Number);
+                const localDateObj = new Date(y, m - 1, d || 1);
+
+                if (localDateObj.getFullYear() !== targetYear) return;
 
                 transactions.push({
                     id: item.id,
-                    month: dateObj.getMonth(), // 0-11
+                    month: localDateObj.getMonth(), // 0-11
                     amount: Math.abs(amount), // ALWAYS positive, DRE frontend subtracts expenses
                     categories: cats,
                     costCenters: ccs

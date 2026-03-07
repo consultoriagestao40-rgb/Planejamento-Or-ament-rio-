@@ -47,3 +47,4 @@ export async function GET(request: Request) {
         return NextResponse.json({ success: false, error: error.message || 'Fatal error during DB read' }, { status: 500 });
     }
 }
+

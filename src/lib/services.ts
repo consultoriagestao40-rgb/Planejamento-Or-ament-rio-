@@ -89,60 +89,75 @@ async function fetchUserInfo(accessToken: string) {
 
 // V47.9.10: Updated signature to accept Cost Center & Year
 export async function syncData(costCenterId: string = 'DEFAULT', year: number = new Date().getFullYear(), viewMode: 'caixa' | 'competencia' = 'competencia', tenantId?: string) {
-    let accessToken: string;
-    let tenant: any;
-    try {
-        const result = await getValidAccessToken(tenantId);
-        accessToken = result.token;
-        tenant = result.tenant;
-    } catch (e: any) {
-        console.error("Auth failed during sync:", e);
-        return { success: false, error: `Auth Error: ${e.message}`, timestamp: new Date().toISOString() };
+    const tenantsToSync = [];
+    
+    if (tenantId) {
+        const t = await prisma.tenant.findUnique({ where: { id: tenantId } });
+        if (t) tenantsToSync.push(t);
+    } else {
+        const allTenants = await prisma.tenant.findMany();
+        tenantsToSync.push(...allTenants);
     }
 
-    if (!tenant) return { success: false, error: "Tenant not found in DB", timestamp: new Date().toISOString() };
-
-    console.log(`Starting syncData V47.10 (CC=${costCenterId}, Year=${year})...`);
-
-    // Discovery step: Who are we?
-    const userInfo = await fetchUserInfo(accessToken);
-
-    // Auto-heal "Empresa Desconhecida"
-    if (tenant.name.includes('Empresa') && !tenant.name.includes('SPOT')) {
-        const tenantData = Array.isArray(userInfo) ? userInfo[0] : (userInfo.tenant || userInfo);
-        const realName = tenantData?.nome || tenantData?.name || tenantData?.razao_social;
-        if (realName && realName !== 'Empresa') {
-            await prisma.tenant.update({
-                where: { id: tenant.id },
-                data: { name: realName }
-            });
-            tenant.name = realName;
-        }
+    if (tenantsToSync.length === 0) {
+        return { success: false, error: "No tenants found to sync", timestamp: new Date().toISOString() };
     }
 
-    let categories: any[] = [];
-    let costCenters: any[] = [];
-    let fetchError: string | null = null;
-
-    try {
-        const results = await Promise.all([
-            fetchCategories(accessToken).catch(e => { fetchError = `Categories: ${e.message}`; return []; }),
-            fetchCostCenters(accessToken).catch(e => { fetchError = `CostCenters: ${e.message}`; return []; })
-        ]);
-        categories = results[0];
-        costCenters = results[1];
-    } catch (e: any) {
-        fetchError = `Total Fetch Error: ${e.message}`;
-    }
-
-    const report = {
-        categoriesSuccess: 0,
-        categoriesFailed: 0,
-        costCentersSuccess: 0,
-        costCentersFailed: 0,
-        lastError: fetchError,
-        rawApiError: (global as any).lastApiError || 'none recorded'
+    const globalReport = {
+        success: true,
+        tenantsSynced: 0,
+        totalCategoriesSuccess: 0,
+        totalCostCentersSuccess: 0,
+        errors: [] as string[]
     };
+
+    for (const tenant of tenantsToSync) {
+        try {
+            console.log(`Starting sync for tenant: ${tenant.name} (${tenant.id})`);
+            
+            // Get valid token for this specific tenant
+            const { token: accessToken } = await getValidAccessToken(tenant.id);
+
+            // Discovery step: Who are we?
+            const userInfo = await fetchUserInfo(accessToken);
+
+            // Auto-heal "Empresa Desconhecida"
+            if (tenant.name.includes('Empresa') && !tenant.name.includes('SPOT')) {
+                const tenantData = Array.isArray(userInfo) ? userInfo[0] : (userInfo.tenant || userInfo);
+                const realName = tenantData?.nome || tenantData?.name || tenantData?.razao_social;
+                if (realName && realName !== 'Empresa') {
+                    await prisma.tenant.update({
+                        where: { id: tenant.id },
+                        data: { name: realName }
+                    });
+                    tenant.name = realName;
+                }
+            }
+
+            let categories: any[] = [];
+            let costCenters: any[] = [];
+            let fetchError: string | null = null;
+
+            try {
+                const results = await Promise.all([
+                    fetchCategories(accessToken).catch(e => { fetchError = `Categories: ${e.message}`; return []; }),
+                    fetchCostCenters(accessToken).catch(e => { fetchError = `CostCenters: ${e.message}`; return []; })
+                ]);
+                categories = results[0];
+                costCenters = results[1];
+            } catch (e: any) {
+                fetchError = `Total Fetch Error: ${e.message}`;
+            }
+
+            const report = {
+                categoriesSuccess: 0,
+                categoriesFailed: 0,
+                costCentersSuccess: 0,
+                costCentersFailed: 0,
+                lastError: fetchError,
+                rawApiError: (global as any).lastApiError || 'none recorded'
+            };
+
 
     // Persist Cost Centers with individual try/catch
     const costCenterIdsToKeep: string[] = [];
@@ -168,29 +183,33 @@ export async function syncData(costCenterId: string = 'DEFAULT', year: number = 
     }
 
     // Mark Cost Centers as Inactive by renaming them
-    try {
-        const inactives = await prisma.costCenter.findMany({
-            where: {
-                tenantId: tenant.id,
-                id: { notIn: costCenterIdsToKeep },
-                NOT: { 
-                    OR: [
-                        { name: { contains: '[INATIVO]' } },
-                        { name: { contains: 'ENCERRADO', mode: 'insensitive' } }
-                    ]
+    // SAFETY: Only do this if the fetch was successful to avoid marking everything as inactive during an API outage
+    if (!fetchError && costCenters.length > 0) {
+        try {
+            const inactives = await prisma.costCenter.findMany({
+                where: {
+                    tenantId: tenant.id,
+                    id: { notIn: costCenterIdsToKeep },
+                    NOT: { 
+                        OR: [
+                            { name: { contains: '[INATIVO]' } },
+                            { name: { contains: 'ENCERRADO', mode: 'insensitive' } }
+                        ]
+                    }
                 }
-            }
-        });
-
-        for (const cc of inactives) {
-            await prisma.costCenter.update({
-                where: { id: cc.id },
-                data: { name: `[INATIVO] ${cc.name}` }
             });
+
+            for (const cc of inactives) {
+                await prisma.costCenter.update({
+                    where: { id: cc.id },
+                    data: { name: `[INATIVO] ${cc.name}` }
+                });
+            }
+        } catch (e: any) {
+            console.warn("Falha ao inativar CCs por nome:", e.message);
         }
-    } catch (e: any) {
-        console.warn("Falha ao inativar CCs por nome:", e.message);
     }
+
 
 
 
@@ -244,52 +263,21 @@ export async function syncData(costCenterId: string = 'DEFAULT', year: number = 
 
 
 
-    // Help debug: Try to decode token
-    let grantedScopes = 'unknown';
-    let fullTokenPayload = null;
-    try {
-        const payload = accessToken.split('.')[1];
-        if (payload) {
-            fullTokenPayload = JSON.parse(Buffer.from(payload, 'base64').toString());
-            grantedScopes = fullTokenPayload.scope || fullTokenPayload.authorities || 'none found in JWT';
+            globalReport.tenantsSynced++;
+            globalReport.totalCategoriesSuccess += report.categoriesSuccess;
+            globalReport.totalCostCentersSuccess += report.costCentersSuccess;
+        } catch (e: any) {
+            console.error(`Sync failed for tenant ${tenant.name}:`, e);
+            globalReport.errors.push(`${tenant.name}: ${e.message}`);
         }
-    } catch (e) {
-        grantedScopes = 'not a JWT or decode failed';
-    }
-
-    // V45: Fetch Realized Values (Balances)
-    let realizedValues: Record<string, number> = {};
-    const transactionLogs: string[] = [];
-    try {
-        (global as any).lastTransactionLogs = transactionLogs;
-        // DEPRECATED: Realized values are no longer fetched natively on page load.
-        // We now use `runCronSync` (cronsync.ts) to populate the PostgreSQL `RealizedEntry` local caching layer.
-    } catch (e: any) {
-        console.warn("Could not fetch realized values:", e);
-        transactionLogs.push(`Fatal Error: ${e.message}`);
     }
 
     return {
-        success: true,
-        timestamp: new Date().toISOString(),
-        categoriesCount: categories.length,
-        costCentersCount: costCenters.length,
-        realizedValues,
-        report,
-        discovery: {
-            userInfo,
-            grantedScopes,
-            fullPayload: fullTokenPayload,
-            transactionLogs: (global as any).lastTransactionLogs || []
-        },
-        debug: {
-            rawCategoriesResponse: (global as any).lastCategoriesRaw || 'none',
-            rawCostCentersResponse: (global as any).lastCostCentersRaw || 'none',
-            firstCategory: categories[0] ? JSON.stringify(categories[0]) : 'none',
-            rawCategoriesSample: JSON.stringify(categories).substring(0, 500)
-        }
+        ...globalReport,
+        timestamp: new Date().toISOString()
     };
 }
+
 
 // V46: Aggregates transactions for DRE (Competence View - V47.9.5)
 export async function fetchRealizedValues(accessToken: string, targetYear: number, costCenterId: string, viewMode: 'caixa' | 'competencia' = 'competencia'): Promise<Record<string, number>> {

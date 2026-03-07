@@ -29,10 +29,12 @@ async function fetchAllTransactionsForYear(accessToken: string, baseUrl: string,
                 let amount: number;
 
                 if (viewMode === 'caixa') {
-                    // Cash mode: STRICTLY require a payment date. If not paid, it's not cash flow.
-                    if (!item.data_pagamento) return;
-                    dateStr = item.data_pagamento;
-                    amount = item.valor || item.valor_liquido || item.valor_original || item.total || 0;
+                    // Cash mode: only include items that have been (at least partially) paid.
+                    // Conta Azul's API does NOT return "data_pagamento" in this endpoint.
+                    // "pago" = amount already paid, "data_competencia" = date cash moved.
+                    if (!item.pago || item.pago <= 0) return;
+                    dateStr = item.data_competencia || item.data_vencimento;
+                    amount = item.pago;
                 } else {
                     // Accrual mode: Prioritize competence date, then due date
                     dateStr = item.data_competencia || item.data_vencimento || item.vencimento || item.data_pagamento;

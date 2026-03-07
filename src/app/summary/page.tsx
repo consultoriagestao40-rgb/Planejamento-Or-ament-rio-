@@ -173,7 +173,7 @@ export default function BudgetSummaryPage() {
 
     const stats = useMemo(() => {
         const totalCCs = data.length;
-        const withBudget = data.filter(i => i.hasRealizedData).length;
+        const withBudget = data.filter(i => i.hasBudgetData).length;
         const withoutBudget = totalCCs - withBudget;
 
 

@@ -6,7 +6,7 @@ async function fetchAllTransactionsForYear(accessToken: string, baseUrl: string,
     let hasMore = true;
     const transactions: any[] = [];
 
-    while (hasMore && page <= 50) {
+    while (hasMore && page <= 200) {
         const url = `${baseUrl}&pagina=${page}`;
         try {
             const res = await fetch(url, { headers: { 'Authorization': `Bearer ${accessToken}` } });

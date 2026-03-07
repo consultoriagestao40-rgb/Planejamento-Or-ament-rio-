@@ -14,7 +14,13 @@ interface SummaryItem {
     hasBudgetData: boolean;
     hasRealizedData: boolean;
     isLocked: boolean;
+    status: string;
+    n1ApprovedBy: string | null;
+    n1ApprovedAt: string | null;
+    n2ApprovedBy: string | null;
+    n2ApprovedAt: string | null;
 }
+
 
 
 
@@ -37,7 +43,8 @@ export default function BudgetSummaryPage() {
     const [expandedTenants, setExpandedTenants] = useState<Set<string>>(new Set());
     const [userRole, setUserRole] = useState<string | null>(null);
     const [isTogglingLock, setIsTogglingLock] = useState<string | null>(null);
-
+    const [selectedForAudit, setSelectedForAudit] = useState<SummaryItem | null>(null);
+    const [auditActionLoading, setAuditActionLoading] = useState(false);
 
     const fetchData = useCallback(async () => {
         setLoading(true);
@@ -134,42 +141,34 @@ export default function BudgetSummaryPage() {
         });
     };
 
-    const toggleLock = async (item: SummaryItem) => {
-        if (userRole !== 'MASTER') return;
-        
-        const newLockState = !item.isLocked;
-        setIsTogglingLock(item.costCenterId);
-        
+    const handleApprovalAction = async (action: string) => {
+        if (!selectedForAudit) return;
+        setAuditActionLoading(true);
         try {
-            const res = await fetch('/api/cost-centers/lock', {
+            const res = await fetch('/api/cost-centers/approve', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                    tenantId: item.tenantId,
-                    costCenterId: item.costCenterId,
+                    tenantId: selectedForAudit.tenantId,
+                    costCenterId: selectedForAudit.costCenterId,
                     year: selectedYear,
-                    isLocked: newLockState
+                    action
                 })
             });
-            
             const result = await res.json();
             if (result.success) {
-                setData(prev => prev.map(i => 
-                    (i.costCenterId === item.costCenterId && i.tenantId === item.tenantId) 
-                    ? { ...i, isLocked: newLockState } 
-                    : i
-                ));
+                // Refresh data
+                await fetchData();
+                setSelectedForAudit(null);
             } else {
-                alert(result.error || 'Erro ao alterar bloqueio');
+                alert(result.error || 'Erro na aprovação');
             }
         } catch (e) {
-            console.error(e);
-            alert('Erro de conexão ao alterar bloqueio');
+            alert('Erro de conexão.');
         } finally {
-            setIsTogglingLock(null);
+            setAuditActionLoading(false);
         }
     };
-
 
     const stats = useMemo(() => {
         const totalCCs = data.length;
@@ -389,7 +388,7 @@ export default function BudgetSummaryPage() {
                                     <th style={{ ...styles.th, textAlign: 'right' }}>Receita Anual</th>
                                     <th style={{ ...styles.th, textAlign: 'right' }}>Despesa Anual</th>
                                     <th style={{ ...styles.th, textAlign: 'center' }}>Progresso</th>
-                                    <th style={{ ...styles.th, textAlign: 'center', width: '80px' }}>🔒</th>
+                                    <th style={{ ...styles.th, textAlign: 'center', width: '130px' }}>Ação / Status</th>
                                 </tr>
                             </thead>
 
@@ -466,51 +465,30 @@ export default function BudgetSummaryPage() {
                                                         )}
                                                     </td>
                                                     <td style={{ ...styles.td, textAlign: 'center' }}>
-
                                                         <button
                                                             onClick={(e) => {
                                                                 e.stopPropagation();
-                                                                toggleLock(cc);
+                                                                setSelectedForAudit(cc);
                                                             }}
-                                                            disabled={userRole !== 'MASTER' || isTogglingLock === cc.costCenterId}
                                                             style={{
-                                                                background: cc.isLocked ? '#fee2e2' : '#f0fdf4',
-                                                                border: `1px solid ${cc.isLocked ? '#fecaca' : '#bbf7d0'}`,
+                                                                background: cc.status === 'APPROVED' ? '#d1fae5' : cc.status === 'AWAITING_N2' ? '#fef08a' : cc.status === 'REJECTED' ? '#fee2e2' : '#f8fafc',
+                                                                border: `1px solid ${cc.status === 'APPROVED' ? '#34d399' : cc.status === 'AWAITING_N2' ? '#fde047' : cc.status === 'REJECTED' ? '#fca5a5' : '#e2e8f0'}`,
                                                                 borderRadius: '6px',
-                                                                cursor: (userRole === 'MASTER' && isTogglingLock !== cc.costCenterId) ? 'pointer' : 'default',
-                                                                fontSize: '0.75rem',
+                                                                cursor: 'pointer',
+                                                                fontSize: '0.7rem',
                                                                 fontWeight: 700,
                                                                 padding: '0.4rem 0.6rem',
                                                                 display: 'flex',
                                                                 alignItems: 'center',
                                                                 gap: '0.4rem',
                                                                 margin: '0 auto',
-                                                                color: cc.isLocked ? '#991b1b' : '#166534',
-                                                                opacity: userRole === 'MASTER' ? 1 : 0.6,
+                                                                color: cc.status === 'APPROVED' ? '#065f46' : cc.status === 'AWAITING_N2' ? '#854d0e' : cc.status === 'REJECTED' ? '#991b1b' : '#475569',
                                                                 transition: 'all 0.2s'
                                                             }}
-                                                            onMouseEnter={e => {
-                                                                if (userRole === 'MASTER') {
-                                                                    e.currentTarget.style.transform = 'translateY(-1px)';
-                                                                    e.currentTarget.style.boxShadow = '0 2px 4px rgba(0,0,0,0.05)';
-                                                                }
-                                                            }}
-                                                            onMouseLeave={e => {
-                                                                if (userRole === 'MASTER') {
-                                                                    e.currentTarget.style.transform = 'translateY(0)';
-                                                                    e.currentTarget.style.boxShadow = 'none';
-                                                                }
-                                                            }}
-                                                            title={userRole === 'MASTER' ? (cc.isLocked ? 'Clique para Liberar Orçamento' : 'Clique para Trancar Orçamento') : 'Apenas administradores'}
                                                         >
-                                                            {isTogglingLock === cc.costCenterId ? (
-                                                                <span style={{ fontSize: '1rem' }}>⏳</span>
-                                                            ) : (
-                                                                <>
-                                                                    <span style={{ fontSize: '1rem' }}>{cc.isLocked ? '🔒' : '🔓'}</span>
-                                                                    <span>{cc.isLocked ? 'TRANCADO' : 'LIBERADO'}</span>
-                                                                </>
-                                                            )}
+                                                            {cc.status === 'APPROVED' ? '🔒 Aprovado' : 
+                                                             cc.status === 'AWAITING_N2' ? '⏳ Esperando N2' : 
+                                                             cc.status === 'REJECTED' ? '❌ Rejeitado' : '🔍 Analisar N1'}
                                                         </button>
                                                     </td>
 
@@ -535,6 +513,114 @@ export default function BudgetSummaryPage() {
                 <div style={{ marginTop: '2.5rem', textAlign: 'center', color: '#cbd5e1', fontSize: '0.75rem', fontWeight: 600, letterSpacing: '0.1em' }}>
                     SISTEMA DE GESTÃO ESTRATÉGICA • GESTÃO 4.0
                 </div>
+
+                {/* Audit Modal */}
+                {selectedForAudit && (
+                    <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(15, 23, 42, 0.4)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100 }}>
+                        <div style={{ background: '#fff', borderRadius: '16px', padding: '2rem', width: '90%', maxWidth: '600px', boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1)' }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '1.5rem' }}>
+                                <div>
+                                    <span style={{ fontSize: '0.75rem', fontWeight: 800, color: '#3b82f6', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Auditoria & Aprovação</span>
+                                    <h2 style={{ fontSize: '1.25rem', fontWeight: 800, color: '#0f172a', margin: '0.25rem 0 0 0' }}>{selectedForAudit.costCenterName}</h2>
+                                    <p style={{ fontSize: '0.875rem', color: '#64748b', margin: '0' }}>{selectedForAudit.tenantName}</p>
+                                </div>
+                                <button onClick={() => setSelectedForAudit(null)} style={{ background: 'transparent', border: 'none', fontSize: '1.5rem', cursor: 'pointer', color: '#94a3b8' }}>&times;</button>
+                            </div>
+
+                            <div style={{ background: '#f8fafc', padding: '1.25rem', borderRadius: '8px', border: '1px solid #e2e8f0', marginBottom: '1.5rem', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                                <div>
+                                    <div style={{ fontSize: '0.75rem', color: '#64748b', fontWeight: 600 }}>Receita Planejada</div>
+                                    <div style={{ fontSize: '1rem', color: '#059669', fontWeight: 800 }}>{formatCurrency(selectedForAudit.totalRevenue)}</div>
+                                </div>
+                                <div>
+                                    <div style={{ fontSize: '0.75rem', color: '#64748b', fontWeight: 600 }}>Despesa Planejada</div>
+                                    <div style={{ fontSize: '1rem', color: '#be123c', fontWeight: 800 }}>{formatCurrency(selectedForAudit.totalExpense)}</div>
+                                </div>
+                                <div style={{ gridColumn: '1 / -1', borderTop: '1px dashed #cbd5e1', paddingTop: '1rem', marginTop: '0.5rem', display: 'flex', justifyContent: 'space-between' }}>
+                                    <div>
+                                        <div style={{ fontSize: '0.75rem', color: '#64748b', fontWeight: 600 }}>Resultado Projetado</div>
+                                        <div style={{ fontSize: '1.25rem', color: '#0f172a', fontWeight: 900 }}>{formatCurrency(selectedForAudit.totalRevenue - selectedForAudit.totalExpense)}</div>
+                                    </div>
+                                    <div style={{ textAlign: 'right' }}>
+                                        <div style={{ fontSize: '0.75rem', color: '#64748b', fontWeight: 600 }}>Status Bloqueio</div>
+                                        <div style={{ fontSize: '0.875rem', color: selectedForAudit.isLocked ? '#b91c1c' : '#166534', fontWeight: 800 }}>{selectedForAudit.isLocked ? '🔒 FECHADO (Somente Leitura)' : '🔓 ABERTO (Permite Edição N1)'}</div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Autdit Trail */}
+                            <div style={{ marginBottom: '2rem' }}>
+                                <h3 style={{ fontSize: '0.875rem', fontWeight: 700, color: '#334155', borderBottom: '1px solid #e2e8f0', paddingBottom: '0.5rem', marginBottom: '1rem' }}>Histórico de Assinaturas</h3>
+                                
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', opacity: selectedForAudit.n1ApprovedBy ? 1 : 0.5 }}>
+                                        <div style={{ width: '32px', height: '32px', borderRadius: '50%', background: selectedForAudit.n1ApprovedBy ? '#dbeafe' : '#f1f5f9', color: selectedForAudit.n1ApprovedBy ? '#2563eb' : '#94a3b8', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, fontSize: '0.875rem' }}>N1</div>
+                                        <div>
+                                            <div style={{ fontSize: '0.875rem', fontWeight: 700, color: '#1e293b' }}>Gestor de Área</div>
+                                            <div style={{ fontSize: '0.75rem', color: '#64748b' }}>
+                                                {selectedForAudit.n1ApprovedBy ? `Assinado por ${selectedForAudit.n1ApprovedBy} em ${new Date(selectedForAudit.n1ApprovedAt!).toLocaleDateString('pt-BR')}` : 'Pendente de envio...'}
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div style={{ width: '2px', height: '16px', background: '#e2e8f0', marginLeft: '15px' }}></div>
+
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', opacity: selectedForAudit.n2ApprovedBy ? 1 : 0.5 }}>
+                                        <div style={{ width: '32px', height: '32px', borderRadius: '50%', background: selectedForAudit.n2ApprovedBy ? '#dcfce3' : '#f1f5f9', color: selectedForAudit.n2ApprovedBy ? '#16a34a' : '#94a3b8', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, fontSize: '0.875rem' }}>N2</div>
+                                        <div>
+                                            <div style={{ fontSize: '0.875rem', fontWeight: 700, color: '#1e293b' }}>Aprovação Final (Master/CEO)</div>
+                                            <div style={{ fontSize: '0.75rem', color: '#64748b' }}>
+                                                {selectedForAudit.n2ApprovedBy ? `Assinado por ${selectedForAudit.n2ApprovedBy} em ${new Date(selectedForAudit.n2ApprovedAt!).toLocaleDateString('pt-BR')}` : 'Aguardando fluxo...'}
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Actions Group */}
+                            <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'flex-end', borderTop: '1px solid #e2e8f0', paddingTop: '1.5rem' }}>
+                                {(selectedForAudit.status === 'PENDING' || selectedForAudit.status === 'REJECTED') && (
+                                    <button 
+                                        onClick={() => handleApprovalAction('SUBMIT_N1')} 
+                                        disabled={auditActionLoading}
+                                        style={{ background: '#2563eb', color: 'white', border: 'none', padding: '0.5rem 1rem', borderRadius: '6px', fontWeight: 600, cursor: 'pointer', transition: 'all 0.2s', opacity: auditActionLoading ? 0.7 : 1 }}
+                                    >
+                                        📤 Enviar P/ Aprovação (N1)
+                                    </button>
+                                )}
+
+                                {selectedForAudit.status === 'AWAITING_N2' && userRole === 'MASTER' && (
+                                    <>
+                                        <button 
+                                            onClick={() => handleApprovalAction('REJECT')} 
+                                            disabled={auditActionLoading}
+                                            style={{ background: '#fee2e2', color: '#dc2626', border: '1px solid #fecaca', padding: '0.5rem 1rem', borderRadius: '6px', fontWeight: 600, cursor: 'pointer', transition: 'all 0.2s', opacity: auditActionLoading ? 0.7 : 1 }}
+                                        >
+                                            ❌ Rejeitar N1
+                                        </button>
+                                        <button 
+                                            onClick={() => handleApprovalAction('APPROVE_N2')} 
+                                            disabled={auditActionLoading}
+                                            style={{ background: '#16a34a', color: 'white', border: 'none', padding: '0.5rem 1rem', borderRadius: '6px', fontWeight: 600, cursor: 'pointer', transition: 'all 0.2s', opacity: auditActionLoading ? 0.7 : 1 }}
+                                        >
+                                            ✅ Aprovar Definitivo (N2)
+                                        </button>
+                                    </>
+                                )}
+
+                                {selectedForAudit.status === 'APPROVED' && userRole === 'MASTER' && (
+                                    <button 
+                                        onClick={() => handleApprovalAction('REOPEN')} 
+                                        disabled={auditActionLoading}
+                                        style={{ background: '#f1f5f9', color: '#475569', border: '1px solid #cbd5e1', padding: '0.5rem 1rem', borderRadius: '6px', fontWeight: 600, cursor: 'pointer', transition: 'all 0.2s', opacity: auditActionLoading ? 0.7 : 1 }}
+                                    >
+                                        🔓 Reabrir P/ Ajustes
+                                    </button>
+                                )}
+                            </div>
+                        </div>
+                    </div>
+                )}
 
             </div>
 

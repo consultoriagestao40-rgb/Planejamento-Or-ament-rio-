@@ -74,6 +74,16 @@ model CostCenterLock {
   costCenterId String
   year         Int
   isLocked     Boolean  @default(false)
+  
+  // N1/N2 Approval Workflow Fields
+  status       String   @default("PENDING") // PENDING, AWAITING_N2, APPROVED, REJECTED
+  
+  n1ApprovedBy String?
+  n1ApprovedAt DateTime?
+
+  n2ApprovedBy String?
+  n2ApprovedAt DateTime?
+
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 

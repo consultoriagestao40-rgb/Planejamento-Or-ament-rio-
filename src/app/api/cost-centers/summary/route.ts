@@ -14,11 +14,27 @@ async function ensureLockSchema() {
                 "costCenterId" TEXT NOT NULL,
                 "year" INTEGER NOT NULL,
                 "isLocked" BOOLEAN NOT NULL DEFAULT false,
+                "status" TEXT NOT NULL DEFAULT 'PENDING',
+                "n1ApprovedBy" TEXT,
+                "n1ApprovedAt" TIMESTAMP(3),
+                "n2ApprovedBy" TEXT,
+                "n2ApprovedAt" TIMESTAMP(3),
                 "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
                 "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
                 CONSTRAINT "CostCenterLock_pkey" PRIMARY KEY ("id")
             );
         `);
+        // Add columns individually for existing DB migrations
+        const cols = [
+            `ALTER TABLE "CostCenterLock" ADD COLUMN IF NOT EXISTS "status" TEXT NOT NULL DEFAULT 'PENDING';`,
+            `ALTER TABLE "CostCenterLock" ADD COLUMN IF NOT EXISTS "n1ApprovedBy" TEXT;`,
+            `ALTER TABLE "CostCenterLock" ADD COLUMN IF NOT EXISTS "n1ApprovedAt" TIMESTAMP(3);`,
+            `ALTER TABLE "CostCenterLock" ADD COLUMN IF NOT EXISTS "n2ApprovedBy" TEXT;`,
+            `ALTER TABLE "CostCenterLock" ADD COLUMN IF NOT EXISTS "n2ApprovedAt" TIMESTAMP(3);`
+        ];
+        for (const sql of cols) {
+             try { await prisma.$executeRawUnsafe(sql); } catch(e) {}
+        }
         await prisma.$executeRawUnsafe(`
             CREATE UNIQUE INDEX IF NOT EXISTS "CostCenterLock_tenantId_costCenterId_year_key" 
             ON "CostCenterLock"("tenantId", "costCenterId", "year");
@@ -113,8 +129,12 @@ export async function GET(request: Request) {
                 totalExpense: 0,
                 hasBudgetData: false,
                 hasRealizedData: false,
-
-                isLocked: lock?.isLocked || false
+                isLocked: lock?.isLocked || false,
+                status: lock?.status || 'PENDING',
+                n1ApprovedBy: lock?.n1ApprovedBy || null,
+                n1ApprovedAt: lock?.n1ApprovedAt ? new Date(lock.n1ApprovedAt).toISOString() : null,
+                n2ApprovedBy: lock?.n2ApprovedBy || null,
+                n2ApprovedAt: lock?.n2ApprovedAt ? new Date(lock.n2ApprovedAt).toISOString() : null
             });
 
 

@@ -276,9 +276,11 @@ export async function POST(request: Request) {
       });
 
       if (globalLock?.isLocked) {
+        let lockReason = globalLock.status === 'AWAITING_N2' ? 'aguardando aprovação N2' :
+                         globalLock.status === 'APPROVED' ? 'pois já foi aprovado' : 'pelo administrador';
         return NextResponse.json({ 
           success: false, 
-          error: `O orçamento do centro de custo ${targetCostCenterId || 'Geral'} está bloqueado para o ano ${year}.` 
+          error: `O orçamento do centro de custo ${targetCostCenterId || 'Geral'} está bloqueado para o ano ${year} (${lockReason}).` 
         }, { status: 403 });
       }
 

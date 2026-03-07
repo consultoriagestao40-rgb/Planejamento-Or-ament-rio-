@@ -154,8 +154,10 @@ export async function syncData(costCenterId: string = 'DEFAULT', year: number = 
 
             await (prisma as any).costCenter.upsert({
                 where: { id: ccId },
-                create: { id: ccId, name: ccName, tenantId: tenant.id, isActive: true },
-                update: { name: ccName, isActive: true }
+                create: { id: ccId, name: ccName, tenantId: tenant.id },
+                update: { 
+                    name: ccName.startsWith('[INATIVO]') ? ccName : ccName // If it was already cleaned, don't re-add prefix
+                }
             });
             costCenterIdsToKeep.push(ccId);
             report.costCentersSuccess++;
@@ -165,18 +167,26 @@ export async function syncData(costCenterId: string = 'DEFAULT', year: number = 
         }
     }
 
-    // Flag Cost Centers as Inactive instead of deleting
+    // Mark Cost Centers as Inactive by renaming them
     try {
-        await (prisma as any).costCenter.updateMany({
+        const inactives = await prisma.costCenter.findMany({
             where: {
                 tenantId: tenant.id,
-                id: { notIn: costCenterIdsToKeep }
-            },
-            data: { isActive: false }
+                id: { notIn: costCenterIdsToKeep },
+                NOT: { name: { startsWith: '[INATIVO]' } }
+            }
         });
+
+        for (const cc of inactives) {
+            await prisma.costCenter.update({
+                where: { id: cc.id },
+                data: { name: `[INATIVO] ${cc.name}` }
+            });
+        }
     } catch (e: any) {
-        console.warn("Falha ao inativar CCs:", e.message);
+        console.warn("Falha ao inativar CCs por nome:", e.message);
     }
+
 
 
     // V47.1: Pre-process categories for robust mapping
@@ -209,15 +219,13 @@ export async function syncData(costCenterId: string = 'DEFAULT', year: number = 
                     tenantId: tenant.id,
                     parentId: cat.parentIdLocal,
                     type: typeValue,
-                    entradaDre: cat.entradaDreLocal,
-                    isActive: true
+                    entradaDre: cat.entradaDreLocal
                 },
                 update: {
                     name: cat.name,
                     parentId: cat.parentIdLocal,
                     type: typeValue,
-                    entradaDre: cat.entradaDreLocal,
-                    isActive: true
+                    entradaDre: cat.entradaDreLocal
                 }
             });
             report.categoriesSuccess++;
@@ -226,6 +234,7 @@ export async function syncData(costCenterId: string = 'DEFAULT', year: number = 
             report.lastError = `Cat Upsert Error (${cat.id}): ${e.message}`;
         }
     }
+
 
 
     // Help debug: Try to decode token

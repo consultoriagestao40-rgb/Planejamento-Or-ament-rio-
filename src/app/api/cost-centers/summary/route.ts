@@ -78,8 +78,9 @@ export async function GET(request: Request) {
                 costCenterName: cc.name,
                 totalRevenue: 0,
                 totalExpense: 0,
-                hasData: false
+                hasRealizedData: false
             });
+
 
         });
 
@@ -95,21 +96,28 @@ export async function GET(request: Request) {
                 } else {
                     summary.totalExpense += entry.amount;
                 }
-
-                if (entry.amount !== 0) {
-                    summary.hasBudget = true;
-                }
             }
         });
 
-        // 5. Converter para array, filtrar centros de custo sem orçamento (lógica DRE) e ordenar
+        // 4.1 Agregar movimentação Realizada (DRE Ativo)
+        realizedEntries.forEach(entry => {
+            const key = `${entry.tenantId}-${entry.costCenterId}`;
+            const summary = summaryMap.get(key);
+
+            if (summary && entry.amount !== 0) {
+                summary.hasRealizedData = true;
+            }
+        });
+
+        // 5. Converter para array, filtrar apenas ATIVOS NO DRE (com realizado) e ordenar
         const result = Array.from(summaryMap.values())
-            .filter(item => item.hasBudget)
+            .filter(item => item.hasRealizedData)
             .sort((a, b) => {
                 // Ordenar por Empresa e depois por Centro de Custo
                 if (a.tenantName !== b.tenantName) return a.tenantName.localeCompare(b.tenantName);
                 return a.costCenterName.localeCompare(b.costCenterName);
             });
+
 
 
 

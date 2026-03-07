@@ -869,7 +869,7 @@ export default function BudgetGrid({
                         padding: '0.65rem 1rem',
                         position: 'sticky',
                         left: 0,
-                        background: 'var(--bg-surface)', // Matches row and ensures solid coverage
+                        background: '#ffffff', // Force solid white to prevent transparency bleed
                         zIndex: 5,
                         color: hasChildren ? 'var(--text-primary)' : 'var(--text-secondary)',
                         fontWeight: hasChildren ? 700 : 500,
@@ -1042,7 +1042,7 @@ export default function BudgetGrid({
                     padding: '0.85rem 1rem',
                     position: 'sticky',
                     left: 0,
-                    background: bgColor, // Matches row color exactly (important for highlighted rows)
+                    background: bgColor === 'var(--gradient-brand)' ? '#2563eb' : (bgColor.includes('rgba') ? '#ffffff' : bgColor), // Use solid blue for Lucro Líquido sticky
                     zIndex: 10,
                     color: textColor,
                     fontSize: '0.85rem',
@@ -1327,7 +1327,7 @@ export default function BudgetGrid({
                             ))}
                         </tr>
                         <tr style={{ background: 'var(--bg-surface)' }}>
-                            <th style={{ position: 'sticky', left: 0, zIndex: 20, background: 'var(--bg-surface)', borderBottom: '1px solid var(--border-default)', borderRight: '1px solid var(--border-subtle)' }}></th>
+                            <th style={{ position: 'sticky', left: 0, zIndex: 20, background: '#ffffff', borderBottom: '1px solid var(--border-default)', borderRight: '1px solid var(--border-subtle)' }}></th>
                             {(viewPeriod === 'month' ? MONTHS : [1, 2, 3, 4]).map((_, i) => (
                                 <React.Fragment key={i}>
                                     <th style={{ fontSize: '0.65rem', color: 'var(--text-muted)', borderLeft: '1px solid var(--border-subtle)', fontWeight: 600, paddingBottom: '0.5rem', borderBottom: '1px solid var(--border-default)', minWidth: '80px', textAlign: 'center' }}>ORÇADO</th>
@@ -1340,18 +1340,18 @@ export default function BudgetGrid({
                     <tbody>
                         {renderSummaryRow('01. RECEITA BRUTA', 'vRev', true, 'var(--bg-elevated)', 'var(--accent-blue)', 'rev')}
                         {expandedGroups.has('rev') && dreStructure.buckets.rev.map(root => renderNode(root))}
-                        {renderSummaryRow('02. TRIBUTO SOBRE FATURAMENTO', 'vTaxes', true, 'var(--bg-surface)', 'var(--text-secondary)', 'taxes')}
+                         {renderSummaryRow('02. TRIBUTO SOBRE FATURAMENTO', 'vTaxes', true, 'var(--bg-surface)', 'var(--text-secondary)', 'taxes')}
                         {expandedGroups.has('taxes') && dreStructure.buckets.taxes.map(root => renderNode(root))}
-                        {renderSummaryRow('(=) RECEITA LÍQUIDA', 'vRecLiq', true, 'rgba(37, 99, 235, 0.05)', 'var(--accent-blue)')}
+                        {renderSummaryRow('(=) RECEITA LÍQUIDA', 'vRecLiq', true, '#eff6ff', 'var(--accent-blue)')}
                         {renderSummaryRow('03. CUSTO OPERACIONAL', 'vCosts', true, 'var(--bg-surface)', 'var(--text-secondary)', 'costs')}
                         {expandedGroups.has('costs') && dreStructure.buckets.costs.map(root => renderNode(root))}
-                        {renderSummaryRow('(=) MARGEM BRUTA', 'vGrossMarg', true, 'rgba(5, 150, 105, 0.05)', 'var(--accent-green)')}
+                        {renderSummaryRow('(=) MARGEM BRUTA', 'vGrossMarg', true, '#f0fdf4', 'var(--accent-green)')}
                         {renderSummaryRow('04. DESPESA OPERACIONAL', 'vOpExp', true, 'var(--bg-surface)', 'var(--text-secondary)', 'opExp')}
                         {expandedGroups.has('opExp') && dreStructure.buckets.opExp.map(root => renderNode(root))}
-                        {renderSummaryRow('(=) MARGEM DE CONTRIBUIÇÃO', 'vContribMarg', true, 'rgba(217, 119, 6, 0.05)', 'var(--accent-amber)')}
+                        {renderSummaryRow('(=) MARGEM DE CONTRIBUIÇÃO', 'vContribMarg', true, '#fdfaf2', 'var(--accent-amber)')}
                         {renderSummaryRow('05. DESPESAS ADMINISTRATIVAS', 'vAdminExp', true, 'var(--bg-surface)', 'var(--text-secondary)', 'adminExp')}
                         {expandedGroups.has('adminExp') && dreStructure.buckets.adminExp.map(root => renderNode(root))}
-                        {renderSummaryRow('(=) EBITDA', 'vEbitda', true, 'rgba(79, 70, 229, 0.08)', 'var(--accent-indigo)')}
+                        {renderSummaryRow('(=) EBITDA', 'vEbitda', true, '#f5f3ff', 'var(--accent-indigo)')}
                         {renderSummaryRow('06. DESPESAS FINANCEIRAS', 'vFin', true, 'var(--bg-surface)', 'var(--text-secondary)', 'fin')}
                         {expandedGroups.has('fin') && dreStructure.buckets.fin.map(root => renderNode(root))}
                         {renderSummaryRow('(=) LUCRO LÍQUIDO', 'vNetProfit', true, 'var(--gradient-brand)', 'white')}

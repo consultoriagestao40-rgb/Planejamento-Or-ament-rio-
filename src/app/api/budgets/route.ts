@@ -135,6 +135,14 @@ export async function GET(request: Request) {
       isCCLocked = lock?.isLocked || false;
     }
 
+    // --- FETCH RADAR LOCKS ---
+    const radarLocks = await (prisma as any).radarLock.findMany({
+      where: {
+        tenantId: tenantIdParam === 'ALL' ? undefined : (tenantIdParam === 'ALL' ? anyTenant?.id : tenantIdParam),
+        year: selectedYear
+      }
+    });
+
     const isDetailMode = searchParams.get('detail') === 'true';
 
     // In detail mode, return raw entries with tenantId + costCenterId for the drill-down modal
@@ -150,8 +158,9 @@ export async function GET(request: Request) {
         isLocked: b.isLocked || isCCLocked, // Use global lock as fallback
         observation: b.observation || null
       }));
-      return NextResponse.json({ success: true, data: rawEntries, isCCLocked });
+      return NextResponse.json({ success: true, data: rawEntries, isCCLocked, radarLocks });
     }
+
 
     const aggregatedBudgets = budgets.reduce((acc, curr: any) => {
       const key = `${curr.categoryId}-${curr.month}`;
@@ -175,7 +184,8 @@ export async function GET(request: Request) {
       return acc;
     }, {} as Record<string, any>);
 
-    return NextResponse.json({ success: true, data: Object.values(aggregatedBudgets), isCCLocked });
+    return NextResponse.json({ success: true, data: Object.values(aggregatedBudgets), isCCLocked, radarLocks });
+
 
   } catch (error: any) {
     console.error('Error fetching budgets:', error);
@@ -272,9 +282,34 @@ export async function POST(request: Request) {
         }, { status: 403 });
       }
 
-
       // Convert to 1-indexed for DB (1-12)
       const dbMonth = parseInt(month.toString()) + 1;
+
+      // --- RADAR LOCK CHECK ---
+      if (entry.radarAmount !== undefined && entry.radarAmount !== null) {
+        const radarLock = await (prisma as any).radarLock.findUnique({
+          where: {
+            tenantId_month_year: {
+              tenantId: targetTenantId,
+              month: dbMonth,
+              year: parseInt(year.toString())
+            }
+          }
+        });
+
+        if (radarLock) {
+          const isManuallyLocked = radarLock.isLocked;
+          const isPastDeadline = radarLock.deadline && new Date() > new Date(radarLock.deadline);
+          
+          if (isManuallyLocked || isPastDeadline) {
+            return NextResponse.json({ 
+              success: false, 
+              error: `O Radar (Revisão) para ${month + 1}/${year} está bloqueado para esta empresa.` 
+            }, { status: 403 });
+          }
+        }
+      }
+
 
       console.log(`[API POST] Upserting Cat: ${categoryId}, Tenant: ${targetTenantId}, CC: ${targetCostCenterId}, Month: ${dbMonth}`);
 

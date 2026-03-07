@@ -23,7 +23,24 @@ model Tenant {
   costCenters  CostCenter[]
   userAccess   UserTenantAccess[]
   locks        CostCenterLock[]
+  radarLocks   RadarLock[]
 }
+
+model RadarLock {
+  id           String   @id @default(uuid())
+  tenantId     String
+  month        Int      // 1-12
+  year         Int
+  isLocked     Boolean  @default(false)
+  deadline     DateTime? // Optional automatic locking deadline
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  tenant       Tenant   @relation(fields: [tenantId], references: [id])
+
+  @@unique([tenantId, month, year])
+}
+
 
 model Category {
 

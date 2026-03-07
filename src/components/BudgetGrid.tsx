@@ -53,7 +53,9 @@ export default function BudgetGrid({
     // --- Budget State ---
     const [budgetValues, setBudgetValues] = useState<Record<string, { amount: number, radarAmount: number | null, isLocked: boolean, observation?: string | null }>>({});
     const [isCCLocked, setIsCCLocked] = useState(false);
+    const [radarLocks, setRadarLocks] = useState<any[]>([]);
     const [realizedValues, setRealizedValues] = useState<Record<string, number>>({});
+
     const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
     const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set()); // New state for main groups
 
@@ -216,7 +218,9 @@ export default function BudgetGrid({
 
                 if (budgetData.success) {
                     setIsCCLocked(budgetData.isCCLocked || false);
+                    setRadarLocks(budgetData.radarLocks || []);
                     const values: Record<string, { amount: number, radarAmount: number | null, isLocked: boolean, observation: string | null }> = {};
+
 
                     budgetData.data.forEach((item: any) => {
                         // Map 1-12 from DB to 0-11 for UI
@@ -800,10 +804,21 @@ export default function BudgetGrid({
             }
             return (data?.radarAmount !== undefined && data.radarAmount !== null) ? data.radarAmount.toString() : '';
         });
+        const currentTenantId = selectedCompany[0];
         const initialLocks = new Array(12).fill(false).map((_, i) => {
             const data = budgetValues[`${targetIdToEdit}-${i}`];
-            return (data?.isLocked || isCCLocked) || false;
+            const ccLocked = (data?.isLocked || isCCLocked) || false;
+            
+            if (type === 'radar') {
+                const rLock = radarLocks.find(l => l.tenantId === currentTenantId && l.month === (i + 1));
+                const radarManuallyLocked = rLock?.isLocked || false;
+                const radarExpired = rLock?.deadline && new Date() > new Date(rLock.deadline);
+                return ccLocked || radarManuallyLocked || radarExpired;
+            }
+            
+            return ccLocked;
         });
+
 
 
         setBudgetModal({ categoryId: targetIdToEdit, categoryName: nodeName, startMonth: monthIndex, type });
@@ -884,6 +899,10 @@ export default function BudgetGrid({
                             revBrutaBudget = monthTotal.vRecLiq.b;
                             revBrutaRadar = monthTotal.vRecLiq.rd;
                             isLocked = isCCLocked || node.id.split(',').some(id => (budgetValues[`${id}-${i}`] || {}).isLocked);
+                            const rLock = radarLocks.find(l => l.tenantId === selectedCompany[0] && l.month === (i + 1));
+                            const isRadarLocked = isLocked || (rLock?.isLocked) || (rLock?.deadline && new Date() > new Date(rLock.deadline));
+                            (node as any)._isRadarLocked = isRadarLocked; // Temp storage for use in the cell
+
                         } else {
 
                             for (let m = i * 3; m < i * 3 + 3; m++) {
@@ -896,6 +915,14 @@ export default function BudgetGrid({
                                 revBrutaRadar += monthTotal.vRecLiq.rd;
                                 if (isCCLocked || node.id.split(',').some(id => (budgetValues[`${id}-${m}`] || {}).isLocked)) isLocked = true;
                             }
+                            
+                            const anyRadarLocked = [0, 1, 2].some(offset => {
+                                const monthNum = (i * 3) + offset + 1;
+                                const rLock = radarLocks.find(l => l.tenantId === selectedCompany[0] && l.month === monthNum);
+                                return isLocked || (rLock?.isLocked) || (rLock?.deadline && new Date() > new Date(rLock.deadline));
+                            });
+                            (node as any)._isRadarLocked = anyRadarLocked;
+
 
                         }
 
@@ -963,7 +990,9 @@ export default function BudgetGrid({
                                 >
                                         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', justifyContent: 'center' }}>
                                             <div style={{ fontSize: '0.85rem', fontWeight: 700, color: node.isSynthetic ? '#64748b' : '#334155', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                                {(node as any)._isRadarLocked && <span title="Radar Travado" style={{ fontSize: '0.7rem', color: '#ef4444' }}>🔒</span>}
                                                 {formatCurrency(rdVal)}
+
                                                 {!node.isSynthetic && node.id.split(',').some(id => budgetValues[`${id}-${i}`]?.observation) && (
                                                     <span style={{ color: '#f59e0b', fontSize: '0.6rem' }} title={node.id.split(',').map(id => budgetValues[`${id}-${i}`]?.observation).filter(Boolean).join('\n')}>●</span>
                                                 )}

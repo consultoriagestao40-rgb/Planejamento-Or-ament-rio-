@@ -11,9 +11,11 @@ interface SummaryItem {
     costCenterName: string;
     totalRevenue: number;
     totalExpense: number;
+    hasBudgetData: boolean;
     hasRealizedData: boolean;
     isLocked: boolean;
 }
+
 
 
 interface TenantGroup {
@@ -88,7 +90,7 @@ export default function BudgetSummaryPage() {
             group.totalRevenue += item.totalRevenue;
             group.totalExpense += item.totalExpense;
             group.totalCount++;
-            if (item.hasRealizedData) group.finishedCount++;
+            if (item.hasBudgetData) group.finishedCount++;
             group.costCenters.push(item);
 
         });
@@ -457,13 +459,14 @@ export default function BudgetSummaryPage() {
                                                         {formatCurrency(cc.totalExpense)}
                                                     </td>
                                                     <td style={{ ...styles.td, textAlign: 'center' }}>
-                                                        {cc.hasRealizedData ? (
+                                                        {cc.hasBudgetData ? (
                                                             <span style={{ fontSize: '0.8rem', color: '#10b981' }}>✓ OK</span>
                                                         ) : (
                                                             <span style={{ color: '#ef4444', fontSize: '0.65rem', fontWeight: 700 }}>EM ABERTO</span>
                                                         )}
                                                     </td>
                                                     <td style={{ ...styles.td, textAlign: 'center' }}>
+
                                                         <button
                                                             onClick={(e) => {
                                                                 e.stopPropagation();

@@ -21,12 +21,12 @@ export async function GET(request: Request) {
         const fetchRes = await fetch(url, { headers: { 'Authorization': `Bearer ${res.token}` } });
         const data = await fetchRes.json();
         
-        // Find first PAID item
-        const paidItem = (data?.itens || []).find((x: any) => (x.status || '').toUpperCase() === 'PAGO' || (x.status || '').toUpperCase() === 'LIQUIDADO');
+        const uniqueStatuses = [...new Set((data?.itens || []).map((x: any) => x.status))];
+        const paidItem = (data?.itens || []).find((x: any) => x.pago > 0 && x.status !== 'OVERDUE');
         return NextResponse.json({ 
             total: data?.itens?.length, 
-            paidItemKeys: paidItem ? Object.keys(paidItem) : 'NO PAID ITEM FOUND',
-            paidItem
+            uniqueStatuses,
+            firstPaidItem: paidItem ? { keys: Object.keys(paidItem), status: paidItem.status, pago: paidItem.pago, data_pagamento: paidItem.data_pagamento, data_competencia: paidItem.data_competencia, data_vencimento: paidItem.data_vencimento } : null
         });
     } catch (e: any) {
         console.error('[DEBUG] Sync error:', e);

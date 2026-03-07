@@ -11,8 +11,10 @@ interface SummaryItem {
     costCenterName: string;
     totalRevenue: number;
     totalExpense: number;
-    hasBudget: boolean;
+    hasRealizedData: boolean;
+    isLocked: boolean;
 }
+
 
 interface TenantGroup {
     tenantId: string;
@@ -31,14 +33,28 @@ export default function BudgetSummaryPage() {
     const [searchTerm, setSearchTerm] = useState('');
     const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
     const [expandedTenants, setExpandedTenants] = useState<Set<string>>(new Set());
+    const [userRole, setUserRole] = useState<string | null>(null);
+    const [isTogglingLock, setIsTogglingLock] = useState<string | null>(null);
+
 
     const fetchData = useCallback(async () => {
         setLoading(true);
         try {
-            const res = await fetch(`/api/cost-centers/summary?year=${selectedYear}`);
-            const result = await res.json();
-            if (result.success) {
-                setData(result.data);
+            const [summaryRes, authRes] = await Promise.all([
+                fetch(`/api/cost-centers/summary?year=${selectedYear}`),
+                fetch('/api/auth/me')
+            ]);
+            
+            const [summaryResult, authResult] = await Promise.all([
+                summaryRes.json(),
+                authRes.json()
+            ]);
+
+            if (summaryResult.success) {
+                setData(summaryResult.data);
+            }
+            if (authResult.success) {
+                setUserRole(authResult.user.role);
             }
         } catch (e: any) {
             console.error(e);
@@ -46,6 +62,7 @@ export default function BudgetSummaryPage() {
             setLoading(false);
         }
     }, [selectedYear]);
+
 
     useEffect(() => {
         fetchData();
@@ -71,8 +88,9 @@ export default function BudgetSummaryPage() {
             group.totalRevenue += item.totalRevenue;
             group.totalExpense += item.totalExpense;
             group.totalCount++;
-            if (item.hasBudget) group.finishedCount++;
+            if (item.hasRealizedData) group.finishedCount++;
             group.costCenters.push(item);
+
         });
 
         groups.forEach(group => {
@@ -114,10 +132,48 @@ export default function BudgetSummaryPage() {
         });
     };
 
+    const toggleLock = async (item: SummaryItem) => {
+        if (userRole !== 'MASTER') return;
+        
+        const newLockState = !item.isLocked;
+        setIsTogglingLock(item.costCenterId);
+        
+        try {
+            const res = await fetch('/api/cost-centers/lock', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    tenantId: item.tenantId,
+                    costCenterId: item.costCenterId,
+                    year: selectedYear,
+                    isLocked: newLockState
+                })
+            });
+            
+            const result = await res.json();
+            if (result.success) {
+                setData(prev => prev.map(i => 
+                    (i.costCenterId === item.costCenterId && i.tenantId === item.tenantId) 
+                    ? { ...i, isLocked: newLockState } 
+                    : i
+                ));
+            } else {
+                alert(result.error || 'Erro ao alterar bloqueio');
+            }
+        } catch (e) {
+            console.error(e);
+            alert('Erro de conexão ao alterar bloqueio');
+        } finally {
+            setIsTogglingLock(null);
+        }
+    };
+
+
     const stats = useMemo(() => {
         const totalCCs = data.length;
-        const withBudget = data.filter(i => i.hasBudget).length;
+        const withBudget = data.filter(i => i.hasRealizedData).length;
         const withoutBudget = totalCCs - withBudget;
+
 
         const totalRevenueBudgeted = data.reduce((acc, curr) => acc + curr.totalRevenue, 0);
         const totalExpenseBudgeted = data.reduce((acc, curr) => acc + curr.totalExpense, 0);
@@ -312,8 +368,10 @@ export default function BudgetSummaryPage() {
                                     <th style={{ ...styles.th, textAlign: 'right' }}>Receita Anual</th>
                                     <th style={{ ...styles.th, textAlign: 'right' }}>Despesa Anual</th>
                                     <th style={{ ...styles.th, textAlign: 'center' }}>Progresso</th>
+                                    <th style={{ ...styles.th, textAlign: 'center', width: '80px' }}>🔒</th>
                                 </tr>
                             </thead>
+
                             <tbody>
                                 {groupedData.length > 0 ? groupedData.map((group) => {
                                     const isExpanded = expandedTenants.has(group.tenantId) || searchTerm !== '';
@@ -361,7 +419,12 @@ export default function BudgetSummaryPage() {
                                                         {isComplete ? 'OK' : `PENDENTE (${group.finishedCount}/${group.totalCount})`}
                                                     </span>
                                                 </td>
+                                                <td style={{ ...styles.td, textAlign: 'center' }}>
+                                                    {/* Company headers usually don't have a single lock, they are CC based */}
+                                                    <span style={{ color: '#cbd5e1' }}>-</span>
+                                                </td>
                                             </tr>
+
 
                                             {isExpanded && group.costCenters.map((cc) => (
                                                 <tr key={cc.costCenterId} className="cc-row" style={{ background: '#fff' }}>
@@ -375,19 +438,44 @@ export default function BudgetSummaryPage() {
                                                         {formatCurrency(cc.totalExpense)}
                                                     </td>
                                                     <td style={{ ...styles.td, textAlign: 'center' }}>
-                                                        {cc.hasBudget ? (
+                                                        {cc.hasRealizedData ? (
                                                             <span style={{ fontSize: '0.8rem', color: '#10b981' }}>✓ OK</span>
                                                         ) : (
                                                             <span style={{ color: '#ef4444', fontSize: '0.65rem', fontWeight: 700 }}>EM ABERTO</span>
                                                         )}
                                                     </td>
+                                                    <td style={{ ...styles.td, textAlign: 'center' }}>
+                                                        <button
+                                                            onClick={(e) => {
+                                                                e.stopPropagation();
+                                                                toggleLock(cc);
+                                                            }}
+                                                            disabled={userRole !== 'MASTER' || isTogglingLock === cc.costCenterId}
+                                                            style={{
+                                                                background: 'none',
+                                                                border: 'none',
+                                                                cursor: (userRole === 'MASTER' && isTogglingLock !== cc.costCenterId) ? 'pointer' : 'default',
+                                                                fontSize: '1.2rem',
+                                                                opacity: userRole === 'MASTER' ? 1 : 0.3,
+                                                                padding: '0.2rem',
+                                                                transition: 'transform 0.1s'
+                                                            }}
+                                                            onMouseEnter={e => userRole === 'MASTER' && (e.currentTarget.style.transform = 'scale(1.2)')}
+                                                            onMouseLeave={e => userRole === 'MASTER' && (e.currentTarget.style.transform = 'scale(1)')}
+                                                            title={userRole === 'MASTER' ? (cc.isLocked ? 'Clique para Desbloquear' : 'Clique para Bloquear') : 'Apenas administradores'}
+                                                        >
+                                                            {isTogglingLock === cc.costCenterId ? '⏳' : (cc.isLocked ? '🔒' : '🔓')}
+                                                        </button>
+                                                    </td>
                                                 </tr>
+
                                             ))}
                                         </React.Fragment>
                                     );
                                 }) : (
                                     <tr>
-                                        <td colSpan={4} style={{ padding: '6rem', textAlign: 'center', color: '#94a3b8', fontStyle: 'italic', fontSize: '1rem' }}>
+                                        <td colSpan={5} style={{ padding: '6rem', textAlign: 'center', color: '#94a3b8', fontStyle: 'italic', fontSize: '1rem' }}>
+
                                             Nenhum resultado encontrado.
                                         </td>
                                     </tr>

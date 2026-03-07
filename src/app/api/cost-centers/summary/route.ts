@@ -5,6 +5,30 @@ import { cookies } from 'next/headers';
 
 export const dynamic = 'force-dynamic';
 
+async function ensureLockSchema() {
+    try {
+        await prisma.$executeRawUnsafe(`
+            CREATE TABLE IF NOT EXISTS "CostCenterLock" (
+                "id" TEXT NOT NULL,
+                "tenantId" TEXT NOT NULL,
+                "costCenterId" TEXT NOT NULL,
+                "year" INTEGER NOT NULL,
+                "isLocked" BOOLEAN NOT NULL DEFAULT false,
+                "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                CONSTRAINT "CostCenterLock_pkey" PRIMARY KEY ("id")
+            );
+        `);
+        await prisma.$executeRawUnsafe(`
+            CREATE UNIQUE INDEX IF NOT EXISTS "CostCenterLock_tenantId_costCenterId_year_key" 
+            ON "CostCenterLock"("tenantId", "costCenterId", "year");
+        `);
+    } catch (err) {
+        console.error("[SCHEMA] Error insuring CostCenterLock schema:", err);
+    }
+}
+
+
 export async function GET(request: Request) {
     try {
         const cookieStore = await cookies();
@@ -19,9 +43,12 @@ export async function GET(request: Request) {
         const yearParam = searchParams.get('year');
         const currentYear = yearParam ? parseInt(yearParam) : new Date().getFullYear();
 
+        await ensureLockSchema();
+
         // 1. Buscar todos os dados necessários
-        const [tenants, costCenters, categories, budgetEntries, realizedEntries] = await Promise.all([
+        const [tenants, costCenters, categories, budgetEntries, realizedEntries, locks] = await Promise.all([
             prisma.tenant.findMany({ select: { id: true, name: true } }),
+
             prisma.costCenter.findMany({ 
                 where: { 
                     NOT: { 
@@ -51,8 +78,12 @@ export async function GET(request: Request) {
             prisma.realizedEntry.findMany({
                 where: { year: currentYear },
                 select: { amount: true, categoryId: true, costCenterId: true, tenantId: true }
+            }),
+            (prisma as any).costCenterLock.findMany({
+                where: { year: currentYear }
             })
         ]);
+
 
 
         // 2. Mapear tipos de categoria para busca rápida
@@ -71,6 +102,8 @@ export async function GET(request: Request) {
             if (!tenant) return;
 
             const key = `${cc.tenantId}-${cc.id}`;
+            const lock = locks.find((l: any) => l.tenantId === cc.tenantId && l.costCenterId === cc.id);
+
             summaryMap.set(key, {
                 tenantId: cc.tenantId,
                 tenantName: tenant.name,
@@ -78,8 +111,10 @@ export async function GET(request: Request) {
                 costCenterName: cc.name,
                 totalRevenue: 0,
                 totalExpense: 0,
-                hasRealizedData: false
+                hasRealizedData: false,
+                isLocked: lock?.isLocked || false
             });
+
 
 
         });

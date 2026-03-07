@@ -22,9 +22,11 @@ model Tenant {
   categories   Category[]
   costCenters  CostCenter[]
   userAccess   UserTenantAccess[]
+  locks        CostCenterLock[]
 }
 
 model Category {
+
   id         String   @id // Financial Category ID from Conta Azul (UUID)
   name       String
   tenantId   String
@@ -46,7 +48,24 @@ model CostCenter {
   budgets   BudgetEntry[]
   realized  RealizedEntry[]
   userAccess UserCostCenterAccess[]
+  locks      CostCenterLock[]
 }
+
+model CostCenterLock {
+  id           String   @id @default(uuid())
+  tenantId     String
+  costCenterId String
+  year         Int
+  isLocked     Boolean  @default(false)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  tenant       Tenant     @relation(fields: [tenantId], references: [id])
+  costCenter   CostCenter @relation(fields: [costCenterId], references: [id])
+
+  @@unique([tenantId, costCenterId, year])
+}
+
 
 
 model BudgetEntry {

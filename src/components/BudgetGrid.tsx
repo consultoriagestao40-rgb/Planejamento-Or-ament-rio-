@@ -1604,45 +1604,23 @@ export default function BudgetGrid({
                                     <h3 style={{ margin: 0, fontSize: '1.4rem', fontWeight: 700 }}>
                                         {budgetModal.type === 'budget' ? 'Orçado' : 'Radar'}: {budgetModal.categoryName}
                                     </h3>
-                                    {userRole === 'MASTER' && budgetModal.type === 'budget' && (
-                                        <div style={{ display: 'flex', gap: '0.2rem' }}>
-                                            {MONTHS.map((_, i) => (
-                                                <button
-                                                    key={i}
-                                                    onClick={() => {
-                                                        const next = [...lockedMonths];
-                                                        next[i] = !next[i];
-                                                        setLockedMonths(next);
-                                                    }}
-                                                    title={`Travar/Destravar ${MONTHS[i]}`}
-                                                    style={{
-                                                        padding: '0.2rem 0.4rem',
-                                                        borderRadius: '4px',
-                                                        border: '1px solid #e2e8f0',
-                                                        background: lockedMonths[i] ? '#fee2e2' : '#f8fafc',
-                                                        cursor: 'pointer',
-                                                        fontSize: '0.7rem'
-                                                    }}
-                                                >
-                                                    {lockedMonths[i] ? '🔒' : '🔓'}
-                                                </button>
-                                            ))}
-                                        </div>
-                                    )}
                                 </div>
+
                                 <button onClick={() => setBudgetModal(null)} style={{ border: 'none', background: 'none', cursor: 'pointer', fontSize: '1.5rem', color: '#94a3b8', padding: '0.5rem' }}>✕</button>
                             </div>
 
-                            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '1rem', marginBottom: '1.5rem' }}>
-                                <button onClick={replicateValue} style={{ background: 'none', border: 'none', color: '#2563eb', cursor: 'pointer', fontSize: '0.85rem', fontWeight: 600, padding: '0.4rem' }}>
-                                    Replicar {MONTHS[activeMonth]} para todos
-                                </button>
-                            </div>
+                            {lockedMonths.some(l => l) && (
+                                <div style={{ backgroundColor: '#fff1f2', border: '1px solid #fda4af', borderRadius: '8px', padding: '0.75rem', marginBottom: '1.25rem', display: 'flex', alignItems: 'center', gap: '0.5rem', color: '#be123c', fontSize: '0.85rem', fontWeight: 600 }}>
+                                    🔒 Este orçamento está bloqueado para edições.
+                                </div>
+                            )}
 
                             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '1rem', marginBottom: '2.2rem' }}>
+
                                 {MONTHS.map((m, i) => {
                                     const isLocked = lockedMonths[i];
-                                    const canEditBudget = budgetModal.type === 'radar' || (!isLocked || userRole === 'MASTER');
+                                    const canEditBudget = budgetModal.type === 'radar' || !isLocked;
+
 
                                     return (
                                         <div key={m} style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
@@ -1700,7 +1678,25 @@ export default function BudgetGrid({
 
                             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '1rem', marginTop: '1rem' }}>
                                 <button onClick={() => setBudgetModal(null)} style={{ padding: '0.75rem 1.5rem', backgroundColor: 'transparent', color: '#64748b', border: 'none', borderRadius: '8px', fontWeight: 600, cursor: 'pointer', fontSize: '0.95rem' }}>Cancelar</button>
-                                <button disabled={isSavingBudget} onClick={handleSaveBudget} style={{ padding: '0.75rem 2rem', backgroundColor: '#2563eb', color: '#fff', border: 'none', borderRadius: '8px', fontWeight: 700, cursor: 'pointer', fontSize: '0.95rem', minWidth: '120px', opacity: isSavingBudget ? 0.7 : 1 }}>{isSavingBudget ? 'Salvando...' : 'Salvar'}</button>
+                                <button 
+                                    disabled={isSavingBudget || lockedMonths.every(l => l)} 
+                                    onClick={handleSaveBudget} 
+                                    style={{ 
+                                        padding: '0.75rem 2rem', 
+                                        backgroundColor: lockedMonths.every(l => l) ? '#94a3b8' : '#2563eb', 
+                                        color: '#fff', 
+                                        border: 'none', 
+                                        borderRadius: '8px', 
+                                        fontWeight: 700, 
+                                        cursor: (isSavingBudget || lockedMonths.every(l => l)) ? 'default' : 'pointer', 
+                                        fontSize: '0.95rem', 
+                                        minWidth: '120px', 
+                                        opacity: isSavingBudget ? 0.7 : 1 
+                                    }}
+                                >
+                                    {isSavingBudget ? 'Salvando...' : 'Salvar'}
+                                </button>
+
                             </div>
                         </div>
                     </div>

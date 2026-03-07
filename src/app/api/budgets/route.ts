@@ -238,6 +238,25 @@ export async function POST(request: Request) {
         continue; // Skip unauthorized entries
       }
 
+      // Check for Global Cost Center Lock
+      const globalLock = await (prisma as any).costCenterLock.findUnique({
+        where: {
+          tenantId_costCenterId_year: {
+            tenantId: targetTenantId,
+            costCenterId: targetCostCenterId || 'DEFAULT',
+            year: parseInt(year.toString())
+          }
+        }
+      });
+
+      if (globalLock?.isLocked) {
+        return NextResponse.json({ 
+          success: false, 
+          error: `O orçamento do centro de custo ${targetCostCenterId || 'Geral'} está bloqueado para o ano ${year}.` 
+        }, { status: 403 });
+      }
+
+
       // Convert to 1-indexed for DB (1-12)
       const dbMonth = parseInt(month.toString()) + 1;
 

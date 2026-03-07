@@ -15,8 +15,18 @@ export async function GET() {
             return NextResponse.json({ success: false, error: 'Não autorizado' }, { status: 401 });
         }
 
-        let categoryFilter: any = { NOT: { name: { startsWith: '[INATIVO]' } } };
-        let costCenterFilter: any = { NOT: { name: { startsWith: '[INATIVO]' } } };
+        const inactiveFilter = {
+            NOT: {
+                OR: [
+                    { name: { contains: '[INATIVO]' } },
+                    { name: { contains: 'ENCERRADO', mode: 'insensitive' } }
+                ]
+            }
+        };
+
+        let categoryFilter: any = { ...inactiveFilter };
+        let costCenterFilter: any = { ...inactiveFilter };
+
 
 
 
@@ -31,8 +41,9 @@ export async function GET() {
                 const tenantIds = dbUser.tenantAccess.map(t => t.tenantId);
                 const costCenterIds = dbUser.costCenterAccess.map(c => c.costCenterId);
 
-                categoryFilter = { tenantId: { in: tenantIds }, NOT: { name: { startsWith: '[INATIVO]' } } };
-                costCenterFilter = { id: { in: costCenterIds }, NOT: { name: { startsWith: '[INATIVO]' } } };
+                categoryFilter = { tenantId: { in: tenantIds }, ...inactiveFilter };
+                costCenterFilter = { id: { in: costCenterIds }, ...inactiveFilter };
+
 
 
 

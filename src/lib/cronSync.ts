@@ -6,7 +6,7 @@ async function fetchAllTransactionsForYear(accessToken: string, baseUrl: string,
     let hasMore = true;
     const transactions: any[] = [];
 
-    while (hasMore && page <= 200) {
+    while (hasMore && page <= 50) {
         const url = `${baseUrl}&pagina=${page}`;
         try {
             const res = await fetch(url, { headers: { 'Authorization': `Bearer ${accessToken}` } });
@@ -91,24 +91,11 @@ export async function runCronSync(reqYear: number) {
         const validCostCenters = new Set((await prisma.costCenter.findMany({ where: { tenantId: t.id }, select: { id: true } })).map(c => c.id));
 
         for (const viewMode of ['competencia', 'caixa'] as const) {
-            // Widen the search window by 2 months before/after to catch Competência vs Caixa mismatches.
-            // CAUTION: Conta Azul API requires either data_emissao or data_vencimento for these endpoints.
-            // Using data_pagamento directly in the URL query yields empty arrays.
-            // For 'caixa', a bill from last year can be paid this year. We must broadly fetch by VENCIMENTO
-            // and then filter in TypeScript by data_pagamento.
-            let startStr, endStr;
+            // Widen the search window by 2 months before/after to catch Competência vs Caixa mismatches,
+            // without blowing up Conta Azul's backend with a 500 error on large 3-year requests.
+            const startStr = `${reqYear - 1}-11-01`;
+            const endStr = `${reqYear + 1}-02-28`;
             const filterType = 'data_vencimento';
-
-            if (viewMode === 'caixa') {
-                // To find cash flow for reqYear, we fetch bills that expired a bit earlier
-                // but we CANNOT go back to Jan 1st of the previous year, otherwise we exhaust 
-                // the 50 page (5000 items) limit with old transactions before reaching the target year!
-                startStr = `${reqYear - 1}-11-01`; 
-                endStr = `${reqYear + 1}-02-28`;
-            } else {
-                startStr = `${reqYear - 1}-11-01`;
-                endStr = `${reqYear + 1}-02-28`;
-            }
 
             const receivablesUrl = `https://api-v2.contaazul.com/v1/financeiro/eventos-financeiros/contas-a-receber/buscar?${filterType}_de=${startStr}&${filterType}_ate=${endStr}&tamanho_pagina=100`;
             const payablesUrl = `https://api-v2.contaazul.com/v1/financeiro/eventos-financeiros/contas-a-pagar/buscar?${filterType}_de=${startStr}&${filterType}_ate=${endStr}&tamanho_pagina=100`;

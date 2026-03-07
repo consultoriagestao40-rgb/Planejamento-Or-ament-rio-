@@ -90,19 +90,21 @@ export async function runCronSync(reqYear: number) {
 
         for (const viewMode of ['competencia', 'caixa'] as const) {
             // Widen the search window by 2 months before/after to catch Competência vs Caixa mismatches.
-            // CAUTION: Conta Azul API requires either data_emissao, data_vencimento or data_pagamento.
-            // For 'caixa', a bill from last year can be paid this year.
+            // CAUTION: Conta Azul API requires either data_emissao or data_vencimento for these endpoints.
+            // Using data_pagamento directly in the URL query yields empty arrays.
+            // For 'caixa', a bill from last year can be paid this year. We must broadly fetch by VENCIMENTO
+            // and then filter in TypeScript by data_pagamento.
             let startStr, endStr;
-            let filterType = 'data_vencimento';
+            const filterType = 'data_vencimento';
 
             if (viewMode === 'caixa') {
-                startStr = `${reqYear - 1}-10-01`; // Look back to catch late payments
-                endStr = `${reqYear + 1}-03-31`;
-                filterType = 'data_pagamento'; // Official Conta Azul filter for Cash Flow
+                // To find cash flow for 2026, we might need bills that expired in 2025 but were paid in 2026
+                // and bills that expire in 2027 but were prepaid in 2026.
+                startStr = `${reqYear - 1}-01-01`; 
+                endStr = `${reqYear + 1}-12-31`;
             } else {
                 startStr = `${reqYear - 1}-11-01`;
                 endStr = `${reqYear + 1}-02-28`;
-                filterType = 'data_vencimento';
             }
 
             const receivablesUrl = `https://api-v2.contaazul.com/v1/financeiro/eventos-financeiros/contas-a-receber/buscar?${filterType}_de=${startStr}&${filterType}_ate=${endStr}&tamanho_pagina=100`;

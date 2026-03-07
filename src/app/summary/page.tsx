@@ -452,21 +452,46 @@ export default function BudgetSummaryPage() {
                                                             }}
                                                             disabled={userRole !== 'MASTER' || isTogglingLock === cc.costCenterId}
                                                             style={{
-                                                                background: 'none',
-                                                                border: 'none',
+                                                                background: cc.isLocked ? '#fee2e2' : '#f0fdf4',
+                                                                border: `1px solid ${cc.isLocked ? '#fecaca' : '#bbf7d0'}`,
+                                                                borderRadius: '6px',
                                                                 cursor: (userRole === 'MASTER' && isTogglingLock !== cc.costCenterId) ? 'pointer' : 'default',
-                                                                fontSize: '1.2rem',
-                                                                opacity: userRole === 'MASTER' ? 1 : 0.3,
-                                                                padding: '0.2rem',
-                                                                transition: 'transform 0.1s'
+                                                                fontSize: '0.75rem',
+                                                                fontWeight: 700,
+                                                                padding: '0.4rem 0.6rem',
+                                                                display: 'flex',
+                                                                alignItems: 'center',
+                                                                gap: '0.4rem',
+                                                                margin: '0 auto',
+                                                                color: cc.isLocked ? '#991b1b' : '#166534',
+                                                                opacity: userRole === 'MASTER' ? 1 : 0.6,
+                                                                transition: 'all 0.2s'
                                                             }}
-                                                            onMouseEnter={e => userRole === 'MASTER' && (e.currentTarget.style.transform = 'scale(1.2)')}
-                                                            onMouseLeave={e => userRole === 'MASTER' && (e.currentTarget.style.transform = 'scale(1)')}
-                                                            title={userRole === 'MASTER' ? (cc.isLocked ? 'Clique para Desbloquear' : 'Clique para Bloquear') : 'Apenas administradores'}
+                                                            onMouseEnter={e => {
+                                                                if (userRole === 'MASTER') {
+                                                                    e.currentTarget.style.transform = 'translateY(-1px)';
+                                                                    e.currentTarget.style.boxShadow = '0 2px 4px rgba(0,0,0,0.05)';
+                                                                }
+                                                            }}
+                                                            onMouseLeave={e => {
+                                                                if (userRole === 'MASTER') {
+                                                                    e.currentTarget.style.transform = 'translateY(0)';
+                                                                    e.currentTarget.style.boxShadow = 'none';
+                                                                }
+                                                            }}
+                                                            title={userRole === 'MASTER' ? (cc.isLocked ? 'Clique para Liberar Orçamento' : 'Clique para Trancar Orçamento') : 'Apenas administradores'}
                                                         >
-                                                            {isTogglingLock === cc.costCenterId ? '⏳' : (cc.isLocked ? '🔒' : '🔓')}
+                                                            {isTogglingLock === cc.costCenterId ? (
+                                                                <span style={{ fontSize: '1rem' }}>⏳</span>
+                                                            ) : (
+                                                                <>
+                                                                    <span style={{ fontSize: '1rem' }}>{cc.isLocked ? '🔒' : '🔓'}</span>
+                                                                    <span>{cc.isLocked ? 'TRANCADO' : 'LIBERADO'}</span>
+                                                                </>
+                                                            )}
                                                         </button>
                                                     </td>
+
                                                 </tr>
 
                                             ))}

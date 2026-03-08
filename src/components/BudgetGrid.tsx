@@ -541,7 +541,7 @@ export default function BudgetGrid({
             });
 
             for (let i = 0; i < 12; i++) {
-                if (!node.isSynthetic) {
+                if (!node.isSynthetic && node.children.length === 0) {
                     const sign = negated ? -1 : 1;
                     const idsToRead = node.id.split(',');
                     let sumB = 0, sumR = 0, sumRadar = 0;
@@ -673,8 +673,8 @@ export default function BudgetGrid({
 
                 // CRITICAL: If categoryId is merged (e.g. "id1,id2"), we must ONLY
                 // save to the ID that belongs to the selected company (targetCompanyParam).
-                // This prevents "summing" values from other businesses sharing the same category row.
-                const allIds = budgetModal.categoryId.split(',');
+                // Use fullNodeId so we can clean up the ghost entries in other tenants.
+                const allIds = (budgetModal.fullNodeId || budgetModal.categoryId).split(',');
                 let targetId = allIds[0]; // Default to first if not found
                 
                 if (targetCompanyParam !== 'ALL') {
@@ -717,7 +717,7 @@ export default function BudgetGrid({
                                 month: i,
                                 year: selectedYear,
                                 costCenterId: selectedCostCenter[0],
-                                tenantId: targetCompanyParam === 'ALL' ? (catObj?.tenantId || 'ALL') : targetCompanyParam,
+                                tenantId: catObj?.tenantId || targetCompanyParam, // Important: Use the specific category's tenant
                                 observation: entry.observation,
                                 amount: 0,
                                 radarAmount: null
@@ -960,7 +960,7 @@ export default function BudgetGrid({
 
 
 
-        setBudgetModal({ categoryId: targetIdToEdit, categoryName: nodeName, startMonth: monthIndex, type });
+        setBudgetModal({ categoryId: targetIdToEdit, fullNodeId: nodeId, categoryName: nodeName, startMonth: monthIndex, type });
         setModalValues(initialValues);
         setLockedMonths(initialLocks);
         setActiveMonth(monthIndex);
@@ -1142,14 +1142,13 @@ export default function BudgetGrid({
                                         </div>
 
                                     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end' }}>
-                                        {showAH && <span style={{ fontSize: '0.65rem', color: '#0d9488', fontWeight: 600 }}>AH (O x R): {ahRadarValue.toFixed(1)}%</span>}
                                     </div>
                                 </td>
                                 <td onClick={() => viewPeriod === 'month' && handleCellClick(node.id, i, node.name)} className="hover-cell" style={{ textAlign: 'right', padding: '0.65rem 0.75rem', borderLeft: '1px solid var(--border-subtle)', color: 'var(--accent-blue)', fontSize: '0.8rem', fontWeight: 700, cursor: viewPeriod === 'month' ? 'pointer' : 'default', minWidth: '120px', whiteSpace: 'nowrap' }} title={viewPeriod === 'quarter' ? "Visão detalhada indisponível no trimestre" : ""}>
                                     {formatCurrency(rVal)}
                                     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end' }}>
                                         {showAV && <span style={{ fontSize: '0.65rem', color: 'var(--text-muted)', fontWeight: 500 }}>AV: {avRealized.toFixed(1)}%</span>}
-                                        {showAH && <span style={{ fontSize: '0.65rem', color: 'var(--accent-green)', fontWeight: 800 }}>AH: {ahValue.toFixed(1)}%</span>}
+                                        {showAH && <span style={{ fontSize: '0.65rem', color: 'var(--accent-green)', fontWeight: 800 }}>AH (O x R): {ahValue.toFixed(1)}%</span>}
                                         {showAH_MoM && i > 0 && (() => {
                                             let prevR = 0;
                                             let currR = rVal;
@@ -1163,7 +1162,7 @@ export default function BudgetGrid({
                                             const label = viewPeriod === 'month' ? 'MoM' : 'QoQ';
                                             return <span style={{ fontSize: '0.65rem', color, fontWeight: 800 }}>{label}: {delta > 0 ? '+' : ''}{delta.toFixed(1)}%</span>;
                                         })()}
-                                        {showAR && <span style={{ fontSize: '0.65rem', color: 'var(--accent-indigo)', fontWeight: 800 }}>AR: {arValue.toFixed(1)}%</span>}
+                                        {showAR && <span style={{ fontSize: '0.65rem', color: 'var(--accent-indigo)', fontWeight: 800 }}>AH (Radar x Real): {arValue.toFixed(1)}%</span>}
                                     </div>
                                 </td>
                             </React.Fragment>
@@ -1260,14 +1259,13 @@ export default function BudgetGrid({
                                 <div style={{ fontWeight: 800, color: 'var(--text-primary)' }}>{formatCurrency(radarVal)}</div>
                                 <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end' }}>
                                     {showAV && <span style={{ fontSize: '0.65rem', color: 'var(--text-muted)', fontWeight: 500 }}>AV: {avRadar.toFixed(1)}%</span>}
-                                    {showAH && <span style={{ fontSize: '0.65rem', color: 'var(--accent-indigo)', fontWeight: 800 }}>AH (O x R): {ahRadarValue.toFixed(1)}%</span>}
                                 </div>
                             </td>
                             <td style={{ textAlign: 'right', padding: '0.85rem 0.75rem', borderLeft: '1px solid var(--border-default)', color: rColor, fontSize: '0.8rem', minWidth: '120px', whiteSpace: 'nowrap' }}>
                                 <div style={{ fontWeight: 800 }}>{formatCurrency(realizedVal)}</div>
                                 <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end' }}>
                                     {showAV && <span style={{ fontSize: '0.65rem', color: 'var(--text-muted)', fontWeight: 500 }}>AV: {avRealized.toFixed(1)}%</span>}
-                                    {showAH && <span style={{ fontSize: '0.65rem', color: 'var(--accent-green)', fontWeight: 800 }}>AH: {ahValue.toFixed(1)}%</span>}
+                                    {showAH && <span style={{ fontSize: '0.65rem', color: 'var(--accent-green)', fontWeight: 800 }}>AH (Orç x Real): {ahValue.toFixed(1)}%</span>}
                                     {showAH_MoM && i > 0 && (() => {
                                         let prevR = 0;
                                         if (viewPeriod === 'month') {
@@ -1285,7 +1283,7 @@ export default function BudgetGrid({
                                         const label = viewPeriod === 'month' ? 'MoM' : 'QoQ';
                                         return <span style={{ fontSize: '0.65rem', color, fontWeight: 800 }}>{label}: {delta > 0 ? '+' : ''}{delta.toFixed(1)}%</span>;
                                     })()}
-                                    {showAR && <span style={{ fontSize: '0.65rem', color: 'var(--accent-indigo)', fontWeight: 800 }}>AR: {arValue.toFixed(1)}%</span>}
+                                    {showAR && <span style={{ fontSize: '0.65rem', color: 'var(--accent-indigo)', fontWeight: 800 }}>AH (Radar x Real): {arValue.toFixed(1)}%</span>}
                                 </div>
                             </td>
                         </React.Fragment>
@@ -1355,20 +1353,22 @@ export default function BudgetGrid({
 
     return (
         <>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', margin: '0 0 2rem 0', width: '100%', flexWrap: 'wrap', gap: '1.25rem' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', flexWrap: 'wrap' }}>
-
+            {/* SECTION 2: FILTERS & CONTROLS - SINGLE ROW PREMIUM */}
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', margin: '0 0 2rem 0', width: '100%', flexWrap: 'nowrap', gap: '1rem', background: 'var(--bg-card)', padding: '0.75rem 1rem', borderRadius: '16px', boxShadow: '0 4px 6px rgba(0,0,0,0.02)', border: '1px solid var(--border-subtle)' }}>
+                
+                {/* LEFT: Empresa & Centro de Custo */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
                     {/* Empresa Filter */}
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
-                        <label className="stat-label" style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>Empresa</label>
-                        <div style={{ position: 'relative', minWidth: '240px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                        <label style={{ fontSize: '0.65rem', fontWeight: 800, color: 'var(--accent-blue)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Empresa</label>
+                        <div style={{ position: 'relative', minWidth: '200px' }}>
                             <div
                                 onClick={() => setCompanyDropdownOpen(!companyDropdownOpen)}
                                 className="premium-input"
-                                style={{ cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingRight: '0.75rem' }}
+                                style={{ cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0.4rem 0.75rem', paddingRight: '0.75rem', height: 'auto', minHeight: '32px' }}
                             >
-                                <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{getSelectedCompanyNames(pendingCompany)}</span>
-                                <span style={{ fontSize: '0.6rem', opacity: 0.5 }}>▼</span>
+                                <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', fontSize: '0.75rem', fontWeight: 600 }}>{getSelectedCompanyNames(pendingCompany)}</span>
+                                <span style={{ fontSize: '0.6rem', opacity: 0.5, marginLeft: '0.5rem' }}>▼</span>
                             </div>
 
                             {companyDropdownOpen && (
@@ -1388,16 +1388,16 @@ export default function BudgetGrid({
                     </div>
 
                     {/* Cost Center Filter */}
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
-                        <label className="stat-label" style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>Centro de Custo</label>
-                        <div style={{ position: 'relative', minWidth: '240px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                        <label style={{ fontSize: '0.65rem', fontWeight: 800, color: 'var(--accent-blue)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Centro de Custo</label>
+                        <div style={{ position: 'relative', minWidth: '200px' }}>
                             <div
                                 onClick={() => setCostCenterDropdownOpen(!costCenterDropdownOpen)}
                                 className="premium-input"
-                                style={{ cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingRight: '0.75rem' }}
+                                style={{ cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0.4rem 0.75rem', paddingRight: '0.75rem', height: 'auto', minHeight: '32px' }}
                             >
-                                <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{getSelectedCostCenterNames(pendingCostCenter)}</span>
-                                <span style={{ fontSize: '0.6rem', opacity: 0.5 }}>▼</span>
+                                <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', fontSize: '0.75rem', fontWeight: 600 }}>{getSelectedCostCenterNames(pendingCostCenter)}</span>
+                                <span style={{ fontSize: '0.6rem', opacity: 0.5, marginLeft: '0.5rem' }}>▼</span>
                             </div>
 
                             {costCenterDropdownOpen && (
@@ -1416,54 +1416,56 @@ export default function BudgetGrid({
                         </div>
                     </div>
 
-                    <div style={{ display: 'flex', gap: '0.6rem', marginTop: 'auto', height: '42px' }}>
-                        <button onClick={applyFilter} className="btn btn-primary" style={{ padding: '0 1.5rem' }}>🔍 Filtrar</button>
-                        <button onClick={clearFilter} className="btn btn-secondary" style={{ padding: '0 1.5rem' }}>Limpar</button>
+                    <div style={{ display: 'flex', gap: '0.4rem' }}>
+                        <button onClick={applyFilter} className="btn btn-primary" style={{ padding: '0 1rem', height: '32px', fontSize: '0.75rem' }}>Filtrar</button>
+                        <button onClick={clearFilter} className="btn btn-secondary" style={{ padding: '0 1rem', height: '32px', fontSize: '0.75rem' }}>Limpar</button>
                     </div>
                 </div>
 
-                <div style={{ display: 'flex', alignItems: 'center', gap: '1.25rem', marginTop: 'auto' }}>
+                <div style={{ width: '1px', height: '24px', background: 'var(--border-subtle)' }} />
+
+                {/* RIGHT: Análises & Toggles */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
                     
                     {/* Análises Checkboxes Premium */}
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', background: 'var(--bg-surface)', padding: '0.4rem 0.85rem', borderRadius: '12px', border: '1px solid var(--border-default)', boxShadow: '0 2px 4px rgba(0,0,0,0.02)' }}>
-                        <span style={{ fontSize: '0.65rem', fontWeight: 800, color: 'var(--accent-blue)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Análises</span>
-                        <div style={{ width: '1px', height: '18px', background: 'var(--border-subtle)' }} />
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                        <span style={{ fontSize: '0.65rem', fontWeight: 800, color: 'var(--accent-blue)', textTransform: 'uppercase', letterSpacing: '0.05em', marginRight: '0.2rem' }}>Análises</span>
 
                         {[
-                            { label: 'AV (Real x Orç)', state: showAV, setState: setShowAV },
-                            { label: 'AH (Radar x Real)', state: showAH, setState: setShowAH },
-                            { label: 'AH MoM', state: showAH_MoM, setState: setShowAH_MoM },
-                            { label: 'Realizado Puro', state: showAR, setState: setShowAR }
+                            { label: 'Análise Vertical', state: showAV, setState: setShowAV },
+                            { label: 'AH (Orçado x Real)', state: showAH, setState: setShowAH },
+                            { label: 'AH (Radar x Real)', state: showAR, setState: setShowAR },
+                            { label: 'AH MoM', state: showAH_MoM, setState: setShowAH_MoM }
                         ].map((item, idx) => (
                             <label key={idx} style={{ 
-                                display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.75rem', cursor: 'pointer', 
-                                color: item.state ? 'var(--accent-blue)' : 'var(--text-secondary)', 
-                                fontWeight: item.state ? 700 : 500, padding: '0.2rem 0.5rem', borderRadius: '6px', 
-                                background: item.state ? 'var(--accent-blue-subtle, rgba(59, 130, 246, 0.1))' : 'transparent', 
-                                transition: 'all 0.2s' 
+                                display: 'flex', alignItems: 'center', gap: '0.3rem', fontSize: '0.7rem', cursor: 'pointer', 
+                                color: item.state ? 'var(--text-primary)' : 'var(--text-secondary)', 
+                                fontWeight: item.state ? 600 : 500, padding: '0.2rem 0.4rem', borderRadius: '6px', 
+                                background: item.state ? 'var(--bg-surface)' : 'transparent', 
+                                transition: 'all 0.2s', border: item.state ? '1px solid var(--border-default)' : '1px solid transparent'
                             }}>
                                 <input type="checkbox" checked={item.state} onChange={(e) => item.setState(e.target.checked)} style={{ display: 'none' }} />
                                 <div style={{ 
-                                    width: '14px', height: '14px', borderRadius: '4px', 
-                                    border: `1px solid ${item.state ? 'var(--accent-blue)' : 'var(--text-muted)'}`, 
-                                    background: item.state ? 'var(--accent-blue)' : 'transparent', 
+                                    width: '12px', height: '12px', borderRadius: '3px', 
+                                    border: `1px solid ${item.state ? 'var(--accent-blue)' : 'var(--border-darker)'}`, 
+                                    background: item.state ? 'var(--accent-blue)' : 'var(--bg-surface)', 
                                     display: 'flex', alignItems: 'center', justifyContent: 'center' 
                                 }}>
-                                    {item.state && <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>}
+                                    {item.state && <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>}
                                 </div>
                                 {item.label}
                             </label>
                         ))}
                     </div>
 
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                        <div className="toggle-group">
-                            <button onClick={() => setViewPeriod('month')} className={`toggle-btn ${viewPeriod === 'month' ? 'active' : ''}`}>Mês</button>
-                            <button onClick={() => setViewPeriod('quarter')} className={`toggle-btn ${viewPeriod === 'quarter' ? 'active' : ''}`}>Trimestre</button>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                        <div className="toggle-group" style={{ height: '30px', padding: '2px' }}>
+                            <button onClick={() => setViewPeriod('month')} className={`toggle-btn ${viewPeriod === 'month' ? 'active' : ''}`} style={{ padding: '0 0.75rem', fontSize: '0.7rem' }}>Mês</button>
+                            <button onClick={() => setViewPeriod('quarter')} className={`toggle-btn ${viewPeriod === 'quarter' ? 'active' : ''}`} style={{ padding: '0 0.75rem', fontSize: '0.7rem' }}>Trimestre</button>
                         </div>
-                        <div className="toggle-group">
-                            <button onClick={() => setViewMode('competencia')} className={`toggle-btn ${viewMode === 'competencia' ? 'active' : ''}`}>Competência</button>
-                            <button onClick={() => setViewMode('caixa')} className={`toggle-btn ${viewMode === 'caixa' ? 'active' : ''}`}>Caixa</button>
+                        <div className="toggle-group" style={{ height: '30px', padding: '2px' }}>
+                            <button onClick={() => setViewMode('competencia')} className={`toggle-btn ${viewMode === 'competencia' ? 'active' : ''}`} style={{ padding: '0 0.75rem', fontSize: '0.7rem' }}>Competência</button>
+                            <button onClick={() => setViewMode('caixa')} className={`toggle-btn ${viewMode === 'caixa' ? 'active' : ''}`} style={{ padding: '0 0.75rem', fontSize: '0.7rem' }}>Caixa</button>
                         </div>
                     </div>
                 </div>
@@ -1506,10 +1508,6 @@ export default function BudgetGrid({
                             </th>
                             {(viewPeriod === 'month' ? MONTHS : ['1º Tri', '2º Tri', '3º Tri', '4º Tri']).map((c, i) => {
                                 let colSpan = 3;
-                                if (showAV) colSpan++;
-                                if (showAH) colSpan++;
-                                if (showAH_MoM) colSpan++;
-                                if (showAR) colSpan++;
                                 return (
                                     <th key={i} colSpan={colSpan} style={{ textAlign: 'center', padding: '0.75rem 0.5rem', borderLeft: '1px solid var(--border-subtle)', color: 'var(--text-primary)', minWidth: colSpan * 80 + 'px', background: 'var(--bg-elevated)' }}>
                                         {c}
@@ -1522,12 +1520,8 @@ export default function BudgetGrid({
                             {(viewPeriod === 'month' ? MONTHS : [1, 2, 3, 4]).map((_, i) => (
                                 <React.Fragment key={i}>
                                     <th style={{ fontSize: '0.65rem', color: 'var(--text-muted)', borderLeft: '1px solid var(--border-subtle)', fontWeight: 600, paddingBottom: '0.5rem', borderBottom: '1px solid var(--border-default)', minWidth: '80px', textAlign: 'center' }}>ORÇADO</th>
-                                    {showAV && <th style={{ fontSize: '0.65rem', color: 'var(--text-muted)', borderLeft: '1px solid var(--border-subtle)', fontWeight: 600, paddingBottom: '0.5rem', borderBottom: '1px solid var(--border-default)', minWidth: '60px', textAlign: 'center' }}>AV</th>}
                                     <th style={{ fontSize: '0.65rem', color: 'var(--text-muted)', borderLeft: '1px solid var(--border-subtle)', fontWeight: 600, paddingBottom: '0.5rem', borderBottom: '1px solid var(--border-default)', minWidth: '80px', textAlign: 'center' }}>RADAR</th>
-                                    {showAH && <th style={{ fontSize: '0.65rem', color: 'var(--text-muted)', borderLeft: '1px solid var(--border-subtle)', fontWeight: 600, paddingBottom: '0.5rem', borderBottom: '1px solid var(--border-default)', minWidth: '80px', textAlign: 'center' }}>AH</th>}
                                     <th style={{ fontSize: '0.65rem', color: 'var(--text-muted)', borderLeft: '1px solid var(--border-subtle)', fontWeight: 600, paddingBottom: '0.5rem', borderBottom: '1px solid var(--border-default)', minWidth: '80px', textAlign: 'center' }}>REALIZADO</th>
-                                    {showAH_MoM && <th style={{ fontSize: '0.65rem', color: 'var(--text-muted)', borderLeft: '1px solid var(--border-subtle)', fontWeight: 600, paddingBottom: '0.5rem', borderBottom: '1px solid var(--border-default)', minWidth: '60px', textAlign: 'center' }}>MoM</th>}
-                                    {showAR && <th style={{ fontSize: '0.65rem', color: 'var(--text-muted)', borderLeft: '1px solid var(--border-subtle)', fontWeight: 600, paddingBottom: '0.5rem', borderBottom: '1px solid var(--border-default)', minWidth: '80px', textAlign: 'center' }}>AR</th>}
                                 </React.Fragment>
                             ))}
                         </tr>

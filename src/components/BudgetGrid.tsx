@@ -1050,7 +1050,7 @@ export default function BudgetGrid({
                         width: '400px',
                         borderRight: '1px solid var(--border-subtle)',
                     }}>
-                        <div style={{ display: 'flex', alignItems: 'center', paddingLeft: `${(node.level) * 1.5}rem` }}>
+                        <div style={{ display: 'flex', alignItems: 'center', paddingLeft: `${node.level > 0 ? (node.level * 1.5) + 0.5 : 0}rem` }}>
                             {hasChildren && <span style={{ marginRight: '0.6rem', fontSize: '0.8rem', width: '1rem', color: 'var(--accent-blue)', opacity: 0.8 }}>{isExpanded ? '▼' : '▶'}</span>}
                             {!hasChildren && <span style={{ width: '1.6rem' }}></span>}
                             {node.name}

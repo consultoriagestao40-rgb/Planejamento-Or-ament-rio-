@@ -744,6 +744,35 @@ export default function BudgetGrid({
                         { code: '03.2.4', rate: 0.032 }
                     ];
 
+                    // Calculate the BASE for encargos = sum of ALL 03.1.x items for this month
+                    // Replace the current item's stored value with the NEW value being saved
+                    const currentNodeIds = budgetModal.fullNodeId.split(',');
+                    let salaryBase = 0;
+                    categories.forEach((cat: any) => {
+                        const cMatch = cat.name?.match(/^([\d.]+)/);
+                        if (!cMatch) return;
+                        const catNorm = norm(cMatch[1]);
+                        if (!catNorm.startsWith('3.1')) return;
+                        if (cat.tenantId !== (targetCompanyParam === 'ALL' ? cat.tenantId : targetCompanyParam)) return;
+                        // For all 03.1.x categories, sum the value for this month
+                        const catIds = cat.id.split(',');
+                        // Check if this is the category being edited right now
+                        const isCurrentCat = catIds.some((id: string) => currentNodeIds.includes(id));
+                        if (isCurrentCat) {
+                            // Use the NEW value being saved
+                            salaryBase += numericVal;
+                        } else {
+                            // Use the already-saved value from budgetValues
+                            catIds.forEach((id: string) => {
+                                const key = `${id}-${i}`;
+                                const stored = budgetValues[key];
+                                if (stored) {
+                                    salaryBase += isBudget ? (stored.amount || 0) : (stored.radarAmount || stored.amount || 0);
+                                }
+                            });
+                        }
+                    });
+
                     chargeConfigs.forEach(config => {
                         const targetNorm = norm(config.code);
                         const tenantId = targetCompanyParam;
@@ -763,10 +792,11 @@ export default function BudgetGrid({
                                 tenantId: tenantId,
                                 observation: entry.observation
                             };
+                            // Use salaryBase (total of all 03.1.x) as the base for the charge calculation
                             if (isBudget) {
-                                calcEntry.amount = numericVal * config.rate;
+                                calcEntry.amount = salaryBase * config.rate;
                             } else {
-                                calcEntry.radarAmount = numericVal * config.rate;
+                                calcEntry.radarAmount = salaryBase * config.rate;
                             }
                             entries.push(calcEntry);
 

@@ -678,8 +678,13 @@ export default function BudgetGrid({
                 let targetId = allIds[0]; // Default to first if not found
                 
                 if (targetCompanyParam !== 'ALL') {
+                    // Find which category in the group actually belongs to the selected company
                     const matchId = categories.find((c: any) => allIds.includes(c.id) && c.tenantId === targetCompanyParam);
                     if (matchId) targetId = matchId.id;
+                } else {
+                    // If ALL is selected, we should respect the original tenant of the category
+                    // but for simplicity in "ALL" view, we use the first one. 
+                    // However, the cleaning logic below handles other IDs.
                 }
 
                 const entry: any = {
@@ -687,7 +692,7 @@ export default function BudgetGrid({
                     month: i,
                     year: selectedYear,
                     costCenterId: selectedCostCenter[0],
-                    tenantId: targetCompanyParam,
+                    tenantId: targetCompanyParam === 'ALL' ? (categories.find(c => c.id === targetId)?.tenantId || 'ALL') : targetCompanyParam,
                     observation: modalObservation.trim() || null
                 };
 
@@ -706,12 +711,13 @@ export default function BudgetGrid({
                 if (allIds.length > 1) {
                     allIds.forEach((id: string) => {
                         if (id !== targetId) {
+                            const catObj = categories.find(c => c.id === id);
                             const cleanEntry: any = {
                                 categoryId: id,
                                 month: i,
                                 year: selectedYear,
                                 costCenterId: selectedCostCenter[0],
-                                tenantId: targetCompanyParam,
+                                tenantId: catObj?.tenantId || targetCompanyParam,
                                 observation: entry.observation,
                                 amount: 0,
                                 radarAmount: null
@@ -1155,7 +1161,14 @@ export default function BudgetGrid({
 
     const renderSummaryRow = (label: string, validx: keyof ReturnType<typeof dreStructure.calculateTotals>, isBold = false, bgColor = 'var(--bg-elevated)', textColor = 'var(--text-primary)', groupId?: string) => {
         const isGroupExpanded = groupId ? expandedGroups.has(groupId) : true;
-        const isMainTotal = label.toLowerCase().includes('resultado líquido') || label.toLowerCase().includes('ebitda') || label.toLowerCase().includes('resultado operacional');
+        const isMainTotal = label.toLowerCase().includes('resultado líquido') || 
+                            label.toLowerCase().includes('ebitda') || 
+                            label.toLowerCase().includes('margem') ||
+                            label.toLowerCase().includes('resultado bruto') ||
+                            label.toLowerCase().includes('total de custos') ||
+                            label.toLowerCase().includes('receita bruta') ||
+                            label.toLowerCase().includes('receita líquida') ||
+                            label.toLowerCase().includes('resultado operacional');
 
         return (
             <tr onClick={() => groupId && toggleGroup(groupId)} style={{ background: bgColor, borderBottom: '1px solid var(--border-default)', fontWeight: 800, cursor: groupId ? 'pointer' : 'default' }}>

@@ -68,7 +68,7 @@ export async function GET(request: Request) {
                 include: { costCenterAccess: true }
             });
             if (dbUser) {
-                dbUser.costCenterAccess.forEach(c => {
+                dbUser.costCenterAccess.forEach((c: any) => {
                     costCenterAccessMap[c.costCenterId] = c.accessLevel;
                 });
             }
@@ -115,10 +115,11 @@ export async function GET(request: Request) {
 
 
 
-        // 2. Mapear tipos de categoria para busca rápida
-        // V50: Considerar '01' no nome como REVENUE, independente do tipo vindo do CA
-        const categoryTypeMap = new Map(categories.map(c => {
-            const isRevenue = c.type === 'REVENUE' || c.name.startsWith('01') || c.name.startsWith('1.');
+        const categoryTypeMap = new Map(categories.map((c: any) => {
+            const isRevenue = c.type === 'REVENUE' || 
+                             c.name.startsWith('01') || 
+                             c.name.startsWith('1.') || 
+                             c.name.toLowerCase().includes('receita');
             return [c.id, isRevenue ? 'REVENUE' : 'EXPENSE'];
         }));
 
@@ -126,12 +127,12 @@ export async function GET(request: Request) {
         const summaryMap = new Map();
 
         // Garantir que todos os Centros de Custo apareçam, mesmo sem orçamento
-        costCenters.forEach(cc => {
-            const tenant = tenants.find(t => t.id === cc.tenantId);
+        costCenters.forEach((cc: any) => {
+            const tenant = tenants.find((t: any) => t.id === cc.tenantId);
             if (!tenant) return;
 
-            const key = `${cc.tenantId}-${cc.id}`;
-            const lock = locks.find((l: any) => l.tenantId === cc.tenantId && l.costCenterId === cc.id);
+            const key = cc.id; // Use CC ID as key - it's unique across the system anyway
+            const lock = locks.find((l: any) => l.costCenterId === cc.id);
 
             summaryMap.set(key, {
                 tenantId: cc.tenantId,
@@ -156,8 +157,8 @@ export async function GET(request: Request) {
         });
 
         // 4. Agregar valores do orçamento
-        budgetEntries.forEach(entry => {
-            const key = `${entry.tenantId}-${entry.costCenterId}`;
+        budgetEntries.forEach((entry: any) => {
+            const key = entry.costCenterId; 
             const summary = summaryMap.get(key);
 
             if (summary) {
@@ -173,8 +174,8 @@ export async function GET(request: Request) {
         });
 
         // 4.1 Agregar movimentação Realizada (DRE Ativo)
-        realizedEntries.forEach(entry => {
-            const key = `${entry.tenantId}-${entry.costCenterId}`;
+        realizedEntries.forEach((entry: any) => {
+            const key = entry.costCenterId;
             const summary = summaryMap.get(key);
 
             if (summary && entry.amount !== 0) {

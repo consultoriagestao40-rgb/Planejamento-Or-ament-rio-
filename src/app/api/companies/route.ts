@@ -12,7 +12,7 @@ export async function GET() {
         });
 
         const tenants = await prisma.tenant.findMany({
-            select: { id: true, name: true, cnpj: true }
+            select: { id: true, name: true, cnpj: true, taxRate: true }
         });
         return NextResponse.json({ success: true, companies: tenants });
     } catch (e: any) {

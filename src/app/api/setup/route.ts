@@ -62,6 +62,7 @@ export async function GET() {
             }),
             prisma.costCenter.findMany({
                 where: costCenterFilter,
+                include: { tenant: { select: { taxRate: true } } },
                 orderBy: { name: 'asc' }
             })
         ]);
@@ -79,7 +80,8 @@ export async function GET() {
             costCenters: costCenters.map((cc: any) => ({
                 id: cc.id,
                 name: cc.name,
-                tenantId: cc.tenantId
+                tenantId: cc.tenantId,
+                taxRate: cc.tenant?.taxRate || 0
             }))
         });
     } catch (error: any) {

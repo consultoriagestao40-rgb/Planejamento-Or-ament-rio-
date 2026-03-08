@@ -27,6 +27,7 @@ const CODE_NAMES: Record<string, string> = {
 interface BudgetEntryGridProps {
     costCenterId: string;
     year: number;
+    taxRate?: number;
 }
 
 interface CategoryNode {
@@ -41,7 +42,7 @@ interface CategoryNode {
     tenantId?: string;
 }
 
-export default function BudgetEntryGrid({ costCenterId, year }: BudgetEntryGridProps) {
+export default function BudgetEntryGrid({ costCenterId, year, taxRate = 0 }: BudgetEntryGridProps) {
     const [budgetValues, setBudgetValues] = useState<Record<string, { amount: number; radarAmount: number | null; isLocked: boolean; observation?: string | null }>>({});
     const [realizedValues, setRealizedValues] = useState<Record<string, number>>({});
     const [isCCLocked, setIsCCLocked] = useState(false);
@@ -592,6 +593,74 @@ export default function BudgetEntryGrid({ costCenterId, year }: BudgetEntryGridP
                             });
                         });
                     });
+                }
+
+                // Force heal/recalculate DAS (Simples Nacional) if editing ANY REVENUE row and taxRate > 0
+                if (taxRate > 0) {
+                    const targetCode = categories.find(c => allIds.includes(c.id))?.entradaDre || '';
+                    const isRevenue = targetCode === 'RECEITA_BRUTA' || (categories.find(c => allIds.includes(c.id))?.name || '').startsWith('01');
+                    
+                    if (isRevenue) {
+                        let revenueBaseForMonth = 0;
+                        
+                        // Identify revenue leaf nodes
+                        const revenueLeafNodes: CategoryNode[] = [];
+                        const findRevenueLeafs = (nodes: CategoryNode[]) => {
+                            nodes.forEach(n => {
+                                const cCode = n.code || '';
+                                if (cCode.startsWith('01') || cCode.startsWith('1.')) {
+                                    if (!n.children || n.children.length === 0) {
+                                        revenueLeafNodes.push(n);
+                                    } else {
+                                        findRevenueLeafs(n.children);
+                                    }
+                                } else if (n.children) {
+                                    findRevenueLeafs(n.children);
+                                }
+                            });
+                        };
+                        findRevenueLeafs(treeRoots);
+
+                        revenueLeafNodes.forEach(leaf => {
+                            const leafIds = leaf.id.split(',');
+                            const isCurrentLeaf = leafIds.some(id => allIds.includes(id));
+                            
+                            if (isCurrentLeaf) {
+                                revenueBaseForMonth += currentNum;
+                            } else {
+                                let leafTotal = 0;
+                                leafIds.forEach(id => {
+                                    const stored = budgetValues[`${id}-${i}`];
+                                    if (stored) leafTotal += (stored.amount || 0);
+                                });
+                                revenueBaseForMonth += leafTotal;
+                            }
+                        });
+
+                        // Calculate DAS (Assuming 02.1.1 is the code for DAS)
+                        const dasNodes: CategoryNode[] = [];
+                        const fDN = (nodes: CategoryNode[]) => {
+                            nodes.forEach(n => {
+                                const cCode = n.code || '';
+                                if (cCode === '02.1.1' || cCode === '2.1.1' || (n.name && n.name.includes('DAS'))) {
+                                    dasNodes.push(n);
+                                } else if (n.children) fDN(n.children);
+                            });
+                        };
+                        fDN(treeRoots);
+
+                        dasNodes.forEach(dN => {
+                            const dasIds = dN.id.split(',');
+                            const mainId = dasIds[0];
+                            entries.push({ 
+                                categoryId: mainId, month: i, year, costCenterId, tenantId, 
+                                amount: revenueBaseForMonth * (taxRate / 100)
+                            });
+                            dasIds.forEach((id, idx) => {
+                                if (idx > 0) entries.push({ categoryId: id, month: i, year, costCenterId, tenantId, amount: 0 });
+                            });
+                        });
+                    }
                 }
             }
 

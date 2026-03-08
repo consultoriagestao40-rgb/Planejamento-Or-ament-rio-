@@ -20,6 +20,7 @@ interface SummaryItem {
     n2ApprovedBy: string | null;
     n2ApprovedAt: string | null;
     currentUserAccessLevel: string;
+    taxRate: number;
 }
 
 
@@ -33,6 +34,7 @@ interface TenantGroup {
     hasBudget: boolean;
     finishedCount: number;
     totalCount: number;
+    taxRate: number;
     costCenters: SummaryItem[];
 }
 
@@ -46,6 +48,7 @@ export default function BudgetSummaryPage() {
     const [isTogglingLock, setIsTogglingLock] = useState<string | null>(null);
     const [selectedForAudit, setSelectedForAudit] = useState<SummaryItem | null>(null);
     const [auditActionLoading, setAuditActionLoading] = useState(false);
+    const [updatingTaxId, setUpdatingTaxId] = useState<string | null>(null);
 
     const fetchData = useCallback(async () => {
         setLoading(true);
@@ -91,6 +94,7 @@ export default function BudgetSummaryPage() {
                     hasBudget: false,
                     finishedCount: 0,
                     totalCount: 0,
+                    taxRate: 0,
                     costCenters: []
                 });
             }
@@ -99,6 +103,7 @@ export default function BudgetSummaryPage() {
             group.totalExpense += item.totalExpense;
             group.totalCount++;
             if (item.hasBudgetData) group.finishedCount++;
+            group.taxRate = item.taxRate;
             group.costCenters.push(item);
 
         });
@@ -168,6 +173,30 @@ export default function BudgetSummaryPage() {
             alert('Erro de conexão.');
         } finally {
             setAuditActionLoading(false);
+        }
+    };
+    
+    const handleTaxRateUpdate = async (tenantId: string, newRate: string) => {
+        const rate = parseFloat(newRate);
+        if (isNaN(rate)) return;
+        
+        setUpdatingTaxId(tenantId);
+        try {
+            const res = await fetch(`/api/companies/${tenantId}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ taxRate: rate })
+            });
+            const result = await res.json();
+            if (result.success) {
+                setData(prev => prev.map(item => item.tenantId === tenantId ? { ...item, taxRate: rate } : item));
+            } else {
+                alert(result.error || 'Erro ao atualizar taxa');
+            }
+        } catch (e) {
+            alert('Erro de conexão');
+        } finally {
+            setUpdatingTaxId(null);
         }
     };
 
@@ -455,8 +484,36 @@ export default function BudgetSummaryPage() {
                                                     <span style={{ color: '#cbd5e1' }}>-</span>
                                                 </td>
                                                 <td style={{ ...td, textAlign: 'center' }}>
-                                                    {/* Action column is empty at company level */}
-                                                    <span style={{ color: '#cbd5e1' }}>-</span>
+                                                    {userRole === 'MASTER' ? (
+                                                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.4rem' }} onClick={(e) => e.stopPropagation()}>
+                                                            <span style={{ fontSize: '0.65rem', fontWeight: 800, color: 'var(--text-muted)' }}>% DAS</span>
+                                                            <input 
+                                                                type="number"
+                                                                step="0.01"
+                                                                defaultValue={group.taxRate}
+                                                                key={`${group.tenantId}-${group.taxRate}`}
+                                                                onBlur={(e) => {
+                                                                    if (parseFloat(e.target.value) !== group.taxRate) {
+                                                                        handleTaxRateUpdate(group.tenantId, e.target.value);
+                                                                    }
+                                                                }}
+                                                                disabled={updatingTaxId === group.tenantId}
+                                                                style={{ 
+                                                                    width: '60px', 
+                                                                    padding: '0.25rem 0.5rem', 
+                                                                    fontSize: '0.8rem', 
+                                                                    borderRadius: '4px', 
+                                                                    border: '1px solid var(--border-default)',
+                                                                    background: 'var(--bg-base)',
+                                                                    textAlign: 'center',
+                                                                    fontWeight: 700
+                                                                }}
+                                                            />
+                                                            {updatingTaxId === group.tenantId && <div className="spinner" style={{ width: '12px', height: '12px', borderWidth: '2px' }}></div>}
+                                                        </div>
+                                                    ) : (
+                                                        <span style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-muted)' }}>{group.taxRate}% DAS</span>
+                                                    )}
                                                 </td>
                                             </tr>
 

@@ -18,13 +18,17 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
     try {
         const { id } = await params;
         const body = await request.json();
-        const { name } = body;
+        const { name, taxRate } = body;
         
-        if (!name) return NextResponse.json({ success: false, error: 'Nome é obrigatório' }, { status: 400 });
+        if (!name && taxRate === undefined) return NextResponse.json({ success: false, error: 'Dados insuficientes' }, { status: 400 });
+
+        const updateData: any = {};
+        if (name) updateData.name = name;
+        if (taxRate !== undefined) updateData.taxRate = parseFloat(taxRate);
 
         const updated = await prisma.tenant.update({
             where: { id },
-            data: { name }
+            data: updateData
         });
         return NextResponse.json({ success: true, company: updated });
     } catch (e: any) {

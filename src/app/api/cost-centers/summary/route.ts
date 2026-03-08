@@ -76,7 +76,7 @@ export async function GET(request: Request) {
 
         // 1. Buscar todos os dados necessários
         const [tenants, costCenters, categories, budgetEntries, realizedEntries, locks] = await Promise.all([
-            prisma.tenant.findMany({ select: { id: true, name: true } }),
+            prisma.tenant.findMany({ select: { id: true, name: true, taxRate: true } }),
 
             prisma.costCenter.findMany({ 
                 where: { 
@@ -140,8 +140,8 @@ export async function GET(request: Request) {
             summaryMap.set(key, {
                 tenantId: cc.tenantId,
                 tenantName: tenant.name,
+                taxRate: tenant.taxRate || 0,
                 costCenterId: cc.id,
-                costCenterName: cc.name,
                 totalRevenue: 0,
                 totalExpense: 0,
                 hasBudgetData: false,

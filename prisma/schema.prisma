@@ -16,6 +16,7 @@ model Tenant {
   tokenExpiresAt DateTime?
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
+  taxRate      Float    @default(0) // Default tax rate for DAS calculation
   
   budgets      BudgetEntry[]
   realized     RealizedEntry[]

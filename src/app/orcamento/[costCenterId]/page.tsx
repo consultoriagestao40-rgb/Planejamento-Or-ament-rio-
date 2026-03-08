@@ -14,6 +14,7 @@ export default function BudgetEntryPage() {
 
     const [ccName, setCcName] = useState<string>('');
     const [tenantName, setTenantName] = useState<string>('');
+    const [taxRate, setTaxRate] = useState<number>(0);
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
@@ -26,6 +27,7 @@ export default function BudgetEntryPage() {
                     if (found) {
                         setCcName(found.name || found.id);
                         setTenantName(found.tenantName || '');
+                        setTaxRate(found.taxRate || 0);
                     }
                 }
             } catch (e) {
@@ -92,6 +94,21 @@ export default function BudgetEntryPage() {
                     <div style={{
                         display: 'flex',
                         alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: '0.5rem',
+                        padding: '0.4rem 1rem',
+                        borderRadius: '99px',
+                        background: 'rgba(16, 185, 129, 0.1)',
+                        border: '1px solid rgba(16, 185, 129, 0.3)',
+                        color: 'var(--accent-green)',
+                        fontSize: '0.8rem',
+                        fontWeight: 700
+                    }}>
+                        🏷️ Taxa: {taxRate}%
+                    </div>
+                    <div style={{
+                        display: 'flex',
+                        alignItems: 'center',
                         gap: '0.5rem',
                         padding: '0.4rem 1rem',
                         borderRadius: '99px',
@@ -124,6 +141,7 @@ export default function BudgetEntryPage() {
             <BudgetEntryGrid
                 costCenterId={costCenterId}
                 year={year}
+                taxRate={taxRate}
             />
         </div>
     );

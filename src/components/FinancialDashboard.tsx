@@ -115,24 +115,33 @@ export default function FinancialDashboard({
                                     <div style={{
                                         display: 'flex',
                                         alignItems: 'center',
-                                        gap: '0.4rem',
+                                        gap: '0.25rem',
                                         background: 'var(--bg-elevated)',
                                         border: '1px solid var(--border-default)',
                                         borderRadius: '8px',
-                                        padding: '0 0.75rem',
+                                        padding: '0 0.5rem',
                                         height: '34px',
+                                        userSelect: 'none'
                                     }}>
-                                        <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>📅</span>
-                                        <select
-                                            value={selectedYear}
-                                            onChange={(e) => setSelectedYear(parseInt(e.target.value))}
-                                            className="premium-select"
-                                            style={{ border: 'none', background: 'transparent', padding: 0, height: 'auto', fontSize: '0.85rem' }}
+                                        <button 
+                                            onClick={() => setSelectedYear(prev => prev - 1)}
+                                            style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '0.9rem', padding: '0 0.4rem', color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', transition: 'all 0.2s' }}
+                                            className="hover-opacity"
+                                            title="Ano Anterior"
                                         >
-                                            {[2024, 2025, 2026, 2027, 2028].map(y => (
-                                                <option key={y} value={y}>{y}</option>
-                                            ))}
-                                        </select>
+                                            ◀
+                                        </button>
+                                        <span style={{ fontSize: '0.85rem', fontWeight: 800, color: 'var(--text-primary)', minWidth: '45px', textAlign: 'center', fontFamily: 'monospace' }}>
+                                            {selectedYear}
+                                        </span>
+                                        <button 
+                                            onClick={() => setSelectedYear(prev => prev + 1)}
+                                            style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '0.9rem', padding: '0 0.4rem', color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', transition: 'all 0.2s' }}
+                                            className="hover-opacity"
+                                            title="Próximo Ano"
+                                        >
+                                            ▶
+                                        </button>
                                     </div>
 
                                     <SyncButton onSyncStart={() => setIsSyncing(true)} onSyncComplete={triggerRefresh} year={selectedYear} />

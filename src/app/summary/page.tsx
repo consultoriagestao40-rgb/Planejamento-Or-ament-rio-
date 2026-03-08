@@ -312,27 +312,33 @@ export default function BudgetSummaryPage() {
                         <p className="stat-label" style={{ color: 'var(--accent-red)' }}>Pendentes</p>
                         <p className="stat-value" style={{ color: 'var(--accent-red)' }}>{stats.withoutBudget}</p>
                     </div>
-                    <div className="stat-card" style={{ borderStyle: 'dashed', borderColor: 'var(--border-strong)' }}>
+                    <div className="stat-card" style={{ borderStyle: 'dashed', borderColor: 'var(--border-strong)', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
                         <p className="stat-label">Ano Referência</p>
-                        <select
-                            value={selectedYear}
-                            onChange={(e) => setSelectedYear(parseInt(e.target.value))}
-                            className="premium-select"
-                            style={{ 
-                                width: '100%', 
-                                border: 'none', 
-                                background: 'transparent', 
-                                fontSize: '1.5rem', 
-                                fontWeight: 800, 
-                                padding: 0, 
-                                marginTop: '0.4rem',
-                                color: 'var(--text-primary)'
-                            }}
-                        >
-                            {[2024, 2025, 2026, 2027, 2028].map(y => (
-                                <option key={y} value={y} style={{ background: 'var(--bg-elevated)' }}>{y}</option>
-                            ))}
-                        </select>
+                        <div style={{ 
+                            display: 'flex', 
+                            alignItems: 'center', 
+                            gap: '0.75rem', 
+                            marginTop: '0.5rem',
+                            userSelect: 'none'
+                        }}>
+                            <button 
+                                onClick={() => setSelectedYear(prev => prev - 1)}
+                                style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border-subtle)', borderRadius: '6px', cursor: 'pointer', padding: '0.25rem 0.5rem', color: 'var(--text-primary)', transition: 'all 0.2s', fontSize: '1rem' }}
+                                className="hover-row"
+                            >
+                                ◀
+                            </button>
+                            <span style={{ fontSize: '1.75rem', fontWeight: 900, color: 'var(--text-primary)', minWidth: '80px', textAlign: 'center', fontFamily: 'monospace' }}>
+                                {selectedYear}
+                            </span>
+                            <button 
+                                onClick={() => setSelectedYear(prev => prev + 1)}
+                                style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border-subtle)', borderRadius: '6px', cursor: 'pointer', padding: '0.25rem 0.5rem', color: 'var(--text-primary)', transition: 'all 0.2s', fontSize: '1rem' }}
+                                className="hover-row"
+                            >
+                                ▶
+                            </button>
+                        </div>
                     </div>
                 </div>
 

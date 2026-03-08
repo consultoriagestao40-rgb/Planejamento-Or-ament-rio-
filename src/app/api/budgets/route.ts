@@ -41,11 +41,18 @@ export async function GET(request: Request) {
     if (user.role === 'GESTOR') {
       const dbUser = await prisma.user.findUnique({
         where: { id: user.userId as string },
-        include: { tenantAccess: true, costCenterAccess: true }
+        include: { 
+            tenantAccess: true, 
+            costCenterAccess: {
+                include: { costCenter: true }
+            } 
+        }
       });
       if (dbUser) {
         allowedCostCenters = dbUser.costCenterAccess.map((c: any) => c.costCenterId);
-        allowedTenants = dbUser.tenantAccess.map((t: any) => t.tenantId);
+        const tenantIdsFromTenants = dbUser.tenantAccess.map((t: any) => t.tenantId);
+        const tenantIdsFromCCs = dbUser.costCenterAccess.map((c: any) => c.costCenter.tenantId);
+        allowedTenants = Array.from(new Set([...tenantIdsFromTenants, ...tenantIdsFromCCs]));
       } else {
         allowedCostCenters = [];
         allowedTenants = [];
@@ -162,7 +169,7 @@ export async function GET(request: Request) {
     }
 
 
-    const aggregatedBudgets = budgets.reduce((acc, curr: any) => {
+    const aggregatedBudgets = budgets.reduce((acc: any, curr: any) => {
       const key = `${curr.categoryId}-${curr.month}`;
       if (!acc[key]) {
         acc[key] = { ...curr };

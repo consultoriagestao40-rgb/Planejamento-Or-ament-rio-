@@ -34,19 +34,24 @@ export async function GET() {
         if (user.role === 'GESTOR') {
             const dbUser = await prisma.user.findUnique({
                 where: { id: user.userId as string },
-                include: { tenantAccess: true, costCenterAccess: true }
+                include: { 
+                    tenantAccess: true, 
+                    costCenterAccess: {
+                        include: { costCenter: true }
+                    }
+                }
             });
 
             if (dbUser) {
-                const tenantIds = dbUser.tenantAccess.map(t => t.tenantId);
-                const costCenterIds = dbUser.costCenterAccess.map(c => c.costCenterId);
+                const tenantIdsFromTenants = dbUser.tenantAccess.map((t: any) => t.tenantId);
+                const tenantIdsFromCCs = dbUser.costCenterAccess.map((c: any) => c.costCenter.tenantId);
+                
+                // Set of all unique tenant IDs the user can see data for
+                const allVisibleTenantIds = Array.from(new Set([...tenantIdsFromTenants, ...tenantIdsFromCCs]));
+                const costCenterIds = dbUser.costCenterAccess.map((c: any) => c.costCenterId);
 
-                categoryFilter = { tenantId: { in: tenantIds }, ...inactiveFilter };
+                categoryFilter = { tenantId: { in: allVisibleTenantIds }, ...inactiveFilter };
                 costCenterFilter = { id: { in: costCenterIds }, ...inactiveFilter };
-
-
-
-
             }
         }
 
@@ -63,7 +68,7 @@ export async function GET() {
 
         return NextResponse.json({
             success: true,
-            categories: categories.map(cat => ({
+            categories: categories.map((cat: any) => ({
                 id: cat.id,
                 name: cat.name,
                 parentId: cat.parentId,
@@ -71,7 +76,7 @@ export async function GET() {
                 tenantId: cat.tenantId,
                 entradaDre: (cat as any).entradaDre || null
             })),
-            costCenters: costCenters.map(cc => ({
+            costCenters: costCenters.map((cc: any) => ({
                 id: cc.id,
                 name: cc.name,
                 tenantId: cc.tenantId

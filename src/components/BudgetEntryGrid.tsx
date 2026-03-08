@@ -288,6 +288,16 @@ export default function BudgetEntryGrid({ costCenterId, year }: BudgetEntryGridP
         });
 
         const finalRoots = Array.from(uniqueRootsMap.values());
+
+        // 3. DEDUPLICATE CHILDREN (Critical for merged nodes)
+        map.forEach(node => {
+            if (node.children.length > 0) {
+                const uniqueChildren = new Map<string, CategoryNode>();
+                node.children.forEach(c => uniqueChildren.set(c.id, c));
+                node.children = Array.from(uniqueChildren.values());
+            }
+        });
+
         const recalculateLevels = (nodes: CategoryNode[], lvl: number) => {
             nodes.sort((a, b) => (a.code || a.name).localeCompare(b.code || b.name, undefined, { numeric: true }));
             nodes.forEach(n => { n.level = lvl; recalculateLevels(n.children, lvl + 1); });

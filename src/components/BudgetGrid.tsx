@@ -689,6 +689,36 @@ export default function BudgetGrid({
                 // Include observation on every entry (shared for all months of this category/CC)
                 entry.observation = modalObservation.trim() || null;
                 entries.push(entry);
+
+                // --- AUTOMATIC CHARGES CALCULATION (Encargos Sociais) ---
+                // If we are saving "03.1 - Salários e Remuneração", auto-generate "03.2.x - Encargos"
+                const currentCat = categories.find(c => c.id === budgetModal.categoryId);
+                const codeMatch = currentCat?.name.match(/^([\d.]+)/);
+                const rawCode = codeMatch ? codeMatch[1] : '';
+
+                if (rawCode === '03.1' && budgetModal.type === 'budget') {
+                    const chargeConfigs = [
+                        { code: '03.2.1', rate: 0.08 },
+                        { code: '03.2.2', rate: 0.0833 },
+                        { code: '03.2.3', rate: 0.1111 },
+                        { code: '03.2.4', rate: 0.032 }
+                    ];
+
+                    chargeConfigs.forEach(config => {
+                        const targetCat = categories.find(c => {
+                            const cMatch = c.name.match(/^([\d.]+)/);
+                            return cMatch && cMatch[1] === config.code;
+                        });
+
+                        if (targetCat) {
+                            entries.push({
+                                ...entry,
+                                categoryId: targetCat.id,
+                                amount: numericVal * config.rate
+                            });
+                        }
+                    });
+                }
             }
 
             console.log("Saving entries:", entries);

@@ -692,12 +692,16 @@ export default function BudgetGrid({
 
                 // --- AUTOMATIC CHARGES CALCULATION (Encargos Sociais) ---
                 // If we are saving "03.1 - Salários e Remuneração", auto-generate "03.2.x - Encargos"
-                // Support merged categories by checking the name or the first available ID
                 const catName = budgetModal.categoryName || "";
                 const codeMatch = catName.match(/^([\d.]+)/);
                 const rawCode = codeMatch ? codeMatch[1] : '';
 
-                if (rawCode === '03.1' && budgetModal.type === 'budget') {
+                // Helper to normalize "03.01.01" to "3.1.1" for safer comparison
+                const norm = (c: string) => c.split('.').map(s => parseInt(s, 10).toString()).join('.');
+                const normCode = rawCode ? norm(rawCode) : '';
+
+                if (normCode === '3.1') {
+                    const isBudget = budgetModal.type === 'budget';
                     const chargeConfigs = [
                         { code: '03.2.1', rate: 0.08 },
                         { code: '03.2.2', rate: 0.0833 },
@@ -706,18 +710,20 @@ export default function BudgetGrid({
                     ];
 
                     chargeConfigs.forEach(config => {
-                        // Find the target category in the same tenant if possible
+                        const targetNorm = norm(config.code);
                         const targetCat = categories.find(c => {
                             const cMatch = c.name.match(/^([\d.]+)/);
-                            return cMatch && cMatch[1] === config.code && (targetCompanyParam === 'ALL' || c.tenantId === targetCompanyParam);
+                            return cMatch && norm(cMatch[1]) === targetNorm && (targetCompanyParam === 'ALL' || c.tenantId === targetCompanyParam);
                         });
 
                         if (targetCat) {
-                            entries.push({
-                                ...entry,
-                                categoryId: targetCat.id,
-                                amount: numericVal * config.rate
-                            });
+                            const calcEntry = { ...entry, categoryId: targetCat.id };
+                            if (isBudget) {
+                                calcEntry.amount = numericVal * config.rate;
+                            } else {
+                                calcEntry.radarAmount = numericVal * config.rate;
+                            }
+                            entries.push(calcEntry);
                         }
                     });
                 }

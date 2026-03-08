@@ -319,21 +319,22 @@ export default function BudgetEntryGrid({ costCenterId, year }: BudgetEntryGridP
         const totalsMap = new Map<string, { budget: number[], realized: number[], radar: number[] }>();
 
         const calculateNode = (node: CategoryNode): { budget: number[], realized: number[], radar: number[] } => {
-            const childrenTotals = node.children.map(c => calculateNode(c));
-            
             const myBudget = new Array(12).fill(0);
             const myRealized = new Array(12).fill(0);
             const myRadar = new Array(12).fill(0);
 
-            childrenTotals.forEach(ct => {
-                for (let i = 0; i < 12; i++) {
-                    myBudget[i] += ct.budget[i];
-                    myRealized[i] += ct.realized[i];
-                    myRadar[i] += ct.radar[i];
-                }
-            });
-
-            if (!node.isSynthetic) {
+            if (node.children && node.children.length > 0) {
+                // Parent: Sum children results only
+                node.children.forEach(c => {
+                    const ct = calculateNode(c);
+                    for (let i = 0; i < 12; i++) {
+                        myBudget[i] += ct.budget[i];
+                        myRealized[i] += ct.realized[i];
+                        myRadar[i] += ct.radar[i];
+                    }
+                });
+            } else {
+                // Leaf: Sum direct IDs
                 const ids = node.id.split(',');
                 for (let i = 0; i < 12; i++) {
                     ids.forEach(id => {
@@ -526,64 +527,70 @@ export default function BudgetEntryGrid({ costCenterId, year }: BudgetEntryGridP
                     ];
 
                     let salaryBaseForMonth = 0;
-                    const salaryGroups = new Map<string, string[]>();
-                    categories.forEach((cat: any) => {
-                        const cm = cat.name?.match(/^([\d.]+)/);
-                        if (!cm) return;
-                        const cN = norm(cm[1]);
-                        if (!cN.startsWith('3.1')) return;
-                        if (cat.tenantId !== tenantId) return;
-                        if (!salaryGroups.has(cN)) salaryGroups.set(cN, []);
-                        cat.id.split(',').forEach((id: string) => {
-                            if (!salaryGroups.get(cN)!.includes(id)) salaryGroups.get(cN)!.push(id);
+                    
+                    // Identify salary-related leaf nodes from the actual treeRoots
+                    const salaryLeafNodes: CategoryNode[] = [];
+                    const findSalaryLeafs = (nodes: CategoryNode[]) => {
+                        nodes.forEach(n => {
+                            const cCode = n.code || '';
+                            if (cCode.startsWith('03.1') || cCode.startsWith('3.1')) {
+                                if (!n.children || n.children.length === 0) {
+                                    salaryLeafNodes.push(n);
+                                } else {
+                                    findSalaryLeafs(n.children);
+                                }
+                            } else if (n.children) {
+                                findSalaryLeafs(n.children);
+                            }
                         });
-                    });
+                    };
+                    findSalaryLeafs(treeRoots);
 
-                    const leafCodes = Array.from(salaryGroups.keys()).filter(c1 => 
-                        !Array.from(salaryGroups.keys()).some(c2 => c2 !== c1 && c2.startsWith(c1 + '.'))
-                    );
-
-                    leafCodes.forEach(gCode => {
-                        const groupIds = salaryGroups.get(gCode)!;
-                        const isCurrentGroup = groupIds.some(id => allIds.includes(id));
-                        if (isCurrentGroup) {
+                    salaryLeafNodes.forEach(leaf => {
+                        const leafIds = leaf.id.split(',');
+                        const isCurrentLeaf = leafIds.some(id => allIds.includes(id));
+                        
+                        if (isCurrentLeaf) {
                             salaryBaseForMonth += currentNum;
                         } else {
-                            let groupTotal = 0;
-                            groupIds.forEach(id => {
+                            let leafTotal = 0;
+                            leafIds.forEach(id => {
                                 const stored = budgetValues[`${id}-${i}`];
-                                if (stored) groupTotal += (stored.amount || 0);
+                                if (stored) leafTotal += (stored.amount || 0);
                             });
-                            salaryBaseForMonth += groupTotal;
+                            salaryBaseForMonth += leafTotal;
                         }
+
+                        // Bonus: Cleanup secondary IDs for EVERY salary leaf row while we are at it
+                        leafIds.forEach((id, idx) => {
+                            if (idx > 0) {
+                                entries.push({ categoryId: id, month: i, year, costCenterId, tenantId, amount: 0 });
+                            }
+                        });
                     });
 
                     chargeConfigs.forEach((config: any) => {
-                        const chargeIds: string[] = [];
-                        categories.forEach((c: any) => {
-                            const cm = c.name.match(/^([\d.]+)/);
-                            if (cm && norm(cm[1]) === norm(config.code) && c.tenantId === tenantId) {
-                                c.id.split(',').forEach((id: string) => {
-                                    if (!chargeIds.includes(id)) chargeIds.push(id);
-                                });
-                            }
-                        });
+                        // Find charge category in treeRoots to be precise
+                        const chargeNodes: CategoryNode[] = [];
+                        const fCN = (nodes: CategoryNode[]) => {
+                            nodes.forEach(n => {
+                                if (norm(n.code || '') === norm(config.code)) chargeNodes.push(n);
+                                else if (n.children) fCN(n.children);
+                            });
+                        };
+                        fCN(treeRoots);
                         
-                        if (chargeIds.length > 0) {
-                            const mainChargeId = chargeIds[0];
+                        chargeNodes.forEach(cN => {
+                            const chargeIds = cN.id.split(',');
+                            const mainId = chargeIds[0];
                             entries.push({ 
-                                categoryId: mainChargeId, month: i, year, costCenterId, tenantId, 
+                                categoryId: mainId, month: i, year, costCenterId, tenantId, 
                                 amount: salaryBaseForMonth * config.rate 
                             });
                             chargeIds.forEach((id, idx) => {
-                                if (idx > 0) {
-                                    entries.push({ 
-                                        categoryId: id, month: i, year, costCenterId, tenantId, 
-                                        amount: 0, observation: null 
-                                    });
-                                }
+                                if (idx > 0) entries.push({ categoryId: id, month: i, year, costCenterId, tenantId, amount: 0 });
                             });
-                        }
+                        });
                     });
                 }
             }

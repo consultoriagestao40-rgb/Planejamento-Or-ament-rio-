@@ -136,7 +136,6 @@ export default function BudgetEntryGrid({ costCenterId, year }: BudgetEntryGridP
     // ─── HIERARCHY BUILDER (Unified from BudgetGrid) ─────────────────
     const treeRoots = useMemo(() => {
         const map = new Map<string, CategoryNode>();
-        const potentialRoots: CategoryNode[] = [];
         const codeMap = new Map<string, CategoryNode>();
         const nameMap = new Map<string, CategoryNode>();
 
@@ -226,7 +225,7 @@ export default function BudgetEntryGrid({ costCenterId, year }: BudgetEntryGridP
             { code: '01.1', name: '01.1 - Receita de Serviços' },
             { code: '01.2', name: '01.2 - Receitas de Vendas' },
             { code: '02.1', name: '02.1 - Tributos' },
-            ...['03.1', '03.2', '03.3', '03.4', '03.5', '03.6', '03.7', '03.8', '03.9', '04.1', '04.2', '04.3', '04.4', '04.5', '04.6', '04.7', '04.8', '05.1', '05.2', '05.3', '05.4', '05.5', '05.6', '05.7', '05.8', '05.9', '05.10', '05.11', '05.12', '05.13', '06.1', '06.2', '06.3', '06.4', '06.5', '06.6', '06.7', '06.8'].map(c => ({ code: c, name: c }))
+            ...Object.keys(CODE_NAMES).map(c => ({ code: c, name: CODE_NAMES[c] }))
         ];
 
         syntheticParents.forEach(synth => {
@@ -272,35 +271,44 @@ export default function BudgetEntryGrid({ costCenterId, year }: BudgetEntryGridP
             }
         });
 
-        const allChildren = new Set<string>();
-        map.forEach(node => node.children.forEach(c => allChildren.add(c.id)));
-        map.forEach(node => { if (!allChildren.has(node.id)) potentialRoots.push(node); });
+        // 3. IDENTIFY ROOTS
+        const allChildrenIds = new Set<string>();
+        map.forEach(node => node.children.forEach(c => allChildrenIds.add(c.id)));
+        const potentialRoots: CategoryNode[] = [];
+        map.forEach(node => { if (!allChildrenIds.has(node.id)) potentialRoots.push(node); });
 
+        // 4. De-duplicate roots and merge their IDs/Children
         const uniqueRootsMap = new Map<string, CategoryNode>();
         potentialRoots.forEach(root => {
             const rootCode = root.code || root.name;
             if (uniqueRootsMap.has(rootCode)) {
-                const existingRoot = uniqueRootsMap.get(rootCode)!;
-                root.children.forEach(child => {
-                    if (!existingRoot.children.find(c => c.id === child.id)) existingRoot.children.push(child);
+                const existing = uniqueRootsMap.get(rootCode)!;
+                // Merge IDs
+                const existingIds = existing.id.split(',');
+                root.id.split(',').forEach(id => {
+                    if (!existingIds.includes(id)) existing.id += ',' + id;
                 });
-            } else { uniqueRootsMap.set(rootCode, root); }
+                // Merge Children
+                root.children.forEach(child => {
+                    if (!existing.children.find(c => c.id === child.id)) existing.children.push(child);
+                });
+            } else {
+                uniqueRootsMap.set(rootCode, { ...root });
+            }
         });
 
         const finalRoots = Array.from(uniqueRootsMap.values());
 
-        // 3. DEDUPLICATE CHILDREN (Critical for merged nodes)
-        map.forEach(node => {
-            if (node.children.length > 0) {
-                const uniqueChildren = new Map<string, CategoryNode>();
-                node.children.forEach(c => uniqueChildren.set(c.id, c));
-                node.children = Array.from(uniqueChildren.values());
-            }
-        });
-
         const recalculateLevels = (nodes: CategoryNode[], lvl: number) => {
             nodes.sort((a, b) => (a.code || a.name).localeCompare(b.code || b.name, undefined, { numeric: true }));
-            nodes.forEach(n => { n.level = lvl; recalculateLevels(n.children, lvl + 1); });
+            nodes.forEach(n => {
+                n.level = lvl;
+                // Clear duplicate children
+                const uniqueChildren = new Map<string, CategoryNode>();
+                n.children.forEach(c => uniqueChildren.set(c.id, c));
+                n.children = Array.from(uniqueChildren.values());
+                recalculateLevels(n.children, lvl + 1);
+            });
         };
         recalculateLevels(finalRoots, 0);
         return finalRoots;
@@ -356,12 +364,12 @@ export default function BudgetEntryGrid({ costCenterId, year }: BudgetEntryGridP
         const buckets = { rev: [] as CategoryNode[], taxes: [] as CategoryNode[], costs: [] as CategoryNode[], opExp: [] as CategoryNode[], adminExp: [] as CategoryNode[], fin: [] as CategoryNode[] };
         treeRoots.forEach(root => {
             const code = root.code || '';
-            if (code.startsWith('01') || code === '1') buckets.rev.push(root);
-            else if (code.startsWith('02') || code === '2') buckets.taxes.push(root);
+            if (code.startsWith('01') || code.startsWith('1')) buckets.rev.push(root);
+            else if (code.startsWith('02') || code.startsWith('2.1')) buckets.taxes.push(root);
             else if (code.startsWith('3') || code.startsWith('03')) buckets.costs.push(root);
             else if (code.startsWith('4') || code.startsWith('04')) buckets.opExp.push(root);
-            else if (code.startsWith('5') || code.startsWith('05') || code.startsWith('7') || code.startsWith('8')) buckets.adminExp.push(root);
-            else if (code.startsWith('6') || code.startsWith('06') || code.startsWith('9') || code.startsWith('10')) buckets.fin.push(root);
+            else if (code.startsWith('5') || code.startsWith('05')) buckets.adminExp.push(root);
+            else if (code.startsWith('6') || code.startsWith('06')) buckets.fin.push(root);
             else buckets.adminExp.push(root);
         });
 
@@ -396,33 +404,42 @@ export default function BudgetEntryGrid({ costCenterId, year }: BudgetEntryGridP
             alert('Este orçamento está travado. Solicite a reabertura ao aprovador.');
             return;
         }
+        
+        const ids = nodeId.split(',');
         const initialValues = new Array(12).fill('').map((_, i) => {
-            const ids = nodeId.split(',');
+            let total = 0;
+            let foundAny = false;
             for (const id of ids) {
                 const d = budgetValues[`${id}-${i}`];
-                if (d?.amount !== undefined && d.amount !== null) return d.amount.toString();
+                if (d?.amount !== undefined && d.amount !== null) {
+                    total += d.amount;
+                    foundAny = true;
+                }
             }
-            return '';
-        });
-        const initialLocks = new Array(12).fill(false).map((_, i) => {
-            const ids = nodeId.split(',');
-            for (const id of ids) {
-                const d = budgetValues[`${id}-${i}`];
-                if (d?.isLocked || isCCLocked) return true;
-            }
-            return false;
+            return foundAny ? total.toString() : '';
         });
 
-        const firstId = nodeId.split(',')[0];
+        const initialLocks = new Array(12).fill(false).map((_, i) => {
+            for (const id of ids) {
+                const d = budgetValues[`${id}-${i}`];
+                if (d?.isLocked) return true;
+            }
+            return isCCLocked;
+        });
+
         let foundObs = '';
         for (let i = 0; i < 12; i++) {
-            nodeId.split(',').forEach(id => {
+            for (const id of ids) {
                 const d = budgetValues[`${id}-${i}`];
-                if (d?.observation) foundObs = d.observation;
-            });
+                if (d?.observation) {
+                    foundObs = d.observation;
+                    break;
+                }
+            }
+            if (foundObs) break;
         }
 
-        setBudgetModal({ categoryId: firstId, fullNodeId: nodeId, categoryName: nodeName, startMonth: monthIndex });
+        setBudgetModal({ categoryId: ids[0], fullNodeId: nodeId, categoryName: nodeName, startMonth: monthIndex });
         setModalValues(initialValues);
         setLockedMonths(initialLocks);
         setActiveMonth(monthIndex);
@@ -439,31 +456,36 @@ export default function BudgetEntryGrid({ costCenterId, year }: BudgetEntryGridP
             const catName = budgetModal.categoryName;
             const codeMatch = catName.match(/^([\d.]+)/);
             const normCode = codeMatch ? norm(codeMatch[1]) : '';
+            const allIds = budgetModal.fullNodeId.split(',');
 
-            // Get what was there before to compare
-            const initialValues = new Array(12).fill('').map((_, i) => {
-                const ids = budgetModal.fullNodeId.split(',');
-                for (const id of ids) {
-                    const d = budgetValues[`${id}-${i}`];
-                    if (d?.amount !== undefined && d.amount !== null) return d.amount.toString();
+            // Find current obs to detect change
+            let originalObs = '';
+            for (let j = 0; j < 12; j++) {
+                for (const id of allIds) {
+                    const d = budgetValues[`${id}-${j}`];
+                    if (d?.observation) { originalObs = d.observation; break; }
                 }
-                return '';
-            });
+                if (originalObs) break;
+            }
 
             for (let i = 0; i < 12; i++) {
-                const currentVal = modalValues[i];
-                const initialVal = initialValues[i];
+                const currentStr = modalValues[i];
+                let initialNum = 0;
+                let foundAny = false;
+                for (const id of allIds) {
+                    const d = budgetValues[`${id}-${i}`];
+                    if (d?.amount !== undefined && d.amount !== null) { 
+                        initialNum += d.amount; // Sum all IDs for comparison
+                        foundAny = true;
+                    }
+                }
                 
-                // Track if value OR observation for THIS month changed
-                const isChanged = currentVal !== initialVal;
+                const currentNum = evaluateFormula(currentStr);
+                const valueChanged = (!foundAny && currentStr !== '') || (foundAny && Math.abs(currentNum - initialNum) > 0.001);
                 const isObsMonth = i === budgetModal.startMonth;
-                const obsChanged = modalObservation.trim() !== (initialValues[12] /* obs isn't tracked here yet, let's keep it simple */ || '');
+                const obsChanged = isObsMonth && modalObservation.trim() !== originalObs.trim();
                 
-                // If nothing changed for this month, skip it!
-                if (!isChanged && !isObsMonth) continue;
-                
-                const numericVal = evaluateFormula(currentVal);
-                const allIds = budgetModal.fullNodeId.split(',');
+                if (!valueChanged && !obsChanged) continue;
                 
                 let targetId = allIds[0];
                 if (tenantId) {
@@ -471,20 +493,30 @@ export default function BudgetEntryGrid({ costCenterId, year }: BudgetEntryGridP
                     if (match) targetId = match.id;
                 }
 
-                const entry: any = {
+                // IMPORTANT: Save total to targetId and zero out other IDs in the node
+                entries.push({
                     categoryId: targetId,
                     month: i,
                     year,
                     costCenterId,
                     tenantId: tenantId || (categories.find((c: any) => c.id === targetId)?.tenantId || ''),
-                    amount: numericVal,
+                    amount: currentNum,
                     radarAmount: budgetValues[`${targetId}-${i}`]?.radarAmount ?? null,
-                    observation: isObsMonth ? (modalObservation.trim() || null) : (budgetValues[`${targetId}-${i}`]?.observation || null)
-                };
-                if (userRole === 'MASTER') entry.isLocked = lockedMonths[i];
-                entries.push(entry);
+                    observation: isObsMonth ? (modalObservation.trim() || null) : (budgetValues[`${targetId}-${i}`]?.observation || null),
+                    isLocked: userRole === 'MASTER' ? lockedMonths[i] : undefined
+                });
 
-                // Auto-calculate encargos from salary base (03.1.x)
+                allIds.forEach((id: string) => {
+                    if (id !== targetId) {
+                        entries.push({
+                            categoryId: id, month: i, year, costCenterId,
+                            tenantId: categories.find((c: any) => c.id === id)?.tenantId || '',
+                            amount: 0, observation: null
+                        });
+                    }
+                });
+
+                // Auto-calculate encargos
                 if (normCode.startsWith('3.1')) {
                     const chargeConfigs = [
                         { code: '03.2.1', rate: 0.08 },
@@ -500,11 +532,9 @@ export default function BudgetEntryGrid({ costCenterId, year }: BudgetEntryGridP
                         if (!catNorm.startsWith('3.1')) return;
                         if (cat.tenantId !== tenantId) return;
                         const cardIds = cat.id.split(',');
-                        const isCurrent = cardIds.some((id: string) => budgetModal.fullNodeId.split(',').includes(id));
-                        if (isCurrent) { 
-                            salaryBase += numericVal; // Use new monthly value
-                        } else {
-                            cardIds.forEach((id: string) => {
+                        const isCurrentRow = cardIds.some(id => allIds.includes(id));
+                        if (isCurrentRow) { salaryBase += currentNum; } else {
+                            cardIds.forEach(id => {
                                 const stored = budgetValues[`${id}-${i}`];
                                 if (stored) salaryBase += stored.amount || 0;
                             });
@@ -543,8 +573,13 @@ export default function BudgetEntryGrid({ costCenterId, year }: BudgetEntryGridP
             if (refreshData.success) {
                 setIsCCLocked(refreshData.isCCLocked || false);
                 const values: Record<string, any> = {};
-                refreshData.data.forEach((item: any) => {
-                    values[`${item.categoryId}-${item.month - 1}`] = { amount: item.amount || 0, isLocked: item.isLocked || false, observation: item.observation || null };
+                (refreshData.data || []).forEach((item: any) => {
+                    values[`${item.categoryId}-${item.month - 1}`] = { 
+                        amount: item.amount || 0, 
+                        radarAmount: (item.radarAmount !== undefined && item.radarAmount !== null) ? item.radarAmount : null,
+                        isLocked: item.isLocked || false, 
+                        observation: item.observation || null 
+                    };
                 });
                 setBudgetValues(values);
             }

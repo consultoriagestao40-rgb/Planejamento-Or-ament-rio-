@@ -139,6 +139,7 @@ export async function GET(request: Request) {
             summaryMap.set(key, {
                 tenantId: cc.tenantId,
                 tenantName: tenant.name,
+                costCenterName: cc.name,
                 taxRate: tenant.taxRate || 0,
                 costCenterId: cc.id,
                 totalRevenue: 0,
@@ -183,8 +184,9 @@ export async function GET(request: Request) {
         const result = Array.from(summaryMap.values())
             .filter(item => item.hasRealizedData || item.hasBudgetData)
             .sort((a, b) => {
-                if (a.tenantName !== b.tenantName) return a.tenantName.localeCompare(b.tenantName);
-                return a.costCenterName?.localeCompare(b.costCenterName || '') || 0;
+                // Ordenar por Empresa e depois por Centro de Custo
+                if (a.tenantName !== b.tenantName) return (a.tenantName || '').localeCompare(b.tenantName || '');
+                return (a.costCenterName || '').localeCompare(b.costCenterName || '');
             });
 
         return NextResponse.json({

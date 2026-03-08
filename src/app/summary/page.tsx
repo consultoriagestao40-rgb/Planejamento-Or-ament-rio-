@@ -426,7 +426,7 @@ export default function BudgetSummaryPage() {
                                     <th style={{ ...th, textAlign: 'right' }}>Despesa Anual</th>
                                     <th style={{ ...th, textAlign: 'center' }}>Progresso</th>
                                     <th style={{ ...th, textAlign: 'center', width: '80px' }} title="Trancar/Destrancar Orçamento">🔒 Cadeado</th>
-                                    <th style={{ ...th, textAlign: 'center', width: '130px' }}>Ação / Status</th>
+                                    <th style={{ ...th, textAlign: 'center', width: '160px' }}>Configuração / Status</th>
                                 </tr>
                             </thead>
 

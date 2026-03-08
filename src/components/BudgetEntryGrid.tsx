@@ -524,30 +524,72 @@ export default function BudgetEntryGrid({ costCenterId, year }: BudgetEntryGridP
                         { code: '03.2.3', rate: 0.1111 },
                         { code: '03.2.4', rate: 0.032 }
                     ];
+
                     let salaryBase = 0;
+                    const usedIdsInBase = new Set<string>();
+                    
                     categories.forEach((cat: any) => {
                         const cm = cat.name?.match(/^([\d.]+)/);
                         if (!cm) return;
                         const catNorm = norm(cm[1]);
                         if (!catNorm.startsWith('3.1')) return;
                         if (cat.tenantId !== tenantId) return;
+
                         const cardIds = cat.id.split(',');
+                        if (cardIds.every((id: string) => usedIdsInBase.has(id))) return;
+
                         const isCurrentRow = cardIds.some((id: string) => allIds.includes(id));
-                        if (isCurrentRow) { salaryBase += currentNum; } else {
-                            cardIds.forEach((id: string) => {
+                        if (isCurrentRow) {
+                            salaryBase += currentNum;
+                            cardIds.forEach((id: string) => usedIdsInBase.add(id));
+                        } else {
+                            // Find all IDs that belong to this same logical category (same code)
+                            const siblingIds = categories
+                                .filter((c: any) => {
+                                    const ccm = c.name?.match(/^([\d.]+)/);
+                                    return ccm && norm(ccm[1]) === catNorm && c.tenantId === tenantId;
+                                })
+                                .flatMap((c: any) => c.id.split(','));
+                            
+                            const uniqueSiblings = Array.from(new Set(siblingIds));
+                            if (uniqueSiblings.every((id: string) => usedIdsInBase.has(id))) return;
+
+                            let rowTotal = 0;
+                            uniqueSiblings.forEach((id: string) => {
                                 const stored = budgetValues[`${id}-${i}`];
-                                if (stored) salaryBase += stored.amount || 0;
+                                if (stored) rowTotal += stored.amount || 0;
+                                usedIdsInBase.add(id);
                             });
+                            salaryBase += rowTotal;
                         }
                     });
 
                     chargeConfigs.forEach((config: any) => {
-                        const targetCat = categories.find((c: any) => {
+                        // Find ALL IDs for this charge category to ensure we zero out duplicates
+                        const chargeCats = categories.filter((c: any) => {
                             const cm = c.name.match(/^([\d.]+)/);
                             return cm && norm(cm[1]) === norm(config.code) && c.tenantId === tenantId;
                         });
-                        if (targetCat) {
-                            entries.push({ categoryId: targetCat.id, month: i, year, costCenterId, tenantId, amount: salaryBase * config.rate });
+                        
+                        if (chargeCats.length > 0) {
+                            const chargeIds = Array.from(new Set(chargeCats.flatMap((c: any) => c.id.split(','))));
+                            const mainChargeId = chargeIds[0];
+                            const chargeAmount = salaryBase * config.rate;
+
+                            entries.push({ 
+                                categoryId: mainChargeId, month: i, year, costCenterId, tenantId, 
+                                amount: chargeAmount 
+                            });
+
+                            // Zero out secondary IDs to prevent doubling in grid
+                            chargeIds.forEach((id: string, idx: number) => {
+                                if (idx > 0) {
+                                    entries.push({ 
+                                        categoryId: id, month: i, year, costCenterId, tenantId, 
+                                        amount: 0, observation: null 
+                                    });
+                                }
+                            });
                         }
                     });
                 }

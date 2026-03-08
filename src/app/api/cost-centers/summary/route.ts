@@ -170,12 +170,12 @@ export async function GET(request: Request) {
                 const val = (entry.amount !== 0 && entry.amount !== null) ? entry.amount : (entry.radarAmount || 0);
                 
                 if (type === 'REVENUE') {
-                    summary.totalRevenue += val;
+                    summary.totalRevenue += entry.amount || 0;
                 } else {
-                    summary.totalExpense += val;
+                    summary.totalExpense += entry.amount || 0;
                 }
                 
-                if (val !== 0) summary.hasBudgetData = true;
+                if (entry.amount && entry.amount !== 0) summary.hasBudgetData = true;
             }
         });
 

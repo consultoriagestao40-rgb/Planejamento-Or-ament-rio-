@@ -42,7 +42,8 @@ interface CategoryNode {
 }
 
 export default function BudgetEntryGrid({ costCenterId, year }: BudgetEntryGridProps) {
-    const [budgetValues, setBudgetValues] = useState<Record<string, { amount: number; isLocked: boolean; observation?: string | null }>>({});
+    const [budgetValues, setBudgetValues] = useState<Record<string, { amount: number; radarAmount: number | null; isLocked: boolean; observation?: string | null }>>({});
+    const [realizedValues, setRealizedValues] = useState<Record<string, number>>({});
     const [isCCLocked, setIsCCLocked] = useState(false);
     const [categories, setCategories] = useState<any[]>([]);
     const [tenantId, setTenantId] = useState<string>('');
@@ -84,19 +85,19 @@ export default function BudgetEntryGrid({ costCenterId, year }: BudgetEntryGridP
         const loadData = async () => {
             setLoading(true);
             try {
-                const [setupRes, budgetRes, authRes] = await Promise.all([
+                const [setupRes, budgetRes, syncRes, authRes] = await Promise.all([
                     fetch('/api/setup?t=' + Date.now(), { cache: 'no-store' }),
                     fetch(`/api/budgets?costCenterId=${costCenterId}&tenantId=ALL&year=${year}&t=${Date.now()}`, { cache: 'no-store' }),
+                    fetch(`/api/sync?costCenterId=${costCenterId}&tenantId=ALL&year=${year}&t=${Date.now()}`, { cache: 'no-store' }),
                     fetch('/api/auth/me')
                 ]);
 
-                const [setupData, budgetData, authData] = await Promise.all([
-                    setupRes.json(), budgetRes.json(), authRes.json()
+                const [setupData, budgetData, syncData, authData] = await Promise.all([
+                    setupRes.json(), budgetRes.json(), syncRes.json(), authRes.json()
                 ]);
 
                 if (setupData.success) {
                     setCategories(setupData.categories || []);
-                    // detect tenantId from CC
                     const foundCC = (setupData.costCenters || []).find((cc: any) => cc.id === costCenterId);
                     if (foundCC?.tenantId) setTenantId(foundCC.tenantId);
                 }
@@ -104,15 +105,20 @@ export default function BudgetEntryGrid({ costCenterId, year }: BudgetEntryGridP
                 if (budgetData.success) {
                     setIsCCLocked(budgetData.isCCLocked || false);
                     setApprovalStatus(budgetData.status || 'PENDING');
-                    const values: Record<string, { amount: number; isLocked: boolean; observation: string | null }> = {};
+                    const values: Record<string, any> = {};
                     (budgetData.data || []).forEach((item: any) => {
                         values[`${item.categoryId}-${item.month - 1}`] = {
                             amount: item.amount || 0,
+                            radarAmount: (item.radarAmount !== undefined && item.radarAmount !== null) ? item.radarAmount : null,
                             isLocked: item.isLocked || false,
                             observation: item.observation || null
                         };
                     });
                     setBudgetValues(values);
+                }
+
+                if (syncData.success && syncData.realizedValues) {
+                    setRealizedValues(syncData.realizedValues);
                 }
 
                 if (authData.success) {
@@ -127,13 +133,14 @@ export default function BudgetEntryGrid({ costCenterId, year }: BudgetEntryGridP
         loadData();
     }, [costCenterId, year]);
 
-    // ─── HIERARCHY BUILDER (same as BudgetGrid) ───────────────────────
+    // ─── HIERARCHY BUILDER (Unified from BudgetGrid) ─────────────────
     const treeRoots = useMemo(() => {
         const map = new Map<string, CategoryNode>();
         const potentialRoots: CategoryNode[] = [];
         const codeMap = new Map<string, CategoryNode>();
         const nameMap = new Map<string, CategoryNode>();
 
+        // 1. Initial Mapping
         categories.forEach((cat: any) => {
             const codeMatch = cat.name.match(/^([\d.]+)/);
             const rawCode = codeMatch ? codeMatch[1] : '';
@@ -152,9 +159,56 @@ export default function BudgetEntryGrid({ costCenterId, year }: BudgetEntryGridP
                 }
             }
 
-            if (CODE_NAMES[rawCode]) effectiveName = CODE_NAMES[rawCode];
+            // Force naming for prefixes (Standardized with BudgetGrid)
+            if (rawCode.match(/^03\.[1-9]$/)) {
+                if (rawCode === '03.1') effectiveName = '03.1 Salarios e Remuneração';
+                else if (rawCode === '03.2') effectiveName = '03.2 Encargos Sociais';
+                else if (rawCode === '03.3') effectiveName = '03.3 Beneficios';
+                else if (rawCode === '03.4') effectiveName = '03.4 Diárias';
+                else if (rawCode === '03.5') effectiveName = '03.5 SSMA';
+                else if (rawCode === '03.6') effectiveName = '03.6 Materiais';
+                else if (rawCode === '03.7') effectiveName = '03.7 Equipamentos';
+                else if (rawCode === '03.8') effectiveName = '03.8 Comunicação/Sistema/Licenças';
+                else if (rawCode === '03.9') effectiveName = '03.9 Custo com Veiculo';
+            }
+            if (rawCode.match(/^04\.[1-8]$/)) {
+                if (rawCode === '04.1') effectiveName = '04.1 Salarios e Remuneração';
+                else if (rawCode === '04.2') effectiveName = '04.2 Encargos Sociais';
+                else if (rawCode === '04.3') effectiveName = '04.3 Beneficios';
+                else if (rawCode === '04.4') effectiveName = '04.4 SSMA';
+                else if (rawCode === '04.5') effectiveName = '04.5 Viagens';
+                else if (rawCode === '04.6') effectiveName = '04.6 Custo com Veículos';
+                else if (rawCode === '04.7') effectiveName = '04.7 Cartão Corporativo';
+                else if (rawCode === '04.8') effectiveName = '04.8 Serviços Terceirizados';
+            }
+            if (rawCode.match(/^05\.([1-9]|1[0-3])$/)) {
+                if (rawCode === '05.1') effectiveName = '05.1 Salario e Remuneração';
+                else if (rawCode === '05.2') effectiveName = '05.2 Encargos Sociais';
+                else if (rawCode === '05.3') effectiveName = '05.3 Beneficios';
+                else if (rawCode === '05.4') effectiveName = '05.4 SSMA';
+                else if (rawCode === '05.5') effectiveName = '05.5 Viagens';
+                else if (rawCode === '05.6') effectiveName = '05.6 Despesa com Socios';
+                else if (rawCode === '05.7') effectiveName = '05.7 Serviços Contratados';
+                else if (rawCode === '05.8') effectiveName = '05.8 Despesa Comercial/Marketing';
+                else if (rawCode === '05.9') effectiveName = '05.9 Despesa com Estrutura';
+                else if (rawCode === '05.10') effectiveName = '05.10 Despesa Copa e Cozinha';
+                else if (rawCode === '05.11') effectiveName = '05.11 Despesa com Veículos';
+                else if (rawCode === '05.12') effectiveName = '05.12 Despesa de Informatica';
+                else if (rawCode === '05.13') effectiveName = '05.13 Taxas e Despesas Legais';
+            }
+            if (rawCode.match(/^06\.[1-8]$/)) {
+                if (rawCode === '06.1') effectiveName = '06.1 Entradas Financeiras';
+                else if (rawCode === '06.2') effectiveName = '06.2 Saidas Financeiras';
+                else if (rawCode === '06.3') effectiveName = '06.3 Financiamento';
+                else if (rawCode === '06.4') effectiveName = '06.4 Juros/Multas';
+                else if (rawCode === '06.5') effectiveName = '06.5 Passivo Trabalhista';
+                else if (rawCode === '06.6') effectiveName = '06.6 Depreciação';
+                else if (rawCode === '06.7') effectiveName = '06.7 Cartão de Credito';
+                else if (rawCode === '06.8') effectiveName = '06.8 PDD';
+            }
 
             const uniqueKey = effectiveCode ? effectiveCode : effectiveName;
+
             if (nameMap.has(uniqueKey)) {
                 const existingNode = nameMap.get(uniqueKey)!;
                 if (!existingNode.id.split(',').includes(cat.id)) existingNode.id += ',' + cat.id;
@@ -168,23 +222,22 @@ export default function BudgetEntryGrid({ costCenterId, year }: BudgetEntryGridP
             if (effectiveCode) codeMap.set(effectiveCode, node);
         });
 
-        const syntheticDefs = [
-            { code: '01.1', name: '01.1 - Receita de Serviços' }, { code: '01.2', name: '01.2 - Receitas de Vendas' },
+        const syntheticParents = [
+            { code: '01.1', name: '01.1 - Receita de Serviços' },
+            { code: '01.2', name: '01.2 - Receitas de Vendas' },
             { code: '02.1', name: '02.1 - Tributos' },
-            ...['03.1','03.2','03.3','03.4','03.5','03.6','03.7','03.8','03.9'].map(c => ({ code: c, name: (CODE_NAMES as any)[c] || c })),
-            ...['04.1','04.2','04.3','04.4','04.5','04.6','04.7','04.8'].map(c => ({ code: c, name: (CODE_NAMES as any)[c] || c })),
-            ...['05.1','05.2','05.3','05.4','05.5','05.6','05.7','05.8','05.9','05.10','05.11','05.12','05.13'].map(c => ({ code: c, name: (CODE_NAMES as any)[c] || c })),
-            ...['06.1','06.2','06.3','06.4','06.5','06.6','06.7','06.8'].map(c => ({ code: c, name: (CODE_NAMES as any)[c] || c })),
+            ...['03.1', '03.2', '03.3', '03.4', '03.5', '03.6', '03.7', '03.8', '03.9', '04.1', '04.2', '04.3', '04.4', '04.5', '04.6', '04.7', '04.8', '05.1', '05.2', '05.3', '05.4', '05.5', '05.6', '05.7', '05.8', '05.9', '05.10', '05.11', '05.12', '05.13', '06.1', '06.2', '06.3', '06.4', '06.5', '06.6', '06.7', '06.8'].map(c => ({ code: c, name: c }))
         ];
 
-        syntheticDefs.forEach(s => {
-            if (!codeMap.has(s.code)) {
-                const node: CategoryNode = { id: `synth-${s.code}`, name: s.name, parentId: null, children: [], level: 0, code: s.code, isSynthetic: true };
+        syntheticParents.forEach(synth => {
+            if (!codeMap.has(synth.code)) {
+                const node: CategoryNode = { id: `synth-${synth.code}`, name: synth.name, parentId: null, children: [], level: 0, code: synth.code, isSynthetic: true };
                 map.set(node.id, node);
-                codeMap.set(s.code, node);
+                codeMap.set(synth.code, node);
             }
         });
 
+        // 2. Hierarchical Nesting
         map.forEach(node => {
             if (node.isSynthetic) return;
             const code = node.code || '';
@@ -192,39 +245,49 @@ export default function BudgetEntryGrid({ costCenterId, year }: BudgetEntryGridP
             if (code.startsWith('01.2.')) { const p = codeMap.get('01.2'); if (p) { p.children.push(node); return; } }
             if (code.startsWith('2.1')) { const p = codeMap.get('02.1'); if (p) { p.children.push(node); return; } }
 
+            let parentFound = false;
             if (code.includes('.')) {
-                let prefix = code.substring(0, code.lastIndexOf('.'));
-                while (prefix.length > 0) {
-                    const parent = Array.from(codeMap.values()).find(n => n.code === prefix);
-                    if (parent) { if (!parent.children.includes(node)) parent.children.push(node); break; }
-                    if (!prefix.includes('.')) break;
-                    prefix = prefix.substring(0, prefix.lastIndexOf('.'));
+                let currentPrefix = code.substring(0, code.lastIndexOf('.'));
+                while (currentPrefix.length > 0) {
+                    const potentialParent = Array.from(codeMap.values()).find(n => n.code === currentPrefix);
+                    if (potentialParent) {
+                        if (!potentialParent.children.includes(node)) potentialParent.children.push(node);
+                        parentFound = true;
+                        break;
+                    }
+                    if (!currentPrefix.includes('.')) break;
+                    currentPrefix = currentPrefix.substring(0, currentPrefix.lastIndexOf('.'));
+                }
+            }
+
+            if (!parentFound && code.match(/^(0[3456])\.(\d+)\./)) {
+                const match = code.match(/^(0[3456])\.(\d+)/);
+                if (match) {
+                    const synthParentCode = match[0];
+                    const synthParent = codeMap.get(synthParentCode);
+                    if (synthParent) {
+                        if (!synthParent.children.find(c => c.id === node.id)) synthParent.children.push(node);
+                    }
                 }
             }
         });
 
         const allChildren = new Set<string>();
-        map.forEach(n => n.children.forEach(c => allChildren.add(c.id)));
-        map.forEach(n => { if (!allChildren.has(n.id)) potentialRoots.push(n); });
+        map.forEach(node => node.children.forEach(c => allChildren.add(c.id)));
+        map.forEach(node => { if (!allChildren.has(node.id)) potentialRoots.push(node); });
 
         const uniqueRootsMap = new Map<string, CategoryNode>();
         potentialRoots.forEach(root => {
-            const key = root.code || root.name;
-            if (uniqueRootsMap.has(key)) {
-                const existing = uniqueRootsMap.get(key)!;
-                root.children.forEach(c => { if (!existing.children.find(ec => ec.id === c.id)) existing.children.push(c); });
-            } else { uniqueRootsMap.set(key, root); }
+            const rootCode = root.code || root.name;
+            if (uniqueRootsMap.has(rootCode)) {
+                const existingRoot = uniqueRootsMap.get(rootCode)!;
+                root.children.forEach(child => {
+                    if (!existingRoot.children.find(c => c.id === child.id)) existingRoot.children.push(child);
+                });
+            } else { uniqueRootsMap.set(rootCode, root); }
         });
 
         const finalRoots = Array.from(uniqueRootsMap.values());
-        map.forEach(node => {
-            if (node.children.length > 0) {
-                const uc = new Map<string, CategoryNode>();
-                node.children.forEach(c => uc.set(c.id, c));
-                node.children = Array.from(uc.values());
-            }
-        });
-
         const recalculateLevels = (nodes: CategoryNode[], lvl: number) => {
             nodes.sort((a, b) => (a.code || a.name).localeCompare(b.code || b.name, undefined, { numeric: true }));
             nodes.forEach(n => { n.level = lvl; recalculateLevels(n.children, lvl + 1); });
@@ -233,70 +296,78 @@ export default function BudgetEntryGrid({ costCenterId, year }: BudgetEntryGridP
         return finalRoots;
     }, [categories]);
 
-    // ─── NODE TOTALS (budget only) ─────────────────────────────────────
+    // ─── NODE TOTALS (Unified 3-way) ──────────────────────────────────
     const nodeTotals = useMemo(() => {
-        const totalsMap = new Map<string, { budget: number[] }>();
-        const isNegated = (code: string) => code.startsWith('06.1');
+        const totalsMap = new Map<string, { budget: number[], realized: number[], radar: number[] }>();
 
-        const calc = (node: CategoryNode, parentNeg = false): { budget: number[] } => {
-            const neg = parentNeg || isNegated(node.code || '');
-            const childTotals = node.children.map(c => calc(c, neg));
+        const calculateNode = (node: CategoryNode): { budget: number[], realized: number[], radar: number[] } => {
+            const childrenTotals = node.children.map(c => calculateNode(c));
+            
             const myBudget = new Array(12).fill(0);
+            const myRealized = new Array(12).fill(0);
+            const myRadar = new Array(12).fill(0);
 
-            childTotals.forEach(ct => { for (let i = 0; i < 12; i++) myBudget[i] += ct.budget[i]; });
+            childrenTotals.forEach(ct => {
+                for (let i = 0; i < 12; i++) {
+                    myBudget[i] += ct.budget[i];
+                    myRealized[i] += ct.realized[i];
+                    myRadar[i] += ct.radar[i];
+                }
+            });
 
-            if (!node.isSynthetic && node.children.length === 0) {
-                const sign = neg ? -1 : 1;
-                node.id.split(',').forEach(rawId => {
-                    for (let i = 0; i < 12; i++) {
-                        const d = budgetValues[`${rawId}-${i}`];
-                        myBudget[i] += sign * (d?.amount || 0);
-                    }
-                });
+            if (!node.isSynthetic) {
+                const ids = node.id.split(',');
+                for (let i = 0; i < 12; i++) {
+                    ids.forEach(id => {
+                        const bVal = budgetValues[`${id}-${i}`];
+                        if (bVal) {
+                            myBudget[i] += bVal.amount || 0;
+                            myRadar[i] += bVal.radarAmount || 0;
+                        }
+                        myRealized[i] += realizedValues[`${id}-${i}`] || 0;
+                    });
+                }
             }
 
-            totalsMap.set(node.id, { budget: myBudget });
-            return { budget: myBudget };
+            const result = { budget: myBudget, realized: myRealized, radar: myRadar };
+            totalsMap.set(node.id, result);
+            return result;
         };
 
-        treeRoots.forEach(r => calc(r));
+        treeRoots.forEach(r => calculateNode(r));
         return totalsMap;
-    }, [treeRoots, budgetValues]);
+    }, [treeRoots, budgetValues, realizedValues]);
 
-    // ─── DRE STRUCTURE ────────────────────────────────────────────────
+    // ─── DRE STRUCTURE (Unified) ──────────────────────────────────────
     const dreStructure = useMemo(() => {
-        const sumRoots = (roots: CategoryNode[], monthIdx: number) =>
-            roots.reduce((acc, r) => acc + (nodeTotals.get(r.id)?.budget[monthIdx] || 0), 0);
+        const sumRoots = (roots: CategoryNode[], monthIdx: number, type: 'budget' | 'realized' | 'radar') =>
+            roots.reduce((acc, r) => acc + (nodeTotals.get(r.id)?.[type][monthIdx] || 0), 0);
 
         const buckets = { rev: [] as CategoryNode[], taxes: [] as CategoryNode[], costs: [] as CategoryNode[], opExp: [] as CategoryNode[], adminExp: [] as CategoryNode[], fin: [] as CategoryNode[] };
         treeRoots.forEach(root => {
             const code = root.code || '';
-            const type = root.type || 'EXPENSE';
-
             if (code.startsWith('01') || code === '1') buckets.rev.push(root);
             else if (code.startsWith('02') || code === '2') buckets.taxes.push(root);
             else if (code.startsWith('3') || code.startsWith('03')) buckets.costs.push(root);
             else if (code.startsWith('4') || code.startsWith('04')) buckets.opExp.push(root);
             else if (code.startsWith('5') || code.startsWith('05') || code.startsWith('7') || code.startsWith('8')) buckets.adminExp.push(root);
             else if (code.startsWith('6') || code.startsWith('06') || code.startsWith('9') || code.startsWith('10')) buckets.fin.push(root);
-            // Fallbacks for categories without expected code pattern
-            else if (type === 'REVENUE') buckets.rev.push(root);
             else buckets.adminExp.push(root);
         });
 
         return {
             buckets,
-            calcTotals: (monthIdx: number) => {
-                const rev = sumRoots(buckets.rev, monthIdx);
-                const taxes = sumRoots(buckets.taxes, monthIdx);
+            calcTotals: (monthIdx: number, type: 'budget' | 'realized' | 'radar' = 'budget') => {
+                const rev = sumRoots(buckets.rev, monthIdx, type);
+                const taxes = sumRoots(buckets.taxes, monthIdx, type);
                 const recLiq = rev - taxes;
-                const costs = sumRoots(buckets.costs, monthIdx);
+                const costs = sumRoots(buckets.costs, monthIdx, type);
                 const grossMarg = recLiq - costs;
-                const opExp = sumRoots(buckets.opExp, monthIdx);
+                const opExp = sumRoots(buckets.opExp, monthIdx, type);
                 const contribMarg = grossMarg - opExp;
-                const adminExp = sumRoots(buckets.adminExp, monthIdx);
+                const adminExp = sumRoots(buckets.adminExp, monthIdx, type);
                 const ebitda = contribMarg - adminExp;
-                const fin = sumRoots(buckets.fin, monthIdx);
+                const fin = sumRoots(buckets.fin, monthIdx, type);
                 const netProfit = ebitda - fin;
                 return { rev, taxes, recLiq, costs, grossMarg, opExp, contribMarg, adminExp, ebitda, fin, netProfit };
             }
@@ -379,6 +450,7 @@ export default function BudgetEntryGrid({ costCenterId, year }: BudgetEntryGridP
                     costCenterId,
                     tenantId: tenantId || (categories.find((c: any) => c.id === targetId)?.tenantId || ''),
                     amount: numericVal,
+                    radarAmount: budgetValues[`${targetId}-${i}`]?.radarAmount ?? null,
                     observation: modalObservation.trim() || null
                 };
                 if (userRole === 'MASTER') entry.isLocked = lockedMonths[i];
@@ -388,7 +460,16 @@ export default function BudgetEntryGrid({ costCenterId, year }: BudgetEntryGridP
                 allIds.forEach((id: string) => {
                     if (id !== targetId) {
                         const catObj = categories.find((c: any) => c.id === id);
-                        entries.push({ categoryId: id, month: i, year, costCenterId, tenantId: catObj?.tenantId || tenantId, amount: 0, radarAmount: null });
+                        entries.push({ 
+                            categoryId: id, 
+                            month: i, 
+                            year, 
+                            costCenterId, 
+                            tenantId: catObj?.tenantId || tenantId, 
+                            amount: 0, 
+                            radarAmount: budgetValues[`${id}-${i}`]?.radarAmount ?? null,
+                            observation: null
+                        });
                     }
                 });
 
@@ -515,54 +596,53 @@ export default function BudgetEntryGrid({ costCenterId, year }: BudgetEntryGridP
 
                     {/* Budget cells for each month */}
                     {MONTHS.map((_, i) => {
-                        const val = totals?.budget[i] || 0;
-                        const cellKey = `${node.id}-${i}`;
+                        const bg = totals?.budget[i] || 0;
+                        const rd = totals?.radar[i] || 0;
+                        const rl = totals?.realized[i] || 0;
                         const rawData = node.id.split(',').reduce((acc: any, id) => {
                             const d = budgetValues[`${id}-${i}`];
                             return d ? d : acc;
                         }, null);
-                        const hasValue = rawData?.amount > 0;
                         const locked = rawData?.isLocked || isCCLocked;
 
                         return (
-                            <td
-                                key={i}
-                                onClick={(e) => { e.stopPropagation(); if (!hasChildren) openBudgetModal(node.id, node.name, i); }}
-                                style={{
-                                    padding: '0.5rem 0.75rem',
-                                    textAlign: 'right',
-                                    fontSize: '0.8rem',
-                                    color: hasValue ? 'var(--text-primary)' : 'var(--text-muted)',
-                                    cursor: hasChildren ? 'default' : (isLocked ? 'not-allowed' : 'pointer'),
-                                    borderBottom: '1px solid var(--border-subtle)',
-                                    borderRight: '1px solid var(--border-subtle)',
-                                    whiteSpace: 'nowrap',
-                                    background: locked && !hasChildren ? 'rgba(239,68,68,0.04)' : 'transparent',
-                                    transition: 'background 0.1s',
-                                    fontWeight: node.level === 0 ? 700 : 400,
-                                    opacity: hasChildren ? 0.85 : 1
-                                }}
-                                className={!hasChildren && !isLocked ? 'budget-cell' : ''}
-                                title={rawData?.observation ? `Obs: ${rawData.observation}` : hasChildren ? 'Subtotal' : 'Clique para editar'}
-                            >
-                                {locked && !hasChildren && <span style={{ marginRight: '0.3rem', fontSize: '0.65rem', opacity: 0.5 }}>🔒</span>}
-                                {val === 0 ? (hasChildren ? '-' : <span style={{ opacity: 0.3 }}>—</span>) : fmt(val)}
-                            </td>
+                            <React.Fragment key={i}>
+                                <td
+                                    onClick={(e) => { e.stopPropagation(); if (!hasChildren) openBudgetModal(node.id, node.name, i); }}
+                                    style={{
+                                        padding: '0.45rem 0.6rem', textAlign: 'right', fontSize: '0.78rem',
+                                        color: bg === 0 ? 'var(--text-muted)' : 'var(--text-primary)',
+                                        cursor: hasChildren ? 'default' : (isLocked ? 'not-allowed' : 'pointer'),
+                                        borderBottom: '1px solid var(--border-subtle)', borderRight: '1px solid var(--border-subtle)',
+                                        whiteSpace: 'nowrap', transition: 'background 0.1s',
+                                        fontWeight: node.level === 0 ? 700 : 400, opacity: hasChildren ? 0.85 : 1,
+                                        background: locked && !hasChildren ? 'rgba(239,68,68,0.04)' : 'transparent'
+                                    }}
+                                    className={!hasChildren && !isLocked ? 'budget-cell' : ''}
+                                    title={rawData?.observation ? `Obs: ${rawData.observation}` : hasChildren ? 'Subtotal' : 'Clique para editar'}
+                                >
+                                    {locked && !hasChildren && <span style={{ marginRight: '0.2rem', fontSize: '0.6rem', opacity: 0.5 }}>🔒</span>}
+                                    {bg === 0 ? (hasChildren ? '-' : <span style={{ opacity: 0.3 }}>—</span>) : fmt(bg)}
+                                </td>
+                                <td style={{ padding: '0.45rem 0.6rem', textAlign: 'right', fontSize: '0.78rem', color: rd === 0 ? 'var(--text-muted)' : 'var(--accent-indigo)', opacity: 0.9, borderBottom: '1px solid var(--border-subtle)', borderRight: '1px solid var(--border-subtle)', whiteSpace: 'nowrap', background: 'rgba(99, 102, 241, 0.02)' }}>
+                                    {rd === 0 ? '-' : fmt(rd)}
+                                </td>
+                                <td style={{ padding: '0.45rem 0.6rem', textAlign: 'right', fontSize: '0.78rem', color: rl === 0 ? 'var(--text-muted)' : 'var(--accent-blue)', opacity: 0.9, borderBottom: '1px solid var(--border-subtle)', borderRight: '1px solid var(--border-subtle)', whiteSpace: 'nowrap' }}>
+                                    {rl === 0 ? '-' : fmt(rl)}
+                                </td>
+                            </React.Fragment>
                         );
                     })}
 
                     {/* Annual total */}
-                    <td style={{
-                        padding: '0.5rem 0.75rem',
-                        textAlign: 'right',
-                        fontSize: '0.8rem',
-                        fontWeight: 800,
-                        color: 'var(--text-primary)',
-                        whiteSpace: 'nowrap',
-                        borderLeft: '2px solid var(--border-default)',
-                        background: 'var(--bg-surface)'
-                    }}>
+                    <td style={{ padding: '0.5rem 0.75rem', textAlign: 'right', fontSize: '0.78rem', fontWeight: 800, color: 'var(--text-primary)', whiteSpace: 'nowrap', borderLeft: '2px solid var(--border-default)', background: 'var(--bg-surface)' }}>
                         {fmt((totals?.budget || new Array(12).fill(0)).reduce((a: number, b: number) => a + b, 0))}
+                    </td>
+                    <td style={{ padding: '0.5rem 0.75rem', textAlign: 'right', fontSize: '0.78rem', fontWeight: 700, color: 'var(--accent-indigo)', whiteSpace: 'nowrap', background: 'var(--bg-surface)', borderLeft: '1px solid var(--border-subtle)' }}>
+                        {fmt((totals?.radar || new Array(12).fill(0)).reduce((a: number, b: number) => a + b, 0))}
+                    </td>
+                    <td style={{ padding: '0.5rem 0.75rem', textAlign: 'right', fontSize: '0.78rem', fontWeight: 700, color: 'var(--accent-blue)', whiteSpace: 'nowrap', background: 'var(--bg-surface)', borderLeft: '1px solid var(--border-subtle)', borderRight: '1px solid var(--border-subtle)' }}>
+                        {fmt((totals?.realized || new Array(12).fill(0)).reduce((a: number, b: number) => a + b, 0))}
                     </td>
                 </tr>
                 {isExpanded && node.children.map(child => renderNode(child))}
@@ -571,9 +651,11 @@ export default function BudgetEntryGrid({ costCenterId, year }: BudgetEntryGridP
     };
 
     // ─── RENDER SUMMARY ROW ───────────────────────────────────────────
-    const renderSummaryRow = (label: string, values: number[], isBold = false, bgColor = 'var(--bg-elevated)', textColor = 'var(--text-primary)', groupId?: string) => {
+    const renderSummaryRow = (label: string, valuesB: number[], valuesRd: number[], valuesRl: number[], isBold = false, bgColor = 'var(--bg-elevated)', textColor = 'var(--text-primary)', groupId?: string) => {
         const isExpanded = groupId ? expandedGroups.has(groupId) : true;
-        const annual = values.reduce((a, b) => a + b, 0);
+        const annualB = valuesB.reduce((a, b) => a + b, 0);
+        const annualRd = valuesRd.reduce((a, b) => a + b, 0);
+        const annualRl = valuesRl.reduce((a, b) => a + b, 0);
         return (
             <tr onClick={() => groupId && toggleGroup(groupId)} style={{ background: bgColor, borderBottom: '1px solid var(--border-default)', fontWeight: isBold ? 800 : 600, cursor: groupId ? 'pointer' : 'default' }}>
                 <td style={{ padding: '0.85rem 1rem', position: 'sticky', left: 0, background: bgColor.includes('gradient') ? '#2563eb' : bgColor, zIndex: 10, color: textColor, fontSize: '0.85rem', minWidth: '380px', width: '380px', borderRight: '1px solid var(--border-default)', textTransform: 'uppercase', letterSpacing: '0.02em' }}>
@@ -584,12 +666,26 @@ export default function BudgetEntryGrid({ costCenterId, year }: BudgetEntryGridP
                     </div>
                 </td>
                 {MONTHS.map((_, i) => (
-                    <td key={i} style={{ padding: '0.65rem 0.75rem', textAlign: 'right', fontSize: '0.82rem', color: textColor, whiteSpace: 'nowrap', borderRight: '1px solid var(--border-subtle)', fontWeight: isBold ? 800 : 600 }}>
-                        {values[i] === 0 ? '-' : fmt(values[i])}
-                    </td>
+                    <React.Fragment key={i}>
+                        <td style={{ padding: '0.65rem 0.6rem', textAlign: 'right', fontSize: '0.8rem', color: textColor, whiteSpace: 'nowrap', borderRight: '1px solid var(--border-subtle)', fontWeight: isBold ? 800 : 600 }}>
+                            {valuesB[i] === 0 ? '-' : fmt(valuesB[i])}
+                        </td>
+                        <td style={{ padding: '0.65rem 0.6rem', textAlign: 'right', fontSize: '0.8rem', color: 'var(--accent-indigo)', whiteSpace: 'nowrap', borderRight: '1px solid var(--border-subtle)', fontWeight: isBold ? 800 : 600, opacity: 0.8, background: 'rgba(99, 102, 241, 0.05)' }}>
+                            {valuesRd[i] === 0 ? '-' : fmt(valuesRd[i])}
+                        </td>
+                        <td style={{ padding: '0.65rem 0.6rem', textAlign: 'right', fontSize: '0.8rem', color: 'var(--accent-blue)', whiteSpace: 'nowrap', borderRight: '1px solid var(--border-subtle)', fontWeight: isBold ? 800 : 600, opacity: 0.8 }}>
+                            {valuesRl[i] === 0 ? '-' : fmt(valuesRl[i])}
+                        </td>
+                    </React.Fragment>
                 ))}
                 <td style={{ padding: '0.65rem 0.75rem', textAlign: 'right', fontSize: '0.82rem', fontWeight: 800, color: textColor, whiteSpace: 'nowrap', borderLeft: '2px solid var(--border-default)', background: 'var(--bg-surface)' }}>
-                    {annual === 0 ? '-' : fmt(annual)}
+                    {annualB === 0 ? '-' : fmt(annualB)}
+                </td>
+                <td style={{ padding: '0.65rem 0.75rem', textAlign: 'right', fontSize: '0.82rem', fontWeight: 800, color: 'var(--accent-indigo)', whiteSpace: 'nowrap', borderLeft: '1px solid var(--border-subtle)', background: 'var(--bg-surface)' }}>
+                    {annualRd === 0 ? '-' : fmt(annualRd)}
+                </td>
+                <td style={{ padding: '0.65rem 0.75rem', textAlign: 'right', fontSize: '0.82rem', fontWeight: 800, color: 'var(--accent-blue)', whiteSpace: 'nowrap', borderLeft: '1px solid var(--border-subtle)', borderRight: '1px solid var(--border-default)', background: 'var(--bg-surface)' }}>
+                    {annualRl === 0 ? '-' : fmt(annualRl)}
                 </td>
             </tr>
         );
@@ -679,49 +775,59 @@ export default function BudgetEntryGrid({ costCenterId, year }: BudgetEntryGridP
                                 ▸ Estrutura DRE
                             </th>
                             {MONTHS.map((m, i) => (
-                                <th key={i} style={{ padding: '0.75rem 0.5rem', textAlign: 'center', fontSize: '0.65rem', fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.07em', whiteSpace: 'nowrap', borderRight: '1px solid var(--border-subtle)', borderBottom: '2px solid var(--border-default)', minWidth: '100px' }}>
-                                    {m}
+                                <th key={i} style={{ padding: '0.3rem 0', textAlign: 'center', fontSize: '0.65rem', fontWeight: 800, borderRight: '1px solid var(--border-subtle)', borderBottom: '2px solid var(--border-default)', minWidth: '240px' }}>
+                                    <div style={{ color: 'var(--text-muted)', marginBottom: '0.2rem', textTransform: 'uppercase' }}>{m}</div>
+                                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', fontSize: '0.55rem', gap: '0' }}>
+                                        <span style={{ color: 'var(--text-muted)', borderRight: '1px solid rgba(0,0,0,0.05)' }}>ORC</span>
+                                        <span style={{ color: 'var(--accent-indigo)', borderRight: '1px solid rgba(0,0,0,0.05)' }}>RAD</span>
+                                        <span style={{ color: 'var(--accent-blue)' }}>REA</span>
+                                    </div>
                                 </th>
                             ))}
-                            <th style={{ padding: '0.75rem 0.75rem', textAlign: 'right', fontSize: '0.65rem', fontWeight: 800, color: 'var(--accent-blue)', textTransform: 'uppercase', letterSpacing: '0.07em', whiteSpace: 'nowrap', borderLeft: '2px solid var(--border-default)', borderBottom: '2px solid var(--border-default)', minWidth: '120px', background: 'var(--bg-surface)' }}>
-                                TOTAL ANUAL
+                            <th style={{ padding: '0.3rem 0.5rem', textAlign: 'center', fontSize: '0.65rem', fontWeight: 800, borderLeft: '2px solid var(--border-default)', borderBottom: '2px solid var(--border-default)', minWidth: '240px', background: 'var(--bg-surface)' }}>
+                                <div style={{ color: 'var(--accent-blue)', marginBottom: '0.2rem' }}>TOTAL ANUAL</div>
+                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', fontSize: '0.55rem', gap: '0' }}>
+                                    <span style={{ color: 'var(--text-primary)' }}>ORÇADO</span>
+                                    <span style={{ color: 'var(--accent-indigo)' }}>RADAR</span>
+                                    <span style={{ color: 'var(--accent-blue)' }}>REALIZADO</span>
+                                </div>
                             </th>
                         </tr>
                     </thead>
                     <tbody>
                         {/* 01. RECEITA BRUTA */}
-                        {renderSummaryRow('01. RECEITA BRUTA', dreMonthlyData.map(d => d.rev), true, 'var(--bg-elevated)', 'var(--accent-blue)', 'rev')}
-                        {expandedGroups.has('rev') && dreStructure.buckets.rev.map(r => renderNode(r))}
+                        {renderSummaryRow('01. RECEITA BRUTA', dreMonthlyData.map(d => d.rev), MONTHS.map((_, i) => dreStructure.calcTotals(i, 'radar').rev), MONTHS.map((_, i) => dreStructure.calcTotals(i, 'realized').rev), true, 'var(--bg-elevated)', 'var(--accent-blue)', 'rev')}
+                        {expandedGroups.has('rev') && (dreStructure.buckets.rev || []).map(r => renderNode(r))}
 
                         {/* 02. TRIBUTO */}
-                        {renderSummaryRow('02. Tributo sobre Faturamento', dreMonthlyData.map(d => d.taxes), true, 'var(--bg-surface)', 'var(--text-secondary)', 'taxes')}
-                        {expandedGroups.has('taxes') && dreStructure.buckets.taxes.map(r => renderNode(r))}
+                        {renderSummaryRow('02. Tributo sobre Faturamento', dreMonthlyData.map(d => d.taxes), MONTHS.map((_, i) => dreStructure.calcTotals(i, 'radar').taxes), MONTHS.map((_, i) => dreStructure.calcTotals(i, 'realized').taxes), true, 'var(--bg-surface)', 'var(--text-secondary)', 'taxes')}
+                        {expandedGroups.has('taxes') && (dreStructure.buckets.taxes || []).map(r => renderNode(r))}
 
-                        {renderSummaryRow('(=) RECEITA LÍQUIDA', dreMonthlyData.map(d => d.recLiq), true, '#eff6ff', 'var(--accent-blue)')}
+                        {renderSummaryRow('(=) RECEITA LÍQUIDA', dreMonthlyData.map(d => d.recLiq), MONTHS.map((_, i) => dreStructure.calcTotals(i, 'radar').recLiq), MONTHS.map((_, i) => dreStructure.calcTotals(i, 'realized').recLiq), true, '#eff6ff', 'var(--accent-blue)')}
 
                         {/* 03. CUSTO OPERACIONAL */}
-                        {renderSummaryRow('03. Custo Operacional', dreMonthlyData.map(d => d.costs), true, 'var(--bg-surface)', 'var(--text-secondary)', 'costs')}
-                        {expandedGroups.has('costs') && dreStructure.buckets.costs.map(r => renderNode(r))}
+                        {renderSummaryRow('03. Custo Operacional', dreMonthlyData.map(d => d.costs), MONTHS.map((_, i) => dreStructure.calcTotals(i, 'radar').costs), MONTHS.map((_, i) => dreStructure.calcTotals(i, 'realized').costs), true, 'var(--bg-surface)', 'var(--text-secondary)', 'costs')}
+                        {expandedGroups.has('costs') && (dreStructure.buckets.costs || []).map(r => renderNode(r))}
 
-                        {renderSummaryRow('(=) MARGEM BRUTA', dreMonthlyData.map(d => d.grossMarg), true, '#f0fdf4', 'var(--accent-green)')}
+                        {renderSummaryRow('(=) MARGEM BRUTA', dreMonthlyData.map(d => d.grossMarg), MONTHS.map((_, i) => dreStructure.calcTotals(i, 'radar').grossMarg), MONTHS.map((_, i) => dreStructure.calcTotals(i, 'realized').grossMarg), true, '#f0fdf4', 'var(--accent-green)')}
 
                         {/* 04. DESPESA OPERACIONAL */}
-                        {renderSummaryRow('04. Despesa Operacional', dreMonthlyData.map(d => d.opExp), true, 'var(--bg-surface)', 'var(--text-secondary)', 'opExp')}
-                        {expandedGroups.has('opExp') && dreStructure.buckets.opExp.map(r => renderNode(r))}
+                        {renderSummaryRow('04. Despesa Operacional', dreMonthlyData.map(d => d.opExp), MONTHS.map((_, i) => dreStructure.calcTotals(i, 'radar').opExp), MONTHS.map((_, i) => dreStructure.calcTotals(i, 'realized').opExp), true, 'var(--bg-surface)', 'var(--text-secondary)', 'opExp')}
+                        {expandedGroups.has('opExp') && (dreStructure.buckets.opExp || []).map(r => renderNode(r))}
 
-                        {renderSummaryRow('(=) MARGEM DE CONTRIBUIÇÃO', dreMonthlyData.map(d => d.contribMarg), true, '#fdfaf2', 'var(--accent-amber)')}
+                        {renderSummaryRow('(=) MARGEM DE CONTRIBUIÇÃO', dreMonthlyData.map(d => d.contribMarg), MONTHS.map((_, i) => dreStructure.calcTotals(i, 'radar').contribMarg), MONTHS.map((_, i) => dreStructure.calcTotals(i, 'realized').contribMarg), true, '#fdfaf2', 'var(--accent-amber)')}
 
                         {/* 05. DESPESA ADMINISTRATIVA */}
-                        {renderSummaryRow('05. Despesas Administrativas', dreMonthlyData.map(d => d.adminExp), true, 'var(--bg-surface)', 'var(--text-secondary)', 'adminExp')}
-                        {expandedGroups.has('adminExp') && dreStructure.buckets.adminExp.map(r => renderNode(r))}
+                        {renderSummaryRow('05. Despesas Administrativas', dreMonthlyData.map(d => d.adminExp), MONTHS.map((_, i) => dreStructure.calcTotals(i, 'radar').adminExp), MONTHS.map((_, i) => dreStructure.calcTotals(i, 'realized').adminExp), true, 'var(--bg-surface)', 'var(--text-secondary)', 'adminExp')}
+                        {expandedGroups.has('adminExp') && (dreStructure.buckets.adminExp || []).map(r => renderNode(r))}
 
-                        {renderSummaryRow('(=) EBITDA', dreMonthlyData.map(d => d.ebitda), true, '#f5f3ff', 'var(--accent-indigo)')}
+                        {renderSummaryRow('(=) EBITDA', dreMonthlyData.map(d => d.ebitda), MONTHS.map((_, i) => dreStructure.calcTotals(i, 'radar').ebitda), MONTHS.map((_, i) => dreStructure.calcTotals(i, 'realized').ebitda), true, '#f5f3ff', 'var(--accent-indigo)')}
 
                         {/* 06. DESPESA FINANCEIRA */}
-                        {renderSummaryRow('06. Despesas Financeiras', dreMonthlyData.map(d => d.fin), true, 'var(--bg-surface)', 'var(--text-secondary)', 'fin')}
-                        {expandedGroups.has('fin') && dreStructure.buckets.fin.map(r => renderNode(r))}
+                        {renderSummaryRow('06. Despesas Financeiras', dreMonthlyData.map(d => d.fin), MONTHS.map((_, i) => dreStructure.calcTotals(i, 'radar').fin), MONTHS.map((_, i) => dreStructure.calcTotals(i, 'realized').fin), true, 'var(--bg-surface)', 'var(--text-secondary)', 'fin')}
+                        {expandedGroups.has('fin') && (dreStructure.buckets.fin || []).map(r => renderNode(r))}
 
-                        {renderSummaryRow('(=) LUCRO LÍQUIDO', dreMonthlyData.map(d => d.netProfit), true, 'var(--gradient-brand)', 'white')}
+                        {renderSummaryRow('(=) LUCRO LÍQUIDO', dreMonthlyData.map(d => d.netProfit), MONTHS.map((_, i) => dreStructure.calcTotals(i, 'radar').netProfit), MONTHS.map((_, i) => dreStructure.calcTotals(i, 'realized').netProfit), true, 'var(--gradient-brand)', 'white')}
                     </tbody>
                 </table>
             </div>

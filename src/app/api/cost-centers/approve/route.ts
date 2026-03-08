@@ -19,8 +19,8 @@ export async function POST(request: Request) {
             return NextResponse.json({ success: false, error: 'Dados incompletos' }, { status: 400 });
         }
 
-        // action can be: 'SUBMIT_N1', 'APPROVE_N2', 'REJECT', 'REOPEN'
-        if (!['SUBMIT_N1', 'APPROVE_N2', 'REJECT', 'REOPEN'].includes(action)) {
+        // action can be: 'SUBMIT_N1', 'APPROVE_N1', 'APPROVE_N2', 'REJECT', 'REOPEN'
+        if (!['SUBMIT_N1', 'APPROVE_N1', 'APPROVE_N2', 'REJECT', 'REOPEN'].includes(action)) {
             return NextResponse.json({ success: false, error: 'Ação inválida' }, { status: 400 });
         }
 

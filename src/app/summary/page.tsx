@@ -458,7 +458,31 @@ export default function BudgetSummaryPage() {
                                             {isExpanded && group.costCenters.map((cc) => (
                                                 <tr key={cc.costCenterId} className="cc-row" style={{ background: 'var(--bg-surface)' }}>
                                                     <td style={{ ...td, paddingLeft: '3.5rem', color: 'var(--text-secondary)', fontWeight: 500, padding: '0.75rem 1rem 0.75rem 3.5rem' }}>
-                                                        {cc.costCenterName}
+                                                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                                                            {cc.costCenterName}
+                                                            <Link
+                                                                href={`/orcamento/${cc.costCenterId}?year=${selectedYear}`}
+                                                                onClick={(e) => e.stopPropagation()}
+                                                                title="Abrir tela de lançamento de orçamento"
+                                                                style={{
+                                                                    display: 'inline-flex',
+                                                                    alignItems: 'center',
+                                                                    gap: '0.3rem',
+                                                                    padding: '0.25rem 0.65rem',
+                                                                    borderRadius: '6px',
+                                                                    background: 'rgba(59,130,246,0.08)',
+                                                                    border: '1px solid rgba(59,130,246,0.2)',
+                                                                    color: 'var(--accent-blue)',
+                                                                    fontSize: '0.7rem',
+                                                                    fontWeight: 700,
+                                                                    textDecoration: 'none',
+                                                                    whiteSpace: 'nowrap',
+                                                                    transition: 'all 0.15s ease'
+                                                                }}
+                                                            >
+                                                                ✏️ Orçar
+                                                            </Link>
+                                                        </div>
                                                     </td>
                                                     <td style={{ ...td, textAlign: 'right', color: cc.totalRevenue > 0 ? 'var(--accent-green)' : 'var(--text-muted)', fontWeight: 600 }}>
                                                         {formatCurrency(cc.totalRevenue)}

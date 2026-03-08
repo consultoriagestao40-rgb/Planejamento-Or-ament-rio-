@@ -66,9 +66,7 @@ export async function POST(request: Request) {
                 updateData.n1ApprovedAt = now;
                 break;
             case 'APPROVE_N2':
-                if (currentLock?.status !== 'AWAITING_N2') {
-                    return NextResponse.json({ success: false, error: 'O orçamento não está aguardando N2.' }, { status: 400 });
-                }
+
                 updateData.status = 'APPROVED';
                 updateData.isLocked = true;
                 updateData.n2ApprovedBy = userName;

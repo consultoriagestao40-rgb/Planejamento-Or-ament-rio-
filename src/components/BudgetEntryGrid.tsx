@@ -5,6 +5,25 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { MONTHS } from '@/lib/mock-data';
 
+// Constante de módulo — fora do componente para evitar redeclaração
+const CODE_NAMES: Record<string, string> = {
+    '03.1': '03.1 Salarios e Remuneração', '03.2': '03.2 Encargos Sociais', '03.3': '03.3 Beneficios',
+    '03.4': '03.4 Diárias', '03.5': '03.5 SSMA', '03.6': '03.6 Materiais',
+    '03.7': '03.7 Equipamentos', '03.8': '03.8 Comunicação/Sistema/Licenças', '03.9': '03.9 Custo com Veiculo',
+    '04.1': '04.1 Salarios e Remuneração', '04.2': '04.2 Encargos Sociais', '04.3': '04.3 Beneficios',
+    '04.4': '04.4 SSMA', '04.5': '04.5 Viagens', '04.6': '04.6 Custo com Veículos',
+    '04.7': '04.7 Cartão Corporativo', '04.8': '04.8 Serviços Terceirizados',
+    '05.1': '05.1 Salario e Remuneração', '05.2': '05.2 Encargos Sociais', '05.3': '05.3 Beneficios',
+    '05.4': '05.4 SSMA', '05.5': '05.5 Viagens', '05.6': '05.6 Despesa com Socios',
+    '05.7': '05.7 Serviços Contratados', '05.8': '05.8 Despesa Comercial/Marketing',
+    '05.9': '05.9 Despesa com Estrutura', '05.10': '05.10 Despesa Copa e Cozinha',
+    '05.11': '05.11 Despesa com Veículos', '05.12': '05.12 Despesa de Informatica',
+    '05.13': '05.13 Taxas e Despesas Legais',
+    '06.1': '06.1 Entradas Financeiras', '06.2': '06.2 Saidas Financeiras',
+    '06.3': '06.3 Financiamento', '06.4': '06.4 Juros/Multas', '06.5': '06.5 Passivo Trabalhista',
+    '06.6': '06.6 Depreciação', '06.7': '06.7 Cartão de Credito', '06.8': '06.8 PDD',
+};
+
 interface BudgetEntryGridProps {
     costCenterId: string;
     year: number;
@@ -133,23 +152,6 @@ export default function BudgetEntryGrid({ costCenterId, year }: BudgetEntryGridP
                 }
             }
 
-            const CODE_NAMES: Record<string, string> = {
-                '03.1': '03.1 Salarios e Remuneração', '03.2': '03.2 Encargos Sociais', '03.3': '03.3 Beneficios',
-                '03.4': '03.4 Diárias', '03.5': '03.5 SSMA', '03.6': '03.6 Materiais',
-                '03.7': '03.7 Equipamentos', '03.8': '03.8 Comunicação/Sistema/Licenças', '03.9': '03.9 Custo com Veiculo',
-                '04.1': '04.1 Salarios e Remuneração', '04.2': '04.2 Encargos Sociais', '04.3': '04.3 Beneficios',
-                '04.4': '04.4 SSMA', '04.5': '04.5 Viagens', '04.6': '04.6 Custo com Veículos',
-                '04.7': '04.7 Cartão Corporativo', '04.8': '04.8 Serviços Terceirizados',
-                '05.1': '05.1 Salario e Remuneração', '05.2': '05.2 Encargos Sociais', '05.3': '05.3 Beneficios',
-                '05.4': '05.4 SSMA', '05.5': '05.5 Viagens', '05.6': '05.6 Despesa com Socios',
-                '05.7': '05.7 Serviços Contratados', '05.8': '05.8 Despesa Comercial/Marketing',
-                '05.9': '05.9 Despesa com Estrutura', '05.10': '05.10 Despesa Copa e Cozinha',
-                '05.11': '05.11 Despesa com Veículos', '05.12': '05.12 Despesa de Informatica',
-                '05.13': '05.13 Taxas e Despesas Legais',
-                '06.1': '06.1 Entradas Financeiras', '06.2': '06.2 Saidas Financeiras',
-                '06.3': '06.3 Financiamento', '06.4': '06.4 Juros/Multas', '06.5': '06.5 Passivo Trabalhista',
-                '06.6': '06.6 Depreciação', '06.7': '06.7 Cartão de Credito', '06.8': '06.8 PDD',
-            };
             if (CODE_NAMES[rawCode]) effectiveName = CODE_NAMES[rawCode];
 
             const uniqueKey = effectiveCode ? effectiveCode : effectiveName;
@@ -174,23 +176,6 @@ export default function BudgetEntryGrid({ costCenterId, year }: BudgetEntryGridP
             ...['05.1','05.2','05.3','05.4','05.5','05.6','05.7','05.8','05.9','05.10','05.11','05.12','05.13'].map(c => ({ code: c, name: (CODE_NAMES as any)[c] || c })),
             ...['06.1','06.2','06.3','06.4','06.5','06.6','06.7','06.8'].map(c => ({ code: c, name: (CODE_NAMES as any)[c] || c })),
         ];
-        const CODE_NAMES: Record<string, string> = {
-            '03.1': '03.1 Salarios e Remuneração', '03.2': '03.2 Encargos Sociais', '03.3': '03.3 Beneficios',
-            '03.4': '03.4 Diárias', '03.5': '03.5 SSMA', '03.6': '03.6 Materiais',
-            '03.7': '03.7 Equipamentos', '03.8': '03.8 Comunicação/Sistema/Licenças', '03.9': '03.9 Custo com Veiculo',
-            '04.1': '04.1 Salarios e Remuneração', '04.2': '04.2 Encargos Sociais', '04.3': '04.3 Beneficios',
-            '04.4': '04.4 SSMA', '04.5': '04.5 Viagens', '04.6': '04.6 Custo com Veículos',
-            '04.7': '04.7 Cartão Corporativo', '04.8': '04.8 Serviços Terceirizados',
-            '05.1': '05.1 Salario e Remuneração', '05.2': '05.2 Encargos Sociais', '05.3': '05.3 Beneficios',
-            '05.4': '05.4 SSMA', '05.5': '05.5 Viagens', '05.6': '05.6 Despesa com Socios',
-            '05.7': '05.7 Serviços Contratados', '05.8': '05.8 Despesa Comercial/Marketing',
-            '05.9': '05.9 Despesa com Estrutura', '05.10': '05.10 Despesa Copa e Cozinha',
-            '05.11': '05.11 Despesa com Veículos', '05.12': '05.12 Despesa de Informatica',
-            '05.13': '05.13 Taxas e Despesas Legais',
-            '06.1': '06.1 Entradas Financeiras', '06.2': '06.2 Saidas Financeiras',
-            '06.3': '06.3 Financiamento', '06.4': '06.4 Juros/Multas', '06.5': '06.5 Passivo Trabalhista',
-            '06.6': '06.6 Depreciação', '06.7': '06.7 Cartão de Credito', '06.8': '06.8 PDD',
-        };
 
         syntheticDefs.forEach(s => {
             if (!codeMap.has(s.code)) {

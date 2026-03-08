@@ -68,6 +68,8 @@ export default function BudgetGrid({
     const [selectedCostCenter, setSelectedCostCenter] = useState<string[]>(['DEFAULT']);
     const [pendingCostCenter, setPendingCostCenter] = useState<string[]>(['DEFAULT']);
     const [costCenterDropdownOpen, setCostCenterDropdownOpen] = useState(false);
+    const [companySearch, setCompanySearch] = useState('');
+    const [costCenterSearch, setCostCenterSearch] = useState('');
     const [selectedYear, setSelectedYear] = useState(externalYear);
     const [viewMode, setViewMode] = useState<'caixa' | 'competencia'>('competencia');
     const [viewPeriod, setViewPeriod] = useState<'month' | 'quarter'>('month');
@@ -1352,6 +1354,8 @@ export default function BudgetGrid({
         setSelectedCompany(pendingCompany);
         setCostCenterDropdownOpen(false);
         setCompanyDropdownOpen(false);
+        setCompanySearch('');
+        setCostCenterSearch('');
     };
 
     const clearFilter = () => {
@@ -1361,6 +1365,8 @@ export default function BudgetGrid({
         setSelectedCompany(['DEFAULT']);
         setCostCenterDropdownOpen(false);
         setCompanyDropdownOpen(false);
+        setCompanySearch('');
+        setCostCenterSearch('');
     };
 
     const getSelectedCostCenterNames = (current: string[]) => {
@@ -1404,9 +1410,19 @@ export default function BudgetGrid({
                             {companyDropdownOpen && (
                                 <>
                                     <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, zIndex: 30 }} onClick={() => setCompanyDropdownOpen(false)} />
-                                    <div className="glass-card" style={{ position: 'absolute', top: 'calc(100% + 8px)', left: 0, right: 0, zIndex: 40, maxHeight: '300px', overflowY: 'auto', background: 'var(--bg-surface)' }}>
-                                        {companies.map(c => (
-                                            <label key={c.id} style={{ display: 'flex', alignItems: 'center', padding: '0.75rem 1rem', cursor: 'pointer', borderBottom: '1px solid var(--border-subtle)', fontSize: '0.85rem' }}>
+                                    <div className="glass-card" style={{ position: 'absolute', top: 'calc(100% + 8px)', left: 0, right: 0, zIndex: 40, maxHeight: '350px', overflowY: 'auto', background: 'var(--bg-surface)', padding: '0.5rem 0' }}>
+                                        <div style={{ padding: '0.5rem 1rem', borderBottom: '1px solid var(--border-subtle)', position: 'sticky', top: 0, background: 'var(--bg-surface)', zIndex: 10 }}>
+                                            <input 
+                                                type="text" 
+                                                placeholder="Pesquisar empresa..." 
+                                                value={companySearch}
+                                                onChange={(e) => setCompanySearch(e.target.value)}
+                                                onClick={(e) => e.stopPropagation()}
+                                                style={{ width: '100%', padding: '0.4rem 0.6rem', fontSize: '0.75rem', borderRadius: '6px', border: '1px solid var(--border-default)', background: 'var(--bg-base)', outline: 'none' }}
+                                            />
+                                        </div>
+                                        {companies.filter(c => c.name.toLowerCase().includes(companySearch.toLowerCase())).map(c => (
+                                            <label key={c.id} style={{ display: 'flex', alignItems: 'center', padding: '0.65rem 1rem', cursor: 'pointer', borderBottom: '1px solid var(--border-subtle)', fontSize: '0.8rem' }} className="hover-row">
                                                 <input type="checkbox" checked={pendingCompany.includes(c.id)} onChange={() => handleCompanyToggle(c.id)} style={{ marginRight: '0.75rem', accentColor: 'var(--accent-blue)' }} />
                                                 <span style={{ flex: 1, color: 'var(--text-primary)' }}>{c.name}</span>
                                             </label>
@@ -1433,9 +1449,19 @@ export default function BudgetGrid({
                             {costCenterDropdownOpen && (
                                 <>
                                     <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, zIndex: 30 }} onClick={() => setCostCenterDropdownOpen(false)} />
-                                    <div className="glass-card" style={{ position: 'absolute', top: 'calc(100% + 8px)', left: 0, right: 0, zIndex: 40, maxHeight: '300px', overflowY: 'auto', background: 'var(--bg-surface)' }}>
-                                        {filteredCostCenters.map(cc => (
-                                            <label key={cc.id} style={{ display: 'flex', alignItems: 'center', padding: '0.75rem 1rem', cursor: 'pointer', borderBottom: '1px solid var(--border-subtle)', fontSize: '0.85rem' }}>
+                                    <div className="glass-card" style={{ position: 'absolute', top: 'calc(100% + 8px)', left: 0, right: 0, zIndex: 40, maxHeight: '350px', overflowY: 'auto', background: 'var(--bg-surface)', padding: '0.5rem 0' }}>
+                                        <div style={{ padding: '0.5rem 1rem', borderBottom: '1px solid var(--border-subtle)', position: 'sticky', top: 0, background: 'var(--bg-surface)', zIndex: 10 }}>
+                                            <input 
+                                                type="text" 
+                                                placeholder="Pesquisar CC..." 
+                                                value={costCenterSearch}
+                                                onChange={(e) => setCostCenterSearch(e.target.value)}
+                                                onClick={(e) => e.stopPropagation()}
+                                                style={{ width: '100%', padding: '0.4rem 0.6rem', fontSize: '0.75rem', borderRadius: '6px', border: '1px solid var(--border-default)', background: 'var(--bg-base)', outline: 'none' }}
+                                            />
+                                        </div>
+                                        {filteredCostCenters.filter(cc => cc.name.toLowerCase().includes(costCenterSearch.toLowerCase())).map(cc => (
+                                            <label key={cc.id} style={{ display: 'flex', alignItems: 'center', padding: '0.65rem 1rem', cursor: 'pointer', borderBottom: '1px solid var(--border-subtle)', fontSize: '0.8rem' }} className="hover-row">
                                                 <input type="checkbox" checked={pendingCostCenter.includes(cc.id)} onChange={() => handleCostCenterToggle(cc.id)} style={{ marginRight: '0.75rem', accentColor: 'var(--accent-blue)' }} />
                                                 <span style={{ flex: 1, color: 'var(--text-primary)' }}>{cc.name}</span>
                                             </label>

@@ -1155,8 +1155,6 @@ export default function BudgetGrid({
 
     const renderSummaryRow = (label: string, validx: keyof ReturnType<typeof dreStructure.calculateTotals>, isBold = false, bgColor = 'var(--bg-elevated)', textColor = 'var(--text-primary)', groupId?: string) => {
         const isGroupExpanded = groupId ? expandedGroups.has(groupId) : true;
-        const sums = dreStructure.calculateTotals();
-        const rowData = sums[validx];
         const isMainTotal = label.toLowerCase().includes('resultado líquido') || label.toLowerCase().includes('ebitda') || label.toLowerCase().includes('resultado operacional');
 
         return (
@@ -1197,7 +1195,14 @@ export default function BudgetGrid({
                     </div>
                 </td>
                 {(viewPeriod === 'month' ? MONTHS : [1, 2, 3, 4]).map((_, i) => {
+                    const sums = dreStructure.calculateTotals(i);
+                    const rowData = sums[validx];
                     let budgetVal = 0, realizedVal = 0, radarVal = 0;
+                    if (rowData) {
+                        budgetVal = (rowData as any).b || 0;
+                        realizedVal = (rowData as any).r || 0;
+                        radarVal = (rowData as any).rd || 0;
+                    }
                     let revBrutaReal = 0, revBrutaBudget = 0, revBrutaRadar = 0;
 
                     if (viewPeriod === 'month') {

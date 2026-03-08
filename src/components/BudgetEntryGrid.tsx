@@ -618,7 +618,7 @@ export default function BudgetEntryGrid({ costCenterId, year }: BudgetEntryGridP
                                 key={i}
                                 onClick={(e) => { e.stopPropagation(); if (!hasChildren) openBudgetModal(node.id, node.name, i); }}
                                 style={{
-                                    padding: '0.65rem 0.8rem', textAlign: 'right', fontSize: '0.78rem',
+                                    padding: '0.85rem 1rem', textAlign: 'right', fontSize: '0.8rem',
                                     color: bg === 0 ? 'var(--text-muted)' : 'var(--text-primary)',
                                     cursor: hasChildren ? 'default' : (isLocked ? 'not-allowed' : 'pointer'),
                                     borderBottom: '1px solid var(--border-subtle)', borderRight: '1px solid var(--border-subtle)',
@@ -636,7 +636,7 @@ export default function BudgetEntryGrid({ costCenterId, year }: BudgetEntryGridP
                     })}
 
                     {/* Annual total */}
-                    <td style={{ padding: '0.65rem 1rem', textAlign: 'right', fontSize: '0.78rem', fontWeight: 800, color: 'var(--text-primary)', whiteSpace: 'nowrap', borderLeft: '2px solid var(--border-default)', background: 'var(--bg-surface)', borderRight: '1px solid var(--border-subtle)' }}>
+                    <td style={{ padding: '0.85rem 1rem', textAlign: 'right', fontSize: '0.8rem', fontWeight: 800, color: 'var(--text-primary)', whiteSpace: 'nowrap', borderLeft: '2px solid var(--border-default)', background: 'var(--bg-surface)', borderRight: '1px solid var(--border-subtle)' }}>
                         {fmt((totals?.budget || new Array(12).fill(0)).reduce((a: number, b: number) => a + b, 0))}
                     </td>
                 </tr>
@@ -659,11 +659,11 @@ export default function BudgetEntryGrid({ costCenterId, year }: BudgetEntryGridP
                     </div>
                 </td>
                 {MONTHS.map((_, i) => (
-                    <td key={i} style={{ padding: '0.65rem 0.8rem', textAlign: 'right', fontSize: '0.8rem', color: textColor, whiteSpace: 'nowrap', borderRight: '1px solid var(--border-subtle)', fontWeight: isBold ? 800 : 600 }}>
+                    <td key={i} style={{ padding: '0.85rem 1rem', textAlign: 'right', fontSize: '0.8rem', color: textColor, whiteSpace: 'nowrap', borderRight: '1px solid var(--border-subtle)', fontWeight: isBold ? 800 : 600 }}>
                         {valuesB[i] === 0 ? '-' : fmt(valuesB[i])}
                     </td>
                 ))}
-                <td style={{ padding: '0.65rem 1rem', textAlign: 'right', fontSize: '0.82rem', fontWeight: 800, color: textColor, whiteSpace: 'nowrap', borderLeft: '2px solid var(--border-default)', background: 'var(--bg-surface)', borderRight: '1px solid var(--border-subtle)' }}>
+                <td style={{ padding: '0.85rem 1rem', textAlign: 'right', fontSize: '0.82rem', fontWeight: 800, color: textColor, whiteSpace: 'nowrap', borderLeft: '2px solid var(--border-default)', background: 'var(--bg-surface)', borderRight: '1px solid var(--border-subtle)' }}>
                     {annualB === 0 ? '-' : fmt(annualB)}
                 </td>
             </tr>

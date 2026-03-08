@@ -511,7 +511,12 @@ export default function BudgetSummaryPage() {
                                                                     </svg>
                                                                 )}
                                                             </button>
+                                                        </div>
+                                                    </td>
 
+                                                    {/* Coluna: Ação / Status */}
+                                                    <td style={{ ...td, textAlign: 'center' }}>
+                                                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                                                             {/* Botão Detalhes/Aprovação */}
                                                             <button
                                                                 onClick={(e) => {

@@ -1424,29 +1424,36 @@ export default function BudgetGrid({
 
                 <div style={{ display: 'flex', alignItems: 'center', gap: '1.25rem', marginTop: 'auto' }}>
                     
-                    {/* Análises Checkboxes */}
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', background: 'var(--bg-surface)', padding: '0.4rem 0.75rem', borderRadius: '8px', border: '1px solid var(--border-subtle)' }}>
-                        <span style={{ fontSize: '0.65rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase' }}>Análises</span>
-                        
-                        <label style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.75rem', cursor: 'pointer', color: 'var(--text-primary)' }}>
-                            <input type="checkbox" checked={showAV} onChange={(e) => setShowAV(e.target.checked)} style={{ accentColor: 'var(--accent-blue)', width: '14px', height: '14px' }} />
-                            AV (Real x Orç)
-                        </label>
+                    {/* Análises Checkboxes Premium */}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', background: 'var(--bg-surface)', padding: '0.4rem 0.85rem', borderRadius: '12px', border: '1px solid var(--border-default)', boxShadow: '0 2px 4px rgba(0,0,0,0.02)' }}>
+                        <span style={{ fontSize: '0.65rem', fontWeight: 800, color: 'var(--accent-blue)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Análises</span>
+                        <div style={{ width: '1px', height: '18px', background: 'var(--border-subtle)' }} />
 
-                        <label style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.75rem', cursor: 'pointer', color: 'var(--text-primary)' }}>
-                            <input type="checkbox" checked={showAH} onChange={(e) => setShowAH(e.target.checked)} style={{ accentColor: 'var(--accent-blue)', width: '14px', height: '14px' }} />
-                            AH (Radar x Real)
-                        </label>
-
-                        <label style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.75rem', cursor: 'pointer', color: 'var(--text-primary)' }}>
-                            <input type="checkbox" checked={showAH_MoM} onChange={(e) => setShowAH_MoM(e.target.checked)} style={{ accentColor: 'var(--accent-blue)', width: '14px', height: '14px' }} />
-                            Real (Mês ant. x Atual)
-                        </label>
-                        
-                        <label style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.75rem', cursor: 'pointer', color: 'var(--text-primary)' }}>
-                            <input type="checkbox" checked={showAR} onChange={(e) => setShowAR(e.target.checked)} style={{ accentColor: 'var(--accent-blue)', width: '14px', height: '14px' }} />
-                            Realizado Puro
-                        </label>
+                        {[
+                            { label: 'AV (Real x Orç)', state: showAV, setState: setShowAV },
+                            { label: 'AH (Radar x Real)', state: showAH, setState: setShowAH },
+                            { label: 'AH MoM', state: showAH_MoM, setState: setShowAH_MoM },
+                            { label: 'Realizado Puro', state: showAR, setState: setShowAR }
+                        ].map((item, idx) => (
+                            <label key={idx} style={{ 
+                                display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.75rem', cursor: 'pointer', 
+                                color: item.state ? 'var(--accent-blue)' : 'var(--text-secondary)', 
+                                fontWeight: item.state ? 700 : 500, padding: '0.2rem 0.5rem', borderRadius: '6px', 
+                                background: item.state ? 'var(--accent-blue-subtle, rgba(59, 130, 246, 0.1))' : 'transparent', 
+                                transition: 'all 0.2s' 
+                            }}>
+                                <input type="checkbox" checked={item.state} onChange={(e) => item.setState(e.target.checked)} style={{ display: 'none' }} />
+                                <div style={{ 
+                                    width: '14px', height: '14px', borderRadius: '4px', 
+                                    border: `1px solid ${item.state ? 'var(--accent-blue)' : 'var(--text-muted)'}`, 
+                                    background: item.state ? 'var(--accent-blue)' : 'transparent', 
+                                    display: 'flex', alignItems: 'center', justifyContent: 'center' 
+                                }}>
+                                    {item.state && <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>}
+                                </div>
+                                {item.label}
+                            </label>
+                        ))}
                     </div>
 
                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>

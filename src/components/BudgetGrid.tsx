@@ -717,7 +717,7 @@ export default function BudgetGrid({
                                 month: i,
                                 year: selectedYear,
                                 costCenterId: selectedCostCenter[0],
-                                tenantId: catObj?.tenantId || targetCompanyParam,
+                                tenantId: targetCompanyParam === 'ALL' ? (catObj?.tenantId || 'ALL') : targetCompanyParam,
                                 observation: entry.observation,
                                 amount: 0,
                                 radarAmount: null
@@ -780,7 +780,7 @@ export default function BudgetGrid({
                                             month: i,
                                             year: selectedYear,
                                             costCenterId: selectedCostCenter[0],
-                                            tenantId: categories.find(c => c.id === id)?.tenantId || tenantId,
+                                            tenantId: tenantId,
                                             amount: 0,
                                             radarAmount: null
                                         };
@@ -1177,23 +1177,6 @@ export default function BudgetGrid({
 
     const renderSummaryRow = (label: string, validx: keyof ReturnType<typeof dreStructure.calculateTotals>, isBold = false, bgColor = 'var(--bg-elevated)', textColor = 'var(--text-primary)', groupId?: string) => {
         const isGroupExpanded = groupId ? expandedGroups.has(groupId) : true;
-        const isMainTotal = [
-            '(=) RECEITA LÍQUIDA', 
-            '(=) MARGEM BRUTA', 
-            '(=) MARGEM DE CONTRIBUIÇÃO', 
-            '(=) EBITDA', 
-            '(=) LUCRO LÍQUIDO',
-            'Resultado Líquido',
-            'Margem',
-            'Resultado Bruto',
-            'Total de Custos',
-            'Receita Bruta',
-            'Receita Líquida',
-            'Resultado Operacional'
-        ].includes(label);
-
-        // Permissions for lock: Master can lock any CC (including DEFAULT), Gestores can only see if it is locked
-        const canToggleLock = userRole === 'MASTER';
 
         return (
             <tr onClick={() => groupId && toggleGroup(groupId)} style={{ background: bgColor, borderBottom: '1px solid var(--border-default)', fontWeight: 800, cursor: groupId ? 'pointer' : 'default' }}>
@@ -1219,41 +1202,6 @@ export default function BudgetGrid({
                         )}
                         {!groupId && <span style={{ width: '1.75rem' }}></span>}
                         {label}
-                        {isMainTotal && (
-                            <>
-                                {canToggleLock && (
-                                        <button
-                                            onClick={(e) => { e.stopPropagation(); toggleLock(); }}
-                                            style={{
-                                                marginLeft: 'auto', background: 'none', border: 'none', cursor: 'pointer', padding: '4px',
-                                                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                                transition: 'transform 0.2s',
-                                                color: isCCLocked ? '#ef4444' : '#22c55e'
-                                            }}
-                                            title={isCCLocked ? "Clique para DESBLOQUEAR orçamento" : "Clique para BLOQUEAR orçamento"}
-                                            onMouseEnter={(e) => e.currentTarget.style.transform = 'scale(1.2)'}
-                                            onMouseLeave={(e) => e.currentTarget.style.transform = 'scale(1)'}
-                                        >
-                                            {isCCLocked ? (
-                                                <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
-                                                    <path d="M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zm-6 9c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zM9 8V6c0-1.66 1.34-3 3-3s3 1.34 3 3v2H9z" />
-                                                </svg>
-                                            ) : (
-                                                <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
-                                                    <path d="M12 17c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm6-9h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zM8.9 8V6c0-1.71 1.39-3.1 3.1-3.1s3.1 1.39 3.1 3.1v2H8.9z" />
-                                                </svg>
-                                            )}
-                                        </button>
-                                    )}
-                                    {(!canToggleLock && isCCLocked) && (
-                                        <span title="Orçamento Travado" style={{ color: '#ef4444', marginLeft: 'auto' }}>
-                                            <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
-                                                <path d="M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zm-6 9c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zM9 8V6c0-1.66 1.34-3 3-3s3 1.34 3 3v2H9z" />
-                                            </svg>
-                                        </span>
-                                    )}
-                            </>
-                        )}
                     </div>
                 </td>
                 {(viewPeriod === 'month' ? MONTHS : [1, 2, 3, 4]).map((_, i) => {
@@ -1474,14 +1422,42 @@ export default function BudgetGrid({
                     </div>
                 </div>
 
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginLeft: 'auto', marginTop: 'auto' }}>
-                    <div className="toggle-group">
-                        <button onClick={() => setViewPeriod('month')} className={`toggle-btn ${viewPeriod === 'month' ? 'active' : ''}`}>Mês</button>
-                        <button onClick={() => setViewPeriod('quarter')} className={`toggle-btn ${viewPeriod === 'quarter' ? 'active' : ''}`}>Trimestre</button>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '1.25rem', marginTop: 'auto' }}>
+                    
+                    {/* Análises Checkboxes */}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', background: 'var(--bg-surface)', padding: '0.4rem 0.75rem', borderRadius: '8px', border: '1px solid var(--border-subtle)' }}>
+                        <span style={{ fontSize: '0.65rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase' }}>Análises</span>
+                        
+                        <label style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.75rem', cursor: 'pointer', color: 'var(--text-primary)' }}>
+                            <input type="checkbox" checked={showAV} onChange={(e) => setShowAV(e.target.checked)} style={{ accentColor: 'var(--accent-blue)', width: '14px', height: '14px' }} />
+                            AV (Real x Orç)
+                        </label>
+
+                        <label style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.75rem', cursor: 'pointer', color: 'var(--text-primary)' }}>
+                            <input type="checkbox" checked={showAH} onChange={(e) => setShowAH(e.target.checked)} style={{ accentColor: 'var(--accent-blue)', width: '14px', height: '14px' }} />
+                            AH (Radar x Real)
+                        </label>
+
+                        <label style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.75rem', cursor: 'pointer', color: 'var(--text-primary)' }}>
+                            <input type="checkbox" checked={showAH_MoM} onChange={(e) => setShowAH_MoM(e.target.checked)} style={{ accentColor: 'var(--accent-blue)', width: '14px', height: '14px' }} />
+                            Real (Mês ant. x Atual)
+                        </label>
+                        
+                        <label style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.75rem', cursor: 'pointer', color: 'var(--text-primary)' }}>
+                            <input type="checkbox" checked={showAR} onChange={(e) => setShowAR(e.target.checked)} style={{ accentColor: 'var(--accent-blue)', width: '14px', height: '14px' }} />
+                            Realizado Puro
+                        </label>
                     </div>
-                    <div className="toggle-group">
-                        <button onClick={() => setViewMode('competencia')} className={`toggle-btn ${viewMode === 'competencia' ? 'active' : ''}`}>Competência</button>
-                        <button onClick={() => setViewMode('caixa')} className={`toggle-btn ${viewMode === 'caixa' ? 'active' : ''}`}>Caixa</button>
+
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                        <div className="toggle-group">
+                            <button onClick={() => setViewPeriod('month')} className={`toggle-btn ${viewPeriod === 'month' ? 'active' : ''}`}>Mês</button>
+                            <button onClick={() => setViewPeriod('quarter')} className={`toggle-btn ${viewPeriod === 'quarter' ? 'active' : ''}`}>Trimestre</button>
+                        </div>
+                        <div className="toggle-group">
+                            <button onClick={() => setViewMode('competencia')} className={`toggle-btn ${viewMode === 'competencia' ? 'active' : ''}`}>Competência</button>
+                            <button onClick={() => setViewMode('caixa')} className={`toggle-btn ${viewMode === 'caixa' ? 'active' : ''}`}>Caixa</button>
+                        </div>
                     </div>
                 </div>
             </div>

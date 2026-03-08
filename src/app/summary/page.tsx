@@ -171,6 +171,54 @@ export default function BudgetSummaryPage() {
         }
     };
 
+    const toggleLockStatus = async (cc: SummaryItem, currentLockState: boolean) => {
+        if (!userRole) return;
+        // Only Master or specific roles can toggle lock directly
+        const access = cc.currentUserAccessLevel;
+        const canLock = userRole === 'MASTER' || ['APROVADOR_N1', 'APROVADOR_N2', 'APROVADOR_N1_N2'].includes(access);
+        
+        if (!canLock) {
+            alert('Você não tem permissão para alterar o bloqueio deste orçamento.');
+            return;
+        }
+
+        setIsTogglingLock(cc.costCenterId);
+        try {
+            const action = currentLockState ? 'REOPEN' : 'APPROVE_N2'; // Direto para approved/locked if bypassing N1
+            
+            // Usando endpoint dedicado se existir, simulando um toggle rápido passando as regras da API de aprovação
+            // REOPEN destranca (coloca PENDING). APPROVE_N2 tranca (coloca APPROVED e isLocked=true). 
+            // Se o usuário Master quiser só trancar sem passar por N1. Se der erro de regra de negócio, tentamos alertar.
+            
+            let fetchAction = currentLockState ? 'REOPEN' : 'APPROVE_N2';
+            
+            // Se tentar trancar e der erro de N2 (ex: n ta aguardando N2), Master pode só querer trancar.
+            // O código na API de approve pode barrar. Vamos mandar uma requisição específica ou usar a que tem:
+            
+            const res = await fetch('/api/cost-centers/approve', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    tenantId: cc.tenantId,
+                    costCenterId: cc.costCenterId,
+                    year: selectedYear,
+                    action: currentLockState ? 'REOPEN' : 'SUBMIT_N1' // Usar Submit N1 para trancar por garantias
+                })
+            });
+            const result = await res.json();
+            if (result.success) {
+                await fetchData();
+            } else {
+                alert(result.error || 'Erro ao alterar bloqueio');
+            }
+        } catch (e) {
+            console.error(e);
+            alert('Erro de conexão ao alterar bloqueio.');
+        } finally {
+            setIsTogglingLock(null);
+        }
+    };
+
     const stats = useMemo(() => {
         const totalCCs = data.length;
         const withBudget = data.filter(i => i.hasBudgetData).length;
@@ -342,6 +390,7 @@ export default function BudgetSummaryPage() {
                                     <th style={{ ...th, textAlign: 'right' }}>Receita Anual</th>
                                     <th style={{ ...th, textAlign: 'right' }}>Despesa Anual</th>
                                     <th style={{ ...th, textAlign: 'center' }}>Progresso</th>
+                                    <th style={{ ...th, textAlign: 'center', width: '80px' }} title="Trancar/Destrancar Orçamento">🔒 Cadeado</th>
                                     <th style={{ ...th, textAlign: 'center', width: '130px' }}>Ação / Status</th>
                                 </tr>
                             </thead>
@@ -399,6 +448,10 @@ export default function BudgetSummaryPage() {
                                                     {/* Company headers usually don't have a single lock, they are CC based */}
                                                     <span style={{ color: '#cbd5e1' }}>-</span>
                                                 </td>
+                                                <td style={{ ...td, textAlign: 'center' }}>
+                                                    {/* Action column is empty at company level */}
+                                                    <span style={{ color: '#cbd5e1' }}>-</span>
+                                                </td>
                                             </tr>
 
 
@@ -421,41 +474,80 @@ export default function BudgetSummaryPage() {
                                                         )}
                                                     </td>
                                                     <td style={{ ...td, textAlign: 'center' }}>
-                                                        <button
-                                                            onClick={(e) => {
-                                                                e.stopPropagation();
-                                                                setSelectedForAudit(cc);
-                                                            }}
-                                                            style={{
-                                                                background: cc.status === 'APPROVED' ? '#d1fae5' : cc.status === 'AWAITING_N2' ? '#fef08a' : cc.status === 'REJECTED' ? '#fee2e2' : '#f8fafc',
-                                                                border: `1px solid ${cc.status === 'APPROVED' ? '#34d399' : cc.status === 'AWAITING_N2' ? '#fde047' : cc.status === 'REJECTED' ? '#fca5a5' : '#e2e8f0'}`,
-                                                                borderRadius: '6px',
-                                                                cursor: 'pointer',
-                                                                fontSize: '0.7rem',
-                                                                fontWeight: 700,
-                                                                padding: '0.4rem 0.6rem',
-                                                                display: 'flex',
-                                                                alignItems: 'center',
-                                                                gap: '0.4rem',
-                                                                margin: '0 auto',
-                                                                color: cc.status === 'APPROVED' ? '#065f46' : cc.status === 'AWAITING_N2' ? '#854d0e' : cc.status === 'REJECTED' ? '#991b1b' : '#475569',
-                                                                transition: 'all 0.2s'
-                                                            }}
-                                                        >
-                                                            {(() => {
-                                                                const access = cc.currentUserAccessLevel;
-                                                                const isMaster = userRole === 'MASTER' || access === 'MASTER';
-                                                                if (cc.status === 'APPROVED') return '🔒 Aprovado';
-                                                                if (cc.status === 'REJECTED') return '❌ Rejeitado';
-                                                                if (cc.status === 'AWAITING_N2') {
-                                                                    const canApprove = isMaster || ['APROVADOR_N2', 'APROVADOR_N1_N2'].includes(access);
-                                                                    return canApprove ? '⏳ Aprovar N2' : '⏳ Esperando N2';
-                                                                }
-                                                                // PENDING
-                                                                const canSubmit = isMaster || ['APROVADOR_N1', 'APROVADOR_N1_N2'].includes(access);
-                                                                return canSubmit ? '📤 Enviar N1' : '🔍 Ver Detalhes';
-                                                            })()}
-                                                        </button>
+                                                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                                            {/* Botão de Trancar/Destrancar Rápido (Cadeado) */}
+                                                            <button
+                                                                onClick={(e) => {
+                                                                    e.stopPropagation();
+                                                                    toggleLockStatus(cc, cc.isLocked);
+                                                                }}
+                                                                disabled={isTogglingLock === cc.costCenterId}
+                                                                title={cc.isLocked ? "Destrancar Orçamento" : "Trancar Orçamento"}
+                                                                style={{
+                                                                    background: cc.isLocked ? '#fee2e2' : '#dcfce3',
+                                                                    border: `1px solid ${cc.isLocked ? '#fca5a5' : '#86efac'}`,
+                                                                    borderRadius: '6px',
+                                                                    padding: '0.4rem',
+                                                                    cursor: isTogglingLock === cc.costCenterId ? 'wait' : 'pointer',
+                                                                    color: cc.isLocked ? '#dc2626' : '#16a34a',
+                                                                    display: 'flex',
+                                                                    alignItems: 'center',
+                                                                    justifyContent: 'center',
+                                                                    transition: 'all 0.2s',
+                                                                    opacity: isTogglingLock === cc.costCenterId ? 0.5 : 1
+                                                                }}
+                                                            >
+                                                                {isTogglingLock === cc.costCenterId ? (
+                                                                    <div style={{ width: '16px', height: '16px', border: '2px solid currentColor', borderRightColor: 'transparent', borderRadius: '50%', animation: 'spin 1s linear infinite' }} />
+                                                                ) : cc.isLocked ? (
+                                                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                                                                        <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+                                                                        <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+                                                                    </svg>
+                                                                ) : (
+                                                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                                                                        <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+                                                                        <path d="M7 11V7a5 5 0 0 1 9.9-1"></path>
+                                                                    </svg>
+                                                                )}
+                                                            </button>
+
+                                                            {/* Botão Detalhes/Aprovação */}
+                                                            <button
+                                                                onClick={(e) => {
+                                                                    e.stopPropagation();
+                                                                    setSelectedForAudit(cc);
+                                                                }}
+                                                                style={{
+                                                                    background: cc.status === 'APPROVED' ? '#d1fae5' : cc.status === 'AWAITING_N2' ? '#fef08a' : cc.status === 'REJECTED' ? '#fee2e2' : '#f8fafc',
+                                                                    border: `1px solid ${cc.status === 'APPROVED' ? '#34d399' : cc.status === 'AWAITING_N2' ? '#fde047' : cc.status === 'REJECTED' ? '#fca5a5' : '#e2e8f0'}`,
+                                                                    borderRadius: '6px',
+                                                                    cursor: 'pointer',
+                                                                    fontSize: '0.7rem',
+                                                                    fontWeight: 700,
+                                                                    padding: '0.4rem 0.6rem',
+                                                                    display: 'flex',
+                                                                    alignItems: 'center',
+                                                                    gap: '0.4rem',
+                                                                    color: cc.status === 'APPROVED' ? '#065f46' : cc.status === 'AWAITING_N2' ? '#854d0e' : cc.status === 'REJECTED' ? '#991b1b' : '#475569',
+                                                                    transition: 'all 0.2s'
+                                                                }}
+                                                            >
+                                                                {(() => {
+                                                                    const access = cc.currentUserAccessLevel;
+                                                                    const isMaster = userRole === 'MASTER' || access === 'MASTER';
+                                                                    if (cc.status === 'APPROVED') return '✅ Aprovado';
+                                                                    if (cc.status === 'REJECTED') return '❌ Rejeitado';
+                                                                    if (cc.status === 'AWAITING_N2') {
+                                                                        const canApprove = isMaster || ['APROVADOR_N2', 'APROVADOR_N1_N2'].includes(access);
+                                                                        return canApprove ? '⏳ Aprovar N2' : '⏳ Esperando N2';
+                                                                    }
+                                                                    // PENDING
+                                                                    const canSubmit = isMaster || ['APROVADOR_N1', 'APROVADOR_N1_N2'].includes(access);
+                                                                    return canSubmit ? '📤 Enviar N1' : '🔍 Ver Detalhes';
+                                                                })()}
+                                                            </button>
+                                                        </div>
                                                     </td>
 
                                                 </tr>
@@ -465,7 +557,7 @@ export default function BudgetSummaryPage() {
                                     );
                                 }) : (
                                     <tr>
-                                        <td colSpan={5} style={{ padding: '6rem', textAlign: 'center', color: '#94a3b8', fontStyle: 'italic', fontSize: '1rem' }}>
+                                        <td colSpan={6} style={{ padding: '6rem', textAlign: 'center', color: '#94a3b8', fontStyle: 'italic', fontSize: '1rem' }}>
 
                                             Nenhum resultado encontrado.
                                         </td>
@@ -604,6 +696,10 @@ export default function BudgetSummaryPage() {
             <style jsx>{`
                 .cc-row:hover {
                     background-color: #f8fafc !important;
+                }
+                @keyframes spin {
+                    from { transform: rotate(0deg); }
+                    to { transform: rotate(360deg); }
                 }
             `}</style>
         </div>

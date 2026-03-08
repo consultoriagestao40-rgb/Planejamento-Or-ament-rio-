@@ -86,7 +86,7 @@ export default function BudgetGrid({
     const [transactionSelectedCostCenter, setTransactionSelectedCostCenter] = useState<string | null>(null);
 
     // --- Budget Modal State ---
-    const [budgetModal, setBudgetModal] = useState<{ categoryId: string, categoryName: string, startMonth: number, type: 'budget' | 'radar' } | null>(null);
+    const [budgetModal, setBudgetModal] = useState<{ categoryId: string, fullNodeId: string, categoryName: string, startMonth: number, type: 'budget' | 'radar' } | null>(null);
     const [modalValues, setModalValues] = useState<string[]>(new Array(12).fill(''));
     const [lockedMonths, setLockedMonths] = useState<boolean[]>(new Array(12).fill(false));
     const [activeMonth, setActiveMonth] = useState<number>(0);

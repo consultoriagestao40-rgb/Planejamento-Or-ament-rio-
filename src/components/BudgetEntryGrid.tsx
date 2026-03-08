@@ -532,16 +532,16 @@ export default function BudgetEntryGrid({ costCenterId, year }: BudgetEntryGridP
                         if (!catNorm.startsWith('3.1')) return;
                         if (cat.tenantId !== tenantId) return;
                         const cardIds = cat.id.split(',');
-                        const isCurrentRow = cardIds.some(id => allIds.includes(id));
+                        const isCurrentRow = cardIds.some((id: string) => allIds.includes(id));
                         if (isCurrentRow) { salaryBase += currentNum; } else {
-                            cardIds.forEach(id => {
+                            cardIds.forEach((id: string) => {
                                 const stored = budgetValues[`${id}-${i}`];
                                 if (stored) salaryBase += stored.amount || 0;
                             });
                         }
                     });
 
-                    chargeConfigs.forEach(config => {
+                    chargeConfigs.forEach((config: any) => {
                         const targetCat = categories.find((c: any) => {
                             const cm = c.name.match(/^([\d.]+)/);
                             return cm && norm(cm[1]) === norm(config.code) && c.tenantId === tenantId;

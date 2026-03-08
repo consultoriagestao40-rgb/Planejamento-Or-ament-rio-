@@ -7,7 +7,10 @@ import { verifyToken } from '@/lib/auth';
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
+import { ensureTenantSchema } from '@/lib/db-utils';
+
 export default async function Home({ searchParams }: { searchParams: Promise<{ connected?: string; error?: string }> }) {
+  await ensureTenantSchema();
   const params = await searchParams;
   const state = Math.random().toString(36).substring(7);
   const authUrl = getAuthUrl(state);

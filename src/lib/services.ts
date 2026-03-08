@@ -1,5 +1,6 @@
 import { prisma } from '@/lib/prisma';
 import { refreshAccessToken } from './contaazul';
+import { ensureTenantSchema } from './db-utils';
 
 // Types (Basic definitions based on standard CA API structure)
 interface ContaAzulCategory {
@@ -22,6 +23,7 @@ interface ContaAzulSale {
 
 // Helper to get a valid access token
 export async function getValidAccessToken(tenantId?: string) {
+    await ensureTenantSchema();
     const tenant = tenantId
         ? await prisma.tenant.findUnique({ where: { id: tenantId } })
         : await prisma.tenant.findFirst();

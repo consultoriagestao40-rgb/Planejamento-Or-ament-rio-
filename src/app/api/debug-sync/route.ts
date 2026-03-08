@@ -1,11 +1,13 @@
 import { NextResponse } from 'next/server';
 import { runCronSync } from '@/lib/cronSync';
+import { ensureTenantSchema } from '@/lib/db-utils';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 300;
 
 export async function GET(request: Request) {
     try {
+        await ensureTenantSchema();
         const { searchParams } = new URL(request.url);
         const paramYear = searchParams.get('year');
         const reqYear = paramYear ? parseInt(paramYear, 10) : new Date().getFullYear();

@@ -1,10 +1,12 @@
 import { NextResponse } from 'next/server';
 import { getValidAccessToken } from '@/lib/services';
+import { ensureTenantSchema } from '@/lib/db-utils';
 
 export const dynamic = 'force-dynamic';
 
 export async function GET(request: Request) {
     try {
+        await ensureTenantSchema();
         const { searchParams } = new URL(request.url);
         const costCenterId = searchParams.get('costCenterId') || 'DEFAULT';
         const categoryId = searchParams.get('categoryId');

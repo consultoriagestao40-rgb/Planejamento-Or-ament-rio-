@@ -2,18 +2,9 @@ import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { verifyToken } from '@/lib/auth';
 import { cookies } from 'next/headers';
+import { ensureTenantSchema } from '@/lib/db-utils';
 
 export const dynamic = 'force-dynamic';
-
-async function ensureTenantSchema() {
-    try {
-        await prisma.$executeRawUnsafe(`
-            ALTER TABLE "Tenant" ADD COLUMN IF NOT EXISTS "taxRate" DOUBLE PRECISION DEFAULT 0;
-        `);
-    } catch (err) {
-        console.error("[SCHEMA] Error insuring Tenant schema:", err);
-    }
-}
 
 export async function GET() {
     try {
@@ -37,10 +28,6 @@ export async function GET() {
 
         let categoryFilter: any = { ...inactiveFilter };
         let costCenterFilter: any = { ...inactiveFilter };
-
-
-
-
 
         if (user.role === 'GESTOR') {
             const dbUser = await prisma.user.findUnique({

@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { verifyToken } from '@/lib/auth';
 import { cookies } from 'next/headers';
+import { ensureTenantSchema } from '@/lib/db-utils';
 
 export const dynamic = 'force-dynamic';
 
@@ -44,17 +45,6 @@ async function ensureLockSchema() {
     }
 }
 
-async function ensureTenantSchema() {
-    try {
-        await prisma.$executeRawUnsafe(`
-            ALTER TABLE "Tenant" ADD COLUMN IF NOT EXISTS "taxRate" DOUBLE PRECISION DEFAULT 0;
-        `);
-    } catch (err) {
-        console.error("[SCHEMA] Error insuring Tenant schema:", err);
-    }
-}
-
-
 export async function GET(request: Request) {
     try {
         const cookieStore = await cookies();
@@ -69,8 +59,8 @@ export async function GET(request: Request) {
         const yearParam = searchParams.get('year');
         const currentYear = yearParam ? parseInt(yearParam) : new Date().getFullYear();
 
-        await ensureLockSchema();
         await ensureTenantSchema();
+        await ensureLockSchema();
 
         let costCenterAccessMap: Record<string, string> = {};
         if (user.role === 'GESTOR') {
@@ -124,8 +114,6 @@ export async function GET(request: Request) {
             })
         ]);
 
-
-
         const categoryTypeMap = new Map(categories.map((c: any) => {
             const nameLower = (c.name || '').toLowerCase();
             const isRevenue = c.type === 'REVENUE' || 
@@ -145,7 +133,7 @@ export async function GET(request: Request) {
             const tenant = tenants.find((t: any) => t.id === cc.tenantId);
             if (!tenant) return;
 
-            const key = cc.id; // Use CC ID as key - it's unique across the system anyway
+            const key = cc.id;
             const lock = locks.find((l: any) => l.costCenterId === cc.id);
 
             summaryMap.set(key, {
@@ -165,9 +153,6 @@ export async function GET(request: Request) {
                 n2ApprovedAt: lock?.n2ApprovedAt ? new Date(lock.n2ApprovedAt).toISOString() : null,
                 currentUserAccessLevel: user.role === 'MASTER' ? 'MASTER' : (costCenterAccessMap[cc.id] || 'NONE')
             });
-
-
-
         });
 
         // 4. Agregar valores do orçamento
@@ -177,15 +162,11 @@ export async function GET(request: Request) {
 
             if (summary) {
                 const type = categoryTypeMap.get(entry.categoryId);
-                // If amount is zero but radarAmount exists, use radarAmount for the summary
-                const val = (entry.amount !== 0 && entry.amount !== null) ? entry.amount : (entry.radarAmount || 0);
-                
                 if (type === 'REVENUE') {
                     summary.totalRevenue += entry.amount || 0;
                 } else {
                     summary.totalExpense += entry.amount || 0;
                 }
-                
                 if (entry.amount && entry.amount !== 0) summary.hasBudgetData = true;
             }
         });
@@ -194,27 +175,17 @@ export async function GET(request: Request) {
         realizedEntries.forEach((entry: any) => {
             const key = entry.costCenterId;
             const summary = summaryMap.get(key);
-
             if (summary && entry.amount !== 0) {
                 summary.hasRealizedData = true;
             }
         });
 
-        // 5. Converter para array, filtrar apenas ATIVOS NO DRE (com realizado ou orçado) e ordenar
         const result = Array.from(summaryMap.values())
             .filter(item => item.hasRealizedData || item.hasBudgetData)
-
             .sort((a, b) => {
-                // Ordenar por Empresa e depois por Centro de Custo
                 if (a.tenantName !== b.tenantName) return a.tenantName.localeCompare(b.tenantName);
-                return a.costCenterName.localeCompare(b.costCenterName);
+                return a.costCenterName?.localeCompare(b.costCenterName || '') || 0;
             });
-
-
-
-
-
-
 
         return NextResponse.json({
             success: true,

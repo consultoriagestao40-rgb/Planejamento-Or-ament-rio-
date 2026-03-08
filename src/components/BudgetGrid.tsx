@@ -746,9 +746,6 @@ export default function BudgetGrid({
 
                     chargeConfigs.forEach(config => {
                         const targetNorm = norm(config.code);
-                        // We need the specific tenantId for the target category
-                        // entries[0].tenantId might be 'ALL' if multiple companies selected, 
-                        // but handleSaveBudget requires a single company selection (checked at openBudgetModal)
                         const tenantId = targetCompanyParam;
                         
                         const targetCat = categories.find((c: any) => {
@@ -772,6 +769,25 @@ export default function BudgetGrid({
                                 calcEntry.radarAmount = numericVal * config.rate;
                             }
                             entries.push(calcEntry);
+
+                            // IMPORTANT: Also clean other IDs for the charge category to avoid duplication
+                            const chargeAllIds = targetCat.id.split(',');
+                            if (chargeAllIds.length > 1) {
+                                chargeAllIds.forEach((id: string) => {
+                                    if (id !== targetCat.id) {
+                                        const cleanCharge: any = {
+                                            categoryId: id,
+                                            month: i,
+                                            year: selectedYear,
+                                            costCenterId: selectedCostCenter[0],
+                                            tenantId: categories.find(c => c.id === id)?.tenantId || tenantId,
+                                            amount: 0,
+                                            radarAmount: null
+                                        };
+                                        entries.push(cleanCharge);
+                                    }
+                                });
+                            }
                         }
                     });
                 }
@@ -986,7 +1002,7 @@ export default function BudgetGrid({
         const totals = nodeTotals.get(node.id) || { budget: new Array(12).fill(0), realized: new Array(12).fill(0), radar: new Array(12).fill(0) };
         const isExpanded = expandedRows.has(node.id);
         const hasChildren = node.children.length > 0;
-        const isEditable = !hasChildren && !node.isSynthetic && selectedCostCenter.length === 1 && !selectedCostCenter.includes('DEFAULT');
+        const isEditable = !hasChildren && !node.isSynthetic;
 
         return (
             <React.Fragment key={node.id}>
@@ -1161,14 +1177,23 @@ export default function BudgetGrid({
 
     const renderSummaryRow = (label: string, validx: keyof ReturnType<typeof dreStructure.calculateTotals>, isBold = false, bgColor = 'var(--bg-elevated)', textColor = 'var(--text-primary)', groupId?: string) => {
         const isGroupExpanded = groupId ? expandedGroups.has(groupId) : true;
-        const isMainTotal = label.toLowerCase().includes('resultado líquido') || 
-                            label.toLowerCase().includes('ebitda') || 
-                            label.toLowerCase().includes('margem') ||
-                            label.toLowerCase().includes('resultado bruto') ||
-                            label.toLowerCase().includes('total de custos') ||
-                            label.toLowerCase().includes('receita bruta') ||
-                            label.toLowerCase().includes('receita líquida') ||
-                            label.toLowerCase().includes('resultado operacional');
+        const isMainTotal = [
+            '(=) RECEITA LÍQUIDA', 
+            '(=) MARGEM BRUTA', 
+            '(=) MARGEM DE CONTRIBUIÇÃO', 
+            '(=) EBITDA', 
+            '(=) LUCRO LÍQUIDO',
+            'Resultado Líquido',
+            'Margem',
+            'Resultado Bruto',
+            'Total de Custos',
+            'Receita Bruta',
+            'Receita Líquida',
+            'Resultado Operacional'
+        ].includes(label);
+
+        // Permissions for lock: Master can lock any CC (including DEFAULT), Gestores can only see if it is locked
+        const canToggleLock = userRole === 'MASTER';
 
         return (
             <tr onClick={() => groupId && toggleGroup(groupId)} style={{ background: bgColor, borderBottom: '1px solid var(--border-default)', fontWeight: 800, cursor: groupId ? 'pointer' : 'default' }}>
@@ -1194,16 +1219,40 @@ export default function BudgetGrid({
                         )}
                         {!groupId && <span style={{ width: '1.75rem' }}></span>}
                         {label}
-                        {isMainTotal && userRole === 'MASTER' && selectedCostCenter.length === 1 && !selectedCostCenter.includes('DEFAULT') && (
-                            <button 
-                                onClick={(e) => { e.stopPropagation(); toggleLock(); }}
-                                style={{ marginLeft: 'auto', background: 'none', border: 'none', cursor: 'pointer', padding: '0 0.5rem', opacity: 0.8 }}
-                                title={isCCLocked ? "Clique para destravar este Centro de Custo" : "Clique para trancar este Centro de Custo"}
-                            >
-                                <span style={{ fontSize: '1.1rem', filter: isCCLocked ? 'none' : 'grayscale(100%)' }}>
-                                    {isCCLocked ? '🔒' : '🔓'}
-                                </span>
-                            </button>
+                        {isMainTotal && (
+                            <>
+                                {canToggleLock && (
+                                        <button
+                                            onClick={(e) => { e.stopPropagation(); toggleLock(); }}
+                                            style={{
+                                                marginLeft: 'auto', background: 'none', border: 'none', cursor: 'pointer', padding: '4px',
+                                                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                                transition: 'transform 0.2s',
+                                                color: isCCLocked ? '#ef4444' : '#22c55e'
+                                            }}
+                                            title={isCCLocked ? "Clique para DESBLOQUEAR orçamento" : "Clique para BLOQUEAR orçamento"}
+                                            onMouseEnter={(e) => e.currentTarget.style.transform = 'scale(1.2)'}
+                                            onMouseLeave={(e) => e.currentTarget.style.transform = 'scale(1)'}
+                                        >
+                                            {isCCLocked ? (
+                                                <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+                                                    <path d="M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zm-6 9c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zM9 8V6c0-1.66 1.34-3 3-3s3 1.34 3 3v2H9z" />
+                                                </svg>
+                                            ) : (
+                                                <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+                                                    <path d="M12 17c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm6-9h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zM8.9 8V6c0-1.71 1.39-3.1 3.1-3.1s3.1 1.39 3.1 3.1v2H8.9z" />
+                                                </svg>
+                                            )}
+                                        </button>
+                                    )}
+                                    {(!canToggleLock && isCCLocked) && (
+                                        <span title="Orçamento Travado" style={{ color: '#ef4444', marginLeft: 'auto' }}>
+                                            <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+                                                <path d="M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zm-6 9c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zM9 8V6c0-1.66 1.34-3 3-3s3 1.34 3 3v2H9z" />
+                                            </svg>
+                                        </span>
+                                    )}
+                            </>
                         )}
                     </div>
                 </td>
@@ -1472,19 +1521,30 @@ export default function BudgetGrid({
                                     <span style={{ fontSize: '0.75rem', fontWeight: 900, letterSpacing: '0.05em' }}>ESTRUTURA DRE</span>
                                 </div>
                             </th>
-                            {(viewPeriod === 'month' ? MONTHS : ['1º Tri', '2º Tri', '3º Tri', '4º Tri']).map((c, i) => (
-                                <th key={i} colSpan={3} style={{ textAlign: 'center', padding: '0.75rem 0.5rem', borderLeft: '1px solid var(--border-subtle)', color: 'var(--text-primary)', minWidth: '240px', background: 'var(--bg-elevated)' }}>
-                                    {c}
-                                </th>
-                            ))}
+                            {(viewPeriod === 'month' ? MONTHS : ['1º Tri', '2º Tri', '3º Tri', '4º Tri']).map((c, i) => {
+                                let colSpan = 3;
+                                if (showAV) colSpan++;
+                                if (showAH) colSpan++;
+                                if (showAH_MoM) colSpan++;
+                                if (showAR) colSpan++;
+                                return (
+                                    <th key={i} colSpan={colSpan} style={{ textAlign: 'center', padding: '0.75rem 0.5rem', borderLeft: '1px solid var(--border-subtle)', color: 'var(--text-primary)', minWidth: colSpan * 80 + 'px', background: 'var(--bg-elevated)' }}>
+                                        {c}
+                                    </th>
+                                );
+                            })}
                         </tr>
                         <tr style={{ background: 'var(--bg-surface)' }}>
                             <th style={{ position: 'sticky', left: 0, zIndex: 20, background: '#ffffff', borderBottom: '1px solid var(--border-default)', borderRight: '1px solid var(--border-subtle)' }}></th>
                             {(viewPeriod === 'month' ? MONTHS : [1, 2, 3, 4]).map((_, i) => (
                                 <React.Fragment key={i}>
                                     <th style={{ fontSize: '0.65rem', color: 'var(--text-muted)', borderLeft: '1px solid var(--border-subtle)', fontWeight: 600, paddingBottom: '0.5rem', borderBottom: '1px solid var(--border-default)', minWidth: '80px', textAlign: 'center' }}>ORÇADO</th>
+                                    {showAV && <th style={{ fontSize: '0.65rem', color: 'var(--text-muted)', borderLeft: '1px solid var(--border-subtle)', fontWeight: 600, paddingBottom: '0.5rem', borderBottom: '1px solid var(--border-default)', minWidth: '60px', textAlign: 'center' }}>AV</th>}
                                     <th style={{ fontSize: '0.65rem', color: 'var(--text-muted)', borderLeft: '1px solid var(--border-subtle)', fontWeight: 600, paddingBottom: '0.5rem', borderBottom: '1px solid var(--border-default)', minWidth: '80px', textAlign: 'center' }}>RADAR</th>
+                                    {showAH && <th style={{ fontSize: '0.65rem', color: 'var(--text-muted)', borderLeft: '1px solid var(--border-subtle)', fontWeight: 600, paddingBottom: '0.5rem', borderBottom: '1px solid var(--border-default)', minWidth: '80px', textAlign: 'center' }}>AH</th>}
                                     <th style={{ fontSize: '0.65rem', color: 'var(--text-muted)', borderLeft: '1px solid var(--border-subtle)', fontWeight: 600, paddingBottom: '0.5rem', borderBottom: '1px solid var(--border-default)', minWidth: '80px', textAlign: 'center' }}>REALIZADO</th>
+                                    {showAH_MoM && <th style={{ fontSize: '0.65rem', color: 'var(--text-muted)', borderLeft: '1px solid var(--border-subtle)', fontWeight: 600, paddingBottom: '0.5rem', borderBottom: '1px solid var(--border-default)', minWidth: '60px', textAlign: 'center' }}>MoM</th>}
+                                    {showAR && <th style={{ fontSize: '0.65rem', color: 'var(--text-muted)', borderLeft: '1px solid var(--border-subtle)', fontWeight: 600, paddingBottom: '0.5rem', borderBottom: '1px solid var(--border-default)', minWidth: '80px', textAlign: 'center' }}>AR</th>}
                                 </React.Fragment>
                             ))}
                         </tr>

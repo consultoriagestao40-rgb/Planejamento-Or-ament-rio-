@@ -723,104 +723,92 @@ export default function BudgetEntryGrid({ costCenterId, year }: BudgetEntryGridP
 
             {/* ─── BUDGET MODAL ─────────────────────────────────────────────── */}
             {budgetModal && (
-                <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(4px)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem' }}
-                    onClick={() => setBudgetModal(null)}>
-                    <div style={{ background: 'var(--bg-card)', borderRadius: '16px', padding: '2rem', width: '100%', maxWidth: '820px', boxShadow: '0 25px 60px rgba(0,0,0,0.4)', border: '1px solid var(--border-default)' }}
-                        onClick={e => e.stopPropagation()}>
-
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '1.5rem' }}>
-                            <div>
-                                <h3 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 800, color: 'var(--text-primary)' }}>Lançar Orçamento</h3>
-                                <p style={{ margin: '0.25rem 0 0', color: 'var(--text-muted)', fontSize: '0.85rem' }}>{budgetModal.categoryName}</p>
-                            </div>
-                            <button onClick={() => setBudgetModal(null)} style={{ background: 'none', border: 'none', fontSize: '1.5rem', cursor: 'pointer', color: 'var(--text-muted)', lineHeight: 1 }}>×</button>
-                        </div>
-
-                        {/* Month tabs */}
-                        <div style={{ display: 'flex', gap: '0.4rem', marginBottom: '1rem', flexWrap: 'wrap' }}>
-                            {MONTHS.map((m, i) => (
-                                <button key={i} onClick={() => setActiveMonth(i)} style={{
-                                    padding: '0.4rem 0.85rem', borderRadius: '8px', border: 'none', cursor: 'pointer', fontSize: '0.75rem', fontWeight: 700,
-                                    background: activeMonth === i ? 'var(--accent-blue)' : 'var(--bg-surface)',
-                                    color: activeMonth === i ? 'white' : 'var(--text-secondary)',
-                                    opacity: lockedMonths[i] ? 0.5 : 1
-                                }}>
-                                    {m}
-                                    {lockedMonths[i] && ' 🔒'}
-                                </button>
-                            ))}
-                        </div>
-
-                        {/* Active month input */}
-                        <div style={{ marginBottom: '1rem' }}>
-                            <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-muted)', marginBottom: '0.5rem', textTransform: 'uppercase' }}>
-                                {MONTHS[activeMonth]} — Valor Orçado
-                            </label>
-                            <input
-                                type="text"
-                                className="premium-input"
-                                placeholder="0,00 ou =100*12 ou =valor*1.1"
-                                value={modalValues[activeMonth]}
-                                disabled={lockedMonths[activeMonth] && userRole !== 'MASTER'}
-                                onChange={e => {
-                                    const newVals = [...modalValues];
-                                    newVals[activeMonth] = e.target.value;
-                                    setModalValues(newVals);
-                                }}
-                                onKeyDown={e => {
-                                    if (e.key === 'Enter' && activeMonth < 11) setActiveMonth(activeMonth + 1);
-                                    if (e.key === 'Tab') { e.preventDefault(); setActiveMonth((activeMonth + 1) % 12); }
-                                }}
-                                style={{ fontSize: '1.1rem', fontWeight: 700, textAlign: 'right' }}
-                                autoFocus
-                            />
-                            <p style={{ margin: '0.35rem 0 0', fontSize: '0.7rem', color: 'var(--text-muted)' }}>
-                                Preview: <strong style={{ color: 'var(--accent-blue)' }}>{fmt(evaluateFormula(modalValues[activeMonth]))}</strong>
-                                {' '} · Use Enter/Tab para avançar o mês
-                            </p>
-                        </div>
-
-                        {/* Quick replicate */}
-                        <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1rem', flexWrap: 'wrap' }}>
-                            <button onClick={() => {
-                                const val = modalValues[activeMonth];
-                                setModalValues(new Array(12).fill(val));
-                            }} className="btn btn-secondary" style={{ padding: '0.4rem 0.85rem', fontSize: '0.75rem' }}>
-                                ⟳ Replicar p/ todos os meses
-                            </button>
-                            <button onClick={() => {
-                                const val = modalValues[activeMonth];
-                                const newVals = [...modalValues];
-                                for (let i = activeMonth; i < 12; i++) newVals[i] = val;
-                                setModalValues(newVals);
-                            }} className="btn btn-secondary" style={{ padding: '0.4rem 0.85rem', fontSize: '0.75rem' }}>
-                                → Replicar p/ frente
-                            </button>
-                        </div>
-
-                        {/* Observation */}
-                        <div style={{ marginBottom: '1.5rem' }}>
-                            <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-muted)', marginBottom: '0.35rem', textTransform: 'uppercase' }}>Observação</label>
-                            <input type="text" className="premium-input" placeholder="Opcional..." value={modalObservation} onChange={e => setModalObservation(e.target.value)} style={{ fontSize: '0.9rem' }} />
-                        </div>
-
-                        {/* Summary row */}
-                        <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1.5rem', padding: '0.75rem 1rem', background: 'var(--bg-surface)', borderRadius: '8px', overflowX: 'auto' }}>
-                            {MONTHS.map((m, i) => (
-                                <div key={i} style={{ textAlign: 'center', minWidth: '60px', opacity: lockedMonths[i] ? 0.4 : 1 }}>
-                                    <div style={{ fontSize: '0.6rem', color: 'var(--text-muted)', fontWeight: 700 }}>{m}</div>
-                                    <div style={{ fontSize: '0.75rem', fontWeight: 700, color: evaluateFormula(modalValues[i]) > 0 ? 'var(--accent-blue)' : 'var(--text-muted)' }}>
-                                        {evaluateFormula(modalValues[i]) > 0 ? fmt(evaluateFormula(modalValues[i])) : '—'}
-                                    </div>
+                <div className="modal-overlay" style={{ zIndex: 1200 }}>
+                    <div className="modal-content" style={{ maxWidth: '600px', backgroundColor: '#fff' }}>
+                        <div style={{ padding: '2rem' }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                                    <h3 style={{ margin: 0, fontSize: '1.4rem', fontWeight: 700 }}>
+                                        Orçado: {budgetModal.categoryName}
+                                    </h3>
                                 </div>
-                            ))}
-                        </div>
+                                <button onClick={() => setBudgetModal(null)} style={{ border: 'none', background: 'none', cursor: 'pointer', fontSize: '1.5rem', color: '#94a3b8', padding: '0.5rem' }}>✕</button>
+                            </div>
 
-                        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem' }}>
-                            <button onClick={() => setBudgetModal(null)} className="btn btn-secondary">Cancelar</button>
-                            <button onClick={handleSaveBudget} disabled={isSavingBudget} className="btn btn-primary">
-                                {isSavingBudget ? '⏳ Salvando...' : '💾 Salvar Orçamento'}
-                            </button>
+                            <div style={{ marginBottom: '1.5rem', display: 'flex', justifyContent: 'flex-start', gap: '0.75rem' }}>
+                                <button
+                                    onClick={() => {
+                                        const val = modalValues[activeMonth];
+                                        const newVals = [...modalValues];
+                                        for (let i = activeMonth; i < 12; i++) newVals[i] = val;
+                                        setModalValues(newVals);
+                                    }}
+                                    style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.5rem 1rem', backgroundColor: '#f1f5f9', color: '#2563eb', border: 'none', borderRadius: '8px', fontWeight: 600, cursor: 'pointer', fontSize: '0.85rem', transition: 'all 0.2s' }}
+                                    onMouseOver={(e) => (e.currentTarget.style.backgroundColor = '#e2e8f0')}
+                                    onMouseOut={(e) => (e.currentTarget.style.backgroundColor = '#f1f5f9')}
+                                >
+                                    ⏩ Preencher meses seguintes
+                                </button>
+                                <button
+                                    onClick={() => setModalValues(new Array(12).fill(modalValues[activeMonth]))}
+                                    style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.5rem 1rem', backgroundColor: '#f1f5f9', color: '#2563eb', border: 'none', borderRadius: '8px', fontWeight: 600, cursor: 'pointer', fontSize: '0.85rem', transition: 'all 0.2s' }}
+                                    onMouseOver={(e) => (e.currentTarget.style.backgroundColor = '#e2e8f0')}
+                                    onMouseOut={(e) => (e.currentTarget.style.backgroundColor = '#f1f5f9')}
+                                >
+                                    ⟳ Replicar p/ todos
+                                </button>
+                            </div>
+
+                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '1rem', marginBottom: '1.5rem' }}>
+                                {MONTHS.map((month, idx) => {
+                                    const isLocked = lockedMonths[idx];
+                                    const canEdit = !isLocked || userRole === 'MASTER';
+                                    return (
+                                        <div key={idx} style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem', opacity: !canEdit ? 0.6 : 1, border: activeMonth === idx ? '1px solid #2563eb' : '1px solid transparent', padding: '0.5rem', borderRadius: '12px', backgroundColor: activeMonth === idx ? '#eff6ff' : 'transparent', transition: 'all 0.2s' }}>
+                                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                                <label style={{ fontSize: '0.75rem', fontWeight: 700, color: '#64748b', textTransform: 'uppercase' }}>{month}</label>
+                                                {isLocked && <span title="Mês bloqueado" style={{ cursor: 'help' }}>🔒</span>}
+                                            </div>
+                                            <div style={{ position: 'relative' }}>
+                                                <span style={{ position: 'absolute', left: '0.6rem', top: '50%', transform: 'translateY(-50%)', color: '#94a3b8', fontSize: '0.8rem' }}>R$</span>
+                                                <input
+                                                    type="text"
+                                                    value={modalValues[idx]}
+                                                    disabled={!canEdit}
+                                                    onFocus={() => setActiveMonth(idx)}
+                                                    onChange={(e) => { const next = [...modalValues]; next[idx] = e.target.value; setModalValues(next); }}
+                                                    onKeyDown={e => { if (e.key === 'Enter' && idx < 11) setActiveMonth(idx + 1); if (e.key === 'Tab') { e.preventDefault(); setActiveMonth((idx + 1) % 12); } }}
+                                                    placeholder="0,00"
+                                                    className="premium-input"
+                                                    style={{ width: '100%', textAlign: 'right', fontWeight: 700, fontSize: '0.95rem', padding: '0.5rem 0.5rem 0.5rem 2rem', border: !canEdit ? '1px dashed #cbd5e1' : (activeMonth === idx ? '1px solid #2563eb' : '1px solid #e2e8f0'), backgroundColor: !canEdit ? '#f8fafc' : '#ffffff' }}
+                                                />
+                                            </div>
+                                        </div>
+                                    );
+                                })}
+                            </div>
+
+                            <div style={{ marginBottom: '2rem' }}>
+                                <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 700, color: '#64748b', marginBottom: '0.5rem', textTransform: 'uppercase' }}>Observação do Item</label>
+                                <textarea
+                                    value={modalObservation}
+                                    onChange={(e) => setModalObservation(e.target.value)}
+                                    placeholder="Adicione detalhes sobre este lançamento..."
+                                    className="premium-input"
+                                    style={{ width: '100%', minHeight: '80px', resize: 'vertical', fontSize: '0.9rem' }}
+                                />
+                            </div>
+
+                            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '1rem', borderTop: '1px solid #f1f5f9', paddingTop: '1.5rem' }}>
+                                <button onClick={() => setBudgetModal(null)} style={{ padding: '0.75rem 1.5rem', backgroundColor: 'transparent', color: '#64748b', border: 'none', borderRadius: '8px', fontWeight: 600, cursor: 'pointer', fontSize: '0.95rem' }}>Cancelar</button>
+                                <button
+                                    disabled={isSavingBudget || (lockedMonths.every(l => l) && userRole !== 'MASTER')}
+                                    onClick={handleSaveBudget}
+                                    style={{ padding: '0.75rem 2rem', backgroundColor: (lockedMonths.every(l => l) && userRole !== 'MASTER') ? '#94a3b8' : '#2563eb', color: '#fff', border: 'none', borderRadius: '8px', fontWeight: 700, cursor: (isSavingBudget || (lockedMonths.every(l => l) && userRole !== 'MASTER')) ? 'default' : 'pointer', fontSize: '0.95rem', minWidth: '120px', opacity: isSavingBudget ? 0.7 : 1 }}
+                                >
+                                    {isSavingBudget ? 'Salvando...' : 'Salvar'}
+                                </button>
+                            </div>
                         </div>
                     </div>
                 </div>

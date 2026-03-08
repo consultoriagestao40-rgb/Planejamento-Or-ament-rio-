@@ -1038,7 +1038,7 @@ export default function BudgetGrid({
             <React.Fragment key={node.id}>
                 <tr style={{ background: 'var(--bg-surface)', cursor: hasChildren ? 'pointer' : 'default', borderBottom: '1px solid var(--border-subtle)' }}>
                     <td onClick={() => hasChildren && toggleRow(node.id)} className="premium-td" style={{
-                        padding: '0.65rem 1rem',
+                        padding: '0.65rem 0',
                         position: 'sticky',
                         left: 0,
                         background: '#ffffff', // Force solid white to prevent transparency bleed
@@ -1050,7 +1050,7 @@ export default function BudgetGrid({
                         width: '400px',
                         borderRight: '1px solid var(--border-subtle)',
                     }}>
-                        <div style={{ display: 'flex', alignItems: 'center', paddingLeft: `${node.level * 1.5}rem` }}>
+                        <div style={{ display: 'flex', alignItems: 'center', paddingLeft: `${1 + node.level * 1.5}rem` }}>
                             {hasChildren && <span style={{ marginRight: '0.6rem', fontSize: '0.8rem', width: '1rem', color: 'var(--accent-blue)', opacity: 0.8 }}>{isExpanded ? '▼' : '▶'}</span>}
                             {!hasChildren && <span style={{ width: '1.6rem' }}></span>}
                             {node.name}

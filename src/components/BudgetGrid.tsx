@@ -50,7 +50,9 @@ export default function BudgetGrid({
     companies,
     externalYear = new Date().getFullYear()
 }: BudgetGridProps) {
-    // --- Budget State ---
+    const [internalRefresh, setInternalRefresh] = useState(0);
+    const triggerRefresh = () => setInternalRefresh((prev: number) => prev + 1);
+
     const [budgetValues, setBudgetValues] = useState<Record<string, { amount: number, radarAmount: number | null, isLocked: boolean, observation?: string | null }>>({});
     const [isCCLocked, setIsCCLocked] = useState(false);
     const [radarLocks, setRadarLocks] = useState<any[]>([]);
@@ -664,46 +666,71 @@ export default function BudgetGrid({
             const hasObservation = modalObservation.trim().length > 0;
             for (let i = 0; i < 12; i++) {
                 const currentVal = modalValues[i];
-                // Only skip if: amount is empty AND there's no existing data AND there's no new observation
                 if (currentVal === '' && budgetValues[`${budgetModal.categoryId}-${i}`] === undefined && !hasObservation) continue;
 
+                const numericVal = evaluateFormula(currentVal);
+                const isBudget = budgetModal.type === 'budget';
+
+                // CRITICAL: If categoryId is merged (e.g. "id1,id2"), we must ONLY
+                // save to the ID that belongs to the selected company (targetCompanyParam).
+                // This prevents "summing" values from other businesses sharing the same category row.
+                const allIds = budgetModal.categoryId.split(',');
+                let targetId = allIds[0]; // Default to first if not found
+                
+                if (targetCompanyParam !== 'ALL') {
+                    const matchId = categories.find((c: any) => allIds.includes(c.id) && c.tenantId === targetCompanyParam);
+                    if (matchId) targetId = matchId.id;
+                }
 
                 const entry: any = {
-                    categoryId: budgetModal.categoryId,
+                    categoryId: targetId,
                     month: i,
                     year: selectedYear,
                     costCenterId: selectedCostCenter[0],
-                    tenantId: targetCompanyParam
-
+                    tenantId: targetCompanyParam,
+                    observation: modalObservation.trim() || null
                 };
 
-                const numericVal = evaluateFormula(currentVal);
-
-                if (budgetModal.type === 'budget') {
-                    if (!lockedMonths[i] || userRole === 'MASTER') {
-                        entry.amount = numericVal;
-                    }
-                    if (userRole === 'MASTER') {
-                        entry.isLocked = lockedMonths[i];
-                    }
+                if (isBudget) {
+                    if (!lockedMonths[i] || userRole === 'MASTER') entry.amount = numericVal;
+                    if (userRole === 'MASTER') entry.isLocked = lockedMonths[i];
                 } else {
                     entry.radarAmount = numericVal;
                 }
-                // Include observation on every entry (shared for all months of this category/CC)
-                entry.observation = modalObservation.trim() || null;
+                
                 entries.push(entry);
+
+                // IMPORTANT: If this category represents a merged group (multiple IDs), 
+                // we must "clean" the other IDs by setting them to 0 (or null radarAmount) 
+                // to avoid them summing up in the UI.
+                if (allIds.length > 1) {
+                    allIds.forEach((id: string) => {
+                        if (id !== targetId) {
+                            const cleanEntry: any = {
+                                categoryId: id,
+                                month: i,
+                                year: selectedYear,
+                                costCenterId: selectedCostCenter[0],
+                                tenantId: targetCompanyParam,
+                                observation: entry.observation,
+                                amount: 0,
+                                radarAmount: null
+                            };
+                            if (userRole === 'MASTER') cleanEntry.isLocked = lockedMonths[i];
+                            entries.push(cleanEntry);
+                        }
+                    });
+                }
 
                 // --- AUTOMATIC CHARGES CALCULATION (Encargos Sociais) ---
                 const catName = budgetModal.categoryName || "";
                 const codeMatch = catName.match(/^([\d.]+)/);
                 const rawCode = codeMatch ? codeMatch[1] : '';
-
-                // Normalization helper
                 const norm = (c: string) => c.split('.').map(s => parseInt(s, 10).toString()).filter(s => s !== 'NaN').join('.');
                 const normCode = rawCode ? norm(rawCode) : '';
 
-                if (normCode === '3.1') {
-                    const isBudget = budgetModal.type === 'budget';
+                // Apply to anything starting with 3.1 (Salários e Remuneração)
+                if (normCode.startsWith('3.1')) {
                     const chargeConfigs = [
                         { code: '03.2.1', rate: 0.08 },
                         { code: '03.2.2', rate: 0.0833 },
@@ -713,14 +740,26 @@ export default function BudgetGrid({
 
                     chargeConfigs.forEach(config => {
                         const targetNorm = norm(config.code);
-                        const targetCat = categories.find(c => {
+                        // We need the specific tenantId for the target category
+                        // entries[0].tenantId might be 'ALL' if multiple companies selected, 
+                        // but handleSaveBudget requires a single company selection (checked at openBudgetModal)
+                        const tenantId = targetCompanyParam;
+                        
+                        const targetCat = categories.find((c: any) => {
                             const cMatch = c.name.match(/^([\d.]+)/);
                             const currentCatNorm = cMatch ? norm(cMatch[1]) : '';
-                            return currentCatNorm === targetNorm && c.tenantId === targetCompanyParam;
+                            return currentCatNorm === targetNorm && c.tenantId === tenantId;
                         });
 
                         if (targetCat) {
-                            const calcEntry = { ...entry, categoryId: targetCat.id };
+                            const calcEntry: any = {
+                                categoryId: targetCat.id,
+                                month: i,
+                                year: selectedYear,
+                                costCenterId: selectedCostCenter[0],
+                                tenantId: tenantId,
+                                observation: entry.observation
+                            };
                             if (isBudget) {
                                 calcEntry.amount = numericVal * config.rate;
                             } else {
@@ -773,6 +812,40 @@ export default function BudgetGrid({
             alert(`Erro ao salvar orçamentos: ${error.message}${error.details ? '\nDetalhes: ' + error.details : ''}`);
         } finally {
             setIsSavingBudget(false);
+        }
+    };
+
+    const toggleLock = async () => {
+        if (userRole !== 'MASTER') return;
+        if (selectedCostCenter.includes('DEFAULT') || selectedCostCenter.length !== 1) {
+            alert("Selecione um único centro de custo para trancar/destrancar");
+            return;
+        }
+        if (selectedCompany.includes('DEFAULT') || selectedCompany.length !== 1) {
+            alert("Selecione uma única empresa");
+            return;
+        }
+
+        const newLockState = !isCCLocked;
+        try {
+            const res = await fetch('/api/cost-centers/lock', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    tenantId: selectedCompany[0],
+                    costCenterId: selectedCostCenter[0],
+                    year: selectedYear,
+                    isLocked: newLockState
+                })
+            });
+            if (res.ok) {
+                setIsCCLocked(newLockState);
+                triggerRefresh();
+            } else {
+                alert("Erro ao alterar trava");
+            }
+        } catch (err) {
+            console.error("Lock error:", err);
         }
     };
 
@@ -888,10 +961,13 @@ export default function BudgetGrid({
 
     const replicateValue = () => {
         if (!budgetModal) return;
+        // Replicate from activeMonth to the end of the year
         const valueToReplicate = modalValues[activeMonth];
         const next = [...modalValues];
-        for (let i = budgetModal.startMonth; i < 12; i++) {
-            next[i] = valueToReplicate;
+        for (let i = activeMonth; i < 12; i++) {
+            if (!lockedMonths[i] || userRole === 'MASTER') {
+                next[i] = valueToReplicate;
+            }
         }
         setModalValues(next);
     };
@@ -1079,6 +1155,9 @@ export default function BudgetGrid({
 
     const renderSummaryRow = (label: string, validx: keyof ReturnType<typeof dreStructure.calculateTotals>, isBold = false, bgColor = 'var(--bg-elevated)', textColor = 'var(--text-primary)', groupId?: string) => {
         const isGroupExpanded = groupId ? expandedGroups.has(groupId) : true;
+        const sums = dreStructure.calculateTotals();
+        const rowData = sums[validx];
+        const isMainTotal = label.toLowerCase().includes('resultado líquido') || label.toLowerCase().includes('ebitda') || label.toLowerCase().includes('resultado operacional');
 
         return (
             <tr onClick={() => groupId && toggleGroup(groupId)} style={{ background: bgColor, borderBottom: '1px solid var(--border-default)', fontWeight: 800, cursor: groupId ? 'pointer' : 'default' }}>
@@ -1104,6 +1183,17 @@ export default function BudgetGrid({
                         )}
                         {!groupId && <span style={{ width: '1.75rem' }}></span>}
                         {label}
+                        {isMainTotal && userRole === 'MASTER' && selectedCostCenter.length === 1 && !selectedCostCenter.includes('DEFAULT') && (
+                            <button 
+                                onClick={(e) => { e.stopPropagation(); toggleLock(); }}
+                                style={{ marginLeft: 'auto', background: 'none', border: 'none', cursor: 'pointer', padding: '0 0.5rem', opacity: 0.8 }}
+                                title={isCCLocked ? "Clique para destravar este Centro de Custo" : "Clique para trancar este Centro de Custo"}
+                            >
+                                <span style={{ fontSize: '1.1rem', filter: isCCLocked ? 'none' : 'grayscale(100%)' }}>
+                                    {isCCLocked ? '🔒' : '🔓'}
+                                </span>
+                            </button>
+                        )}
                     </div>
                 </td>
                 {(viewPeriod === 'month' ? MONTHS : [1, 2, 3, 4]).map((_, i) => {

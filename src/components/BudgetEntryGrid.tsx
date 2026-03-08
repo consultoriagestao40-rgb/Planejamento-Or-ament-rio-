@@ -271,12 +271,17 @@ export default function BudgetEntryGrid({ costCenterId, year }: BudgetEntryGridP
         const buckets = { rev: [] as CategoryNode[], taxes: [] as CategoryNode[], costs: [] as CategoryNode[], opExp: [] as CategoryNode[], adminExp: [] as CategoryNode[], fin: [] as CategoryNode[] };
         treeRoots.forEach(root => {
             const code = root.code || '';
+            const type = root.type || 'EXPENSE';
+
             if (code.startsWith('01') || code === '1') buckets.rev.push(root);
             else if (code.startsWith('02') || code === '2') buckets.taxes.push(root);
             else if (code.startsWith('3') || code.startsWith('03')) buckets.costs.push(root);
             else if (code.startsWith('4') || code.startsWith('04')) buckets.opExp.push(root);
             else if (code.startsWith('5') || code.startsWith('05') || code.startsWith('7') || code.startsWith('8')) buckets.adminExp.push(root);
             else if (code.startsWith('6') || code.startsWith('06') || code.startsWith('9') || code.startsWith('10')) buckets.fin.push(root);
+            // Fallbacks for categories without expected code pattern
+            else if (type === 'REVENUE') buckets.rev.push(root);
+            else buckets.adminExp.push(root);
         });
 
         return {

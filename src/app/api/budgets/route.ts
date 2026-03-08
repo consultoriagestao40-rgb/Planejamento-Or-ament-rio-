@@ -59,9 +59,23 @@ export async function GET(request: Request) {
       }
     }
 
+
+
     const { searchParams } = new URL(request.url);
     const costCenterIdParam = searchParams.get('costCenterId') || 'DEFAULT';
     let costCenterIds = costCenterIdParam.split(',').map(id => id.trim()).filter(Boolean);
+
+    // If GESTOR, and they are requesting specific CCs, ensure we permit the tenants of those CCs
+    if (user.role === 'GESTOR' && costCenterIds.length > 0 && !costCenterIds.includes('DEFAULT')) {
+        const targetCCs = await prisma.costCenter.findMany({
+            where: { id: { in: costCenterIds } },
+            select: { tenantId: true }
+        });
+        const extraTenants = targetCCs.map((cc: any) => cc.tenantId);
+        if (allowedTenants) {
+            allowedTenants = Array.from(new Set([...allowedTenants, ...extraTenants]));
+        }
+    }
 
     const isGeneralView = costCenterIds.includes('DEFAULT');
 

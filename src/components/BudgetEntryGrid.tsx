@@ -440,13 +440,31 @@ export default function BudgetEntryGrid({ costCenterId, year }: BudgetEntryGridP
             const codeMatch = catName.match(/^([\d.]+)/);
             const normCode = codeMatch ? norm(codeMatch[1]) : '';
 
+            // Get what was there before to compare
+            const initialValues = new Array(12).fill('').map((_, i) => {
+                const ids = budgetModal.fullNodeId.split(',');
+                for (const id of ids) {
+                    const d = budgetValues[`${id}-${i}`];
+                    if (d?.amount !== undefined && d.amount !== null) return d.amount.toString();
+                }
+                return '';
+            });
+
             for (let i = 0; i < 12; i++) {
                 const currentVal = modalValues[i];
-                if (currentVal === '' && budgetValues[`${budgetModal.categoryId}-${i}`] === undefined && !modalObservation.trim()) continue;
+                const initialVal = initialValues[i];
+                
+                // Track if value OR observation for THIS month changed
+                const isChanged = currentVal !== initialVal;
+                const isObsMonth = i === budgetModal.startMonth;
+                const obsChanged = modalObservation.trim() !== (initialValues[12] /* obs isn't tracked here yet, let's keep it simple */ || '');
+                
+                // If nothing changed for this month, skip it!
+                if (!isChanged && !isObsMonth) continue;
+                
                 const numericVal = evaluateFormula(currentVal);
-
                 const allIds = budgetModal.fullNodeId.split(',');
-                // Find the ID that belongs to this CC's tenant
+                
                 let targetId = allIds[0];
                 if (tenantId) {
                     const match = categories.find((c: any) => allIds.includes(c.id) && c.tenantId === tenantId);
@@ -461,27 +479,10 @@ export default function BudgetEntryGrid({ costCenterId, year }: BudgetEntryGridP
                     tenantId: tenantId || (categories.find((c: any) => c.id === targetId)?.tenantId || ''),
                     amount: numericVal,
                     radarAmount: budgetValues[`${targetId}-${i}`]?.radarAmount ?? null,
-                    observation: modalObservation.trim() || null
+                    observation: isObsMonth ? (modalObservation.trim() || null) : (budgetValues[`${targetId}-${i}`]?.observation || null)
                 };
                 if (userRole === 'MASTER') entry.isLocked = lockedMonths[i];
                 entries.push(entry);
-
-                // Clean other IDs in merged nodes
-                allIds.forEach((id: string) => {
-                    if (id !== targetId) {
-                        const catObj = categories.find((c: any) => c.id === id);
-                        entries.push({ 
-                            categoryId: id, 
-                            month: i, 
-                            year, 
-                            costCenterId, 
-                            tenantId: catObj?.tenantId || tenantId, 
-                            amount: 0, 
-                            radarAmount: budgetValues[`${id}-${i}`]?.radarAmount ?? null,
-                            observation: null
-                        });
-                    }
-                });
 
                 // Auto-calculate encargos from salary base (03.1.x)
                 if (normCode.startsWith('3.1')) {
@@ -500,7 +501,9 @@ export default function BudgetEntryGrid({ costCenterId, year }: BudgetEntryGridP
                         if (cat.tenantId !== tenantId) return;
                         const cardIds = cat.id.split(',');
                         const isCurrent = cardIds.some((id: string) => budgetModal.fullNodeId.split(',').includes(id));
-                        if (isCurrent) { salaryBase += numericVal; } else {
+                        if (isCurrent) { 
+                            salaryBase += numericVal; // Use new monthly value
+                        } else {
                             cardIds.forEach((id: string) => {
                                 const stored = budgetValues[`${id}-${i}`];
                                 if (stored) salaryBase += stored.amount || 0;
@@ -520,6 +523,11 @@ export default function BudgetEntryGrid({ costCenterId, year }: BudgetEntryGridP
                 }
             }
 
+            if (entries.length === 0) {
+                setBudgetModal(null);
+                return;
+            }
+
             const res = await fetch('/api/budgets', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -529,7 +537,7 @@ export default function BudgetEntryGrid({ costCenterId, year }: BudgetEntryGridP
 
             setBudgetModal(null);
 
-            // Refresh
+            // Refresh data
             const refreshRes = await fetch(`/api/budgets?costCenterId=${costCenterId}&tenantId=ALL&year=${year}&t=${Date.now()}`, { cache: 'no-store' });
             const refreshData = await refreshRes.json();
             if (refreshData.success) {
@@ -587,7 +595,7 @@ export default function BudgetEntryGrid({ costCenterId, year }: BudgetEntryGridP
                 >
                     {/* Name cell */}
                     <td style={{
-                        padding: '0.65rem 0',
+                        padding: '0.85rem 1rem',
                         position: 'sticky', left: 0,
                         background: node.level === 0 ? 'var(--bg-surface)' : 'var(--bg-base)',
                         zIndex: 10,
@@ -597,7 +605,7 @@ export default function BudgetEntryGrid({ costCenterId, year }: BudgetEntryGridP
                         fontWeight: node.level === 0 ? 700 : 400,
                         color: node.level === 0 ? 'var(--text-primary)' : 'var(--text-secondary)'
                     }}>
-                        <div style={{ display: 'flex', alignItems: 'center', paddingLeft: `${3 + node.level * 1.5}rem` }}>
+                        <div style={{ display: 'flex', alignItems: 'center', paddingLeft: `${node.level * 1.5}rem` }}>
                             {hasChildren && <span style={{ marginRight: '0.6rem', fontSize: '0.8rem', width: '1rem', color: 'var(--accent-blue)', opacity: 0.8 }}>{isExpanded ? '▼' : '▶'}</span>}
                             {!hasChildren && <span style={{ width: '1.6rem' }}></span>}
                             {node.name}
@@ -636,7 +644,7 @@ export default function BudgetEntryGrid({ costCenterId, year }: BudgetEntryGridP
                     })}
 
                     {/* Annual total */}
-                    <td style={{ padding: '0.85rem 1rem', textAlign: 'right', fontSize: '0.8rem', fontWeight: 800, color: 'var(--text-primary)', whiteSpace: 'nowrap', borderLeft: '2px solid var(--border-default)', background: 'var(--bg-surface)', borderRight: '1px solid var(--border-subtle)' }}>
+                    <td style={{ padding: '0.85rem 1rem', textAlign: 'right', fontSize: '0.8rem', fontWeight: 800, color: 'var(--text-primary)', whiteSpace: 'nowrap', borderLeft: '1px solid var(--border-default)', background: 'var(--bg-surface)', borderRight: '1px solid var(--border-subtle)' }}>
                         {fmt((totals?.budget || new Array(12).fill(0)).reduce((a: number, b: number) => a + b, 0))}
                     </td>
                 </tr>
@@ -663,7 +671,7 @@ export default function BudgetEntryGrid({ costCenterId, year }: BudgetEntryGridP
                         {valuesB[i] === 0 ? '-' : fmt(valuesB[i])}
                     </td>
                 ))}
-                <td style={{ padding: '0.85rem 1rem', textAlign: 'right', fontSize: '0.82rem', fontWeight: 800, color: textColor, whiteSpace: 'nowrap', borderLeft: '2px solid var(--border-default)', background: 'var(--bg-surface)', borderRight: '1px solid var(--border-subtle)' }}>
+                <td style={{ padding: '0.85rem 1rem', textAlign: 'right', fontSize: '0.8rem', fontWeight: 800, color: textColor, whiteSpace: 'nowrap', borderLeft: '1px solid var(--border-default)', borderRight: '1px solid var(--border-subtle)' }}>
                     {annualB === 0 ? '-' : fmt(annualB)}
                 </td>
             </tr>
@@ -754,11 +762,11 @@ export default function BudgetEntryGrid({ costCenterId, year }: BudgetEntryGridP
                                 ▸ Estrutura DRE
                             </th>
                             {MONTHS.map((m, i) => (
-                                <th key={i} style={{ padding: '1rem 0', textAlign: 'right', fontSize: '0.65rem', fontWeight: 800, borderRight: '1px solid var(--border-subtle)', borderBottom: '2px solid var(--border-default)', minWidth: '120px', color: 'var(--text-muted)' }}>
-                                    <div style={{ textTransform: 'uppercase', paddingRight: '1rem' }}>{m}</div>
+                                <th key={i} style={{ padding: '0.85rem 1rem', textAlign: 'right', fontSize: '0.65rem', fontWeight: 800, borderRight: '1px solid var(--border-subtle)', borderBottom: '2px solid var(--border-default)', minWidth: '120px', color: 'var(--text-muted)' }}>
+                                    <div style={{ textTransform: 'uppercase' }}>{m}</div>
                                 </th>
                             ))}
-                            <th style={{ padding: '1rem 1.5rem', textAlign: 'right', fontSize: '0.65rem', fontWeight: 800, borderLeft: '2px solid var(--border-default)', borderBottom: '2px solid var(--border-default)', minWidth: '150px', background: 'var(--bg-surface)', color: 'var(--accent-blue)' }}>
+                            <th style={{ padding: '0.85rem 1rem', textAlign: 'right', fontSize: '0.65rem', fontWeight: 800, borderLeft: '1px solid var(--border-default)', borderBottom: '2px solid var(--border-default)', minWidth: '150px', background: 'var(--bg-surface)', color: 'var(--accent-blue)' }}>
                                 TOTAL ANUAL
                             </th>
                         </tr>

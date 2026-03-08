@@ -1357,7 +1357,8 @@ export default function BudgetGrid({
                         {renderSummaryRow('(=) LUCRO LÍQUIDO', 'vNetProfit', true, 'var(--gradient-brand)', 'white')}
                     </tbody>
                 </table>
-                {/* Budget Drill-Down Modal — 3-Step */}
+            </div>
+            {/* Budget Drill-Down Modal — 3-Step */}
                 {budgetDrillModal && (() => {
                     const { entries, loading, categoryName, month, drillStep, drillCompany, drillCC } = budgetDrillModal;
 
@@ -1755,7 +1756,7 @@ export default function BudgetGrid({
                         </div>
                     </div>
                 )}
-            </div>
+            <div style={{ height: '2rem' }}></div> {/* Spacer after card */}
         </>
     );
 }

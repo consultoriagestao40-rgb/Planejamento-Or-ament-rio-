@@ -607,8 +607,6 @@ export default function BudgetEntryGrid({ costCenterId, year }: BudgetEntryGridP
                     {/* Budget cells for each month */}
                     {MONTHS.map((_, i) => {
                         const bg = totals?.budget[i] || 0;
-                        const rd = totals?.radar[i] || 0;
-                        const rl = totals?.realized[i] || 0;
                         const rawData = node.id.split(',').reduce((acc: any, id) => {
                             const d = budgetValues[`${id}-${i}`];
                             return d ? d : acc;
@@ -616,43 +614,30 @@ export default function BudgetEntryGrid({ costCenterId, year }: BudgetEntryGridP
                         const locked = rawData?.isLocked || isCCLocked;
 
                         return (
-                            <React.Fragment key={i}>
-                                <td
-                                    onClick={(e) => { e.stopPropagation(); if (!hasChildren) openBudgetModal(node.id, node.name, i); }}
-                                    style={{
-                                        padding: '0.45rem 0.6rem', textAlign: 'right', fontSize: '0.78rem',
-                                        color: bg === 0 ? 'var(--text-muted)' : 'var(--text-primary)',
-                                        cursor: hasChildren ? 'default' : (isLocked ? 'not-allowed' : 'pointer'),
-                                        borderBottom: '1px solid var(--border-subtle)', borderRight: '1px solid var(--border-subtle)',
-                                        whiteSpace: 'nowrap', transition: 'background 0.1s',
-                                        fontWeight: node.level === 0 ? 700 : 400, opacity: hasChildren ? 0.85 : 1,
-                                        background: locked && !hasChildren ? 'rgba(239,68,68,0.04)' : 'transparent'
-                                    }}
-                                    className={!hasChildren && !isLocked ? 'budget-cell' : ''}
-                                    title={rawData?.observation ? `Obs: ${rawData.observation}` : hasChildren ? 'Subtotal' : 'Clique para editar'}
-                                >
-                                    {locked && !hasChildren && <span style={{ marginRight: '0.2rem', fontSize: '0.6rem', opacity: 0.5 }}>🔒</span>}
-                                    {bg === 0 ? (hasChildren ? '-' : <span style={{ opacity: 0.3 }}>—</span>) : fmt(bg)}
-                                </td>
-                                <td style={{ padding: '0.45rem 0.6rem', textAlign: 'right', fontSize: '0.78rem', color: rd === 0 ? 'var(--text-muted)' : 'var(--accent-indigo)', opacity: 0.9, borderBottom: '1px solid var(--border-subtle)', borderRight: '1px solid var(--border-subtle)', whiteSpace: 'nowrap', background: 'rgba(99, 102, 241, 0.02)' }}>
-                                    {rd === 0 ? '-' : fmt(rd)}
-                                </td>
-                                <td style={{ padding: '0.45rem 0.6rem', textAlign: 'right', fontSize: '0.78rem', color: rl === 0 ? 'var(--text-muted)' : 'var(--accent-blue)', opacity: 0.9, borderBottom: '1px solid var(--border-subtle)', borderRight: '1px solid var(--border-subtle)', whiteSpace: 'nowrap' }}>
-                                    {rl === 0 ? '-' : fmt(rl)}
-                                </td>
-                            </React.Fragment>
+                            <td
+                                key={i}
+                                onClick={(e) => { e.stopPropagation(); if (!hasChildren) openBudgetModal(node.id, node.name, i); }}
+                                style={{
+                                    padding: '0.65rem 0.8rem', textAlign: 'right', fontSize: '0.78rem',
+                                    color: bg === 0 ? 'var(--text-muted)' : 'var(--text-primary)',
+                                    cursor: hasChildren ? 'default' : (isLocked ? 'not-allowed' : 'pointer'),
+                                    borderBottom: '1px solid var(--border-subtle)', borderRight: '1px solid var(--border-subtle)',
+                                    whiteSpace: 'nowrap', transition: 'background 0.1s',
+                                    fontWeight: node.level === 0 ? 700 : 400, opacity: hasChildren ? 0.85 : 1,
+                                    background: locked && !hasChildren ? 'rgba(239,68,68,0.04)' : 'transparent'
+                                }}
+                                className={!hasChildren && !isLocked ? 'budget-cell' : ''}
+                                title={rawData?.observation ? `Obs: ${rawData.observation}` : hasChildren ? 'Subtotal' : 'Clique para editar'}
+                            >
+                                {locked && !hasChildren && <span style={{ marginRight: '0.2rem', fontSize: '0.6rem', opacity: 0.5 }}>🔒</span>}
+                                {bg === 0 ? (hasChildren ? '-' : <span style={{ opacity: 0.3 }}>—</span>) : fmt(bg)}
+                            </td>
                         );
                     })}
 
                     {/* Annual total */}
-                    <td style={{ padding: '0.5rem 0.75rem', textAlign: 'right', fontSize: '0.78rem', fontWeight: 800, color: 'var(--text-primary)', whiteSpace: 'nowrap', borderLeft: '2px solid var(--border-default)', background: 'var(--bg-surface)' }}>
+                    <td style={{ padding: '0.65rem 1rem', textAlign: 'right', fontSize: '0.78rem', fontWeight: 800, color: 'var(--text-primary)', whiteSpace: 'nowrap', borderLeft: '2px solid var(--border-default)', background: 'var(--bg-surface)', borderRight: '1px solid var(--border-subtle)' }}>
                         {fmt((totals?.budget || new Array(12).fill(0)).reduce((a: number, b: number) => a + b, 0))}
-                    </td>
-                    <td style={{ padding: '0.5rem 0.75rem', textAlign: 'right', fontSize: '0.78rem', fontWeight: 700, color: 'var(--accent-indigo)', whiteSpace: 'nowrap', background: 'var(--bg-surface)', borderLeft: '1px solid var(--border-subtle)' }}>
-                        {fmt((totals?.radar || new Array(12).fill(0)).reduce((a: number, b: number) => a + b, 0))}
-                    </td>
-                    <td style={{ padding: '0.5rem 0.75rem', textAlign: 'right', fontSize: '0.78rem', fontWeight: 700, color: 'var(--accent-blue)', whiteSpace: 'nowrap', background: 'var(--bg-surface)', borderLeft: '1px solid var(--border-subtle)', borderRight: '1px solid var(--border-subtle)' }}>
-                        {fmt((totals?.realized || new Array(12).fill(0)).reduce((a: number, b: number) => a + b, 0))}
                     </td>
                 </tr>
                 {isExpanded && node.children.map(child => renderNode(child))}
@@ -661,11 +646,9 @@ export default function BudgetEntryGrid({ costCenterId, year }: BudgetEntryGridP
     };
 
     // ─── RENDER SUMMARY ROW ───────────────────────────────────────────
-    const renderSummaryRow = (label: string, valuesB: number[], valuesRd: number[], valuesRl: number[], isBold = false, bgColor = 'var(--bg-elevated)', textColor = 'var(--text-primary)', groupId?: string) => {
+    const renderSummaryRow = (label: string, valuesB: number[], isBold = false, bgColor = 'var(--bg-elevated)', textColor = 'var(--text-primary)', groupId?: string) => {
         const isExpanded = groupId ? expandedGroups.has(groupId) : true;
         const annualB = valuesB.reduce((a, b) => a + b, 0);
-        const annualRd = valuesRd.reduce((a, b) => a + b, 0);
-        const annualRl = valuesRl.reduce((a, b) => a + b, 0);
         return (
             <tr onClick={() => groupId && toggleGroup(groupId)} style={{ background: bgColor, borderBottom: '1px solid var(--border-default)', fontWeight: isBold ? 800 : 600, cursor: groupId ? 'pointer' : 'default' }}>
                 <td style={{ padding: '0.85rem 1rem', position: 'sticky', left: 0, background: bgColor.includes('gradient') ? '#2563eb' : bgColor, zIndex: 10, color: textColor, fontSize: '0.85rem', minWidth: '380px', width: '380px', borderRight: '1px solid var(--border-default)', textTransform: 'uppercase', letterSpacing: '0.02em' }}>
@@ -676,26 +659,12 @@ export default function BudgetEntryGrid({ costCenterId, year }: BudgetEntryGridP
                     </div>
                 </td>
                 {MONTHS.map((_, i) => (
-                    <React.Fragment key={i}>
-                        <td style={{ padding: '0.65rem 0.6rem', textAlign: 'right', fontSize: '0.8rem', color: textColor, whiteSpace: 'nowrap', borderRight: '1px solid var(--border-subtle)', fontWeight: isBold ? 800 : 600 }}>
-                            {valuesB[i] === 0 ? '-' : fmt(valuesB[i])}
-                        </td>
-                        <td style={{ padding: '0.65rem 0.6rem', textAlign: 'right', fontSize: '0.8rem', color: 'var(--accent-indigo)', whiteSpace: 'nowrap', borderRight: '1px solid var(--border-subtle)', fontWeight: isBold ? 800 : 600, opacity: 0.8, background: 'rgba(99, 102, 241, 0.05)' }}>
-                            {valuesRd[i] === 0 ? '-' : fmt(valuesRd[i])}
-                        </td>
-                        <td style={{ padding: '0.65rem 0.6rem', textAlign: 'right', fontSize: '0.8rem', color: 'var(--accent-blue)', whiteSpace: 'nowrap', borderRight: '1px solid var(--border-subtle)', fontWeight: isBold ? 800 : 600, opacity: 0.8 }}>
-                            {valuesRl[i] === 0 ? '-' : fmt(valuesRl[i])}
-                        </td>
-                    </React.Fragment>
+                    <td key={i} style={{ padding: '0.65rem 0.8rem', textAlign: 'right', fontSize: '0.8rem', color: textColor, whiteSpace: 'nowrap', borderRight: '1px solid var(--border-subtle)', fontWeight: isBold ? 800 : 600 }}>
+                        {valuesB[i] === 0 ? '-' : fmt(valuesB[i])}
+                    </td>
                 ))}
-                <td style={{ padding: '0.65rem 0.75rem', textAlign: 'right', fontSize: '0.82rem', fontWeight: 800, color: textColor, whiteSpace: 'nowrap', borderLeft: '2px solid var(--border-default)', background: 'var(--bg-surface)' }}>
+                <td style={{ padding: '0.65rem 1rem', textAlign: 'right', fontSize: '0.82rem', fontWeight: 800, color: textColor, whiteSpace: 'nowrap', borderLeft: '2px solid var(--border-default)', background: 'var(--bg-surface)', borderRight: '1px solid var(--border-subtle)' }}>
                     {annualB === 0 ? '-' : fmt(annualB)}
-                </td>
-                <td style={{ padding: '0.65rem 0.75rem', textAlign: 'right', fontSize: '0.82rem', fontWeight: 800, color: 'var(--accent-indigo)', whiteSpace: 'nowrap', borderLeft: '1px solid var(--border-subtle)', background: 'var(--bg-surface)' }}>
-                    {annualRd === 0 ? '-' : fmt(annualRd)}
-                </td>
-                <td style={{ padding: '0.65rem 0.75rem', textAlign: 'right', fontSize: '0.82rem', fontWeight: 800, color: 'var(--accent-blue)', whiteSpace: 'nowrap', borderLeft: '1px solid var(--border-subtle)', borderRight: '1px solid var(--border-default)', background: 'var(--bg-surface)' }}>
-                    {annualRl === 0 ? '-' : fmt(annualRl)}
                 </td>
             </tr>
         );
@@ -785,59 +754,49 @@ export default function BudgetEntryGrid({ costCenterId, year }: BudgetEntryGridP
                                 ▸ Estrutura DRE
                             </th>
                             {MONTHS.map((m, i) => (
-                                <th key={i} style={{ padding: '0.3rem 0', textAlign: 'center', fontSize: '0.65rem', fontWeight: 800, borderRight: '1px solid var(--border-subtle)', borderBottom: '2px solid var(--border-default)', minWidth: '240px' }}>
-                                    <div style={{ color: 'var(--text-muted)', marginBottom: '0.2rem', textTransform: 'uppercase' }}>{m}</div>
-                                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', fontSize: '0.55rem', gap: '0' }}>
-                                        <span style={{ color: 'var(--text-muted)', borderRight: '1px solid rgba(0,0,0,0.05)' }}>ORC</span>
-                                        <span style={{ color: 'var(--accent-indigo)', borderRight: '1px solid rgba(0,0,0,0.05)' }}>RAD</span>
-                                        <span style={{ color: 'var(--accent-blue)' }}>REA</span>
-                                    </div>
+                                <th key={i} style={{ padding: '1rem 0', textAlign: 'right', fontSize: '0.65rem', fontWeight: 800, borderRight: '1px solid var(--border-subtle)', borderBottom: '2px solid var(--border-default)', minWidth: '120px', color: 'var(--text-muted)' }}>
+                                    <div style={{ textTransform: 'uppercase', paddingRight: '1rem' }}>{m}</div>
                                 </th>
                             ))}
-                            <th style={{ padding: '0.3rem 0.5rem', textAlign: 'center', fontSize: '0.65rem', fontWeight: 800, borderLeft: '2px solid var(--border-default)', borderBottom: '2px solid var(--border-default)', minWidth: '240px', background: 'var(--bg-surface)' }}>
-                                <div style={{ color: 'var(--accent-blue)', marginBottom: '0.2rem' }}>TOTAL ANUAL</div>
-                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', fontSize: '0.55rem', gap: '0' }}>
-                                    <span style={{ color: 'var(--text-primary)' }}>ORÇADO</span>
-                                    <span style={{ color: 'var(--accent-indigo)' }}>RADAR</span>
-                                    <span style={{ color: 'var(--accent-blue)' }}>REALIZADO</span>
-                                </div>
+                            <th style={{ padding: '1rem 1.5rem', textAlign: 'right', fontSize: '0.65rem', fontWeight: 800, borderLeft: '2px solid var(--border-default)', borderBottom: '2px solid var(--border-default)', minWidth: '150px', background: 'var(--bg-surface)', color: 'var(--accent-blue)' }}>
+                                TOTAL ANUAL
                             </th>
                         </tr>
                     </thead>
                     <tbody>
                         {/* 01. RECEITA BRUTA */}
-                        {renderSummaryRow('01. RECEITA BRUTA', dreMonthlyData.map(d => d.rev), MONTHS.map((_, i) => dreStructure.calcTotals(i, 'radar').rev), MONTHS.map((_, i) => dreStructure.calcTotals(i, 'realized').rev), true, 'var(--bg-elevated)', 'var(--accent-blue)', 'rev')}
+                        {renderSummaryRow('01. RECEITA BRUTA', dreMonthlyData.map(d => d.rev), true, 'var(--bg-elevated)', 'var(--accent-blue)', 'rev')}
                         {expandedGroups.has('rev') && (dreStructure.buckets.rev || []).map(r => renderNode(r))}
 
                         {/* 02. TRIBUTO */}
-                        {renderSummaryRow('02. Tributo sobre Faturamento', dreMonthlyData.map(d => d.taxes), MONTHS.map((_, i) => dreStructure.calcTotals(i, 'radar').taxes), MONTHS.map((_, i) => dreStructure.calcTotals(i, 'realized').taxes), true, 'var(--bg-surface)', 'var(--text-secondary)', 'taxes')}
+                        {renderSummaryRow('02. Tributo sobre Faturamento', dreMonthlyData.map(d => d.taxes), true, 'var(--bg-surface)', 'var(--text-secondary)', 'taxes')}
                         {expandedGroups.has('taxes') && (dreStructure.buckets.taxes || []).map(r => renderNode(r))}
 
-                        {renderSummaryRow('(=) RECEITA LÍQUIDA', dreMonthlyData.map(d => d.recLiq), MONTHS.map((_, i) => dreStructure.calcTotals(i, 'radar').recLiq), MONTHS.map((_, i) => dreStructure.calcTotals(i, 'realized').recLiq), true, '#eff6ff', 'var(--accent-blue)')}
+                        {renderSummaryRow('(=) RECEITA LÍQUIDA', dreMonthlyData.map(d => d.recLiq), true, '#eff6ff', 'var(--accent-blue)')}
 
                         {/* 03. CUSTO OPERACIONAL */}
-                        {renderSummaryRow('03. Custo Operacional', dreMonthlyData.map(d => d.costs), MONTHS.map((_, i) => dreStructure.calcTotals(i, 'radar').costs), MONTHS.map((_, i) => dreStructure.calcTotals(i, 'realized').costs), true, 'var(--bg-surface)', 'var(--text-secondary)', 'costs')}
+                        {renderSummaryRow('03. Custo Operacional', dreMonthlyData.map(d => d.costs), true, 'var(--bg-surface)', 'var(--text-secondary)', 'costs')}
                         {expandedGroups.has('costs') && (dreStructure.buckets.costs || []).map(r => renderNode(r))}
 
-                        {renderSummaryRow('(=) MARGEM BRUTA', dreMonthlyData.map(d => d.grossMarg), MONTHS.map((_, i) => dreStructure.calcTotals(i, 'radar').grossMarg), MONTHS.map((_, i) => dreStructure.calcTotals(i, 'realized').grossMarg), true, '#f0fdf4', 'var(--accent-green)')}
+                        {renderSummaryRow('(=) MARGEM BRUTA', dreMonthlyData.map(d => d.grossMarg), true, '#f0fdf4', 'var(--accent-green)')}
 
                         {/* 04. DESPESA OPERACIONAL */}
-                        {renderSummaryRow('04. Despesa Operacional', dreMonthlyData.map(d => d.opExp), MONTHS.map((_, i) => dreStructure.calcTotals(i, 'radar').opExp), MONTHS.map((_, i) => dreStructure.calcTotals(i, 'realized').opExp), true, 'var(--bg-surface)', 'var(--text-secondary)', 'opExp')}
+                        {renderSummaryRow('04. Despesa Operacional', dreMonthlyData.map(d => d.opExp), true, 'var(--bg-surface)', 'var(--text-secondary)', 'opExp')}
                         {expandedGroups.has('opExp') && (dreStructure.buckets.opExp || []).map(r => renderNode(r))}
 
-                        {renderSummaryRow('(=) MARGEM DE CONTRIBUIÇÃO', dreMonthlyData.map(d => d.contribMarg), MONTHS.map((_, i) => dreStructure.calcTotals(i, 'radar').contribMarg), MONTHS.map((_, i) => dreStructure.calcTotals(i, 'realized').contribMarg), true, '#fdfaf2', 'var(--accent-amber)')}
+                        {renderSummaryRow('(=) MARGEM DE CONTRIBUIÇÃO', dreMonthlyData.map(d => d.contribMarg), true, '#fdfaf2', 'var(--accent-amber)')}
 
                         {/* 05. DESPESA ADMINISTRATIVA */}
-                        {renderSummaryRow('05. Despesas Administrativas', dreMonthlyData.map(d => d.adminExp), MONTHS.map((_, i) => dreStructure.calcTotals(i, 'radar').adminExp), MONTHS.map((_, i) => dreStructure.calcTotals(i, 'realized').adminExp), true, 'var(--bg-surface)', 'var(--text-secondary)', 'adminExp')}
+                        {renderSummaryRow('05. Despesas Administrativas', dreMonthlyData.map(d => d.adminExp), true, 'var(--bg-surface)', 'var(--text-secondary)', 'adminExp')}
                         {expandedGroups.has('adminExp') && (dreStructure.buckets.adminExp || []).map(r => renderNode(r))}
 
-                        {renderSummaryRow('(=) EBITDA', dreMonthlyData.map(d => d.ebitda), MONTHS.map((_, i) => dreStructure.calcTotals(i, 'radar').ebitda), MONTHS.map((_, i) => dreStructure.calcTotals(i, 'realized').ebitda), true, '#f5f3ff', 'var(--accent-indigo)')}
+                        {renderSummaryRow('(=) EBITDA', dreMonthlyData.map(d => d.ebitda), true, '#f5f3ff', 'var(--accent-indigo)')}
 
                         {/* 06. DESPESA FINANCEIRA */}
-                        {renderSummaryRow('06. Despesas Financeiras', dreMonthlyData.map(d => d.fin), MONTHS.map((_, i) => dreStructure.calcTotals(i, 'radar').fin), MONTHS.map((_, i) => dreStructure.calcTotals(i, 'realized').fin), true, 'var(--bg-surface)', 'var(--text-secondary)', 'fin')}
+                        {renderSummaryRow('06. Despesas Financeiras', dreMonthlyData.map(d => d.fin), true, 'var(--bg-surface)', 'var(--text-secondary)', 'fin')}
                         {expandedGroups.has('fin') && (dreStructure.buckets.fin || []).map(r => renderNode(r))}
 
-                        {renderSummaryRow('(=) LUCRO LÍQUIDO', dreMonthlyData.map(d => d.netProfit), MONTHS.map((_, i) => dreStructure.calcTotals(i, 'radar').netProfit), MONTHS.map((_, i) => dreStructure.calcTotals(i, 'realized').netProfit), true, 'var(--gradient-brand)', 'white')}
+                        {renderSummaryRow('(=) LUCRO LÍQUIDO', dreMonthlyData.map(d => d.netProfit), true, 'var(--gradient-brand)', 'white')}
                     </tbody>
                 </table>
             </div>

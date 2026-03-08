@@ -3,8 +3,19 @@ import { prisma } from '@/lib/prisma';
 
 export const dynamic = 'force-dynamic';
 
+async function ensureTenantSchema() {
+    try {
+        await prisma.$executeRawUnsafe(`
+            ALTER TABLE "Tenant" ADD COLUMN IF NOT EXISTS "taxRate" DOUBLE PRECISION DEFAULT 0;
+        `);
+    } catch (err) {
+        console.error("[SCHEMA] Error insuring Tenant schema:", err);
+    }
+}
+
 export async function GET() {
     try {
+        await ensureTenantSchema();
         // Self-healing: Rename the fallback "Minha Empresa (Conta Azul)" to SPOT FACILITIES
         await prisma.tenant.updateMany({
             where: { name: { contains: 'Minha Empresa' } },

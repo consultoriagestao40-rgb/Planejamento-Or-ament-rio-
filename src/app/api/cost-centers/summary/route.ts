@@ -44,6 +44,16 @@ async function ensureLockSchema() {
     }
 }
 
+async function ensureTenantSchema() {
+    try {
+        await prisma.$executeRawUnsafe(`
+            ALTER TABLE "Tenant" ADD COLUMN IF NOT EXISTS "taxRate" DOUBLE PRECISION DEFAULT 0;
+        `);
+    } catch (err) {
+        console.error("[SCHEMA] Error insuring Tenant schema:", err);
+    }
+}
+
 
 export async function GET(request: Request) {
     try {
@@ -60,6 +70,7 @@ export async function GET(request: Request) {
         const currentYear = yearParam ? parseInt(yearParam) : new Date().getFullYear();
 
         await ensureLockSchema();
+        await ensureTenantSchema();
 
         let costCenterAccessMap: Record<string, string> = {};
         if (user.role === 'GESTOR') {

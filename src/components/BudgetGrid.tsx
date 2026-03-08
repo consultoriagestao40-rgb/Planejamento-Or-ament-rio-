@@ -95,7 +95,10 @@ export default function BudgetGrid({
 
     const evaluateFormula = (formula: string): number => {
         if (!formula.startsWith('=')) {
-            const val = parseFloat(formula.replace(',', '.'));
+            // Remove thousand dots and replace decimal comma with dot for proper parseFloat
+            // Standard Brazilian input: 1.900,00 -> 1900.00
+            const clean = formula.replace(/\.(?=\d{3}(,|$))/g, '').replace(',', '.');
+            const val = parseFloat(clean);
             return isNaN(val) ? 0 : val;
         }
         try {
@@ -142,7 +145,7 @@ export default function BudgetGrid({
     const groupedByCompany = useMemo(() => {
         if (!transactions || transactions.length === 0) return [];
         const map = new Map<string, number>();
-        transactions.forEach(tx => {
+        transactions.forEach((tx: any) => {
             const comp = tx.tenantName || 'Geral';
             map.set(comp, (map.get(comp) || 0) + (parseFloat(tx.value) || 0));
         });
@@ -151,9 +154,9 @@ export default function BudgetGrid({
 
     const groupedByCostCenter = useMemo(() => {
         if (!transactions || transactions.length === 0 || !transactionSelectedCompany) return [];
-        const filtered = transactions.filter(tx => (tx.tenantName || 'Geral') === transactionSelectedCompany);
+        const filtered = transactions.filter((tx: any) => (tx.tenantName || 'Geral') === transactionSelectedCompany);
         const map = new Map<string, number>();
-        filtered.forEach(tx => {
+        filtered.forEach((tx: any) => {
             const ccStr = (tx.costCenters && tx.costCenters.length > 0) ? tx.costCenters[0].nome : 'Geral';
             map.set(ccStr, (map.get(ccStr) || 0) + (parseFloat(tx.value) || 0));
         });
@@ -162,7 +165,7 @@ export default function BudgetGrid({
 
     const finalTransactions = useMemo(() => {
         if (!transactions || transactions.length === 0 || !transactionSelectedCompany || !transactionSelectedCostCenter) return [];
-        return transactions.filter(tx =>
+        return transactions.filter((tx: any) =>
             (tx.tenantName || 'Geral') === transactionSelectedCompany &&
             ((tx.costCenters && tx.costCenters.length > 0) ? tx.costCenters[0].nome : 'Geral') === transactionSelectedCostCenter
         );
@@ -178,7 +181,7 @@ export default function BudgetGrid({
     const filteredCostCenters = useMemo(() => {
         if (pendingCompany.includes('DEFAULT')) return costCenters;
         // Only show CCs that belong to one of the pending companies
-        return costCenters.filter(cc => cc.id === 'DEFAULT' || !cc.tenantId || pendingCompany.includes(cc.tenantId));
+        return costCenters.filter((cc: any) => cc.id === 'DEFAULT' || !cc.tenantId || pendingCompany.includes(cc.tenantId));
     }, [costCenters, pendingCompany]);
 
     // 1. Setup Effect
@@ -258,7 +261,7 @@ export default function BudgetGrid({
         const validCategories = categories;
 
         // 1. Initial Load
-        validCategories.forEach(cat => {
+        validCategories.forEach((cat: any) => {
             const codeMatch = cat.name.match(/^([\d.]+)/);
             const rawCode = codeMatch ? codeMatch[1] : '';
             if (rawCode.startsWith('2.3') || rawCode.startsWith('2.4')) return;
@@ -691,13 +694,12 @@ export default function BudgetGrid({
                 entries.push(entry);
 
                 // --- AUTOMATIC CHARGES CALCULATION (Encargos Sociais) ---
-                // If we are saving "03.1 - Salários e Remuneração", auto-generate "03.2.x - Encargos"
                 const catName = budgetModal.categoryName || "";
                 const codeMatch = catName.match(/^([\d.]+)/);
                 const rawCode = codeMatch ? codeMatch[1] : '';
 
-                // Helper to normalize "03.01.01" to "3.1.1" for safer comparison
-                const norm = (c: string) => c.split('.').map(s => parseInt(s, 10).toString()).join('.');
+                // Normalization helper
+                const norm = (c: string) => c.split('.').map(s => parseInt(s, 10).toString()).filter(s => s !== 'NaN').join('.');
                 const normCode = rawCode ? norm(rawCode) : '';
 
                 if (normCode === '3.1') {
@@ -713,7 +715,8 @@ export default function BudgetGrid({
                         const targetNorm = norm(config.code);
                         const targetCat = categories.find(c => {
                             const cMatch = c.name.match(/^([\d.]+)/);
-                            return cMatch && norm(cMatch[1]) === targetNorm && (targetCompanyParam === 'ALL' || c.tenantId === targetCompanyParam);
+                            const currentCatNorm = cMatch ? norm(cMatch[1]) : '';
+                            return currentCatNorm === targetNorm && c.tenantId === targetCompanyParam;
                         });
 
                         if (targetCat) {
@@ -813,12 +816,12 @@ export default function BudgetGrid({
                 // Filter to THESE categories and month (1-indexed in DB)
                 const dbMonth = monthIndex + 1;
                 const relevant = (data.data as any[]).filter(e => categoryIds.includes(e.categoryId) && e.month === dbMonth && e.amount > 0);
-                setBudgetDrillModal(prev => prev ? { ...prev, entries: relevant, loading: false } : null);
+                setBudgetDrillModal((prev: any) => prev ? { ...prev, entries: relevant, loading: false } : null);
             } else {
-                setBudgetDrillModal(prev => prev ? { ...prev, loading: false } : null);
+                setBudgetDrillModal((prev: any) => prev ? { ...prev, loading: false } : null);
             }
         } catch {
-            setBudgetDrillModal(prev => prev ? { ...prev, loading: false } : null);
+            setBudgetDrillModal((prev: any) => prev ? { ...prev, loading: false } : null);
         }
     };
 
@@ -831,9 +834,12 @@ export default function BudgetGrid({
             alert("Selecione uma única Empresa para lançar um valor.\nNão é possível lançar valores na visão 'Geral (Todos)' das empresas.");
             return;
         }
-        // For UI safety, editing logic uses the FIRST id in the merged string if they somehow bypassed it.
-        // As defined earlier, the user can only launch the modal if one company is selected, meaning node.id only has 1 id anyway.
-        const targetIdToEdit = nodeId.split(',')[0];
+        // Identify the correct ID for the selected tenant if multiple IDs exist (merged nodes)
+        const currentTenantId = selectedCompany[0];
+        const targetIdToEdit = nodeId.split(',').find(id => {
+            const cat = categories.find((c: any) => c.id === id);
+            return cat && cat.tenantId === currentTenantId;
+        }) || nodeId.split(',')[0];
 
         const initialValues = new Array(12).fill('').map((_, i) => {
             const data = budgetValues[`${targetIdToEdit}-${i}`];
@@ -842,13 +848,13 @@ export default function BudgetGrid({
             }
             return (data?.radarAmount !== undefined && data.radarAmount !== null) ? data.radarAmount.toString() : '';
         });
-        const currentTenantId = selectedCompany[0];
+        const isRadar = type === 'radar';
         const initialLocks = new Array(12).fill(false).map((_, i) => {
             const data = budgetValues[`${targetIdToEdit}-${i}`];
             const ccLocked = (data?.isLocked || isCCLocked) || false;
             
-            if (type === 'radar') {
-                const rLock = radarLocks.find(l => l.tenantId === currentTenantId && l.month === (i + 1));
+            if (isRadar) {
+                const rLock = radarLocks.find((l: any) => l.tenantId === currentTenantId && l.month === (i + 1));
                 const radarManuallyLocked = rLock?.isLocked || false;
                 const radarExpired = rLock?.deadline && new Date() > new Date(rLock.deadline);
                 return ccLocked || radarManuallyLocked || radarExpired;
@@ -1431,8 +1437,8 @@ export default function BudgetGrid({
                     const stepLabel = drillStep === 'company' ? 'Empresas' : drillStep === 'costcenter' ? byCompany[drillCompany!]?.name : (byCC[ccKey]?.name || 'Detalhe');
 
                     return (
-                        <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', background: 'rgba(0,0,0,0.5)', zIndex: 50, display: 'flex', justifyContent: 'center', alignItems: 'center' }} onClick={() => setBudgetDrillModal(null)}>
-                            <div style={{ background: 'white', padding: '1.5rem 2rem', borderRadius: '12px', width: '90vw', maxWidth: '650px', maxHeight: '85vh', overflowY: 'auto', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.25)' }} onClick={e => e.stopPropagation()}>
+                        <div className="modal-overlay" style={{ zIndex: 1100 }} onClick={() => setBudgetDrillModal(null)}>
+                            <div className="modal-content" style={{ maxWidth: '650px', backgroundColor: '#fff' }} onClick={e => e.stopPropagation()}>
                                 {/* Header */}
                                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '1rem', borderBottom: '1px solid #e2e8f0', paddingBottom: '0.75rem' }}>
                                     <div>
@@ -1474,13 +1480,13 @@ export default function BudgetGrid({
                                                     <td style={{ padding: '0.65rem 0.75rem', textAlign: 'right', color: '#1e293b', fontWeight: 600 }}>{formatCurrency(data.total)}</td>
                                                 </tr>
                                             ))}
-                                            {drillStep === 'detail' && detailEntries.map((e: any, idx: number) => {
-                                                const comp = companies.find(c => c.id === e.tenantId);
-                                                const cc = costCenters.find(c => c.id === e.costCenterId);
+                                            {detailEntries.map((e: any, iVal: number) => {
+                                                const compItem = companies.find(c => c.id === e.tenantId);
+                                                const ccItem = costCenters.find(c => c.id === e.costCenterId);
                                                 return (
-                                                    <tr key={idx} style={{ borderBottom: '1px solid #f1f5f9', background: idx % 2 === 0 ? '#fff' : '#fafafa' }}>
-                                                        <td style={{ padding: '0.65rem 0.75rem', color: '#334155' }}>{comp?.name || e.tenantId}</td>
-                                                        <td style={{ padding: '0.65rem 0.75rem', color: '#64748b' }}>{cc?.name || (e.costCenterId ? e.costCenterId : 'Geral')}</td>
+                                                    <tr key={iVal} style={{ borderBottom: '1px solid #f1f5f9', background: iVal % 2 === 0 ? '#fff' : '#fafafa' }}>
+                                                        <td style={{ padding: '0.65rem 0.75rem', color: '#334155' }}>{compItem?.name || e.tenantId}</td>
+                                                        <td style={{ padding: '0.65rem 0.75rem', color: '#64748b' }}>{ccItem?.name || (e.costCenterId ? e.costCenterId : 'Geral')}</td>
                                                         <td style={{ padding: '0.65rem 0.75rem', textAlign: 'right', color: '#1e293b', fontWeight: 600 }}>{formatCurrency(e.amount)}</td>
                                                     </tr>
                                                 );
@@ -1512,8 +1518,8 @@ export default function BudgetGrid({
                     );
                 })()}
                 {selectedCell && (
-                    <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', background: 'rgba(0,0,0,0.5)', zIndex: 50, display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
-                        <div style={{ background: 'white', padding: '2rem', borderRadius: '12px', width: '90vw', maxWidth: '1000px', height: '90vh', maxHeight: '90vh', overflowY: 'auto', boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)', display: 'flex', flexDirection: 'column' }}>
+                    <div className="modal-overlay" style={{ zIndex: 1100 }}>
+                        <div className="modal-content" style={{ maxWidth: '1000px', height: '90vh', backgroundColor: '#fff' }}>
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem', marginBottom: '1rem', borderBottom: '1px solid #e2e8f0', paddingBottom: '0.5rem' }}>
                                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                                     <h3 style={{ fontSize: '1.4rem', fontWeight: 'bold', color: '#1e293b' }}>{selectedCell.categoryName}</h3>
@@ -1668,128 +1674,127 @@ export default function BudgetGrid({
                     </div>
                 )}
 
-                {/* Budget Entry Modal - Redesigned Light Version */}
+                {/* 2. Budget Entry Modal (Lançamento) */}
                 {budgetModal && (
-                    <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
-                        <div style={{ backgroundColor: '#fff', borderRadius: '16px', padding: '2rem', width: '600px', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.15)', color: '#1e293b', border: '1px solid #e2e8f0' }}>
-                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-                                    <h3 style={{ margin: 0, fontSize: '1.4rem', fontWeight: 700 }}>
-                                        {budgetModal.type === 'budget' ? 'Orçado' : 'Radar'}: {budgetModal.categoryName}
-                                    </h3>
+                    <div className="modal-overlay" style={{ zIndex: 1200 }}>
+                        <div className="modal-content" style={{ maxWidth: '600px', backgroundColor: '#fff' }}>
+                            <div style={{ padding: '2rem' }}>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                                        <h3 style={{ margin: 0, fontSize: '1.4rem', fontWeight: 700 }}>
+                                            {budgetModal.type === 'budget' ? 'Orçado' : 'Radar'}: {budgetModal.categoryName}
+                                        </h3>
+                                    </div>
+                                    <button onClick={() => setBudgetModal(null)} style={{ border: 'none', background: 'none', cursor: 'pointer', fontSize: '1.5rem', color: '#94a3b8', padding: '0.5rem' }}>✕</button>
                                 </div>
 
-                                <button onClick={() => setBudgetModal(null)} style={{ border: 'none', background: 'none', cursor: 'pointer', fontSize: '1.5rem', color: '#94a3b8', padding: '0.5rem' }}>✕</button>
-                            </div>
+                                <div style={{ marginBottom: '1.5rem', display: 'flex', justifyContent: 'flex-start' }}>
+                                    <button 
+                                        onClick={replicateValue}
+                                        style={{
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            gap: '0.5rem',
+                                            padding: '0.5rem 1rem',
+                                            backgroundColor: '#f1f5f9',
+                                            color: '#2563eb',
+                                            border: 'none',
+                                            borderRadius: '8px',
+                                            fontWeight: 600,
+                                            cursor: 'pointer',
+                                            fontSize: '0.85rem',
+                                            transition: 'all 0.2s'
+                                        }}
+                                        onMouseOver={(e) => (e.currentTarget.style.backgroundColor = '#e2e8f0')}
+                                        onMouseOut={(e) => (e.currentTarget.style.backgroundColor = '#f1f5f9')}
+                                    >
+                                        <span>⏩ Preencher meses seguintes</span>
+                                    </button>
+                                </div>
 
-                            <div style={{ marginBottom: '1.5rem', display: 'flex', justifyContent: 'flex-start' }}>
-                                <button 
-                                    onClick={replicateValue}
-                                    style={{
-                                        display: 'flex',
-                                        alignItems: 'center',
-                                        gap: '0.5rem',
-                                        padding: '0.5rem 1rem',
-                                        backgroundColor: '#f1f5f9',
-                                        color: '#2563eb',
-                                        border: '1px solid #e2e8f0',
-                                        borderRadius: '8px',
-                                        fontSize: '0.85rem',
-                                        fontWeight: 600,
-                                        cursor: 'pointer',
-                                        transition: 'all 0.2s'
-                                    }}
-                                    onMouseOver={(e) => { e.currentTarget.style.backgroundColor = '#e0e7ff'; e.currentTarget.style.borderColor = '#3b82f6'; }}
-                                    onMouseOut={(e) => { e.currentTarget.style.backgroundColor = '#f1f5f9'; e.currentTarget.style.borderColor = '#e2e8f0'; }}
-                                >
-                                    <span>🔄 Replicar para os meses seguintes</span>
-                                </button>
-                            </div>
-
-                            {/* Global locked banner removed to allow month-by-month editing */}
-
-                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '1rem', marginBottom: '2.2rem' }}>
-
-                                {MONTHS.map((m, i) => {
-                                    const isLocked = lockedMonths[i];
-                                    const canEdit = !isLocked;
-
-
-                                    return (
-                                        <div key={m} style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
-                                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                                <label style={{ fontSize: '0.75rem', fontWeight: 800, color: '#64748b' }}>{m}</label>
-                                                {isLocked && budgetModal.type === 'budget' && <span title="Travado" style={{ fontSize: '0.7rem' }}>🔒</span>}
+                                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '1rem', marginBottom: '1.5rem' }}>
+                                    {MONTHS.map((month, idx) => {
+                                        const isLocked = lockedMonths[idx];
+                                        const canEdit = !isLocked || userRole === 'MASTER';
+                                        
+                                        return (
+                                            <div key={idx} style={{ 
+                                                display: 'flex', 
+                                                flexDirection: 'column', 
+                                                gap: '0.4rem',
+                                                opacity: !canEdit ? 0.6 : 1,
+                                                border: activeMonth === idx ? '1px solid #2563eb' : '1px solid transparent',
+                                                padding: '0.5rem',
+                                                borderRadius: '12px',
+                                                backgroundColor: activeMonth === idx ? '#eff6ff' : 'transparent',
+                                                transition: 'all 0.2s'
+                                            }}>
+                                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                                    <label style={{ fontSize: '0.75rem', fontWeight: 700, color: '#64748b', textTransform: 'uppercase' }}>{month}</label>
+                                                    {isLocked && <span title="Mês bloqueado para edição" style={{ cursor: 'help' }}>🔒</span>}
+                                                </div>
+                                                <div style={{ position: 'relative' }}>
+                                                    <span style={{ position: 'absolute', left: '0.6rem', top: '50%', transform: 'translateY(-50%)', color: '#94a3b8', fontSize: '0.8rem' }}>R$</span>
+                                                    <input
+                                                        type="text"
+                                                        value={modalValues[idx]}
+                                                        disabled={!canEdit}
+                                                        onFocus={() => setActiveMonth(idx)}
+                                                        onChange={(e) => {
+                                                            const next = [...modalValues];
+                                                            next[idx] = e.target.value;
+                                                            setModalValues(next);
+                                                        }}
+                                                        placeholder="0,00"
+                                                        className="premium-input"
+                                                        style={{ 
+                                                            width: '100%', 
+                                                            textAlign: 'right', 
+                                                            fontWeight: 700,
+                                                            fontSize: '0.95rem',
+                                                            padding: '0.5rem 0.5rem 0.5rem 2rem',
+                                                            border: !canEdit ? '1px dashed #cbd5e1' : (activeMonth === idx ? '1px solid #2563eb' : '1px solid #e2e8f0'),
+                                                            backgroundColor: !canEdit ? '#f8fafc' : '#ffffff'
+                                                        }}
+                                                    />
+                                                </div>
                                             </div>
+                                        );
+                                    })}
+                                </div>
 
-                                            <div style={{ position: 'relative' }}>
-                                                <span style={{ position: 'absolute', left: '0.75rem', top: '50%', transform: 'translateY(-50%)', color: '#94a3b8', fontSize: '0.85rem' }}>R$</span>
-                                                <input
-                                                    type="text"
-                                                    value={modalValues[i]}
-                                                    onFocus={() => setActiveMonth(i)}
-                                                    onChange={(e) => {
-                                                        const next = [...modalValues];
-                                                        next[i] = e.target.value;
-                                                        setModalValues(next);
-                                                    }}
-                                                    disabled={!canEdit}
-                                                    placeholder="0.00"
-                                                    style={{
-                                                        width: '100%',
-                                                        padding: '0.75rem 0.75rem 0.75rem 2.2rem',
-                                                        borderRadius: '8px',
-                                                        border: activeMonth === i ? '2px solid #2563eb' : (isLocked && budgetModal.type === 'budget' ? '1px dashed #cbd5e1' : '1px solid #cbd5e1'),
-                                                        backgroundColor: !canEdit ? '#f8fafc' : '#fff',
-                                                        fontSize: '0.95rem',
-                                                        outline: 'none',
-                                                        color: !canEdit ? '#94a3b8' : '#1e293b',
-                                                        transition: 'all 0.2s',
-                                                        cursor: !canEdit ? 'not-allowed' : 'text'
-                                                    }}
-                                                />
-                                            </div>
-                                        </div>
-                                    );
-                                })}
-                            </div>
+                                <div style={{ marginBottom: '2rem' }}>
+                                    <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 700, color: '#64748b', marginBottom: '0.5rem', textTransform: 'uppercase' }}>Observação do Item</label>
+                                    <textarea
+                                        value={modalObservation}
+                                        onChange={(e) => setModalObservation(e.target.value)}
+                                        placeholder="Adicione detalhes sobre este lançamento..."
+                                        className="premium-input"
+                                        style={{ width: '100%', minHeight: '80px', resize: 'vertical', fontSize: '0.9rem' }}
+                                    />
+                                </div>
 
-                            <div style={{ marginTop: '1.25rem', borderTop: '1px solid #e2e8f0', paddingTop: '1rem' }}>
-                                <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, color: '#475569', marginBottom: '0.4rem' }}>
-                                    📝 Observação / Justificativa
-                                </label>
-                                <textarea
-                                    value={modalObservation}
-                                    onChange={e => setModalObservation(e.target.value)}
-                                    placeholder="Ex: Aumento previsto por contratação, reajuste contratual, sazonalidade..."
-                                    rows={3}
-                                    style={{ width: '100%', padding: '0.6rem 0.75rem', border: '1px solid #e2e8f0', borderRadius: '8px', fontSize: '0.85rem', color: '#1e293b', resize: 'vertical', fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box', lineHeight: '1.5' }}
-                                    onFocus={e => (e.target.style.borderColor = '#2563eb')}
-                                    onBlur={e => (e.target.style.borderColor = '#e2e8f0')}
-                                />
-                            </div>
-
-                            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '1rem', marginTop: '1rem' }}>
-                                <button onClick={() => setBudgetModal(null)} style={{ padding: '0.75rem 1.5rem', backgroundColor: 'transparent', color: '#64748b', border: 'none', borderRadius: '8px', fontWeight: 600, cursor: 'pointer', fontSize: '0.95rem' }}>Cancelar</button>
-                                <button 
-                                    disabled={isSavingBudget || lockedMonths.every(l => l)} 
-                                    onClick={handleSaveBudget} 
-                                    style={{ 
-                                        padding: '0.75rem 2rem', 
-                                        backgroundColor: lockedMonths.every(l => l) ? '#94a3b8' : '#2563eb', 
-                                        color: '#fff', 
-                                        border: 'none', 
-                                        borderRadius: '8px', 
-                                        fontWeight: 700, 
-                                        cursor: (isSavingBudget || lockedMonths.every(l => l)) ? 'default' : 'pointer', 
-                                        fontSize: '0.95rem', 
-                                        minWidth: '120px', 
-                                        opacity: isSavingBudget ? 0.7 : 1 
-                                    }}
-                                >
-                                    {isSavingBudget ? 'Salvando...' : 'Salvar'}
-                                </button>
-
+                                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '1rem', borderTop: '1px solid #f1f5f9', paddingTop: '1.5rem' }}>
+                                    <button onClick={() => setBudgetModal(null)} style={{ padding: '0.75rem 1.5rem', backgroundColor: 'transparent', color: '#64748b', border: 'none', borderRadius: '8px', fontWeight: 600, cursor: 'pointer', fontSize: '0.95rem' }}>Cancelar</button>
+                                    <button 
+                                        disabled={isSavingBudget || (lockedMonths.every(l => l) && userRole !== 'MASTER')} 
+                                        onClick={handleSaveBudget} 
+                                        style={{ 
+                                            padding: '0.75rem 2rem', 
+                                            backgroundColor: (lockedMonths.every(l => l) && userRole !== 'MASTER') ? '#94a3b8' : '#2563eb', 
+                                            color: '#fff', 
+                                            border: 'none', 
+                                            borderRadius: '8px', 
+                                            fontWeight: 700, 
+                                            cursor: (isSavingBudget || (lockedMonths.every(l => l) && userRole !== 'MASTER')) ? 'default' : 'pointer', 
+                                            fontSize: '0.95rem', 
+                                            minWidth: '120px', 
+                                            opacity: isSavingBudget ? 0.7 : 1 
+                                        }}
+                                    >
+                                        {isSavingBudget ? 'Salvando...' : 'Salvar'}
+                                    </button>
+                                </div>
                             </div>
                         </div>
                     </div>

@@ -102,7 +102,7 @@ export async function GET(request: Request) {
             }),
             prisma.budgetEntry.findMany({
                 where: { year: currentYear },
-                select: { amount: true, categoryId: true, costCenterId: true, tenantId: true }
+                select: { amount: true, radarAmount: true, categoryId: true, costCenterId: true, tenantId: true }
             }),
             prisma.realizedEntry.findMany({
                 where: { year: currentYear },
@@ -116,10 +116,13 @@ export async function GET(request: Request) {
 
 
         const categoryTypeMap = new Map(categories.map((c: any) => {
+            const nameLower = (c.name || '').toLowerCase();
             const isRevenue = c.type === 'REVENUE' || 
                              c.name.startsWith('01') || 
                              c.name.startsWith('1.') || 
-                             c.name.toLowerCase().includes('receita');
+                             nameLower.includes('receita') || 
+                             nameLower.includes('faturamento') || 
+                             nameLower.includes('vendas');
             return [c.id, isRevenue ? 'REVENUE' : 'EXPENSE'];
         }));
 
@@ -163,14 +166,17 @@ export async function GET(request: Request) {
 
             if (summary) {
                 const type = categoryTypeMap.get(entry.categoryId);
+                // If amount is zero but radarAmount exists, use radarAmount for the summary
+                const val = (entry.amount !== 0 && entry.amount !== null) ? entry.amount : (entry.radarAmount || 0);
+                
                 if (type === 'REVENUE') {
-                    summary.totalRevenue += entry.amount;
+                    summary.totalRevenue += val;
                 } else {
-                    summary.totalExpense += entry.amount;
+                    summary.totalExpense += val;
                 }
-                if (entry.amount !== 0) summary.hasBudgetData = true;
+                
+                if (val !== 0) summary.hasBudgetData = true;
             }
-
         });
 
         // 4.1 Agregar movimentação Realizada (DRE Ativo)

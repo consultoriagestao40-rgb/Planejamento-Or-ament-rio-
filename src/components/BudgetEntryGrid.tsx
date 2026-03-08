@@ -475,49 +475,49 @@ export default function BudgetEntryGrid({ costCenterId, year }: BudgetEntryGridP
                 for (const id of allIds) {
                     const d = budgetValues[`${id}-${i}`];
                     if (d?.amount !== undefined && d.amount !== null) { 
-                        initialNum += d.amount; // Sum all IDs for comparison
+                        initialNum += d.amount;
                         foundAny = true;
                     }
                 }
                 
                 const currentNum = evaluateFormula(currentStr);
-                const valueChanged = (!foundAny && currentStr !== '') || (foundAny && Math.abs(currentNum - initialNum) > 0.001);
                 const isObsMonth = i === budgetModal.startMonth;
+                const valueChanged = (!foundAny && currentStr !== '') || (foundAny && Math.abs(currentNum - initialNum) > 0.001);
                 const obsChanged = isObsMonth && modalObservation.trim() !== originalObs.trim();
-                
-                if (!valueChanged && !obsChanged) continue;
-                
-                let targetId = allIds[0];
-                if (tenantId) {
-                    const match = categories.find((c: any) => allIds.includes(c.id) && c.tenantId === tenantId);
-                    if (match) targetId = match.id;
+                const is31 = normCode.startsWith('3.1');
+
+                if (valueChanged || obsChanged) {
+                    let targetId = allIds[0];
+                    if (tenantId) {
+                        const match = categories.find((c: any) => allIds.includes(c.id) && c.tenantId === tenantId);
+                        if (match) targetId = match.id;
+                    }
+
+                    entries.push({
+                        categoryId: targetId,
+                        month: i,
+                        year,
+                        costCenterId,
+                        tenantId: tenantId || (categories.find((c: any) => c.id === targetId)?.tenantId || ''),
+                        amount: currentNum,
+                        radarAmount: budgetValues[`${targetId}-${i}`]?.radarAmount ?? null,
+                        observation: isObsMonth ? (modalObservation.trim() || null) : (budgetValues[`${targetId}-${i}`]?.observation || null),
+                        isLocked: userRole === 'MASTER' ? lockedMonths[i] : undefined
+                    });
+
+                    allIds.forEach((id: string) => {
+                        if (id !== targetId) {
+                            entries.push({
+                                categoryId: id, month: i, year, costCenterId,
+                                tenantId: categories.find((c: any) => c.id === id)?.tenantId || '',
+                                amount: 0, observation: null
+                            });
+                        }
+                    });
                 }
 
-                // IMPORTANT: Save total to targetId and zero out other IDs in the node
-                entries.push({
-                    categoryId: targetId,
-                    month: i,
-                    year,
-                    costCenterId,
-                    tenantId: tenantId || (categories.find((c: any) => c.id === targetId)?.tenantId || ''),
-                    amount: currentNum,
-                    radarAmount: budgetValues[`${targetId}-${i}`]?.radarAmount ?? null,
-                    observation: isObsMonth ? (modalObservation.trim() || null) : (budgetValues[`${targetId}-${i}`]?.observation || null),
-                    isLocked: userRole === 'MASTER' ? lockedMonths[i] : undefined
-                });
-
-                allIds.forEach((id: string) => {
-                    if (id !== targetId) {
-                        entries.push({
-                            categoryId: id, month: i, year, costCenterId,
-                            tenantId: categories.find((c: any) => c.id === id)?.tenantId || '',
-                            amount: 0, observation: null
-                        });
-                    }
-                });
-
-                // Auto-calculate encargos
-                if (normCode.startsWith('3.1')) {
+                // Force heal/recalculate encargos for ALL 12 months if editing ANY SALARY row
+                if (is31) {
                     const chargeConfigs = [
                         { code: '03.2.1', rate: 0.08 },
                         { code: '03.2.2', rate: 0.0833 },
@@ -525,64 +525,57 @@ export default function BudgetEntryGrid({ costCenterId, year }: BudgetEntryGridP
                         { code: '03.2.4', rate: 0.032 }
                     ];
 
-                    let salaryBase = 0;
-                    const usedIdsInBase = new Set<string>();
-                    
+                    let salaryBaseForMonth = 0;
+                    const salaryGroups = new Map<string, string[]>();
                     categories.forEach((cat: any) => {
                         const cm = cat.name?.match(/^([\d.]+)/);
                         if (!cm) return;
-                        const catNorm = norm(cm[1]);
-                        if (!catNorm.startsWith('3.1')) return;
+                        const cN = norm(cm[1]);
+                        if (!cN.startsWith('3.1')) return;
                         if (cat.tenantId !== tenantId) return;
+                        if (!salaryGroups.has(cN)) salaryGroups.set(cN, []);
+                        cat.id.split(',').forEach((id: string) => {
+                            if (!salaryGroups.get(cN)!.includes(id)) salaryGroups.get(cN)!.push(id);
+                        });
+                    });
 
-                        const cardIds = cat.id.split(',');
-                        if (cardIds.every((id: string) => usedIdsInBase.has(id))) return;
+                    const leafCodes = Array.from(salaryGroups.keys()).filter(c1 => 
+                        !Array.from(salaryGroups.keys()).some(c2 => c2 !== c1 && c2.startsWith(c1 + '.'))
+                    );
 
-                        const isCurrentRow = cardIds.some((id: string) => allIds.includes(id));
-                        if (isCurrentRow) {
-                            salaryBase += currentNum;
-                            cardIds.forEach((id: string) => usedIdsInBase.add(id));
+                    leafCodes.forEach(gCode => {
+                        const groupIds = salaryGroups.get(gCode)!;
+                        const isCurrentGroup = groupIds.some(id => allIds.includes(id));
+                        if (isCurrentGroup) {
+                            salaryBaseForMonth += currentNum;
                         } else {
-                            // Find all IDs that belong to this same logical category (same code)
-                            const siblingIds = categories
-                                .filter((c: any) => {
-                                    const ccm = c.name?.match(/^([\d.]+)/);
-                                    return ccm && norm(ccm[1]) === catNorm && c.tenantId === tenantId;
-                                })
-                                .flatMap((c: any) => c.id.split(','));
-                            
-                            const uniqueSiblings = Array.from(new Set(siblingIds));
-                            if (uniqueSiblings.every((id: string) => usedIdsInBase.has(id))) return;
-
-                            let rowTotal = 0;
-                            uniqueSiblings.forEach((id: string) => {
+                            let groupTotal = 0;
+                            groupIds.forEach(id => {
                                 const stored = budgetValues[`${id}-${i}`];
-                                if (stored) rowTotal += stored.amount || 0;
-                                usedIdsInBase.add(id);
+                                if (stored) groupTotal += (stored.amount || 0);
                             });
-                            salaryBase += rowTotal;
+                            salaryBaseForMonth += groupTotal;
                         }
                     });
 
                     chargeConfigs.forEach((config: any) => {
-                        // Find ALL IDs for this charge category to ensure we zero out duplicates
-                        const chargeCats = categories.filter((c: any) => {
+                        const chargeIds: string[] = [];
+                        categories.forEach((c: any) => {
                             const cm = c.name.match(/^([\d.]+)/);
-                            return cm && norm(cm[1]) === norm(config.code) && c.tenantId === tenantId;
+                            if (cm && norm(cm[1]) === norm(config.code) && c.tenantId === tenantId) {
+                                c.id.split(',').forEach((id: string) => {
+                                    if (!chargeIds.includes(id)) chargeIds.push(id);
+                                });
+                            }
                         });
                         
-                        if (chargeCats.length > 0) {
-                            const chargeIds = Array.from(new Set(chargeCats.flatMap((c: any) => c.id.split(','))));
+                        if (chargeIds.length > 0) {
                             const mainChargeId = chargeIds[0];
-                            const chargeAmount = salaryBase * config.rate;
-
                             entries.push({ 
                                 categoryId: mainChargeId, month: i, year, costCenterId, tenantId, 
-                                amount: chargeAmount 
+                                amount: salaryBaseForMonth * config.rate 
                             });
-
-                            // Zero out secondary IDs to prevent doubling in grid
-                            chargeIds.forEach((id: string, idx: number) => {
+                            chargeIds.forEach((id, idx) => {
                                 if (idx > 0) {
                                     entries.push({ 
                                         categoryId: id, month: i, year, costCenterId, tenantId, 

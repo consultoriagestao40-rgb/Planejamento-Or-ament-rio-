@@ -692,8 +692,9 @@ export default function BudgetGrid({
 
                 // --- AUTOMATIC CHARGES CALCULATION (Encargos Sociais) ---
                 // If we are saving "03.1 - Salários e Remuneração", auto-generate "03.2.x - Encargos"
-                const currentCat = categories.find(c => c.id === budgetModal.categoryId);
-                const codeMatch = currentCat?.name.match(/^([\d.]+)/);
+                // Support merged categories by checking the name or the first available ID
+                const catName = budgetModal.categoryName || "";
+                const codeMatch = catName.match(/^([\d.]+)/);
                 const rawCode = codeMatch ? codeMatch[1] : '';
 
                 if (rawCode === '03.1' && budgetModal.type === 'budget') {
@@ -705,9 +706,10 @@ export default function BudgetGrid({
                     ];
 
                     chargeConfigs.forEach(config => {
+                        // Find the target category in the same tenant if possible
                         const targetCat = categories.find(c => {
                             const cMatch = c.name.match(/^([\d.]+)/);
-                            return cMatch && cMatch[1] === config.code;
+                            return cMatch && cMatch[1] === config.code && (targetCompanyParam === 'ALL' || c.tenantId === targetCompanyParam);
                         });
 
                         if (targetCat) {

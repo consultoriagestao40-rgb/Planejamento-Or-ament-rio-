@@ -9,14 +9,15 @@ export async function GET(request: Request) {
         const costCenterId = searchParams.get('costCenterId') || 'DEFAULT';
         const year = parseInt(searchParams.get('year') || new Date().getFullYear().toString(), 10);
         const viewMode = (searchParams.get('viewMode') || 'competencia') as 'caixa' | 'competencia';
-        const tenantId = searchParams.get('tenantId') || 'ALL';
+        const tenantIdParam = searchParams.get('tenantId') || 'ALL';
+        const tenantIds = tenantIdParam !== 'ALL' ? tenantIdParam.split(',').map(t => t.trim()).filter(Boolean) : [];
 
         const ccs = costCenterId.split(',').filter(id => id !== 'DEFAULT');
 
         // Query Cache
         const entries = await prisma.realizedEntry.findMany({
             where: {
-                tenantId: tenantId === 'ALL' ? undefined : tenantId,
+                ...(tenantIdParam !== 'ALL' && tenantIds.length > 0 ? { tenantId: { in: tenantIds } } : {}),
                 year,
                 viewMode
             }

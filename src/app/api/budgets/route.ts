@@ -95,13 +95,20 @@ export async function GET(request: Request) {
     }
 
     const tenantIdParam = searchParams.get('tenantId') || 'ALL';
+    const tenantIds = tenantIdParam !== 'ALL' ? tenantIdParam.split(',').map(t => t.trim()).filter(Boolean) : [];
 
     let tenantFilter: any = {};
-    if (tenantIdParam !== 'ALL') {
-      tenantFilter = { tenantId: tenantIdParam };
-      if (user.role === 'GESTOR' && allowedTenants !== null && !allowedTenants.includes(tenantIdParam)) {
-        console.log("[GET] User has no access to target tenant", tenantIdParam);
-        return NextResponse.json({ success: true, data: [] });
+    if (tenantIdParam !== 'ALL' && tenantIds.length > 0) {
+      // If GESTOR, ensure they only query tenants they have access to
+      if (user.role === 'GESTOR' && allowedTenants !== null) {
+          const validTenants = tenantIds.filter(id => allowedTenants.includes(id));
+          if (validTenants.length === 0) {
+             console.log("[GET] User has no access to target tenants");
+             return NextResponse.json({ success: true, data: [] });
+          }
+          tenantFilter = { tenantId: { in: validTenants } };
+      } else {
+          tenantFilter = { tenantId: { in: tenantIds } };
       }
     } else {
       if (user.role === 'GESTOR' && allowedTenants !== null) {
@@ -162,7 +169,7 @@ export async function GET(request: Request) {
     // --- FETCH RADAR LOCKS ---
     const radarLocks = await (prisma as any).radarLock.findMany({
       where: {
-        tenantId: tenantIdParam === 'ALL' ? undefined : (tenantIdParam === 'ALL' ? anyTenant?.id : tenantIdParam),
+        ...(tenantIdParam !== 'ALL' && tenantIds.length > 0 ? { tenantId: { in: tenantIds } } : {}),
         year: selectedYear
       }
     });

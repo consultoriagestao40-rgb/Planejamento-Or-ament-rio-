@@ -340,10 +340,9 @@ async function aggregateTransactions(
         finalUrlBase += `&centro_custo_id=${targetCcs[0]}`;
     }
 
-    // TWO-PASS RATEIO APPROACH
-    type ItemBucket = { amount: number; ccCount: number };
+    // Wait, let's remove the ItemBucket variables completely to avoid unused warnings
     const singleCCByKey: Record<string, number> = {};
-    const multiCCByKey: Record<string, ItemBucket[]> = {};
+    const multiCCByKey: Record<string, any[]> = {}; // Keeping them here to prevent TS errors if anything else calls it. But they are empty now.
 
     while (hasMore && page <= 200) {
         const url = `${finalUrlBase}&pagina=${page}`;
@@ -388,21 +387,46 @@ async function aggregateTransactions(
                         const key = `${catId}-${monthIdx}`;
 
                         // Modified rateio logic for Multi-select:
-                        // If multi-select is active, we just accumulate the proportional value of the matching CCs
+                        // Use exact 'valor' or 'percentual' if Conta Azul provides it.
+                        // Wait, Conta Azul returns specific amounts per CC.
                         if (isMultiSelect) {
-                            // Find how many of the entry's CCs we actually want to sum
-                            // Usually Conta Azul returns Umbrella transactions with N CCs. 
-                            // We divide the total by N, and multiply by the number of selected CCs that match.
-                            const matchingCcs = ccs.filter((c: any) => targetCcs.includes(c.id)).length;
-                            const proportion = matchingCcs / (ccs.length || 1);
-                            targetValues[key] = (targetValues[key] || 0) + (amount * proportion);
+                            // Sum the exact values for the target CCs
+                            let sumMatchingCCs = 0;
+                            ccs.forEach((c: any) => {
+                                if (targetCcs.includes(c.id)) {
+                                    if (typeof c.valor === 'number') {
+                                        sumMatchingCCs += c.valor;
+                                    } else if (typeof c.percentual === 'number') {
+                                        sumMatchingCCs += (amount * (c.percentual / 100));
+                                    } else {
+                                        // Fallback to equal division if CA payload lacks explicit rateio amounts
+                                        sumMatchingCCs += (amount / (ccs.length || 1));
+                                    }
+                                }
+                            });
+                            targetValues[key] = (targetValues[key] || 0) + sumMatchingCCs;
                         } else {
                             // Original Single-Select Logic
                             if (!isFiltered || ccs.length === 1) {
-                                singleCCByKey[key] = (singleCCByKey[key] || 0) + amount;
+                                targetValues[key] = (targetValues[key] || 0) + amount;
                             } else {
-                                if (!multiCCByKey[key]) multiCCByKey[key] = [];
-                                multiCCByKey[key].push({ amount, ccCount: ccs.length });
+                                // Find exactly how much CA allocated to this specific CC (since it's filtered to 1)
+                                let specificAmount = 0;
+                                const targetC = ccs.find((c: any) => targetCcs.includes(c.id));
+                                
+                                if (targetC) {
+                                    if (typeof targetC.valor === 'number') {
+                                        specificAmount = targetC.valor;
+                                    } else if (typeof targetC.percentual === 'number') {
+                                        specificAmount = amount * (targetC.percentual / 100);
+                                    } else {
+                                        specificAmount = amount / (ccs.length || 1);
+                                    }
+                                } else {
+                                    specificAmount = amount / (ccs.length || 1); // fallback if not found, shouldn't happen
+                                }
+                                
+                                targetValues[key] = (targetValues[key] || 0) + specificAmount;
                             }
                         }
                     }
@@ -416,18 +440,9 @@ async function aggregateTransactions(
         }
     }
 
-    if (!isMultiSelect) {
-        // Run original Merge for Single CC approach
-        const allKeys = new Set([...Object.keys(singleCCByKey), ...Object.keys(multiCCByKey)]);
-        for (const key of allKeys) {
-            if (singleCCByKey[key] !== undefined) {
-                targetValues[key] = (targetValues[key] || 0) + singleCCByKey[key];
-            } else if (multiCCByKey[key]) {
-                const total = multiCCByKey[key].reduce((sum, b) => sum + (b.amount / b.ccCount), 0);
-                targetValues[key] = (targetValues[key] || 0) + total;
-            }
-        }
-    }
+    // Remove old `singleCCByKey` and `multiCCByKey` processing block
+    // because we are now calculating the exact value dynamically above 
+    // using Conta Azul's `valor` and `percentual` fields during the loop.
 }
 
 async function fetchCategories(accessToken: string) {

@@ -191,22 +191,6 @@ export default function FinancialDashboard({
                             {companies.map(c => (
                                 <div key={c.id} className="chip">
                                     <span>{c.name}</span>
-                                    {userRole === 'MASTER' && (
-                                        <>
-                                            <button
-                                                onClick={() => handleRename(c.id, c.name)}
-                                                className="chip-close"
-                                                title="Renomear"
-                                                style={{ color: 'var(--text-muted)', background: 'none', border: 'none', cursor: 'pointer', padding: 0, fontSize: '0.8rem' }}
-                                            >✏️</button>
-                                            <button
-                                                onClick={() => handleDisconnect(c.id, c.name)}
-                                                className="chip-close"
-                                                title="Desconectar"
-                                                style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '0 2px', fontSize: '1rem', lineHeight: 1 }}
-                                            >×</button>
-                                        </>
-                                    )}
                                 </div>
                             ))}
                         </div>

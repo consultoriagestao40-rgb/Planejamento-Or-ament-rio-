@@ -1126,7 +1126,7 @@ export default function BudgetGrid({
                                         }
                                     }}
                                     style={{
-                                        borderLeft: '1px solid var(--border-subtle)',
+                                        borderLeft: i > 0 ? '2px solid var(--border-strong)' : '1px solid var(--border-subtle)',
                                         padding: '0.65rem 0.75rem',
                                         minWidth: '100px',
                                         whiteSpace: 'nowrap',
@@ -1283,7 +1283,7 @@ export default function BudgetGrid({
 
                     return (
                         <React.Fragment key={i}>
-                            <td style={{ textAlign: 'right', padding: '0.85rem 0.75rem', borderLeft: '1px solid var(--border-default)', color: bColor, fontSize: '0.8rem', minWidth: '100px', whiteSpace: 'nowrap' }}>
+                            <td style={{ textAlign: 'right', padding: '0.85rem 0.75rem', borderLeft: i > 0 ? '2px solid var(--border-strong)' : '1px solid var(--border-default)', color: bColor, fontSize: '0.8rem', minWidth: '100px', whiteSpace: 'nowrap' }}>
                                 <div style={{ fontWeight: 800 }}>{formatCurrency(budgetVal)}</div>
                                 {showAV && <div style={{ fontSize: '0.65rem', color: 'var(--text-muted)', fontWeight: 500 }}>AV: {avBudget.toFixed(1)}%</div>}
                             </td>
@@ -1565,7 +1565,7 @@ export default function BudgetGrid({
                             {(viewPeriod === 'month' ? MONTHS : ['1º Tri', '2º Tri', '3º Tri', '4º Tri']).map((c, i) => {
                                 let colSpan = 3;
                                 return (
-                                    <th key={i} colSpan={colSpan} style={{ textAlign: 'center', padding: '0.75rem 0.5rem', borderLeft: '1px solid var(--border-subtle)', color: 'var(--text-primary)', minWidth: colSpan * 80 + 'px', background: 'var(--bg-elevated)' }}>
+                                    <th key={i} colSpan={colSpan} style={{ textAlign: 'center', padding: '0.75rem 0.5rem', borderLeft: i > 0 ? '2px solid var(--border-strong)' : '1px solid var(--border-subtle)', color: 'var(--text-primary)', minWidth: colSpan * 80 + 'px', background: 'var(--bg-elevated)' }}>
                                         {c}
                                     </th>
                                 );
@@ -1575,7 +1575,7 @@ export default function BudgetGrid({
                             <th style={{ position: 'sticky', left: 0, zIndex: 20, background: '#ffffff', borderBottom: '1px solid var(--border-default)', borderRight: '1px solid var(--border-subtle)' }}></th>
                             {(viewPeriod === 'month' ? MONTHS : [1, 2, 3, 4]).map((_, i) => (
                                 <React.Fragment key={i}>
-                                    <th style={{ fontSize: '0.65rem', color: 'var(--text-muted)', borderLeft: '1px solid var(--border-subtle)', fontWeight: 600, paddingBottom: '0.5rem', borderBottom: '1px solid var(--border-default)', minWidth: '80px', textAlign: 'center' }}>ORÇADO</th>
+                                    <th style={{ fontSize: '0.65rem', color: 'var(--text-muted)', borderLeft: i > 0 ? '2px solid var(--border-strong)' : '1px solid var(--border-subtle)', fontWeight: 600, paddingBottom: '0.5rem', borderBottom: '1px solid var(--border-default)', minWidth: '80px', textAlign: 'center' }}>ORÇADO</th>
                                     <th style={{ fontSize: '0.65rem', color: 'var(--text-muted)', borderLeft: '1px solid var(--border-subtle)', fontWeight: 600, paddingBottom: '0.5rem', borderBottom: '1px solid var(--border-default)', minWidth: '80px', textAlign: 'center' }}>RADAR</th>
                                     <th style={{ fontSize: '0.65rem', color: 'var(--text-muted)', borderLeft: '1px solid var(--border-subtle)', fontWeight: 600, paddingBottom: '0.5rem', borderBottom: '1px solid var(--border-default)', minWidth: '80px', textAlign: 'center' }}>REALIZADO</th>
                                 </React.Fragment>

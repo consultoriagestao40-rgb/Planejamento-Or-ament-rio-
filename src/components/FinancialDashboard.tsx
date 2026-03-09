@@ -96,9 +96,9 @@ export default function FinancialDashboard({
                 boxShadow: 'var(--shadow-card)',
             }}>
                 <div style={{
-                    maxWidth: '1600px',
+                    maxWidth: '100%',
                     margin: '0 auto',
-                    padding: '0 2.5rem',
+                    padding: '0 2rem',
                     display: 'flex',
                     flexDirection: 'column',
                     gap: '0',

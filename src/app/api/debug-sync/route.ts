@@ -1,37 +1,53 @@
 import { NextResponse } from 'next/server';
-import { runCronSync } from '@/lib/cronSync';
-import { ensureTenantSchema } from '@/lib/db-utils';
+import { prisma } from '@/lib/prisma';
 
 export const dynamic = 'force-dynamic';
-export const maxDuration = 300;
 
 export async function GET(request: Request) {
     try {
-        await ensureTenantSchema();
-        const { searchParams } = new URL(request.url);
-        const paramYear = searchParams.get('year');
-        const reqYear = paramYear ? parseInt(paramYear, 10) : new Date().getFullYear();
-
-        console.log(`[DEBUG] Starting debug sync for year ${reqYear}`);
-        const { prisma } = await import('@/lib/prisma');
-        const { getValidAccessToken } = await import('@/lib/services');
-        const tenants = await prisma.tenant.findMany();
-        const t = tenants[0];
-        const res = await getValidAccessToken(t.id);
-        
-        const url = `https://api-v2.contaazul.com/v1/financeiro/eventos-financeiros/contas-a-receber/buscar?data_vencimento_de=2025-01-01&data_vencimento_ate=2025-12-31&tamanho_pagina=100`;
-        const fetchRes = await fetch(url, { headers: { 'Authorization': `Bearer ${res.token}` } });
-        const data = await fetchRes.json();
-        
-        const uniqueStatuses = [...new Set((data?.itens || []).map((x: any) => x.status))];
-        const paidItem = (data?.itens || []).find((x: any) => x.pago > 0 && x.status !== 'OVERDUE');
-        return NextResponse.json({ 
-            total: data?.itens?.length, 
-            uniqueStatuses,
-            firstPaidItem: paidItem ? { keys: Object.keys(paidItem), status: paidItem.status, pago: paidItem.pago, data_pagamento: paidItem.data_pagamento, data_competencia: paidItem.data_competencia, data_vencimento: paidItem.data_vencimento } : null
+        const tenants = await prisma.tenant.findMany({
+            where: { accessToken: { not: null, not: 'test-token' } }
         });
+
+        const results: any[] = [];
+
+        for (const tenant of tenants) {
+            if (!tenant.name.includes("JVS FACILITIES")) continue;
+            
+            const url = `https://api-v2.contaazul.com/v1/financeiro/eventos-financeiros/contas-a-pagar/buscar?data_vencimento_de=2025-12-01&data_vencimento_ate=2026-02-28&tamanho_pagina=100`;
+
+            const res = await fetch(url, {
+                headers: { 'Authorization': `Bearer ${tenant.accessToken}` },
+                cache: 'no-store'
+            });
+
+            if (!res.ok) continue;
+
+            const body = await res.json();
+            const items = body.itens || [];
+            
+            // Look for total value ~5744
+            const matchingTotal = items.filter((i: any) => {
+                const val = i.valor || i.total || i.valor_original;
+                return val >= 5740 && val <= 5750;
+            });
+
+            if (matchingTotal.length > 0) {
+                results.push({
+                    tenant: tenant.name,
+                    transactions: matchingTotal.map((t: any) => ({
+                        desc: t.descricao,
+                        total: t.valor || t.total,
+                        date: t.data_vencimento || t.vencimento,
+                        ccs: t.centros_de_custo
+                    }))
+                });
+            }
+        }
+
+        return NextResponse.json({ success: true, results });
+
     } catch (e: any) {
-        console.error('[DEBUG] Sync error:', e);
-        return NextResponse.json({ success: false, error: e.message }, { status: 500 });
+        return NextResponse.json({ success: false, error: e.message });
     }
 }

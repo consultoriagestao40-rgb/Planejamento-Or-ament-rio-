@@ -6,7 +6,7 @@ export const dynamic = 'force-dynamic';
 export async function GET(request: Request) {
     try {
         const tenants = await prisma.tenant.findMany({
-            where: { accessToken: { not: null, not: 'test-token' } }
+            where: { accessToken: { not: null } }
         });
 
         const results: any[] = [];

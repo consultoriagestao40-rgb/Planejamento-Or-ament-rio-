@@ -215,7 +215,7 @@ export default function FinancialDashboard({
             </header>
 
             {/* ─── BODY ────────────────────────────────────── */}
-            <div style={{ maxWidth: '1600px', margin: '0 auto', padding: '1.5rem 2rem 0' }}>
+            <div style={{ maxWidth: '100%', margin: '0 auto', padding: '1.5rem 2rem 0' }}>
                 {params.error && (
                     <div style={{
                         padding: '1rem 1.25rem',

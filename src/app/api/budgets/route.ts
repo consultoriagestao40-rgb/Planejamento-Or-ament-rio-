@@ -3,6 +3,9 @@ import { prisma } from '@/lib/prisma';
 import { verifyToken } from '@/lib/auth';
 import { cookies } from 'next/headers';
 
+export const dynamic = 'force-dynamic';
+export const maxDuration = 300;
+
 // Helper to ensure database schema is up-to-date in production without manual migration
 async function ensureSchema() {
   try {

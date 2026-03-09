@@ -470,6 +470,72 @@ export default function BudgetEntryGrid({ costCenterId, year, taxRate = 0 }: Bud
                 if (originalObs) break;
             }
 
+            const chargeConfigs = [
+                { code: '03.2.1', rate: 0.08 },
+                { code: '03.2.2', rate: 0.0833 },
+                { code: '03.2.3', rate: 0.1111 },
+                { code: '03.2.4', rate: 0.032 }
+            ];
+
+            // 1. Hoist Tree Traversal for Social Charges out of 12-month loop
+            let is31 = normCode.startsWith('3.1');
+            let salaryLeafNodes: CategoryNode[] = [];
+            let chargeNodesPerConfig = new Map<string, CategoryNode[]>();
+
+            if (is31) {
+                const findSalaryLeafs = (nodes: CategoryNode[]) => {
+                    nodes.forEach(n => {
+                        const cCode = n.code || '';
+                        if (cCode.startsWith('03.1') || cCode.startsWith('3.1')) {
+                            if (!n.children || n.children.length === 0) salaryLeafNodes.push(n);
+                            else findSalaryLeafs(n.children);
+                        } else if (n.children) findSalaryLeafs(n.children);
+                    });
+                };
+                findSalaryLeafs(treeRoots);
+
+                chargeConfigs.forEach(config => {
+                    const chargeNodes: CategoryNode[] = [];
+                    const fCN = (nodes: CategoryNode[]) => {
+                        nodes.forEach(n => {
+                            if (norm(n.code || '') === norm(config.code)) chargeNodes.push(n);
+                            else if (n.children) fCN(n.children);
+                        });
+                    };
+                    fCN(treeRoots);
+                    chargeNodesPerConfig.set(config.code, chargeNodes);
+                });
+            }
+
+            // 2. Hoist Tree Traversal for DAS out of 12-month loop
+            const targetCode = categories.find(c => allIds.includes(c.id))?.entradaDre || '';
+            const isRevenue = targetCode === 'RECEITA_BRUTA' || (categories.find(c => allIds.includes(c.id))?.name || '').startsWith('01');
+            let revenueLeafNodes: CategoryNode[] = [];
+            let dasNodes: CategoryNode[] = [];
+
+            if (taxRate > 0 && isRevenue) {
+                const findRevenueLeafs = (nodes: CategoryNode[]) => {
+                    nodes.forEach(n => {
+                        const cCode = n.code || '';
+                        if (cCode.startsWith('01') || cCode.startsWith('1.')) {
+                            if (!n.children || n.children.length === 0) revenueLeafNodes.push(n);
+                            else findRevenueLeafs(n.children);
+                        } else if (n.children) findRevenueLeafs(n.children);
+                    });
+                };
+                findRevenueLeafs(treeRoots);
+
+                const fDN = (nodes: CategoryNode[]) => {
+                    nodes.forEach(n => {
+                        const cCode = n.code || '';
+                        if (cCode === '02.1.1' || cCode === '2.1.1' || (n.name && n.name.includes('DAS'))) {
+                            dasNodes.push(n);
+                        } else if (n.children) fDN(n.children);
+                    });
+                };
+                fDN(treeRoots);
+            }
+
             for (let i = 0; i < 12; i++) {
                 const currentStr = modalValues[i];
                 let initialNum = 0;
@@ -486,7 +552,6 @@ export default function BudgetEntryGrid({ costCenterId, year, taxRate = 0 }: Bud
                 const isObsMonth = i === budgetModal.startMonth;
                 const valueChanged = (!foundAny && currentStr !== '') || (foundAny && Math.abs(currentNum - initialNum) > 0.001);
                 const obsChanged = isObsMonth && modalObservation.trim() !== originalObs.trim();
-                const is31 = normCode.startsWith('3.1');
 
                 if (valueChanged || obsChanged) {
                     let targetId = allIds[0];
@@ -507,8 +572,9 @@ export default function BudgetEntryGrid({ costCenterId, year, taxRate = 0 }: Bud
                         isLocked: userRole === 'MASTER' ? lockedMonths[i] : undefined
                     });
 
+                    // Zero-out other IDs in the same node only if they had a value (reduces payload)
                     allIds.forEach((id: string) => {
-                        if (id !== targetId) {
+                        if (id !== targetId && budgetValues[`${id}-${i}`]?.amount) {
                             entries.push({
                                 categoryId: id, month: i, year, costCenterId,
                                 tenantId: categories.find((c: any) => c.id === id)?.tenantId || '',
@@ -518,35 +584,8 @@ export default function BudgetEntryGrid({ costCenterId, year, taxRate = 0 }: Bud
                     });
                 }
 
-                // Force heal/recalculate encargos for ALL 12 months if editing ANY SALARY row
                 if (is31) {
-                    const chargeConfigs = [
-                        { code: '03.2.1', rate: 0.08 },
-                        { code: '03.2.2', rate: 0.0833 },
-                        { code: '03.2.3', rate: 0.1111 },
-                        { code: '03.2.4', rate: 0.032 }
-                    ];
-
                     let salaryBaseForMonth = 0;
-                    
-                    // Identify salary-related leaf nodes from the actual treeRoots
-                    const salaryLeafNodes: CategoryNode[] = [];
-                    const findSalaryLeafs = (nodes: CategoryNode[]) => {
-                        nodes.forEach(n => {
-                            const cCode = n.code || '';
-                            if (cCode.startsWith('03.1') || cCode.startsWith('3.1')) {
-                                if (!n.children || n.children.length === 0) {
-                                    salaryLeafNodes.push(n);
-                                } else {
-                                    findSalaryLeafs(n.children);
-                                }
-                            } else if (n.children) {
-                                findSalaryLeafs(n.children);
-                            }
-                        });
-                    };
-                    findSalaryLeafs(treeRoots);
-
                     salaryLeafNodes.forEach(leaf => {
                         const leafIds = leaf.id.split(',');
                         const isCurrentLeaf = leafIds.some(id => allIds.includes(id));
@@ -561,106 +600,51 @@ export default function BudgetEntryGrid({ costCenterId, year, taxRate = 0 }: Bud
                             });
                             salaryBaseForMonth += leafTotal;
                         }
-
-                        // Bonus: Cleanup secondary IDs for EVERY salary leaf row while we are at it
-                        leafIds.forEach((id, idx) => {
-                            if (idx > 0) {
-                                entries.push({ categoryId: id, month: i, year, costCenterId, tenantId, amount: 0 });
-                            }
-                        });
                     });
 
-                    chargeConfigs.forEach((config: any) => {
-                        // Find charge category in treeRoots to be precise
-                        const chargeNodes: CategoryNode[] = [];
-                        const fCN = (nodes: CategoryNode[]) => {
-                            nodes.forEach(n => {
-                                if (norm(n.code || '') === norm(config.code)) chargeNodes.push(n);
-                                else if (n.children) fCN(n.children);
-                            });
-                        };
-                        fCN(treeRoots);
-                        
+                    chargeConfigs.forEach(config => {
+                        const chargeNodes = chargeNodesPerConfig.get(config.code) || [];
                         chargeNodes.forEach(cN => {
                             const chargeIds = cN.id.split(',');
                             const mainId = chargeIds[0];
+                            const newAmount = salaryBaseForMonth * config.rate;
+                            
                             entries.push({ 
                                 categoryId: mainId, month: i, year, costCenterId, tenantId, 
-                                amount: salaryBaseForMonth * config.rate 
-                            });
-                            chargeIds.forEach((id, idx) => {
-                                if (idx > 0) entries.push({ categoryId: id, month: i, year, costCenterId, tenantId, amount: 0 });
+                                amount: newAmount 
                             });
                         });
                     });
                 }
 
-                // Force heal/recalculate DAS (Simples Nacional) if editing ANY REVENUE row and taxRate > 0
-                if (taxRate > 0) {
-                    const targetCode = categories.find(c => allIds.includes(c.id))?.entradaDre || '';
-                    const isRevenue = targetCode === 'RECEITA_BRUTA' || (categories.find(c => allIds.includes(c.id))?.name || '').startsWith('01');
-                    
-                    if (isRevenue) {
-                        let revenueBaseForMonth = 0;
+                if (taxRate > 0 && isRevenue && dasNodes.length > 0) {
+                    let revenueBaseForMonth = 0;
+                    revenueLeafNodes.forEach(leaf => {
+                        const leafIds = leaf.id.split(',');
+                        const isCurrentLeaf = leafIds.some(id => allIds.includes(id));
                         
-                        // Identify revenue leaf nodes
-                        const revenueLeafNodes: CategoryNode[] = [];
-                        const findRevenueLeafs = (nodes: CategoryNode[]) => {
-                            nodes.forEach(n => {
-                                const cCode = n.code || '';
-                                if (cCode.startsWith('01') || cCode.startsWith('1.')) {
-                                    if (!n.children || n.children.length === 0) {
-                                        revenueLeafNodes.push(n);
-                                    } else {
-                                        findRevenueLeafs(n.children);
-                                    }
-                                } else if (n.children) {
-                                    findRevenueLeafs(n.children);
-                                }
+                        if (isCurrentLeaf) {
+                            revenueBaseForMonth += currentNum;
+                        } else {
+                            let leafTotal = 0;
+                            leafIds.forEach(id => {
+                                const stored = budgetValues[`${id}-${i}`];
+                                if (stored) leafTotal += (stored.amount || 0);
                             });
-                        };
-                        findRevenueLeafs(treeRoots);
+                            revenueBaseForMonth += leafTotal;
+                        }
+                    });
 
-                        revenueLeafNodes.forEach(leaf => {
-                            const leafIds = leaf.id.split(',');
-                            const isCurrentLeaf = leafIds.some(id => allIds.includes(id));
-                            
-                            if (isCurrentLeaf) {
-                                revenueBaseForMonth += currentNum;
-                            } else {
-                                let leafTotal = 0;
-                                leafIds.forEach(id => {
-                                    const stored = budgetValues[`${id}-${i}`];
-                                    if (stored) leafTotal += (stored.amount || 0);
-                                });
-                                revenueBaseForMonth += leafTotal;
-                            }
+                    dasNodes.forEach(dN => {
+                        const dasIds = dN.id.split(',');
+                        const mainId = dasIds[0];
+                        const newAmount = revenueBaseForMonth * (taxRate / 100);
+                        
+                        entries.push({ 
+                            categoryId: mainId, month: i, year, costCenterId, tenantId, 
+                            amount: newAmount
                         });
-
-                        // Calculate DAS (Assuming 02.1.1 is the code for DAS)
-                        const dasNodes: CategoryNode[] = [];
-                        const fDN = (nodes: CategoryNode[]) => {
-                            nodes.forEach(n => {
-                                const cCode = n.code || '';
-                                if (cCode === '02.1.1' || cCode === '2.1.1' || (n.name && n.name.includes('DAS'))) {
-                                    dasNodes.push(n);
-                                } else if (n.children) fDN(n.children);
-                            });
-                        };
-                        fDN(treeRoots);
-
-                        dasNodes.forEach(dN => {
-                            const dasIds = dN.id.split(',');
-                            const mainId = dasIds[0];
-                            entries.push({ 
-                                categoryId: mainId, month: i, year, costCenterId, tenantId, 
-                                amount: revenueBaseForMonth * (taxRate / 100)
-                            });
-                            dasIds.forEach((id, idx) => {
-                                if (idx > 0) entries.push({ categoryId: id, month: i, year, costCenterId, tenantId, amount: 0 });
-                            });
-                        });
-                    }
+                    });
                 }
             }
 

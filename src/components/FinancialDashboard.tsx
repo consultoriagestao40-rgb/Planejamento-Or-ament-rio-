@@ -178,23 +178,6 @@ export default function FinancialDashboard({
                             </button>
                         </div>
                     </div>
-
-                    {/* Row 2: Company Chips */}
-                    {isConnected && companies.length > 0 && (
-                        <div style={{
-                            display: 'flex',
-                            gap: '0.4rem',
-                            flexWrap: 'wrap',
-                            padding: '0.75rem 0',
-                            borderTop: '1px solid var(--border-subtle)',
-                        }}>
-                            {companies.map(c => (
-                                <div key={c.id} className="chip">
-                                    <span>{c.name}</span>
-                                </div>
-                            ))}
-                        </div>
-                    )}
                 </div>
             </header>
 

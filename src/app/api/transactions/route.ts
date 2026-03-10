@@ -144,13 +144,22 @@ async function fetchTransactions(accessToken: string, baseUrl: string, costCente
                     for (const cc of ccs) {
                         if (isFiltered && !targetCcs.includes(cc.id)) continue;
 
+                        let specificAmount = 0;
+                        if (typeof cc.valor === 'number') {
+                            specificAmount = Math.abs(cc.valor);
+                        } else if (typeof cc.percentual === 'number') {
+                            specificAmount = absAmount * (cc.percentual / 100);
+                        } else {
+                            specificAmount = amountPerCc;
+                        }
+
                         transactions.push({
                             id: `${item.id}-${cc.id}`,
                             date: dateStr,
                             description: ccsCount > 1
                                 ? `${[item.descricao, item.observacao].filter(Boolean).join(' - ') || 'Sem descrição'} (Rateio ${cc.nome})`
                                 : ([item.descricao, item.observacao].filter(Boolean).join(' - ') || 'Sem descrição'),
-                            value: amountPerCc,
+                            value: specificAmount,
                             customer: item.cliente ? item.cliente.nome : (item.fornecedor ? item.fornecedor.nome : 'N/A'),
                             status: item.status,
                             costCenters: [{ id: cc.id, nome: cc.nome }]

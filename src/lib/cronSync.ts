@@ -33,9 +33,13 @@ async function fetchAllTransactionsForYear(accessToken: string, baseUrl: string,
                             if (pData.evento && pData.evento.rateio) {
                                 const rateioMap = new Map();
                                 pData.evento.rateio.forEach((r: any) => {
-                                    if (r.rateio_centro_custo) {
+                                    if (r.rateio_centro_custo && r.valor) {
                                         r.rateio_centro_custo.forEach((rc: any) => {
-                                            rateioMap.set(rc.id_centro_custo, (rateioMap.get(rc.id_centro_custo) || 0) + (rc.valor || 0));
+                                            // The rateio JSON provides absolute values for the entire event.
+                                            // We calculate the percentage and apply it to THIS individual installment!
+                                            const percent = (rc.valor || 0) / r.valor;
+                                            const proportionalValue = (item.total || item.valor || 0) * percent;
+                                            rateioMap.set(rc.id_centro_custo, (rateioMap.get(rc.id_centro_custo) || 0) + proportionalValue);
                                         });
                                     }
                                 });

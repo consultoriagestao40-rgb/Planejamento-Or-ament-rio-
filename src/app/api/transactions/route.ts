@@ -145,9 +145,16 @@ async function fetchTransactions(accessToken: string, baseUrl: string, costCente
                                     if (r.id_categoria) {
                                         const targetCat = cats.find((c: any) => c.id === r.id_categoria);
                                         if (targetCat) {
-                                            if (typeof r.valor === 'number') targetCat.valor = r.valor;
+                                            // Normalize values to absolute for display
+                                            if (typeof r.valor === 'number') targetCat.valor = Math.abs(r.valor);
+                                            
                                             if (r.rateio_centro_custo && r.rateio_centro_custo.length > 0) {
-                                                targetCat.centros_de_custo_exclusivos = r.rateio_centro_custo;
+                                                // NORMALIZE V2 CCs TO V1 FORMAT (id_centro_custo -> id)
+                                                targetCat.centros_de_custo_exclusivos = r.rateio_centro_custo.map((rc: any) => ({
+                                                    id: rc.id_centro_custo, // Map V2 field to V1 name
+                                                    valor: Math.abs(rc.valor || 0),
+                                                    percentual: rc.percentual
+                                                }));
                                             }
                                         }
                                     }

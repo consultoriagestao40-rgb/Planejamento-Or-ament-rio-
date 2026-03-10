@@ -16,7 +16,7 @@ export async function GET(request: Request) {
             let page = 1;
             let hasMore = true;
 
-            const url = `https://api-v2.contaazul.com/v1/financeiro/eventos-financeiros/contas-a-pagar/f9a440ef-19ec-4678-95d0-dda9b21fd04b`;
+            const url = `https://api-v2.contaazul.com/v1/financeiro/contas-a-pagar/f9a440ef-19ec-4678-95d0-dda9b21fd04b`;
 
             const res = await fetch(url, {
                 headers: { 'Authorization': `Bearer ${tenant.accessToken}` },

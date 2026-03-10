@@ -24,7 +24,11 @@ export async function GET(request: Request) {
                 cache: 'no-store'
             });
 
-            if (!res.ok) { continue; }
+            if (!res.ok) {
+                const text = await res.text();
+                results.push({ tenant: tenant.name, error: true, status: res.status, body: text });
+                continue;
+            }
 
             const data = await res.json();
             

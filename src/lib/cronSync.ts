@@ -107,15 +107,23 @@ export async function runCronSync(reqYear: number) {
                 const cat = txn.categories[0]; // Mirror exact behavior from services.ts to prevent data shifts
 
                 const amountForCat = txn.amount;
-                const amountPerCc = amountForCat / ccsCount;
+                // amountPerCc is no longer a static division sum, it is calculated per CC below.
 
                 if (txn.costCenters.length === 0) {
                     const key = `${cat.id}|NONE|${txn.month}`;
-                    aggregates.set(key, (aggregates.get(key) || 0) + amountPerCc);
+                    aggregates.set(key, (aggregates.get(key) || 0) + amountForCat);
                 } else {
                     for (const cc of txn.costCenters) {
                         const key = `${cat.id}|${cc.id}|${txn.month}`;
-                        aggregates.set(key, (aggregates.get(key) || 0) + amountPerCc);
+                        let specificAmount = 0;
+                        if (typeof cc.valor === 'number') {
+                            specificAmount = Math.abs(cc.valor);
+                        } else if (typeof cc.percentual === 'number') {
+                            specificAmount = amountForCat * (cc.percentual / 100);
+                        } else {
+                            specificAmount = amountForCat / ccsCount;
+                        }
+                        aggregates.set(key, (aggregates.get(key) || 0) + specificAmount);
                     }
                 }
             }

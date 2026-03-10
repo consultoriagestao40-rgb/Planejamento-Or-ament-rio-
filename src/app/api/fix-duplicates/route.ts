@@ -11,26 +11,24 @@ export async function GET() {
 
         const seenKeys = new Set();
         const toDeleteIds: string[] = [];
-        const keptTenants: any[] = [];
+        const mapping: Record<string, string> = {}; // duplicateId -> masterId
 
         for (const t of allTenants) {
-            const cleanName = (t.name || '').trim().toUpperCase();
+            // Normalização agressiva: apenas letras e números do nome ou o CNPJ
+            const superCleanName = (t.name || '').replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
             const cleanCnpj = (t.cnpj || '').replace(/\D/g, '');
-            const key = `${cleanName}-${cleanCnpj}`;
+            const key = cleanCnpj || superCleanName;
 
             if (seenKeys.has(key)) {
                 toDeleteIds.push(t.id);
             } else {
                 seenKeys.add(key);
-                keptTenants.push(t);
+                // O primeiro (mais recente devido ao orderBy) vira o Master
             }
         }
 
         if (toDeleteIds.length > 0) {
-            // Delete associated entries first if needed, though most should cascade or be unique to the tenantId
-            // In our schema, we should check what needs manual cleanup. 
-            // BudgetEntry, RealizedEntry have tenantId as a field.
-            
+            // Removemos as entradas realizadas e orçadas desses IDs duplicados para limpar o Grid
             await prisma.realizedEntry.deleteMany({ where: { tenantId: { in: toDeleteIds } } });
             await prisma.budgetEntry.deleteMany({ where: { tenantId: { in: toDeleteIds } } });
             await prisma.tenant.deleteMany({ where: { id: { in: toDeleteIds } } });
@@ -38,8 +36,9 @@ export async function GET() {
 
         return NextResponse.json({ 
             success: true, 
-            deletedCount: toDeleteIds.length, 
-            kept: keptTenants.map(t => t.name) 
+            message: "Limpeza de duplicatas concluída",
+            deletedCount: toDeleteIds.length,
+            remainingTenants: (await prisma.tenant.findMany()).length
         });
     } catch (e: any) {
         return NextResponse.json({ success: false, error: e.message }, { status: 500 });

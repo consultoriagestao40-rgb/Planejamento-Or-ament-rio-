@@ -128,12 +128,17 @@ async function fetchTransactions(accessToken: string, baseUrl: string, costCente
             for (const item of items) {
                 if ((item.status || '').toUpperCase().includes('CANCEL')) continue;
 
-                const cats = item.categorias || [];
-                if (cats.length === 0) continue;
+                const cats = (item.categorias || []) as any[];
+                const matchingCats = cats.filter(c => targetCategoryIds.includes(c.id));
+                if (matchingCats.length === 0) continue;
 
-                // Align exactly with cronSync.ts: we assign 100% of the value solely to the FIRST category linked.
-                const primaryCat = cats[0];
-                if (!targetCategoryIds.includes(primaryCat.id)) continue;
+                // Absolute sum of values belonging to the target categories in this transaction
+                const catValueTotal = matchingCats.reduce((sum, c) => sum + Math.abs(c.valor || 0), 0);
+                // Total value of the entire event (all categories)
+                const eventTotal = cats.reduce((sum, c) => sum + Math.abs(c.valor || 0), 0) || item.total || 1;
+                
+                // Ratio of this transaction that belongs to the selected categories
+                const catRatio = catValueTotal / eventTotal;
 
                 let ccs = item.centros_de_custo || [];
 
@@ -181,32 +186,7 @@ async function fetchTransactions(accessToken: string, baseUrl: string, costCente
                 const dateObj = dateStr ? new Date(dateStr) : new Date();
                 if (dateObj.getMonth() !== targetMonth || dateObj.getFullYear() !== targetYear) continue;
 
-                const absAmount = Math.abs(amount);
-
-                // 2-PASS RATEIO FOR REMAINDERS:
-                // First pass: sum explicit allocations to find the remaining balance
-                let totalAllocated = 0;
-                let unallocatedCount = 0;
-
-                const processedCcs = ccs.map((cc: any) => {
-                    let explicitAmount = null;
-                    if (typeof cc.valor === 'number') {
-                        explicitAmount = Math.abs(cc.valor);
-                    } else if (typeof cc.percentual === 'number') {
-                        explicitAmount = absAmount * (cc.percentual / 100);
-                    }
-
-                    if (explicitAmount !== null) {
-                        totalAllocated += explicitAmount;
-                    } else {
-                        unallocatedCount++;
-                    }
-
-                    return { ...cc, explicitAmount };
-                });
-
-                const remainingAmount = Math.max(0, absAmount - totalAllocated);
-                const fallbackPerCc = unallocatedCount > 0 ? (remainingAmount / unallocatedCount) : 0;
+                const baseAmountForSelection = eventTotal * catRatio;
 
                 if (ccs.length === 0) {
                     if (isFiltered) continue; // Ignore if user explicitly restricted by CC
@@ -215,16 +195,40 @@ async function fetchTransactions(accessToken: string, baseUrl: string, costCente
                         id: item.id,
                         date: dateStr,
                         description: [item.descricao, item.observacao].filter(Boolean).join(' - ') || 'Sem descrição',
-                        value: absAmount,
+                        value: baseAmountForSelection,
                         customer: item.cliente ? item.cliente.nome : (item.fornecedor ? item.fornecedor.nome : 'N/A'),
                         status: item.status,
                         costCenters: [{ id: 'NONE', nome: 'Geral' }]
                     });
                 } else {
+                    // Calculate CC values relative to the base amount of our selected categories
+                    let totalAllocated = 0;
+                    let unallocatedCount = 0;
+
+                    const processedCcs = ccs.map((cc: any) => {
+                        let amountPerCc = null;
+                        if (typeof cc.valor === 'number') {
+                            // If explicit value from CA rateio, we apply the category ratio to it
+                            amountPerCc = Math.abs(cc.valor) * catRatio;
+                        } else if (typeof cc.percentual === 'number') {
+                            amountPerCc = baseAmountForSelection * (cc.percentual / 100);
+                        }
+
+                        if (amountPerCc !== null) {
+                            totalAllocated += amountPerCc;
+                        } else {
+                            unallocatedCount++;
+                        }
+                        return { ...cc, amountPerCc };
+                    });
+
+                    const remainingAmount = Math.max(0, baseAmountForSelection - totalAllocated);
+                    const fallbackPerCc = unallocatedCount > 0 ? (remainingAmount / unallocatedCount) : 0;
+
                     for (const cc of processedCcs) {
                         if (isFiltered && !targetCcs.includes(cc.id)) continue;
 
-                        const specificAmount = cc.explicitAmount !== null ? cc.explicitAmount : fallbackPerCc;
+                        const specificAmount = cc.amountPerCc !== null ? cc.amountPerCc : fallbackPerCc;
 
                         transactions.push({
                             id: `${item.id}-${cc.id}`,

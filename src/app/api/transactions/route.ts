@@ -29,9 +29,9 @@ export async function GET(request: Request) {
         // This prevents the [JVS] [JVS] duplication seen in the UI.
         const seenKeys = new Set();
         const tenants = allTenants.filter(t => {
-            const cleanName = (t.name || '').trim().toUpperCase();
+            const superCleanName = (t.name || '').replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
             const cleanCnpj = (t.cnpj || '').replace(/\D/g, '');
-            const key = `${cleanName}-${cleanCnpj}`;
+            const key = cleanCnpj || superCleanName; // prefer CNPJ, fallback to clean name
             
             if (seenKeys.has(key)) return false;
             seenKeys.add(key);
@@ -76,11 +76,26 @@ export async function GET(request: Request) {
         });
 
         const results = await Promise.all(tenantPromises);
-        const allTransactions = results.flat().sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+        const allTransactions = results.flat();
+
+        // FINAL SAFETY: Deduplicate by transaction ID.
+        // This stops duplication if the same account is connected twice or if pagination overlaps.
+        const uniqueTxnsMap = new Map();
+        for (const txn of allTransactions) {
+            // Use a combination of ID and value/date as a key to be absolutely sure
+            const key = `${txn.id}-${txn.value}-${txn.date}`;
+            if (!uniqueTxnsMap.has(key)) {
+                uniqueTxnsMap.set(key, txn);
+            }
+        }
+
+        const sortedTxns = Array.from(uniqueTxnsMap.values()).sort((a: any, b: any) => 
+            new Date(a.date).getTime() - new Date(b.date).getTime()
+        );
 
         return NextResponse.json({
             success: true,
-            transactions: allTransactions
+            transactions: sortedTxns
         });
 
     } catch (error: any) {

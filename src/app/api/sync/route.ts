@@ -17,9 +17,9 @@ export async function GET(request: Request) {
         const seenKeys = new Set();
         const validTenantIds = new Set<string>();
         for (const t of allTenants) {
-            const cleanName = (t.name || '').trim().toUpperCase();
+            const superCleanName = (t.name || '').replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
             const cleanCnpj = (t.cnpj || '').replace(/\D/g, '');
-            const key = `${cleanName}-${cleanCnpj}`;
+            const key = cleanCnpj || superCleanName;
             
             if (!seenKeys.has(key)) {
                 validTenantIds.add(t.id);

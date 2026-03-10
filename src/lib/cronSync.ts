@@ -98,9 +98,9 @@ export async function runCronSync(reqYear: number) {
     // DEDUPLICATE: Only sync once per unique company name/CNPJ (even if multiple DB rows exist)
     const seenKeys = new Set();
     const tenants = allTenants.filter(t => {
-        const cleanName = (t.name || '').trim().toUpperCase();
+        const superCleanName = (t.name || '').replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
         const cleanCnpj = (t.cnpj || '').replace(/\D/g, '');
-        const key = `${cleanName}-${cleanCnpj}`;
+        const key = cleanCnpj || superCleanName;
         
         if (seenKeys.has(key)) return false;
         seenKeys.add(key);

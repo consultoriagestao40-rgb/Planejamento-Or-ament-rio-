@@ -152,13 +152,15 @@ export async function runCronSync(reqYear: number) {
                 // Process each category in the transaction
                 for (const cat of cats) {
                     let catRatio = 0;
+                    let amountForThisCat = 0;
+
                     if (hasExplicitValues) {
-                        catRatio = Math.abs((cat as any).valor || 0) / totalCatsValueSum;
+                        amountForThisCat = Math.abs((cat as any).valor || 0);
+                        catRatio = amountForThisCat / totalCatsValueSum; // To distribute CCs relative to this category's size
                     } else {
-                        // Fallback: Equal split if no explicit values
                         catRatio = 1 / cats.length;
+                        amountForThisCat = txn.amount * catRatio;
                     }
-                    const amountForThisCat = txn.amount * catRatio;
 
                     // 2-PASS RATEIO FOR CCs (Applying the catRatio to explicit CC amounts)
                     let totalAllocated = 0;

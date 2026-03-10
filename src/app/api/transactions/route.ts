@@ -133,19 +133,19 @@ async function fetchTransactions(accessToken: string, baseUrl: string, costCente
                 if (matchingCats.length === 0) continue;
 
                 // Conta Azul V1 list API often doesn't provide explicit 'valor' per category.
-                // We must handle this split gracefully.
+                // We must extract ONLY the value related to the requested category (e.g. DAS), not the full sale.
+                let baseAmountForSelection = 0;
+                let catRatio = 0;
                 const eventTotal = Math.abs(item.total || item.valor || 0) || 1;
                 const hasExplicitValues = cats.length > 0 && cats.every(c => typeof c.valor === 'number' && c.valor > 0);
                 
-                let catRatio = 0;
                 if (hasExplicitValues) {
-                    const catValueTotal = matchingCats.reduce((sum, c) => sum + Math.abs(c.valor || 0), 0);
+                    baseAmountForSelection = matchingCats.reduce((sum, c) => sum + Math.abs(c.valor || 0), 0);
                     const totalCatsSum = cats.reduce((sum, c) => sum + Math.abs(c.valor || 0), 0) || eventTotal;
-                    catRatio = catValueTotal / totalCatsSum;
+                    catRatio = baseAmountForSelection / totalCatsSum;
                 } else {
-                    // Fallback: If we don't know the split, divide equally by count of categories.
-                    // If there's only 1 category (most common), ratio is 1.0 (100%).
                     catRatio = matchingCats.length / cats.length;
+                    baseAmountForSelection = eventTotal * catRatio;
                 }
 
                 let ccs = item.centros_de_custo || [];
@@ -160,8 +160,6 @@ async function fetchTransactions(accessToken: string, baseUrl: string, costCente
                                 pData.evento.rateio.forEach((r: any) => {
                                     if (r.rateio_centro_custo && r.valor) {
                                         r.rateio_centro_custo.forEach((rc: any) => {
-                                            // The rateio JSON provides absolute values for the entire event.
-                                            // We calculate the percentage and apply it to THIS individual installment!
                                             const percent = (rc.valor || 0) / r.valor;
                                             const itemValue = item.total || item.valor || 0;
                                             const proportionalValue = itemValue * percent;
@@ -193,8 +191,6 @@ async function fetchTransactions(accessToken: string, baseUrl: string, costCente
 
                 const dateObj = dateStr ? new Date(dateStr) : new Date();
                 if (dateObj.getMonth() !== targetMonth || dateObj.getFullYear() !== targetYear) continue;
-
-                const baseAmountForSelection = eventTotal * catRatio;
 
                 if (ccs.length === 0) {
                     if (isFiltered) continue; // Ignore if user explicitly restricted by CC

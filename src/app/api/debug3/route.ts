@@ -12,7 +12,6 @@ export async function GET(request: Request) {
         const results: any[] = [];
 
         for (const tenant of tenants) {
-            if (!tenant.name.includes("JVS FACILITIES")) continue;
             
             let page = 1;
             let hasMore = true;

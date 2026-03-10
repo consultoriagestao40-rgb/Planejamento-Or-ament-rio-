@@ -25,12 +25,16 @@ export async function GET(request: Request) {
             ? await prisma.tenant.findMany({ orderBy: { tokenExpiresAt: 'desc' } })
             : await prisma.tenant.findMany({ where: { id: tenantId }, orderBy: { tokenExpiresAt: 'desc' } });
 
-        // DEDUPLICATE: If multiple DB entries exist for the same name, we only fetch once.
+        // DEDUPLICATE: If multiple DB entries exist for the same name/CNPJ (even with spaces or case differences), we only fetch once.
         // This prevents the [JVS] [JVS] duplication seen in the UI.
-        const seenNames = new Set();
+        const seenKeys = new Set();
         const tenants = allTenants.filter(t => {
-            if (seenNames.has(t.name)) return false;
-            seenNames.add(t.name);
+            const cleanName = (t.name || '').trim().toUpperCase();
+            const cleanCnpj = (t.cnpj || '').replace(/\D/g, '');
+            const key = `${cleanName}-${cleanCnpj}`;
+            
+            if (seenKeys.has(key)) return false;
+            seenKeys.add(key);
             return true;
         });
 

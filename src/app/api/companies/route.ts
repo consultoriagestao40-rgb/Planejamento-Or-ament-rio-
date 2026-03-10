@@ -15,14 +15,17 @@ export async function GET() {
         });
 
         const allTenants = await prisma.tenant.findMany({
-            select: { id: true, name: true, cnpj: true, taxRate: true },
             orderBy: { updatedAt: 'desc' }
         });
 
-        const seenNames = new Set();
+        const seenKeys = new Set();
         const tenants = allTenants.filter(t => {
-            if (seenNames.has(t.name)) return false;
-            seenNames.add(t.name);
+            const cleanName = (t.name || '').trim().toUpperCase();
+            const cleanCnpj = (t.cnpj || '').replace(/\D/g, '');
+            const key = `${cleanName}-${cleanCnpj}`;
+            
+            if (seenKeys.has(key)) return false;
+            seenKeys.add(key);
             return true;
         });
 

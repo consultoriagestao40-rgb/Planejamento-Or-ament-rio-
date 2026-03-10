@@ -14,12 +14,16 @@ export async function GET(request: Request) {
 
         // Determine unique tenants to include to avoid double-counting duplicate records
         const allTenants = await prisma.tenant.findMany({ orderBy: { updatedAt: 'desc' } });
-        const seenNames = new Set();
+        const seenKeys = new Set();
         const validTenantIds = new Set<string>();
         for (const t of allTenants) {
-            if (!seenNames.has(t.name)) {
+            const cleanName = (t.name || '').trim().toUpperCase();
+            const cleanCnpj = (t.cnpj || '').replace(/\D/g, '');
+            const key = `${cleanName}-${cleanCnpj}`;
+            
+            if (!seenKeys.has(key)) {
                 validTenantIds.add(t.id);
-                seenNames.add(t.name);
+                seenKeys.add(key);
             }
         }
 

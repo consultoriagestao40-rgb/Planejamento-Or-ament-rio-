@@ -95,11 +95,15 @@ export async function runCronSync(reqYear: number) {
         return { success: false, error: 'No tenants' };
     }
 
-    // DEDUPLICATE: Only sync once per unique company name.
-    const seenNames = new Set();
+    // DEDUPLICATE: Only sync once per unique company name/CNPJ (even if multiple DB rows exist)
+    const seenKeys = new Set();
     const tenants = allTenants.filter(t => {
-        if (seenNames.has(t.name)) return false;
-        seenNames.add(t.name);
+        const cleanName = (t.name || '').trim().toUpperCase();
+        const cleanCnpj = (t.cnpj || '').replace(/\D/g, '');
+        const key = `${cleanName}-${cleanCnpj}`;
+        
+        if (seenKeys.has(key)) return false;
+        seenKeys.add(key);
         return true;
     });
 

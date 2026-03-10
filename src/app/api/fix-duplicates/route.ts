@@ -9,15 +9,19 @@ export async function GET() {
             orderBy: { updatedAt: 'desc' }
         });
 
-        const seenNames = new Set();
+        const seenKeys = new Set();
         const toDeleteIds: string[] = [];
         const keptTenants: any[] = [];
 
         for (const t of allTenants) {
-            if (seenNames.has(t.name)) {
+            const cleanName = (t.name || '').trim().toUpperCase();
+            const cleanCnpj = (t.cnpj || '').replace(/\D/g, '');
+            const key = `${cleanName}-${cleanCnpj}`;
+
+            if (seenKeys.has(key)) {
                 toDeleteIds.push(t.id);
             } else {
-                seenNames.add(t.name);
+                seenKeys.add(key);
                 keptTenants.push(t);
             }
         }

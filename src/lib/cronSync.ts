@@ -143,13 +143,21 @@ export async function runCronSync(reqYear: number) {
                 const cats = (txn.categories || []) as any[];
                 if (cats.length === 0) continue;
 
-                // Sum absolute values of all categories to establish a baseline for CC proportion
-                const totalCatsValueSum = cats.reduce((sum, c) => sum + Math.abs(c.valor || 0), 0) || txn.amount || 1;
+                // Conta Azul V1 list API often doesn't provide explicit 'valor' per category.
+                const hasExplicitValues = cats.length > 0 && cats.every(c => typeof (c as any).valor === 'number' && (c as any).valor > 0);
+                const totalCatsValueSum = hasExplicitValues 
+                    ? cats.reduce((sum, c) => sum + Math.abs((c as any).valor || 0), 0) || txn.amount || 1
+                    : txn.amount;
 
                 // Process each category in the transaction
                 for (const cat of cats) {
-                    const catValue = Math.abs(cat.valor || 0);
-                    const catRatio = catValue / totalCatsValueSum;
+                    let catRatio = 0;
+                    if (hasExplicitValues) {
+                        catRatio = Math.abs((cat as any).valor || 0) / totalCatsValueSum;
+                    } else {
+                        // Fallback: Equal split if no explicit values
+                        catRatio = 1 / cats.length;
+                    }
                     const amountForThisCat = txn.amount * catRatio;
 
                     // 2-PASS RATEIO FOR CCs (Applying the catRatio to explicit CC amounts)

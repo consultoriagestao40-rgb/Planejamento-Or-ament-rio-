@@ -132,13 +132,21 @@ async function fetchTransactions(accessToken: string, baseUrl: string, costCente
                 const matchingCats = cats.filter(c => targetCategoryIds.includes(c.id));
                 if (matchingCats.length === 0) continue;
 
-                // Absolute sum of values belonging to the target categories in this transaction
-                const catValueTotal = matchingCats.reduce((sum, c) => sum + Math.abs(c.valor || 0), 0);
-                // Total value of the entire event (all categories)
-                const eventTotal = cats.reduce((sum, c) => sum + Math.abs(c.valor || 0), 0) || item.total || 1;
+                // Conta Azul V1 list API often doesn't provide explicit 'valor' per category.
+                // We must handle this split gracefully.
+                const eventTotal = Math.abs(item.total || item.valor || 0) || 1;
+                const hasExplicitValues = cats.length > 0 && cats.every(c => typeof c.valor === 'number' && c.valor > 0);
                 
-                // Ratio of this transaction that belongs to the selected categories
-                const catRatio = catValueTotal / eventTotal;
+                let catRatio = 0;
+                if (hasExplicitValues) {
+                    const catValueTotal = matchingCats.reduce((sum, c) => sum + Math.abs(c.valor || 0), 0);
+                    const totalCatsSum = cats.reduce((sum, c) => sum + Math.abs(c.valor || 0), 0) || eventTotal;
+                    catRatio = catValueTotal / totalCatsSum;
+                } else {
+                    // Fallback: If we don't know the split, divide equally by count of categories.
+                    // If there's only 1 category (most common), ratio is 1.0 (100%).
+                    catRatio = matchingCats.length / cats.length;
+                }
 
                 let ccs = item.centros_de_custo || [];
 

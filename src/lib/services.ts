@@ -354,7 +354,7 @@ async function aggregateTransactions(
             const items = data.itens || [];
             if (items.length === 0) { hasMore = false; break; }
 
-            items.forEach((item: any) => {
+            for (const item of items) {
                 let amount: number;
                 let dateStr: string;
                 if (viewMode === 'caixa') {
@@ -367,17 +367,40 @@ async function aggregateTransactions(
                 let dateObj = dateStr ? new Date(dateStr) : new Date();
                 const monthIdx = dateObj.getMonth();
                 const year = dateObj.getFullYear();
-                if (year !== targetYear) return;
+                if (year !== targetYear) continue;
 
                 const status = (item.status || '').toUpperCase();
-                if (status.includes('CANCEL')) return;
+                if (status.includes('CANCEL')) continue;
 
-                const ccs = item.centros_de_custo || [];
+                let ccs = item.centros_de_custo || [];
+
+                if (ccs.length > 1) {
+                    try {
+                        const pRes = await fetch(`https://api-v2.contaazul.com/v1/financeiro/eventos-financeiros/parcelas/${item.id}`, { headers: { 'Authorization': `Bearer ${accessToken}` } });
+                        if (pRes.ok) {
+                            const pData = await pRes.json();
+                            if (pData.evento && pData.evento.rateio) {
+                                const rateioMap = new Map();
+                                pData.evento.rateio.forEach((r: any) => {
+                                    if (r.rateio_centro_custo) {
+                                        r.rateio_centro_custo.forEach((rc: any) => {
+                                            rateioMap.set(rc.id_centro_custo, (rateioMap.get(rc.id_centro_custo) || 0) + (rc.valor || 0));
+                                        });
+                                    }
+                                });
+                                ccs = ccs.map((cc: any) => ({
+                                    ...cc,
+                                    valor: rateioMap.has(cc.id) ? rateioMap.get(cc.id) : cc.valor
+                                }));
+                            }
+                        }
+                    } catch(e) {}
+                }
 
                 // If filtered, the item MUST belong to AT LEAST ONE of the target CCs
                 if (isFiltered) {
                     const matchesTarget = ccs.some((c: any) => targetCcs.includes(c.id));
-                    if (!matchesTarget) return;
+                    if (!matchesTarget) continue;
                 }
 
                 const categories = item.categorias || [];
@@ -440,7 +463,7 @@ async function aggregateTransactions(
                         }
                     }
                 }
-            });
+            }
 
             if (items.length < 100) hasMore = false;
             else page++;

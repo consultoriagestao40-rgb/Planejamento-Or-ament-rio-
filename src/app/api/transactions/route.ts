@@ -97,17 +97,41 @@ async function fetchTransactions(accessToken: string, baseUrl: string, costCente
 
             if (items.length === 0) break;
 
-            items.forEach((item: any) => {
-                if ((item.status || '').toUpperCase().includes('CANCEL')) return;
+            for (const item of items) {
+                if ((item.status || '').toUpperCase().includes('CANCEL')) continue;
 
                 const cats = item.categorias || [];
-                if (cats.length === 0) return;
+                if (cats.length === 0) continue;
 
                 // Align exactly with cronSync.ts: we assign 100% of the value solely to the FIRST category linked.
                 const primaryCat = cats[0];
-                if (!targetCategoryIds.includes(primaryCat.id)) return;
+                if (!targetCategoryIds.includes(primaryCat.id)) continue;
 
-                const ccs = item.centros_de_custo || [];
+                let ccs = item.centros_de_custo || [];
+
+                if (ccs.length > 1) {
+                    try {
+                        const pRes = await fetch(`https://api-v2.contaazul.com/v1/financeiro/eventos-financeiros/parcelas/${item.id}`, { headers: { 'Authorization': `Bearer ${accessToken}` } });
+                        if (pRes.ok) {
+                            const pData = await pRes.json();
+                            if (pData.evento && pData.evento.rateio) {
+                                const rateioMap = new Map();
+                                pData.evento.rateio.forEach((r: any) => {
+                                    if (r.rateio_centro_custo) {
+                                        r.rateio_centro_custo.forEach((rc: any) => {
+                                            rateioMap.set(rc.id_centro_custo, (rateioMap.get(rc.id_centro_custo) || 0) + (rc.valor || 0));
+                                        });
+                                    }
+                                });
+                                ccs = ccs.map((cc: any) => ({
+                                    ...cc,
+                                    valor: rateioMap.has(cc.id) ? rateioMap.get(cc.id) : cc.valor
+                                }));
+                            }
+                        }
+                    } catch(e) {}
+                }
+
                 const ccsCount = ccs.length || 1;
 
                 let dateStr: string;
@@ -122,7 +146,7 @@ async function fetchTransactions(accessToken: string, baseUrl: string, costCente
                 }
 
                 const dateObj = dateStr ? new Date(dateStr) : new Date();
-                if (dateObj.getMonth() !== targetMonth || dateObj.getFullYear() !== targetYear) return;
+                if (dateObj.getMonth() !== targetMonth || dateObj.getFullYear() !== targetYear) continue;
 
                 const absAmount = Math.abs(amount);
 
@@ -152,7 +176,7 @@ async function fetchTransactions(accessToken: string, baseUrl: string, costCente
                 const fallbackPerCc = unallocatedCount > 0 ? (remainingAmount / unallocatedCount) : 0;
 
                 if (ccs.length === 0) {
-                    if (isFiltered) return; // Ignore if user explicitly restricted by CC
+                    if (isFiltered) continue; // Ignore if user explicitly restricted by CC
 
                     transactions.push({
                         id: item.id,
@@ -182,7 +206,7 @@ async function fetchTransactions(accessToken: string, baseUrl: string, costCente
                         });
                     }
                 }
-            });
+            }
 
             if (items.length < 100) hasMore = false;
             else page++;

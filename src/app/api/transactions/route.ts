@@ -21,9 +21,18 @@ export async function GET(request: Request) {
 
         // Determine which tenants to query
         const { prisma } = await import('@/lib/prisma');
-        const tenants = tenantId === 'ALL'
-            ? await prisma.tenant.findMany()
-            : await prisma.tenant.findMany({ where: { id: tenantId } });
+        const allTenants = tenantId === 'ALL'
+            ? await prisma.tenant.findMany({ orderBy: { tokenExpiresAt: 'desc' } })
+            : await prisma.tenant.findMany({ where: { id: tenantId }, orderBy: { tokenExpiresAt: 'desc' } });
+
+        // DEDUPLICATE: If multiple DB entries exist for the same name, we only fetch once.
+        // This prevents the [JVS] [JVS] duplication seen in the UI.
+        const seenNames = new Set();
+        const tenants = allTenants.filter(t => {
+            if (seenNames.has(t.name)) return false;
+            seenNames.add(t.name);
+            return true;
+        });
 
         if (tenants.length === 0) {
             return NextResponse.json({ success: false, error: 'No connected companies found' }, { status: 400 });

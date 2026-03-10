@@ -90,10 +90,18 @@ async function fetchAllTransactionsForYear(accessToken: string, baseUrl: string,
 }
 
 export async function runCronSync(reqYear: number) {
-    const tenants = await prisma.tenant.findMany();
-    if (tenants.length === 0) {
+    const allTenants = await prisma.tenant.findMany({ orderBy: { tokenExpiresAt: 'desc' } });
+    if (allTenants.length === 0) {
         return { success: false, error: 'No tenants' };
     }
+
+    // DEDUPLICATE: Only sync once per unique company name.
+    const seenNames = new Set();
+    const tenants = allTenants.filter(t => {
+        if (seenNames.has(t.name)) return false;
+        seenNames.add(t.name);
+        return true;
+    });
 
     const report = [];
 

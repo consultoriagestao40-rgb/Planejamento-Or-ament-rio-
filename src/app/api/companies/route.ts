@@ -14,9 +14,18 @@ export async function GET() {
             data: { name: 'SPOT FACILITIES' }
         });
 
-        const tenants = await prisma.tenant.findMany({
-            select: { id: true, name: true, cnpj: true, taxRate: true }
+        const allTenants = await prisma.tenant.findMany({
+            select: { id: true, name: true, cnpj: true, taxRate: true },
+            orderBy: { updatedAt: 'desc' }
         });
+
+        const seenNames = new Set();
+        const tenants = allTenants.filter(t => {
+            if (seenNames.has(t.name)) return false;
+            seenNames.add(t.name);
+            return true;
+        });
+
         return NextResponse.json({ success: true, companies: tenants });
     } catch (e: any) {
         return NextResponse.json({ success: false, error: e.message }, { status: 500 });

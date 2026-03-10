@@ -12,7 +12,6 @@ export function middleware(request: NextRequest) {
         pathname.startsWith('/api/debug-sync') ||
         pathname.startsWith('/api/debug3') ||
         pathname.startsWith('/api/debug6') ||
-        pathname.startsWith('/api/debug7') ||
         pathname.startsWith('/api/cron/sync') ||
         pathname === '/login' ||
         pathname === '/favicon.ico'

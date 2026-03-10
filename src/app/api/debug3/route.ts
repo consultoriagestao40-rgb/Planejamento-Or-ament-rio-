@@ -17,41 +17,21 @@ export async function GET(request: Request) {
             let page = 1;
             let hasMore = true;
 
-            while (hasMore && page <= 5) {
-                const url = `https://api-v2.contaazul.com/v1/financeiro/eventos-financeiros/contas-a-pagar/buscar?data_vencimento_de=2025-12-01&data_vencimento_ate=2026-02-28&tamanho_pagina=100&pagina=${page}`;
+            const url = `https://api-v2.contaazul.com/v1/financeiro/eventos-financeiros/contas-a-pagar/f9a440ef-19ec-4678-95d0-dda9b21fd04b`;
 
-                const res = await fetch(url, {
-                    headers: { 'Authorization': `Bearer ${tenant.accessToken}` },
-                    cache: 'no-store'
-                });
+            const res = await fetch(url, {
+                headers: { 'Authorization': `Bearer ${tenant.accessToken}` },
+                cache: 'no-store'
+            });
 
-                if (!res.ok) { hasMore = false; break; }
+            if (!res.ok) { continue; }
 
-                const data = await res.json();
-                const items = data.itens || [];
-                if (items.length === 0) { hasMore = false; break; }
-
-                const matchingTotal = items.filter((i: any) => {
-                    const val = i.valor || i.total || i.valor_original;
-                    // match specific rateio or title
-                    return (i.descricao && i.descricao.includes('VT MES'));
-                });
-
-                if (matchingTotal.length > 0) {
-                    results.push({
-                        tenant: tenant.name,
-                        page,
-                        transactions: matchingTotal.map((t: any) => ({
-                            id: t.id,
-                            desc: t.descricao,
-                            total: t.valor || t.total,
-                            ccs: t.centros_de_custo
-                        }))
-                    });
-                }
-                
-                page++;
-            }
+            const data = await res.json();
+            
+            results.push({
+                tenant: tenant.name,
+                transaction: data
+            });
         }
 
         return NextResponse.json({ success: true, results });

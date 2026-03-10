@@ -25,20 +25,28 @@ async function fetchAllTransactionsForYear(accessToken: string, baseUrl: string,
                 const cats = item.categorias || [];
                 let ccs = item.centros_de_custo || [];
 
-                if (ccs.length > 1) {
+                if (ccs.length > 1 || cats.length > 1) { // Deep extraction also needed for multi-category splits
                     try {
                         const pRes = await fetch(`https://api-v2.contaazul.com/v1/financeiro/eventos-financeiros/parcelas/${item.id}`, { headers: { 'Authorization': `Bearer ${accessToken}` } });
                         if (pRes.ok) {
                             const pData = await pRes.json();
                             if (pData.evento && pData.evento.rateio) {
+                                // Augment Categories with explicit values from the API!
+                                pData.evento.rateio.forEach((r: any) => {
+                                    if (r.id_categoria && r.valor) {
+                                        const targetCat = cats.find((c: any) => c.id === r.id_categoria);
+                                        if (targetCat) targetCat.valor = r.valor;
+                                    }
+                                });
+
+                                const eventTotalSum = pData.evento.rateio.reduce((sum: number, rat: any) => sum + Math.abs(rat.valor || 0), 0) || 1;
                                 const rateioMap = new Map();
                                 pData.evento.rateio.forEach((r: any) => {
                                     if (r.rateio_centro_custo && r.valor) {
                                         r.rateio_centro_custo.forEach((rc: any) => {
-                                            // The rateio JSON provides absolute values for the entire event.
-                                            // We calculate the percentage and apply it to THIS individual installment!
-                                            const percent = (rc.valor || 0) / r.valor;
-                                            const proportionalValue = (item.total || item.valor || 0) * percent;
+                                            // global percent of this CC in the context of the whole event
+                                            const globalPercent = (rc.valor || 0) / eventTotalSum;
+                                            const proportionalValue = (item.total || item.valor || 0) * globalPercent;
                                             rateioMap.set(rc.id_centro_custo, (rateioMap.get(rc.id_centro_custo) || 0) + proportionalValue);
                                         });
                                     }

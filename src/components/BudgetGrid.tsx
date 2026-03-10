@@ -268,17 +268,21 @@ export default function BudgetGrid({
 
         // 1. Initial Load
         validCategories.forEach((cat: any) => {
-            const codeMatch = cat.name.match(/^([\d.]+)/);
+            // V47.136 - Strict Code Extraction: Only match if it looks like a real hierarchy code (e.g. 01.1) 
+            // and is followed by space or dash, not just any leading number.
+            const codeMatch = cat.name.match(/^(\d{1,2}(?:\.\d+)*)(?:\s+[-–:]\s*|\s+)/);
             const rawCode = codeMatch ? codeMatch[1] : '';
+            
+            // Safety: ignore partial matches that aren't actually part of our system
             if (rawCode.startsWith('2.3') || rawCode.startsWith('2.4')) return;
 
             let effectiveName = cat.name;
             let effectiveCode = rawCode;
 
             // V47.135 - Clean Revenue Mapping (No redirection of 02 to 01)
-            const uniqueKey = effectiveCode ? effectiveCode : effectiveName;
+            const uniqueKey = effectiveCode ? `${effectiveCode}|${effectiveName}` : effectiveName;
 
-            // Merge twin categories to avoid visual clutter, but keep track of which tenant they belong to
+            // Merge twin categories only if identity is 100% certain (code + name match)
             if (nameMap.has(uniqueKey)) {
                 const existingNode = nameMap.get(uniqueKey)!;
                 if (!existingNode.id.split(',').includes(cat.id)) {

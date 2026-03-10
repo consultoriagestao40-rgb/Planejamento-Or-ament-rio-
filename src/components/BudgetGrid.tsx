@@ -125,7 +125,7 @@ export default function BudgetGrid({
         setTransactions([]);
         try {
             const companyParam = selectedCompany.includes('DEFAULT') ? 'ALL' : selectedCompany.join(',');
-            const res = await fetch(`/api/transactions?categoryId=${categoryId}&month=${month}&year=${selectedYear}&costCenterId=${selectedCostCenter.join(',')}&tenantId=${companyParam}&viewMode=${viewMode}`);
+            const res = await fetch(`/api/transactions?categoryId=${categoryId}&month=${month}&year=${selectedYear}&costCenterId=${selectedCostCenter.join(',')}&tenantId=${companyParam}&viewMode=${viewMode}&t=${Date.now()}`);
             const data = await res.json();
             if (data.success) {
                 setTransactions(data.transactions);
@@ -194,7 +194,7 @@ export default function BudgetGrid({
             try {
                 const setupRes = await fetch('/api/setup?t=' + Date.now(), { cache: 'no-store' });
                 const setupData = await setupRes.json();
-
+                
                 if (setupData.success) {
                     setCategories(setupData.categories);
                     if (setupData.costCenters.length > 0) {
@@ -268,21 +268,10 @@ export default function BudgetGrid({
 
         // 1. Initial Load
         validCategories.forEach((cat: any) => {
-            // V47.136 - Strict Code Extraction: Only match if it looks like a real hierarchy code (e.g. 01.1) 
-            // and is followed by space or dash, not just any leading number.
-            const codeMatch = cat.name.match(/^(\d{1,2}(?:\.\d+)*)(?:\s+[-–:]\s*|\s+)/);
-            const rawCode = codeMatch ? codeMatch[1] : '';
-            
-            // Safety: ignore partial matches that aren't actually part of our system
-            if (rawCode.startsWith('2.3') || rawCode.startsWith('2.4')) return;
+            // V47.142 - Strict Key: Isolation + Identity
+            const cleanCode = (cat.name.match(/^(\d{1,2}(?:\.\d+)*)/) || [])[1] || '';
+            const uniqueKey = `${cat.tenantId}|${cat.type}|${cleanCode}|${cat.name}`;
 
-            let effectiveName = cat.name;
-            let effectiveCode = rawCode;
-
-            // V47.135 - Clean Revenue Mapping (No redirection of 02 to 01)
-            const uniqueKey = effectiveCode ? `${effectiveCode}|${effectiveName}` : effectiveName;
-
-            // Merge twin categories only if identity is 100% certain (code + name match)
             if (nameMap.has(uniqueKey)) {
                 const existingNode = nameMap.get(uniqueKey)!;
                 if (!existingNode.id.split(',').includes(cat.id)) {
@@ -294,16 +283,20 @@ export default function BudgetGrid({
 
             const node: CategoryNode = {
                 ...cat,
-                name: effectiveName,
-                code: effectiveCode,
+                name: cat.name,
+                code: cleanCode,
                 children: [],
                 level: 0,
                 isSynthetic: false,
-                tenantId: cat.tenantId // Keep track of the original tenant
+                tenantId: cat.tenantId
             };
             map.set(cat.id, node);
-            if (uniqueKey) nameMap.set(uniqueKey, node);
-            if (effectiveCode) codeMap.set(effectiveCode, node);
+            nameMap.set(uniqueKey, node);
+            if (cleanCode) {
+                codeMap.set(cleanCode, node);
+                // Also map with leading zero if missing for hierarchy matching
+                if (!cleanCode.startsWith('0') && cleanCode.length > 0) codeMap.set(`0${cleanCode}`, node);
+            }
         });
 
         const syntheticParents = [

@@ -31,30 +31,18 @@ async function fetchAllTransactionsForYear(accessToken: string, baseUrl: string,
                         if (pRes.ok) {
                             const pData = await pRes.json();
                             if (pData.evento && pData.evento.rateio) {
-                                // Augment Categories with explicit values from the API!
+                                // Augment Categories with explicit values and exclusively scoped CCs from the API!
                                 pData.evento.rateio.forEach((r: any) => {
-                                    if (r.id_categoria && r.valor) {
+                                    if (r.id_categoria) {
                                         const targetCat = cats.find((c: any) => c.id === r.id_categoria);
-                                        if (targetCat) targetCat.valor = r.valor;
+                                        if (targetCat) {
+                                            if (typeof r.valor === 'number') targetCat.valor = r.valor;
+                                            if (r.rateio_centro_custo && r.rateio_centro_custo.length > 0) {
+                                                targetCat.centros_de_custo_exclusivos = r.rateio_centro_custo;
+                                            }
+                                        }
                                     }
                                 });
-
-                                const eventTotalSum = pData.evento.rateio.reduce((sum: number, rat: any) => sum + Math.abs(rat.valor || 0), 0) || 1;
-                                const rateioMap = new Map();
-                                pData.evento.rateio.forEach((r: any) => {
-                                    if (r.rateio_centro_custo && r.valor) {
-                                        r.rateio_centro_custo.forEach((rc: any) => {
-                                            // global percent of this CC in the context of the whole event
-                                            const globalPercent = (rc.valor || 0) / eventTotalSum;
-                                            const proportionalValue = (item.total || item.valor || 0) * globalPercent;
-                                            rateioMap.set(rc.id_centro_custo, (rateioMap.get(rc.id_centro_custo) || 0) + proportionalValue);
-                                        });
-                                    }
-                                });
-                                ccs = ccs.map((cc: any) => ({
-                                    ...cc,
-                                    valor: rateioMap.has(cc.id) ? rateioMap.get(cc.id) : cc.valor
-                                }));
                             }
                         }
                     } catch(e) {}
@@ -159,25 +147,26 @@ export async function runCronSync(reqYear: number) {
 
                 // Process each category in the transaction
                 for (const cat of cats) {
-                    let catRatio = 0;
                     let amountForThisCat = 0;
 
-                    if (hasExplicitValues) {
-                        amountForThisCat = Math.abs((cat as any).valor || 0);
-                        catRatio = amountForThisCat / totalCatsValueSum; // To distribute CCs relative to this category's size
+                    if (typeof (cat as any).valor === 'number') {
+                        amountForThisCat = Math.abs((cat as any).valor);
                     } else {
-                        catRatio = 1 / cats.length;
-                        amountForThisCat = txn.amount * catRatio;
+                        amountForThisCat = txn.amount * (1 / cats.length);
                     }
 
-                    // 2-PASS RATEIO FOR CCs (Applying the catRatio to explicit CC amounts)
+                    // Use category-specific CCs if deep extraction found them. Otherwise fallback to event CCs.
+                    const ccsToProcess = ((cat as any).centros_de_custo_exclusivos && (cat as any).centros_de_custo_exclusivos.length > 0)
+                        ? (cat as any).centros_de_custo_exclusivos
+                        : txn.costCenters;
+
                     let totalAllocated = 0;
                     let unallocatedCount = 0;
 
-                    const processedCcs = txn.costCenters.map((cc: any) => {
+                    const processedCcs = ccsToProcess.map((cc: any) => {
                         let amountPerCc = null;
                         if (typeof cc.valor === 'number') {
-                            amountPerCc = Math.abs(cc.valor) * catRatio;
+                            amountPerCc = Math.abs(cc.valor); // Exact CC value sent by CA for THIS category
                         } else if (typeof cc.percentual === 'number') {
                             amountPerCc = amountForThisCat * (cc.percentual / 100);
                         }

@@ -132,22 +132,6 @@ async function fetchTransactions(accessToken: string, baseUrl: string, costCente
                 const matchingCats = cats.filter(c => targetCategoryIds.includes(c.id));
                 if (matchingCats.length === 0) continue;
 
-                // Conta Azul V1 list API often doesn't provide explicit 'valor' per category.
-                // We must extract ONLY the value related to the requested category (e.g. DAS), not the full sale.
-                let baseAmountForSelection = 0;
-                let catRatio = 0;
-                const eventTotal = Math.abs(item.total || item.valor || 0) || 1;
-                const hasExplicitValues = cats.length > 0 && cats.every(c => typeof c.valor === 'number' && c.valor > 0);
-                
-                if (hasExplicitValues) {
-                    baseAmountForSelection = matchingCats.reduce((sum, c) => sum + Math.abs(c.valor || 0), 0);
-                    const totalCatsSum = cats.reduce((sum, c) => sum + Math.abs(c.valor || 0), 0) || eventTotal;
-                    catRatio = baseAmountForSelection / totalCatsSum;
-                } else {
-                    catRatio = matchingCats.length / cats.length;
-                    baseAmountForSelection = eventTotal * catRatio;
-                }
-
                 let ccs = item.centros_de_custo || [];
 
                 if (ccs.length > 1 || cats.length > 1) { // Deep extraction also needed for multi-category splits
@@ -156,33 +140,36 @@ async function fetchTransactions(accessToken: string, baseUrl: string, costCente
                         if (pRes.ok) {
                             const pData = await pRes.json();
                             if (pData.evento && pData.evento.rateio) {
-                                // Augment Categories with explicit values from the API!
+                                // Augment Categories with explicit values and exclusively scoped CCs from the API!
                                 pData.evento.rateio.forEach((r: any) => {
-                                    if (r.id_categoria && r.valor) {
+                                    if (r.id_categoria) {
                                         const targetCat = cats.find((c: any) => c.id === r.id_categoria);
-                                        if (targetCat) targetCat.valor = r.valor;
+                                        if (targetCat) {
+                                            if (typeof r.valor === 'number') targetCat.valor = r.valor;
+                                            if (r.rateio_centro_custo && r.rateio_centro_custo.length > 0) {
+                                                targetCat.centros_de_custo_exclusivos = r.rateio_centro_custo;
+                                            }
+                                        }
                                     }
                                 });
-
-                                const eventTotalSum = pData.evento.rateio.reduce((sum: number, rat: any) => sum + Math.abs(rat.valor || 0), 0) || 1;
-                                const rateioMap = new Map();
-                                pData.evento.rateio.forEach((r: any) => {
-                                    if (r.rateio_centro_custo && r.valor) {
-                                        r.rateio_centro_custo.forEach((rc: any) => {
-                                            const globalPercent = (rc.valor || 0) / eventTotalSum;
-                                            const itemValue = item.total || item.valor || 0;
-                                            const proportionalValue = itemValue * globalPercent;
-                                            rateioMap.set(rc.id_centro_custo, (rateioMap.get(rc.id_centro_custo) || 0) + proportionalValue);
-                                        });
-                                    }
-                                });
-                                ccs = ccs.map((cc: any) => ({
-                                    ...cc,
-                                    valor: rateioMap.has(cc.id) ? rateioMap.get(cc.id) : cc.valor
-                                }));
                             }
                         }
                     } catch(e) {}
+                }
+
+                // NOW calculate baseAmountForSelection using potentially augmented cats
+                let baseAmountForSelection = 0;
+                let catRatio = 0;
+                const eventTotal = Math.abs(item.total || item.valor || 0) || 1;
+                const hasExplicitValues = cats.length > 0 && cats.every((c: any) => typeof c.valor === 'number');
+                
+                if (hasExplicitValues) {
+                    baseAmountForSelection = matchingCats.reduce((sum, c) => sum + Math.abs(c.valor || 0), 0);
+                    const totalCatsSum = cats.reduce((sum, c) => sum + Math.abs(c.valor || 0), 0) || eventTotal;
+                    catRatio = baseAmountForSelection / totalCatsSum;
+                } else {
+                    catRatio = matchingCats.length / cats.length;
+                    baseAmountForSelection = eventTotal * catRatio;
                 }
 
                 const ccsCount = ccs.length || 1;
@@ -201,7 +188,14 @@ async function fetchTransactions(accessToken: string, baseUrl: string, costCente
                 const dateObj = dateStr ? new Date(dateStr) : new Date();
                 if (dateObj.getMonth() !== targetMonth || dateObj.getFullYear() !== targetYear) continue;
 
-                if (ccs.length === 0) {
+                // Use category-specific CCs if deep extraction found them. Otherwise fallback to event CCs.
+                let ccsToProcess = ccs;
+                const exclusiveCcs = matchingCats.flatMap((c: any) => c.centros_de_custo_exclusivos || []);
+                if (exclusiveCcs.length > 0) {
+                    ccsToProcess = exclusiveCcs;
+                }
+
+                if (ccsToProcess.length === 0) {
                     if (isFiltered) continue; // Ignore if user explicitly restricted by CC
 
                     transactions.push({
@@ -218,11 +212,10 @@ async function fetchTransactions(accessToken: string, baseUrl: string, costCente
                     let totalAllocated = 0;
                     let unallocatedCount = 0;
 
-                    const processedCcs = ccs.map((cc: any) => {
+                    const processedCcs = ccsToProcess.map((cc: any) => {
                         let amountPerCc = null;
                         if (typeof cc.valor === 'number') {
-                            // If explicit value from CA rateio, we apply the category ratio to it
-                            amountPerCc = Math.abs(cc.valor) * catRatio;
+                            amountPerCc = Math.abs(cc.valor); // Exact CC value sent by CA for THIS category
                         } else if (typeof cc.percentual === 'number') {
                             amountPerCc = baseAmountForSelection * (cc.percentual / 100);
                         }

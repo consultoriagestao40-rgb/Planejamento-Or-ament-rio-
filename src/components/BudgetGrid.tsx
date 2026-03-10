@@ -262,7 +262,9 @@ export default function BudgetGrid({
         const codeMap = new Map<string, CategoryNode>();
         const nameMap = new Map<string, CategoryNode>();
 
-        const validCategories = categories;
+        const validCategories = selectedCompany.includes('DEFAULT') 
+            ? categories 
+            : categories.filter((c: any) => selectedCompany.includes(c.tenantId || ''));
 
         // 1. Initial Load
         validCategories.forEach((cat: any) => {
@@ -273,67 +275,10 @@ export default function BudgetGrid({
             let effectiveName = cat.name;
             let effectiveCode = rawCode;
 
-            if (rawCode.startsWith('02') || (rawCode.startsWith('2') && !cat.name.toLowerCase().includes('tributo') && !rawCode.startsWith('2.1'))) {
-                if (rawCode.startsWith('02')) {
-                    let suffix = rawCode.replace(/^0?2/, '');
-                    if (suffix.startsWith('.')) suffix = suffix.substring(1);
-                    effectiveCode = suffix ? `01.2.${suffix}` : '01.2';
-                    effectiveName = cat.name.replace(rawCode, effectiveCode).replace('01.2. ', '01.2 - ');
-                    if (effectiveCode === '01.2') effectiveName = '01.2 - Receitas de Vendas';
-                }
-            }
-
-            // Force naming for prefixes...
-            if (rawCode.match(/^03\.[1-9]$/)) {
-                if (rawCode === '03.1') effectiveName = '03.1 Salarios e Remuneração';
-                if (rawCode === '03.2') effectiveName = '03.2 Encargos Sociais';
-                if (rawCode === '03.3') effectiveName = '03.3 Beneficios';
-                if (rawCode === '03.4') effectiveName = '03.4 Diárias';
-                if (rawCode === '03.5') effectiveName = '03.5 SSMA';
-                if (rawCode === '03.6') effectiveName = '03.6 Materiais';
-                if (rawCode === '03.7') effectiveName = '03.7 Equipamentos';
-                if (rawCode === '03.8') effectiveName = '03.8 Comunicação/Sistema/Licenças';
-                if (rawCode === '03.9') effectiveName = '03.9 Custo com Veiculo';
-            }
-            if (rawCode.match(/^04\.[1-8]$/)) {
-                if (rawCode === '04.1') effectiveName = '04.1 Salarios e Remuneração';
-                if (rawCode === '04.2') effectiveName = '04.2 Encargos Sociais';
-                if (rawCode === '04.3') effectiveName = '04.3 Beneficios';
-                if (rawCode === '04.4') effectiveName = '04.4 SSMA';
-                if (rawCode === '04.5') effectiveName = '04.5 Viagens';
-                if (rawCode === '04.6') effectiveName = '04.6 Custo com Veículos';
-                if (rawCode === '04.7') effectiveName = '04.7 Cartão Corporativo';
-                if (rawCode === '04.8') effectiveName = '04.8 Serviços Terceirizados';
-            }
-            if (rawCode.match(/^05\.([1-9]|1[0-3])$/)) {
-                if (rawCode === '05.1') effectiveName = '05.1 Salario e Remuneração';
-                if (rawCode === '05.2') effectiveName = '05.2 Encargos Sociais';
-                if (rawCode === '05.3') effectiveName = '05.3 Beneficios';
-                if (rawCode === '05.4') effectiveName = '05.4 SSMA';
-                if (rawCode === '05.5') effectiveName = '05.5 Viagens';
-                if (rawCode === '05.6') effectiveName = '05.6 Despesa com Socios';
-                if (rawCode === '05.7') effectiveName = '05.7 Serviços Contratados';
-                if (rawCode === '05.8') effectiveName = '05.8 Despesa Comercial/Marketing';
-                if (rawCode === '05.9') effectiveName = '05.9 Despesa com Estrutura';
-                if (rawCode === '05.10') effectiveName = '05.10 Despesa Copa e Cozinha';
-                if (rawCode === '05.11') effectiveName = '05.11 Despesa com Veículos';
-                if (rawCode === '05.12') effectiveName = '05.12 Despesa de Informatica';
-                if (rawCode === '05.13') effectiveName = '05.13 Taxas e Despesas Legais';
-            }
-            if (rawCode.match(/^06\.[1-8]$/)) {
-                if (rawCode === '06.1') effectiveName = '06.1 Entradas Financeiras';
-                if (rawCode === '06.2') effectiveName = '06.2 Saidas Financeiras';
-                if (rawCode === '06.3') effectiveName = '06.3 Financiamento';
-                if (rawCode === '06.4') effectiveName = '06.4 Juros/Multas';
-                if (rawCode === '06.5') effectiveName = '06.5 Passivo Trabalhista';
-                if (rawCode === '06.6') effectiveName = '06.6 Depreciação';
-                if (rawCode === '06.7') effectiveName = '06.7 Cartão de Credito';
-                if (rawCode === '06.8') effectiveName = '06.8 PDD';
-            }
-
+            // V47.135 - Clean Revenue Mapping (No redirection of 02 to 01)
             const uniqueKey = effectiveCode ? effectiveCode : effectiveName;
 
-            // Merge twin categories
+            // Merge twin categories to avoid visual clutter, but keep track of which tenant they belong to
             if (nameMap.has(uniqueKey)) {
                 const existingNode = nameMap.get(uniqueKey)!;
                 if (!existingNode.id.split(',').includes(cat.id)) {
@@ -349,7 +294,8 @@ export default function BudgetGrid({
                 code: effectiveCode,
                 children: [],
                 level: 0,
-                isSynthetic: false
+                isSynthetic: false,
+                tenantId: cat.tenantId // Keep track of the original tenant
             };
             map.set(cat.id, node);
             if (uniqueKey) nameMap.set(uniqueKey, node);

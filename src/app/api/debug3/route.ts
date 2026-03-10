@@ -12,29 +12,31 @@ export async function GET(request: Request) {
         const results: any[] = [];
 
         for (const tenant of tenants) {
-            
             let page = 1;
             let hasMore = true;
 
-            const url = `https://api-v2.contaazul.com/v1/financeiro/eventos-financeiros/parcelas/f9a440ef-19ec-4678-95d0-dda9b21fd04b`;
+            while (hasMore && page <= 10) {
+                const url = `https://api-v2.contaazul.com/v1/financeiro/eventos-financeiros/contas-a-pagar/buscar?data_vencimento_de=2025-12-01&data_vencimento_ate=2026-02-28&tamanho_pagina=100&pagina=${page}`;
 
-            const res = await fetch(url, {
-                headers: { 'Authorization': `Bearer ${tenant.accessToken}` },
-                cache: 'no-store'
-            });
+                const res = await fetch(url, {
+                    headers: { 'Authorization': `Bearer ${tenant.accessToken}` },
+                    cache: 'no-store'
+                });
 
-            if (!res.ok) {
-                const text = await res.text();
-                results.push({ tenant: tenant.name, error: true, status: res.status, body: text });
-                continue;
+                if (!res.ok) { hasMore = false; break; }
+
+                const data = await res.json();
+                const items = data.itens || [];
+                if (items.length === 0) { hasMore = false; break; }
+
+                const match = items.find((i: any) => i.id === 'f9a440ef-19ec-4678-95d0-dda9b21fd04b');
+                if (match) {
+                    results.push({ tenant: tenant.name, exactMatch: match });
+                    hasMore = false; // found it
+                    break;
+                }
+                page++;
             }
-
-            const data = await res.json();
-            
-            results.push({
-                tenant: tenant.name,
-                transaction: data
-            });
         }
 
         return NextResponse.json({ success: true, results });

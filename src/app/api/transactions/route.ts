@@ -124,9 +124,32 @@ async function fetchTransactions(accessToken: string, baseUrl: string, costCente
                 const dateObj = dateStr ? new Date(dateStr) : new Date();
                 if (dateObj.getMonth() !== targetMonth || dateObj.getFullYear() !== targetYear) return;
 
-                // Enforce positive absolute amounts to match BudgetGrid's subtraction matrix
                 const absAmount = Math.abs(amount);
-                const amountPerCc = absAmount / ccsCount;
+
+                // 2-PASS RATEIO FOR REMAINDERS:
+                // First pass: sum explicit allocations to find the remaining balance
+                let totalAllocated = 0;
+                let unallocatedCount = 0;
+
+                const processedCcs = ccs.map((cc: any) => {
+                    let explicitAmount = null;
+                    if (typeof cc.valor === 'number') {
+                        explicitAmount = Math.abs(cc.valor);
+                    } else if (typeof cc.percentual === 'number') {
+                        explicitAmount = absAmount * (cc.percentual / 100);
+                    }
+
+                    if (explicitAmount !== null) {
+                        totalAllocated += explicitAmount;
+                    } else {
+                        unallocatedCount++;
+                    }
+
+                    return { ...cc, explicitAmount };
+                });
+
+                const remainingAmount = Math.max(0, absAmount - totalAllocated);
+                const fallbackPerCc = unallocatedCount > 0 ? (remainingAmount / unallocatedCount) : 0;
 
                 if (ccs.length === 0) {
                     if (isFiltered) return; // Ignore if user explicitly restricted by CC
@@ -135,23 +158,16 @@ async function fetchTransactions(accessToken: string, baseUrl: string, costCente
                         id: item.id,
                         date: dateStr,
                         description: [item.descricao, item.observacao].filter(Boolean).join(' - ') || 'Sem descrição',
-                        value: amountPerCc,
+                        value: absAmount,
                         customer: item.cliente ? item.cliente.nome : (item.fornecedor ? item.fornecedor.nome : 'N/A'),
                         status: item.status,
                         costCenters: [{ id: 'NONE', nome: 'Geral' }]
                     });
                 } else {
-                    for (const cc of ccs) {
+                    for (const cc of processedCcs) {
                         if (isFiltered && !targetCcs.includes(cc.id)) continue;
 
-                        let specificAmount = 0;
-                        if (typeof cc.valor === 'number') {
-                            specificAmount = Math.abs(cc.valor);
-                        } else if (typeof cc.percentual === 'number') {
-                            specificAmount = absAmount * (cc.percentual / 100);
-                        } else {
-                            specificAmount = amountPerCc;
-                        }
+                        const specificAmount = cc.explicitAmount !== null ? cc.explicitAmount : fallbackPerCc;
 
                         transactions.push({
                             id: `${item.id}-${cc.id}`,

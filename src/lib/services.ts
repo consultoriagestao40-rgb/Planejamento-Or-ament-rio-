@@ -386,22 +386,37 @@ async function aggregateTransactions(
                     if (catId) {
                         const key = `${catId}-${monthIdx}`;
 
-                        // Modified rateio logic for Multi-select:
-                        // Use exact 'valor' or 'percentual' if Conta Azul provides it.
-                        // Wait, Conta Azul returns specific amounts per CC.
+                        // 2-PASS RATEIO FOR REMAINDERS:
+                        // First pass: sum explicit allocations to find the remaining balance
+                        let totalAllocated = 0;
+                        let unallocatedCount = 0;
+
+                        const processedCcs = ccs.map((cc: any) => {
+                            let explicitAmount = null;
+                            if (typeof cc.valor === 'number') {
+                                explicitAmount = Math.abs(cc.valor);
+                            } else if (typeof cc.percentual === 'number') {
+                                explicitAmount = amount * (cc.percentual / 100);
+                            }
+
+                            if (explicitAmount !== null) {
+                                totalAllocated += explicitAmount;
+                            } else {
+                                unallocatedCount++;
+                            }
+
+                            return { ...cc, explicitAmount };
+                        });
+
+                        const remainingAmount = Math.max(0, amount - totalAllocated);
+                        const fallbackPerCc = unallocatedCount > 0 ? (remainingAmount / unallocatedCount) : 0;
+
                         if (isMultiSelect) {
                             // Sum the exact values for the target CCs
                             let sumMatchingCCs = 0;
-                            ccs.forEach((c: any) => {
+                            processedCcs.forEach((c: any) => {
                                 if (targetCcs.includes(c.id)) {
-                                    if (typeof c.valor === 'number') {
-                                        sumMatchingCCs += c.valor;
-                                    } else if (typeof c.percentual === 'number') {
-                                        sumMatchingCCs += (amount * (c.percentual / 100));
-                                    } else {
-                                        // Fallback to equal division if CA payload lacks explicit rateio amounts
-                                        sumMatchingCCs += (amount / (ccs.length || 1));
-                                    }
+                                    sumMatchingCCs += c.explicitAmount !== null ? c.explicitAmount : fallbackPerCc;
                                 }
                             });
                             targetValues[key] = (targetValues[key] || 0) + sumMatchingCCs;
@@ -410,20 +425,14 @@ async function aggregateTransactions(
                             if (!isFiltered || ccs.length === 1) {
                                 targetValues[key] = (targetValues[key] || 0) + amount;
                             } else {
-                                // Find exactly how much CA allocated to this specific CC (since it's filtered to 1)
+                                // Find exactly how much CA allocated to this specific CC
                                 let specificAmount = 0;
-                                const targetC = ccs.find((c: any) => targetCcs.includes(c.id));
+                                const targetC = processedCcs.find((c: any) => targetCcs.includes(c.id));
                                 
                                 if (targetC) {
-                                    if (typeof targetC.valor === 'number') {
-                                        specificAmount = targetC.valor;
-                                    } else if (typeof targetC.percentual === 'number') {
-                                        specificAmount = amount * (targetC.percentual / 100);
-                                    } else {
-                                        specificAmount = amount / (ccs.length || 1);
-                                    }
+                                    specificAmount = targetC.explicitAmount !== null ? targetC.explicitAmount : fallbackPerCc;
                                 } else {
-                                    specificAmount = amount / (ccs.length || 1); // fallback if not found, shouldn't happen
+                                    specificAmount = fallbackPerCc; // fallback if not found, shouldn't happen
                                 }
                                 
                                 targetValues[key] = (targetValues[key] || 0) + specificAmount;

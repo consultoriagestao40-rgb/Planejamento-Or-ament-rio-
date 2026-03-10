@@ -109,20 +109,39 @@ export async function runCronSync(reqYear: number) {
                 const amountForCat = txn.amount;
                 // amountPerCc is no longer a static division sum, it is calculated per CC below.
 
+                // 2-PASS RATEIO FOR REMAINDERS:
+                // First pass: sum explicit allocations to find the remaining balance
+                let totalAllocated = 0;
+                let unallocatedCount = 0;
+
+                const processedCcs = txn.costCenters.map((cc: any) => {
+                    let explicitAmount = null;
+                    if (typeof cc.valor === 'number') {
+                        explicitAmount = Math.abs(cc.valor);
+                    } else if (typeof cc.percentual === 'number') {
+                        explicitAmount = amountForCat * (cc.percentual / 100);
+                    }
+
+                    if (explicitAmount !== null) {
+                        totalAllocated += explicitAmount;
+                    } else {
+                        unallocatedCount++;
+                    }
+
+                    return { ...cc, explicitAmount };
+                });
+
+                const remainingAmount = Math.max(0, amountForCat - totalAllocated);
+                const fallbackPerCc = unallocatedCount > 0 ? (remainingAmount / unallocatedCount) : 0;
+
+
                 if (txn.costCenters.length === 0) {
                     const key = `${cat.id}|NONE|${txn.month}`;
                     aggregates.set(key, (aggregates.get(key) || 0) + amountForCat);
                 } else {
-                    for (const cc of txn.costCenters) {
+                    for (const cc of processedCcs) {
                         const key = `${cat.id}|${cc.id}|${txn.month}`;
-                        let specificAmount = 0;
-                        if (typeof cc.valor === 'number') {
-                            specificAmount = Math.abs(cc.valor);
-                        } else if (typeof cc.percentual === 'number') {
-                            specificAmount = amountForCat * (cc.percentual / 100);
-                        } else {
-                            specificAmount = amountForCat / ccsCount;
-                        }
+                        const specificAmount = cc.explicitAmount !== null ? cc.explicitAmount : fallbackPerCc;
                         aggregates.set(key, (aggregates.get(key) || 0) + specificAmount);
                     }
                 }

@@ -179,7 +179,7 @@ export async function runCronSync(reqYear: number) {
                     aggregates.set(key, (aggregates.get(key) || 0) + amountForCat);
                 } else {
                     for (const cc of processedCcs) {
-                        const key = `${cat.id}|${cc.id}|${txn.month}`;
+                        const key = `${cat.id}|${validCostCenters.has(cc.id) ? cc.id : 'NONE'}|${txn.month}`;
                         const specificAmount = cc.explicitAmount !== null ? cc.explicitAmount : fallbackPerCc;
                         aggregates.set(key, (aggregates.get(key) || 0) + specificAmount);
                     }

@@ -29,9 +29,9 @@ export async function GET(request: Request) {
         // This prevents the [JVS] [JVS] duplication seen in the UI.
         const seenKeys = new Set();
         const tenants = allTenants.filter(t => {
-            const superCleanName = (t.name || '').replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
+            const cleanName = (t.name || '').trim().toUpperCase();
             const cleanCnpj = (t.cnpj || '').replace(/\D/g, '');
-            const key = cleanCnpj || superCleanName; // prefer CNPJ, fallback to clean name
+            const key = `${cleanName}-${cleanCnpj}`;
             
             if (seenKeys.has(key)) return false;
             seenKeys.add(key);
@@ -76,26 +76,11 @@ export async function GET(request: Request) {
         });
 
         const results = await Promise.all(tenantPromises);
-        const allTransactions = results.flat();
-
-        // FINAL SAFETY: Deduplicate by transaction ID.
-        // This stops duplication if the same account is connected twice or if pagination overlaps.
-        const uniqueTxnsMap = new Map();
-        for (const txn of allTransactions) {
-            // Use a combination of ID and value/date as a key to be absolutely sure
-            const key = `${txn.id}-${txn.value}-${txn.date}`;
-            if (!uniqueTxnsMap.has(key)) {
-                uniqueTxnsMap.set(key, txn);
-            }
-        }
-
-        const sortedTxns = Array.from(uniqueTxnsMap.values()).sort((a: any, b: any) => 
-            new Date(a.date).getTime() - new Date(b.date).getTime()
-        );
+        const allTransactions = results.flat().sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
 
         return NextResponse.json({
             success: true,
-            transactions: sortedTxns
+            transactions: allTransactions
         });
 
     } catch (error: any) {
@@ -113,168 +98,140 @@ async function fetchTransactions(accessToken: string, baseUrl: string, costCente
     const isFiltered = targetCcs.length > 0;
     const targetCategoryIds = categoryId.split(',');
 
-    const { prisma } = await import('@/lib/prisma');
-    const [allCategories, allCostCenters] = await Promise.all([
-        prisma.category.findMany({ select: { id: true, name: true } }),
-        prisma.costCenter.findMany({ select: { id: true, name: true } })
-    ]);
-
-    const rawItems: any[] = [];
     while (hasMore && page <= 50) {
         let url = `${baseUrl}&pagina=${page}`;
+
         try {
             const res = await fetch(url, { headers: { 'Authorization': `Bearer ${accessToken}` } });
             if (!res.ok) break;
+
             const data = await res.json();
             const items = data.itens || [];
+
             if (items.length === 0) break;
-            rawItems.push(...items);
-            if (items.length < 100) hasMore = false;
-            else page++;
-        } catch (e) { hasMore = false; }
-    }
 
-    const CHUNK_SIZE = 10;
-    for (let i = 0; i < rawItems.length; i += CHUNK_SIZE) {
-        const chunk = rawItems.slice(i, i + CHUNK_SIZE);
-        await Promise.all(chunk.map(async (item) => {
-            if ((item.status || '').toUpperCase().includes('CANCEL')) return;
+            for (const item of items) {
+                if ((item.status || '').toUpperCase().includes('CANCEL')) continue;
 
-            const cats = (item.categorias || []) as any[];
-            
-            // V1/V2 Bridging: Match by name
-            let matchingCats = cats.filter(c => {
-                const dbCat = allCategories.find(dc => dc.id === c.id || dc.name === c.nome);
-                return dbCat && targetCategoryIds.includes(dbCat.id);
-            });
+                const cats = item.categorias || [];
+                if (cats.length === 0) continue;
 
-            if (matchingCats.length === 0 && !targetCategoryIds.includes('ALL')) return;
+                // Align exactly with cronSync.ts: we assign 100% of the value solely to the FIRST category linked.
+                const primaryCat = cats[0];
+                if (!targetCategoryIds.includes(primaryCat.id)) continue;
 
-            let ccs = item.centros_de_custo || [];
+                let ccs = item.centros_de_custo || [];
 
-            // Parallel Deep Extraction
-            try {
-                const pRes = await fetch(`https://api-v2.contaazul.com/v1/financeiro/eventos-financeiros/parcelas/${item.id}`, { 
-                    headers: { 'Authorization': `Bearer ${accessToken}` },
-                    signal: AbortSignal.timeout(5000)
-                });
-                if (pRes.ok) {
-                    const pData = await pRes.json();
-                    if (pData.evento && pData.evento.rateio && pData.evento.rateio.length > 0) {
-                        const deepCats: any[] = [];
-                        pData.evento.rateio.forEach((r: any) => {
-                            if (r.id_categoria) {
-                                const ccExclusives = (r.rateio_centro_custo || []).map((rc: any) => ({
-                                    id: rc.id_centro_custo,
-                                    nome: rc.nome_centro_custo,
-                                    valor: Math.abs(rc.valor || 0),
-                                    percentual: rc.percentual
-                                }));
-                                deepCats.push({
-                                    id: r.id_categoria,
-                                    nome: r.nome_categoria,
-                                    valor: Math.abs(r.valor || 0),
-                                    centros_de_custo_exclusivos: ccExclusives
+                if (ccs.length > 1) {
+                    try {
+                        const pRes = await fetch(`https://api-v2.contaazul.com/v1/financeiro/eventos-financeiros/parcelas/${item.id}`, { headers: { 'Authorization': `Bearer ${accessToken}` } });
+                        if (pRes.ok) {
+                            const pData = await pRes.json();
+                            if (pData.evento && pData.evento.rateio) {
+                                const rateioMap = new Map();
+                                pData.evento.rateio.forEach((r: any) => {
+                                    if (r.rateio_centro_custo && r.valor) {
+                                        r.rateio_centro_custo.forEach((rc: any) => {
+                                            // The rateio JSON provides absolute values for the entire event.
+                                            // We calculate the percentage and apply it to THIS individual installment!
+                                            const percent = (rc.valor || 0) / r.valor;
+                                            const itemValue = item.total || item.valor || 0;
+                                            const proportionalValue = itemValue * percent;
+                                            rateioMap.set(rc.id_centro_custo, (rateioMap.get(rc.id_centro_custo) || 0) + proportionalValue);
+                                        });
+                                    }
                                 });
+                                ccs = ccs.map((cc: any) => ({
+                                    ...cc,
+                                    valor: rateioMap.has(cc.id) ? rateioMap.get(cc.id) : cc.valor
+                                }));
                             }
-                        });
-                        if (deepCats.length > 0) {
-                            cats.length = 0;
-                            cats.push(...deepCats);
                         }
-                    }
+                    } catch(e) {}
                 }
-            } catch(e) {}
 
-            const refreshedMatchingCats = cats.filter(c => {
-                const dbCat = allCategories.find(dc => dc.id === c.id || dc.name === c.nome || dc.name === (c as any).nome_categoria);
-                return dbCat && targetCategoryIds.includes(dbCat.id);
-            });
-            
-            if (refreshedMatchingCats.length === 0 && !targetCategoryIds.includes('ALL')) return;
+                const ccsCount = ccs.length || 1;
 
-            let baseAmountForSelection = 0;
-            let catRatio = 0;
-            const eventTotal = Math.abs(item.total || item.valor || 0) || 1;
-            const hasExplicitValues = cats.length > 0 && cats.every((c: any) => typeof c.valor === 'number');
-            
-            if (hasExplicitValues) {
-                baseAmountForSelection = refreshedMatchingCats.reduce((sum, c) => sum + Math.abs(c.valor || 0), 0);
-                const totalCatsSum = cats.reduce((sum, c) => sum + Math.abs(c.valor || 0), 0) || eventTotal;
-                catRatio = baseAmountForSelection / totalCatsSum;
-            } else {
-                catRatio = refreshedMatchingCats.length / cats.length;
-                baseAmountForSelection = eventTotal * catRatio;
-            }
+                let dateStr: string;
+                let amount: number;
 
-            const ccsCount = ccs.length || 1;
-            let dateStr: string;
+                if (viewMode === 'caixa') {
+                    dateStr = item.data_vencimento || item.vencimento || item.data_competencia || item.data_pagamento;
+                    amount = item.valor || item.valor_original || item.valor_liquido || item.total || 0;
+                } else {
+                    dateStr = item.data_competencia || item.data_vencimento || item.vencimento || item.data_pagamento;
+                    amount = item.total || item.valor_original || item.valor || item.valor_liquido || 0;
+                }
 
-            if (viewMode === 'caixa') {
-                dateStr = item.data_vencimento || item.vencimento || item.data_competencia || item.data_pagamento;
-            } else {
-                dateStr = item.data_competencia || item.data_vencimento || item.vencimento || item.data_pagamento;
-            }
+                const dateObj = dateStr ? new Date(dateStr) : new Date();
+                if (dateObj.getMonth() !== targetMonth || dateObj.getFullYear() !== targetYear) continue;
 
-            const dateObj = dateStr ? new Date(dateStr) : new Date();
-            if (dateObj.getMonth() !== targetMonth || dateObj.getFullYear() !== targetYear) return;
+                const absAmount = Math.abs(amount);
 
-            let ccsToProcess = ccs.map((cc: any) => {
-                const dbCc = allCostCenters.find(dcc => dcc.id === cc.id || dcc.name === cc.nome);
-                return dbCc ? { ...cc, id: dbCc.id, nome: dbCc.name } : cc;
-            });
-
-            const exclusiveCcs = refreshedMatchingCats.flatMap((c: any) => c.centros_de_custo_exclusivos || []);
-            if (exclusiveCcs.length > 0) {
-                ccsToProcess = exclusiveCcs.map((ecc: any) => {
-                    const dbCc = allCostCenters.find(dcc => dcc.id === ecc.id || dcc.name === ecc.nome);
-                    return dbCc ? { ...ecc, id: dbCc.id, nome: dbCc.name } : ecc;
-                });
-            }
-
-            if (ccsToProcess.length === 0) {
-                if (isFiltered) return;
-                transactions.push({
-                    id: item.id,
-                    date: dateStr,
-                    description: [item.descricao, item.observacao].filter(Boolean).join(' - ') || 'Sem descrição',
-                    value: baseAmountForSelection,
-                    customer: item.cliente ? item.cliente.nome : (item.fornecedor ? item.fornecedor.nome : 'N/A'),
-                    status: item.status,
-                    costCenters: [{ id: 'NONE', nome: 'Geral' }]
-                });
-            } else {
+                // 2-PASS RATEIO FOR REMAINDERS:
+                // First pass: sum explicit allocations to find the remaining balance
                 let totalAllocated = 0;
                 let unallocatedCount = 0;
-                const processedCcs = ccsToProcess.map((cc: any) => {
-                    let amountPerCc = null;
-                    if (typeof cc.valor === 'number') amountPerCc = Math.abs(cc.valor);
-                    else if (typeof cc.percentual === 'number') amountPerCc = baseAmountForSelection * (cc.percentual / 100);
-                    if (amountPerCc !== null) totalAllocated += amountPerCc;
-                    else unallocatedCount++;
-                    return { ...cc, amountPerCc };
+
+                const processedCcs = ccs.map((cc: any) => {
+                    let explicitAmount = null;
+                    if (typeof cc.valor === 'number') {
+                        explicitAmount = Math.abs(cc.valor);
+                    } else if (typeof cc.percentual === 'number') {
+                        explicitAmount = absAmount * (cc.percentual / 100);
+                    }
+
+                    if (explicitAmount !== null) {
+                        totalAllocated += explicitAmount;
+                    } else {
+                        unallocatedCount++;
+                    }
+
+                    return { ...cc, explicitAmount };
                 });
 
-                const remainingAmount = Math.max(0, baseAmountForSelection - totalAllocated);
+                const remainingAmount = Math.max(0, absAmount - totalAllocated);
                 const fallbackPerCc = unallocatedCount > 0 ? (remainingAmount / unallocatedCount) : 0;
 
-                for (const cc of processedCcs) {
-                    if (isFiltered && !targetCcs.includes(cc.id)) continue;
-                    const specificAmount = cc.amountPerCc !== null ? cc.amountPerCc : fallbackPerCc;
+                if (ccs.length === 0) {
+                    if (isFiltered) continue; // Ignore if user explicitly restricted by CC
+
                     transactions.push({
-                        id: `${item.id}-${cc.id}`,
+                        id: item.id,
                         date: dateStr,
-                        description: ccsCount > 1 ? `${[item.descricao, item.observacao].filter(Boolean).join(' - ') || 'Sem descrição'} (Rateio ${cc.nome})` : ([item.descricao, item.observacao].filter(Boolean).join(' - ') || 'Sem descrição'),
-                        value: specificAmount,
+                        description: [item.descricao, item.observacao].filter(Boolean).join(' - ') || 'Sem descrição',
+                        value: absAmount,
                         customer: item.cliente ? item.cliente.nome : (item.fornecedor ? item.fornecedor.nome : 'N/A'),
                         status: item.status,
-                        costCenters: [{ id: cc.id, nome: cc.nome }]
+                        costCenters: [{ id: 'NONE', nome: 'Geral' }]
                     });
+                } else {
+                    for (const cc of processedCcs) {
+                        if (isFiltered && !targetCcs.includes(cc.id)) continue;
+
+                        const specificAmount = cc.explicitAmount !== null ? cc.explicitAmount : fallbackPerCc;
+
+                        transactions.push({
+                            id: `${item.id}-${cc.id}`,
+                            date: dateStr,
+                            description: ccsCount > 1
+                                ? `${[item.descricao, item.observacao].filter(Boolean).join(' - ') || 'Sem descrição'} (Rateio ${cc.nome})`
+                                : ([item.descricao, item.observacao].filter(Boolean).join(' - ') || 'Sem descrição'),
+                            value: specificAmount,
+                            customer: item.cliente ? item.cliente.nome : (item.fornecedor ? item.fornecedor.nome : 'N/A'),
+                            status: item.status,
+                            costCenters: [{ id: cc.id, nome: cc.nome }]
+                        });
+                    }
                 }
             }
-        }));
-    }
 
+            if (items.length < 100) hasMore = false;
+            else page++;
+        } catch (e) {
+            hasMore = false;
+        }
+    }
 
     return transactions;
 }

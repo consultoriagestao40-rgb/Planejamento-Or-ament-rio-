@@ -6,99 +6,85 @@ async function fetchAllTransactionsForYear(accessToken: string, baseUrl: string,
     let hasMore = true;
     const transactions: any[] = [];
 
-    const rawItems: any[] = [];
     while (hasMore && page <= 50) {
         const url = `${baseUrl}&pagina=${page}`;
         try {
             const res = await fetch(url, { headers: { 'Authorization': `Bearer ${accessToken}` } });
-            if (!res.ok) break;
+            if (!res.ok) {
+                console.error(`Cron API fetch error ${res.status} on ${url}`);
+                break;
+            }
+
             const data = await res.json();
             const items = data.itens || [];
             if (items.length === 0) break;
-            rawItems.push(...items);
-            if (items.length < 100) hasMore = false;
-            else page++;
-        } catch (e) { hasMore = false; }
-    }
 
-    // Process items in parallel chunks to save time
-    const CHUNK_SIZE = 10;
-    for (let i = 0; i < rawItems.length; i += CHUNK_SIZE) {
-        const chunk = rawItems.slice(i, i + CHUNK_SIZE);
-        await Promise.all(chunk.map(async (item) => {
-            if ((item.status || '').toUpperCase().includes('CANCEL')) return;
+            for (const item of items) {
+                if ((item.status || '').toUpperCase().includes('CANCEL')) continue;
 
-            let dateStr: string;
-            let amount: number;
+                const cats = item.categorias || [];
+                let ccs = item.centros_de_custo || [];
 
-            if (viewMode === 'caixa') {
-                if (!item.pago || item.pago <= 0) return;
-                dateStr = item.data_vencimento;
-                amount = item.pago;
-            } else {
-                dateStr = item.data_competencia || item.data_vencimento || item.vencimento;
-                amount = item.total || item.valor_original || item.valor || item.valor_liquido || 0;
-            }
-
-            const dateObj = dateStr ? new Date(dateStr) : new Date();
-            if (dateObj.getFullYear() !== targetYear) return;
-
-            const cats = item.categorias || [];
-            const ccs = item.centros_de_custo || [];
-
-            // Targeted Deep Extraction: Only if complex or specifically on revenue/tax paths
-            const isComplex = cats.length > 0 || ccs.length > 1;
-            
-            if (isComplex) {
-                try {
-                    const pRes = await fetch(`https://api-v2.contaazul.com/v1/financeiro/eventos-financeiros/parcelas/${item.id}`, { 
-                        headers: { 'Authorization': `Bearer ${accessToken}` },
-                        signal: AbortSignal.timeout(5000) // Don't hang the whole sync
-                    });
-                    if (pRes.ok) {
-                        const pData = await pRes.json();
-                        if (pData.evento && pData.evento.rateio && pData.evento.rateio.length > 0) {
-                            const deepCats: any[] = [];
-                            pData.evento.rateio.forEach((r: any) => {
-                                if (r.id_categoria) {
-                                    const ccExclusives = (r.rateio_centro_custo || []).map((rc: any) => ({
-                                        id: rc.id_centro_custo,
-                                        valor: Math.abs(rc.valor || 0),
-                                        percentual: rc.percentual
-                                    }));
-                                    deepCats.push({
-                                        id: r.id_categoria,
-                                        nome: r.nome_categoria,
-                                        valor: Math.abs(r.valor || 0),
-                                        centros_de_custo_exclusivos: ccExclusives
-                                    });
-                                }
-                            });
-                            if (deepCats.length > 0) {
-                                transactions.push({
-                                    id: item.id,
-                                    month: dateObj.getMonth(),
-                                    amount: Math.abs(amount),
-                                    categories: deepCats,
-                                    costCenters: [],
-                                    useExplicitCatValues: true
+                if (ccs.length > 1) {
+                    try {
+                        const pRes = await fetch(`https://api-v2.contaazul.com/v1/financeiro/eventos-financeiros/parcelas/${item.id}`, { headers: { 'Authorization': `Bearer ${accessToken}` } });
+                        if (pRes.ok) {
+                            const pData = await pRes.json();
+                            if (pData.evento && pData.evento.rateio) {
+                                const rateioMap = new Map();
+                                pData.evento.rateio.forEach((r: any) => {
+                                    if (r.rateio_centro_custo && r.valor) {
+                                        r.rateio_centro_custo.forEach((rc: any) => {
+                                            // The rateio JSON provides absolute values for the entire event.
+                                            // We calculate the percentage and apply it to THIS individual installment!
+                                            const percent = (rc.valor || 0) / r.valor;
+                                            const proportionalValue = (item.total || item.valor || 0) * percent;
+                                            rateioMap.set(rc.id_centro_custo, (rateioMap.get(rc.id_centro_custo) || 0) + proportionalValue);
+                                        });
+                                    }
                                 });
-                                return;
+                                ccs = ccs.map((cc: any) => ({
+                                    ...cc,
+                                    valor: rateioMap.has(cc.id) ? rateioMap.get(cc.id) : cc.valor
+                                }));
                             }
                         }
-                    }
-                } catch(e) {}
+                    } catch(e) {}
+                }
+
+                let dateStr: string;
+                let amount: number;
+
+                if (viewMode === 'caixa') {
+                    // Cash mode: CA API uses "ACQUITTED" status (not PAGO) for paid items.
+                    // There is NO data_pagamento field in this CA endpoint.
+                    // "pago" = amount paid (>0 means settled), "data_vencimento" = best available date proxy.
+                    if (!item.pago || item.pago <= 0) continue;
+                    dateStr = item.data_vencimento;
+                    amount = item.pago;
+                } else {
+                    // Accrual mode: Prioritize competence date, then due date
+                    dateStr = item.data_competencia || item.data_vencimento || item.vencimento;
+                    amount = item.total || item.valor_original || item.valor || item.valor_liquido || 0;
+                }
+
+                const dateObj = dateStr ? new Date(dateStr) : new Date();
+                if (dateObj.getFullYear() !== targetYear) continue;
+
+                transactions.push({
+                    id: item.id,
+                    month: dateObj.getMonth(), // 0-11
+                    amount: Math.abs(amount),
+                    categories: cats,
+                    costCenters: ccs
+                });
             }
 
-            transactions.push({
-                id: item.id,
-                month: dateObj.getMonth(),
-                amount: Math.abs(amount),
-                categories: cats,
-                costCenters: ccs,
-                useExplicitCatValues: false
-            });
-        }));
+            if (items.length < 100) hasMore = false;
+            else page++;
+        } catch (e) {
+            hasMore = false;
+        }
     }
     return transactions;
 }
@@ -112,9 +98,9 @@ export async function runCronSync(reqYear: number) {
     // DEDUPLICATE: Only sync once per unique company name/CNPJ (even if multiple DB rows exist)
     const seenKeys = new Set();
     const tenants = allTenants.filter(t => {
-        const superCleanName = (t.name || '').replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
+        const cleanName = (t.name || '').trim().toUpperCase();
         const cleanCnpj = (t.cnpj || '').replace(/\D/g, '');
-        const key = cleanCnpj || superCleanName;
+        const key = `${cleanName}-${cleanCnpj}`;
         
         if (seenKeys.has(key)) return false;
         seenKeys.add(key);
@@ -154,60 +140,48 @@ export async function runCronSync(reqYear: number) {
             const aggregates = new Map<string, number>();
 
             for (const txn of allTxns) {
-                const cats = (txn.categories || []) as any[];
-                if (cats.length === 0) continue;
+                if (txn.categories.length === 0) continue;
 
-                // Conta Azul V1 list API often doesn't provide explicit 'valor' per category.
-                const hasExplicitValues = cats.length > 0 && cats.every(c => typeof (c as any).valor === 'number' && (c as any).valor > 0);
-                const totalCatsValueSum = hasExplicitValues 
-                    ? cats.reduce((sum, c) => sum + Math.abs((c as any).valor || 0), 0) || txn.amount || 1
-                    : txn.amount;
+                const ccsCount = txn.costCenters.length || 1;
+                const cat = txn.categories[0]; // Mirror exact behavior from services.ts to prevent data shifts
 
-                // Process each category in the transaction
-                for (const cat of cats) {
-                    let amountForThisCat = 0;
+                const amountForCat = txn.amount;
+                // amountPerCc is no longer a static division sum, it is calculated per CC below.
 
-                    if ((txn as any).useExplicitCatValues && typeof (cat as any).valor === 'number') {
-                        amountForThisCat = (cat as any).valor;
-                    } else if (typeof (cat as any).valor === 'number') {
-                        amountForThisCat = Math.abs((cat as any).valor);
-                    } else {
-                        amountForThisCat = txn.amount * (1 / cats.length);
+                // 2-PASS RATEIO FOR REMAINDERS:
+                // First pass: sum explicit allocations to find the remaining balance
+                let totalAllocated = 0;
+                let unallocatedCount = 0;
+
+                const processedCcs = txn.costCenters.map((cc: any) => {
+                    let explicitAmount = null;
+                    if (typeof cc.valor === 'number') {
+                        explicitAmount = Math.abs(cc.valor);
+                    } else if (typeof cc.percentual === 'number') {
+                        explicitAmount = amountForCat * (cc.percentual / 100);
                     }
 
-                    // Use category-specific CCs if deep extraction found them. Otherwise fallback to event CCs.
-                    const ccsToProcess = ((cat as any).centros_de_custo_exclusivos && (cat as any).centros_de_custo_exclusivos.length > 0)
-                        ? (cat as any).centros_de_custo_exclusivos
-                        : txn.costCenters;
-
-                    let totalAllocated = 0;
-                    let unallocatedCount = 0;
-
-                    const processedCcs = ccsToProcess.map((cc: any) => {
-                        let amountPerCc = null;
-                        if (typeof cc.valor === 'number') {
-                            amountPerCc = Math.abs(cc.valor); // Exact CC value sent by CA for THIS category
-                        } else if (typeof cc.percentual === 'number') {
-                            amountPerCc = amountForThisCat * (cc.percentual / 100);
-                        }
-
-                        if (amountPerCc !== null) {
-                            totalAllocated += amountPerCc;
-                        } else {
-                            unallocatedCount++;
-                        }
-                        return { ...cc, amountPerCc };
-                    });
-
-                    if (ccsToProcess.length === 0) {
-                        const key = `${cat.id}|NONE|${txn.month}`;
-                        aggregates.set(key, (aggregates.get(key) || 0) + amountForThisCat);
+                    if (explicitAmount !== null) {
+                        totalAllocated += explicitAmount;
                     } else {
-                        for (const cc of processedCcs) {
-                            const key = `${cat.id}|${cc.id}|${txn.month}`;
-                            const specificAmount = cc.amountPerCc !== null ? cc.amountPerCc : (unallocatedCount > 0 ? (Math.max(0, amountForThisCat - totalAllocated) / unallocatedCount) : 0);
-                            aggregates.set(key, (aggregates.get(key) || 0) + specificAmount);
-                        }
+                        unallocatedCount++;
+                    }
+
+                    return { ...cc, explicitAmount };
+                });
+
+                const remainingAmount = Math.max(0, amountForCat - totalAllocated);
+                const fallbackPerCc = unallocatedCount > 0 ? (remainingAmount / unallocatedCount) : 0;
+
+
+                if (txn.costCenters.length === 0) {
+                    const key = `${cat.id}|NONE|${txn.month}`;
+                    aggregates.set(key, (aggregates.get(key) || 0) + amountForCat);
+                } else {
+                    for (const cc of processedCcs) {
+                        const key = `${cat.id}|${cc.id}|${txn.month}`;
+                        const specificAmount = cc.explicitAmount !== null ? cc.explicitAmount : fallbackPerCc;
+                        aggregates.set(key, (aggregates.get(key) || 0) + specificAmount);
                     }
                 }
             }

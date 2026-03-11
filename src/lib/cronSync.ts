@@ -6,98 +6,99 @@ async function fetchAllTransactionsForYear(accessToken: string, baseUrl: string,
     let hasMore = true;
     const transactions: any[] = [];
 
+    const rawItems: any[] = [];
     while (hasMore && page <= 50) {
         const url = `${baseUrl}&pagina=${page}`;
         try {
             const res = await fetch(url, { headers: { 'Authorization': `Bearer ${accessToken}` } });
-            if (!res.ok) {
-                console.error(`Cron API fetch error ${res.status} on ${url}`);
-                break;
-            }
-
+            if (!res.ok) break;
             const data = await res.json();
             const items = data.itens || [];
             if (items.length === 0) break;
-
-            for (const item of items) {
-                if ((item.status || '').toUpperCase().includes('CANCEL')) continue;
-
-                let dateStr: string;
-                let amount: number;
-
-                if (viewMode === 'caixa') {
-                    // Cash mode: CA API uses "ACQUITTED" status (not PAGO) for paid items.
-                    if (!item.pago || item.pago <= 0) continue;
-                    dateStr = item.data_vencimento;
-                    amount = item.pago;
-                } else {
-                    // Accrual mode: Prioritize competence date, then due date
-                    dateStr = item.data_competencia || item.data_vencimento || item.vencimento;
-                    amount = item.total || item.valor_original || item.valor || item.valor_liquido || 0;
-                }
-
-                const dateObj = dateStr ? new Date(dateStr) : new Date();
-                if (dateObj.getFullYear() !== targetYear) continue;
-
-                const cats = item.categorias || [];
-                let ccs = item.centros_de_custo || [];
-
-                if (true) { // Always try deep extraction for better accuracy on taxes/retentions
-                    try {
-                        const pRes = await fetch(`https://api-v2.contaazul.com/v1/financeiro/eventos-financeiros/parcelas/${item.id}`, { headers: { 'Authorization': `Bearer ${accessToken}` } });
-                        if (pRes.ok) {
-                            const pData = await pRes.json();
-                            if (pData.evento && pData.evento.rateio && pData.evento.rateio.length > 0) {
-                                // COMPLETE REPLACEMENT: If deep data exists, we trust its split of categories and CCs
-                                const deepCats: any[] = [];
-                                pData.evento.rateio.forEach((r: any) => {
-                                    if (r.id_categoria) {
-                                        const ccExclusives = (r.rateio_centro_custo || []).map((rc: any) => ({
-                                            id: rc.id_centro_custo, // UUID
-                                            valor: Math.abs(rc.valor || 0),
-                                            percentual: rc.percentual
-                                        }));
-
-                                        deepCats.push({
-                                            id: r.id_categoria, // UUID
-                                            nome: r.nome_categoria,
-                                            valor: Math.abs(r.valor || 0),
-                                            centros_de_custo_exclusivos: ccExclusives
-                                        });
-                                    }
-                                });
-
-                                if (deepCats.length > 0) {
-                                    transactions.push({
-                                        id: item.id,
-                                        month: dateObj.getMonth(),
-                                        amount: Math.abs(amount), // base net amount
-                                        categories: deepCats,
-                                        costCenters: [],
-                                        useExplicitCatValues: true
-                                    });
-                                    continue;
-                                }
-                            }
-                        }
-                    } catch(e) {}
-                }
-
-                transactions.push({
-                    id: item.id,
-                    month: dateObj.getMonth(),
-                    amount: Math.abs(amount),
-                    categories: cats,
-                    costCenters: ccs,
-                    useExplicitCatValues: false
-                });
-            }
-
+            rawItems.push(...items);
             if (items.length < 100) hasMore = false;
             else page++;
-        } catch (e) {
-            hasMore = false;
-        }
+        } catch (e) { hasMore = false; }
+    }
+
+    // Process items in parallel chunks to save time
+    const CHUNK_SIZE = 10;
+    for (let i = 0; i < rawItems.length; i += CHUNK_SIZE) {
+        const chunk = rawItems.slice(i, i + CHUNK_SIZE);
+        await Promise.all(chunk.map(async (item) => {
+            if ((item.status || '').toUpperCase().includes('CANCEL')) return;
+
+            let dateStr: string;
+            let amount: number;
+
+            if (viewMode === 'caixa') {
+                if (!item.pago || item.pago <= 0) return;
+                dateStr = item.data_vencimento;
+                amount = item.pago;
+            } else {
+                dateStr = item.data_competencia || item.data_vencimento || item.vencimento;
+                amount = item.total || item.valor_original || item.valor || item.valor_liquido || 0;
+            }
+
+            const dateObj = dateStr ? new Date(dateStr) : new Date();
+            if (dateObj.getFullYear() !== targetYear) return;
+
+            const cats = item.categorias || [];
+            const ccs = item.centros_de_custo || [];
+
+            // Targeted Deep Extraction: Only if complex or specifically on revenue/tax paths
+            const isComplex = cats.length > 0 || ccs.length > 1;
+            
+            if (isComplex) {
+                try {
+                    const pRes = await fetch(`https://api-v2.contaazul.com/v1/financeiro/eventos-financeiros/parcelas/${item.id}`, { 
+                        headers: { 'Authorization': `Bearer ${accessToken}` },
+                        signal: AbortSignal.timeout(5000) // Don't hang the whole sync
+                    });
+                    if (pRes.ok) {
+                        const pData = await pRes.json();
+                        if (pData.evento && pData.evento.rateio && pData.evento.rateio.length > 0) {
+                            const deepCats: any[] = [];
+                            pData.evento.rateio.forEach((r: any) => {
+                                if (r.id_categoria) {
+                                    const ccExclusives = (r.rateio_centro_custo || []).map((rc: any) => ({
+                                        id: rc.id_centro_custo,
+                                        valor: Math.abs(rc.valor || 0),
+                                        percentual: rc.percentual
+                                    }));
+                                    deepCats.push({
+                                        id: r.id_categoria,
+                                        nome: r.nome_categoria,
+                                        valor: Math.abs(r.valor || 0),
+                                        centros_de_custo_exclusivos: ccExclusives
+                                    });
+                                }
+                            });
+                            if (deepCats.length > 0) {
+                                transactions.push({
+                                    id: item.id,
+                                    month: dateObj.getMonth(),
+                                    amount: Math.abs(amount),
+                                    categories: deepCats,
+                                    costCenters: [],
+                                    useExplicitCatValues: true
+                                });
+                                return;
+                            }
+                        }
+                    }
+                } catch(e) {}
+            }
+
+            transactions.push({
+                id: item.id,
+                month: dateObj.getMonth(),
+                amount: Math.abs(amount),
+                categories: cats,
+                costCenters: ccs,
+                useExplicitCatValues: false
+            });
+        }));
     }
     return transactions;
 }

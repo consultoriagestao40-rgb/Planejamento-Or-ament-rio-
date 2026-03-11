@@ -142,7 +142,17 @@ export async function runCronSync(reqYear: number) {
             const receivables = await fetchAllTransactionsForYear(token, receivablesUrl, reqYear, viewMode);
             const payables = await fetchAllTransactionsForYear(token, payablesUrl, reqYear, viewMode);
 
-            const allTxns = [...receivables, ...payables];
+            // DEDUPLICATION: Important to prevent double-counting when fetchTransactions splits by CC
+            // and then we re-process the rateio inside the loop below.
+            const txnMap = new Map<string, any>();
+            [...receivables, ...payables].forEach(txn => {
+                const baseId = txn.id.includes('-') ? txn.id.split('-')[0] : txn.id;
+                if (!txnMap.has(baseId)) {
+                    txnMap.set(baseId, txn);
+                }
+            });
+
+            const allTxns = Array.from(txnMap.values());
 
             const aggregates = new Map<string, number>();
 

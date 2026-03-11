@@ -12,12 +12,29 @@ export async function GET(request: Request) {
         const tenantIdParam = searchParams.get('tenantId') || 'ALL';
         const tenantIds = tenantIdParam !== 'ALL' ? tenantIdParam.split(',').map(t => t.trim()).filter(Boolean) : [];
 
+        // Determine unique tenants to include to avoid double-counting duplicate records
+        const allTenants = await prisma.tenant.findMany({ orderBy: { updatedAt: 'desc' } });
+        const seenKeys = new Set();
+        const validTenantIds = new Set<string>();
+        for (const t of allTenants) {
+            const cleanName = (t.name || '').trim().toUpperCase();
+            const cleanCnpj = (t.cnpj || '').replace(/\D/g, '');
+            const key = `${cleanName}-${cleanCnpj}`;
+            
+            if (!seenKeys.has(key)) {
+                validTenantIds.add(t.id);
+                seenKeys.add(key);
+            }
+        }
+
         const ccs = costCenterId.split(',').filter(id => id !== 'DEFAULT');
 
         // Query Cache
         const entries = await prisma.realizedEntry.findMany({
             where: {
-                ...(tenantIdParam !== 'ALL' && tenantIds.length > 0 ? { tenantId: { in: tenantIds } } : {}),
+                ...(tenantIdParam !== 'ALL' && tenantIds.length > 0 
+                  ? { tenantId: { in: tenantIds.filter(id => validTenantIds.has(id)) } } 
+                  : { tenantId: { in: Array.from(validTenantIds) } }),
                 year,
                 viewMode
             }

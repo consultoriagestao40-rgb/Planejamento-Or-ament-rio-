@@ -22,46 +22,11 @@ async function fetchAllTransactionsForYear(accessToken: string, baseUrl: string,
             for (const item of items) {
                 if ((item.status || '').toUpperCase().includes('CANCEL')) continue;
 
-                const cats = item.categorias || [];
-                let ccs = item.centros_de_custo || [];
-
-                if (ccs.length > 1 || cats.length > 1) { // Deep extraction also needed for multi-category splits
-                    try {
-                        const pRes = await fetch(`https://api-v2.contaazul.com/v1/financeiro/eventos-financeiros/parcelas/${item.id}`, { headers: { 'Authorization': `Bearer ${accessToken}` } });
-                        if (pRes.ok) {
-                            const pData = await pRes.json();
-                            if (pData.evento && pData.evento.rateio) {
-                                // Augment Categories with explicit values and exclusively scoped CCs from the API!
-                                pData.evento.rateio.forEach((r: any) => {
-                                    if (r.id_categoria) {
-                                        const targetCat = cats.find((c: any) => c.id === r.id_categoria);
-                                        if (targetCat) {
-                                            // Normalize values to absolute for DRE aggregation
-                                            if (typeof r.valor === 'number') targetCat.valor = Math.abs(r.valor);
-                                            
-                                            if (r.rateio_centro_custo && r.rateio_centro_custo.length > 0) {
-                                                // NORMALIZE V2 CCs TO V1 FORMAT (id_centro_custo -> id)
-                                                targetCat.centros_de_custo_exclusivos = r.rateio_centro_custo.map((rc: any) => ({
-                                                    id: rc.id_centro_custo, // Map V2 field to V1 name
-                                                    valor: Math.abs(rc.valor || 0),
-                                                    percentual: rc.percentual
-                                                }));
-                                            }
-                                        }
-                                    }
-                                });
-                            }
-                        }
-                    } catch(e) {}
-                }
-
                 let dateStr: string;
                 let amount: number;
 
                 if (viewMode === 'caixa') {
                     // Cash mode: CA API uses "ACQUITTED" status (not PAGO) for paid items.
-                    // There is NO data_pagamento field in this CA endpoint.
-                    // "pago" = amount paid (>0 means settled), "data_vencimento" = best available date proxy.
                     if (!item.pago || item.pago <= 0) continue;
                     dateStr = item.data_vencimento;
                     amount = item.pago;
@@ -74,12 +39,57 @@ async function fetchAllTransactionsForYear(accessToken: string, baseUrl: string,
                 const dateObj = dateStr ? new Date(dateStr) : new Date();
                 if (dateObj.getFullYear() !== targetYear) continue;
 
+                const cats = item.categorias || [];
+                let ccs = item.centros_de_custo || [];
+
+                if (true) { // Always try deep extraction for better accuracy on taxes/retentions
+                    try {
+                        const pRes = await fetch(`https://api-v2.contaazul.com/v1/financeiro/eventos-financeiros/parcelas/${item.id}`, { headers: { 'Authorization': `Bearer ${accessToken}` } });
+                        if (pRes.ok) {
+                            const pData = await pRes.json();
+                            if (pData.evento && pData.evento.rateio && pData.evento.rateio.length > 0) {
+                                // COMPLETE REPLACEMENT: If deep data exists, we trust its split of categories and CCs
+                                const deepCats: any[] = [];
+                                pData.evento.rateio.forEach((r: any) => {
+                                    if (r.id_categoria) {
+                                        const ccExclusives = (r.rateio_centro_custo || []).map((rc: any) => ({
+                                            id: rc.id_centro_custo, // UUID
+                                            valor: Math.abs(rc.valor || 0),
+                                            percentual: rc.percentual
+                                        }));
+
+                                        deepCats.push({
+                                            id: r.id_categoria, // UUID
+                                            nome: r.nome_categoria,
+                                            valor: Math.abs(r.valor || 0),
+                                            centros_de_custo_exclusivos: ccExclusives
+                                        });
+                                    }
+                                });
+
+                                if (deepCats.length > 0) {
+                                    transactions.push({
+                                        id: item.id,
+                                        month: dateObj.getMonth(),
+                                        amount: Math.abs(amount), // base net amount
+                                        categories: deepCats,
+                                        costCenters: [],
+                                        useExplicitCatValues: true
+                                    });
+                                    continue;
+                                }
+                            }
+                        }
+                    } catch(e) {}
+                }
+
                 transactions.push({
                     id: item.id,
-                    month: dateObj.getMonth(), // 0-11
+                    month: dateObj.getMonth(),
                     amount: Math.abs(amount),
                     categories: cats,
-                    costCenters: ccs
+                    costCenters: ccs,
+                    useExplicitCatValues: false
                 });
             }
 
@@ -156,7 +166,9 @@ export async function runCronSync(reqYear: number) {
                 for (const cat of cats) {
                     let amountForThisCat = 0;
 
-                    if (typeof (cat as any).valor === 'number') {
+                    if ((txn as any).useExplicitCatValues && typeof (cat as any).valor === 'number') {
+                        amountForThisCat = (cat as any).valor;
+                    } else if (typeof (cat as any).valor === 'number') {
                         amountForThisCat = Math.abs((cat as any).valor);
                     } else {
                         amountForThisCat = txn.amount * (1 / cats.length);
@@ -186,16 +198,13 @@ export async function runCronSync(reqYear: number) {
                         return { ...cc, amountPerCc };
                     });
 
-                    const remainingAmount = Math.max(0, amountForThisCat - totalAllocated);
-                    const fallbackPerCc = unallocatedCount > 0 ? (remainingAmount / unallocatedCount) : 0;
-
-                    if (txn.costCenters.length === 0) {
+                    if (ccsToProcess.length === 0) {
                         const key = `${cat.id}|NONE|${txn.month}`;
                         aggregates.set(key, (aggregates.get(key) || 0) + amountForThisCat);
                     } else {
                         for (const cc of processedCcs) {
                             const key = `${cat.id}|${cc.id}|${txn.month}`;
-                            const specificAmount = cc.amountPerCc !== null ? cc.amountPerCc : fallbackPerCc;
+                            const specificAmount = cc.amountPerCc !== null ? cc.amountPerCc : (unallocatedCount > 0 ? (Math.max(0, amountForThisCat - totalAllocated) / unallocatedCount) : 0);
                             aggregates.set(key, (aggregates.get(key) || 0) + specificAmount);
                         }
                     }

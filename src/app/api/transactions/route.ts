@@ -119,184 +119,162 @@ async function fetchTransactions(accessToken: string, baseUrl: string, costCente
         prisma.costCenter.findMany({ select: { id: true, name: true } })
     ]);
 
+    const rawItems: any[] = [];
     while (hasMore && page <= 50) {
         let url = `${baseUrl}&pagina=${page}`;
-
         try {
             const res = await fetch(url, { headers: { 'Authorization': `Bearer ${accessToken}` } });
             if (!res.ok) break;
-
             const data = await res.json();
             const items = data.itens || [];
-
             if (items.length === 0) break;
-
-            for (const item of items) {
-                if ((item.status || '').toUpperCase().includes('CANCEL')) continue;
-
-                const cats = (item.categorias || []) as any[];
-                
-                // V1/V2 Bridging: Target IDs are UUIDs (from DB), item cats are numerical. Match by name.
-                const matchingCats = cats.filter(c => {
-                    const dbCat = allCategories.find(dc => dc.id === c.id || dc.name === c.nome);
-                    return dbCat && targetCategoryIds.includes(dbCat.id);
-                });
-
-                if (matchingCats.length === 0 && !targetCategoryIds.includes('ALL')) continue;
-
-                let ccs = item.centros_de_custo || [];
-
-                if (true) { // Always try deep extraction for better accuracy on taxes/retentions
-                    try {
-                        const pRes = await fetch(`https://api-v2.contaazul.com/v1/financeiro/eventos-financeiros/parcelas/${item.id}`, { headers: { 'Authorization': `Bearer ${accessToken}` } });
-                        if (pRes.ok) {
-                            const pData = await pRes.json();
-                            if (pData.evento && pData.evento.rateio && pData.evento.rateio.length > 0) {
-                                // TRUST THE RATEIO: It maps exactly what portion is revenue and what is tax
-                                const deepCats: any[] = [];
-                                pData.evento.rateio.forEach((r: any) => {
-                                    if (r.id_categoria) {
-                                        const ccExclusives = (r.rateio_centro_custo || []).map((rc: any) => ({
-                                            id: rc.id_centro_custo, // UUID
-                                            nome: rc.nome_centro_custo,
-                                            valor: Math.abs(rc.valor || 0),
-                                            percentual: rc.percentual
-                                        }));
-
-                                        deepCats.push({
-                                            id: r.id_categoria, // UUID
-                                            nome: r.nome_categoria,
-                                            valor: Math.abs(r.valor || 0),
-                                            centros_de_custo_exclusivos: ccExclusives
-                                        });
-                                    }
-                                });
-
-                                if (deepCats.length > 0) {
-                                    // Replace shallow cats with deep cats for this item
-                                    cats.length = 0;
-                                    cats.push(...deepCats);
-                                }
-                            }
-                        }
-                    } catch(e) {}
-                }
-
-                // Re-calculate matching cats after potential deep update
-                const refreshedMatchingCats = cats.filter(c => {
-                    const dbCat = allCategories.find(dc => dc.id === c.id || dc.name === c.nome || dc.name === (c as any).nome_categoria);
-                    return dbCat && targetCategoryIds.includes(dbCat.id);
-                });
-                
-                if (refreshedMatchingCats.length === 0 && !targetCategoryIds.includes('ALL')) continue;
-
-                // NOW calculate baseAmountForSelection using potentially augmented cats
-                let baseAmountForSelection = 0;
-                let catRatio = 0;
-                const eventTotal = Math.abs(item.total || item.valor || 0) || 1;
-                const hasExplicitValues = cats.length > 0 && cats.every((c: any) => typeof c.valor === 'number');
-                
-                if (hasExplicitValues) {
-                    baseAmountForSelection = refreshedMatchingCats.reduce((sum, c) => sum + Math.abs(c.valor || 0), 0);
-                    const totalCatsSum = cats.reduce((sum, c) => sum + Math.abs(c.valor || 0), 0) || eventTotal;
-                    catRatio = baseAmountForSelection / totalCatsSum;
-                } else {
-                    catRatio = refreshedMatchingCats.length / cats.length;
-                    baseAmountForSelection = eventTotal * catRatio;
-                }
-
-                const ccsCount = ccs.length || 1;
-
-                let dateStr: string;
-                let amount: number;
-
-                if (viewMode === 'caixa') {
-                    dateStr = item.data_vencimento || item.vencimento || item.data_competencia || item.data_pagamento;
-                    amount = item.valor || item.valor_original || item.valor_liquido || item.total || 0;
-                } else {
-                    dateStr = item.data_competencia || item.data_vencimento || item.vencimento || item.data_pagamento;
-                    amount = item.total || item.valor_original || item.valor || item.valor_liquido || 0;
-                }
-
-                const dateObj = dateStr ? new Date(dateStr) : new Date();
-                if (dateObj.getMonth() !== targetMonth || dateObj.getFullYear() !== targetYear) continue;
-
-                // Use category-specific CCs if deep extraction found them. Otherwise fallback to event CCs.
-                let ccsToProcess = ccs.map((cc: any) => {
-                    const dbCc = allCostCenters.find(dcc => dcc.id === cc.id || dcc.name === cc.nome);
-                    return dbCc ? { ...cc, id: dbCc.id, nome: dbCc.name } : cc;
-                });
-
-                const exclusiveCcs = refreshedMatchingCats.flatMap((c: any) => c.centros_de_custo_exclusivos || []);
-                if (exclusiveCcs.length > 0) {
-                    ccsToProcess = exclusiveCcs.map((ecc: any) => {
-                        const dbCc = allCostCenters.find(dcc => dcc.id === ecc.id || dcc.name === ecc.nome);
-                        return dbCc ? { ...ecc, id: dbCc.id, nome: dbCc.name } : ecc;
-                    });
-                }
-
-                if (ccsToProcess.length === 0) {
-                    if (isFiltered) continue; // Ignore if user explicitly restricted by CC
-
-                    transactions.push({
-                        id: item.id,
-                        date: dateStr,
-                        description: [item.descricao, item.observacao].filter(Boolean).join(' - ') || 'Sem descrição',
-                        value: baseAmountForSelection,
-                        customer: item.cliente ? item.cliente.nome : (item.fornecedor ? item.fornecedor.nome : 'N/A'),
-                        status: item.status,
-                        costCenters: [{ id: 'NONE', nome: 'Geral' }]
-                    });
-                } else {
-                    // Calculate CC values relative to the base amount of our selected categories
-                    let totalAllocated = 0;
-                    let unallocatedCount = 0;
-
-                    const processedCcs = ccsToProcess.map((cc: any) => {
-                        let amountPerCc = null;
-                        if (typeof cc.valor === 'number') {
-                            amountPerCc = Math.abs(cc.valor); // Exact CC value sent by CA for THIS category
-                        } else if (typeof cc.percentual === 'number') {
-                            amountPerCc = baseAmountForSelection * (cc.percentual / 100);
-                        }
-
-                        if (amountPerCc !== null) {
-                            totalAllocated += amountPerCc;
-                        } else {
-                            unallocatedCount++;
-                        }
-                        return { ...cc, amountPerCc };
-                    });
-
-                    const remainingAmount = Math.max(0, baseAmountForSelection - totalAllocated);
-                    const fallbackPerCc = unallocatedCount > 0 ? (remainingAmount / unallocatedCount) : 0;
-
-                    for (const cc of processedCcs) {
-                        if (isFiltered && !targetCcs.includes(cc.id)) continue;
-
-                        const specificAmount = cc.amountPerCc !== null ? cc.amountPerCc : fallbackPerCc;
-
-                        transactions.push({
-                            id: `${item.id}-${cc.id}`,
-                            date: dateStr,
-                            description: ccsCount > 1
-                                ? `${[item.descricao, item.observacao].filter(Boolean).join(' - ') || 'Sem descrição'} (Rateio ${cc.nome})`
-                                : ([item.descricao, item.observacao].filter(Boolean).join(' - ') || 'Sem descrição'),
-                            value: specificAmount,
-                            customer: item.cliente ? item.cliente.nome : (item.fornecedor ? item.fornecedor.nome : 'N/A'),
-                            status: item.status,
-                            costCenters: [{ id: cc.id, nome: cc.nome }]
-                        });
-                    }
-                }
-            }
-
+            rawItems.push(...items);
             if (items.length < 100) hasMore = false;
             else page++;
-        } catch (e) {
-            hasMore = false;
-        }
+        } catch (e) { hasMore = false; }
     }
+
+    const CHUNK_SIZE = 10;
+    for (let i = 0; i < rawItems.length; i += CHUNK_SIZE) {
+        const chunk = rawItems.slice(i, i + CHUNK_SIZE);
+        await Promise.all(chunk.map(async (item) => {
+            if ((item.status || '').toUpperCase().includes('CANCEL')) return;
+
+            const cats = (item.categorias || []) as any[];
+            
+            // V1/V2 Bridging: Match by name
+            let matchingCats = cats.filter(c => {
+                const dbCat = allCategories.find(dc => dc.id === c.id || dc.name === c.nome);
+                return dbCat && targetCategoryIds.includes(dbCat.id);
+            });
+
+            if (matchingCats.length === 0 && !targetCategoryIds.includes('ALL')) return;
+
+            let ccs = item.centros_de_custo || [];
+
+            // Parallel Deep Extraction
+            try {
+                const pRes = await fetch(`https://api-v2.contaazul.com/v1/financeiro/eventos-financeiros/parcelas/${item.id}`, { 
+                    headers: { 'Authorization': `Bearer ${accessToken}` },
+                    signal: AbortSignal.timeout(5000)
+                });
+                if (pRes.ok) {
+                    const pData = await pRes.json();
+                    if (pData.evento && pData.evento.rateio && pData.evento.rateio.length > 0) {
+                        const deepCats: any[] = [];
+                        pData.evento.rateio.forEach((r: any) => {
+                            if (r.id_categoria) {
+                                const ccExclusives = (r.rateio_centro_custo || []).map((rc: any) => ({
+                                    id: rc.id_centro_custo,
+                                    nome: rc.nome_centro_custo,
+                                    valor: Math.abs(rc.valor || 0),
+                                    percentual: rc.percentual
+                                }));
+                                deepCats.push({
+                                    id: r.id_categoria,
+                                    nome: r.nome_categoria,
+                                    valor: Math.abs(r.valor || 0),
+                                    centros_de_custo_exclusivos: ccExclusives
+                                });
+                            }
+                        });
+                        if (deepCats.length > 0) {
+                            cats.length = 0;
+                            cats.push(...deepCats);
+                        }
+                    }
+                }
+            } catch(e) {}
+
+            const refreshedMatchingCats = cats.filter(c => {
+                const dbCat = allCategories.find(dc => dc.id === c.id || dc.name === c.nome || dc.name === (c as any).nome_categoria);
+                return dbCat && targetCategoryIds.includes(dbCat.id);
+            });
+            
+            if (refreshedMatchingCats.length === 0 && !targetCategoryIds.includes('ALL')) return;
+
+            let baseAmountForSelection = 0;
+            let catRatio = 0;
+            const eventTotal = Math.abs(item.total || item.valor || 0) || 1;
+            const hasExplicitValues = cats.length > 0 && cats.every((c: any) => typeof c.valor === 'number');
+            
+            if (hasExplicitValues) {
+                baseAmountForSelection = refreshedMatchingCats.reduce((sum, c) => sum + Math.abs(c.valor || 0), 0);
+                const totalCatsSum = cats.reduce((sum, c) => sum + Math.abs(c.valor || 0), 0) || eventTotal;
+                catRatio = baseAmountForSelection / totalCatsSum;
+            } else {
+                catRatio = refreshedMatchingCats.length / cats.length;
+                baseAmountForSelection = eventTotal * catRatio;
+            }
+
+            const ccsCount = ccs.length || 1;
+            let dateStr: string;
+
+            if (viewMode === 'caixa') {
+                dateStr = item.data_vencimento || item.vencimento || item.data_competencia || item.data_pagamento;
+            } else {
+                dateStr = item.data_competencia || item.data_vencimento || item.vencimento || item.data_pagamento;
+            }
+
+            const dateObj = dateStr ? new Date(dateStr) : new Date();
+            if (dateObj.getMonth() !== targetMonth || dateObj.getFullYear() !== targetYear) return;
+
+            let ccsToProcess = ccs.map((cc: any) => {
+                const dbCc = allCostCenters.find(dcc => dcc.id === cc.id || dcc.name === cc.nome);
+                return dbCc ? { ...cc, id: dbCc.id, nome: dbCc.name } : cc;
+            });
+
+            const exclusiveCcs = refreshedMatchingCats.flatMap((c: any) => c.centros_de_custo_exclusivos || []);
+            if (exclusiveCcs.length > 0) {
+                ccsToProcess = exclusiveCcs.map((ecc: any) => {
+                    const dbCc = allCostCenters.find(dcc => dcc.id === ecc.id || dcc.name === ecc.nome);
+                    return dbCc ? { ...ecc, id: dbCc.id, nome: dbCc.name } : ecc;
+                });
+            }
+
+            if (ccsToProcess.length === 0) {
+                if (isFiltered) return;
+                transactions.push({
+                    id: item.id,
+                    date: dateStr,
+                    description: [item.descricao, item.observacao].filter(Boolean).join(' - ') || 'Sem descrição',
+                    value: baseAmountForSelection,
+                    customer: item.cliente ? item.cliente.nome : (item.fornecedor ? item.fornecedor.nome : 'N/A'),
+                    status: item.status,
+                    costCenters: [{ id: 'NONE', nome: 'Geral' }]
+                });
+            } else {
+                let totalAllocated = 0;
+                let unallocatedCount = 0;
+                const processedCcs = ccsToProcess.map((cc: any) => {
+                    let amountPerCc = null;
+                    if (typeof cc.valor === 'number') amountPerCc = Math.abs(cc.valor);
+                    else if (typeof cc.percentual === 'number') amountPerCc = baseAmountForSelection * (cc.percentual / 100);
+                    if (amountPerCc !== null) totalAllocated += amountPerCc;
+                    else unallocatedCount++;
+                    return { ...cc, amountPerCc };
+                });
+
+                const remainingAmount = Math.max(0, baseAmountForSelection - totalAllocated);
+                const fallbackPerCc = unallocatedCount > 0 ? (remainingAmount / unallocatedCount) : 0;
+
+                for (const cc of processedCcs) {
+                    if (isFiltered && !targetCcs.includes(cc.id)) continue;
+                    const specificAmount = cc.amountPerCc !== null ? cc.amountPerCc : fallbackPerCc;
+                    transactions.push({
+                        id: `${item.id}-${cc.id}`,
+                        date: dateStr,
+                        description: ccsCount > 1 ? `${[item.descricao, item.observacao].filter(Boolean).join(' - ') || 'Sem descrição'} (Rateio ${cc.nome})` : ([item.descricao, item.observacao].filter(Boolean).join(' - ') || 'Sem descrição'),
+                        value: specificAmount,
+                        customer: item.cliente ? item.cliente.nome : (item.fornecedor ? item.fornecedor.nome : 'N/A'),
+                        status: item.status,
+                        costCenters: [{ id: cc.id, nome: cc.nome }]
+                    });
+                }
+            }
+        }));
+    }
+
 
     return transactions;
 }

@@ -18,18 +18,21 @@ export async function GET() {
             orderBy: { updatedAt: 'desc' }
         });
 
-        const seenKeys = new Set();
-        const tenants = allTenants.filter(t => {
-            const superCleanName = (t.name || '').replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
-            const cleanCnpj = (t.cnpj || '').replace(/\D/g, '');
-            const key = cleanCnpj || superCleanName;
-            
-            if (seenKeys.has(key)) return false;
-            seenKeys.add(key);
-            return true;
-        });
+        const entityMap = new Map();
+        const deduplicatedTenants = [];
 
-        return NextResponse.json({ success: true, companies: tenants });
+        for (const t of allTenants) {
+            const cleanName = (t.name || '').trim().toUpperCase();
+            const cleanCnpj = (t.cnpj || '').replace(/\D/g, '');
+            const key = cleanCnpj || cleanName;
+            
+            if (!entityMap.has(key)) {
+                entityMap.set(key, t.id);
+                deduplicatedTenants.push(t);
+            }
+        }
+
+        return NextResponse.json({ success: true, companies: deduplicatedTenants });
     } catch (e: any) {
         return NextResponse.json({ success: false, error: e.message }, { status: 500 });
     }

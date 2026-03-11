@@ -43,9 +43,16 @@ async function fetchAllTransactionsForYear(accessToken: string, baseUrl: string,
                                         });
                                     }
                                 });
-                                ccs = ccs.map((cc: any) => ({
-                                    ...cc,
-                                    valor: rateioMap.has(cc.id) ? rateioMap.get(cc.id) : cc.valor
+                                // Deduplicate CCs by ID and sum their values to prevent doubling
+                                const uniqueCcsMap = new Map();
+                                ccs.forEach((cc: any) => {
+                                    const val = rateioMap.has(cc.id) ? rateioMap.get(cc.id) : cc.valor;
+                                    uniqueCcsMap.set(cc.id, (uniqueCcsMap.get(cc.id) || 0) + val);
+                                });
+                                
+                                ccs = Array.from(uniqueCcsMap.entries()).map(([id, valor]) => ({
+                                    id,
+                                    valor
                                 }));
                             }
                         }

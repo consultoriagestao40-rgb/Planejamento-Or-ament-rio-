@@ -97,7 +97,7 @@ async function fetchAllTransactionsForYear(accessToken: string, baseUrl: string,
 }
 
 export async function runCronSync(reqYear: number) {
-    const allTenants = await prisma.tenant.findMany({ orderBy: { tokenExpiresAt: 'desc' } });
+    const allTenants = await prisma.tenant.findMany({ orderBy: { updatedAt: 'desc' } });
     if (allTenants.length === 0) {
         return { success: false, error: 'No tenants' };
     }

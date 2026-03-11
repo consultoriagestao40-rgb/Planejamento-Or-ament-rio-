@@ -12,29 +12,14 @@ export async function GET(request: Request) {
         const tenantIdParam = searchParams.get('tenantId') || 'ALL';
         const tenantIds = tenantIdParam !== 'ALL' ? tenantIdParam.split(',').map(t => t.trim()).filter(Boolean) : [];
 
-        // Determine unique tenants to include to avoid double-counting duplicate records
-        const allTenants = await prisma.tenant.findMany({ orderBy: { updatedAt: 'desc' } });
-        const seenKeys = new Set();
-        const validTenantIds = new Set<string>();
-        for (const t of allTenants) {
-            const cleanName = (t.name || '').trim().toUpperCase();
-            const cleanCnpj = (t.cnpj || '').replace(/\D/g, '');
-            const key = `${cleanName}-${cleanCnpj}`;
-            
-            if (!seenKeys.has(key)) {
-                validTenantIds.add(t.id);
-                seenKeys.add(key);
-            }
-        }
-
         const ccs = costCenterId.split(',').filter(id => id !== 'DEFAULT');
 
-        // Query Cache
+        // Query Cache for SPECIFIC tenants selected (matches Modal behavior)
         const entries = await prisma.realizedEntry.findMany({
             where: {
                 ...(tenantIdParam !== 'ALL' && tenantIds.length > 0 
-                  ? { tenantId: { in: tenantIds.filter(id => validTenantIds.has(id)) } } 
-                  : { tenantId: { in: Array.from(validTenantIds) } }),
+                  ? { tenantId: { in: tenantIds } } 
+                  : {}),
                 year,
                 viewMode
             }
@@ -46,7 +31,7 @@ export async function GET(request: Request) {
             // Apply Cost Center filter if needed
             if (ccs.length > 0) {
                 if (!entry.costCenterId || !ccs.includes(entry.costCenterId)) {
-                    continue; // Skip if it belongs to an unselected cost center
+                    continue; 
                 }
             }
 
@@ -57,8 +42,9 @@ export async function GET(request: Request) {
         return NextResponse.json({
             success: true,
             realizedValues: aggregatedValues,
-            data: { success: true, timestamp: new Date().toISOString() } // Dummy data to satisfy frontend
+            data: { success: true, timestamp: new Date().toISOString() } 
         });
+
 
     } catch (error: any) {
         console.error('Critical Sync route failure:', error);

@@ -16,7 +16,7 @@ export async function GET() {
             ccNames.set(cc.name, list);
         });
         
-        const ccDuplicates = [];
+        const ccDuplicates: any[] = [];
         ccNames.forEach((ids, name) => {
             if (ids.length > 1) ccDuplicates.push({ name, ids });
         });
@@ -35,7 +35,7 @@ export async function GET() {
             dupCheck.set(key, list);
         });
         
-        const duplicates = [];
+        const duplicates: any[] = [];
         dupCheck.forEach((list, key) => {
             if (list.length > 1) {
                 duplicates.push({ key, count: list.length, items: list });

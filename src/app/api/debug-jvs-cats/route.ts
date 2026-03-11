@@ -18,21 +18,26 @@ export async function GET() {
 
         const leakCheck = await prisma.realizedEntry.findMany({
             where: {
-                amount: { gte: 120000, lte: 130000 },
                 year: 2026,
-                month: 0
+                month: 0,
+                category: { name: { startsWith: '01' } }
             },
             include: { tenant: true, category: true }
         });
 
+        // Group by Tenant Name and Category Name to see totals
+        const analysis = new Map<string, number>();
+        leakCheck.forEach(l => {
+            const key = `${l.tenant.name} | ${l.category.name}`;
+            analysis.set(key, (analysis.get(key) || 0) + l.amount);
+        });
+
         return NextResponse.json({
             success: true,
-            facilitiesCount: facilitiesCats.length,
-            tratmentosCount: tratmentosCats.length,
+            summary: Array.from(analysis.entries()).map(([key, total]) => ({ key, total })),
             sharedNames,
             sharedIds,
-            leakCheck: leakCheck.map(l => ({ tenant: l.tenant.name, cat: l.category.name, amount: l.amount })),
-            advice: "If a value ~127k appears in Facilities but belongs to another company, we found the leak."
+            advice: "Compare the 'total' here with what you see in the Modal. If they match, then the Grid is correct based on DB. If they don't match, we need to find why the DB has extra rows."
         });
     } catch (e: any) {
         return NextResponse.json({ success: false, error: e.message });

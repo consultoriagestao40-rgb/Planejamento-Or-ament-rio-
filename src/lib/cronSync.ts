@@ -193,8 +193,24 @@ export async function runCronSync(reqYear: number) {
                 }
             }
 
+            // NEW: Anti-duplicity cleanup across all tenant IDs belonging to the same entity
+            const cleanName = (t.name || '').trim().toUpperCase();
+            const cleanCnpj = (t.cnpj || '').replace(/\D/g, '');
+            
+            // Find all IDs that represent this same company (duplicate tokens/records)
+            const duplicateTenants = await prisma.tenant.findMany({
+                where: {
+                    OR: [
+                        { cnpj: cleanCnpj && cleanCnpj !== '' ? cleanCnpj : undefined },
+                        { name: cleanName }
+                    ].filter(Boolean) as any
+                },
+                select: { id: true }
+            });
+            const allEntityIds = duplicateTenants.map(dt => dt.id);
+
             await prisma.realizedEntry.deleteMany({
-                where: { tenantId: t.id, year: reqYear, viewMode }
+                where: { tenantId: { in: allEntityIds }, year: reqYear, viewMode }
             });
 
             const createData = [];

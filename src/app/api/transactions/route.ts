@@ -21,22 +21,9 @@ export async function GET(request: Request) {
 
         // Determine which tenants to query
         const { prisma } = await import('@/lib/prisma');
-        const allTenants = tenantId === 'ALL'
-            ? await prisma.tenant.findMany({ orderBy: { tokenExpiresAt: 'desc' } })
-            : await prisma.tenant.findMany({ where: { id: tenantId }, orderBy: { tokenExpiresAt: 'desc' } });
-
-        // DEDUPLICATE: If multiple DB entries exist for the same name/CNPJ (even with spaces or case differences), we only fetch once.
-        // This prevents the [JVS] [JVS] duplication seen in the UI.
-        const seenKeys = new Set();
-        const tenants = allTenants.filter(t => {
-            const cleanName = (t.name || '').trim().toUpperCase();
-            const cleanCnpj = (t.cnpj || '').replace(/\D/g, '');
-            const key = `${cleanName}-${cleanCnpj}`;
-            
-            if (seenKeys.has(key)) return false;
-            seenKeys.add(key);
-            return true;
-        });
+        const tenants = tenantId === 'ALL'
+            ? await prisma.tenant.findMany()
+            : await prisma.tenant.findMany({ where: { id: tenantId } });
 
         if (tenants.length === 0) {
             return NextResponse.json({ success: false, error: 'No connected companies found' }, { status: 400 });
@@ -110,46 +97,17 @@ async function fetchTransactions(accessToken: string, baseUrl: string, costCente
 
             if (items.length === 0) break;
 
-            for (const item of items) {
-                if ((item.status || '').toUpperCase().includes('CANCEL')) continue;
+            items.forEach((item: any) => {
+                if ((item.status || '').toUpperCase().includes('CANCEL')) return;
 
                 const cats = item.categorias || [];
-                if (cats.length === 0) continue;
+                if (cats.length === 0) return;
 
                 // Align exactly with cronSync.ts: we assign 100% of the value solely to the FIRST category linked.
                 const primaryCat = cats[0];
-                if (!targetCategoryIds.includes(primaryCat.id)) continue;
+                if (!targetCategoryIds.includes(primaryCat.id)) return;
 
-                let ccs = item.centros_de_custo || [];
-
-                if (ccs.length > 1) {
-                    try {
-                        const pRes = await fetch(`https://api-v2.contaazul.com/v1/financeiro/eventos-financeiros/parcelas/${item.id}`, { headers: { 'Authorization': `Bearer ${accessToken}` } });
-                        if (pRes.ok) {
-                            const pData = await pRes.json();
-                            if (pData.evento && pData.evento.rateio) {
-                                const rateioMap = new Map();
-                                pData.evento.rateio.forEach((r: any) => {
-                                    if (r.rateio_centro_custo && r.valor) {
-                                        r.rateio_centro_custo.forEach((rc: any) => {
-                                            // The rateio JSON provides absolute values for the entire event.
-                                            // We calculate the percentage and apply it to THIS individual installment!
-                                            const percent = (rc.valor || 0) / r.valor;
-                                            const itemValue = item.total || item.valor || 0;
-                                            const proportionalValue = itemValue * percent;
-                                            rateioMap.set(rc.id_centro_custo, (rateioMap.get(rc.id_centro_custo) || 0) + proportionalValue);
-                                        });
-                                    }
-                                });
-                                ccs = ccs.map((cc: any) => ({
-                                    ...cc,
-                                    valor: rateioMap.has(cc.id) ? rateioMap.get(cc.id) : cc.valor
-                                }));
-                            }
-                        }
-                    } catch(e) {}
-                }
-
+                const ccs = item.centros_de_custo || [];
                 const ccsCount = ccs.length || 1;
 
                 let dateStr: string;
@@ -164,52 +122,27 @@ async function fetchTransactions(accessToken: string, baseUrl: string, costCente
                 }
 
                 const dateObj = dateStr ? new Date(dateStr) : new Date();
-                if (dateObj.getMonth() !== targetMonth || dateObj.getFullYear() !== targetYear) continue;
+                if (dateObj.getMonth() !== targetMonth || dateObj.getFullYear() !== targetYear) return;
 
+                // Enforce positive absolute amounts to match BudgetGrid's subtraction matrix
                 const absAmount = Math.abs(amount);
-
-                // 2-PASS RATEIO FOR REMAINDERS:
-                // First pass: sum explicit allocations to find the remaining balance
-                let totalAllocated = 0;
-                let unallocatedCount = 0;
-
-                const processedCcs = ccs.map((cc: any) => {
-                    let explicitAmount = null;
-                    if (typeof cc.valor === 'number') {
-                        explicitAmount = Math.abs(cc.valor);
-                    } else if (typeof cc.percentual === 'number') {
-                        explicitAmount = absAmount * (cc.percentual / 100);
-                    }
-
-                    if (explicitAmount !== null) {
-                        totalAllocated += explicitAmount;
-                    } else {
-                        unallocatedCount++;
-                    }
-
-                    return { ...cc, explicitAmount };
-                });
-
-                const remainingAmount = Math.max(0, absAmount - totalAllocated);
-                const fallbackPerCc = unallocatedCount > 0 ? (remainingAmount / unallocatedCount) : 0;
+                const amountPerCc = absAmount / ccsCount;
 
                 if (ccs.length === 0) {
-                    if (isFiltered) continue; // Ignore if user explicitly restricted by CC
+                    if (isFiltered) return; // Ignore if user explicitly restricted by CC
 
                     transactions.push({
                         id: item.id,
                         date: dateStr,
                         description: [item.descricao, item.observacao].filter(Boolean).join(' - ') || 'Sem descrição',
-                        value: absAmount,
+                        value: amountPerCc,
                         customer: item.cliente ? item.cliente.nome : (item.fornecedor ? item.fornecedor.nome : 'N/A'),
                         status: item.status,
                         costCenters: [{ id: 'NONE', nome: 'Geral' }]
                     });
                 } else {
-                    for (const cc of processedCcs) {
+                    for (const cc of ccs) {
                         if (isFiltered && !targetCcs.includes(cc.id)) continue;
-
-                        const specificAmount = cc.explicitAmount !== null ? cc.explicitAmount : fallbackPerCc;
 
                         transactions.push({
                             id: `${item.id}-${cc.id}`,
@@ -217,14 +150,14 @@ async function fetchTransactions(accessToken: string, baseUrl: string, costCente
                             description: ccsCount > 1
                                 ? `${[item.descricao, item.observacao].filter(Boolean).join(' - ') || 'Sem descrição'} (Rateio ${cc.nome})`
                                 : ([item.descricao, item.observacao].filter(Boolean).join(' - ') || 'Sem descrição'),
-                            value: specificAmount,
+                            value: amountPerCc,
                             customer: item.cliente ? item.cliente.nome : (item.fornecedor ? item.fornecedor.nome : 'N/A'),
                             status: item.status,
                             costCenters: [{ id: cc.id, nome: cc.nome }]
                         });
                     }
                 }
-            }
+            });
 
             if (items.length < 100) hasMore = false;
             else page++;

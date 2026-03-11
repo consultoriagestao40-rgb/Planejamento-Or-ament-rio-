@@ -97,7 +97,9 @@ async function fetchAllTransactionsForYear(accessToken: string, baseUrl: string,
 }
 
 export async function runCronSync(reqYear: number) {
-    const allTenants = await prisma.tenant.findMany({ orderBy: { updatedAt: 'desc' } });
+    const allTenants = (await prisma.tenant.findMany({ orderBy: { updatedAt: 'desc' } }))
+        .filter(t => t.name.toUpperCase().includes('SPOT'));
+    console.log(`[SYNC] Found ${allTenants.length} tenants matching 'SPOT'`);
     if (allTenants.length === 0) {
         return { success: false, error: 'No tenants' };
     }
@@ -203,25 +205,17 @@ export async function runCronSync(reqYear: number) {
                 }
             }
 
-            // FIXED: Identification by Normalized Name to catch orphans without CNPJ
-            const entityKey = (t.name || '').trim().toUpperCase().replace(/[^A-Z0-9]/g, '');
+            // FIXED: Identification by CNPJ to catch all variants/orphans of this company
+            const allEntityIds = (await prisma.tenant.findMany({
+                where: { cnpj: t.cnpj },
+                select: { id: true }
+            })).map(dt => dt.id);
             
-            // Find all IDs that represent this same company
-            const duplicateTenants = await prisma.tenant.findMany({
-                where: {
-                    name: { contains: t.name.split(' ')[0], mode: 'insensitive' } // Braod match for safety
-                },
-                select: { id: true, name: true }
-            });
-            
-            // Filter more strictly for safety after fetch
-            const allEntityIds = duplicateTenants
-                .filter(dt => (dt.name || '').trim().toUpperCase().replace(/[^A-Z0-9]/g, '') === entityKey)
-                .map(dt => dt.id);
-
-            await prisma.realizedEntry.deleteMany({
+            console.log(`[SYNC] [${t.name}] Cleaning up entries for IDs: ${allEntityIds.join(', ')} | Mode: ${viewMode} | Year: ${reqYear} | CNPJ: ${t.cnpj}`);
+            const delRes = await prisma.realizedEntry.deleteMany({
                 where: { tenantId: { in: allEntityIds }, year: reqYear, viewMode }
             });
+            console.log(`[SYNC] [${t.name}] Deleted ${delRes.count} legacy entries for ${viewMode}`);
 
             const createData = [];
             for (const [key, amount] of aggregates.entries()) {

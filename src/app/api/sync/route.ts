@@ -12,14 +12,24 @@ export async function GET(request: Request) {
         const tenantIdParam = searchParams.get('tenantId') || 'ALL';
         const tenantIds = tenantIdParam !== 'ALL' ? tenantIdParam.split(',').map(t => t.trim()).filter(Boolean) : [];
 
+        // Deduplicate by Name to handle variants with/without CNPJ
+        const allTenants = await prisma.tenant.findMany({ orderBy: { updatedAt: 'desc' } });
+        const entityMap = new Map<string, string>(); // NormalizedName -> MostRecentId
+        
+        for (const t of allTenants) {
+            const key = (t.name || '').trim().toUpperCase().replace(/[^A-Z0-9]/g, '');
+            if (!entityMap.has(key)) {
+                entityMap.set(key, t.id);
+            }
+        }
+        const recentTenantIds = Array.from(entityMap.values());
+
         const ccs = costCenterId.split(',').filter(id => id !== 'DEFAULT');
 
-        // Query Cache for SPECIFIC tenants selected (matches Modal behavior)
+        // Query Cache for SPECIFIC tenants or SELECTED unique primaries
         const entries = await prisma.realizedEntry.findMany({
             where: {
-                ...(tenantIdParam !== 'ALL' && tenantIds.length > 0 
-                  ? { tenantId: { in: tenantIds } } 
-                  : {}),
+                tenantId: { in: tenantIdParam === 'ALL' ? recentTenantIds : tenantIds },
                 year,
                 viewMode
             }

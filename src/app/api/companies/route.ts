@@ -22,9 +22,7 @@ export async function GET() {
         const deduplicatedTenants = [];
 
         for (const t of allTenants) {
-            const cleanName = (t.name || '').trim().toUpperCase();
-            const cleanCnpj = (t.cnpj || '').replace(/\D/g, '');
-            const key = cleanCnpj || cleanName;
+            const key = (t.name || '').trim().toUpperCase().replace(/[^A-Z0-9]/g, '');
             
             if (!entityMap.has(key)) {
                 entityMap.set(key, t.id);

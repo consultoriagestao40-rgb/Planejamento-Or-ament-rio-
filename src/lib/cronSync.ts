@@ -193,21 +193,21 @@ export async function runCronSync(reqYear: number) {
                 }
             }
 
-            // NEW: Anti-duplicity cleanup across all tenant IDs belonging to the same entity
-            const cleanName = (t.name || '').trim().toUpperCase();
-            const cleanCnpj = (t.cnpj || '').replace(/\D/g, '');
+            // FIXED: Identification by Normalized Name to catch orphans without CNPJ
+            const entityKey = (t.name || '').trim().toUpperCase().replace(/[^A-Z0-9]/g, '');
             
-            // Find all IDs that represent this same company (duplicate tokens/records)
+            // Find all IDs that represent this same company
             const duplicateTenants = await prisma.tenant.findMany({
                 where: {
-                    OR: [
-                        { cnpj: cleanCnpj && cleanCnpj !== '' ? cleanCnpj : undefined },
-                        { name: cleanName }
-                    ].filter(Boolean) as any
+                    name: { contains: t.name.split(' ')[0], mode: 'insensitive' } // Braod match for safety
                 },
-                select: { id: true }
+                select: { id: true, name: true }
             });
-            const allEntityIds = duplicateTenants.map(dt => dt.id);
+            
+            // Filter more strictly for safety after fetch
+            const allEntityIds = duplicateTenants
+                .filter(dt => (dt.name || '').trim().toUpperCase().replace(/[^A-Z0-9]/g, '') === entityKey)
+                .map(dt => dt.id);
 
             await prisma.realizedEntry.deleteMany({
                 where: { tenantId: { in: allEntityIds }, year: reqYear, viewMode }

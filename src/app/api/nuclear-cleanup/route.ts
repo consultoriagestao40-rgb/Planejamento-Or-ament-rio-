@@ -10,9 +10,7 @@ export async function GET() {
         
         const entityGroups = new Map<string, any[]>();
         for (const t of allTenants) {
-            const cleanName = (t.name || '').trim().toUpperCase();
-            const cleanCnpj = (t.cnpj || '').replace(/\D/g, '');
-            const key = cleanCnpj || cleanName;
+            const key = (t.name || '').trim().toUpperCase().replace(/[^A-Z0-9]/g, '');
             if (!entityGroups.has(key)) entityGroups.set(key, []);
             entityGroups.get(key)!.push(t);
         }

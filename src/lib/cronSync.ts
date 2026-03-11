@@ -19,11 +19,38 @@ async function fetchAllTransactionsForYear(accessToken: string, baseUrl: string,
             const items = data.itens || [];
             if (items.length === 0) break;
 
-            items.forEach((item: any) => {
-                if ((item.status || '').toUpperCase().includes('CANCEL')) return;
+            for (const item of items) {
+                if ((item.status || '').toUpperCase().includes('CANCEL')) continue;
 
                 const cats = item.categorias || [];
-                const ccs = item.centros_de_custo || [];
+                let ccs = item.centros_de_custo || [];
+
+                if (ccs.length > 1) {
+                    try {
+                        const pRes = await fetch(`https://api-v2.contaazul.com/v1/financeiro/eventos-financeiros/parcelas/${item.id}`, { headers: { 'Authorization': `Bearer ${accessToken}` } });
+                        if (pRes.ok) {
+                            const pData = await pRes.json();
+                            if (pData.evento && pData.evento.rateio) {
+                                const rateioMap = new Map();
+                                pData.evento.rateio.forEach((r: any) => {
+                                    if (r.rateio_centro_custo && r.valor) {
+                                        r.rateio_centro_custo.forEach((rc: any) => {
+                                            // The rateio JSON provides absolute values for the entire event.
+                                            // We calculate the percentage and apply it to THIS individual installment!
+                                            const percent = (rc.valor || 0) / r.valor;
+                                            const proportionalValue = (item.total || item.valor || 0) * percent;
+                                            rateioMap.set(rc.id_centro_custo, (rateioMap.get(rc.id_centro_custo) || 0) + proportionalValue);
+                                        });
+                                    }
+                                });
+                                ccs = ccs.map((cc: any) => ({
+                                    ...cc,
+                                    valor: rateioMap.has(cc.id) ? rateioMap.get(cc.id) : cc.valor
+                                }));
+                            }
+                        }
+                    } catch(e) {}
+                }
 
                 let dateStr: string;
                 let amount: number;
@@ -32,7 +59,7 @@ async function fetchAllTransactionsForYear(accessToken: string, baseUrl: string,
                     // Cash mode: CA API uses "ACQUITTED" status (not PAGO) for paid items.
                     // There is NO data_pagamento field in this CA endpoint.
                     // "pago" = amount paid (>0 means settled), "data_vencimento" = best available date proxy.
-                    if (!item.pago || item.pago <= 0) return;
+                    if (!item.pago || item.pago <= 0) continue;
                     dateStr = item.data_vencimento;
                     amount = item.pago;
                 } else {
@@ -42,7 +69,7 @@ async function fetchAllTransactionsForYear(accessToken: string, baseUrl: string,
                 }
 
                 const dateObj = dateStr ? new Date(dateStr) : new Date();
-                if (dateObj.getFullYear() !== targetYear) return;
+                if (dateObj.getFullYear() !== targetYear) continue;
 
                 transactions.push({
                     id: item.id,
@@ -51,7 +78,7 @@ async function fetchAllTransactionsForYear(accessToken: string, baseUrl: string,
                     categories: cats,
                     costCenters: ccs
                 });
-            });
+            }
 
             if (items.length < 100) hasMore = false;
             else page++;
@@ -63,10 +90,22 @@ async function fetchAllTransactionsForYear(accessToken: string, baseUrl: string,
 }
 
 export async function runCronSync(reqYear: number) {
-    const tenants = await prisma.tenant.findMany();
-    if (tenants.length === 0) {
+    const allTenants = await prisma.tenant.findMany({ orderBy: { tokenExpiresAt: 'desc' } });
+    if (allTenants.length === 0) {
         return { success: false, error: 'No tenants' };
     }
+
+    // DEDUPLICATE: Only sync once per unique company name/CNPJ (even if multiple DB rows exist)
+    const seenKeys = new Set();
+    const tenants = allTenants.filter(t => {
+        const cleanName = (t.name || '').trim().toUpperCase();
+        const cleanCnpj = (t.cnpj || '').replace(/\D/g, '');
+        const key = `${cleanName}-${cleanCnpj}`;
+        
+        if (seenKeys.has(key)) return false;
+        seenKeys.add(key);
+        return true;
+    });
 
     const report = [];
 
@@ -107,15 +146,42 @@ export async function runCronSync(reqYear: number) {
                 const cat = txn.categories[0]; // Mirror exact behavior from services.ts to prevent data shifts
 
                 const amountForCat = txn.amount;
-                const amountPerCc = amountForCat / ccsCount;
+                // amountPerCc is no longer a static division sum, it is calculated per CC below.
+
+                // 2-PASS RATEIO FOR REMAINDERS:
+                // First pass: sum explicit allocations to find the remaining balance
+                let totalAllocated = 0;
+                let unallocatedCount = 0;
+
+                const processedCcs = txn.costCenters.map((cc: any) => {
+                    let explicitAmount = null;
+                    if (typeof cc.valor === 'number') {
+                        explicitAmount = Math.abs(cc.valor);
+                    } else if (typeof cc.percentual === 'number') {
+                        explicitAmount = amountForCat * (cc.percentual / 100);
+                    }
+
+                    if (explicitAmount !== null) {
+                        totalAllocated += explicitAmount;
+                    } else {
+                        unallocatedCount++;
+                    }
+
+                    return { ...cc, explicitAmount };
+                });
+
+                const remainingAmount = Math.max(0, amountForCat - totalAllocated);
+                const fallbackPerCc = unallocatedCount > 0 ? (remainingAmount / unallocatedCount) : 0;
+
 
                 if (txn.costCenters.length === 0) {
                     const key = `${cat.id}|NONE|${txn.month}`;
-                    aggregates.set(key, (aggregates.get(key) || 0) + amountPerCc);
+                    aggregates.set(key, (aggregates.get(key) || 0) + amountForCat);
                 } else {
-                    for (const cc of txn.costCenters) {
+                    for (const cc of processedCcs) {
                         const key = `${cat.id}|${cc.id}|${txn.month}`;
-                        aggregates.set(key, (aggregates.get(key) || 0) + amountPerCc);
+                        const specificAmount = cc.explicitAmount !== null ? cc.explicitAmount : fallbackPerCc;
+                        aggregates.set(key, (aggregates.get(key) || 0) + specificAmount);
                     }
                 }
             }

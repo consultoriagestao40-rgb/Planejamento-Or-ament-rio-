@@ -97,9 +97,13 @@ async function fetchAllTransactionsForYear(accessToken: string, baseUrl: string,
 }
 
 export async function runCronSync(reqYear: number) {
+    const targetKeywords = ['SPOT', 'JVS', 'CLEAN'];
     const allTenants = (await prisma.tenant.findMany({ orderBy: { updatedAt: 'desc' } }))
-        .filter(t => t.name.toUpperCase().includes('SPOT'));
-    console.log(`[SYNC] Found ${allTenants.length} tenants matching 'SPOT'`);
+        .filter(t => {
+            const name = t.name.toUpperCase();
+            return targetKeywords.some(k => name.includes(k));
+        });
+    console.log(`[SYNC] Found ${allTenants.length} tenants matching ${targetKeywords.join(', ')}`);
     if (allTenants.length === 0) {
         return { success: false, error: 'No tenants' };
     }
@@ -121,12 +125,15 @@ export async function runCronSync(reqYear: number) {
     for (const t of tenants) {
         let token: string;
         try {
+            console.log(`[SYNC] [${t.name}] Starting sync for year ${reqYear}...`);
             const res = await getValidAccessToken(t.id);
             token = res.token;
         } catch (e: any) {
             report.push({ tenant: t.name, status: `Token Error: ${e.message}` });
             continue;
         }
+        report.push({ tenant: t.name, status: `In Progress` });
+
 
         // Fetch valid IDs to prevent Foreign Key Constraint errors from deleted items on Conta Azul
         const validCategories = new Set((await prisma.category.findMany({ where: { tenantId: t.id }, select: { id: true } })).map(c => c.id));
@@ -137,70 +144,80 @@ export async function runCronSync(reqYear: number) {
             // without blowing up Conta Azul's backend with a 500 error on large 3-year requests.
             const startStr = `${reqYear - 1}-11-01`;
             const endStr = `${reqYear + 1}-02-28`;
-
             const receivablesUrl = `https://api-v2.contaazul.com/v1/financeiro/eventos-financeiros/contas-a-receber/buscar?data_vencimento_de=${startStr}&data_vencimento_ate=${endStr}&tamanho_pagina=100`;
             const payablesUrl = `https://api-v2.contaazul.com/v1/financeiro/eventos-financeiros/contas-a-pagar/buscar?data_vencimento_de=${startStr}&data_vencimento_ate=${endStr}&tamanho_pagina=100`;
 
+            console.log(`[SYNC] [${t.name}] Fetching transactions for mode: ${viewMode}...`);
             const receivables = await fetchAllTransactionsForYear(token, receivablesUrl, reqYear, viewMode);
             const payables = await fetchAllTransactionsForYear(token, payablesUrl, reqYear, viewMode);
+            console.log(`[SYNC] [${t.name}] Found ${receivables.length} receivables and ${payables.length} payables.`);
 
-            // DEDUPLICATION: Important to prevent double-counting when fetchTransactions splits by CC
-            // and then we re-process the rateio inside the loop below.
-            const txnMap = new Map<string, any>();
-            [...receivables, ...payables].forEach(txn => {
-                const baseId = txn.id.includes('-') ? txn.id.split('-')[0] : txn.id;
-                if (!txnMap.has(baseId)) {
-                    txnMap.set(baseId, txn);
-                }
-            });
 
-            const allTxns = Array.from(txnMap.values());
-
+            const allTxns = [...receivables, ...payables];
             const aggregates = new Map<string, number>();
 
+            // IDEMPOTENCY: Use a set to track already processed IDs within this viewMode loop
+            const processedIds = new Set<string>();
+
             for (const txn of allTxns) {
+                // Deduplicate by full ID to handle installments correctly as separate records
+                if (processedIds.has(txn.id)) continue;
+                processedIds.add(txn.id);
+
                 if (txn.categories.length === 0) continue;
 
-                const ccsCount = txn.costCenters.length || 1;
-                const cat = txn.categories[0]; // Mirror exact behavior from services.ts to prevent data shifts
+                // Amount of this specific installment/transaction
+                const totalAmount = txn.amount;
 
-                const amountForCat = txn.amount;
-                // amountPerCc is no longer a static division sum, it is calculated per CC below.
-
-                // 2-PASS RATEIO FOR REMAINDERS:
-                // First pass: sum explicit allocations to find the remaining balance
-                let totalAllocated = 0;
-                let unallocatedCount = 0;
-
-                const processedCcs = txn.costCenters.map((cc: any) => {
-                    let explicitAmount = null;
-                    if (typeof cc.valor === 'number') {
-                        explicitAmount = Math.abs(cc.valor);
-                    } else if (typeof cc.percentual === 'number') {
-                        explicitAmount = amountForCat * (cc.percentual / 100);
-                    }
-
-                    if (explicitAmount !== null) {
-                        totalAllocated += explicitAmount;
-                    } else {
-                        unallocatedCount++;
-                    }
-
-                    return { ...cc, explicitAmount };
+                // 1. SPLIT BY CATEGORY
+                // Conta Azul usually returns the amount per category in txn.categories[i].valor
+                // If not, we distribute equally (safest fallback)
+                let totalCatAllocated = 0;
+                const catEntries = txn.categories.map((c: any) => {
+                    const val = typeof c.valor === 'number' ? Math.abs(c.valor) : (totalAmount / txn.categories.length);
+                    totalCatAllocated += val;
+                    return { id: c.id, amount: val };
                 });
 
-                const remainingAmount = Math.max(0, amountForCat - totalAllocated);
-                const fallbackPerCc = unallocatedCount > 0 ? (remainingAmount / unallocatedCount) : 0;
+                // 2. SPLIT BY COST CENTER PER CATEGORY
+                for (const cat of catEntries) {
+                    if (!validCategories.has(cat.id)) continue;
 
+                    const catAmount = cat.amount;
+                    
+                    if (txn.costCenters.length === 0) {
+                        const key = `${cat.id}|NONE|${txn.month}`;
+                        aggregates.set(key, (aggregates.get(key) || 0) + catAmount);
+                    } else {
+                        // For each category, we split its partial amount across the CCs
+                        let totalCcAllocated = 0;
+                        let unallocatedCount = 0;
 
-                if (txn.costCenters.length === 0) {
-                    const key = `${cat.id}|NONE|${txn.month}`;
-                    aggregates.set(key, (aggregates.get(key) || 0) + amountForCat);
-                } else {
-                    for (const cc of processedCcs) {
-                        const key = `${cat.id}|${validCostCenters.has(cc.id) ? cc.id : 'NONE'}|${txn.month}`;
-                        const specificAmount = cc.explicitAmount !== null ? cc.explicitAmount : fallbackPerCc;
-                        aggregates.set(key, (aggregates.get(key) || 0) + specificAmount);
+                        const ccSplits = txn.costCenters.map((cc: any) => {
+                            let explicitAmount = null;
+                            if (typeof cc.valor === 'number') {
+                                explicitAmount = Math.abs(cc.valor);
+                            } else if (typeof cc.percentual === 'number') {
+                                explicitAmount = catAmount * (cc.percentual / 100);
+                            }
+
+                            if (explicitAmount !== null) {
+                                totalCcAllocated += explicitAmount;
+                            } else {
+                                unallocatedCount++;
+                            }
+                            return { id: cc.id, amount: explicitAmount };
+                        });
+
+                        const remainingCcAmount = Math.max(0, catAmount - totalCcAllocated);
+                        const fallbackPerCc = unallocatedCount > 0 ? (remainingCcAmount / unallocatedCount) : 0;
+
+                        for (const cc of ccSplits) {
+                            const ccId = validCostCenters.has(cc.id) ? cc.id : 'NONE';
+                            const key = `${cat.id}|${ccId}|${txn.month}`;
+                            const finalCcAmount = cc.amount !== null ? cc.amount : fallbackPerCc;
+                            aggregates.set(key, (aggregates.get(key) || 0) + finalCcAmount);
+                        }
                     }
                 }
             }

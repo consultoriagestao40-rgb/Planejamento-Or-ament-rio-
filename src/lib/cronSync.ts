@@ -97,13 +97,8 @@ async function fetchAllTransactionsForYear(accessToken: string, baseUrl: string,
 }
 
 export async function runCronSync(reqYear: number) {
-    const targetKeywords = ['SPOT', 'JVS', 'CLEAN'];
-    const allTenants = (await prisma.tenant.findMany({ orderBy: { updatedAt: 'desc' } }))
-        .filter(t => {
-            const name = t.name.toUpperCase();
-            return targetKeywords.some(k => name.includes(k));
-        });
-    console.log(`[SYNC] Found ${allTenants.length} tenants matching ${targetKeywords.join(', ')}`);
+    const allTenants = (await prisma.tenant.findMany({ orderBy: { updatedAt: 'desc' } }));
+    console.log(`[SYNC] Found ${allTenants.length} tenants in total.`);
     if (allTenants.length === 0) {
         return { success: false, error: 'No tenants' };
     }

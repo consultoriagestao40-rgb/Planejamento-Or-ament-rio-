@@ -163,13 +163,25 @@ export async function runCronSync(reqYear: number) {
 
                 // Amount of this specific installment/transaction
                 const totalAmount = txn.amount;
+                console.log(`[DEBUG] Processing Txn: ${txn.id} | Amt: ${totalAmount} | Cat: ${txn.categories.map((c:any) => c.name).join(', ')}`);
 
                 // 1. SPLIT BY CATEGORY
-                // Conta Azul usually returns the amount per category in txn.categories[i].valor
-                // If not, we distribute equally (safest fallback)
+                // Conta Azul V2 returns the full chain. We MUST only take the leaf categories 
+                // to avoid double counting parent totals.
+                const catIds = new Set(txn.categories.map((c: any) => c.id));
+                const leaves = txn.categories.filter((c: any) => {
+                    // If this category is a parent of ANY other category in this same transaction, it's not a leaf.
+                    return !txn.categories.some((other: any) => other.parentId === c.id);
+                });
+
+                if (leaves.length === 0 && txn.categories.length > 0) {
+                    // Fallback to the first one if we can't find a leaf (shouldn't happen with CA data)
+                    leaves.push(txn.categories[0]);
+                }
+
                 let totalCatAllocated = 0;
-                const catEntries = txn.categories.map((c: any) => {
-                    const val = typeof c.valor === 'number' ? Math.abs(c.valor) : (totalAmount / txn.categories.length);
+                const catEntries = leaves.map((c: any) => {
+                    const val = typeof c.valor === 'number' ? Math.abs(c.valor) : (totalAmount / leaves.length);
                     totalCatAllocated += val;
                     return { id: c.id, amount: val };
                 });

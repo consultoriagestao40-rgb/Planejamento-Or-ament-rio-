@@ -1,51 +1,45 @@
+
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 
 export const dynamic = 'force-dynamic';
 
-export async function GET() {
+export async function GET(request: Request) {
     try {
-        console.log('=== NUCLEAR CLEANUP START ===');
-        const allTenants = await prisma.tenant.findMany({ orderBy: { updatedAt: 'desc' } });
-        
-        const entityGroups = new Map<string, any[]>();
-        for (const t of allTenants) {
-            const key = (t.name || '').trim().toUpperCase().replace(/[^A-Z0-9]/g, '');
-            if (!entityGroups.has(key)) entityGroups.set(key, []);
-            entityGroups.get(key)!.push(t);
+        const { searchParams } = new URL(request.url);
+        const tenantName = searchParams.get('name') || 'SPOT';
+        const year = parseInt(searchParams.get('year') || '2026', 10);
+
+        const tenants = await prisma.tenant.findMany({
+            where: { name: { contains: tenantName, mode: 'insensitive' } }
+        });
+
+        if (tenants.length === 0) {
+            return NextResponse.json({ success: false, error: `Nenhum tenant encontrado com o nome ${tenantName}` });
         }
 
-        const report = [];
+        const tenantIds = tenants.map((t: any) => t.id);
 
-        for (const [key, tenants] of entityGroups.entries()) {
-            if (tenants.length <= 1) continue;
+        console.log(`[NUCLEAR] Cleaning up ${tenants.length} tenants: ${tenants.map((t: any) => t.name).join(', ')}`);
 
-            const primary = tenants[0]; // Most recently updated is master
-            const fallbacks = tenants.slice(1);
-            const fallbackIds = fallbacks.map(f => f.id);
+        // Delete realized entries
+        const delRealized = await prisma.realizedEntry.deleteMany({
+            where: { tenantId: { in: tenantIds }, year }
+        });
 
-            console.log(`Cleaning Entity: ${primary.name}. Primary: ${primary.id}. Orphans: ${fallbackIds.length}`);
-
-            // Delete ALL realized data from orphan IDs to prevent the R$ 127k ghost issue
-            const deleteCount = await prisma.realizedEntry.deleteMany({
-                where: { tenantId: { in: fallbackIds } }
-            });
-
-            report.push({
-                entity: primary.name,
-                primaryId: primary.id,
-                orphansCleaned: fallbackIds.length,
-                entriesDeleted: deleteCount.count
-            });
-        }
+        // Delete budget entries for the same year to be safe? 
+        // User only complained about realized, but let's keep it safe.
 
         return NextResponse.json({
             success: true,
-            message: 'Database stabilized. Orphans deleted.',
-            report
+            message: `Limpeza concluída para ${tenantName} (${year})`,
+            details: {
+                tenantsAffected: tenants.length,
+                realizedDeleted: delRealized.count
+            }
         });
 
     } catch (e: any) {
-        return NextResponse.json({ success: false, error: e.message }, { status: 500 });
+        return NextResponse.json({ success: false, error: e.message });
     }
 }

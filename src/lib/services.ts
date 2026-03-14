@@ -238,9 +238,21 @@ export async function syncData(costCenterId: string = 'DEFAULT', year: number = 
         try {
             const catId = `${tenant.id}:${cat.id}`;
             const typeValue = cat.tipo || cat.type || 'EXPENSE';
+            const catName = cat.name || '';
+            const catNameLower = catName.toLowerCase();
 
             // Busca categoria existente para NÃO sobrescrever entradaDre se o novo for null
             const existingCat = await (prisma as any).category.findUnique({ where: { id: catId } });
+
+            // Self-Healing: Classificação automática baseada no nome se entradaDre estiver vazio
+            let autoEntradaDre = cat.entradaDreLocal || existingCat?.entradaDre || null;
+            if (!autoEntradaDre) {
+                if (catNameLower.includes('venda') || catNameLower.includes('faturamento') || catName?.startsWith('01') || catName?.startsWith('1.')) {
+                    autoEntradaDre = '01. RECEITA BRUTA';
+                } else if (catNameLower.includes('tributo') || catNameLower.includes('imposto') || catName?.startsWith('02')) {
+                    autoEntradaDre = '02. TRIBUTO SOBRE FATURAMENTO';
+                }
+            }
 
             await (prisma as any).category.upsert({
                 where: { id: catId },
@@ -250,14 +262,13 @@ export async function syncData(costCenterId: string = 'DEFAULT', year: number = 
                     tenantId: tenant.id,
                     parentId: cat.parentIdLocal,
                     type: typeValue,
-                    entradaDre: cat.entradaDreLocal
+                    entradaDre: autoEntradaDre
                 },
                 update: {
                     name: cat.name,
                     parentId: cat.parentIdLocal,
                     type: typeValue,
-                    // Preserva entradaDre se já existir e o novo for nulo
-                    entradaDre: (cat.entradaDreLocal || existingCat?.entradaDre) || null
+                    entradaDre: autoEntradaDre
                 }
             });
             report.categoriesSuccess++;
@@ -289,14 +300,15 @@ export async function syncData(costCenterId: string = 'DEFAULT', year: number = 
 export async function fetchRealizedValues(accessToken: string, targetYear: number, costCenterId: string, viewMode: 'caixa' | 'competencia' = 'competencia', tenantId: string): Promise<Record<string, number>> {
     const values: Record<string, number> = {};
 
-    // Janela balanceada (6 meses antes/depois) para capturar itens cruzados sem timeout
-    const start = `${targetYear - 1}-07-01`;
-    const end = `${targetYear + 1}-06-30`;
-
-    // 1. Fetch Receivables (Competence/Due in Window)
+    const isCaixa = viewMode === 'caixa';
+    const startStr = isCaixa ? `${targetYear}-01-01` : `${targetYear - 1}-07-01`;
+    const endStr = isCaixa ? `${targetYear}-12-31` : `${targetYear + 1}-06-30`;
+    const dateParam = isCaixa ? 'data_pagamento' : 'data_vencimento';
+    
+    // 1. Fetch Receivables
     await aggregateTransactions(
         accessToken,
-        `https://api-v2.contaazul.com/v1/financeiro/eventos-financeiros/contas-a-receber/buscar?data_vencimento_de=${start}&data_vencimento_ate=${end}&tamanho_pagina=100`,
+        `https://api-v2.contaazul.com/v1/financeiro/eventos-financeiros/contas-a-receber/buscar?${dateParam}_de=${startStr}&${dateParam}_ate=${endStr}&tamanho_pagina=100`,
         values,
         false,
         costCenterId,
@@ -308,7 +320,7 @@ export async function fetchRealizedValues(accessToken: string, targetYear: numbe
     // 2. Fetch Payables
     await aggregateTransactions(
         accessToken,
-        `https://api-v2.contaazul.com/v1/financeiro/eventos-financeiros/contas-a-pagar/buscar?data_vencimento_de=${start}&data_vencimento_ate=${end}&tamanho_pagina=100`,
+        `https://api-v2.contaazul.com/v1/financeiro/eventos-financeiros/contas-a-pagar/buscar?${dateParam}_de=${startStr}&${dateParam}_ate=${endStr}&tamanho_pagina=100`,
         values,
         true, // isExpense
         costCenterId,
@@ -424,7 +436,11 @@ async function aggregateTransactions(
 
                 const categories = item.categorias || [];
                 if (categories.length > 0) {
-                    const caCatId = categories[0].id;
+                    // Correção: Usar apenas as categorias folhas (leaves) para bater com o Cron
+                    const leafCats = categories.filter((c: any) => !categories.some((other: any) => other.parent_id === c.id));
+                    const finalCats = leafCats.length > 0 ? leafCats : [categories[0]];
+
+                    const caCatId = finalCats[0].id;
                     if (caCatId) {
                         const catId = `${tenantId}:${caCatId}`;
                         const key = `${catId}-${monthIdx}`;

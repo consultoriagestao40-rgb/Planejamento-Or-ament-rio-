@@ -138,11 +138,13 @@ export async function runCronSync(reqYear: number, targetTenantId?: string) {
         const validCostCenters = new Set((await prisma.costCenter.findMany({ where: { tenantId: t.id }, select: { id: true } })).map((c: any) => c.id));
 
         for (const viewMode of ['competencia', 'caixa'] as const) {
-            // Janela de busca otimizada (6 meses antes e depois) para capturar pagamentos/competências cruzadas sem sobrecarregar
-            const startStr = `${reqYear - 1}-07-01`;
-            const endStr = `${reqYear + 1}-06-30`;
-            const receivablesUrl = `https://api-v2.contaazul.com/v1/financeiro/eventos-financeiros/contas-a-receber/buscar?data_vencimento_de=${startStr}&data_vencimento_ate=${endStr}&tamanho_pagina=100`;
-            const payablesUrl = `https://api-v2.contaazul.com/v1/financeiro/eventos-financeiros/contas-a-pagar/buscar?data_vencimento_de=${startStr}&data_vencimento_ate=${endStr}&tamanho_pagina=100`;
+            const isCaixa = viewMode === 'caixa';
+            const startStr = isCaixa ? `${reqYear}-01-01` : `${reqYear - 1}-07-01`;
+            const endStr = isCaixa ? `${reqYear}-12-31` : `${reqYear + 1}-06-30`;
+            const dateParam = isCaixa ? 'data_pagamento' : 'data_vencimento';
+
+            const receivablesUrl = `https://api-v2.contaazul.com/v1/financeiro/eventos-financeiros/contas-a-receber/buscar?${dateParam}_de=${startStr}&${dateParam}_ate=${endStr}&tamanho_pagina=100`;
+            const payablesUrl = `https://api-v2.contaazul.com/v1/financeiro/eventos-financeiros/contas-a-pagar/buscar?${dateParam}_de=${startStr}&${dateParam}_ate=${endStr}&tamanho_pagina=100`;
 
             console.log(`[SYNC] [${t.name}] Fetching transactions for mode: ${viewMode}...`);
             const receivables = await fetchAllTransactionsForYear(token, receivablesUrl, reqYear, viewMode);

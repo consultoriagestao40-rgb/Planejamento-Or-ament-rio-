@@ -7,45 +7,37 @@ export const dynamic = 'force-dynamic';
 export async function GET() {
     try {
         const spot = await prisma.tenant.findFirst({ where: { name: { contains: 'SPOT', mode: 'insensitive' } } });
-        const clean = await prisma.tenant.findFirst({ where: { name: { contains: 'Clean', mode: 'insensitive' } } });
+        
+        if (!spot) return NextResponse.json({ success: false, error: 'SPOT not found' });
 
-        const results: any = { spot: {}, clean: {} };
+        const entries = await prisma.realizedEntry.findMany({
+            where: { tenantId: spot.id, month: 0, year: 2026, viewMode: 'competencia' },
+            include: { category: true }
+        });
 
-        if (spot) {
-            const entries = await prisma.realizedEntry.findMany({
-                where: { tenantId: spot.id, month: 0, year: 2026, viewMode: 'competencia' },
-                include: { category: true }
-            });
-            results.spot = {
-                id: spot.id,
-                total: entries.reduce((s, e) => s + e.amount, 0),
-                revenue3s: entries.filter(e => {
-                    const name = e.category.name || '';
-                    const code = (name.match(/^(\d{1,2}(?:\.\d+)*)/) || [])[1] || '';
-                    return (code.startsWith('01') || code.startsWith('1')) && code.split('.').filter(Boolean).length === 3;
-                }).map(e => ({ name: e.category.name, amount: e.amount })),
-                revenueAll: entries.filter(e => (e.category.name.startsWith('01') || e.category.name.startsWith('1'))).map(e => ({ name: e.category.name, amount: e.amount }))
-            };
-        }
+        const revenue3s = entries.filter(e => {
+            const name = e.category.name || '';
+            const code = (name.match(/^(\d{1,2}(?:\.\d+)*)/) || [])[1] || '';
+            return (code.startsWith('01') || code.startsWith('1')) && code.split('.').filter(Boolean).length === 3;
+        });
 
-        if (clean) {
-            const entries = await prisma.realizedEntry.findMany({
-                where: { tenantId: clean.id, month: 0, year: 2026, viewMode: 'competencia' },
-                include: { category: true }
-            });
-            results.clean = {
-                id: clean.id,
-                total: entries.reduce((s, e) => s + e.amount, 0),
-                revenue3s: entries.filter(e => {
-                    const name = e.category.name || '';
-                    const code = (name.match(/^(\d{1,2}(?:\.\d+)*)/) || [])[1] || '';
-                    return (code.startsWith('01') || code.startsWith('1')) && code.split('.').filter(Boolean).length === 3;
-                }).map(e => ({ name: e.category.name, amount: e.amount })),
-                revenueAll: entries.filter(e => (e.category.name.startsWith('01') || e.category.name.startsWith('1'))).map(e => ({ name: e.category.name, amount: e.amount }))
-            };
-        }
+        const breakdown = revenue3s.map(e => ({
+            id: e.id,
+            catId: e.category.id,
+            catName: e.category.name,
+            amount: e.amount
+        }));
 
-        return NextResponse.json({ success: true, results });
+        const totalCalculated = revenue3s.reduce((s, e) => s + e.amount, 0);
+
+        return NextResponse.json({ 
+            success: true, 
+            tenant: spot.name,
+            targetJan: 165527.25,
+            currentJan: totalCalculated,
+            diff: totalCalculated - 165527.25,
+            breakdown 
+        });
     } catch (e: any) {
         return NextResponse.json({ success: false, error: e.message });
     }

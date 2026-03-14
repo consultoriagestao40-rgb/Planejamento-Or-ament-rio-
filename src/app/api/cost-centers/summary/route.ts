@@ -189,6 +189,14 @@ export async function GET(request: Request) {
                 // IMPORTANT: Only count data for the PRIMARY tenant ID to avoid double counting variants
                 if (entry.tenantId !== primaryId) return;
 
+                const cat = categories.find((c: any) => c.id === entry.categoryId);
+                const codeMatch = (cat?.name || '').match(/^(\d{1,2}(?:\.\d+)*)/);
+                const code = codeMatch ? codeMatch[1] : '';
+                const codeSegments = code.split('.').filter(Boolean).length;
+                
+                // RULE: Only 3-segment codes (X.Y.Z) are data points. Others are summaries.
+                if (codeSegments !== 3) return;
+
                 const type = categoryTypeMap.get(entry.categoryId);
                 if (type === 'REVENUE') {
                     summary.totalRevenueBudget += entry.amount || 0;
@@ -209,8 +217,15 @@ export async function GET(request: Request) {
                 // IMPORTANT: Only count data for the PRIMARY tenant ID to avoid double counting variants
                 if (entry.tenantId !== primaryId) return;
 
-                const type = categoryTypeMap.get(entry.categoryId);
                 const cat = categories.find((c: any) => c.id === entry.categoryId);
+                const codeMatch = (cat?.name || '').match(/^(\d{1,2}(?:\.\d+)*)/);
+                const code = codeMatch ? codeMatch[1] : '';
+                const codeSegments = code.split('.').filter(Boolean).length;
+                
+                // RULE: Only 3-segment codes (X.Y.Z) are data points. Others are summaries.
+                if (codeSegments !== 3) return;
+
+                const type = categoryTypeMap.get(entry.categoryId);
                 const nameLower = (cat?.name || '').toLowerCase();
                 
                 // STAGE 3: EXTREMELY STRICT TAX CLASSIFICATION

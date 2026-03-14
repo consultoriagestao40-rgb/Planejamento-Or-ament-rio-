@@ -440,12 +440,7 @@ async function aggregateTransactions(
                     const leafCats = categories.filter((c: any) => !categories.some((other: any) => other.parent_id === c.id));
                     const finalCats = leafCats.length > 0 ? leafCats : [categories[0]];
 
-                    // Fetch all valid category IDs from the database to filter out non-existent ones
-                    // This is a placeholder. In a real scenario, `validCategoryIds` would be pre-fetched.
-                    const validCategoryIds = new Set<string>(); // Placeholder for actual valid category IDs
-
-                    // 2-PASS RATEIO FOR REMAINDERS:
-                    // First pass: sum explicit allocations to find the remaining balance
+                    // 1-PASS RATEIO FOR REMAINDERS:
                     let totalAllocated = 0;
                     let unallocatedCount = 0;
 
@@ -462,25 +457,20 @@ async function aggregateTransactions(
                         } else {
                             unallocatedCount++;
                         }
-
                         return { ...cc, explicitAmount };
                     });
 
                     const remainingAmount = Math.max(0, amount - totalAllocated);
-                    const fallbackPerCc = unallocatedCount > 0 ? (remainingAmount / unallocatedCount) : 0;
+                    const fallbackPerCc = unallocatedCount > 0 ? (remainingAmount / unallocatedCount) : (amount / (ccs.length || 1));
 
                     for (const cat of finalCats) {
                         const catId = `${tenantId}:${cat.id}`;
-                        // if (!validCategoryIds.has(catId)) continue; // Uncomment if validCategoryIds is populated
-
-                        // Determine the category's proportional value
-                        // If the category has an explicit 'valor', use it. Otherwise, distribute the remaining amount equally.
                         const catValue = typeof cat.valor === 'number' ? Math.abs(cat.valor) : (amount / finalCats.length);
 
                         const key = `${catId}-${monthIdx}`;
                         
                         if (isMultiSelect) {
-                            // Sum the exact values for the target CCs
+                            // Sum allocated values for the target CCs
                             let sumMatchingCCs = 0;
                             processedCcs.forEach((c: any) => {
                                 const compositeCcId = `${tenantId}:${c.id}`;
@@ -488,13 +478,13 @@ async function aggregateTransactions(
                                     sumMatchingCCs += c.explicitAmount !== null ? c.explicitAmount : fallbackPerCc;
                                 }
                             });
-                            targetValues[key] = (targetValues[key] || 0) + sumMatchingCCs;
+                            // If calculating percentage-based catValue, we should probably scale sumMatchingCCs
+                            // but usually CA doesn't split categories and CCs orthogonally in complex ways that we need to perfectly replicate here if it's already divided.
+                            targetValues[key] = (targetValues[key] || 0) + (sumMatchingCCs * (catValue / amount));
                         } else {
-                            // Original Single-Select Logic
                             if (!isFiltered || ccs.length === 1) {
-                                targetValues[key] = (targetValues[key] || 0) + amount;
+                                targetValues[key] = (targetValues[key] || 0) + catValue;
                             } else {
-                                // Find exactly how much CA allocated to this specific CC
                                 let specificAmount = 0;
                                 const targetC = processedCcs.find((c: any) => {
                                     const compositeCcId = `${tenantId}:${c.id}`;
@@ -506,8 +496,7 @@ async function aggregateTransactions(
                                 } else {
                                     specificAmount = fallbackPerCc; 
                                 }
-                                
-                                targetValues[key] = (targetValues[key] || 0) + specificAmount;
+                                targetValues[key] = (targetValues[key] || 0) + (specificAmount * (catValue / amount));
                             }
                         }
                     }

@@ -9,6 +9,11 @@ interface SummaryItem {
     tenantName: string;
     costCenterId: string;
     costCenterName: string;
+    totalRevenueBudget: number;
+    totalRevenueRealized: number;
+    totalExpenseBudget: number;
+    totalExpenseRealized: number;
+    totalTaxesRealized: number;
     totalRevenue: number;
     totalExpense: number;
     hasBudgetData: boolean;
@@ -29,8 +34,10 @@ interface SummaryItem {
 interface TenantGroup {
     tenantId: string;
     tenantName: string;
-    totalRevenue: number;
-    totalExpense: number;
+    totalRevenueBudget: number;
+    totalRevenueRealized: number;
+    totalExpenseBudget: number;
+    totalExpenseRealized: number;
     hasBudget: boolean;
     finishedCount: number;
     totalCount: number;
@@ -89,8 +96,10 @@ export default function BudgetSummaryPage() {
                 groups.set(item.tenantId, {
                     tenantId: item.tenantId,
                     tenantName: item.tenantName,
-                    totalRevenue: 0,
-                    totalExpense: 0,
+                    totalRevenueBudget: 0,
+                    totalRevenueRealized: 0,
+                    totalExpenseBudget: 0,
+                    totalExpenseRealized: 0,
                     hasBudget: false,
                     finishedCount: 0,
                     totalCount: 0,
@@ -99,8 +108,10 @@ export default function BudgetSummaryPage() {
                 });
             }
             const group = groups.get(item.tenantId)!;
-            group.totalRevenue += item.totalRevenue;
-            group.totalExpense += item.totalExpense;
+            group.totalRevenueBudget += item.totalRevenueBudget;
+            group.totalRevenueRealized += item.totalRevenueRealized;
+            group.totalExpenseBudget += item.totalExpenseBudget;
+            group.totalExpenseRealized += item.totalExpenseRealized;
             group.totalCount++;
             if (item.hasBudgetData) group.finishedCount++;
             group.taxRate = item.taxRate;
@@ -254,14 +265,18 @@ export default function BudgetSummaryPage() {
         const withoutBudget = totalCCs - withBudget;
 
 
-        const totalRevenueBudgeted = data.reduce((acc, curr) => acc + curr.totalRevenue, 0);
-        const totalExpenseBudgeted = data.reduce((acc, curr) => acc + curr.totalExpense, 0);
-        const resultValue = totalRevenueBudgeted - totalExpenseBudgeted;
-        const resultPercent = totalRevenueBudgeted !== 0 ? (resultValue / totalRevenueBudgeted) * 100 : 0;
+        const totalRevenueBudgeted = data.reduce((acc, curr) => acc + curr.totalRevenueBudget, 0);
+        const totalRevenueRealized = data.reduce((acc, curr) => acc + curr.totalRevenueRealized, 0);
+        const totalExpenseBudgeted = data.reduce((acc, curr) => acc + curr.totalExpenseBudget, 0);
+        const totalExpenseRealized = data.reduce((acc, curr) => acc + curr.totalExpenseRealized, 0);
+        
+        const resultValue = totalRevenueRealized - totalExpenseRealized;
+        const resultPercent = totalRevenueRealized !== 0 ? (resultValue / totalRevenueRealized) * 100 : 0;
 
         return {
             totalCCs, withBudget, withoutBudget,
-            totalRevenueBudgeted, totalExpenseBudgeted,
+            totalRevenueBudgeted, totalRevenueRealized,
+            totalExpenseBudgeted, totalExpenseRealized,
             resultValue, resultPercent
         };
     }, [data]);
@@ -374,12 +389,12 @@ export default function BudgetSummaryPage() {
                 {/* KPI Section - Row 2: Financials */}
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '1.5rem', marginBottom: '3rem' }}>
                     <div className="stat-card" style={{ background: 'rgba(16, 185, 129, 0.05)', borderColor: 'rgba(16, 185, 129, 0.2)' }}>
-                        <p className="stat-label" style={{ color: 'var(--accent-green)' }}>1. Receita Orçada</p>
-                        <p className="stat-value" style={{ color: 'var(--accent-green)' }}>{formatCurrency(stats.totalRevenueBudgeted)}</p>
+                        <p className="stat-label" style={{ color: 'var(--accent-green)' }}>1. Receita Conta Azul</p>
+                        <p className="stat-value" style={{ color: 'var(--accent-green)' }}>{formatCurrency(stats.totalRevenueRealized)}</p>
                     </div>
                     <div className="stat-card" style={{ background: 'rgba(239, 68, 68, 0.05)', borderColor: 'rgba(239, 68, 68, 0.2)' }}>
-                        <p className="stat-label" style={{ color: 'var(--accent-red)' }}>2. Despesa Orçada</p>
-                        <p className="stat-value" style={{ color: 'var(--accent-red)' }}>{formatCurrency(stats.totalExpenseBudgeted)}</p>
+                        <p className="stat-label" style={{ color: 'var(--accent-red)' }}>2. Despesa Conta Azul</p>
+                        <p className="stat-value" style={{ color: 'var(--accent-red)' }}>{formatCurrency(stats.totalExpenseRealized)}</p>
                     </div>
                     <div className="stat-card" style={{ borderLeft: '4px solid var(--accent-blue)' }}>
                         <p className="stat-label">3. Resultado</p>
@@ -422,8 +437,8 @@ export default function BudgetSummaryPage() {
                             <thead>
                                 <tr>
                                     <th style={{ ...th, textAlign: 'left', width: '400px' }}>Organização / Centro de Custo</th>
-                                    <th style={{ ...th, textAlign: 'right' }}>Receita Anual</th>
-                                    <th style={{ ...th, textAlign: 'right' }}>Despesa Anual</th>
+                                    <th style={{ ...th, textAlign: 'right' }}>Receita (Conta Azul)</th>
+                                    <th style={{ ...th, textAlign: 'right' }}>Despesa (Conta Azul)</th>
                                     <th style={{ ...th, textAlign: 'center' }}>Progresso</th>
                                     <th style={{ ...th, textAlign: 'center', width: '80px' }} title="Trancar/Destrancar Orçamento">🔒 Cadeado</th>
                                     <th style={{ ...th, textAlign: 'center', width: '160px' }}>Configuração / Status</th>
@@ -457,11 +472,11 @@ export default function BudgetSummaryPage() {
                                                     }}>▶</span>
                                                     {group.tenantName}
                                                 </td>
-                                                <td style={{ ...td, textAlign: 'right', fontWeight: 800, color: group.totalRevenue > 0 ? 'var(--accent-green)' : 'var(--text-primary)' }}>
-                                                    {formatCurrency(group.totalRevenue)}
+                                                <td style={{ ...td, textAlign: 'right', fontWeight: 800, color: group.totalRevenueRealized > 0 ? 'var(--accent-green)' : 'var(--text-primary)' }}>
+                                                    {formatCurrency(group.totalRevenueRealized)}
                                                 </td>
-                                                <td style={{ ...td, textAlign: 'right', fontWeight: 800, color: group.totalExpense > 0 ? 'var(--accent-red)' : 'var(--text-primary)' }}>
-                                                    {formatCurrency(group.totalExpense)}
+                                                <td style={{ ...td, textAlign: 'right', fontWeight: 800, color: group.totalExpenseRealized > 0 ? 'var(--accent-red)' : 'var(--text-primary)' }}>
+                                                    {formatCurrency(group.totalExpenseRealized)}
                                                 </td>
                                                 <td style={{ ...td, textAlign: 'center' }}>
                                                     <span style={{
@@ -547,11 +562,11 @@ export default function BudgetSummaryPage() {
                                                             </Link>
                                                         </div>
                                                     </td>
-                                                    <td style={{ ...td, textAlign: 'right', color: cc.totalRevenue > 0 ? 'var(--accent-green)' : 'var(--text-muted)', fontWeight: 600 }}>
-                                                        {formatCurrency(cc.totalRevenue)}
+                                                    <td style={{ ...td, textAlign: 'right', color: cc.totalRevenueRealized > 0 ? 'var(--accent-green)' : 'var(--text-muted)', fontWeight: 600 }}>
+                                                        {formatCurrency(cc.totalRevenueRealized)}
                                                     </td>
-                                                    <td style={{ ...td, textAlign: 'right', color: cc.totalExpense > 0 ? 'var(--accent-red)' : 'var(--text-muted)', fontWeight: 600 }}>
-                                                        {formatCurrency(cc.totalExpense)}
+                                                    <td style={{ ...td, textAlign: 'right', color: cc.totalExpenseRealized > 0 ? 'var(--accent-red)' : 'var(--text-muted)', fontWeight: 600 }}>
+                                                        {formatCurrency(cc.totalExpenseRealized)}
                                                     </td>
                                                     <td style={{ ...td, textAlign: 'center' }}>
                                                         {cc.hasBudgetData ? (
@@ -679,17 +694,23 @@ export default function BudgetSummaryPage() {
 
                             <div style={{ background: '#f8fafc', padding: '1.25rem', borderRadius: '8px', border: '1px solid #e2e8f0', marginBottom: '1.5rem', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
                                 <div>
-                                    <div style={{ fontSize: '0.75rem', color: '#64748b', fontWeight: 600 }}>Receita Planejada</div>
-                                    <div style={{ fontSize: '1rem', color: '#059669', fontWeight: 800 }}>{formatCurrency(selectedForAudit.totalRevenue)}</div>
+                                    <div style={{ fontSize: '0.75rem', color: '#64748b', fontWeight: 600 }}>Receita (Conta Azul)</div>
+                                    <div style={{ fontSize: '1rem', color: '#059669', fontWeight: 800 }}>{formatCurrency(selectedForAudit.totalRevenueRealized)}</div>
+                                    <div style={{ fontSize: '0.65rem', color: '#94a3b8' }}>Orçado: {formatCurrency(selectedForAudit.totalRevenueBudget)}</div>
                                 </div>
                                 <div>
-                                    <div style={{ fontSize: '0.75rem', color: '#64748b', fontWeight: 600 }}>Despesa Planejada</div>
-                                    <div style={{ fontSize: '1rem', color: '#be123c', fontWeight: 800 }}>{formatCurrency(selectedForAudit.totalExpense)}</div>
+                                    <div style={{ fontSize: '0.75rem', color: '#64748b', fontWeight: 600 }}>Despesa (Conta Azul)</div>
+                                    <div style={{ fontSize: '1rem', color: '#be123c', fontWeight: 800 }}>{formatCurrency(selectedForAudit.totalExpenseRealized)}</div>
+                                    <div style={{ fontSize: '0.65rem', color: '#94a3b8' }}>Orçado: {formatCurrency(selectedForAudit.totalExpenseBudget)}</div>
+                                </div>
+                                <div>
+                                    <div style={{ fontSize: '0.75rem', color: '#64748b', fontWeight: 600 }}>Tributos Detalhados</div>
+                                    <div style={{ fontSize: '1rem', color: '#f59e0b', fontWeight: 800 }}>{formatCurrency(selectedForAudit.totalTaxesRealized)}</div>
                                 </div>
                                 <div style={{ gridColumn: '1 / -1', borderTop: '1px dashed #cbd5e1', paddingTop: '1rem', marginTop: '0.5rem', display: 'flex', justifyContent: 'space-between' }}>
                                     <div>
-                                        <div style={{ fontSize: '0.75rem', color: '#64748b', fontWeight: 600 }}>Resultado Projetado</div>
-                                        <div style={{ fontSize: '1.25rem', color: '#0f172a', fontWeight: 900 }}>{formatCurrency(selectedForAudit.totalRevenue - selectedForAudit.totalExpense)}</div>
+                                        <div style={{ fontSize: '0.75rem', color: '#64748b', fontWeight: 600 }}>Resultado Realizado</div>
+                                        <div style={{ fontSize: '1.25rem', color: '#0f172a', fontWeight: 900 }}>{formatCurrency(selectedForAudit.totalRevenueRealized - selectedForAudit.totalExpenseRealized)}</div>
                                     </div>
                                     <div style={{ textAlign: 'right' }}>
                                         <div style={{ fontSize: '0.75rem', color: '#64748b', fontWeight: 600 }}>Status Bloqueio</div>

@@ -159,6 +159,11 @@ export async function GET(request: Request) {
                 costCenterName: cc.name,
                 taxRate: tenant.taxRate || 0,
                 costCenterId: cc.id,
+                totalRevenueBudget: 0,
+                totalRevenueRealized: 0,
+                totalExpenseBudget: 0,
+                totalExpenseRealized: 0,
+                totalTaxesRealized: 0,
                 totalRevenue: 0,
                 totalExpense: 0,
                 hasBudgetData: false,
@@ -176,14 +181,13 @@ export async function GET(request: Request) {
             const summary = summaryMap.get(key);
 
             if (summary) {
-                // Ensure we are comparing with primary tenant for safety
                 if (summary.tenantId !== primaryId) return;
 
                 const type = categoryTypeMap.get(entry.categoryId);
                 if (type === 'REVENUE') {
-                    summary.totalRevenue += entry.amount || 0;
+                    summary.totalRevenueBudget += entry.amount || 0;
                 } else {
-                    summary.totalExpense += entry.amount || 0;
+                    summary.totalExpenseBudget += entry.amount || 0;
                 }
                 if (entry.amount && entry.amount !== 0) summary.hasBudgetData = true;
             }
@@ -200,12 +204,24 @@ export async function GET(request: Request) {
                 if (summary.tenantId !== primaryId) return;
 
                 const type = categoryTypeMap.get(entry.categoryId);
+                const cat = categories.find((c: any) => c.id === entry.categoryId);
+                const nameLower = (cat?.name || '').toLowerCase();
+                const isTax = cat?.entradaDre === '02. DEDUÇÕES DA RECEITA BRUTA' || 
+                              nameLower.includes('imposto') || 
+                              nameLower.includes('tributo') || 
+                              nameLower.includes('das ') || 
+                              nameLower.includes(' iss ');
+
                 if (type === 'REVENUE') {
-                    summary.totalRevenueRealized = (summary.totalRevenueRealized || 0) + (entry.amount || 0);
+                    summary.totalRevenueRealized += (entry.amount || 0);
                 } else {
-                    summary.totalExpenseRealized = (summary.totalExpenseRealized || 0) + (entry.amount || 0);
+                    summary.totalExpenseRealized += (entry.amount || 0);
                 }
                 
+                if (isTax) {
+                    summary.totalTaxesRealized += (entry.amount || 0);
+                }
+
                 if (entry.amount !== 0) {
                     summary.hasRealizedData = true;
                 }
@@ -213,7 +229,6 @@ export async function GET(request: Request) {
         });
 
         // 5. Finalize totals (Decide if showing Budget or Realized in the main column)
-        // Given user request, we will prioritize Realized values for the consolidation view
         for (const summary of summaryMap.values()) {
             summary.totalRevenue = summary.totalRevenueRealized || 0;
             summary.totalExpense = summary.totalExpenseRealized || 0;

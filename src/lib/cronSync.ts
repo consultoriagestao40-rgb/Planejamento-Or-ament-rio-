@@ -122,11 +122,24 @@ export async function runCronSync(reqYear: number, targetTenantId?: string) {
     const report = [];
 
     for (const t of tenants) {
-        let token: string;
+        let token: string = '';
         try {
             console.log(`[SYNC] [${t.name}] Starting sync for year ${reqYear}...`);
-            const res = await getValidAccessToken(t.id);
-            token = res.token;
+            // Se o ID original não tiver token, tenta as variantes
+            const variants = await getAllVariantIds(t.id);
+            let success = false;
+            for (const vId of variants) {
+                try {
+                    const res = await getValidAccessToken(vId);
+                    token = res.token;
+                    success = true;
+                    console.log(`[SYNC] [${t.name}] Token obtained from variant ID: ${vId}`);
+                    break;
+                } catch (err) {}
+            }
+            if (!success) {
+                throw new Error("Nenhum token válido encontrado para nenhuma variante desta empresa.");
+            }
         } catch (e: any) {
             report.push({ tenant: t.name, status: `Token Error: ${e.message}` });
             continue;

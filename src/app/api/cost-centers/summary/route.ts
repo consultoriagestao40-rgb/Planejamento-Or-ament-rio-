@@ -99,7 +99,7 @@ export async function GET(request: Request) {
                         ]
                     }
                 },
-                select: { id: true, type: true, name: true } 
+                select: { id: true, type: true, name: true, entradaDre: true } 
             }),
             prisma.budgetEntry.findMany({
                 where: { year: currentYear },
@@ -117,27 +117,44 @@ export async function GET(request: Request) {
         const categoryTypeMap = new Map(categories.map((c: any) => {
             const nameLower = (c.name || '').toLowerCase();
             const isRevenue = c.type === 'REVENUE' || 
-                             c.name.startsWith('01') || 
-                             c.name.startsWith('1.') || 
+                             (c.name || '').startsWith('01') || 
+                             (c.name || '').startsWith('1.') || 
                              nameLower.includes('receita') || 
                              nameLower.includes('faturamento') || 
-                             nameLower.includes('vendas');
+                             nameLower.includes('vendas') ||
+                             c.entradaDre === '01. RECEITA BRUTA';
             return [c.id, isRevenue ? 'REVENUE' : 'EXPENSE'];
         }));
+
+        // 2. Mapeamento de Entidades (Deduplicação)
+        const tenantToPrimaryMap = new Map<string, string>();
+        const seenKeys = new Set<string>();
+        const deduplicatedTenantsMap = new Map<string, any>();
+
+        tenants.forEach((t: any) => {
+            const key = (t.name || '').trim().toUpperCase().replace(/[^A-Z0-9]/g, '');
+            if (!seenKeys.has(key)) {
+                seenKeys.add(key);
+                deduplicatedTenantsMap.set(key, t);
+            }
+            const primary = deduplicatedTenantsMap.get(key);
+            tenantToPrimaryMap.set(t.id, primary.id);
+        });
 
         // 3. Inicializar extrutura de resumo
         const summaryMap = new Map();
 
-        // Garantir que todos os Centros de Custo apareçam, mesmo sem orçamento
+        // Garantir que todos os Centros de Custo apareçam
         costCenters.forEach((cc: any) => {
-            const tenant = tenants.find((t: any) => t.id === cc.tenantId);
+            const primaryTenantId = tenantToPrimaryMap.get(cc.tenantId);
+            const tenant = tenants.find((t: any) => t.id === primaryTenantId);
             if (!tenant) return;
 
             const key = cc.id;
             const lock = locks.find((l: any) => l.costCenterId === cc.id);
 
             summaryMap.set(key, {
-                tenantId: cc.tenantId,
+                tenantId: primaryTenantId,
                 tenantName: tenant.name,
                 costCenterName: cc.name,
                 taxRate: tenant.taxRate || 0,
@@ -148,20 +165,20 @@ export async function GET(request: Request) {
                 hasRealizedData: false,
                 isLocked: lock?.isLocked || false,
                 status: lock?.status || 'PENDING',
-                n1ApprovedBy: lock?.n1ApprovedBy || null,
-                n1ApprovedAt: lock?.n1ApprovedAt ? new Date(lock.n1ApprovedAt).toISOString() : null,
-                n2ApprovedBy: lock?.n2ApprovedBy || null,
-                n2ApprovedAt: lock?.n2ApprovedAt ? new Date(lock.n2ApprovedAt).toISOString() : null,
                 currentUserAccessLevel: user.role === 'MASTER' ? 'MASTER' : (costCenterAccessMap[cc.id] || 'NONE')
             });
         });
 
         // 4. Agregar valores do orçamento
         budgetEntries.forEach((entry: any) => {
+            const primaryId = tenantToPrimaryMap.get(entry.tenantId);
             const key = entry.costCenterId; 
             const summary = summaryMap.get(key);
 
             if (summary) {
+                // Ensure we are comparing with primary tenant for safety
+                if (summary.tenantId !== primaryId) return;
+
                 const type = categoryTypeMap.get(entry.categoryId);
                 if (type === 'REVENUE') {
                     summary.totalRevenue += entry.amount || 0;
@@ -172,14 +189,35 @@ export async function GET(request: Request) {
             }
         });
 
-        // 4.1 Agregar movimentação Realizada (DRE Ativo)
+        // 4.1 Agregar movimentação Realizada (DRE Realizado)
         realizedEntries.forEach((entry: any) => {
+            const primaryId = tenantToPrimaryMap.get(entry.tenantId);
             const key = entry.costCenterId;
             const summary = summaryMap.get(key);
-            if (summary && entry.amount !== 0) {
-                summary.hasRealizedData = true;
+            
+            if (summary) {
+                // Ensure we are comparing with primary tenant
+                if (summary.tenantId !== primaryId) return;
+
+                const type = categoryTypeMap.get(entry.categoryId);
+                if (type === 'REVENUE') {
+                    summary.totalRevenueRealized = (summary.totalRevenueRealized || 0) + (entry.amount || 0);
+                } else {
+                    summary.totalExpenseRealized = (summary.totalExpenseRealized || 0) + (entry.amount || 0);
+                }
+                
+                if (entry.amount !== 0) {
+                    summary.hasRealizedData = true;
+                }
             }
         });
+
+        // 5. Finalize totals (Decide if showing Budget or Realized in the main column)
+        // Given user request, we will prioritize Realized values for the consolidation view
+        for (const summary of summaryMap.values()) {
+            summary.totalRevenue = summary.totalRevenueRealized || 0;
+            summary.totalExpense = summary.totalExpenseRealized || 0;
+        }
 
         const result = Array.from(summaryMap.values())
             .filter(item => item.hasRealizedData || item.hasBudgetData)

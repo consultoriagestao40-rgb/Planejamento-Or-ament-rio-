@@ -1,5 +1,6 @@
 import { prisma } from '@/lib/prisma';
 import { getValidAccessToken } from '@/lib/services';
+import { getPrimaryTenantId, getAllVariantIds } from '@/lib/tenant-utils';
 
 async function fetchAllTransactionsForYear(accessToken: string, baseUrl: string, targetYear: number, viewMode: 'caixa' | 'competencia') {
     let page = 1;
@@ -130,12 +131,15 @@ export async function runCronSync(reqYear: number, targetTenantId?: string) {
             report.push({ tenant: t.name, status: `Token Error: ${e.message}` });
             continue;
         }
-        report.push({ tenant: t.name, status: `In Progress` });
+        // UNIFICAÇÃO: Usar o ID do Tenant Primário para escrita para evitar que duplicatas fiquem "zeradas"
+        const primaryId = await getPrimaryTenantId(t);
+        const allEntityIds = await getAllVariantIds(t.id);
+        
+        console.log(`[SYNC] [${t.name}] Primary ID: ${primaryId} | Variants to clean: ${allEntityIds.length}`);
 
-
-        // Fetch valid IDs to prevent Foreign Key Constraint errors from deleted items on Conta Azul
-        const validCategories = new Set((await prisma.category.findMany({ where: { tenantId: t.id }, select: { id: true } })).map((c: any) => c.id));
-        const validCostCenters = new Set((await prisma.costCenter.findMany({ where: { tenantId: t.id }, select: { id: true } })).map((c: any) => c.id));
+        // Fetch valid IDs using the PRIMARY tenant context
+        const validCategories = new Set((await prisma.category.findMany({ where: { tenantId: primaryId }, select: { id: true } })).map((c: any) => c.id));
+        const validCostCenters = new Set((await prisma.costCenter.findMany({ where: { tenantId: primaryId }, select: { id: true } })).map((c: any) => c.id));
 
         for (const viewMode of ['competencia', 'caixa'] as const) {
             const isCaixa = viewMode === 'caixa';
@@ -173,8 +177,9 @@ export async function runCronSync(reqYear: number, targetTenantId?: string) {
                 // to avoid double counting parent totals.
                 const catIds = new Set(txn.categories.map((c: any) => c.id));
                 const leaves = txn.categories.filter((c: any) => {
-                    // If this category is a parent of ANY other category in this same transaction, it's not a leaf.
-                    return !txn.categories.some((other: any) => other.parentId === c.id);
+                    // Property is parent_id in Conta Azul API V2
+                    const cid = c.id;
+                    return !txn.categories.some((other: any) => other.parent_id === cid || other.parentId === cid);
                 });
 
                 if (leaves.length === 0 && txn.categories.length > 0) {
@@ -186,7 +191,7 @@ export async function runCronSync(reqYear: number, targetTenantId?: string) {
                 const catEntries = leaves.map((c: any) => {
                     const val = typeof c.valor === 'number' ? Math.abs(c.valor) : (totalAmount / leaves.length);
                     totalCatAllocated += val;
-                    return { id: `${t.id}:${c.id}`, amount: val }; // ID Composto
+                    return { id: `${primaryId}:${c.id}`, amount: val }; // Use PRIMARY IDs
                 });
 
                 // 2. SPLIT BY COST CENTER PER CATEGORY
@@ -216,7 +221,7 @@ export async function runCronSync(reqYear: number, targetTenantId?: string) {
                             } else {
                                 unallocatedCount++;
                             }
-                            return { id: `${t.id}:${cc.id}`, amount: explicitAmount }; // ID Composto
+                            return { id: `${primaryId}:${cc.id}`, amount: explicitAmount }; // Use PRIMARY IDs
                         });
 
                         const remainingCcAmount = Math.max(0, catAmount - totalCcAllocated);
@@ -253,7 +258,7 @@ export async function runCronSync(reqYear: number, targetTenantId?: string) {
                 if (costCenterId !== 'NONE' && !validCostCenters.has(costCenterId)) continue;
 
                 createData.push({
-                    tenantId: t.id,
+                    tenantId: primaryId, // Force data into the primary record
                     categoryId,
                     costCenterId: costCenterId === 'NONE' ? null : costCenterId,
                     month: parseInt(monthStr, 10),

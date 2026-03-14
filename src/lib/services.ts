@@ -157,7 +157,7 @@ export async function syncData(costCenterId: string = 'DEFAULT', year: number = 
                 costCentersSuccess: 0,
                 costCentersFailed: 0,
                 lastError: fetchError,
-                rawApiError: (global as any).lastApiError || 'none recorded'
+                rawApiError: (globalThis as any).lastApiError || 'none recorded'
             };
 
 
@@ -285,8 +285,7 @@ export async function syncData(costCenterId: string = 'DEFAULT', year: number = 
 export async function fetchRealizedValues(accessToken: string, targetYear: number, costCenterId: string, viewMode: 'caixa' | 'competencia' = 'competencia'): Promise<Record<string, number>> {
     const values: Record<string, number> = {};
 
-    // V47.9.10: Use targetYear passed from Frontend
-    // Still use a buffer window to catch items with Competence in TargetYear but Due/Paid around it.
+    // Janela ampliada para 12 meses antes/depois para capturar itens com pagamento/competência cruzada
     const start = `${targetYear - 1}-01-01`;
     const end = `${targetYear + 1}-12-31`;
 
@@ -357,13 +356,22 @@ async function aggregateTransactions(
             for (const item of items) {
                 let amount: number;
                 let dateStr: string;
+
                 if (viewMode === 'caixa') {
-                    amount = item.valor || item.valor_original || item.valor_liquido || item.total || 0;
-                    dateStr = item.data_vencimento || item.vencimento || item.data_competencia || item.data_pagamento;
+                    // Regime de Caixa: Priorizar data de pagamento real
+                    dateStr = item.data_pagamento || item.baixado_em || item.data_vencimento || item.vencimento;
+                    
+                    // Apenas considerar se estiver pago (BAIXADO ou valor pago > 0)
+                    const isPaid = (item.status || '').toUpperCase() === 'BAIXADO' || (item.pago && item.pago > 0);
+                    if (!isPaid) continue;
+
+                    amount = item.pago || item.total || item.valor || 0;
                 } else {
-                    amount = item.total || item.valor_original || item.valor || item.valor_liquido || 0;
-                    dateStr = item.data_competencia || item.data_vencimento || item.vencimento || item.data_pagamento;
+                    // Regime de Competência: Priorizar data de competência
+                    amount = item.total || item.valor_original || item.valor || 0;
+                    dateStr = item.data_competencia || item.data_vencimento || item.vencimento;
                 }
+
                 let dateObj = dateStr ? new Date(dateStr) : new Date();
                 const monthIdx = dateObj.getMonth();
                 const year = dateObj.getFullYear();
@@ -505,7 +513,7 @@ async function fetchCategories(accessToken: string) {
                 }
             } else {
                 hasMore = false;
-                (global as any).lastApiError = `Categories Page ${page} failed: ${res.status}`;
+                (globalThis as any).lastApiError = `Categories Page ${page} failed: ${res.status}`;
             }
         } catch (e) {
             hasMore = false;
@@ -514,7 +522,7 @@ async function fetchCategories(accessToken: string) {
     }
 
     if (allItems.length > 0) {
-        (global as any).lastCategoriesRaw = JSON.stringify(allItems).substring(0, 1000);
+        (globalThis as any).lastCategoriesRaw = JSON.stringify(allItems).substring(0, 1000);
     }
     return allItems;
 }
@@ -536,7 +544,7 @@ async function fetchCostCenters(accessToken: string) {
 
                     // DEBUG: Capture the first item to understand the status structure
                     if (page === 1) {
-                        (global as any).lastApiError = `DEBUG CC[0]: ${JSON.stringify(items[0]).substring(0, 500)}`;
+                        (globalThis as any).lastApiError = `DEBUG CC[0]: ${JSON.stringify(items[0]).substring(0, 500)}`;
                     }
 
                     // Filter for active CCs only. Conta Azul uses status='ATIVO' or 'INATIVO', or booleans 'ativo'/'inativo'
@@ -563,7 +571,7 @@ async function fetchCostCenters(accessToken: string) {
     }
 
     if (allItems.length > 0) {
-        (global as any).lastCostCentersRaw = JSON.stringify(allItems).substring(0, 1000);
+        (globalThis as any).lastCostCentersRaw = JSON.stringify(allItems).substring(0, 1000);
     }
     return allItems;
 }

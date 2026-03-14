@@ -189,12 +189,21 @@ export async function runCronSync(reqYear: number, targetTenantId?: string) {
                 // 1. SPLIT BY CATEGORY
                 // Conta Azul V2 returns the full chain. We MUST only take the leaf categories 
                 // to avoid double counting parent totals.
-                const catIds = new Set(txn.categories.map((c: any) => c.id));
                 const leaves = txn.categories.filter((c: any) => {
-                    // Property is parent_id in Conta Azul API V2
                     const cid = c.id;
-                    return !txn.categories.some((other: any) => other.parent_id === cid || other.parentId === cid);
+                    const hasChild = txn.categories.some((other: any) => 
+                        (other.parent_id === cid) || 
+                        (other.parentId === cid) || 
+                        (other.category_parent_id === cid)
+                    );
+                    return !hasChild;
                 });
+
+                // DETAILED LOG FOR SPOT JAN 2026 (Competencia)
+                if (t.name.includes('SPOT') && txn.month === 0 && !isCaixa) {
+                    console.log(`[SPOT-AUDIT-JAN] Txn: ${txn.id} | Amount: ${txn.amount} | Description: ${txn.description || 'N/A'}`);
+                    leaves.forEach((l: any) => console.log(`  -> Leaf: ${l.name} (${l.id}) | Val: ${l.valor}`));
+                }
 
                 if (leaves.length === 0 && txn.categories.length > 0) {
                     // Fallback to the first one if we can't find a leaf (shouldn't happen with CA data)

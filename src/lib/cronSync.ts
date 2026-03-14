@@ -62,11 +62,12 @@ async function fetchAllTransactionsForYear(accessToken: string, baseUrl: string,
                     // A API V2 as vezes retorna data_pagamento na parcela ou no evento após a baixa.
                     dateStr = item.data_pagamento || item.baixado_em || item.data_vencimento || item.vencimento;
                     
-                    // Apenas considerar se estiver pago
-                    const isPaid = (item.status || '').toUpperCase() === 'BAIXADO' || (item.pago && item.pago > 0);
+                    // Consider paid if it has a payment amount or a positive paid value
+                    const status = (item.status || '').toUpperCase();
+                    const isPaid = status === 'BAIXADO' || status === 'RECEBIDO' || status === 'PAGO' || status === 'QUITADO' || (item.pago && item.pago > 0) || (item.valor_pago && item.valor_pago > 0);
                     if (!isPaid) continue;
                     
-                    amount = item.pago || item.total || item.valor || 0;
+                    amount = item.pago || item.valor_pago || item.total || item.valor || 0;
                 } else {
                     // Regime de Competência: Priorizar data de competência
                     dateStr = item.data_competencia || item.data_vencimento || item.vencimento;

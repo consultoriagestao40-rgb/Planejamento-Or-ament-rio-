@@ -10,28 +10,29 @@ export async function GET(request: Request) {
         const year = parseInt(searchParams.get('year') || new Date().getFullYear().toString(), 10);
         const viewMode = (searchParams.get('viewMode') || 'competencia') as 'caixa' | 'competencia';
         const tenantIdParam = searchParams.get('tenantId') || 'ALL';
-        const tenantIds = tenantIdParam !== 'ALL' ? tenantIdParam.split(',').map(t => t.trim()).filter(Boolean) : [];
+        const inputIds = tenantIdParam !== 'ALL' ? tenantIdParam.split(',').map(t => t.trim()).filter(Boolean) : [];
 
         // Deduplicate using unified logic
         const allTenants = await prisma.tenant.findMany({ orderBy: { updatedAt: 'desc' } });
         
         let targetTenantIds: string[] = [];
         if (tenantIdParam === 'ALL') {
-             // Use variant logic to find all IDs
-             targetTenantIds = allTenants.map(t => t.id);
+             targetTenantIds = allTenants.map((t: any) => t.id);
         } else {
             // Support searching by any ID but returning variants of it
             const inputIds = tenantIdParam.split(',').map(t => t.trim()).filter(Boolean);
             for (const id of inputIds) {
-                const t = allTenants.find(ten => ten.id === id);
+                const t = allTenants.find((ten: any) => ten.id === id);
                 if (t) {
                     const cleanName = (t.name || '').trim().toUpperCase().replace(/[^A-Z0-9]/g, '');
                     const cleanCnpj = (t.cnpj || '').replace(/\D/g, '');
                     
-                    allTenants.forEach(ten => {
+                    allTenants.forEach((ten: any) => {
                         const kn = (ten.name || '').trim().toUpperCase().replace(/[^A-Z0-9]/g, '');
                         const kc = (ten.cnpj || '').replace(/\D/g, '');
-                        if (kn === cleanName && (kc === cleanCnpj || !kc || !cleanCnpj)) {
+                        // Stricter matching: CNPJ must match if both present, or name must match exactly.
+                        const cnpjMatch = (cleanCnpj && kc) ? (cleanCnpj === kc) : true;
+                        if (kn === cleanName && cnpjMatch) {
                             if (!targetTenantIds.includes(ten.id)) targetTenantIds.push(ten.id);
                         }
                     });
@@ -50,6 +51,13 @@ export async function GET(request: Request) {
             }
         });
 
+        const categories = await prisma.category.findMany({
+            where: { tenantId: { in: targetTenantIds } },
+            select: { id: true, name: true }
+        });
+
+        const categoryMap = new Map<string, string>(categories.map((c: any) => [c.id, c.name]));
+
         const aggregatedValues: Record<string, number> = {};
 
         for (const entry of entries) {
@@ -60,8 +68,16 @@ export async function GET(request: Request) {
                 }
             }
 
+            // RULE: Only 3-segment codes (X.Y.Z) are data points.
+            const catName = categoryMap.get(entry.categoryId) || '';
+            const codeMatch = catName.match(/^(\d{1,2}(?:\.\d+)*)/);
+            const code = codeMatch ? codeMatch[1] : '';
+            const codeSegments = code.split('.').filter(Boolean).length;
+            
+            if (codeSegments !== 3) continue;
+
             const key = `${entry.categoryId}-${entry.month}`;
-            aggregatedValues[key] = (aggregatedValues[key] || 0) + entry.amount;
+            aggregatedValues[key] = (aggregatedValues[key] || 0) + (entry.amount || 0);
         }
 
         return NextResponse.json({

@@ -5,38 +5,55 @@ import { syncFinancialData } from '@/actions/sync';
 
 export function SyncButton({ onSyncComplete, onSyncStart, year }: { onSyncComplete?: () => void; onSyncStart?: () => void; year?: number }) {
     const [loading, setLoading] = useState(false);
+    const [progress, setProgress] = useState<string | null>(null);
     const [lastSync, setLastSync] = useState<string | null>(null);
 
     const handleSync = async () => {
         setLoading(true);
         if (onSyncStart) onSyncStart();
 
-        // 1. Fast Metadata Sync (categories & cost centers) via Server Action
-        const result = await syncFinancialData();
+        try {
+            // 1. Obter lista de empresas
+            setProgress("Obtendo lista de empresas...");
+            const compRes = await fetch('/api/companies');
+            const compData = await compRes.json();
+            
+            if (!compData.success || !compData.companies) {
+                throw new Error("Falha ao carregar lista de empresas");
+            }
 
-        if (result.success && result.data) {
-            // 2. Heavy Data Sync (transactions crunching) via maxDuration API Route
-            try {
-                const targetYear = year || new Date().getFullYear();
-                const cronRes = await fetch(`/api/cron/sync?year=${targetYear}`, {
-                    method: 'GET'
-                });
+            const companies = compData.companies;
+            const targetYear = year || new Date().getFullYear();
+
+            for (let i = 0; i < companies.length; i++) {
+                const company = companies[i];
+                setProgress(`Sincronizando ${company.name} (${i + 1}/${companies.length})...`);
+                
+                // 1.1 Sincronizar Metadados (Server Action)
+                // Nota: syncFinancialData precisaria ser atualizado para aceitar tenantId se quisermos ser 100% granulares aqui também.
+                // Mas geralmente metadados são rápidos. Vamos manter assim por enquanto ou passar o target.
+                const metaResult = await syncFinancialData(); 
+                if (!metaResult.success) {
+                    console.warn(`Aviso: Sincronização de metadados para ${company.name} retornou erro.`);
+                }
+
+                // 1.2 Sincronizar Valores (API Route com timeout controlado)
+                const cronRes = await fetch(`/api/cron/sync?year=${targetYear}&tenantId=${company.id}`);
                 const cronData = await cronRes.json();
 
-                if (cronData.success) {
-                    setLastSync(new Date().toLocaleTimeString());
-                    if (onSyncComplete) onSyncComplete();
-                } else {
-                    alert(`Rotina local falhou: ${cronData.error || 'Erro desconhecido'}`);
-                    if (onSyncComplete) onSyncComplete(); // Resume UI with existing data
+                if (!cronData.success) {
+                    console.error(`Erro na empresa ${company.name}:`, cronData.error);
                 }
-            } catch (err: any) {
-                console.error("Cron fetch error:", err);
-                const msg = err.message || 'Erro de conexão ou timeout';
-                alert(`Erro ao disparar worker em segundo plano: ${msg}. Detalhes no console.`);
             }
-        } else {
-            alert("Erro ao sincronizar informações (Categorias/CC). Veja o console.");
+
+            setLastSync(new Date().toLocaleTimeString());
+            setProgress(null);
+            if (onSyncComplete) onSyncComplete();
+
+        } catch (err: any) {
+            console.error("Sync orchestration error:", err);
+            alert(`Erro na sincronização: ${err.message || 'Erro desconhecido'}`);
+            setProgress(null);
         }
 
         setLoading(false);
@@ -63,7 +80,7 @@ export function SyncButton({ onSyncComplete, onSyncStart, year }: { onSyncComple
                     gap: '0.35rem',
                 }}
             >
-                {loading ? '🔄 Sincronizando...' : '🔄 Sincronizar Agora'}
+                {loading ? `🔄 ${progress || 'Sincronizando...'}` : '🔄 Sincronizar Agora'}
             </button>
             {lastSync && <div style={{ fontSize: '0.75rem', color: '#666', marginTop: '0.3rem', textAlign: 'right' }}>Última: {lastSync}</div>}
         </>

@@ -93,7 +93,7 @@ async function fetchUserInfo(accessToken: string) {
 export async function syncData(costCenterId: string = 'DEFAULT', year: number = new Date().getFullYear(), viewMode: 'caixa' | 'competencia' = 'competencia', tenantId?: string) {
     const tenantsToSync = [];
     
-    if (tenantId) {
+    if (tenantId && tenantId !== 'ALL') {
         const t = await prisma.tenant.findUnique({ where: { id: tenantId } });
         if (t) tenantsToSync.push(t);
     } else {

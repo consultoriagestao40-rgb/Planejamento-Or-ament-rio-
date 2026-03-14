@@ -94,8 +94,13 @@ async function fetchAllTransactionsForYear(accessToken: string, baseUrl: string,
     return transactions;
 }
 
-export async function runCronSync(reqYear: number) {
-    const allTenants = (await prisma.tenant.findMany({ orderBy: { updatedAt: 'desc' } }));
+export async function runCronSync(reqYear: number, targetTenantId?: string) {
+    let allTenants;
+    if (targetTenantId && targetTenantId !== 'ALL') {
+        allTenants = await prisma.tenant.findMany({ where: { id: targetTenantId } });
+    } else {
+        allTenants = await prisma.tenant.findMany({ orderBy: { updatedAt: 'desc' } });
+    }
     console.log(`[SYNC] Found ${allTenants.length} tenants in total.`);
     if (allTenants.length === 0) {
         return { success: false, error: 'No tenants' };

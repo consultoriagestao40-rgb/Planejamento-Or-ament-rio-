@@ -114,11 +114,13 @@ async function fetchTransactions(accessToken: string, baseUrl: string, costCente
                 let amount: number;
 
                 if (viewMode === 'caixa') {
-                    dateStr = item.data_vencimento || item.vencimento || item.data_competencia || item.data_pagamento;
-                    amount = item.valor || item.valor_original || item.valor_liquido || item.total || 0;
+                    dateStr = item.data_pagamento || item.baixado_em || item.data_vencimento || item.vencimento;
+                    // AGREE WITH CRONSYNC: Prioritize installment/payment value
+                    amount = item.pago || item.valor_pago || item.valor || item.amount || item.total || 0;
                 } else {
-                    dateStr = item.data_competencia || item.data_vencimento || item.vencimento || item.data_pagamento;
-                    amount = item.total || item.valor_original || item.valor || item.valor_liquido || 0;
+                    dateStr = item.data_competencia || item.data_vencimento || item.vencimento;
+                    // AGREE WITH CRONSYNC: Prioritize installment value (valor) over SALE TOTAL (total)
+                    amount = item.valor || item.amount || item.total || 0;
                 }
 
                 const dateObj = dateStr ? new Date(dateStr) : new Date();

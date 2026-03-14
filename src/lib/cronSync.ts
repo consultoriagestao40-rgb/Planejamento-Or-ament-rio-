@@ -67,11 +67,14 @@ async function fetchAllTransactionsForYear(accessToken: string, baseUrl: string,
                     const isPaid = status === 'BAIXADO' || status === 'RECEBIDO' || status === 'PAGO' || status === 'QUITADO' || (item.pago && item.pago > 0) || (item.valor_pago && item.valor_pago > 0);
                     if (!isPaid) continue;
                     
-                    amount = item.pago || item.valor_pago || item.total || item.valor || 0;
+                    // CRITICAL FIX: Prioritize payment amount or installment value over SALE TOTAL
+                    amount = item.pago || item.valor_pago || item.valor || item.amount || item.total || 0;
                 } else {
                     // Regime de Competência: Priorizar data de competência
                     dateStr = item.data_competencia || item.data_vencimento || item.vencimento;
-                    amount = item.total || item.valor_original || item.valor || 0;
+                    // CRITICAL FIX: Prioritize installment value (valor) over SALE TOTAL (total)
+                    // This prevents multiplying the sale total by the number of installments.
+                    amount = item.valor || item.amount || item.total || 0;
                 }
 
                 const dateObj = dateStr ? new Date(dateStr) : new Date();

@@ -30,9 +30,10 @@ export function SyncButton({ onSyncComplete, onSyncStart, year }: { onSyncComple
                     alert(`Rotina local falhou: ${cronData.error || 'Erro desconhecido'}`);
                     if (onSyncComplete) onSyncComplete(); // Resume UI with existing data
                 }
-            } catch (err) {
+            } catch (err: any) {
                 console.error("Cron fetch error:", err);
-                alert("Erro ao disparar worker em segundo plano. Detalhes no console.");
+                const msg = err.message || 'Erro de conexão ou timeout';
+                alert(`Erro ao disparar worker em segundo plano: ${msg}. Detalhes no console.`);
             }
         } else {
             alert("Erro ao sincronizar informações (Categorias/CC). Veja o console.");

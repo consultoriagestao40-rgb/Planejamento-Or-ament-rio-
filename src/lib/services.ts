@@ -285,9 +285,9 @@ export async function syncData(costCenterId: string = 'DEFAULT', year: number = 
 export async function fetchRealizedValues(accessToken: string, targetYear: number, costCenterId: string, viewMode: 'caixa' | 'competencia' = 'competencia'): Promise<Record<string, number>> {
     const values: Record<string, number> = {};
 
-    // Janela ampliada para 12 meses antes/depois para capturar itens com pagamento/competência cruzada
-    const start = `${targetYear - 1}-01-01`;
-    const end = `${targetYear + 1}-12-31`;
+    // Janela balanceada (6 meses antes/depois) para capturar itens cruzados sem timeout
+    const start = `${targetYear - 1}-07-01`;
+    const end = `${targetYear + 1}-06-30`;
 
     // 1. Fetch Receivables (Competence/Due in Window)
     await aggregateTransactions(
@@ -515,9 +515,9 @@ async function fetchCategories(accessToken: string) {
                 hasMore = false;
                 (globalThis as any).lastApiError = `Categories Page ${page} failed: ${res.status}`;
             }
-        } catch (e) {
+        } catch (e: any) {
             hasMore = false;
-            console.warn(`Error on categories page ${page}:`, e);
+            console.warn(`Error on categories page ${page}:`, e.message);
         }
     }
 

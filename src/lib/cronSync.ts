@@ -133,9 +133,9 @@ export async function runCronSync(reqYear: number) {
         const validCostCenters = new Set((await prisma.costCenter.findMany({ where: { tenantId: t.id }, select: { id: true } })).map((c: any) => c.id));
 
         for (const viewMode of ['competencia', 'caixa'] as const) {
-            // Janela de busca ampliada (12 meses antes e depois) para capturar pagamentos/competências cruzadas
-            const startStr = `${reqYear - 1}-01-01`;
-            const endStr = `${reqYear + 1}-12-31`;
+            // Janela de busca otimizada (6 meses antes e depois) para capturar pagamentos/competências cruzadas sem sobrecarregar
+            const startStr = `${reqYear - 1}-07-01`;
+            const endStr = `${reqYear + 1}-06-30`;
             const receivablesUrl = `https://api-v2.contaazul.com/v1/financeiro/eventos-financeiros/contas-a-receber/buscar?data_vencimento_de=${startStr}&data_vencimento_ate=${endStr}&tamanho_pagina=100`;
             const payablesUrl = `https://api-v2.contaazul.com/v1/financeiro/eventos-financeiros/contas-a-pagar/buscar?data_vencimento_de=${startStr}&data_vencimento_ate=${endStr}&tamanho_pagina=100`;
 
@@ -158,9 +158,8 @@ export async function runCronSync(reqYear: number) {
 
                 if (txn.categories.length === 0) continue;
 
-                // Amount of this specific installment/transaction
+                // Quantidade deste item específico
                 const totalAmount = txn.amount;
-                console.log(`[DEBUG] Processing Txn: ${txn.id} | Amt: ${totalAmount} | Cat: ${txn.categories.map((c:any) => c.name).join(', ')}`);
 
                 // 1. SPLIT BY CATEGORY
                 // Conta Azul V2 returns the full chain. We MUST only take the leaf categories 

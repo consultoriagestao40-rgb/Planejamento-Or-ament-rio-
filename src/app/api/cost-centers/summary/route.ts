@@ -131,11 +131,16 @@ export async function GET(request: Request) {
         const seenKeys = new Set<string>();
         const deduplicatedTenantsMap = new Map<string, any>();
 
+        const primaryTenantIds = new Set<string>();
         tenants.forEach((t: any) => {
-            const key = (t.name || '').trim().toUpperCase().replace(/[^A-Z0-9]/g, '');
+            const cleanName = (t.name || '').trim().toUpperCase().replace(/[^A-Z0-9]/g, '');
+            const cleanCnpj = (t.cnpj || '').replace(/\D/g, '');
+            const key = cleanCnpj !== '' ? cleanCnpj : cleanName;
+
             if (!seenKeys.has(key)) {
                 seenKeys.add(key);
                 deduplicatedTenantsMap.set(key, t);
+                primaryTenantIds.add(t.id);
             }
             const primary = deduplicatedTenantsMap.get(key);
             tenantToPrimaryMap.set(t.id, primary.id);
@@ -181,7 +186,8 @@ export async function GET(request: Request) {
             const summary = summaryMap.get(key);
 
             if (summary) {
-                if (summary.tenantId !== primaryId) return;
+                // IMPORTANT: Only count data for the PRIMARY tenant ID to avoid double counting variants
+                if (entry.tenantId !== primaryId) return;
 
                 const type = categoryTypeMap.get(entry.categoryId);
                 if (type === 'REVENUE') {
@@ -200,17 +206,20 @@ export async function GET(request: Request) {
             const summary = summaryMap.get(key);
             
             if (summary) {
-                // Ensure we are comparing with primary tenant
-                if (summary.tenantId !== primaryId) return;
+                // IMPORTANT: Only count data for the PRIMARY tenant ID to avoid double counting variants
+                if (entry.tenantId !== primaryId) return;
 
                 const type = categoryTypeMap.get(entry.categoryId);
                 const cat = categories.find((c: any) => c.id === entry.categoryId);
                 const nameLower = (cat?.name || '').toLowerCase();
-                const isTax = cat?.entradaDre === '02. DEDUÇÕES DA RECEITA BRUTA' || 
-                              nameLower.includes('imposto') || 
-                              nameLower.includes('tributo') || 
+                
+                // STAGE 3: EXTREMELY STRICT TAX CLASSIFICATION
+                const isTax = cat?.entradaDre === '02. TRIBUTO SOBRE FATURAMENTO' || 
+                              cat?.entradaDre === '02. DEDUÇÕES DA RECEITA BRUTA' || 
+                              nameLower.includes('simples nacional') ||
                               nameLower.includes('das ') || 
-                              nameLower.includes(' iss ');
+                              nameLower.includes(' iss ') ||
+                              (nameLower.includes('imposto') && (nameLower.includes('sobre') || nameLower.includes('receita')));
 
                 if (type === 'REVENUE') {
                     summary.totalRevenueRealized += (entry.amount || 0);

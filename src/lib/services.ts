@@ -247,9 +247,13 @@ export async function syncData(costCenterId: string = 'DEFAULT', year: number = 
             // Self-Healing: Classificação automática baseada no nome se entradaDre estiver vazio
             let autoEntradaDre = cat.entradaDreLocal || existingCat?.entradaDre || null;
             if (!autoEntradaDre) {
-                if (catNameLower.includes('venda') || catNameLower.includes('faturamento') || catName?.startsWith('01') || catName?.startsWith('1.')) {
+                const isOperationalSales = (catNameLower.includes('venda') || catNameLower.includes('prestação de serviço')) && 
+                                           !catNameLower.includes('juro') && 
+                                           !catNameLower.includes('desconto');
+                                           
+                if (isOperationalSales || catName?.startsWith('01.01') || catName?.startsWith('1.1')) {
                     autoEntradaDre = '01. RECEITA BRUTA';
-                } else if (catNameLower.includes('tributo') || catNameLower.includes('imposto') || catName?.startsWith('02')) {
+                } else if (catNameLower.includes('tributo') || catNameLower.includes('imposto') || catNameLower.includes('das ') || catName?.startsWith('02')) {
                     autoEntradaDre = '02. TRIBUTO SOBRE FATURAMENTO';
                 }
             }

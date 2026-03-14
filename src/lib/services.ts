@@ -165,15 +165,15 @@ export async function syncData(costCenterId: string = 'DEFAULT', year: number = 
     const costCenterIdsToKeep: string[] = [];
     for (const cc of costCenters) {
         try {
-            const ccId = cc.id;
+            const ccId = `${tenant.id}:${cc.id}`; // ID Único por empresa
             const ccName = cc.nome || cc.name;
-            if (!ccId || !ccName) continue;
+            if (!cc.id || !ccName) continue;
 
             await (prisma as any).costCenter.upsert({
                 where: { id: ccId },
                 create: { id: ccId, name: ccName, tenantId: tenant.id },
                 update: { 
-                    name: ccName.startsWith('[INATIVO]') ? ccName : ccName // If it was already cleaned, don't re-add prefix
+                    name: ccName.startsWith('[INATIVO]') ? ccName : ccName 
                 }
             });
             costCenterIdsToKeep.push(ccId);
@@ -228,16 +228,19 @@ export async function syncData(costCenterId: string = 'DEFAULT', year: number = 
         return {
             ...cat,
             name,
-            entradaDreLocal: null, // Let the UI decide based on Root Parent 
-            parentIdLocal: cat.categoria_pai?.id || cat.parent_id || cat.parentId || null // Ensure we get the ID, not the object
+            entradaDreLocal: null, 
+            parentIdLocal: cat.categoria_pai?.id ? `${tenant.id}:${cat.categoria_pai.id}` : (cat.parent_id ? `${tenant.id}:${cat.parent_id}` : null) // Parent ID também deve ser composto
         };
     });
 
     // Persist Categories
     for (const cat of mappedCategories) {
         try {
-            const catId = cat.id;
+            const catId = `${tenant.id}:${cat.id}`;
             const typeValue = cat.tipo || cat.type || 'EXPENSE';
+
+            // Busca categoria existente para NÃO sobrescrever entradaDre se o novo for null
+            const existingCat = await (prisma as any).category.findUnique({ where: { id: catId } });
 
             await (prisma as any).category.upsert({
                 where: { id: catId },
@@ -253,7 +256,8 @@ export async function syncData(costCenterId: string = 'DEFAULT', year: number = 
                     name: cat.name,
                     parentId: cat.parentIdLocal,
                     type: typeValue,
-                    entradaDre: cat.entradaDreLocal
+                    // Preserva entradaDre se já existir e o novo for nulo
+                    entradaDre: (cat.entradaDreLocal || existingCat?.entradaDre) || null
                 }
             });
             report.categoriesSuccess++;
@@ -282,7 +286,7 @@ export async function syncData(costCenterId: string = 'DEFAULT', year: number = 
 
 
 // V46: Aggregates transactions for DRE (Competence View - V47.9.5)
-export async function fetchRealizedValues(accessToken: string, targetYear: number, costCenterId: string, viewMode: 'caixa' | 'competencia' = 'competencia'): Promise<Record<string, number>> {
+export async function fetchRealizedValues(accessToken: string, targetYear: number, costCenterId: string, viewMode: 'caixa' | 'competencia' = 'competencia', tenantId: string): Promise<Record<string, number>> {
     const values: Record<string, number> = {};
 
     // Janela balanceada (6 meses antes/depois) para capturar itens cruzados sem timeout
@@ -297,7 +301,8 @@ export async function fetchRealizedValues(accessToken: string, targetYear: numbe
         false,
         costCenterId,
         targetYear,
-        viewMode
+        viewMode,
+        tenantId
     );
 
     // 2. Fetch Payables
@@ -308,7 +313,8 @@ export async function fetchRealizedValues(accessToken: string, targetYear: numbe
         true, // isExpense
         costCenterId,
         targetYear,
-        viewMode
+        viewMode,
+        tenantId
     );
 
     return values;
@@ -321,7 +327,8 @@ async function aggregateTransactions(
     isExpense = false,
     costCenterIdString: string = 'DEFAULT',
     targetYear: number,
-    viewMode: 'caixa' | 'competencia' = 'competencia'
+    viewMode: 'caixa' | 'competencia' = 'competencia',
+    tenantId: string = 'UNKNOWN'
 ) {
     let page = 1;
     let hasMore = true;
@@ -417,8 +424,9 @@ async function aggregateTransactions(
 
                 const categories = item.categorias || [];
                 if (categories.length > 0) {
-                    const catId = categories[0].id;
-                    if (catId) {
+                    const caCatId = categories[0].id;
+                    if (caCatId) {
+                        const catId = `${tenantId}:${caCatId}`;
                         const key = `${catId}-${monthIdx}`;
 
                         // 2-PASS RATEIO FOR REMAINDERS:
@@ -450,7 +458,8 @@ async function aggregateTransactions(
                             // Sum the exact values for the target CCs
                             let sumMatchingCCs = 0;
                             processedCcs.forEach((c: any) => {
-                                if (targetCcs.includes(c.id)) {
+                                const compositeCcId = `${tenantId}:${c.id}`;
+                                if (targetCcs.includes(compositeCcId) || targetCcs.includes(c.id)) {
                                     sumMatchingCCs += c.explicitAmount !== null ? c.explicitAmount : fallbackPerCc;
                                 }
                             });
@@ -462,12 +471,15 @@ async function aggregateTransactions(
                             } else {
                                 // Find exactly how much CA allocated to this specific CC
                                 let specificAmount = 0;
-                                const targetC = processedCcs.find((c: any) => targetCcs.includes(c.id));
+                                const targetC = processedCcs.find((c: any) => {
+                                    const compositeCcId = `${tenantId}:${c.id}`;
+                                    return targetCcs.includes(compositeCcId) || targetCcs.includes(c.id);
+                                });
                                 
                                 if (targetC) {
                                     specificAmount = targetC.explicitAmount !== null ? targetC.explicitAmount : fallbackPerCc;
                                 } else {
-                                    specificAmount = fallbackPerCc; // fallback if not found, shouldn't happen
+                                    specificAmount = fallbackPerCc; 
                                 }
                                 
                                 targetValues[key] = (targetValues[key] || 0) + specificAmount;

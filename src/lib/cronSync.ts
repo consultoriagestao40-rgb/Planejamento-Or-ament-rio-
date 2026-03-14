@@ -179,7 +179,7 @@ export async function runCronSync(reqYear: number) {
                 const catEntries = leaves.map((c: any) => {
                     const val = typeof c.valor === 'number' ? Math.abs(c.valor) : (totalAmount / leaves.length);
                     totalCatAllocated += val;
-                    return { id: c.id, amount: val };
+                    return { id: `${t.id}:${c.id}`, amount: val }; // ID Composto
                 });
 
                 // 2. SPLIT BY COST CENTER PER CATEGORY
@@ -209,7 +209,7 @@ export async function runCronSync(reqYear: number) {
                             } else {
                                 unallocatedCount++;
                             }
-                            return { id: cc.id, amount: explicitAmount };
+                            return { id: `${t.id}:${cc.id}`, amount: explicitAmount }; // ID Composto
                         });
 
                         const remainingCcAmount = Math.max(0, catAmount - totalCcAllocated);

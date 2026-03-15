@@ -11,6 +11,7 @@ export function middleware(request: NextRequest) {
         pathname.startsWith('/api/diag-summary') ||
         pathname.startsWith('/api/diag-audit') ||
         pathname.startsWith('/api/debug-spot') ||
+        pathname.startsWith('/api/debug-db-dump') ||
         pathname.startsWith('/api/debug-sync') ||
         pathname.startsWith('/api/debug-revenue') ||
         pathname.startsWith('/api/clear-sync') ||

@@ -37,14 +37,20 @@ export async function GET() {
 
         const total = rawItems.reduce((acc: number, curr: any) => acc + (curr.amount || 0), 0);
 
+        const dbEntries = await prisma.realizedEntry.findMany({
+            where: { tenantId: spot.id, year: 2026 },
+            take: 50
+        });
+
         return NextResponse.json({ 
             success: true, 
-            version: "0.3.0-DEBUG",
+            version: "0.3.5-DIAG",
             tenant: spot.name,
-            totalFound: total,
-            itemsCount: rawItems.length,
+            totalFoundInAPI: total,
+            itemsCountInAPI: rawItems.length,
+            dbEntriesCount: dbEntries.length,
+            dbEntriesSample: dbEntries.map(e => ({ cat: e.categoryId, val: e.amount, month: e.month, mode: e.viewMode })),
             debug: {
-                firstItemRaw: items[0],
                 all_descriptions: rawItems.map((i: any) => `${i.description} | Valor: ${i.amount} | Pago: ${items.find((it:any) => it.id === i.id)?.pago} | Cats: ${i.categories.length}`)
             }
         });

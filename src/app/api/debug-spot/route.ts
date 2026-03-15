@@ -30,9 +30,9 @@ export async function GET() {
         const rawItems = items.map((i: any) => ({
             id: i.id,
             description: i.descricao || i.description,
-            amount: i.valor || i.amount,
-            categories: (i.categorias || []).map((c: any) => ({ name: c.nome || c.name, val: c.valor })),
-            costCenters: (i.centros_de_custo || []).map((cc: any) => ({ name: cc.nome || cc.name, val: cc.valor }))
+            amount: i.pago || i.total || i.valor || i.amount || 0,
+            categories: (i.categorias || []).map((c: any) => ({ id: c.id, name: c.nome || c.name, val: c.valor })),
+            costCenters: (i.centros_de_custo || []).map((cc: any) => ({ id: cc.id, name: cc.nome || cc.name, val: cc.valor }))
         }));
 
         const total = rawItems.reduce((acc: number, curr: any) => acc + (curr.amount || 0), 0);

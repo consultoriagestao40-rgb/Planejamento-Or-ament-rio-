@@ -206,12 +206,18 @@ export async function runCronSync(reqYear: number, targetTenantId?: string) {
             const payables = await fetchAllTransactionsForYear(token, url2, reqYear, viewMode);
             const allTxns = [...receivables, ...payables];
 
+            let totalRevenue = 0;
+            let totalExpense = 0;
+
             const aggregates = new Map<string, { amount: number, desc: string }>();
             const processedIds = new Set<string>();
 
             for (const txn of allTxns) {
                 if (processedIds.has(txn.id)) continue;
                 processedIds.add(txn.id);
+                // Track total raw amounts for diagnostic
+                if (txn.amount > 0) totalRevenue += Math.abs(txn.amount);
+                else totalExpense += Math.abs(txn.amount);
                 if (txn.categories.length === 0) continue;
 
                 // No restrictive filters here anymore. We capture what the API gives us.
@@ -260,7 +266,7 @@ export async function runCronSync(reqYear: number, targetTenantId?: string) {
                 }
             }
 
-            pushLog(`[SYNC] [${t.name}] Aggregated ${aggregates.size} unique keys for ${viewMode}. Total amount: ${Array.from(aggregates.values()).reduce((s,a) => s+a.amount, 0)}`);
+            pushLog(`[SYNC] [${t.name}] Aggregated ${aggregates.size} keys for ${viewMode}. Raw Revenue: ${totalRevenue.toFixed(2)}, Raw Expense: ${totalExpense.toFixed(2)}. Net: ${(totalRevenue - totalExpense).toFixed(2)}`);
 
             await prisma.realizedEntry.deleteMany({ where: { tenantId: { in: allEntityIds }, year: reqYear, viewMode } });
             

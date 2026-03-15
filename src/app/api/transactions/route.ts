@@ -61,9 +61,20 @@ export async function GET(request: Request) {
                 return [];
             }
         });
-
         const results = await Promise.all(tenantPromises);
-        const allTransactions = results.flat().sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+        const consolidatedMap = new Map<string, any>();
+        const allTransactionsRaw = results.flat();
+
+        for (const txn of allTransactionsRaw) {
+            const existing = consolidatedMap.get(txn.id);
+            if (existing) {
+                existing.value += txn.value;
+            } else {
+                consolidatedMap.set(txn.id, txn);
+            }
+        }
+
+        const allTransactions = Array.from(consolidatedMap.values()).sort((a: any, b: any) => new Date(a.date).getTime() - new Date(b.date).getTime());
 
         return NextResponse.json({
             success: true,

@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { getValidAccessToken } from '@/lib/conta-azul-auth';
+import { getValidAccessToken } from '@/lib/services';
 
 export const dynamic = 'force-dynamic';
 

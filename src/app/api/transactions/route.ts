@@ -108,6 +108,8 @@ async function fetchTransactions(accessToken: string, baseUrl: string, costCente
                 if (!targetCategoryIds.includes(primaryCat.id)) return;
 
                 const ccs = item.centros_de_custo || [];
+                // CRITICAL ALIGNMENT: If an event has multiple installments, we need to handle it 
+                // like cronSync does to avoid missing chunks of the value in the Modal.
                 const ccsCount = ccs.length || 1;
 
                 let dateStr: string;

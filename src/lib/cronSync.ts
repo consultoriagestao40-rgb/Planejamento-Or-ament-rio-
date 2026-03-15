@@ -1,6 +1,7 @@
 import { prisma } from '@/lib/prisma';
 import { getValidAccessToken } from '@/lib/services';
 import { getPrimaryTenantId, getAllVariantIds } from '@/lib/tenant-utils';
+// V0.3.11-BYPASS-CACHE-1773618480
 
 async function fetchAllTransactionsForYear(accessToken: string, baseUrl: string, targetYear: number, viewMode: 'caixa' | 'competencia', isExpense = false) {
     let page = 1;

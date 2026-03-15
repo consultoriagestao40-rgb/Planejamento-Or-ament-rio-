@@ -118,6 +118,14 @@ export async function runCronSync(reqYear: number, targetTenantId?: string) {
     let allTenants;
     if (targetTenantId && targetTenantId !== 'ALL') {
         allTenants = await prisma.tenant.findMany({ where: { id: targetTenantId } });
+    } else {
+        allTenants = await prisma.tenant.findMany({ orderBy: { updatedAt: 'desc' } });
+    }
+    
+    if (allTenants.length === 0) {
+        return { success: false, error: 'No tenants' };
+    }
+
     // DEDUPLICATE: Only sync once per UNIQUE COMPANY (CNPJ or Normalized Name)
     const companyMap = new Map();
     allTenants.forEach(t => {

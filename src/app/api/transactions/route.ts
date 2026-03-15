@@ -103,7 +103,7 @@ export async function GET(request: Request) {
 
         return NextResponse.json({
             success: true,
-            version: "0.1.9-FINAL",
+            version: "0.2.0-ABS-RATEIO",
             transactions: allTransactions
         });
 
@@ -225,7 +225,7 @@ async function fetchTransactions(accessToken: string, baseUrl: string, costCente
                     amount = item.pago || item.valor_pago || targetAmount || 0;
                 } else {
                     dateStr = item.data_competencia || item.data_vencimento || item.vencimento;
-                    // Use the sum of matching categories calculated above
+                    // Use targetAmount which now includes the absolute rateio from pData
                     amount = targetAmount;
                 }
 

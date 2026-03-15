@@ -97,9 +97,10 @@ async function fetchAllTransactionsForYear(accessToken: string, baseUrl: string,
 
                 transactions.push({
                     id: item.id,
+                    description: item.descricao,
                     month: dateObj.getMonth(), // 0-11
                     amount: Math.abs(amount),
-                    categories: cats,
+                    categories: cats, // These now have the corrected values from rateio detail
                     costCenters: ccs
                 });
             }
@@ -210,15 +211,22 @@ export async function runCronSync(reqYear: number, targetTenantId?: string) {
                 }
 
                 if (leaves.length === 0 && txn.categories.length > 0) {
-                    // Fallback to the first one if we can't find a leaf (shouldn't happen with CA data)
                     leaves.push(txn.categories[0]);
                 }
 
                 let totalCatAllocated = 0;
                 const catEntries = leaves.map((c: any) => {
-                    const val = typeof c.valor === 'number' ? Math.abs(c.valor) : (totalAmount / leaves.length);
+                    // Use the CATEGORY ABSOLUTE VALUE from rateio detail if it's there (Gross DRE)
+                    // If not, divide the item total (pago/valor) proportionally
+                    let val = typeof c.valor === 'number' ? Math.abs(c.valor) : (totalAmount / leaves.length);
+                    
+                    // AUDIT: If it's Venda 649, we expect it to be 6259 eventually
+                    if (txn.description?.includes('649')) {
+                         console.log(`[SYNC-649-BREAKDOWN] Cat: ${c.name} | Raw Val: ${c.valor} | Final Val: ${val}`);
+                    }
+
                     totalCatAllocated += val;
-                    return { id: `${primaryId}:${c.id}`, amount: val }; // Use PRIMARY IDs
+                    return { id: `${primaryId}:${c.id}`, amount: val };
                 });
 
                 // 2. SPLIT BY COST CENTER PER CATEGORY

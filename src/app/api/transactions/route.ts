@@ -168,8 +168,10 @@ async function fetchTransactions(accessToken: string, baseUrl: string, costCente
                     const hasChild = cats.some((other: any) => (other.parent_id === cid) || (other.parentId === cid) || (other.category_parent_id === cid));
                     return !hasChild;
                 });
-                
-                const matchingLeaves = leaves.filter((c: any) => cleanTargetCategoryIds.includes(c.id));
+                               const matchingLeaves = leaves.filter((c: any) => {
+                    const leafRawId = c.id.includes(':') ? c.id.split(':')[1] : c.id;
+                    return cleanTargetCategoryIds.includes(leafRawId);
+                });
                 if (matchingLeaves.length === 0) continue;
 
                 let targetAmount = 0;

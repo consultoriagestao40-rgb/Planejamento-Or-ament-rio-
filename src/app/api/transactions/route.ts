@@ -82,6 +82,7 @@ export async function GET(request: Request) {
 
         return NextResponse.json({
             success: true,
+            version: "0.1.5-FINAL-LOGIC",
             transactions: allTransactions
         });
 

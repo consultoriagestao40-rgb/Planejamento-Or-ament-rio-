@@ -103,7 +103,7 @@ export async function GET(request: Request) {
 
         return NextResponse.json({
             success: true,
-            version: "0.1.7-MULTI-CAT-SUM",
+            version: "0.1.8-FINAL-CONVERGENCE",
             transactions: allTransactions
         });
 
@@ -143,17 +143,25 @@ async function fetchTransactions(accessToken: string, baseUrl: string, costCente
                 // Strip any tenant prefix from the target categories list for clean comparison
                 const cleanTargetCategoryIds = targetCategoryIds.map(id => id.includes(':') ? id.split(':')[1] : id);
 
-                // MATCH cronSync.ts: Iterar sobre todas as categorias do item
-                // Identificar quais das categorias do item estão dentro do alvo (incluindo recursividade)
-                const matchingCats = cats.filter((c: any) => cleanTargetCategoryIds.includes(c.id));
-                if (matchingCats.length === 0) continue;
+                // MATCH cronSync.ts EXACTLY:
+                // 1. SPLIT BY CATEGORY (LEAVES ONLY)
+                const leaves = cats.filter((c: any) => {
+                    const cid = c.id;
+                    const hasChild = cats.some((other: any) => 
+                        (other.parent_id === cid) || 
+                        (other.parentId === cid) || 
+                        (other.category_parent_id === cid)
+                    );
+                    return !hasChild;
+                });
+                
+                const matchingLeaves = leaves.filter((c: any) => cleanTargetCategoryIds.includes(c.id));
+                if (matchingLeaves.length === 0) continue;
 
-                // Calcular o valor total atribuído às categorias alvo neste item
-                // Se o item tem valor explícito por categoria na API da Conta Azul, usamos;
-                // caso contrário, dividimos o total do item.
+                // Identify if the item has split values per category
                 let targetAmount = 0;
-                matchingCats.forEach((c: any) => {
-                    const val = (typeof c.valor === 'number') ? Math.abs(c.valor) : (Math.abs(item.valor || item.amount || item.total || 0) / cats.length);
+                matchingLeaves.forEach((c: any) => {
+                    const val = (typeof c.valor === 'number') ? Math.abs(c.valor) : (Math.abs(item.valor || item.amount || item.total || 0) / leaves.length);
                     targetAmount += val;
                 });
 

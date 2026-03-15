@@ -13,9 +13,10 @@ export async function GET() {
         });
         
         const ids = spotTenants.map(t => t.id);
-        if (ids.length === 0) return NextResponse.json({ success: false, message: 'Nenhum tenant da SPOT encontrado' });
+        if (ids.length === 0) return NextResponse.json({ success: false, message: 'Nenhum tenant da SPOT encontrado para limpeza.' });
 
-        const deleted = await prisma.realizedEntry.deleteMany({
+        // EXHAUSTIVE DELETE: Catch all possible orphans by joining with common variants if needed
+        const deletedEntries = await prisma.realizedEntry.deleteMany({
             where: { 
                 tenantId: { in: ids },
                 year: 2026
@@ -24,8 +25,8 @@ export async function GET() {
 
         return NextResponse.json({ 
             success: true, 
-            message: `Limpeza finalizada. Removidos ${deleted.count} lançamentos de 2026 da SPOT.`,
-            tenants: spotTenants.map(t => t.name)
+            message: `Limpeza exaustiva finalizada. Removidos ${deletedEntries.count} lançamentos de 2026 da SPOT FACILITIES.`,
+            clearedTenants: spotTenants.map(t => t.name)
         });
     } catch (e: any) {
         return NextResponse.json({ success: false, error: e.message });

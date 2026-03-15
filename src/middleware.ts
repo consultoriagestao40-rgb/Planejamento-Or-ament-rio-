@@ -8,6 +8,7 @@ export function middleware(request: NextRequest) {
     if (
         pathname.startsWith('/_next') ||
         pathname.startsWith('/api/auth') ||
+        pathname.startsWith('/api/debug-spot') ||
         pathname.startsWith('/api/nuclear-cleanup') ||
         pathname.startsWith('/api/cron/sync') ||
         pathname === '/login' ||

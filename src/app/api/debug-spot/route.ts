@@ -14,41 +14,38 @@ export async function GET() {
 
         const { token } = await getValidAccessToken(spot.id);
         
-        // TEST CONTA AZUL SEARCH PARAMETERS
-        const start = `2025-11-01`;
-        const end = `2026-12-31`;
+        // TEST CONTA AZUL BRUTO FOR JAN 2026
+        const start = `2026-01-01`;
+        const end = `2026-01-31`;
         
-        // Try VENCIMENTO first
-        const urlVenc = `https://api-v2.contaazul.com/v1/financeiro/eventos-financeiros/contas-a-receber/buscar?data_vencimento_de=${start}&data_vencimento_ate=${end}&tamanho_pagina=100`;
-        const resVenc = await fetch(urlVenc, {
+        const url = `https://api-v2.contaazul.com/v1/financeiro/eventos-financeiros/contas-a-receber/buscar?data_vencimento_de=${start}&data_vencimento_ate=${end}&tamanho_pagina=100`;
+        const res = await fetch(url, {
             headers: { 'Authorization': `Bearer ${token}` }
         });
-        const dataVenc = await resVenc.json();
-
-        // Try PAGAMENTO
-        const urlPag = `https://api-v2.contaazul.com/v1/financeiro/eventos-financeiros/contas-a-receber/buscar?data_pagamento_de=${start}&data_pagamento_ate=${end}&tamanho_pagina=100`;
-        const resPag = await fetch(urlPag, {
-            headers: { 'Authorization': `Bearer ${token}` }
-        });
-        const dataPag = await resPag.json();
+        const data = await res.json();
+        const items = (data.itens || []).filter((i:any) => !(i.status || '').toUpperCase().includes('CANCEL'));
 
         const dbEntries = await prisma.realizedEntry.findMany({
-            where: { tenantId: spot.id, year: 2026 },
-            take: 10
+            where: { tenantId: spot.id, year: 2026, month: 1, viewMode: 'caixa' }
         });
 
         return NextResponse.json({ 
             success: true, 
-            version: "0.3.6-TEST-PARAMS",
-            vencimentoResult: {
-                count: (dataVenc.itens || []).length,
-                total: (dataVenc.itens || []).reduce((s:any, i:any) => s + (i.amount || 0), 0)
+            version: "0.3.11-RAW-CHECK",
+            apiSummary: {
+                totalValueInAPI: items.reduce((s:any, i:any) => s + (i.amount || i.valor || i.total || 0), 0),
+                itemsCount: items.length,
+                sampleItems: items.slice(0, 10).map((i:any) => ({
+                    id: i.id,
+                    desc: i.descricao,
+                    amount: i.amount || i.valor || i.total,
+                    cats: i.categorias?.map((c:any) => c.name)
+                }))
             },
-            pagamentoResult: {
-                count: (dataPag.itens || []).length,
-                total: (dataPag.itens || []).reduce((s:any, i:any) => s + (i.amount || 0), 0)
-            },
-            dbEntriesCount: dbEntries.length
+            dbSummary: {
+                count: dbEntries.length,
+                sum: dbEntries.reduce((s, e) => s + e.amount, 0)
+            }
         });
     } catch (e: any) {
         return NextResponse.json({ error: e.message });

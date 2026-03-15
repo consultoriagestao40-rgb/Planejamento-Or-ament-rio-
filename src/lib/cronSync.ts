@@ -141,8 +141,9 @@ export async function runCronSync(reqYear: number, targetTenantId?: string) {
         
         const primaryId = t.id;
         const allEntityIds = await getAllVariantIds(t.id);
-        const validCategories = new Set((await prisma.category.findMany({ where: { tenantId: primaryId }, select: { id: true } })).map((c: any) => c.id));
-        const validCostCenters = new Set((await prisma.costCenter.findMany({ where: { tenantId: primaryId }, select: { id: true } })).map((c: any) => c.id));
+        const categoriesDb = await prisma.category.findMany({ where: { tenantId: primaryId }, select: { id: true, name: true } });
+        const validCategoryIds = new Set(categoriesDb.map((c: any) => `${primaryId}:${c.id}`));
+        const validCostCenterIds = new Set((await prisma.costCenter.findMany({ where: { tenantId: primaryId }, select: { id: true } })).map((c: any) => `${primaryId}:${c.id}`));
 
         for (const viewMode of ['competencia', 'caixa'] as const) {
             const isCaixa = viewMode === 'caixa';
@@ -174,11 +175,13 @@ export async function runCronSync(reqYear: number, targetTenantId?: string) {
 
                 const catEntries = leaves.map((c: any) => {
                     const val = typeof c.valor === 'number' ? Math.abs(c.valor) : (txn.amount / leaves.length);
+                    // Use the PREFIXED ID for comparison and aggregation
                     return { id: `${primaryId}:${c.id}`, amount: val };
                 });
 
                 for (const cat of catEntries) {
-                    if (!validCategories.has(cat.id)) continue;
+                    if (!validCategoryIds.has(cat.id)) continue;
+                    
                     if (txn.costCenters.length === 0) {
                         const key = `${cat.id}|NONE|${txn.month}`;
                         if (!aggregates.has(key)) aggregates.set(key, { amount: 0, desc: txn.description || '' });
@@ -196,7 +199,7 @@ export async function runCronSync(reqYear: number, targetTenantId?: string) {
                         const rem = Math.max(0, cat.amount - totalCcAllocated);
                         const fallback = unallocatedCount > 0 ? (rem / unallocatedCount) : 0;
                         for (const cc of ccSplits) {
-                            const ccId = validCostCenters.has(cc.id) ? cc.id : 'NONE';
+                            const ccId = validCostCenterIds.has(cc.id) ? cc.id : 'NONE';
                             const key = `${cat.id}|${ccId}|${txn.month}`;
                             if (!aggregates.has(key)) aggregates.set(key, { amount: 0, desc: txn.description || '' });
                             const val = cc.amount !== null ? cc.amount : (unallocatedCount > 0 ? fallback : (cat.amount / ccSplits.length));
@@ -206,21 +209,23 @@ export async function runCronSync(reqYear: number, targetTenantId?: string) {
                 }
             }
 
+            // DELETE using the variant IDs to clear everything
             await prisma.realizedEntry.deleteMany({ where: { tenantId: { in: allEntityIds }, year: reqYear, viewMode } });
             
             const createData = Array.from(aggregates.entries()).map(([key, data]) => {
                 const [catId, ccId, monthStr] = key.split('|');
+                // catId and ccId here ALREADY have the primaryId prefix
                 return {
                     tenantId: primaryId,
-                    categoryId: catId,
-                    costCenterId: ccId === 'NONE' ? null : ccId,
+                    categoryId: catId.includes(':') ? catId.split(':')[1] : catId,
+                    costCenterId: ccId === 'NONE' ? null : (ccId.includes(':') ? ccId.split(':')[1] : ccId),
                     month: parseInt(monthStr, 10),
                     year: reqYear,
                     amount: data.amount,
                     description: data.desc,
                     viewMode
                 };
-            }).filter(r => validCategories.has(r.categoryId));
+            });
 
             if (createData.length > 0) {
                 try {

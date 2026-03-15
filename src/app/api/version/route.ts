@@ -5,9 +5,10 @@ export const dynamic = 'force-dynamic';
 export async function GET() {
     return NextResponse.json({
         ok: true,
-        rev: "ec496d9-final",
-        version: "0.1.2",
+        rev: "2d759a6-id-fix",
+        version: "0.1.3",
         timestamp: new Date().toISOString(),
-        message: "Build Fixed - Deploying Data Integrily Fixes"
+        message: "ID Sanitation Fix - Aligning Grid vs Modal",
+        status: "DEPLOYING_FINAL_FIX"
     });
 }

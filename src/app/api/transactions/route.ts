@@ -38,12 +38,15 @@ export async function GET(request: Request) {
         const endStr = `${nextDate.getFullYear()}-${String(nextDate.getMonth() + 1).padStart(2, '0')}-${String(nextDate.getDate()).padStart(2, '0')}`;
 
         // Fetch concurrently to prevent Vercel 15s Timeout
+        // Clean categoryId to remove tenant prefixes before calling CA API
+        const cleanCategoryId = categoryId.split(',').map(id => id.includes(':') ? id.split(':')[1] : id).join(',');
+
         const tenantPromises = tenants.map(async (t) => {
             try {
                 const { token } = await getValidAccessToken(t.id);
 
-                const receivablesUrl = `https://api-v2.contaazul.com/v1/financeiro/eventos-financeiros/contas-a-receber/buscar?data_vencimento_de=${startStr}&data_vencimento_ate=${endStr}&categoria_id=${categoryId}&tamanho_pagina=100`;
-                const payablesUrl = `https://api-v2.contaazul.com/v1/financeiro/eventos-financeiros/contas-a-pagar/buscar?data_vencimento_de=${startStr}&data_vencimento_ate=${endStr}&categoria_id=${categoryId}&tamanho_pagina=100`;
+                const receivablesUrl = `https://api-v2.contaazul.com/v1/financeiro/eventos-financeiros/contas-a-receber/buscar?data_vencimento_de=${startStr}&data_vencimento_ate=${endStr}&categoria_id=${cleanCategoryId}&tamanho_pagina=100`;
+                const payablesUrl = `https://api-v2.contaazul.com/v1/financeiro/eventos-financeiros/contas-a-pagar/buscar?data_vencimento_de=${startStr}&data_vencimento_ate=${endStr}&categoria_id=${cleanCategoryId}&tamanho_pagina=100`;
 
                 const [receivables, payables] = await Promise.all([
                     fetchTransactions(token, receivablesUrl, costCenterId, categoryId, year, month, viewMode),
@@ -114,9 +117,12 @@ async function fetchTransactions(accessToken: string, baseUrl: string, costCente
                 const cats = item.categorias || [];
                 if (cats.length === 0) continue;
 
+                // Strip any tenant prefix from the target categories list for clean comparison
+                const cleanTargetCategoryIds = targetCategoryIds.map(id => id.includes(':') ? id.split(':')[1] : id);
+
                 // Align exactly with cronSync.ts: we assign 100% of the value solely to the FIRST category linked.
                 const primaryCat = cats[0];
-                if (!targetCategoryIds.includes(primaryCat.id)) continue;
+                if (!cleanTargetCategoryIds.includes(primaryCat.id)) continue;
 
                 const ccsOrig = item.centros_de_custo || [];
                 let ccs = [...ccsOrig];

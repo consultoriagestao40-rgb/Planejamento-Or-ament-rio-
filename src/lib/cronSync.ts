@@ -266,7 +266,6 @@ export async function runCronSync(reqYear: number, targetTenantId?: string) {
                     month: parseInt(monthStr, 10),
                     year: reqYear,
                     amount: data.amount,
-                    description: data.desc,
                     viewMode
                 };
             });

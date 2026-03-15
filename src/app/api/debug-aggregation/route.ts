@@ -1,4 +1,3 @@
-
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 
@@ -6,39 +5,52 @@ export const dynamic = 'force-dynamic';
 
 export async function GET() {
     try {
-        const spot = await prisma.tenant.findFirst({ where: { name: { contains: 'SPOT', mode: 'insensitive' } } });
-        
-        if (!spot) return NextResponse.json({ success: false, error: 'SPOT not found' });
+        const allTenants = await prisma.tenant.findMany({ orderBy: { updatedAt: 'desc' } });
+        const spotTenants = allTenants.filter(t => t.name.toUpperCase().includes('SPOT'));
 
-        const entries = await prisma.realizedEntry.findMany({
-            where: { tenantId: spot.id, month: 0, year: 2026, viewMode: 'competencia' },
-            include: { category: true }
-        });
+        const diagnostic: any = {
+            spotTenantsCount: spotTenants.length,
+            tenants: [],
+            aggregationTest: {}
+        };
 
-        const revenue3s = entries.filter(e => {
-            const name = e.category.name || '';
-            const code = (name.match(/^(\d{1,2}(?:\.\d+)*)/) || [])[1] || '';
-            return (code.startsWith('01') || code.startsWith('1')) && code.split('.').filter(Boolean).length === 3;
-        });
+        for (const t of spotTenants) {
+            const cleanName = (t.name || '').trim().toUpperCase().replace(/[^A-Z0-9]/g, '');
+            const cleanCnpj = (t.cnpj || '').replace(/\D/g, '');
+            
+            const variants = allTenants.filter(ten => {
+                const kn = (ten.name || '').trim().toUpperCase().replace(/[^A-Z0-9]/g, '');
+                const kc = (ten.cnpj || '').replace(/\D/g, '');
+                const cnpjMatch = (cleanCnpj && kc) ? (cleanCnpj === kc) : true;
+                return kn === cleanName && cnpjMatch;
+            }).map(v => v.id);
 
-        const breakdown = revenue3s.map(e => ({
-            id: e.id,
-            catId: e.category.id,
-            catName: e.category.name,
-            amount: e.amount
-        }));
+            const entriesCompetencia = await prisma.realizedEntry.count({
+                where: { tenantId: { in: variants }, year: 2026, viewMode: 'competencia' }
+            });
 
-        const totalCalculated = revenue3s.reduce((s, e) => s + e.amount, 0);
+            const entriesCaixa = await prisma.realizedEntry.count({
+                where: { tenantId: { in: variants }, year: 2026, viewMode: 'caixa' }
+            });
 
-        return NextResponse.json({ 
-            success: true, 
-            tenant: spot.name,
-            targetJan: 165527.25,
-            currentJan: totalCalculated,
-            diff: totalCalculated - 165527.25,
-            breakdown 
-        });
+            const entriesAmount = await prisma.realizedEntry.aggregate({
+                where: { tenantId: { in: variants }, year: 2026, viewMode: 'caixa' },
+                _sum: { amount: true }
+            });
+
+            diagnostic.tenants.push({
+                id: t.id,
+                name: t.name,
+                cnpj: t.cnpj,
+                variants,
+                entriesCompetencia,
+                entriesCaixa,
+                totalCaixaAmount: entriesAmount._sum.amount || 0
+            });
+        }
+
+        return NextResponse.json(diagnostic);
     } catch (e: any) {
-        return NextResponse.json({ success: false, error: e.message });
+        return NextResponse.json({ error: e.message });
     }
 }

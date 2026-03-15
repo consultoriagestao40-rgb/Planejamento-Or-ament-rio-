@@ -5,56 +5,30 @@ export const dynamic = 'force-dynamic';
 
 export async function GET() {
     try {
-        const allTenants = await prisma.tenant.findMany({ orderBy: { updatedAt: 'desc' } });
-        const spotTenants = allTenants.filter(t => t.name.toUpperCase().includes('SPOT'));
+        const spot = await prisma.tenant.findFirst({ where: { name: { contains: 'SPOT' } } });
+        if (!spot) return NextResponse.json({ error: 'SPOT not found' });
 
-        const diagnostic: any = {
-            spotTenantsCount: spotTenants.length,
-            tenants: [],
-            aggregationTest: {}
-        };
+        const cats = await prisma.category.findMany({
+            where: { tenantId: spot.id },
+            select: { id: true, name: true }
+        });
 
-        for (const t of spotTenants) {
-            const cleanName = (t.name || '').trim().toUpperCase().replace(/[^A-Z0-9]/g, '');
-            const cleanCnpj = (t.cnpj || '').replace(/\D/g, '');
-            
-            const variants = allTenants.filter(ten => {
-                const kn = (ten.name || '').trim().toUpperCase().replace(/[^A-Z0-9]/g, '');
-                const kc = (ten.cnpj || '').replace(/\D/g, '');
-                const cnpjMatch = (cleanCnpj && kc) ? (cleanCnpj === kc) : true;
-                return kn === cleanName && cnpjMatch;
-            }).map(v => v.id);
+        const realized = await prisma.realizedEntry.findMany({
+            where: { tenantId: spot.id },
+            take: 20
+        });
 
-            const entriesCompetencia = await prisma.realizedEntry.count({
-                where: { tenantId: { in: variants }, year: 2026, viewMode: 'competencia' }
-            });
+        const count2026Caixa = await prisma.realizedEntry.count({
+            where: { tenantId: spot.id, year: 2026, viewMode: 'caixa' }
+        });
 
-            const entriesCaixa = await prisma.realizedEntry.count({
-                where: { tenantId: { in: variants }, year: 2026, viewMode: 'caixa' }
-            });
-
-            const entriesAmount = await prisma.realizedEntry.aggregate({
-                where: { tenantId: { in: variants }, year: 2026, viewMode: 'caixa' },
-                _sum: { amount: true }
-            });
-
-            const cats = await prisma.category.findMany({ where: { tenantId: t.id }, select: { id: true, name: true }, take: 20 });
-            const anyEntries = await prisma.realizedEntry.findMany({ where: { tenantId: t.id }, take: 10 });
-
-            diagnostic.tenants.push({
-                id: t.id,
-                name: t.name,
-                cnpj: t.cnpj,
-                variants,
-                entriesCompetencia,
-                entriesCaixa,
-                totalCaixaAmount: entriesAmount._sum.amount || 0,
-                catsSample: cats,
-                anyEntriesSample: anyEntries
-            });
-        }
-
-        return NextResponse.json(diagnostic);
+        return NextResponse.json({
+            tenant: spot,
+            categoriesCount: cats.length,
+            categoriesSample: cats.slice(0, 10),
+            realizedSample: realized,
+            count2026Caixa
+        });
     } catch (e: any) {
         return NextResponse.json({ error: e.message });
     }

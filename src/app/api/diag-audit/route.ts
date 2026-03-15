@@ -1,41 +1,29 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { getValidAccessToken } from '@/lib/services';
 
 export const dynamic = 'force-dynamic';
 
 export async function GET() {
     try {
-        const spotTenants = await prisma.tenant.findMany({
-            where: { name: { contains: 'SPOT', mode: 'insensitive' } }
-        });
-        const ids = spotTenants.map(t => t.id);
+        const spot = await prisma.tenant.findFirst({ where: { name: { contains: 'SPOT' } } });
+        if (!spot) return NextResponse.json({ error: 'SPOT not found' });
 
-        const entries = await prisma.realizedEntry.findMany({
-            where: { 
-                tenantId: { in: ids }, 
-                month: 0, 
-                year: 2026, 
-                viewMode: 'competencia' 
-            },
-            include: { category: true }
-        });
-
-        // Agrupar por categoria para ver onde está o excesso
-        const byCategory: Record<string, { total: number, entries: any[] }> = {};
-        entries.forEach(e => {
-            const name = e.category.name;
-            if (!byCategory[name]) byCategory[name] = { total: 0, entries: [] };
-            byCategory[name].total += e.amount;
-            byCategory[name].entries.push({ val: e.amount, id: e.categoryId });
-        });
+        const { token } = await getValidAccessToken(spot.id);
+        // Buscar especificamente a Venda 657 para entender o JSON
+        const url = `https://api-v2.contaazul.com/v1/financeiro/eventos-financeiros/contas-a-receber/buscar?data_vencimento_de=2026-01-01&data_vencimento_ate=2026-01-31`;
+        const res = await fetch(url, { headers: { 'Authorization': `Bearer ${token}` } });
+        const data = await res.json();
+        
+        const item657 = (data.itens || []).find((i: any) => i.descricao.includes('657'));
+        const item643 = (data.itens || []).find((i: any) => i.descricao.includes('643'));
 
         return NextResponse.json({
-            summary: {
-                grid_total: entries.reduce((s, e) => s + e.amount, 0),
-                target: 165527.25,
-                excesso: entries.reduce((s, e) => s + e.amount, 0) - 165527.25
+            debug: {
+                item657,
+                item643
             },
-            categories: byCategory
+            all_descriptions: (data.itens || []).map((i: any) => `${i.descricao} | Valor: ${i.valor} | Pago: ${i.pago} | Cats: ${i.categorias?.length}`)
         });
     } catch (e: any) {
         return NextResponse.json({ error: e.message });

@@ -1,16 +1,20 @@
-
 import { NextResponse } from 'next/server';
+import { getValidAccessToken } from '@/lib/services';
 import { prisma } from '@/lib/prisma';
-import { getAccessToken } from '@/lib/contaazul';
 
 export const dynamic = 'force-dynamic';
 
 export async function GET() {
     try {
-        const spot = await prisma.tenant.findFirst({ where: { name: { contains: 'SPOT', mode: 'insensitive' } } });
+        const spot = await prisma.tenant.findFirst({ 
+            where: { 
+                name: { contains: 'SPOT', mode: 'insensitive' } 
+            } 
+        });
+        
         if (!spot) return NextResponse.json({ success: false, error: 'SPOT not found' });
 
-        const token = await getAccessToken(spot.id);
+        const { token } = await getValidAccessToken(spot.id);
         if (!token) return NextResponse.json({ success: false, error: 'Failed to get CA token' });
 
         const year = 2026;
@@ -23,21 +27,22 @@ export async function GET() {
         const res = await fetch(url, { headers: { 'Authorization': `Bearer ${token}` } });
         const data = await res.json();
         
-        const items = data.items || [];
+        const items = data.itens || []; // V2 usually returns 'itens'
         const rawItems = items.map((i: any) => ({
             id: i.id,
-            description: i.description,
-            amount: i.amount,
-            categories: i.categories.map((c: any) => ({ name: c.name, val: c.valor })),
-            costCenters: i.costCenters.map((cc: any) => ({ name: cc.name, val: cc.valor }))
+            description: i.descricao || i.description,
+            amount: i.valor || i.amount,
+            categories: (i.categorias || []).map((c: any) => ({ name: c.nome || c.name, val: c.valor })),
+            costCenters: (i.centros_de_custo || []).map((cc: any) => ({ name: cc.nome || cc.name, val: cc.valor }))
         }));
 
-        const total = rawItems.reduce((acc, curr) => acc + curr.amount, 0);
+        const total = rawItems.reduce((acc: number, curr: any) => acc + (curr.amount || 0), 0);
 
         return NextResponse.json({ 
             success: true, 
             tenant: spot.name,
             totalFound: total,
+            itemsCount: rawItems.length,
             items: rawItems
         });
     } catch (e: any) {

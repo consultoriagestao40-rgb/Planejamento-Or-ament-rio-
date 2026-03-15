@@ -247,6 +247,8 @@ export async function runCronSync(reqYear: number, targetTenantId?: string) {
                 }
             }
 
+            console.log(`[SYNC] [${t.name}] Aggregated ${aggregates.size} unique keys for ${viewMode}. Total amount: ${Array.from(aggregates.values()).reduce((s,a) => s+a.amount, 0)}`);
+
             await prisma.realizedEntry.deleteMany({ where: { tenantId: { in: allEntityIds }, year: reqYear, viewMode } });
             
             const createData = Array.from(aggregates.entries()).map(([key, data]) => {
@@ -264,13 +266,22 @@ export async function runCronSync(reqYear: number, targetTenantId?: string) {
             });
 
             if (createData.length > 0) {
+                console.log(`[SYNC] [${t.name}] Attempting to save ${createData.length} records to DB...`);
                 try {
-                    await prisma.realizedEntry.createMany({ data: createData });
-                } catch (e) {
+                    const res = await prisma.realizedEntry.createMany({ data: createData });
+                    console.log(`[SYNC] [${t.name}] SUCCESS: Saved ${res.count} records via createMany.`);
+                } catch (e: any) {
+                    console.error(`[SYNC] [${t.name}] createMany FAILED: ${e.message}. Falling back to individual creation.`);
                     for (const row of createData) {
-                        try { await prisma.realizedEntry.create({ data: row }); } catch (err) {}
+                        try { 
+                            await prisma.realizedEntry.create({ data: row }); 
+                        } catch (err: any) {
+                            console.error(`[SYNC] [${t.name}] Individual save FAILED for cat ${row.categoryId}: ${err.message}`);
+                        }
                     }
                 }
+            } else {
+                console.warn(`[SYNC] [${t.name}] NO DATA to save for ${viewMode}. Check filters/API response.`);
             }
         }
         report.push({ tenant: t.name, status: 'Success' });

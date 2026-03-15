@@ -8,6 +8,7 @@ export function middleware(request: NextRequest) {
     if (
         pathname.startsWith('/_next') ||
         pathname.startsWith('/api/auth') ||
+        pathname.startsWith('/api/version') ||
         pathname.startsWith('/api/diag-summary') ||
         pathname.startsWith('/api/diag-audit') ||
         pathname.startsWith('/api/debug-spot') ||

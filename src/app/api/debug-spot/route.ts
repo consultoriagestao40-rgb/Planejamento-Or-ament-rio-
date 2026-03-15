@@ -1,60 +1,56 @@
 import { NextResponse } from 'next/server';
-import { getValidAccessToken } from '@/lib/services';
 import { prisma } from '@/lib/prisma';
+import { getValidAccessToken } from '@/lib/conta-azul-auth';
 
 export const dynamic = 'force-dynamic';
 
 export async function GET() {
     try {
         const spot = await prisma.tenant.findFirst({ 
-            where: { 
-                name: { contains: 'SPOT', mode: 'insensitive' } 
-            } 
+            where: { name: { contains: 'SPOT', mode: 'insensitive' } } 
         });
-        
-        if (!spot) return NextResponse.json({ success: false, error: 'SPOT not found' });
+
+        if (!spot) return NextResponse.json({ error: "SPOT not found" });
 
         const { token } = await getValidAccessToken(spot.id);
-        if (!token) return NextResponse.json({ success: false, error: 'Failed to get CA token' });
-
-        const year = 2026;
-        const start = `${year}-01-01`;
-        const end = `${year}-01-31`;
-
-        const url = `https://api-v2.contaazul.com/v1/financeiro/eventos-financeiros/contas-a-receber/buscar?data_pagamento_de=${start}&data_pagamento_ate=${end}&tamanho_pagina=100`;
         
-        const res = await fetch(url, { headers: { 'Authorization': `Bearer ${token}` } });
-        const data = await res.json();
+        // TEST CONTA AZUL SEARCH PARAMETERS
+        const start = `2025-11-01`;
+        const end = `2026-12-31`;
         
-        const items = data.itens || [];
-        const rawItems = items.map((i: any) => ({
-            id: i.id,
-            description: i.descricao || i.description,
-            amount: i.pago || i.total || i.valor || i.amount || 0,
-            categories: (i.categorias || []).map((c: any) => ({ id: c.id, name: c.nome || c.name, val: c.valor })),
-            costCenters: (i.centros_de_custo || []).map((cc: any) => ({ id: cc.id, name: cc.nome || cc.name, val: cc.valor }))
-        }));
+        // Try VENCIMENTO first
+        const urlVenc = `https://api-v2.contaazul.com/v1/financeiro/eventos-financeiros/contas-a-receber/buscar?data_vencimento_de=${start}&data_vencimento_ate=${end}&tamanho_pagina=100`;
+        const resVenc = await fetch(urlVenc, {
+            headers: { 'Authorization': `Bearer ${token}` }
+        });
+        const dataVenc = await resVenc.json();
 
-        const total = rawItems.reduce((acc: number, curr: any) => acc + (curr.amount || 0), 0);
+        // Try PAGAMENTO
+        const urlPag = `https://api-v2.contaazul.com/v1/financeiro/eventos-financeiros/contas-a-receber/buscar?data_pagamento_de=${start}&data_pagamento_ate=${end}&tamanho_pagina=100`;
+        const resPag = await fetch(urlPag, {
+            headers: { 'Authorization': `Bearer ${token}` }
+        });
+        const dataPag = await resPag.json();
 
         const dbEntries = await prisma.realizedEntry.findMany({
             where: { tenantId: spot.id, year: 2026 },
-            take: 50
+            take: 10
         });
 
         return NextResponse.json({ 
             success: true, 
-            version: "0.3.5-DIAG",
-            tenant: spot.name,
-            totalFoundInAPI: total,
-            itemsCountInAPI: rawItems.length,
-            dbEntriesCount: dbEntries.length,
-            dbEntriesSample: dbEntries.map(e => ({ cat: e.categoryId, val: e.amount, month: e.month, mode: e.viewMode })),
-            debug: {
-                all_descriptions: rawItems.map((i: any) => `${i.description} | Valor: ${i.amount} | Pago: ${items.find((it:any) => it.id === i.id)?.pago} | Cats: ${i.categories.length}`)
-            }
+            version: "0.3.6-TEST-PARAMS",
+            vencimentoResult: {
+                count: (dataVenc.itens || []).length,
+                total: (dataVenc.itens || []).reduce((s:any, i:any) => s + (i.amount || 0), 0)
+            },
+            pagamentoResult: {
+                count: (dataPag.itens || []).length,
+                total: (dataPag.itens || []).reduce((s:any, i:any) => s + (i.amount || 0), 0)
+            },
+            dbEntriesCount: dbEntries.length
         });
     } catch (e: any) {
-        return NextResponse.json({ success: false, error: e.message });
+        return NextResponse.json({ error: e.message });
     }
 }

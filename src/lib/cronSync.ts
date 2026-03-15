@@ -111,6 +111,12 @@ async function fetchAllTransactionsForYear(accessToken: string, baseUrl: string,
 }
 
 export async function runCronSync(reqYear: number, targetTenantId?: string) {
+    const logs: string[] = [];
+    const pushLog = (msg: string) => {
+        console.log(msg);
+        logs.push(msg);
+    };
+
     let allTenants;
     if (targetTenantId && targetTenantId !== 'ALL') {
         allTenants = await prisma.tenant.findMany({ where: { id: targetTenantId } });
@@ -247,7 +253,7 @@ export async function runCronSync(reqYear: number, targetTenantId?: string) {
                 }
             }
 
-            console.log(`[SYNC] [${t.name}] Aggregated ${aggregates.size} unique keys for ${viewMode}. Total amount: ${Array.from(aggregates.values()).reduce((s,a) => s+a.amount, 0)}`);
+            pushLog(`[SYNC] [${t.name}] Aggregated ${aggregates.size} unique keys for ${viewMode}. Total amount: ${Array.from(aggregates.values()).reduce((s,a) => s+a.amount, 0)}`);
 
             await prisma.realizedEntry.deleteMany({ where: { tenantId: { in: allEntityIds }, year: reqYear, viewMode } });
             
@@ -266,17 +272,17 @@ export async function runCronSync(reqYear: number, targetTenantId?: string) {
             });
 
             if (createData.length > 0) {
-                console.log(`[SYNC] [${t.name}] Attempting to save ${createData.length} records to DB...`);
+                pushLog(`[SYNC] [${t.name}] Attempting to save ${createData.length} records to DB...`);
                 try {
                     const res = await prisma.realizedEntry.createMany({ data: createData });
-                    console.log(`[SYNC] [${t.name}] SUCCESS: Saved ${res.count} records via createMany.`);
+                    pushLog(`[SYNC] [${t.name}] SUCCESS: Saved ${res.count} records via createMany.`);
                 } catch (e: any) {
-                    console.error(`[SYNC] [${t.name}] createMany FAILED: ${e.message}. Falling back to individual creation.`);
+                    pushLog(`[SYNC] [${t.name}] createMany FAILED: ${e.message}. Falling back to individual creation.`);
                     for (const row of createData) {
                         try { 
                             await prisma.realizedEntry.create({ data: row }); 
                         } catch (err: any) {
-                            console.error(`[SYNC] [${t.name}] Individual save FAILED for cat ${row.categoryId}: ${err.message}`);
+                            pushLog(`[SYNC] [${t.name}] Individual save FAILED for cat ${row.categoryId}: ${err.message}`);
                         }
                     }
                 }
@@ -286,5 +292,5 @@ export async function runCronSync(reqYear: number, targetTenantId?: string) {
         }
         report.push({ tenant: t.name, status: 'Success' });
     }
-    return { success: true, year: reqYear, report };
+    return { success: true, year: reqYear, report, logs };
 }

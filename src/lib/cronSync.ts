@@ -72,25 +72,28 @@ async function fetchAllTransactionsForYear(accessToken: string, baseUrl: string,
                 let dateStr: string;
                 let amount: number;
 
+                // CA uses 'pago' or 'total' for the actual values in many responses
+                const rawAmount = item.pago || item.valor_pago || item.valor || item.amount || item.total || 0;
+                amount = Math.abs(rawAmount);
+
                 if (viewMode === 'caixa') {
                     dateStr = item.data_pagamento || item.baixado_em || item.data_vencimento || item.vencimento;
                     const status = (item.status || '').toUpperCase();
-                    const isPaid = status === 'BAIXADO' || status === 'RECEBIDO' || status === 'PAGO' || status === 'QUITADO' || (item.pago && item.pago > 0) || (item.valor_pago && item.valor_pago > 0);
+                    const isPaid = status === 'BAIXADO' || status === 'RECEBIDO' || status === 'PAGO' || status === 'QUITADO' || (item.pago && item.pago > 0) || (item.valor_total_pago && item.valor_total_pago > 0);
                     if (!isPaid) continue;
-                    amount = item.pago || item.valor_pago || item.valor || item.amount || item.total || 0;
                 } else {
                     dateStr = item.data_competencia || item.data_vencimento || item.vencimento;
-                    amount = item.pago || item.valor_pago || item.valor || item.amount || item.total || 0;
                 }
 
                 const dateObj = dateStr ? new Date(dateStr) : new Date();
+                // Filter by year after extracting the correct date field
                 if (dateObj.getFullYear() !== targetYear) continue;
 
                 transactions.push({
                     id: item.id,
                     description: item.descricao,
                     month: dateObj.getMonth(),
-                    amount: Math.abs(amount),
+                    amount: amount,
                     categories: cats,
                     costCenters: ccs
                 });
@@ -140,6 +143,16 @@ export async function runCronSync(reqYear: number, targetTenantId?: string) {
         }
         
         const primaryId = t.id;
+        
+        // 1. FRESH METADATA SYNC: Ensure categories and CCs are in the DB before processing values
+        console.log(`[SYNC] Refreshing metadata for ${t.name}...`);
+        try {
+            const { syncData } = await import('./services');
+            await syncData('DEFAULT', reqYear, 'competencia', t.id);
+        } catch (e) {
+            console.error(`[SYNC] Metadata refresh failed for ${t.name}:`, e);
+        }
+
         const allEntityIds = await getAllVariantIds(t.id);
         
         const categoriesDb = await prisma.category.findMany({ 
@@ -151,11 +164,12 @@ export async function runCronSync(reqYear: number, targetTenantId?: string) {
             select: { id: true } 
         });
 
-        // ALIGNMENT MAPS: Raw ID -> Existing DB ID (to ensure Grid matches)
+        // ALIGNMENT MAPS: Raw ID -> Primary or Existing DB ID (CRITICAL for Grid Visibility)
         const catMap = new Map<string, string>();
-        categoriesDb.forEach((c: any) => {
-            const raw = c.id.includes(':') ? c.id.split(':')[1] : c.id;
-            if (!catMap.has(raw)) catMap.set(raw, c.id);
+        categoriesDb.forEach((cat: any) => {
+            const raw = cat.id.includes(':') ? cat.id.split(':')[1] : cat.id;
+            // Always map to the ID that already exists in the table
+            if (!catMap.has(raw)) catMap.set(raw, cat.id);
         });
 
         const ccMap = new Map<string, string>();

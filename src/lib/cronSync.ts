@@ -2,7 +2,7 @@ import { prisma } from '@/lib/prisma';
 import { getValidAccessToken } from '@/lib/services';
 import { getPrimaryTenantId, getAllVariantIds } from '@/lib/tenant-utils';
 
-async function fetchAllTransactionsForYear(accessToken: string, baseUrl: string, targetYear: number, viewMode: 'caixa' | 'competencia') {
+async function fetchAllTransactionsForYear(accessToken: string, baseUrl: string, targetYear: number, viewMode: 'caixa' | 'competencia', isExpense = false) {
     let page = 1;
     let hasMore = true;
     const transactions: any[] = [];
@@ -94,7 +94,7 @@ async function fetchAllTransactionsForYear(accessToken: string, baseUrl: string,
                     id: item.id,
                     description: item.descricao,
                     month: dateObj.getMonth() + 1, // 1-12 to match budgets logic
-                    amount: amount,
+                    amount: isExpense ? -Math.abs(amount) : Math.abs(amount),
                     categories: cats,
                     costCenters: ccs
                 });
@@ -202,8 +202,8 @@ export async function runCronSync(reqYear: number, targetTenantId?: string) {
             const url1 = `https://api-v2.contaazul.com/v1/financeiro/eventos-financeiros/contas-a-receber/buscar?data_vencimento_de=${startStr}&data_vencimento_ate=${endStr}&tamanho_pagina=100`;
             const url2 = `https://api-v2.contaazul.com/v1/financeiro/eventos-financeiros/contas-a-pagar/buscar?data_vencimento_de=${startStr}&data_vencimento_ate=${endStr}&tamanho_pagina=100`;
 
-            const receivables = await fetchAllTransactionsForYear(token, url1, reqYear, viewMode);
-            const payables = await fetchAllTransactionsForYear(token, url2, reqYear, viewMode);
+            const receivables = await fetchAllTransactionsForYear(token, url1, reqYear, viewMode, false);
+            const payables = await fetchAllTransactionsForYear(token, url2, reqYear, viewMode, true);
             const allTxns = [...receivables, ...payables];
 
             let totalRevenue = 0;

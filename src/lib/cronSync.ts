@@ -126,14 +126,21 @@ export async function runCronSync(reqYear: number, targetTenantId?: string) {
 
     if (allTenants.length === 0) return { success: false, error: 'No tenants' };
 
-    // DEDUPLICATE: Memory-based by CNPJ or Normalized Name
     const companyMap = new Map();
     allTenants.forEach(t => {
         const cleanCnpj = (t.cnpj || '').replace(/\D/g, '');
         const cleanName = (t.name || '').trim().toUpperCase().replace(/[^A-Z0-9]/g, '');
         const key = cleanCnpj !== '' ? cleanCnpj : cleanName;
-        if (!companyMap.has(key) || new Date(t.updatedAt) > new Date(companyMap.get(key).updatedAt)) {
+        
+        if (!companyMap.has(key)) {
             companyMap.set(key, t);
+        } else {
+            // ALWAYS pick the oldest one (by createdAt) or the one with the lowest ID alphabetically
+            // to ensure stable primary ID across different sync triggerings.
+            const existing = companyMap.get(key);
+            if (t.id < existing.id) {
+                companyMap.set(key, t);
+            }
         }
     });
 

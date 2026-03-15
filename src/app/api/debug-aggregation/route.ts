@@ -13,21 +13,27 @@ export async function GET() {
             select: { id: true, name: true }
         });
 
-        const realized = await prisma.realizedEntry.findMany({
+        // Check for ANY realized entries for this tenant, regardless of year
+        const totalEntries = await prisma.realizedEntry.count({ where: { tenantId: spot.id } });
+        const yearStats = await prisma.realizedEntry.groupBy({
+            by: ['year', 'viewMode'],
             where: { tenantId: spot.id },
-            take: 20
+            _count: true,
+            _sum: { amount: true }
         });
 
-        const count2026Caixa = await prisma.realizedEntry.count({
-            where: { tenantId: spot.id, year: 2026, viewMode: 'caixa' }
+        const sampleRevenues = await prisma.category.findMany({
+            where: { tenantId: spot.id, name: { startsWith: '01' } },
+            take: 10
         });
 
         return NextResponse.json({
-            tenant: spot,
+            tenant: { id: spot.id, name: spot.name },
             categoriesCount: cats.length,
-            categoriesSample: cats.slice(0, 10),
-            realizedSample: realized,
-            count2026Caixa
+            revenueCatsSample: sampleRevenues,
+            totalEntries,
+            yearStats,
+            debug: "Diagnostic v0.3.6 - Deep Scan"
         });
     } catch (e: any) {
         return NextResponse.json({ error: e.message });

@@ -103,7 +103,7 @@ export async function GET(request: Request) {
 
         return NextResponse.json({
             success: true,
-            version: "0.2.0-ABS-RATEIO",
+            version: "0.2.1-FINAL",
             transactions: allTransactions
         });
 

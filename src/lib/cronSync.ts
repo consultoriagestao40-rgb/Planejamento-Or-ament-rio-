@@ -118,25 +118,20 @@ export async function runCronSync(reqYear: number, targetTenantId?: string) {
     let allTenants;
     if (targetTenantId && targetTenantId !== 'ALL') {
         allTenants = await prisma.tenant.findMany({ where: { id: targetTenantId } });
-    } else {
-        allTenants = await prisma.tenant.findMany({ orderBy: { updatedAt: 'desc' } });
-    }
-    console.log(`[SYNC] Found ${allTenants.length} tenants in total.`);
-    if (allTenants.length === 0) {
-        return { success: false, error: 'No tenants' };
-    }
-
-    // DEDUPLICATE: Only sync once per UNIQUE PRIMARY TENANT
-    const uniquePrimaryIds = new Set();
-    const tenants = [];
-    for (const t of allTenants) {
-        const pId = await getPrimaryTenantId(t);
-        if (!uniquePrimaryIds.has(pId)) {
-            uniquePrimaryIds.add(pId);
-            tenants.push(t);
+    // DEDUPLICATE: Only sync once per UNIQUE COMPANY (CNPJ or Normalized Name)
+    const companyMap = new Map();
+    allTenants.forEach(t => {
+        const cleanCnpj = (t.cnpj || '').replace(/\D/g, '');
+        const cleanName = (t.name || '').trim().toUpperCase().replace(/[^A-Z0-9]/g, '');
+        const key = cleanCnpj !== '' ? cleanCnpj : cleanName;
+        // Keep the one with the most recent update
+        if (!companyMap.has(key) || new Date(t.updatedAt) > new Date(companyMap.get(key).updatedAt)) {
+            companyMap.set(key, t);
         }
-    }
-    console.log(`[SYNC] Processing ${tenants.length} unique primary tenants.`);
+    });
+
+    const tenants = Array.from(companyMap.values());
+    console.log(`[SYNC] Processing ${tenants.length} unique companies out of ${allTenants.length} tenants.`);
 
     const report = [];
 
@@ -150,8 +145,9 @@ export async function runCronSync(reqYear: number, targetTenantId?: string) {
             report.push({ tenant: t.name, status: `Token Error: ${e.message}` });
             continue;
         }
-        // UNIFICAÇÃO: Usar o ID do Tenant Primário para escrita para evitar que duplicatas fiquem "zeradas"
-        const primaryId = await getPrimaryTenantId(t);
+
+        // IMPORTANT: Use the deduplicated tenant's ID as the source of truth
+        const primaryId = t.id; 
         const allEntityIds = await getAllVariantIds(t.id);
         
         console.log(`[SYNC] [${t.name}] Primary ID: ${primaryId} | Variants to clean: ${allEntityIds.length}`);

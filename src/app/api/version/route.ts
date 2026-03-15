@@ -5,7 +5,8 @@ export const dynamic = 'force-dynamic';
 export async function GET() {
     return NextResponse.json({
         ok: true,
-        rev: "f7c58a1-window-fix",
+        rev: "d928f22-force-v2",
+        status: "BUILD_FIXED",
         timestamp: new Date().toISOString()
     });
 }

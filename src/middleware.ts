@@ -8,15 +8,7 @@ export function middleware(request: NextRequest) {
     if (
         pathname.startsWith('/_next') ||
         pathname.startsWith('/api/auth') ||
-        pathname.startsWith('/api/version') ||
-        pathname.startsWith('/api/diag-summary') ||
-        pathname.startsWith('/api/diag-audit') ||
-        pathname.startsWith('/api/debug-spot') ||
-        pathname.startsWith('/api/debug-db-dump') ||
-        pathname.startsWith('/api/debug-aggregation') ||
-        pathname.startsWith('/api/debug-sync') ||
-        pathname.startsWith('/api/debug-revenue') ||
-        pathname.startsWith('/api/clear-sync') ||
+        pathname.startsWith('/api/nuclear-cleanup') ||
         pathname.startsWith('/api/cron/sync') ||
         pathname === '/login' ||
         pathname === '/favicon.ico'

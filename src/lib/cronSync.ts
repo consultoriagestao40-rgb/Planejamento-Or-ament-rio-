@@ -184,12 +184,10 @@ export async function runCronSync(reqYear: number, targetTenantId?: string) {
 
         for (const viewMode of ['competencia', 'caixa'] as const) {
             const isCaixa = viewMode === 'caixa';
-            const startStr = isCaixa ? `${reqYear}-01-01` : `${reqYear - 1}-07-01`;
-            const endStr = isCaixa ? `${reqYear}-12-31` : `${reqYear + 1}-06-30`;
-            const dateParam = isCaixa ? 'data_pagamento' : 'data_vencimento';
-
-            const url1 = `https://api-v2.contaazul.com/v1/financeiro/eventos-financeiros/contas-a-receber/buscar?${dateParam}_de=${startStr}&${dateParam}_ate=${endStr}&tamanho_pagina=100`;
-            const url2 = `https://api-v2.contaazul.com/v1/financeiro/eventos-financeiros/contas-a-pagar/buscar?${dateParam}_de=${startStr}&${dateParam}_ate=${endStr}&tamanho_pagina=100`;
+            const startStr = reqYear === 2026 ? `2025-11-01` : `${reqYear}-01-01`; 
+            const endStr = `${reqYear}-12-31`;
+            const url1 = `https://api-v2.contaazul.com/v1/financeiro/eventos-financeiros/contas-a-receber/buscar?data_vencimento_de=${startStr}&data_vencimento_ate=${endStr}&tamanho_pagina=100`;
+            const url2 = `https://api-v2.contaazul.com/v1/financeiro/eventos-financeiros/contas-a-pagar/buscar?data_vencimento_de=${startStr}&data_vencimento_ate=${endStr}&tamanho_pagina=100`;
 
             const receivables = await fetchAllTransactionsForYear(token, url1, reqYear, viewMode);
             const payables = await fetchAllTransactionsForYear(token, url2, reqYear, viewMode);

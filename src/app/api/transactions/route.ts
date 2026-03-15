@@ -103,7 +103,7 @@ export async function GET(request: Request) {
 
         return NextResponse.json({
             success: true,
-            version: "0.3.4-FINAL",
+            version: "0.3.5-FINAL",
             transactions: allTransactions
         });
 

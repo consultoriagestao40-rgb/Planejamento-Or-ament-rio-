@@ -71,7 +71,8 @@ export async function GET(request: Request) {
         for (const entry of entries) {
             if (ccs.length > 0 && (!entry.costCenterId || !ccs.includes(entry.costCenterId))) continue;
 
-            const baseCatName = (categoryMap.get(entry.categoryId) || 'Sem Categoria').trim();
+            const entryRawCatId = entry.categoryId.includes(':') ? entry.categoryId.split(':')[1] : entry.categoryId;
+            const baseCatName = (categoryMap.get(entryRawCatId) || categoryMap.get(entry.categoryId) || 'Sem Categoria').trim();
             const monthKey = `${baseCatName}-${entry.month - 1}`;
             nameToTotal.set(monthKey, (nameToTotal.get(monthKey) || 0) + (entry.amount || 0));
         }

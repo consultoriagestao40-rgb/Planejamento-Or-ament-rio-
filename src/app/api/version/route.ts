@@ -5,10 +5,10 @@ export const dynamic = 'force-dynamic';
 export async function GET() {
     return NextResponse.json({
         ok: true,
-        rev: "2d759a6-id-fix",
-        version: "0.1.3",
+        rev: "26a8f00-logic-sync",
+        version: "0.1.4",
         timestamp: new Date().toISOString(),
-        message: "ID Sanitation Fix - Aligning Grid vs Modal",
-        status: "DEPLOYING_FINAL_FIX"
+        message: "Logic Unification - Grid vs Modal",
+        status: "FIX_APPLIED"
     });
 }

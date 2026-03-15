@@ -45,8 +45,9 @@ export async function GET(request: Request) {
             try {
                 const { token } = await getValidAccessToken(t.id);
 
-                const receivablesUrl = `https://api-v2.contaazul.com/v1/financeiro/eventos-financeiros/contas-a-receber/buscar?data_vencimento_de=${startStr}&data_vencimento_ate=${endStr}&categoria_id=${cleanCategoryId}&tamanho_pagina=100`;
-                const payablesUrl = `https://api-v2.contaazul.com/v1/financeiro/eventos-financeiros/contas-a-pagar/buscar?data_vencimento_de=${startStr}&data_vencimento_ate=${endStr}&categoria_id=${cleanCategoryId}&tamanho_pagina=100`;
+                // REMOVE category filter from URL to match cronSync behavior and catch multi-category items
+                const receivablesUrl = `https://api-v2.contaazul.com/v1/financeiro/eventos-financeiros/contas-a-receber/buscar?data_vencimento_de=${startStr}&data_vencimento_ate=${endStr}&tamanho_pagina=100`;
+                const payablesUrl = `https://api-v2.contaazul.com/v1/financeiro/eventos-financeiros/contas-a-pagar/buscar?data_vencimento_de=${startStr}&data_vencimento_ate=${endStr}&tamanho_pagina=100`;
 
                 const [receivables, payables] = await Promise.all([
                     fetchTransactions(token, receivablesUrl, costCenterId, categoryId, year, month, viewMode),
@@ -120,10 +121,17 @@ async function fetchTransactions(accessToken: string, baseUrl: string, costCente
                 // Strip any tenant prefix from the target categories list for clean comparison
                 const cleanTargetCategoryIds = targetCategoryIds.map(id => id.includes(':') ? id.split(':')[1] : id);
 
-                // Align exactly with cronSync.ts: we assign 100% of the value solely to the FIRST category linked.
-                const primaryCat = cats[0];
-                if (!cleanTargetCategoryIds.includes(primaryCat.id)) continue;
+                // MATCH cronSync.ts: Iterar sobre todas as categorias do item
+                // Se o item tem 2 categorias e uma delas é o alvo, ele entra.
+                const matchesCategory = cats.some((c: any) => cleanTargetCategoryIds.includes(c.id));
+                if (!matchesCategory) continue;
 
+                // Identify if the item has split values per category
+                // For simplicity and alignment with current grid logic, we verify which of the cats is the target one.
+                // In cronSync, we split the value among leaves.
+                const targetCat = cats.find((c: any) => cleanTargetCategoryIds.includes(c.id));
+                const catValue = (targetCat && typeof targetCat.valor === 'number') ? Math.abs(targetCat.valor) : (item.total || item.valor || 0);
+                
                 const ccsOrig = item.centros_de_custo || [];
                 let ccs = [...ccsOrig];
 
@@ -167,12 +175,11 @@ async function fetchTransactions(accessToken: string, baseUrl: string, costCente
 
                 if (viewMode === 'caixa') {
                     dateStr = item.data_pagamento || item.baixado_em || item.data_vencimento || item.vencimento;
-                    // AGREE WITH CRONSYNC: Prioritize installment/payment value
                     amount = item.pago || item.valor_pago || item.valor || item.amount || item.total || 0;
                 } else {
                     dateStr = item.data_competencia || item.data_vencimento || item.vencimento;
-                    // AGREE WITH CRONSYNC: Prioritize installment value (valor) over SALE TOTAL (total)
-                    amount = item.valor || item.amount || item.total || 0;
+                    // PRIORITIZE category-specific value if available (handling splits)
+                    amount = catValue || item.valor || item.amount || item.total || 0;
                 }
 
                 const dateObj = dateStr ? new Date(dateStr) : new Date();

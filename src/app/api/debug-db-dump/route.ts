@@ -25,7 +25,7 @@ export async function GET() {
         return NextResponse.json({
             tenant: { id: spot.id, name: spot.name },
             categoriesCount: cats.length,
-            categoriesSample: cats.slice(0, 10),
+            categoriesSample: cats.slice(0, 50).map(c => ({ id: c.id, name: c.name })),
             costCentersSample: ccs.slice(0, 10),
             allVariants: variants.map(v => ({ id: v.id, name: v.name }))
         });

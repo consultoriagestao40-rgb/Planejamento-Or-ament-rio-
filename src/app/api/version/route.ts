@@ -8,6 +8,6 @@ export async function GET() {
         version: "1.0.4-nuclear-fix",
         timestamp: new Date().toISOString(),
         env: process.env.NODE_ENV,
-        git: "634c6c2..c3623e4-broaden-caixa"
+        git: "5680686-modal-fix"
     });
 }

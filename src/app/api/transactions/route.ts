@@ -177,7 +177,7 @@ async function fetchTransactions(accessToken: string, baseUrl: string, costCente
                 const amountPerCc = absAmount / ccsCount;
 
                 if (ccs.length === 0) {
-                    if (isFiltered) return; // Ignore if user explicitly restricted by CC
+                    if (isFiltered) continue; // Ignore if user explicitly restricted by CC
 
                     transactions.push({
                         id: item.id,

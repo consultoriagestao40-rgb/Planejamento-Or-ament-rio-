@@ -141,9 +141,20 @@ export async function runCronSync(reqYear: number, targetTenantId?: string) {
         
         const primaryId = t.id;
         const allEntityIds = await getAllVariantIds(t.id);
-        const categoriesDb = await prisma.category.findMany({ where: { tenantId: primaryId }, select: { id: true, name: true } });
+        
+        // FIX: Fetch categories and cost centers for ALL variant IDs of this company
+        const categoriesDb = await prisma.category.findMany({ 
+            where: { tenantId: { in: allEntityIds } }, 
+            select: { id: true, name: true } 
+        });
+        const costCentersDb = await prisma.costCenter.findMany({ 
+            where: { tenantId: { in: allEntityIds } }, 
+            select: { id: true } 
+        });
+
+        // Always prefix with the CURRENT PRIMARY ID for consistent internal aggregation
         const validCategoryIds = new Set(categoriesDb.map((c: any) => `${primaryId}:${c.id}`));
-        const validCostCenterIds = new Set((await prisma.costCenter.findMany({ where: { tenantId: primaryId }, select: { id: true } })).map((c: any) => `${primaryId}:${c.id}`));
+        const validCostCenterIds = new Set(costCentersDb.map((c: any) => `${primaryId}:${c.id}`));
 
         for (const viewMode of ['competencia', 'caixa'] as const) {
             const isCaixa = viewMode === 'caixa';

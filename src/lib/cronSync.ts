@@ -203,12 +203,7 @@ export async function runCronSync(reqYear: number, targetTenantId?: string) {
                 processedIds.add(txn.id);
                 if (txn.categories.length === 0) continue;
 
-                // RULE: Only Revenue (starts with 01)
-                const isRevenue = txn.categories.some((c: any) => {
-                    const name = (c.nome || c.name || '').trim();
-                    return name.startsWith('01');
-                });
-                if (!isRevenue) continue;
+                // No restrictive filters here anymore. We capture what the API gives us.
 
                 const leaves = txn.categories.filter((c: any) => {
                     const cid = c.id;

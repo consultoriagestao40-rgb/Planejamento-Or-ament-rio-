@@ -63,27 +63,31 @@ export async function GET(request: Request) {
             categoryMap.set(c.id, c.name);
         });
 
-        const aggregatedValues: Record<string, number> = {};
+        // Create a map of name -> ID for the Grid key
+        // We use the first ID we find for that name, but aggregate everything for that name.
+        const nameToKey = new Map<string, string>();
+        const nameToTotal = new Map<string, number>();
 
         for (const entry of entries) {
-            // Apply Cost Center filter if needed
-            if (ccs.length > 0) {
-                if (!entry.costCenterId || !ccs.includes(entry.costCenterId)) {
-                    continue; 
+            if (ccs.length > 0 && (!entry.costCenterId || !ccs.includes(entry.costCenterId))) continue;
+
+            const baseCatName = (categoryMap.get(entry.categoryId) || 'Sem Categoria').trim();
+            const monthKey = `${baseCatName}-${entry.month - 1}`;
+            nameToTotal.set(monthKey, (nameToTotal.get(monthKey) || 0) + (entry.amount || 0));
+        }
+
+        // Now map the aggregated totals to the ACTUAL IDs the Grid is using.
+        // The Grid uses IDs from the setup, so we map NAME -> ALL IDs we found for it.
+        const aggregatedValues: Record<string, number> = {};
+        categories.forEach((c: any) => {
+            const name = (c.name || '').trim();
+            for (let m = 0; m < 12; m++) {
+                const monthKey = `${name}-${m}`;
+                if (nameToTotal.has(monthKey)) {
+                    aggregatedValues[`${c.id}-${m}`] = nameToTotal.get(monthKey)!;
                 }
             }
-
-            // RULE: Only 3-segment codes (X.Y.Z) are data points.
-            const catName = categoryMap.get(entry.categoryId) || '';
-            const codeMatch = catName.match(/^(\d{1,2}(?:\.\d+)*)/);
-            const code = codeMatch ? codeMatch[1] : '';
-            const codeSegments = code.split('.').filter(Boolean).length;
-            
-            if (codeSegments !== 3) continue;
-
-            const key = `${entry.categoryId}-${entry.month - 1}`;
-            aggregatedValues[key] = (aggregatedValues[key] || 0) + (entry.amount || 0);
-        }
+        });
 
         return NextResponse.json({
             success: true,

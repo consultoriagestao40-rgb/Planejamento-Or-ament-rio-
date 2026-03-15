@@ -38,6 +38,9 @@ export async function GET() {
                 _sum: { amount: true }
             });
 
+            const cats = await prisma.category.findMany({ where: { tenantId: t.id }, select: { id: true, name: true }, take: 20 });
+            const anyEntries = await prisma.realizedEntry.findMany({ where: { tenantId: t.id }, take: 10 });
+
             diagnostic.tenants.push({
                 id: t.id,
                 name: t.name,
@@ -45,7 +48,9 @@ export async function GET() {
                 variants,
                 entriesCompetencia,
                 entriesCaixa,
-                totalCaixaAmount: entriesAmount._sum.amount || 0
+                totalCaixaAmount: entriesAmount._sum.amount || 0,
+                catsSample: cats,
+                anyEntriesSample: anyEntries
             });
         }
 

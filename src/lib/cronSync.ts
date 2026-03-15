@@ -142,7 +142,6 @@ export async function runCronSync(reqYear: number, targetTenantId?: string) {
         const primaryId = t.id;
         const allEntityIds = await getAllVariantIds(t.id);
         
-        // FIX: Fetch categories and cost centers for ALL variant IDs of this company
         const categoriesDb = await prisma.category.findMany({ 
             where: { tenantId: { in: allEntityIds } }, 
             select: { id: true, name: true } 
@@ -152,9 +151,18 @@ export async function runCronSync(reqYear: number, targetTenantId?: string) {
             select: { id: true } 
         });
 
-        // FIX: Build sets of RAW IDs (without prefixes) to validate against CA API items
-        const validCategoryRawIds = new Set(categoriesDb.map((c: any) => c.id.includes(':') ? c.id.split(':')[1] : c.id));
-        const validCostCenterRawIds = new Set(costCentersDb.map((c: any) => c.id.includes(':') ? c.id.split(':')[1] : c.id));
+        // ALIGNMENT MAPS: Raw ID -> Existing DB ID (to ensure Grid matches)
+        const catMap = new Map<string, string>();
+        categoriesDb.forEach((c: any) => {
+            const raw = c.id.includes(':') ? c.id.split(':')[1] : c.id;
+            if (!catMap.has(raw)) catMap.set(raw, c.id);
+        });
+
+        const ccMap = new Map<string, string>();
+        costCentersDb.forEach((cc: any) => {
+            const raw = cc.id.includes(':') ? cc.id.split(':')[1] : cc.id;
+            if (!ccMap.has(raw)) ccMap.set(raw, cc.id);
+        });
 
         for (const viewMode of ['competencia', 'caixa'] as const) {
             const isCaixa = viewMode === 'caixa';
@@ -177,24 +185,32 @@ export async function runCronSync(reqYear: number, targetTenantId?: string) {
                 processedIds.add(txn.id);
                 if (txn.categories.length === 0) continue;
 
+                // RULE: Only Revenue (starts with 01)
+                const isRevenue = txn.categories.some((c: any) => {
+                    const name = (c.nome || c.name || '').trim();
+                    return name.startsWith('01');
+                });
+                if (!isRevenue) continue;
+
                 const leaves = txn.categories.filter((c: any) => {
                     const cid = c.id;
-                    return !txn.categories.some((other: any) => (other.parent_id === cid || other.parentId === cid || other.category_parent_id === cid));
+                    return !txn.categories.some((other: any) => (other.category_parent_id === cid || other.parent_id === cid));
                 });
 
                 if (leaves.length === 0) leaves.push(txn.categories[0]);
 
                 const catEntries = leaves.map((c: any) => {
+                    const rawId = String(c.id);
+                    const dbId = catMap.get(rawId);
                     const val = typeof c.valor === 'number' ? Math.abs(c.valor) : (txn.amount / leaves.length);
-                    // Use RAW ID here for internal mapping
-                    return { id: c.id, amount: val };
+                    return { dbId, amount: val };
                 });
 
                 for (const cat of catEntries) {
-                    if (!validCategoryRawIds.has(cat.id)) continue;
+                    if (!cat.dbId) continue;
                     
                     if (txn.costCenters.length === 0) {
-                        const key = `${cat.id}|NONE|${txn.month}`;
+                        const key = `${cat.dbId}|NONE|${txn.month}`;
                         if (!aggregates.has(key)) aggregates.set(key, { amount: 0, desc: txn.description || '' });
                         aggregates.get(key)!.amount += cat.amount;
                     } else {
@@ -205,13 +221,13 @@ export async function runCronSync(reqYear: number, targetTenantId?: string) {
                             if (typeof cc.valor === 'number') exp = Math.abs(cc.valor);
                             else if (typeof cc.percentual === 'number') exp = cat.amount * (cc.percentual / 100);
                             if (exp !== null) totalCcAllocated += exp; else unallocatedCount++;
-                            return { id: `${primaryId}:${cc.id}`, amount: exp };
+                            return { dbId: ccMap.get(String(cc.id)), amount: exp };
                         });
                         const rem = Math.max(0, cat.amount - totalCcAllocated);
                         const fallback = unallocatedCount > 0 ? (rem / unallocatedCount) : 0;
                         for (const cc of ccSplits) {
-                            const ccId = validCostCenterRawIds.has(cc.id) ? cc.id : 'NONE';
-                            const key = `${cat.id}|${ccId}|${txn.month}`;
+                            const ccId = cc.dbId || 'NONE';
+                            const key = `${cat.dbId}|${ccId}|${txn.month}`;
                             if (!aggregates.has(key)) aggregates.set(key, { amount: 0, desc: txn.description || '' });
                             const val = cc.amount !== null ? cc.amount : (unallocatedCount > 0 ? fallback : (cat.amount / ccSplits.length));
                             aggregates.get(key)!.amount += val;
@@ -220,16 +236,14 @@ export async function runCronSync(reqYear: number, targetTenantId?: string) {
                 }
             }
 
-            // DELETE using the variant IDs to clear everything
             await prisma.realizedEntry.deleteMany({ where: { tenantId: { in: allEntityIds }, year: reqYear, viewMode } });
             
             const createData = Array.from(aggregates.entries()).map(([key, data]) => {
                 const [catId, ccId, monthStr] = key.split('|');
-                // IMPORTANT: Re-prefix before saving to ensure consistency with Category table IDs
                 return {
                     tenantId: primaryId,
-                    categoryId: `${primaryId}:${catId}`,
-                    costCenterId: ccId === 'NONE' ? null : `${primaryId}:${ccId}`,
+                    categoryId: catId,
+                    costCenterId: ccId === 'NONE' ? null : ccId,
                     month: parseInt(monthStr, 10),
                     year: reqYear,
                     amount: data.amount,

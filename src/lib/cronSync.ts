@@ -26,13 +26,28 @@ async function fetchAllTransactionsForYear(accessToken: string, baseUrl: string,
                 const cats = item.categorias || [];
                 let ccs = item.centros_de_custo || [];
 
-                // Se houver rateio por parcelas, precisamos buscar os detalhes da parcela
-                if (ccs.length > 1) {
+                // Se houver rateio (centro de custo OU múltiplas categorias), buscamos detalhes
+                if (ccs.length > 1 || cats.length > 1) {
                     try {
                         const pRes = await fetch(`https://api-v2.contaazul.com/v1/financeiro/eventos-financeiros/parcelas/${item.id}`, { headers: { 'Authorization': `Bearer ${accessToken}` } });
                         if (pRes.ok) {
                             const pData = await pRes.json();
                             if (pData.evento && pData.evento.rateio) {
+                                // 1. RATEIO POR CATEGORIA (PARA VALOR BRUTO)
+                                const catRateioMap = new Map();
+                                pData.evento.rateio.forEach((r: any) => {
+                                    if (r.id_categoria) {
+                                        catRateioMap.set(r.id_categoria, (catRateioMap.get(r.id_categoria) || 0) + (r.valor || 0));
+                                    }
+                                });
+                                // Injetar valores reais nas categorias do item para o loop de agregacao
+                                cats.forEach((c: any) => {
+                                    if (catRateioMap.has(c.id)) {
+                                        c.valor = catRateioMap.get(c.id);
+                                    }
+                                });
+
+                                // 2. RATEIO POR CENTRO DE CUSTO
                                 const rateioMap = new Map();
                                 pData.evento.rateio.forEach((r: any) => {
                                     if (r.rateio_centro_custo && r.valor) {
@@ -70,11 +85,10 @@ async function fetchAllTransactionsForYear(accessToken: string, baseUrl: string,
                     // CRITICAL FIX: Prioritize payment amount or installment value over SALE TOTAL
                     amount = item.pago || item.valor_pago || item.valor || item.amount || item.total || 0;
                 } else {
-                    // Regime de Competência: Priorizar data de competência
+                    // Regime de Competência: EXTREMAMENTE ESTRITO
                     dateStr = item.data_competencia || item.data_vencimento || item.vencimento;
-                    // CRITICAL FIX: Prioritize installment value (valor) over SALE TOTAL (total)
-                    // This prevents multiplying the sale total by the number of installments.
-                    amount = item.valor || item.amount || item.total || 0;
+                    // Use a soma dos pagos/brutos se disponível, ou o valor da parcela
+                    amount = item.pago || item.valor_pago || item.valor || item.amount || item.total || 0;
                 }
 
                 const dateObj = dateStr ? new Date(dateStr) : new Date();
@@ -111,17 +125,17 @@ export async function runCronSync(reqYear: number, targetTenantId?: string) {
         return { success: false, error: 'No tenants' };
     }
 
-    // DEDUPLICATE: Only sync once per unique company name/CNPJ (even if multiple DB rows exist)
-    const seenKeys = new Set();
-    const tenants = allTenants.filter((t: any) => {
-        const cleanName = (t.name || '').trim().toUpperCase();
-        const cleanCnpj = (t.cnpj || '').replace(/\D/g, '');
-        const key = `${cleanName}-${cleanCnpj}`;
-        
-        if (seenKeys.has(key)) return false;
-        seenKeys.add(key);
-        return true;
-    });
+    // DEDUPLICATE: Only sync once per UNIQUE PRIMARY TENANT
+    const uniquePrimaryIds = new Set();
+    const tenants = [];
+    for (const t of allTenants) {
+        const pId = await getPrimaryTenantId(t);
+        if (!uniquePrimaryIds.has(pId)) {
+            uniquePrimaryIds.add(pId);
+            tenants.push(t);
+        }
+    }
+    console.log(`[SYNC] Processing ${tenants.length} unique primary tenants.`);
 
     const report = [];
 
@@ -129,21 +143,8 @@ export async function runCronSync(reqYear: number, targetTenantId?: string) {
         let token: string = '';
         try {
             console.log(`[SYNC] [${t.name}] Starting sync for year ${reqYear}...`);
-            // Se o ID original não tiver token, tenta as variantes
-            const variants = await getAllVariantIds(t.id);
-            let success = false;
-            for (const vId of variants) {
-                try {
-                    const res = await getValidAccessToken(vId);
-                    token = res.token;
-                    success = true;
-                    console.log(`[SYNC] [${t.name}] Token obtained from variant ID: ${vId}`);
-                    break;
-                } catch (err) {}
-            }
-            if (!success) {
-                throw new Error("Nenhum token válido encontrado para nenhuma variante desta empresa.");
-            }
+            const res = await getValidAccessToken(t.id);
+            token = res.token;
         } catch (e: any) {
             report.push({ tenant: t.name, status: `Token Error: ${e.message}` });
             continue;

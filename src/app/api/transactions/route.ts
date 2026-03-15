@@ -143,25 +143,39 @@ async function fetchTransactions(accessToken: string, baseUrl: string, costCente
                 // Strip any tenant prefix from the target categories list for clean comparison
                 const cleanTargetCategoryIds = targetCategoryIds.map(id => id.includes(':') ? id.split(':')[1] : id);
 
-                // MATCH cronSync.ts EXACTLY:
-                // 1. SPLIT BY CATEGORY (LEAVES ONLY)
+                // MATCH cronSync.ts EXACTLY (v0.1.9):
+                // Se houver mais de uma categoria, precisamos buscar os detalhes para pegar o valor bruto correto
+                if (cats.length > 1) {
+                    try {
+                        const pRes = await fetch(`https://api-v2.contaazul.com/v1/financeiro/eventos-financeiros/parcelas/${item.id}`, { headers: { 'Authorization': `Bearer ${token}` } });
+                        if (pRes.ok) {
+                            const pData = await pRes.json();
+                            if (pData.evento && pData.evento.rateio) {
+                                const catRateioMap = new Map();
+                                pData.evento.rateio.forEach((r: any) => {
+                                    if (r.id_categoria) catRateioMap.set(r.id_categoria, (catRateioMap.get(r.id_categoria) || 0) + (r.valor || 0));
+                                });
+                                cats.forEach((c: any) => {
+                                    if (catRateioMap.has(c.id)) c.valor = catRateioMap.get(c.id);
+                                });
+                            }
+                        }
+                    } catch(e) {}
+                }
+
                 const leaves = cats.filter((c: any) => {
                     const cid = c.id;
-                    const hasChild = cats.some((other: any) => 
-                        (other.parent_id === cid) || 
-                        (other.parentId === cid) || 
-                        (other.category_parent_id === cid)
-                    );
+                    const hasChild = cats.some((other: any) => (other.parent_id === cid) || (other.parentId === cid) || (other.category_parent_id === cid));
                     return !hasChild;
                 });
                 
                 const matchingLeaves = leaves.filter((c: any) => cleanTargetCategoryIds.includes(c.id));
                 if (matchingLeaves.length === 0) continue;
 
-                // Identify if the item has split values per category
                 let targetAmount = 0;
                 matchingLeaves.forEach((c: any) => {
-                    const val = (typeof c.valor === 'number') ? Math.abs(c.valor) : (Math.abs(item.valor || item.amount || item.total || 0) / leaves.length);
+                    // Se o rateio acima funcionou, c.valor terá o valor BRUTO da categoria
+                    const val = (typeof c.valor === 'number') ? Math.abs(c.valor) : (Math.abs(item.pago || item.valor_pago || item.total || 0) / leaves.length);
                     targetAmount += val;
                 });
 

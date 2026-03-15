@@ -21,13 +21,12 @@ export async function GET() {
         const start = `${year}-01-01`;
         const end = `${year}-01-31`;
 
-        // Fetching "Contas a Receber" specifically
         const url = `https://api-v2.contaazul.com/v1/financeiro/eventos-financeiros/contas-a-receber/buscar?data_vencimento_de=${start}&data_vencimento_ate=${end}&tamanho_pagina=100`;
         
         const res = await fetch(url, { headers: { 'Authorization': `Bearer ${token}` } });
         const data = await res.json();
         
-        const items = data.itens || []; // V2 usually returns 'itens'
+        const items = data.itens || [];
         const rawItems = items.map((i: any) => ({
             id: i.id,
             description: i.descricao || i.description,
@@ -40,6 +39,7 @@ export async function GET() {
 
         return NextResponse.json({ 
             success: true, 
+            version: "0.1.2-FINAL-FIX",
             tenant: spot.name,
             totalFound: total,
             itemsCount: rawItems.length,

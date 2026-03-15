@@ -56,7 +56,12 @@ export async function GET(request: Request) {
             select: { id: true, name: true }
         });
 
-        const categoryMap = new Map<string, string>(categories.map((c: any) => [c.id, c.name]));
+        const categoryMap = new Map<string, string>();
+        categories.forEach((c: any) => {
+            const rawId = c.id.includes(':') ? c.id.split(':')[1] : c.id;
+            categoryMap.set(rawId, c.name);
+            categoryMap.set(c.id, c.name);
+        });
 
         const aggregatedValues: Record<string, number> = {};
 

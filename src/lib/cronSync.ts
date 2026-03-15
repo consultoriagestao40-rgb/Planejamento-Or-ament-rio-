@@ -102,10 +102,11 @@ async function fetchAllTransactionsForYear(accessToken: string, baseUrl: string,
 
             if (items.length < 100) hasMore = false;
             else page++;
-        } catch (e) {
+        } catch (e: any) {
             hasMore = false;
         }
     }
+
     return transactions;
 }
 
@@ -169,14 +170,16 @@ export async function runCronSync(reqYear: number, targetTenantId?: string) {
         const catMap = new Map<string, string>();
         categoriesDb.forEach((cat: any) => {
             const raw = cat.id.includes(':') ? cat.id.split(':')[1] : cat.id;
-            // Always map to the ID that already exists in the table
-            if (!catMap.has(raw)) catMap.set(raw, cat.id);
+            // Map both for absolute safety
+            catMap.set(raw, cat.id);
+            catMap.set(cat.id, cat.id);
         });
 
         const ccMap = new Map<string, string>();
         costCentersDb.forEach((cc: any) => {
             const raw = cc.id.includes(':') ? cc.id.split(':')[1] : cc.id;
-            if (!ccMap.has(raw)) ccMap.set(raw, cc.id);
+            ccMap.set(raw, cc.id);
+            ccMap.set(cc.id, cc.id);
         });
 
         for (const viewMode of ['competencia', 'caixa'] as const) {

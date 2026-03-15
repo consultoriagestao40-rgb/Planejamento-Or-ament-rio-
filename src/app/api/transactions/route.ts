@@ -97,19 +97,52 @@ async function fetchTransactions(accessToken: string, baseUrl: string, costCente
 
             if (items.length === 0) break;
 
-            items.forEach((item: any) => {
-                if ((item.status || '').toUpperCase().includes('CANCEL')) return;
+            for (const item of items) {
+                if ((item.status || '').toUpperCase().includes('CANCEL')) continue;
 
                 const cats = item.categorias || [];
-                if (cats.length === 0) return;
+                if (cats.length === 0) continue;
 
                 // Align exactly with cronSync.ts: we assign 100% of the value solely to the FIRST category linked.
                 const primaryCat = cats[0];
-                if (!targetCategoryIds.includes(primaryCat.id)) return;
+                if (!targetCategoryIds.includes(primaryCat.id)) continue;
 
-                const ccs = item.centros_de_custo || [];
-                // CRITICAL ALIGNMENT: If an event has multiple installments, we need to handle it 
-                // like cronSync does to avoid missing chunks of the value in the Modal.
+                const ccsOrig = item.centros_de_custo || [];
+                let ccs = [...ccsOrig];
+
+                // CRITICAL ALIGNMENT: If an event has multiple cost centers or installments, 
+                // we need to fetch details to get the exact split per installment.
+                if (ccs.length > 1) {
+                    try {
+                        const pRes = await fetch(`https://api-v2.contaazul.com/v1/financeiro/eventos-financeiros/parcelas/${item.id}`, { headers: { 'Authorization': `Bearer ${accessToken}` } });
+                        if (pRes.ok) {
+                            const pData = await pRes.json();
+                            if (pData.evento && pData.evento.rateio) {
+                                const rateioMap = new Map();
+                                pData.evento.rateio.forEach((r: any) => {
+                                    if (r.rateio_centro_custo && r.valor) {
+                                        r.rateio_centro_custo.forEach((rc: any) => {
+                                            const percent = (rc.valor || 0) / r.valor;
+                                            const proportionalValue = (item.total || item.valor || 0) * percent;
+                                            rateioMap.set(rc.id_centro_custo, (rateioMap.get(rc.id_centro_custo) || 0) + proportionalValue);
+                                        });
+                                    }
+                                });
+                                const uniqueCcsMap = new Map();
+                                ccs.forEach((cc: any) => {
+                                    const val = rateioMap.has(cc.id) ? rateioMap.get(cc.id) : cc.valor;
+                                    uniqueCcsMap.set(cc.id, (uniqueCcsMap.get(cc.id) || 0) + val);
+                                });
+                                ccs = Array.from(uniqueCcsMap.entries()).map(([id, valor]) => ({ 
+                                    id: id as string, 
+                                    nome: (ccsOrig.find((c: any) => c.id === id)?.nome || 'Geral') as string, 
+                                    valor: valor as number 
+                                }));
+                            }
+                        }
+                    } catch (e) { }
+                }
+
                 const ccsCount = ccs.length || 1;
 
                 let dateStr: string;
@@ -126,7 +159,7 @@ async function fetchTransactions(accessToken: string, baseUrl: string, costCente
                 }
 
                 const dateObj = dateStr ? new Date(dateStr) : new Date();
-                if (dateObj.getMonth() !== targetMonth || dateObj.getFullYear() !== targetYear) return;
+                if (dateObj.getMonth() !== targetMonth || dateObj.getFullYear() !== targetYear) continue;
 
                 // Enforce positive absolute amounts to match BudgetGrid's subtraction matrix
                 const absAmount = Math.abs(amount);
@@ -161,7 +194,7 @@ async function fetchTransactions(accessToken: string, baseUrl: string, costCente
                         });
                     }
                 }
-            });
+            }
 
             if (items.length < 100) hasMore = false;
             else page++;

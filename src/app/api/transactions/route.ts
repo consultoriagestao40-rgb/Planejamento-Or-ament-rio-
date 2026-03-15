@@ -103,7 +103,7 @@ export async function GET(request: Request) {
 
         return NextResponse.json({
             success: true,
-            version: "0.1.8-FINAL-CONVERGENCE",
+            version: "0.1.9-FINAL",
             transactions: allTransactions
         });
 
@@ -147,7 +147,7 @@ async function fetchTransactions(accessToken: string, baseUrl: string, costCente
                 // Se houver mais de uma categoria, precisamos buscar os detalhes para pegar o valor bruto correto
                 if (cats.length > 1) {
                     try {
-                        const pRes = await fetch(`https://api-v2.contaazul.com/v1/financeiro/eventos-financeiros/parcelas/${item.id}`, { headers: { 'Authorization': `Bearer ${token}` } });
+                        const pRes = await fetch(`https://api-v2.contaazul.com/v1/financeiro/eventos-financeiros/parcelas/${item.id}`, { headers: { 'Authorization': `Bearer ${accessToken}` } });
                         if (pRes.ok) {
                             const pData = await pRes.json();
                             if (pData.evento && pData.evento.rateio) {

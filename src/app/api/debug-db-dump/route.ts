@@ -18,15 +18,17 @@ export async function GET() {
             select: { id: true, name: true }
         });
 
-        const variants = await prisma.tenant.findMany({
-            where: { OR: [ { name: { contains: 'SPOT' } }, { id: spot.id } ] }
+        const entries = await prisma.realizedEntry.findMany({
+            where: { tenantId: spot.id, year: 2026 },
+            take: 20
         });
 
         return NextResponse.json({
             tenant: { id: spot.id, name: spot.name },
             categoriesCount: cats.length,
+            entriesCount: entries.length,
+            entriesSample: entries,
             categoriesSample: cats.slice(0, 50).map(c => ({ id: c.id, name: c.name })),
-            costCentersSample: ccs.slice(0, 10),
             allVariants: variants.map(v => ({ id: v.id, name: v.name }))
         });
     } catch (e: any) {

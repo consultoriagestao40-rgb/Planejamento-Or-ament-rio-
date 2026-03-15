@@ -21,7 +21,7 @@ export async function GET() {
         const start = `${year}-01-01`;
         const end = `${year}-01-31`;
 
-        const url = `https://api-v2.contaazul.com/v1/financeiro/eventos-financeiros/contas-a-receber/buscar?data_vencimento_de=${start}&data_vencimento_ate=${end}&tamanho_pagina=100`;
+        const url = `https://api-v2.contaazul.com/v1/financeiro/eventos-financeiros/contas-a-receber/buscar?data_pagamento_de=${start}&data_pagamento_ate=${end}&tamanho_pagina=100`;
         
         const res = await fetch(url, { headers: { 'Authorization': `Bearer ${token}` } });
         const data = await res.json();

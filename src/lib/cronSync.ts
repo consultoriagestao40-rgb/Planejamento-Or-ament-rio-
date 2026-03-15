@@ -73,34 +73,25 @@ async function fetchAllTransactionsForYear(accessToken: string, baseUrl: string,
                 let amount: number;
 
                 if (viewMode === 'caixa') {
-                    // Regime de Caixa: Priorizar data_pagamento ou baixar_em.
-                    // A API V2 as vezes retorna data_pagamento na parcela ou no evento após a baixa.
                     dateStr = item.data_pagamento || item.baixado_em || item.data_vencimento || item.vencimento;
-                    
-                    // Consider paid if it has a payment amount or a positive paid value
                     const status = (item.status || '').toUpperCase();
                     const isPaid = status === 'BAIXADO' || status === 'RECEBIDO' || status === 'PAGO' || status === 'QUITADO' || (item.pago && item.pago > 0) || (item.valor_pago && item.valor_pago > 0);
                     if (!isPaid) continue;
-                    
-                    // CRITICAL FIX: Prioritize payment amount or installment value over SALE TOTAL
                     amount = item.pago || item.valor_pago || item.valor || item.amount || item.total || 0;
                 } else {
-                    // Regime de Competência: EXTREMAMENTE ESTRITO
                     dateStr = item.data_competencia || item.data_vencimento || item.vencimento;
-                    // Use a soma dos pagos/brutos se disponível, ou o valor da parcela
                     amount = item.pago || item.valor_pago || item.valor || item.amount || item.total || 0;
                 }
 
                 const dateObj = dateStr ? new Date(dateStr) : new Date();
-                // Validar se o ano corresponde ao solicitado
                 if (dateObj.getFullYear() !== targetYear) continue;
 
                 transactions.push({
                     id: item.id,
                     description: item.descricao,
-                    month: dateObj.getMonth(), // 0-11
+                    month: dateObj.getMonth(),
                     amount: Math.abs(amount),
-                    categories: cats, // These now have the corrected values from rateio detail
+                    categories: cats,
                     costCenters: ccs
                 });
             }
@@ -121,46 +112,35 @@ export async function runCronSync(reqYear: number, targetTenantId?: string) {
     } else {
         allTenants = await prisma.tenant.findMany({ orderBy: { updatedAt: 'desc' } });
     }
-    
-    if (allTenants.length === 0) {
-        return { success: false, error: 'No tenants' };
-    }
 
-    // DEDUPLICATE: Only sync once per UNIQUE COMPANY (CNPJ or Normalized Name)
+    if (allTenants.length === 0) return { success: false, error: 'No tenants' };
+
+    // DEDUPLICATE: Memory-based by CNPJ or Normalized Name
     const companyMap = new Map();
     allTenants.forEach(t => {
         const cleanCnpj = (t.cnpj || '').replace(/\D/g, '');
         const cleanName = (t.name || '').trim().toUpperCase().replace(/[^A-Z0-9]/g, '');
         const key = cleanCnpj !== '' ? cleanCnpj : cleanName;
-        // Keep the one with the most recent update
         if (!companyMap.has(key) || new Date(t.updatedAt) > new Date(companyMap.get(key).updatedAt)) {
             companyMap.set(key, t);
         }
     });
 
     const tenants = Array.from(companyMap.values());
-    console.log(`[SYNC] Processing ${tenants.length} unique companies out of ${allTenants.length} tenants.`);
-
     const report = [];
 
     for (const t of tenants) {
         let token: string = '';
         try {
-            console.log(`[SYNC] [${t.name}] Starting sync for year ${reqYear}...`);
             const res = await getValidAccessToken(t.id);
             token = res.token;
         } catch (e: any) {
             report.push({ tenant: t.name, status: `Token Error: ${e.message}` });
             continue;
         }
-
-        // IMPORTANT: Use the deduplicated tenant's ID as the source of truth
-        const primaryId = t.id; 
-        const allEntityIds = await getAllVariantIds(t.id);
         
-        console.log(`[SYNC] [${t.name}] Primary ID: ${primaryId} | Variants to clean: ${allEntityIds.length}`);
-
-        // Fetch valid IDs using the PRIMARY tenant context
+        const primaryId = t.id;
+        const allEntityIds = await getAllVariantIds(t.id);
         const validCategories = new Set((await prisma.category.findMany({ where: { tenantId: primaryId }, select: { id: true } })).map((c: any) => c.id));
         const validCostCenters = new Set((await prisma.costCenter.findMany({ where: { tenantId: primaryId }, select: { id: true } })).map((c: any) => c.id));
 
@@ -170,166 +150,89 @@ export async function runCronSync(reqYear: number, targetTenantId?: string) {
             const endStr = isCaixa ? `${reqYear}-12-31` : `${reqYear + 1}-06-30`;
             const dateParam = isCaixa ? 'data_pagamento' : 'data_vencimento';
 
-            const receivablesUrl = `https://api-v2.contaazul.com/v1/financeiro/eventos-financeiros/contas-a-receber/buscar?${dateParam}_de=${startStr}&${dateParam}_ate=${endStr}&tamanho_pagina=100`;
-            const payablesUrl = `https://api-v2.contaazul.com/v1/financeiro/eventos-financeiros/contas-a-pagar/buscar?${dateParam}_de=${startStr}&${dateParam}_ate=${endStr}&tamanho_pagina=100`;
+            const url1 = `https://api-v2.contaazul.com/v1/financeiro/eventos-financeiros/contas-a-receber/buscar?${dateParam}_de=${startStr}&${dateParam}_ate=${endStr}&tamanho_pagina=100`;
+            const url2 = `https://api-v2.contaazul.com/v1/financeiro/eventos-financeiros/contas-a-pagar/buscar?${dateParam}_de=${startStr}&${dateParam}_ate=${endStr}&tamanho_pagina=100`;
 
-            console.log(`[SYNC] [${t.name}] Fetching transactions for mode: ${viewMode}...`);
-            const receivables = await fetchAllTransactionsForYear(token, receivablesUrl, reqYear, viewMode);
-            const payables = await fetchAllTransactionsForYear(token, payablesUrl, reqYear, viewMode);
-            console.log(`[SYNC] [${t.name}] Found ${receivables.length} receivables and ${payables.length} payables.`);
-
-
+            const receivables = await fetchAllTransactionsForYear(token, url1, reqYear, viewMode);
+            const payables = await fetchAllTransactionsForYear(token, url2, reqYear, viewMode);
             const allTxns = [...receivables, ...payables];
-            const aggregates = new Map<string, number>();
 
-            // IDEMPOTENCY: Use a set to track already processed IDs within this viewMode loop
+            const aggregates = new Map<string, { amount: number, desc: string }>();
             const processedIds = new Set<string>();
 
             for (const txn of allTxns) {
-                // Deduplicate by full ID to handle installments correctly as separate records
                 if (processedIds.has(txn.id)) continue;
                 processedIds.add(txn.id);
-
                 if (txn.categories.length === 0) continue;
 
-                // Quantidade deste item específico
-                const totalAmount = txn.amount;
-
-                // 1. SPLIT BY CATEGORY
-                // Conta Azul V2 returns the full chain. We MUST only take the leaf categories 
-                // to avoid double counting parent totals.
                 const leaves = txn.categories.filter((c: any) => {
                     const cid = c.id;
-                    const hasChild = txn.categories.some((other: any) => 
-                        (other.parent_id === cid) || 
-                        (other.parentId === cid) || 
-                        (other.category_parent_id === cid)
-                    );
-                    return !hasChild;
+                    return !txn.categories.some((other: any) => (other.parent_id === cid || other.parentId === cid || other.category_parent_id === cid));
                 });
 
-                // DETAILED LOG FOR SPOT JAN 2026 (Competencia)
-                if (t.name.includes('SPOT') && txn.month === 0 && !isCaixa) {
-                    console.log(`[SPOT-AUDIT-JAN] Txn: ${txn.id} | Amount: ${txn.amount} | Description: ${txn.description || 'N/A'}`);
-                    leaves.forEach((l: any) => console.log(`  -> Leaf: ${l.name} (${l.id}) | Val: ${l.valor}`));
-                }
+                if (leaves.length === 0) leaves.push(txn.categories[0]);
 
-                if (leaves.length === 0 && txn.categories.length > 0) {
-                    leaves.push(txn.categories[0]);
-                }
-
-                let totalCatAllocated = 0;
                 const catEntries = leaves.map((c: any) => {
-                    // Use the CATEGORY ABSOLUTE VALUE from rateio detail if it's there (Gross DRE)
-                    // If not, divide the item total (pago/valor) proportionally
-                    let val = typeof c.valor === 'number' ? Math.abs(c.valor) : (totalAmount / leaves.length);
-                    
-                    // AUDIT: If it's Venda 649, we expect it to be 6259 eventually
-                    if (txn.description?.includes('649')) {
-                         console.log(`[SYNC-649-BREAKDOWN] Cat: ${c.name} | Raw Val: ${c.valor} | Final Val: ${val}`);
-                    }
-
-                    totalCatAllocated += val;
+                    const val = typeof c.valor === 'number' ? Math.abs(c.valor) : (txn.amount / leaves.length);
                     return { id: `${primaryId}:${c.id}`, amount: val };
                 });
 
-                // 2. SPLIT BY COST CENTER PER CATEGORY
                 for (const cat of catEntries) {
                     if (!validCategories.has(cat.id)) continue;
-
-                    const catAmount = cat.amount;
-                    
                     if (txn.costCenters.length === 0) {
                         const key = `${cat.id}|NONE|${txn.month}`;
-                        aggregates.set(key, (aggregates.get(key) || 0) + catAmount);
+                        if (!aggregates.has(key)) aggregates.set(key, { amount: 0, desc: txn.description || '' });
+                        aggregates.get(key)!.amount += cat.amount;
                     } else {
-                        // Para cada categoria, dividimos o valor parcial entre os centros de custo
                         let totalCcAllocated = 0;
                         let unallocatedCount = 0;
-
                         const ccSplits = txn.costCenters.map((cc: any) => {
-                            let explicitAmount = null;
-                            if (typeof cc.valor === 'number') {
-                                explicitAmount = Math.abs(cc.valor);
-                            } else if (typeof cc.percentual === 'number') {
-                                explicitAmount = catAmount * (cc.percentual / 100);
-                            }
-
-                            if (explicitAmount !== null) {
-                                totalCcAllocated += explicitAmount;
-                            } else {
-                                unallocatedCount++;
-                            }
-                            return { id: `${primaryId}:${cc.id}`, amount: explicitAmount }; // Use PRIMARY IDs
+                            let exp = null;
+                            if (typeof cc.valor === 'number') exp = Math.abs(cc.valor);
+                            else if (typeof cc.percentual === 'number') exp = cat.amount * (cc.percentual / 100);
+                            if (exp !== null) totalCcAllocated += exp; else unallocatedCount++;
+                            return { id: `${primaryId}:${cc.id}`, amount: exp };
                         });
-
-                        const remainingCcAmount = Math.max(0, catAmount - totalCcAllocated);
-                        const fallbackPerCc = unallocatedCount > 0 ? (remainingCcAmount / unallocatedCount) : 0;
-
+                        const rem = Math.max(0, cat.amount - totalCcAllocated);
+                        const fallback = unallocatedCount > 0 ? (rem / unallocatedCount) : 0;
                         for (const cc of ccSplits) {
                             const ccId = validCostCenters.has(cc.id) ? cc.id : 'NONE';
                             const key = `${cat.id}|${ccId}|${txn.month}`;
-                            const finalCcAmount = cc.amount !== null ? cc.amount : (unallocatedCount > 0 ? fallbackPerCc : (catAmount / ccSplits.length));
-                            aggregates.set(key, (aggregates.get(key) || 0) + finalCcAmount);
+                            if (!aggregates.has(key)) aggregates.set(key, { amount: 0, desc: txn.description || '' });
+                            const val = cc.amount !== null ? cc.amount : (unallocatedCount > 0 ? fallback : (cat.amount / ccSplits.length));
+                            aggregates.get(key)!.amount += val;
                         }
                     }
                 }
             }
 
-            // FIXED: Identification by CNPJ to catch all variants/orphans of this company
-            const allEntityIds = (await prisma.tenant.findMany({
-                where: { cnpj: t.cnpj },
-                select: { id: true }
-            })).map((dt: any) => dt.id);
+            await prisma.realizedEntry.deleteMany({ where: { tenantId: { in: allEntityIds }, year: reqYear, viewMode } });
             
-            console.log(`[SYNC] [${t.name}] Cleaning up entries for IDs: ${allEntityIds.join(', ')} | Mode: ${viewMode} | Year: ${reqYear} | CNPJ: ${t.cnpj}`);
-            const delRes = await prisma.realizedEntry.deleteMany({
-                where: { tenantId: { in: allEntityIds }, year: reqYear, viewMode }
-            });
-            console.log(`[SYNC] [${t.name}] Deleted ${delRes.count} legacy entries for ${viewMode}`);
-
-            const createData = [];
-            for (const [key, amount] of aggregates.entries()) {
-                const [categoryId, costCenterId, monthStr] = key.split('|');
-
-                // Filter out invalid foreign keys (deleted categories/CCs that still appear in historical CA transactions)
-                if (!validCategories.has(categoryId)) continue;
-                if (costCenterId !== 'NONE' && !validCostCenters.has(costCenterId)) continue;
-
-                createData.push({
-                    tenantId: primaryId, // Force data into the primary record
-                    categoryId,
-                    costCenterId: costCenterId === 'NONE' ? null : costCenterId,
+            const createData = Array.from(aggregates.entries()).map(([key, data]) => {
+                const [catId, ccId, monthStr] = key.split('|');
+                return {
+                    tenantId: primaryId,
+                    categoryId: catId,
+                    costCenterId: ccId === 'NONE' ? null : ccId,
                     month: parseInt(monthStr, 10),
                     year: reqYear,
-                    amount,
+                    amount: data.amount,
+                    description: data.desc,
                     viewMode
-                });
-            }
+                };
+            }).filter(r => validCategories.has(r.categoryId));
 
             if (createData.length > 0) {
                 try {
                     await prisma.realizedEntry.createMany({ data: createData });
-                } catch (batchError) {
-                    console.error(`Batch insert failed for ${viewMode}. Falling back to individual inserts...`);
-                    // Robust Fallback: If one ghost ID skips our filter and ruins the batch, insert the rest manually.
-                    let successCount = 0;
-                    let failCount = 0;
+                } catch (e) {
                     for (const row of createData) {
-                        try {
-                            await prisma.realizedEntry.create({ data: row });
-                            successCount++;
-                        } catch (singleError: any) {
-                            failCount++;
-                            console.error(`Skipped invalid RealizedEntry row: cat=${row.categoryId} cc=${row.costCenterId}. Error: ${singleError.message}`);
-                        }
+                        try { await prisma.realizedEntry.create({ data: row }); } catch (err) {}
                     }
-                    console.log(`Fallback complete: ${successCount} inserted, ${failCount} skipped.`);
                 }
             }
         }
         report.push({ tenant: t.name, status: 'Success' });
     }
-
     return { success: true, year: reqYear, report };
 }

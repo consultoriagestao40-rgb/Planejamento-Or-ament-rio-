@@ -103,7 +103,7 @@ export async function GET(request: Request) {
 
         return NextResponse.json({
             success: true,
-            version: "0.1.6-RECURSIVE-ID-FIX",
+            version: "0.1.7-MULTI-CAT-SUM",
             transactions: allTransactions
         });
 
@@ -144,16 +144,19 @@ async function fetchTransactions(accessToken: string, baseUrl: string, costCente
                 const cleanTargetCategoryIds = targetCategoryIds.map(id => id.includes(':') ? id.split(':')[1] : id);
 
                 // MATCH cronSync.ts: Iterar sobre todas as categorias do item
-                // Se o item tem 2 categorias e uma delas é o alvo, ele entra.
-                const matchesCategory = cats.some((c: any) => cleanTargetCategoryIds.includes(c.id));
-                if (!matchesCategory) continue;
+                // Identificar quais das categorias do item estão dentro do alvo (incluindo recursividade)
+                const matchingCats = cats.filter((c: any) => cleanTargetCategoryIds.includes(c.id));
+                if (matchingCats.length === 0) continue;
 
-                // Identify if the item has split values per category
-                // For simplicity and alignment with current grid logic, we verify which of the cats is the target one.
-                // In cronSync, we split the value among leaves.
-                const targetCat = cats.find((c: any) => cleanTargetCategoryIds.includes(c.id));
-                const catValue = (targetCat && typeof targetCat.valor === 'number') ? Math.abs(targetCat.valor) : (item.total || item.valor || 0);
-                
+                // Calcular o valor total atribuído às categorias alvo neste item
+                // Se o item tem valor explícito por categoria na API da Conta Azul, usamos;
+                // caso contrário, dividimos o total do item.
+                let targetAmount = 0;
+                matchingCats.forEach((c: any) => {
+                    const val = (typeof c.valor === 'number') ? Math.abs(c.valor) : (Math.abs(item.valor || item.amount || item.total || 0) / cats.length);
+                    targetAmount += val;
+                });
+
                 const ccsOrig = item.centros_de_custo || [];
                 let ccs = [...ccsOrig];
 
@@ -197,11 +200,11 @@ async function fetchTransactions(accessToken: string, baseUrl: string, costCente
 
                 if (viewMode === 'caixa') {
                     dateStr = item.data_pagamento || item.baixado_em || item.data_vencimento || item.vencimento;
-                    amount = item.pago || item.valor_pago || item.valor || item.amount || item.total || 0;
+                    amount = item.pago || item.valor_pago || targetAmount || 0;
                 } else {
                     dateStr = item.data_competencia || item.data_vencimento || item.vencimento;
-                    // PRIORITIZE category-specific value if available (handling splits)
-                    amount = catValue || item.valor || item.amount || item.total || 0;
+                    // Use the sum of matching categories calculated above
+                    amount = targetAmount;
                 }
 
                 const dateObj = dateStr ? new Date(dateStr) : new Date();

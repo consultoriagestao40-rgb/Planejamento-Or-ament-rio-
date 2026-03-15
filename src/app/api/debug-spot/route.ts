@@ -39,11 +39,14 @@ export async function GET() {
 
         return NextResponse.json({ 
             success: true, 
-            version: "0.1.2-FINAL-FIX",
+            version: "0.3.0-DEBUG",
             tenant: spot.name,
             totalFound: total,
             itemsCount: rawItems.length,
-            items: rawItems
+            debug: {
+                firstItemRaw: items[0],
+                all_descriptions: rawItems.map((i: any) => `${i.description} | Valor: ${i.amount} | Pago: ${items.find((it:any) => it.id === i.id)?.pago} | Cats: ${i.categories.length}`)
+            }
         });
     } catch (e: any) {
         return NextResponse.json({ success: false, error: e.message });

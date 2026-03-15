@@ -39,19 +39,40 @@ export async function GET(request: Request) {
 
         // Fetch concurrently to prevent Vercel 15s Timeout
         // Clean categoryId to remove tenant prefixes before calling CA API
-        const cleanCategoryId = categoryId.split(',').map(id => id.includes(':') ? id.split(':')[1] : id).join(',');
+        const initialCategoryIds = categoryId.split(',');
+        
+        // RECURSIVE CATEGORY EXPANSION: Align with Grid logic (DRE sums up children)
+        const allCategoryIds = new Set<string>();
+        const queue = [...initialCategoryIds];
+        
+        while (queue.length > 0) {
+            const currentId = queue.shift()!;
+            if (allCategoryIds.has(currentId)) continue;
+            allCategoryIds.add(currentId);
+            
+            // Find children in DB to include their transactions in this parent modal
+            const children = await prisma.category.findMany({
+                where: { parentId: currentId },
+                select: { id: true }
+            });
+            queue.push(...children.map(c => c.id));
+        }
+
+        const expandedCategoryIds = Array.from(allCategoryIds);
+        const cleanCategoryId = expandedCategoryIds.map(id => id.includes(':') ? id.split(':')[1] : id).join(',');
 
         const tenantPromises = tenants.map(async (t) => {
             try {
                 const { token } = await getValidAccessToken(t.id);
 
                 // REMOVE category filter from URL to match cronSync behavior and catch multi-category items
+                // Use expanded clean IDs for filtering inside fetchTransactions
                 const receivablesUrl = `https://api-v2.contaazul.com/v1/financeiro/eventos-financeiros/contas-a-receber/buscar?data_vencimento_de=${startStr}&data_vencimento_ate=${endStr}&tamanho_pagina=100`;
                 const payablesUrl = `https://api-v2.contaazul.com/v1/financeiro/eventos-financeiros/contas-a-pagar/buscar?data_vencimento_de=${startStr}&data_vencimento_ate=${endStr}&tamanho_pagina=100`;
 
                 const [receivables, payables] = await Promise.all([
-                    fetchTransactions(token, receivablesUrl, costCenterId, categoryId, year, month, viewMode),
-                    fetchTransactions(token, payablesUrl, costCenterId, categoryId, year, month, viewMode)
+                    fetchTransactions(token, receivablesUrl, costCenterId, expandedCategoryIds.join(','), year, month, viewMode),
+                    fetchTransactions(token, payablesUrl, costCenterId, expandedCategoryIds.join(','), year, month, viewMode)
                 ]);
 
                 return [...receivables, ...payables].map(txn => ({
@@ -82,7 +103,7 @@ export async function GET(request: Request) {
 
         return NextResponse.json({
             success: true,
-            version: "0.1.5-FINAL-LOGIC",
+            version: "0.1.6-RECURSIVE-ID-FIX",
             transactions: allTransactions
         });
 

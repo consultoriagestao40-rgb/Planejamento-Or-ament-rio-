@@ -79,7 +79,8 @@ async function fetchAllTransactionsForYear(accessToken: string, baseUrl: string,
                 if (viewMode === 'caixa') {
                     dateStr = item.data_pagamento || item.baixado_em || item.data_vencimento || item.vencimento;
                     const status = (item.status || '').toUpperCase();
-                    const isPaid = status === 'BAIXADO' || status === 'RECEBIDO' || status === 'PAGO' || status === 'QUITADO' || (item.pago && item.pago > 0) || (item.valor_total_pago && item.valor_total_pago > 0);
+                    const isPaid = status === 'BAIXADO' || status === 'RECEBIDO' || status === 'PAGO' || status === 'QUITADO' || status === 'ACQUITTED' || 
+                                   (item.pago && item.pago > 0) || (item.valor_total_pago && item.valor_total_pago > 0) || (item.valor_pago && item.valor_pago > 0);
                     if (!isPaid) continue;
                 } else {
                     dateStr = item.data_competencia || item.data_vencimento || item.vencimento;

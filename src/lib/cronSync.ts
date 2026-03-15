@@ -93,7 +93,7 @@ async function fetchAllTransactionsForYear(accessToken: string, baseUrl: string,
                 transactions.push({
                     id: item.id,
                     description: item.descricao,
-                    month: dateObj.getMonth(),
+                    month: dateObj.getMonth() + 1, // 1-12 to match budgets logic
                     amount: amount,
                     categories: cats,
                     costCenters: ccs

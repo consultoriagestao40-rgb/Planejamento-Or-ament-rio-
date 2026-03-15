@@ -76,7 +76,7 @@ export async function GET(request: Request) {
             
             if (codeSegments !== 3) continue;
 
-            const key = `${entry.categoryId}-${entry.month}`;
+            const key = `${entry.categoryId}-${entry.month - 1}`;
             aggregatedValues[key] = (aggregatedValues[key] || 0) + (entry.amount || 0);
         }
 

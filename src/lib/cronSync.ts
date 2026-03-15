@@ -152,9 +152,9 @@ export async function runCronSync(reqYear: number, targetTenantId?: string) {
             select: { id: true } 
         });
 
-        // Always prefix with the CURRENT PRIMARY ID for consistent internal aggregation
-        const validCategoryIds = new Set(categoriesDb.map((c: any) => `${primaryId}:${c.id}`));
-        const validCostCenterIds = new Set(costCentersDb.map((c: any) => `${primaryId}:${c.id}`));
+        // FIX: Build sets of RAW IDs (without prefixes) to validate against CA API items
+        const validCategoryRawIds = new Set(categoriesDb.map((c: any) => c.id.includes(':') ? c.id.split(':')[1] : c.id));
+        const validCostCenterRawIds = new Set(costCentersDb.map((c: any) => c.id.includes(':') ? c.id.split(':')[1] : c.id));
 
         for (const viewMode of ['competencia', 'caixa'] as const) {
             const isCaixa = viewMode === 'caixa';
@@ -186,12 +186,12 @@ export async function runCronSync(reqYear: number, targetTenantId?: string) {
 
                 const catEntries = leaves.map((c: any) => {
                     const val = typeof c.valor === 'number' ? Math.abs(c.valor) : (txn.amount / leaves.length);
-                    // Use the PREFIXED ID for comparison and aggregation
-                    return { id: `${primaryId}:${c.id}`, amount: val };
+                    // Use RAW ID here for internal mapping
+                    return { id: c.id, amount: val };
                 });
 
                 for (const cat of catEntries) {
-                    if (!validCategoryIds.has(cat.id)) continue;
+                    if (!validCategoryRawIds.has(cat.id)) continue;
                     
                     if (txn.costCenters.length === 0) {
                         const key = `${cat.id}|NONE|${txn.month}`;
@@ -210,7 +210,7 @@ export async function runCronSync(reqYear: number, targetTenantId?: string) {
                         const rem = Math.max(0, cat.amount - totalCcAllocated);
                         const fallback = unallocatedCount > 0 ? (rem / unallocatedCount) : 0;
                         for (const cc of ccSplits) {
-                            const ccId = validCostCenterIds.has(cc.id) ? cc.id : 'NONE';
+                            const ccId = validCostCenterRawIds.has(cc.id) ? cc.id : 'NONE';
                             const key = `${cat.id}|${ccId}|${txn.month}`;
                             if (!aggregates.has(key)) aggregates.set(key, { amount: 0, desc: txn.description || '' });
                             const val = cc.amount !== null ? cc.amount : (unallocatedCount > 0 ? fallback : (cat.amount / ccSplits.length));
@@ -225,11 +225,11 @@ export async function runCronSync(reqYear: number, targetTenantId?: string) {
             
             const createData = Array.from(aggregates.entries()).map(([key, data]) => {
                 const [catId, ccId, monthStr] = key.split('|');
-                // catId and ccId here ALREADY have the primaryId prefix
+                // IMPORTANT: Re-prefix before saving to ensure consistency with Category table IDs
                 return {
                     tenantId: primaryId,
-                    categoryId: catId.includes(':') ? catId.split(':')[1] : catId,
-                    costCenterId: ccId === 'NONE' ? null : (ccId.includes(':') ? ccId.split(':')[1] : ccId),
+                    categoryId: `${primaryId}:${catId}`,
+                    costCenterId: ccId === 'NONE' ? null : `${primaryId}:${ccId}`,
                     month: parseInt(monthStr, 10),
                     year: reqYear,
                     amount: data.amount,

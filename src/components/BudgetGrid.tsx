@@ -1088,8 +1088,8 @@ export default function BudgetGrid({
         return (
             <tr 
                 onClick={() => groupId && toggleGroup(groupId)} 
-                className={isLucroLiquido ? '' : 'spreadsheet-summary-row'}
-                style={{ cursor: groupId ? 'pointer' : 'default', background: isLucroLiquido ? 'var(--gradient-brand)' : undefined }}
+                className={isLucroLiquido ? 'spreadsheet-net-profit-row' : 'spreadsheet-summary-row'}
+                style={{ cursor: groupId ? 'pointer' : 'default' }}
             >
                 <td 
                     className="sticky-col" 
@@ -1136,9 +1136,9 @@ export default function BudgetGrid({
 
                     return (
                         <React.Fragment key={i}>
-                            <td className="spreadsheet-value" style={{ borderLeft: '2px solid #cbd5e1', color: bColor, fontWeight: 700 }}>{formatCurrency(budgetVal)}</td>
-                            <td className="spreadsheet-value" style={{ color: rdColor, fontWeight: 700 }}>{formatCurrency(radarVal)}</td>
-                            <td className="spreadsheet-value" style={{ color: rColor, fontWeight: 800 }}>{formatCurrency(realizedVal)}</td>
+                            <td className="spreadsheet-value" style={{ borderLeft: '2px solid #cbd5e1', color: bColor, fontWeight: 700, background: isLucroLiquido ? '#2563eb' : undefined }}>{formatCurrency(budgetVal)}</td>
+                            <td className="spreadsheet-value" style={{ color: rdColor, fontWeight: 700, background: isLucroLiquido ? '#2563eb' : undefined }}>{formatCurrency(radarVal)}</td>
+                            <td className="spreadsheet-value" style={{ color: rColor, fontWeight: 800, background: isLucroLiquido ? '#2563eb' : undefined }}>{formatCurrency(realizedVal)}</td>
                         </React.Fragment>
                     );
                 })}
@@ -1372,7 +1372,7 @@ export default function BudgetGrid({
                             </th>
                             {(viewPeriod === 'month' ? MONTHS : ['1º Tri', '2º Tri', '3º Tri', '4º Tri']).map((c, i) => {
                                 return (
-                                    <th key={i} colSpan={3} style={{ textAlign: 'center', padding: '0.4rem', borderLeft: '2px solid #cbd5e1', background: '#f8fafc', fontSize: '0.7rem' }}>
+                                    <th key={i} colSpan={3} style={{ textAlign: 'center', padding: '0.4rem', borderLeft: '2px solid #cbd5e1', fontSize: '0.7rem' }}>
                                         {c}
                                     </th>
                                 );

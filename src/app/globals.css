@@ -516,26 +516,37 @@ select.premium-select:focus {
   left: 0;
   background-color: #ffffff !important;
   z-index: 20;
-  border-right: 2px solid #e2e8f0;
-  box-shadow: 2px 0 5px -2px rgba(0,0,0,0.05);
+  border-right: 2px solid #cbd5e1;
+  box-shadow: 2px 0 4px -2px rgba(0,0,0,0.1);
 }
 
+/* INTERSECTION: Top-left cell remains fixed on both axes */
 .spreadsheet-table thead th.sticky-col {
-  z-index: 30;
+  z-index: 40;
   background-color: #f1f5f9 !important;
+  top: 0;
 }
 
-/* Fix for transparent backgrounds on expanded rows */
+.spreadsheet-table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 30;
+  background-color: #f1f5f9;
+}
+
+/* Force opacity for all rows to prevent transparency leak */
 .spreadsheet-table tr {
   background-color: #ffffff;
 }
 
-.spreadsheet-table tr.spreadsheet-summary-row {
+.spreadsheet-table tr.spreadsheet-summary-row,
+.spreadsheet-table tr.spreadsheet-summary-row .sticky-col {
   background-color: #f8fafc !important;
 }
 
-.spreadsheet-table tr.spreadsheet-summary-row .sticky-col {
-  background-color: #f8fafc !important;
+.spreadsheet-table tr.spreadsheet-group-header,
+.spreadsheet-table tr.spreadsheet-group-header .sticky-col {
+  background-color: #f1f5f9 !important;
 }
 
 .spreadsheet-table tr:nth-child(even) {

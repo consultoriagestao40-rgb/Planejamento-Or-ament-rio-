@@ -174,7 +174,7 @@ export async function runCronSync(reqYear: number, targetTenantId?: string) {
         
         const categoriesDb = await prisma.category.findMany({ 
             where: { tenantId: { in: allEntityIds } }, 
-            select: { id: true, name: true } 
+            select: { id: true, name: true, tenantId: true } 
         });
         const costCentersDb = await prisma.costCenter.findMany({ 
             where: { tenantId: { in: allEntityIds } }, 

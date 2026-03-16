@@ -54,8 +54,20 @@ export async function GET(request: Request) {
             }
         });
 
+        const allVariantIds: string[] = [];
+        for (const pid of targetTenantIds) {
+            const t = allTenants.find((ten: any) => ten.id === pid);
+            if (t) {
+                const cleanCnpj = (t.cnpj || '').replace(/\D/g, '');
+                const cleanName = (t.name || '').trim().toUpperCase().replace(/[^A-Z0-9]/g, '');
+                const key = cleanCnpj !== '' ? cleanCnpj : cleanName;
+                const group = companyGroups.get(key) || [pid];
+                allVariantIds.push(...group);
+            }
+        }
+
         const categories = await prisma.category.findMany({
-            where: { tenantId: { in: targetTenantIds } },
+            where: { tenantId: { in: allVariantIds } },
             select: { id: true, name: true }
         });
 

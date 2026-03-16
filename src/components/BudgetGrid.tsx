@@ -992,7 +992,7 @@ export default function BudgetGrid({
                         onClick={() => hasChildren && toggleRow(node.id)}
                         style={{ cursor: hasChildren ? 'pointer' : 'default', fontWeight: hasChildren ? 700 : 500 }}
                     >
-                        <div style={{ display: 'flex', alignItems: 'center', color: hasChildren ? '#0f172a' : '#475569', paddingLeft: `${node.level * 1.5}rem` }}>
+                        <div style={{ display: 'flex', alignItems: 'center', color: hasChildren ? '#0f172a' : '#475569', paddingLeft: `${node.level * 2.25}rem` }}>
                             {hasChildren && <span style={{ marginRight: '0.4rem', fontSize: '0.7rem', color: '#3b82f6' }}>{isExpanded ? '▼' : '▶'}</span>}
                             {!hasChildren && <span style={{ width: '1.1rem' }}></span>}
                             {node.name}

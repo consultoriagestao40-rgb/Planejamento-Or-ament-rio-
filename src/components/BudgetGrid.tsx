@@ -988,14 +988,18 @@ export default function BudgetGrid({
             <React.Fragment key={node.id}>
                 <tr>
                     <td 
-                        className={`sticky-col spreadsheet-indent-${node.level}`}
+                        className="sticky-col"
                         onClick={() => hasChildren && toggleRow(node.id)}
-                        style={{ cursor: hasChildren ? 'pointer' : 'default', fontWeight: hasChildren ? 700 : 500 }}
+                        style={{ 
+                            cursor: hasChildren ? 'pointer' : 'default', 
+                            fontWeight: hasChildren ? 750 : 500,
+                            paddingLeft: `${0.75 + (node.level * 1.75)}rem` // Level 0: 0.75rem, Level 1: 2.5rem, Level 2: 4.25rem
+                        }}
                     >
-                        <div style={{ display: 'flex', alignItems: 'center', color: hasChildren ? '#0f172a' : '#475569', paddingLeft: `${node.level * 2.25}rem` }}>
-                            {hasChildren && <span style={{ marginRight: '0.4rem', fontSize: '0.7rem', color: '#3b82f6' }}>{isExpanded ? '▼' : '▶'}</span>}
-                            {!hasChildren && <span style={{ width: '1.1rem' }}></span>}
-                            {node.name}
+                        <div style={{ display: 'flex', alignItems: 'center', color: hasChildren ? '#0f172a' : '#475569' }}>
+                            {hasChildren && <span style={{ marginRight: '0.5rem', fontSize: '0.75rem', color: '#3b82f6', width: '1rem' }}>{isExpanded ? '▼' : '▶'}</span>}
+                            {!hasChildren && <span style={{ width: '1.5rem' }}></span>}
+                            <span style={{ whiteSpace: 'nowrap' }}>{node.name}</span>
                         </div>
                     </td>
                     {(viewPeriod === 'month' ? MONTHS : [1, 2, 3, 4]).map((_, i) => {

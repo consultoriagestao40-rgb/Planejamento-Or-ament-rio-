@@ -192,7 +192,8 @@ export default function BudgetGrid({
     useEffect(() => {
         const loadSetup = async () => {
             try {
-                const setupRes = await fetch('/api/setup?t=' + Date.now(), { cache: 'no-store' });
+                // Ensure we get fresh categories and cost centers
+                const setupRes = await fetch('/api/setup?primaryOnly=true&t=' + Date.now(), { cache: 'no-store' });
                 const setupData = await setupRes.json();
                 
                 if (setupData.success) {
@@ -269,8 +270,9 @@ export default function BudgetGrid({
         // 1. Initial Load
         validCategories.forEach((cat: any) => {
             // V47.142 - Strict Key: Isolation + Identity
+            // REMOVED cat.tenantId from uniqueKey to merge identical categories across variants/companies in consolidated view.
             const cleanCode = (cat.name.match(/^(\d{1,2}(?:\.\d+)*)/) || [])[1] || '';
-            const uniqueKey = `${cat.tenantId}|${cat.type}|${cleanCode}|${cat.name}`;
+            const uniqueKey = `${cat.type}|${cleanCode}|${cat.name.trim()}`;
 
             if (nameMap.has(uniqueKey)) {
                 const existingNode = nameMap.get(uniqueKey)!;

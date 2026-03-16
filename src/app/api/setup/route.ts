@@ -6,7 +6,7 @@ import { ensureTenantSchema } from '@/lib/db-utils';
 
 export const dynamic = 'force-dynamic';
 
-export async function GET() {
+export async function GET(request: Request) {
     try {
         await ensureTenantSchema();
         const cookieStore = await cookies();
@@ -26,10 +26,26 @@ export async function GET() {
             }
         };
 
+        const { searchParams } = new URL(request.url);
+        const primaryOnly = searchParams.get('primaryOnly') === 'true';
+
         let categoryFilter: any = { ...inactiveFilter };
         let costCenterFilter: any = { ...inactiveFilter };
 
-        if (user.role === 'GESTOR') {
+        if (primaryOnly) {
+            const allTenants = await prisma.tenant.findMany();
+            const companyGroups = new Map<string, string[]>();
+            allTenants.forEach((t: any) => {
+                const cleanCnpj = (t.cnpj || '').replace(/\D/g, '');
+                const cleanName = (t.name || '').trim().toUpperCase().replace(/[^A-Z0-9]/g, '');
+                const key = cleanCnpj !== '' ? cleanCnpj : cleanName;
+                if (!companyGroups.has(key)) companyGroups.set(key, []);
+                companyGroups.get(key)!.push(t.id);
+            });
+            const primaryIds = Array.from(companyGroups.values()).map(ids => ids.sort()[0]);
+            categoryFilter.tenantId = { in: primaryIds };
+            costCenterFilter.tenantId = { in: primaryIds };
+        } else if (user.role === 'GESTOR') {
             const dbUser = await prisma.user.findUnique({
                 where: { id: user.userId as string },
                 include: { 
@@ -44,7 +60,6 @@ export async function GET() {
                 const tenantIdsFromTenants = dbUser.tenantAccess.map((t: any) => t.tenantId);
                 const tenantIdsFromCCs = dbUser.costCenterAccess.map((c: any) => c.costCenter.tenantId);
                 
-                // Set of all unique tenant IDs the user can see data for
                 const allVisibleTenantIds = Array.from(new Set([...tenantIdsFromTenants, ...tenantIdsFromCCs]));
                 const costCenterIds = dbUser.costCenterAccess.map((c: any) => c.costCenterId);
 

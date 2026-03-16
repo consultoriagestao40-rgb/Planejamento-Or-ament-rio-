@@ -1095,19 +1095,20 @@ export default function BudgetGrid({
                     className="sticky-col" 
                     style={{ 
                         fontWeight: 900, 
-                        color: isLucroLiquido ? '#fff' : '#1e293b',
-                        background: isLucroLiquido ? '#2563eb' : undefined,
-                        fontSize: '0.75rem'
+                        color: isLucroLiquido ? '#ffffff !important' : '#1e293b',
+                        background: isLucroLiquido ? '#2563eb !important' : undefined,
+                        fontSize: '0.75rem',
+                        zIndex: 25 // Ensure it stays above normal rows
                     }}
                 >
-                    <div style={{ display: 'flex', alignItems: 'center' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', opacity: 1, visibility: 'visible' }}>
                         {groupId && (
                             <span style={{ marginRight: '0.5rem', fontSize: '0.7rem' }}>
                                 {isGroupExpanded ? '▼' : '▶'}
                             </span>
                         )}
                         {!groupId && <span style={{ width: '1.2rem' }}></span>}
-                        {label}
+                        <span style={{ color: 'inherit' }}>{label}</span>
                     </div>
                 </td>
                 {(viewPeriod === 'month' ? MONTHS : [1, 2, 3, 4]).map((_, i) => {

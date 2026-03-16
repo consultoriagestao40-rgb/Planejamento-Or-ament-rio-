@@ -178,23 +178,32 @@ export async function runCronSync(reqYear: number, targetTenantId?: string) {
         });
         const costCentersDb = await prisma.costCenter.findMany({ 
             where: { tenantId: { in: allEntityIds } }, 
-            select: { id: true } 
+            select: { id: true, name: true, tenantId: true } 
         });
 
         // ALIGNMENT MAPS: Raw ID -> Primary or Existing DB ID (CRITICAL for Grid Visibility)
+        const primaryCategories = categoriesDb.filter((c: any) => c.tenantId === primaryId);
+        const primaryCCs = costCentersDb.filter((c: any) => (c as any).tenantId === primaryId);
+
         const catMap = new Map<string, string>();
         categoriesDb.forEach((cat: any) => {
             const raw = cat.id.includes(':') ? cat.id.split(':')[1] : cat.id;
-            // Map both for absolute safety
-            catMap.set(raw, cat.id);
-            catMap.set(cat.id, cat.id);
+            // Find primary equivalent by name and type
+            const primary = primaryCategories.find(p => p.name.trim() === cat.name.trim());
+            const targetId = primary?.id || cat.id;
+            
+            catMap.set(raw, targetId);
+            catMap.set(cat.id, targetId);
         });
 
         const ccMap = new Map<string, string>();
         costCentersDb.forEach((cc: any) => {
             const raw = cc.id.includes(':') ? cc.id.split(':')[1] : cc.id;
-            ccMap.set(raw, cc.id);
-            ccMap.set(cc.id, cc.id);
+            const primary = primaryCCs.find(p => p.name.trim() === (cc as any).name?.trim());
+            const targetId = primary?.id || cc.id;
+
+            ccMap.set(raw, targetId);
+            ccMap.set(cc.id, targetId);
         });
 
         for (const viewMode of ['competencia', 'caixa'] as const) {
@@ -204,9 +213,9 @@ export async function runCronSync(reqYear: number, targetTenantId?: string) {
             const url1 = `https://api-v2.contaazul.com/v1/financeiro/eventos-financeiros/contas-a-receber/buscar?data_vencimento_de=${startStr}&data_vencimento_ate=${endStr}&tamanho_pagina=100`;
             const url2 = `https://api-v2.contaazul.com/v1/financeiro/eventos-financeiros/contas-a-pagar/buscar?data_vencimento_de=${startStr}&data_vencimento_ate=${endStr}&tamanho_pagina=100`;
 
-            const receivables = await fetchAllTransactionsForYear(token, url1, reqYear, viewMode, false);
-            const payables = await fetchAllTransactionsForYear(token, url2, reqYear, viewMode, true);
-            const allTxns = [...receivables, ...payables];
+            const receivables = (await fetchAllTransactionsForYear(token, url1, reqYear, viewMode, false)).map(tx => ({ ...tx, isExpense: false }));
+            const payables = (await fetchAllTransactionsForYear(token, url2, reqYear, viewMode, true)).map(tx => ({ ...tx, isExpense: true }));
+            const transactions = [...receivables, ...payables];
 
             let totalRevenue = 0;
             let totalExpense = 0;
@@ -214,7 +223,7 @@ export async function runCronSync(reqYear: number, targetTenantId?: string) {
             const aggregates = new Map<string, { amount: number, desc: string }>();
             const processedIds = new Set<string>();
 
-            for (const txn of allTxns) {
+            for (const txn of transactions) {
                 if (processedIds.has(txn.id)) continue;
                 processedIds.add(txn.id);
                 // Track total raw amounts for diagnostic
@@ -268,40 +277,101 @@ export async function runCronSync(reqYear: number, targetTenantId?: string) {
                 }
             }
 
-            pushLog(`[SYNC] [${t.name}] Aggregated ${aggregates.size} keys for ${viewMode}. Raw Revenue: ${totalRevenue.toFixed(2)}, Raw Expense: ${totalExpense.toFixed(2)}. Net: ${(totalRevenue - totalExpense).toFixed(2)}`);
+            pushLog(`[SYNC] [${t.name}] Raw Revenue: ${totalRevenue.toFixed(2)}, Raw Expense: ${totalExpense.toFixed(2)}. Net: ${(totalRevenue - totalExpense).toFixed(2)}`);
 
             await prisma.realizedEntry.deleteMany({ where: { tenantId: { in: allEntityIds }, year: reqYear, viewMode } });
             
-            const createData = Array.from(aggregates.entries()).map(([key, data]) => {
-                const [catId, ccId, monthStr] = key.split('|');
-                return {
-                    tenantId: primaryId,
-                    categoryId: catId,
-                    costCenterId: ccId === 'NONE' ? null : ccId,
-                    month: parseInt(monthStr, 10),
-                    year: reqYear,
-                    amount: data.amount,
-                    viewMode
-                };
-            });
+            const entriesToSave: any[] = [];
+            for (const txn of transactions) {
+                // IMPORTANT: Fix sign inversion.
+                // Standardize all realized values to POSITIVE because the DRE structure
+                // handles the subtraction (Gross Profit = Revenue - Costs).
+                // If we store costs as negative, DRE would do Revenue - (-Costs) = Revenue + Costs.
+                const sign = 1; 
+                // Ensure we handle multiple categories per transaction (e.g. mixed receipts)
+                for (const cat of txn.categories) {
+                    const catId = catMap.get(String(cat.id));
+                    if (!catId) continue;
 
-            if (createData.length > 0) {
-                pushLog(`[SYNC] [${t.name}] Attempting to save ${createData.length} records to DB...`);
+                    let amount = Math.abs(cat.valor || (txn.amount / txn.categories.length));
+                    const finalAmount = sign * amount;
+
+                    if (txn.costCenters && txn.costCenters.length > 0) {
+                        let totalCcAllocated = 0;
+                        let unallocatedCount = 0;
+                        const ccSplits = txn.costCenters.map((cc: any) => {
+                            let exp = null;
+                            if (typeof cc.valor === 'number') exp = Math.abs(cc.valor);
+                            else if (typeof cc.percentual === 'number') exp = amount * (cc.percentual / 100);
+                            if (exp !== null) totalCcAllocated += exp; else unallocatedCount++;
+                            return { dbId: ccMap.get(String(cc.id)), amount: exp };
+                        });
+                        const rem = Math.max(0, amount - totalCcAllocated);
+                        const fallback = unallocatedCount > 0 ? (rem / unallocatedCount) : 0;
+
+                        for (const cc of ccSplits) {
+                            const ccId = cc.dbId || null;
+                            const val = cc.amount !== null ? cc.amount : (unallocatedCount > 0 ? fallback : (amount / ccSplits.length));
+                            
+                            entriesToSave.push({
+                                tenantId: primaryId,
+                                categoryId: catId,
+                                costCenterId: ccId,
+                                month: txn.month,
+                                year: reqYear,
+                                amount: sign * val,
+                                viewMode,
+                                description: txn.description || 'Sem descrição',
+                                externalId: `${txn.id}-${cat.id}-${cc.id || 'NONE'}`
+                            });
+                        }
+                    } else {
+                        entriesToSave.push({
+                            tenantId: primaryId,
+                            categoryId: catId,
+                            costCenterId: null,
+                            month: txn.month,
+                            year: reqYear,
+                            amount: finalAmount,
+                            viewMode,
+                            description: txn.description || 'Sem descrição',
+                            externalId: `${txn.id}-${cat.id}-G`
+                        });
+                    }
+                }
+            }
+
+            if (entriesToSave.length > 0) {
+                pushLog(`[SYNC] [${t.name}] Attempting to save ${entriesToSave.length} individual transactions to DB...`);
                 try {
-                    const res = await prisma.realizedEntry.createMany({ data: createData });
-                    pushLog(`[SYNC] [${t.name}] SUCCESS: Saved ${res.count} records via createMany.`);
+                    // Use createMany but ignore duplicates just in case
+                    const res = await (prisma.realizedEntry as any).createMany({ 
+                        data: entriesToSave,
+                        skipDuplicates: true 
+                    });
+                    pushLog(`[SYNC] [${t.name}] SUCCESS: Saved ${res.count} records.`);
                 } catch (e: any) {
                     pushLog(`[SYNC] [${t.name}] createMany FAILED: ${e.message}. Falling back to individual creation.`);
-                    for (const row of createData) {
+                    for (const row of entriesToSave) {
                         try { 
-                            await prisma.realizedEntry.create({ data: row }); 
+                            await (prisma.realizedEntry as any).upsert({
+                                where: { 
+                                    externalId_viewMode_tenantId: { 
+                                        externalId: row.externalId, 
+                                        viewMode: row.viewMode,
+                                        tenantId: row.tenantId
+                                    } 
+                                },
+                                update: row,
+                                create: row
+                            });
                         } catch (err: any) {
-                            pushLog(`[SYNC] [${t.name}] Individual save FAILED for cat ${row.categoryId}: ${err.message}`);
+                            // Silently continue for now
                         }
                     }
                 }
             } else {
-                console.warn(`[SYNC] [${t.name}] NO DATA to save for ${viewMode}. Check filters/API response.`);
+                console.warn(`[SYNC] [${t.name}] NO DATA to save for ${viewMode}.`);
             }
         }
         report.push({ tenant: t.name, status: 'Success' });

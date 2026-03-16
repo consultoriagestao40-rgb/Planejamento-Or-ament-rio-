@@ -89,7 +89,7 @@ export default function FinancialDashboard({
             <header style={{
                 position: 'sticky',
                 top: 0,
-                zIndex: 40,
+                zIndex: 50,
                 backgroundColor: 'rgba(255, 255, 255, 0.8)',
                 backdropFilter: 'blur(20px)',
                 borderBottom: '1px solid var(--border-default)',

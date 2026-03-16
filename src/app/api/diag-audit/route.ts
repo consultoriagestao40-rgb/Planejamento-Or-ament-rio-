@@ -13,7 +13,7 @@ export async function GET() {
         const entries = await prisma.realizedEntry.findMany({
             where: { 
                 tenantId: { in: ids }, 
-                month: 0, 
+                month: 1, 
                 year: 2026, 
                 viewMode: 'competencia' 
             },

@@ -124,7 +124,8 @@ model RealizedEntry {
   costCenterId String?  
   month        Int      // 1-12
   year         Int
-  amount       Float    // Custo/Receita consolidada do Conta Azul
+  description  String?
+  externalId   String?
   viewMode     String   @default("competencia") // "caixa" ou "competencia"
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
@@ -133,7 +134,8 @@ model RealizedEntry {
   category     Category    @relation(fields: [categoryId], references: [id])
   costCenter   CostCenter? @relation(fields: [costCenterId], references: [id])
 
-  @@unique([tenantId, categoryId, costCenterId, month, year, viewMode])
+  @@unique([externalId, viewMode, tenantId])
+  @@index([tenantId, categoryId, month, year])
 }
 
 model User {

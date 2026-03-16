@@ -84,7 +84,7 @@ export async function GET(request: Request) {
         entries.forEach((e: any) => {
             const catName = categoryMap.get(e.categoryId);
             if (catName) {
-                const key = `${catName}|${e.month - 1}`;
+                const key = `${catName.trim()}|${e.month - 1}`;
                 realizedValues[key] = (realizedValues[key] || 0) + e.amount;
             }
         });

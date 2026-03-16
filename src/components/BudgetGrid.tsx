@@ -501,6 +501,7 @@ export default function BudgetGrid({
                     for (const rawId of idsToRead) {
                         const bData = budgetValues[`${rawId}-${i}`] || { amount: 0, radarAmount: 0, isLocked: false };
                         sumB += bData.amount;
+                        const val = realizedValues[`${node.name.trim()}|${i}`] || 0;
                         sumR += (realizedValues[`${rawId}-${i}`] || 0);
                         const hasRadar = bData.radarAmount !== undefined && bData.radarAmount !== null;
                         const radarVal = hasRadar ? (bData.radarAmount as number) : bData.amount;
@@ -1530,8 +1531,8 @@ export default function BudgetGrid({
                                 )}
                             </div>
                         </div>
-                    );
-                })()}
+                    </div>
+                )}
                 {selectedCell && (
                     <div className="modal-overlay" style={{ zIndex: 1100 }}>
                         <div className="modal-content" style={{ maxWidth: '1000px', height: '90vh', backgroundColor: '#fff' }}>

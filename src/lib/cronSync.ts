@@ -158,7 +158,8 @@ export async function runCronSync(reqYear: number, targetTenantId?: string) {
             continue;
         }
         
-        const primaryId = t.id;
+        const { getPrimaryTenantId } = await import('./tenant-utils');
+        const primaryId = await getPrimaryTenantId(t);
         
         // 1. FRESH METADATA SYNC: Ensure categories and CCs are in the DB before processing values
         console.log(`[SYNC] Refreshing metadata for ${t.name}...`);

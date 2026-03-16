@@ -990,10 +990,10 @@ export default function BudgetGrid({
                     <td 
                         className={`sticky-col spreadsheet-indent-${node.level}`}
                         onClick={() => hasChildren && toggleRow(node.id)}
-                        style={{ cursor: hasChildren ? 'pointer' : 'default', fontWeight: hasChildren ? 600 : 400 }}
+                        style={{ cursor: hasChildren ? 'pointer' : 'default', fontWeight: hasChildren ? 700 : 500 }}
                     >
-                        <div style={{ display: 'flex', alignItems: 'center' }}>
-                            {hasChildren && <span style={{ marginRight: '0.4rem', fontSize: '0.7rem' }}>{isExpanded ? '▼' : '▶'}</span>}
+                        <div style={{ display: 'flex', alignItems: 'center', color: hasChildren ? '#0f172a' : '#475569' }}>
+                            {hasChildren && <span style={{ marginRight: '0.4rem', fontSize: '0.7rem', color: '#3b82f6' }}>{isExpanded ? '▼' : '▶'}</span>}
                             {!hasChildren && <span style={{ width: '1.1rem' }}></span>}
                             {node.name}
                         </div>
@@ -1094,9 +1094,10 @@ export default function BudgetGrid({
                 <td 
                     className="sticky-col" 
                     style={{ 
-                        fontWeight: 800, 
-                        color: isLucroLiquido ? '#fff' : 'var(--text-primary)',
-                        background: isLucroLiquido ? '#2563eb' : undefined
+                        fontWeight: 900, 
+                        color: isLucroLiquido ? '#fff' : '#1e293b',
+                        background: isLucroLiquido ? '#2563eb' : undefined,
+                        fontSize: '0.75rem'
                     }}
                 >
                     <div style={{ display: 'flex', alignItems: 'center' }}>
@@ -1357,16 +1358,16 @@ export default function BudgetGrid({
                 <table className="spreadsheet-table">
                     <thead>
                         <tr>
-                            <th className="sticky-col" style={{ minWidth: '350px', background: '#f1f5f9', color: '#1e293b' }}>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                            <th className="sticky-col" style={{ minWidth: '400px' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', padding: '0 0.5rem' }}>
                                     <button
                                         onClick={handleToggleAll}
                                         className="spreadsheet-btn-expand"
-                                        style={{ background: '#fff', border: '1px solid #cbd5e1' }}
+                                        style={{ background: '#fff', border: '1px solid #cbd5e1', fontSize: '0.8rem' }}
                                     >
-                                        {isAnyExpanded ? '⊖' : '⊕'}
+                                        {isAnyExpanded ? '−' : '+'}
                                     </button>
-                                    <span style={{ fontSize: '0.7rem', fontWeight: 800 }}>ESTRUTURA DRE (EXCEL VIEW)</span>
+                                    <span style={{ fontSize: '0.75rem', fontWeight: 800 }}>ESTRUTURA DRE — {selectedYear}</span>
                                 </div>
                             </th>
                             {(viewPeriod === 'month' ? MONTHS : ['1º Tri', '2º Tri', '3º Tri', '4º Tri']).map((c, i) => {
@@ -1377,8 +1378,8 @@ export default function BudgetGrid({
                                 );
                             })}
                         </tr>
-                        <tr style={{ background: '#f8fafc' }}>
-                            <th className="sticky-col" style={{ background: '#f1f5f9', borderRight: '2px solid #cbd5e1' }}></th>
+                        <tr>
+                            <th className="sticky-col"></th>
                             {(viewPeriod === 'month' ? MONTHS : [1, 2, 3, 4]).map((_, i) => (
                                 <React.Fragment key={i}>
                                     <th style={{ fontSize: '0.6rem', color: '#64748b', borderLeft: '2px solid #cbd5e1', textAlign: 'center', padding: '0.2rem' }}>ORÇ</th>

@@ -478,15 +478,16 @@ select.premium-select:focus {
 .spreadsheet-container {
   overflow: auto;
   max-height: calc(100vh - 280px);
-  border: 1px solid var(--border-strong);
-  background: #fff;
-  border-radius: 8px;
+  background: #ffffff;
+  border-radius: 4px;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
 }
 
 .spreadsheet-table {
   border-collapse: collapse;
   width: 100%;
-  font-family: 'Inter', sans-serif;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  border-spacing: 0;
 }
 
 .spreadsheet-table th, 
@@ -498,10 +499,11 @@ select.premium-select:focus {
 }
 
 .spreadsheet-table thead th {
-  background: #f8fafc;
-  color: var(--text-muted);
-  font-weight: 700;
+  background: #f1f5f9;
+  color: #475569;
+  font-weight: 800;
   text-transform: uppercase;
+  letter-spacing: 0.025em;
   font-size: 0.65rem;
   position: sticky;
   top: 0;
@@ -512,9 +514,28 @@ select.premium-select:focus {
 .spreadsheet-table .sticky-col {
   position: sticky;
   left: 0;
-  background: inherit;
-  z-index: 5;
-  border-right: 2px solid var(--border-strong);
+  background-color: #ffffff !important;
+  z-index: 20;
+  border-right: 2px solid #e2e8f0;
+  box-shadow: 2px 0 5px -2px rgba(0,0,0,0.05);
+}
+
+.spreadsheet-table thead th.sticky-col {
+  z-index: 30;
+  background-color: #f1f5f9 !important;
+}
+
+/* Fix for transparent backgrounds on expanded rows */
+.spreadsheet-table tr {
+  background-color: #ffffff;
+}
+
+.spreadsheet-table tr.spreadsheet-summary-row {
+  background-color: #f8fafc !important;
+}
+
+.spreadsheet-table tr.spreadsheet-summary-row .sticky-col {
+  background-color: #f8fafc !important;
 }
 
 .spreadsheet-table tr:nth-child(even) {
@@ -526,10 +547,16 @@ select.premium-select:focus {
 }
 
 .spreadsheet-value {
-  font-family: 'JetBrains Mono', 'Roboto Mono', monospace;
+  font-family: 'Inter', sans-serif;
   text-align: right;
   font-variant-numeric: tabular-nums;
-  color: var(--text-primary);
+  color: #1e293b;
+  font-weight: 500;
+}
+
+.spreadsheet-value-bold {
+  font-weight: 700;
+  color: #0f172a;
 }
 
 .spreadsheet-group-header {

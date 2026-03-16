@@ -14,14 +14,13 @@ export async function getPrimaryTenantId(tenant: { id: string, name: string, cnp
                 { cnpj: cleanCnpj && cleanCnpj !== '' ? cleanCnpj : undefined },
                 { name: { contains: cleanName, mode: 'insensitive' } }
             ]
-        },
-        orderBy: { updatedAt: 'desc' }
+        }
     });
 
     if (allVariants.length === 0) return tenant.id;
     
-    // Pick the most recently updated one as the primary
-    return allVariants[0].id;
+    // Pick the smallest ID alphabetically to be 100% deterministic
+    return allVariants.map(v => v.id).sort()[0];
 }
 
 /**

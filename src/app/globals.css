@@ -473,3 +473,91 @@ select.premium-select:focus {
   color: var(--text-primary);
   background: rgba(255,255,255,0.05);
 }
+
+/* === SPREADSHEET UI (Leverpro Style) === */
+.spreadsheet-container {
+  overflow: auto;
+  max-height: calc(100vh - 280px);
+  border: 1px solid var(--border-strong);
+  background: #fff;
+  border-radius: 8px;
+}
+
+.spreadsheet-table {
+  border-collapse: collapse;
+  width: 100%;
+  font-family: 'Inter', sans-serif;
+}
+
+.spreadsheet-table th, 
+.spreadsheet-table td {
+  border: 1px solid var(--border-default);
+  padding: 0.5rem 0.75rem;
+  font-size: 0.8rem;
+  white-space: nowrap;
+}
+
+.spreadsheet-table thead th {
+  background: #f8fafc;
+  color: var(--text-muted);
+  font-weight: 700;
+  text-transform: uppercase;
+  font-size: 0.65rem;
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  border-bottom: 2px solid var(--border-strong);
+}
+
+.spreadsheet-table .sticky-col {
+  position: sticky;
+  left: 0;
+  background: inherit;
+  z-index: 5;
+  border-right: 2px solid var(--border-strong);
+}
+
+.spreadsheet-table tr:nth-child(even) {
+  background-color: #fcfdfe;
+}
+
+.spreadsheet-table tr:hover {
+  background-color: #f1f5f9 !important;
+}
+
+.spreadsheet-value {
+  font-family: 'JetBrains Mono', 'Roboto Mono', monospace;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-primary);
+}
+
+.spreadsheet-group-header {
+  background: #f1f5f9 !important;
+  font-weight: 700;
+  color: var(--accent-blue);
+}
+
+.spreadsheet-summary-row {
+  background: #f8fafc !important;
+  font-weight: 600;
+}
+
+.spreadsheet-indent-1 { padding-left: 1.5rem !important; }
+.spreadsheet-indent-2 { padding-left: 3.0rem !important; }
+.spreadsheet-indent-3 { padding-left: 4.5rem !important; }
+
+.spreadsheet-btn-expand {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  cursor: pointer;
+  border-radius: 4px;
+  transition: background 0.2s;
+}
+
+.spreadsheet-btn-expand:hover {
+  background: var(--bg-surface);
+}

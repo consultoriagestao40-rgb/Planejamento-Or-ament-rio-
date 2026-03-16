@@ -979,171 +979,98 @@ export default function BudgetGrid({
     }, [dreStructure]);
 
     const renderNode = (node: CategoryNode) => {
-        const totals = nodeTotals.get(node.id) || { budget: new Array(12).fill(0), realized: new Array(12).fill(0), radar: new Array(12).fill(0) };
-        const isExpanded = expandedRows.has(node.id);
         const hasChildren = node.children.length > 0;
+        const isExpanded = expandedRows.has(node.id);
+        const totals = nodeTotals.get(node.id) || { budget: new Array(12).fill(0), realized: new Array(12).fill(0), radar: new Array(12).fill(0) };
         const isEditable = !hasChildren && !node.isSynthetic;
 
         return (
             <React.Fragment key={node.id}>
-                <tr style={{ background: 'var(--bg-surface)', cursor: hasChildren ? 'pointer' : 'default', borderBottom: '1px solid var(--border-subtle)' }}>
-                    <td onClick={() => hasChildren && toggleRow(node.id)} className="premium-td" style={{
-                        padding: '0.65rem 0',
-                        position: 'sticky',
-                        left: 0,
-                        background: '#ffffff', // Force solid white to prevent transparency bleed
-                        zIndex: 5,
-                        color: hasChildren ? 'var(--text-primary)' : 'var(--text-secondary)',
-                        fontWeight: hasChildren ? 700 : 500,
-                        fontSize: '0.8rem',
-                        minWidth: '400px',
-                        width: '400px',
-                        borderRight: '1px solid var(--border-subtle)',
-                    }}>
-                        <div style={{ display: 'flex', alignItems: 'center', paddingLeft: `${3 + node.level * 1.5}rem` }}>
-                            {hasChildren && <span style={{ marginRight: '0.6rem', fontSize: '0.8rem', width: '1rem', color: 'var(--accent-blue)', opacity: 0.8 }}>{isExpanded ? '▼' : '▶'}</span>}
-                            {!hasChildren && <span style={{ width: '1.6rem' }}></span>}
+                <tr>
+                    <td 
+                        className={`sticky-col spreadsheet-indent-${node.level}`}
+                        onClick={() => hasChildren && toggleRow(node.id)}
+                        style={{ cursor: hasChildren ? 'pointer' : 'default', fontWeight: hasChildren ? 600 : 400 }}
+                    >
+                        <div style={{ display: 'flex', alignItems: 'center' }}>
+                            {hasChildren && <span style={{ marginRight: '0.4rem', fontSize: '0.7rem' }}>{isExpanded ? '▼' : '▶'}</span>}
+                            {!hasChildren && <span style={{ width: '1.1rem' }}></span>}
                             {node.name}
                         </div>
                     </td>
                     {(viewPeriod === 'month' ? MONTHS : [1, 2, 3, 4]).map((_, i) => {
                         let bVal = 0, rVal = 0, rdVal = 0;
-                        let revBrutaReal = 0, revBrutaBudget = 0, revBrutaRadar = 0;
                         let isLocked = false;
 
                         if (viewPeriod === 'month') {
                             bVal = totals.budget[i];
                             rVal = totals.realized[i];
                             rdVal = totals.radar[i];
-                            const monthTotal = precomputedDreTotals[i];
-                            revBrutaReal = monthTotal.vRecLiq.r;
-                            revBrutaBudget = monthTotal.vRecLiq.b;
-                            revBrutaRadar = monthTotal.vRecLiq.rd;
                             isLocked = isCCLocked || node.id.split(',').some(id => (budgetValues[`${id}-${i}`] || {}).isLocked);
                             const rLock = radarLocks.find(l => l.tenantId === selectedCompany[0] && l.month === (i + 1));
                             const isRadarLocked = isLocked || (rLock?.isLocked) || (rLock?.deadline && new Date() > new Date(rLock.deadline));
-                            (node as any)._isRadarLocked = isRadarLocked; // Temp storage for use in the cell
-
+                            (node as any)._isRadarLocked = isRadarLocked;
                         } else {
-
                             for (let m = i * 3; m < i * 3 + 3; m++) {
                                 bVal += totals.budget[m];
                                 rVal += totals.realized[m];
                                 rdVal += totals.radar[m];
-                                const monthTotal = precomputedDreTotals[m];
-                                revBrutaReal += monthTotal.vRecLiq.r;
-                                revBrutaBudget += monthTotal.vRecLiq.b;
-                                revBrutaRadar += monthTotal.vRecLiq.rd;
                                 if (isCCLocked || node.id.split(',').some(id => (budgetValues[`${id}-${m}`] || {}).isLocked)) isLocked = true;
                             }
-                            
                             const anyRadarLocked = [0, 1, 2].some(offset => {
                                 const monthNum = (i * 3) + offset + 1;
                                 const rLock = radarLocks.find(l => l.tenantId === selectedCompany[0] && l.month === monthNum);
                                 return isLocked || (rLock?.isLocked) || (rLock?.deadline && new Date() > new Date(rLock.deadline));
                             });
                             (node as any)._isRadarLocked = anyRadarLocked;
-
-
                         }
-
-                        revBrutaReal = revBrutaReal || 1;
-                        revBrutaBudget = revBrutaBudget || 1;
-                        revBrutaRadar = revBrutaRadar || 1;
-
-                        const avRealized = (rVal / revBrutaReal) * 100;
-                        const avBudget = (bVal / revBrutaBudget) * 100;
-                        const avRadar = (rdVal / revBrutaRadar) * 100;
-
-                        const ahValue = bVal !== 0 ? (rVal / bVal) * 100 : 0;
-                        const arValue = rdVal !== 0 ? (rVal / rdVal) * 100 : 0;
-                        const ahRadarValue = bVal !== 0 ? (rdVal / bVal) * 100 : 0;
 
                         const isCellEditable = isEditable && viewPeriod === 'month';
 
                         return (
                             <React.Fragment key={i}>
                                 <td
+                                    className="spreadsheet-value"
                                     onClick={() => {
                                         if (viewPeriod === 'month') {
-                                            if (isCellEditable) {
-                                                openBudgetModal(node.id, node.name, i, 'budget');
-                                            } else {
-                                                handleBudgetDrillDown(node.id, node.name, i);
-                                            }
+                                            if (isCellEditable) openBudgetModal(node.id, node.name, i, 'budget');
+                                            else handleBudgetDrillDown(node.id, node.name, i);
                                         }
                                     }}
-                                    style={{
-                                        borderLeft: i > 0 ? '2px solid var(--border-strong)' : '1px solid var(--border-subtle)',
-                                        padding: '0.65rem 0.75rem',
-                                        minWidth: '100px',
-                                        whiteSpace: 'nowrap',
+                                    style={{ 
+                                        borderLeft: '2px solid #cbd5e1', 
                                         cursor: viewPeriod === 'month' ? 'pointer' : 'default',
-                                        transition: 'background 0.2s',
-                                        textAlign: 'right'
+                                        color: bVal < 0 ? '#dc2626' : '#475569'
                                     }}
-                                    className="hover-cell"
-                                    title={viewPeriod === 'quarter' ? 'Mude para a Visão Mensal para detalhes' : (isCellEditable ? 'Clique para editar o orçamento' : 'Clique para ver detalhes do orçamento')}
                                 >
-                                    <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: '0.3rem', justifyContent: 'flex-end', fontWeight: 500 }}>
-                                        {isLocked && <span title="Orçamento Travado" style={{ fontSize: '0.7rem', color: 'var(--accent-red)' }}>🔒</span>}
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '2px', justifyContent: 'flex-end' }}>
+                                        {isLocked && <span style={{ fontSize: '0.6rem' }}>🔒</span>}
                                         {formatCurrency(bVal)}
                                     </div>
-                                    {showAV && <div style={{ fontSize: '0.65rem', color: 'var(--text-muted)' }}>AV: {avBudget.toFixed(1)}%</div>}
                                 </td>
                                 <td
+                                    className="spreadsheet-value"
                                     onClick={() => isCellEditable && openBudgetModal(node.id, node.name, i, 'radar')}
-                                    style={{
-                                        textAlign: 'right',
-                                        padding: '0.5rem',
-                                        borderLeft: '1px solid #f1f5f9',
-                                        color: '#334155',
-                                        fontSize: '0.8rem',
-                                        fontWeight: 400,
-                                        minWidth: '100px',
-                                        backgroundColor: '#fff',
-                                        cursor: isCellEditable ? 'pointer' : (viewPeriod === 'quarter' ? 'default' : 'not-allowed')
+                                    style={{ 
+                                        cursor: isCellEditable ? 'pointer' : 'default',
+                                        color: rdVal < 0 ? '#dc2626' : '#334155'
                                     }}
-                                    onMouseEnter={(e) => { if (isCellEditable) e.currentTarget.style.backgroundColor = '#f8fafc'; }}
-                                    onMouseLeave={(e) => { if (isCellEditable) e.currentTarget.style.backgroundColor = '#fff'; }}
-                                    title={viewPeriod === 'quarter' ? "Mude para a Visão Mensal para editar" : (!isEditable ? "Selecione um único Centro de Custo para editar" : "")}
                                 >
-                                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', justifyContent: 'center' }}>
-                                            <div style={{ fontSize: '0.85rem', fontWeight: 700, color: node.isSynthetic ? '#64748b' : '#334155', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                                                {(node as any)._isRadarLocked && <span title="Radar Travado" style={{ fontSize: '0.7rem', color: '#ef4444' }}>🔒</span>}
-                                                {formatCurrency(rdVal)}
-
-                                                {!node.isSynthetic && node.id.split(',').some(id => budgetValues[`${id}-${i}`]?.observation) && (
-                                                    <span style={{ color: '#f59e0b', fontSize: '0.6rem' }} title={node.id.split(',').map(id => budgetValues[`${id}-${i}`]?.observation).filter(Boolean).join('\n')}>●</span>
-                                                )}
-
-                                            </div>
-                                            {showAV && <div style={{ fontSize: '0.65rem', color: '#94a3b8' }}>AV: {avRadar.toFixed(1)}%</div>}
-                                        </div>
-
-                                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end' }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '2px', justifyContent: 'flex-end', fontWeight: 600 }}>
+                                        {(node as any)._isRadarLocked && <span style={{ fontSize: '0.6rem' }}>🔒</span>}
+                                        {formatCurrency(rdVal)}
                                     </div>
                                 </td>
-                                <td onClick={() => viewPeriod === 'month' && handleCellClick(node.id, i, node.name)} className="hover-cell" style={{ textAlign: 'right', padding: '0.65rem 0.75rem', borderLeft: '1px solid var(--border-subtle)', color: 'var(--accent-blue)', fontSize: '0.8rem', fontWeight: 700, cursor: viewPeriod === 'month' ? 'pointer' : 'default', minWidth: '120px', whiteSpace: 'nowrap' }} title={viewPeriod === 'quarter' ? "Visão detalhada indisponível no trimestre" : ""}>
+                                <td 
+                                    className="spreadsheet-value"
+                                    onClick={() => viewPeriod === 'month' && handleCellClick(node.id, i, node.name)} 
+                                    style={{ 
+                                        cursor: viewPeriod === 'month' ? 'pointer' : 'default',
+                                        color: rVal < 0 ? '#dc2626' : 'var(--accent-blue)',
+                                        fontWeight: 700 
+                                    }}
+                                >
                                     {formatCurrency(rVal)}
-                                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end' }}>
-                                        {showAV && <span style={{ fontSize: '0.65rem', color: 'var(--text-muted)', fontWeight: 500 }}>AV: {avRealized.toFixed(1)}%</span>}
-                                        {showAH && <span style={{ fontSize: '0.65rem', color: 'var(--accent-green)', fontWeight: 800 }}>AH (O x R): {ahValue.toFixed(1)}%</span>}
-                                        {showAH_MoM && i > 0 && (() => {
-                                            let prevR = 0;
-                                            let currR = rVal;
-                                            if (viewPeriod === 'month') prevR = totals.realized[i - 1];
-                                            else for (let m = (i - 1) * 3; m < (i - 1) * 3 + 3; m++) prevR += totals.realized[m] || 0;
-                                            const delta = prevR !== 0 ? ((currR / prevR) - 1) * 100 : 0;
-                                            const isCost = node.code && !node.code.startsWith('01');
-                                            let color = 'var(--text-muted)';
-                                            if (delta > 0.01) color = isCost ? 'var(--accent-red)' : 'var(--accent-green)';
-                                            else if (delta < -0.01) color = isCost ? 'var(--accent-green)' : 'var(--accent-red)';
-                                            const label = viewPeriod === 'month' ? 'MoM' : 'QoQ';
-                                            return <span style={{ fontSize: '0.65rem', color, fontWeight: 800 }}>{label}: {delta > 0 ? '+' : ''}{delta.toFixed(1)}%</span>;
-                                        })()}
-                                        {showAR && <span style={{ fontSize: '0.65rem', color: 'var(--accent-indigo)', fontWeight: 800 }}>AH (Radar x Real): {arValue.toFixed(1)}%</span>}
-                                    </div>
                                 </td>
                             </React.Fragment>
                         );
@@ -1154,37 +1081,36 @@ export default function BudgetGrid({
         );
     };
 
-    const renderSummaryRow = (label: string, validx: keyof ReturnType<typeof dreStructure.calculateTotals>, isBold = false, bgColor = 'var(--bg-elevated)', textColor = 'var(--text-primary)', groupId?: string) => {
+    const renderSummaryRow = (label: string, validx: keyof ReturnType<typeof dreStructure.calculateTotals>, isBold = false, groupId?: string) => {
         const isGroupExpanded = groupId ? expandedGroups.has(groupId) : true;
+        const isLucroLiquido = label.includes('LUCRO LÍQUIDO');
 
         return (
-            <tr onClick={() => groupId && toggleGroup(groupId)} style={{ background: bgColor, borderBottom: '1px solid var(--border-default)', fontWeight: 800, cursor: groupId ? 'pointer' : 'default' }}>
-                <td style={{
-                    padding: '0.85rem 1rem',
-                    position: 'sticky',
-                    left: 0,
-                    background: bgColor === 'var(--gradient-brand)' ? '#2563eb' : (bgColor.includes('rgba') ? '#ffffff' : bgColor), // Use solid blue for Lucro Líquido sticky
-                    zIndex: 10,
-                    color: textColor,
-                    fontSize: '0.85rem',
-                    minWidth: '400px',
-                    width: '400px',
-                    borderRight: '1px solid var(--border-default)',
-                    textTransform: 'uppercase',
-                    letterSpacing: '0.02em'
-                }}>
+            <tr 
+                onClick={() => groupId && toggleGroup(groupId)} 
+                className={isLucroLiquido ? '' : 'spreadsheet-summary-row'}
+                style={{ cursor: groupId ? 'pointer' : 'default', background: isLucroLiquido ? 'var(--gradient-brand)' : undefined }}
+            >
+                <td 
+                    className="sticky-col" 
+                    style={{ 
+                        fontWeight: 800, 
+                        color: isLucroLiquido ? '#fff' : 'var(--text-primary)',
+                        background: isLucroLiquido ? '#2563eb' : undefined
+                    }}
+                >
                     <div style={{ display: 'flex', alignItems: 'center' }}>
                         {groupId && (
-                            <span style={{ marginRight: '0.75rem', fontSize: '0.9rem', width: '1rem', color: textColor, opacity: 0.6 }}>
+                            <span style={{ marginRight: '0.5rem', fontSize: '0.7rem' }}>
                                 {isGroupExpanded ? '▼' : '▶'}
                             </span>
                         )}
-                        {!groupId && <span style={{ width: '1.75rem' }}></span>}
+                        {!groupId && <span style={{ width: '1.2rem' }}></span>}
                         {label}
                     </div>
                 </td>
                 {(viewPeriod === 'month' ? MONTHS : [1, 2, 3, 4]).map((_, i) => {
-                    const sums = dreStructure.calculateTotals(i);
+                    const sums = precomputedDreTotals[i];
                     const rowData = sums[validx];
                     let budgetVal = 0, realizedVal = 0, radarVal = 0;
                     if (rowData) {
@@ -1192,80 +1118,26 @@ export default function BudgetGrid({
                         realizedVal = (rowData as any).r || 0;
                         radarVal = (rowData as any).rd || 0;
                     }
-                    let revBrutaReal = 0, revBrutaBudget = 0, revBrutaRadar = 0;
 
-                    if (viewPeriod === 'month') {
-                        const monthTotal = precomputedDreTotals[i];
-                        budgetVal = monthTotal[validx].b;
-                        realizedVal = monthTotal[validx].r;
-                        radarVal = monthTotal[validx].rd;
-                        revBrutaReal = monthTotal.vRecLiq.r;
-                        revBrutaBudget = monthTotal.vRecLiq.b;
-                        revBrutaRadar = monthTotal.vRecLiq.rd;
-                    } else {
+                    if (viewPeriod === 'quarter') {
+                        budgetVal = 0; realizedVal = 0; radarVal = 0;
                         for (let m = i * 3; m < i * 3 + 3; m++) {
                             const monthTotal = precomputedDreTotals[m];
                             budgetVal += monthTotal[validx].b;
                             realizedVal += monthTotal[validx].r;
                             radarVal += monthTotal[validx].rd;
-                            revBrutaReal += monthTotal.vRecLiq.r;
-                            revBrutaBudget += monthTotal.vRecLiq.b;
-                            revBrutaRadar += monthTotal.vRecLiq.rd;
                         }
                     }
 
-                    revBrutaReal = revBrutaReal || 1;
-                    revBrutaBudget = revBrutaBudget || 1;
-                    revBrutaRadar = revBrutaRadar || 1;
-
-                    const avRealized = (realizedVal / revBrutaReal) * 100;
-                    const avBudget = (budgetVal / revBrutaBudget) * 100;
-                    const avRadar = (radarVal / revBrutaRadar) * 100;
-
-                    const ahValue = budgetVal !== 0 ? (realizedVal / budgetVal) * 100 : 0;
-                    const arValue = radarVal !== 0 ? (realizedVal / radarVal) * 100 : 0;
-                    const ahRadarValue = budgetVal !== 0 ? (radarVal / budgetVal) * 100 : 0;
-
-                    const bColor = budgetVal < 0 ? '#ef4444' : '#64748b';
-                    const rColor = realizedVal < 0 ? '#ef4444' : textColor;
+                    const bColor = budgetVal < 0 ? '#ef4444' : (isLucroLiquido ? '#fff' : '#64748b');
+                    const rdColor = radarVal < 0 ? '#ef4444' : (isLucroLiquido ? '#fff' : 'var(--text-primary)');
+                    const rColor = realizedVal < 0 ? '#ef4444' : (isLucroLiquido ? '#fff' : 'var(--accent-blue)');
 
                     return (
                         <React.Fragment key={i}>
-                            <td style={{ textAlign: 'right', padding: '0.85rem 0.75rem', borderLeft: i > 0 ? '2px solid var(--border-strong)' : '1px solid var(--border-default)', color: bColor, fontSize: '0.8rem', minWidth: '100px', whiteSpace: 'nowrap' }}>
-                                <div style={{ fontWeight: 800 }}>{formatCurrency(budgetVal)}</div>
-                                {showAV && <div style={{ fontSize: '0.65rem', color: 'var(--text-muted)', fontWeight: 500 }}>AV: {avBudget.toFixed(1)}%</div>}
-                            </td>
-                            <td style={{ textAlign: 'right', padding: '0.85rem 0.75rem', borderLeft: '1px solid var(--border-default)', fontSize: '0.8rem', minWidth: '100px', whiteSpace: 'nowrap' }}>
-                                <div style={{ fontWeight: 800, color: 'var(--text-primary)' }}>{formatCurrency(radarVal)}</div>
-                                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end' }}>
-                                    {showAV && <span style={{ fontSize: '0.65rem', color: 'var(--text-muted)', fontWeight: 500 }}>AV: {avRadar.toFixed(1)}%</span>}
-                                </div>
-                            </td>
-                            <td style={{ textAlign: 'right', padding: '0.85rem 0.75rem', borderLeft: '1px solid var(--border-default)', color: rColor, fontSize: '0.8rem', minWidth: '120px', whiteSpace: 'nowrap' }}>
-                                <div style={{ fontWeight: 800 }}>{formatCurrency(realizedVal)}</div>
-                                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end' }}>
-                                    {showAV && <span style={{ fontSize: '0.65rem', color: 'var(--text-muted)', fontWeight: 500 }}>AV: {avRealized.toFixed(1)}%</span>}
-                                    {showAH && <span style={{ fontSize: '0.65rem', color: 'var(--accent-green)', fontWeight: 800 }}>AH (Orç x Real): {ahValue.toFixed(1)}%</span>}
-                                    {showAH_MoM && i > 0 && (() => {
-                                        let prevR = 0;
-                                        if (viewPeriod === 'month') {
-                                            const prevMonthTotal = precomputedDreTotals[i - 1];
-                                            prevR = prevMonthTotal[validx].r;
-                                        } else {
-                                            for (let m = (i - 1) * 3; m < (i - 1) * 3 + 3; m++) prevR += precomputedDreTotals[m][validx].r;
-                                        }
-                                        const delta = prevR !== 0 ? ((realizedVal / prevR) - 1) * 100 : 0;
-                                        const resultsIndices = ['vRev', 'vRecLiq', 'vGrossMarg', 'vContribMarg', 'vEbitda', 'vNetProfit'];
-                                        const isResult = resultsIndices.includes(validx as string);
-                                        let color = 'var(--text-muted)';
-                                        if (delta > 0.01) color = isResult ? 'var(--accent-green)' : 'var(--accent-red)';
-                                        else if (delta < -0.01) color = isResult ? 'var(--accent-red)' : 'var(--accent-green)';
-                                        const label = viewPeriod === 'month' ? 'MoM' : 'QoQ';
-                                        return <span style={{ fontSize: '0.65rem', color, fontWeight: 800 }}>{label}: {delta > 0 ? '+' : ''}{delta.toFixed(1)}%</span>;
-                                    })()}
-                                    {showAR && <span style={{ fontSize: '0.65rem', color: 'var(--accent-indigo)', fontWeight: 800 }}>AH (Radar x Real): {arValue.toFixed(1)}%</span>}
-                                </div>
-                            </td>
+                            <td className="spreadsheet-value" style={{ borderLeft: '2px solid #cbd5e1', color: bColor, fontWeight: 700 }}>{formatCurrency(budgetVal)}</td>
+                            <td className="spreadsheet-value" style={{ color: rdColor, fontWeight: 700 }}>{formatCurrency(radarVal)}</td>
+                            <td className="spreadsheet-value" style={{ color: rColor, fontWeight: 800 }}>{formatCurrency(realizedVal)}</td>
                         </React.Fragment>
                     );
                 })}
@@ -1475,79 +1347,65 @@ export default function BudgetGrid({
                 </div>
             </div>
 
-            <div className="glass-card" style={{ minHeight: '300px', overflow: 'auto', position: 'relative' }}>
+            <div className="spreadsheet-container" style={{ minHeight: '300px', position: 'relative' }}>
                 {(loading || isExternalLoading) && (
-                    <div style={{ position: 'absolute', inset: 0, background: 'rgba(255, 255, 255, 0.6)', zIndex: 100, display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', backdropFilter: 'blur(2px)' }}>
+                    <div style={{ position: 'absolute', inset: 0, background: 'rgba(255, 255, 255, 0.4)', zIndex: 100, display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', backdropFilter: 'blur(1px)' }}>
                         <div className="spinner" />
-                        <span style={{ marginTop: '1rem', color: 'var(--text-primary)', fontWeight: 700, fontSize: '0.95rem' }}>Atualizando dados...</span>
+                        <span style={{ marginTop: '0.5rem', color: 'var(--text-primary)', fontWeight: 700, fontSize: '0.75rem' }}>CARREGANDO...</span>
                     </div>
                 )}
-                <table className="premium-table" style={{ fontSize: '0.8rem' }}>
+                <table className="spreadsheet-table">
                     <thead>
                         <tr>
-                            <th style={{ padding: '1rem', textAlign: 'left', minWidth: '400px', position: 'sticky', left: 0, background: 'var(--bg-elevated)', zIndex: 25, color: 'var(--text-primary)', borderRight: '1px solid var(--border-subtle)' }}>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                            <th className="sticky-col" style={{ minWidth: '350px', background: '#f1f5f9', color: '#1e293b' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                                     <button
                                         onClick={handleToggleAll}
-                                        title={isAnyExpanded ? "Recolher Todos" : "Expandir Todos"}
-                                        style={{
-                                            background: 'var(--bg-surface)', border: '1px solid var(--border-default)', borderRadius: '8px',
-                                            width: '28px', height: '28px', display: 'flex', alignItems: 'center',
-                                            justifyContent: 'center', cursor: 'pointer', color: 'var(--accent-blue)', padding: 0,
-                                            boxShadow: 'var(--shadow-card)'
-                                        }}
+                                        className="spreadsheet-btn-expand"
+                                        style={{ background: '#fff', border: '1px solid #cbd5e1' }}
                                     >
-                                        {isAnyExpanded ? (
-                                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                                                <polyline points="4 14 12 6 20 14" />
-                                            </svg>
-                                        ) : (
-                                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                                                <polyline points="4 10 12 18 20 10" />
-                                            </svg>
-                                        )}
+                                        {isAnyExpanded ? '⊖' : '⊕'}
                                     </button>
-                                    <span style={{ fontSize: '0.75rem', fontWeight: 900, letterSpacing: '0.05em' }}>ESTRUTURA DRE</span>
+                                    <span style={{ fontSize: '0.7rem', fontWeight: 800 }}>ESTRUTURA DRE (EXCEL VIEW)</span>
                                 </div>
                             </th>
                             {(viewPeriod === 'month' ? MONTHS : ['1º Tri', '2º Tri', '3º Tri', '4º Tri']).map((c, i) => {
-                                let colSpan = 3;
                                 return (
-                                    <th key={i} colSpan={colSpan} style={{ textAlign: 'center', padding: '0.75rem 0.5rem', borderLeft: i > 0 ? '2px solid var(--border-strong)' : '1px solid var(--border-subtle)', color: 'var(--text-primary)', minWidth: colSpan * 80 + 'px', background: 'var(--bg-elevated)' }}>
+                                    <th key={i} colSpan={3} style={{ textAlign: 'center', padding: '0.4rem', borderLeft: '2px solid #cbd5e1', background: '#f8fafc', fontSize: '0.7rem' }}>
                                         {c}
                                     </th>
                                 );
                             })}
                         </tr>
-                        <tr style={{ background: 'var(--bg-surface)' }}>
-                            <th style={{ position: 'sticky', left: 0, zIndex: 20, background: '#ffffff', borderBottom: '1px solid var(--border-default)', borderRight: '1px solid var(--border-subtle)' }}></th>
+                        <tr style={{ background: '#f8fafc' }}>
+                            <th className="sticky-col" style={{ background: '#f1f5f9', borderRight: '2px solid #cbd5e1' }}></th>
                             {(viewPeriod === 'month' ? MONTHS : [1, 2, 3, 4]).map((_, i) => (
                                 <React.Fragment key={i}>
-                                    <th style={{ fontSize: '0.65rem', color: 'var(--text-muted)', borderLeft: i > 0 ? '2px solid var(--border-strong)' : '1px solid var(--border-subtle)', fontWeight: 600, paddingBottom: '0.5rem', borderBottom: '1px solid var(--border-default)', minWidth: '80px', textAlign: 'center' }}>ORÇADO</th>
-                                    <th style={{ fontSize: '0.65rem', color: 'var(--text-muted)', borderLeft: '1px solid var(--border-subtle)', fontWeight: 600, paddingBottom: '0.5rem', borderBottom: '1px solid var(--border-default)', minWidth: '80px', textAlign: 'center' }}>RADAR</th>
-                                    <th style={{ fontSize: '0.65rem', color: 'var(--text-muted)', borderLeft: '1px solid var(--border-subtle)', fontWeight: 600, paddingBottom: '0.5rem', borderBottom: '1px solid var(--border-default)', minWidth: '80px', textAlign: 'center' }}>REALIZADO</th>
+                                    <th style={{ fontSize: '0.6rem', color: '#64748b', borderLeft: '2px solid #cbd5e1', textAlign: 'center', padding: '0.2rem' }}>ORÇ</th>
+                                    <th style={{ fontSize: '0.6rem', color: '#64748b', textAlign: 'center', padding: '0.2rem' }}>RADAR</th>
+                                    <th style={{ fontSize: '0.6rem', color: '#64748b', textAlign: 'center', padding: '0.2rem' }}>REAL</th>
                                 </React.Fragment>
                             ))}
                         </tr>
                     </thead>
                     <tbody>
-                        {renderSummaryRow('01. RECEITA BRUTA', 'vRev', true, 'var(--bg-elevated)', 'var(--accent-blue)', 'rev')}
+                        {renderSummaryRow('01. RECEITA BRUTA', 'vRev', true, 'rev')}
                         {expandedGroups.has('rev') && dreStructure.buckets.rev.map(root => renderNode(root))}
-                         {renderSummaryRow('02. TRIBUTO SOBRE FATURAMENTO', 'vTaxes', true, 'var(--bg-surface)', 'var(--text-secondary)', 'taxes')}
+                         {renderSummaryRow('02. TRIBUTO SOBRE FATURAMENTO', 'vTaxes', true, 'taxes')}
                         {expandedGroups.has('taxes') && dreStructure.buckets.taxes.map(root => renderNode(root))}
-                        {renderSummaryRow('(=) RECEITA LÍQUIDA', 'vRecLiq', true, '#eff6ff', 'var(--accent-blue)')}
-                        {renderSummaryRow('03. CUSTO OPERACIONAL', 'vCosts', true, 'var(--bg-surface)', 'var(--text-secondary)', 'costs')}
+                        {renderSummaryRow('(=) RECEITA LÍQUIDA', 'vRecLiq', true)}
+                        {renderSummaryRow('03. CUSTO OPERACIONAL', 'vCosts', true, 'costs')}
                         {expandedGroups.has('costs') && dreStructure.buckets.costs.map(root => renderNode(root))}
-                        {renderSummaryRow('(=) MARGEM BRUTA', 'vGrossMarg', true, '#f0fdf4', 'var(--accent-green)')}
-                        {renderSummaryRow('04. DESPESA OPERACIONAL', 'vOpExp', true, 'var(--bg-surface)', 'var(--text-secondary)', 'opExp')}
+                        {renderSummaryRow('(=) MARGEM BRUTA', 'vGrossMarg', true)}
+                        {renderSummaryRow('04. DESPESA OPERACIONAL', 'vOpExp', true, 'opExp')}
                         {expandedGroups.has('opExp') && dreStructure.buckets.opExp.map(root => renderNode(root))}
-                        {renderSummaryRow('(=) MARGEM DE CONTRIBUIÇÃO', 'vContribMarg', true, '#fdfaf2', 'var(--accent-amber)')}
-                        {renderSummaryRow('05. DESPESAS ADMINISTRATIVAS', 'vAdminExp', true, 'var(--bg-surface)', 'var(--text-secondary)', 'adminExp')}
+                        {renderSummaryRow('(=) MARGEM DE CONTRIBUIÇÃO', 'vContribMarg', true)}
+                        {renderSummaryRow('05. DESPESAS ADMINISTRATIVAS', 'vAdminExp', true, 'adminExp')}
                         {expandedGroups.has('adminExp') && dreStructure.buckets.adminExp.map(root => renderNode(root))}
-                        {renderSummaryRow('(=) EBITDA', 'vEbitda', true, '#f5f3ff', 'var(--accent-indigo)')}
-                        {renderSummaryRow('06. DESPESAS FINANCEIRAS', 'vFin', true, 'var(--bg-surface)', 'var(--text-secondary)', 'fin')}
+                        {renderSummaryRow('(=) EBITDA', 'vEbitda', true)}
+                        {renderSummaryRow('06. DESPESAS FINANCEIRAS', 'vFin', true, 'fin')}
                         {expandedGroups.has('fin') && dreStructure.buckets.fin.map(root => renderNode(root))}
-                        {renderSummaryRow('(=) LUCRO LÍQUIDO', 'vNetProfit', true, 'var(--gradient-brand)', 'white')}
+                        {renderSummaryRow('(=) LUCRO LÍQUIDO', 'vNetProfit', true)}
                     </tbody>
                 </table>
             </div>

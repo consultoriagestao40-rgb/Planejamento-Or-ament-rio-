@@ -477,7 +477,7 @@ select.premium-select:focus {
 /* === SPREADSHEET UI (Leverpro Style) === */
 .spreadsheet-container {
   overflow: auto;
-  max-height: calc(100vh - 280px);
+  max-height: none;
   background: #ffffff;
   border-radius: 4px;
   box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
@@ -581,9 +581,10 @@ select.premium-select:focus {
   font-weight: 600;
 }
 
-.spreadsheet-indent-1 { padding-left: 1.5rem !important; }
-.spreadsheet-indent-2 { padding-left: 3.0rem !important; }
-.spreadsheet-indent-3 { padding-left: 4.5rem !important; }
+.spreadsheet-indent-0 { padding-left: 0.75rem !important; }
+.spreadsheet-indent-1 { padding-left: 2.25rem !important; }
+.spreadsheet-indent-2 { padding-left: 3.75rem !important; }
+.spreadsheet-indent-3 { padding-left: 5.25rem !important; }
 
 .spreadsheet-btn-expand {
   display: inline-flex;

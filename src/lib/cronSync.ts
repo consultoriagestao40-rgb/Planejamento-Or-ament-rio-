@@ -279,23 +279,15 @@ export async function runCronSync(reqYear: number, targetTenantId?: string) {
 
             pushLog(`[SYNC] [${t.name}] Raw Revenue: ${totalRevenue.toFixed(2)}, Raw Expense: ${totalExpense.toFixed(2)}. Net: ${(totalRevenue - totalExpense).toFixed(2)}`);
 
-            await prisma.realizedEntry.deleteMany({ where: { tenantId: { in: allEntityIds }, year: reqYear, viewMode } });
-            
             const entriesToSave: any[] = [];
             for (const txn of transactions) {
-                // IMPORTANT: Fix sign inversion.
-                // Standardize all realized values to POSITIVE because the DRE structure
-                // handles the subtraction (Gross Profit = Revenue - Costs).
-                // If we store costs as negative, DRE would do Revenue - (-Costs) = Revenue + Costs.
-                const sign = 1; 
-                // Ensure we handle multiple categories per transaction (e.g. mixed receipts)
+                // Ensure we handle multiple categories per transaction
                 for (const cat of txn.categories) {
                     const catId = catMap.get(String(cat.id));
                     if (!catId) continue;
 
                     let amount = Math.abs(cat.valor || (txn.amount / txn.categories.length));
-                    const finalAmount = sign * amount;
-
+                    
                     if (txn.costCenters && txn.costCenters.length > 0) {
                         let totalCcAllocated = 0;
                         let unallocatedCount = 0;
@@ -319,7 +311,7 @@ export async function runCronSync(reqYear: number, targetTenantId?: string) {
                                 costCenterId: ccId,
                                 month: txn.month,
                                 year: reqYear,
-                                amount: sign * val,
+                                amount: val,
                                 viewMode,
                                 description: txn.description || 'Sem descrição',
                                 externalId: `${txn.id}-${cat.id}-${cc.id || 'NONE'}`
@@ -332,7 +324,7 @@ export async function runCronSync(reqYear: number, targetTenantId?: string) {
                             costCenterId: null,
                             month: txn.month,
                             year: reqYear,
-                            amount: finalAmount,
+                            amount: amount,
                             viewMode,
                             description: txn.description || 'Sem descrição',
                             externalId: `${txn.id}-${cat.id}-G`
@@ -344,14 +336,25 @@ export async function runCronSync(reqYear: number, targetTenantId?: string) {
             if (entriesToSave.length > 0) {
                 pushLog(`[SYNC] [${t.name}] Attempting to save ${entriesToSave.length} individual transactions to DB...`);
                 try {
-                    // Use createMany but ignore duplicates just in case
+                    // 1. Targetted cleanup: only for this tenant/year/viewMode
+                    await prisma.realizedEntry.deleteMany({ 
+                        where: { 
+                            tenantId: primaryId, 
+                            year: reqYear, 
+                            viewMode 
+                        } 
+                    });
+
+                    // 2. Bulk insert
                     const res = await (prisma.realizedEntry as any).createMany({ 
                         data: entriesToSave,
                         skipDuplicates: true 
                     });
-                    pushLog(`[SYNC] [${t.name}] SUCCESS: Saved ${res.count} records.`);
+                    pushLog(`[SYNC] [${t.name}] SUCCESS: Saved ${res.count} records using createMany.`);
                 } catch (e: any) {
-                    pushLog(`[SYNC] [${t.name}] createMany FAILED: ${e.message}. Falling back to individual creation.`);
+                    pushLog(`[SYNC] [${t.name}] createMany FAILED: ${e.message}. Falling back to individual UPSERTs.`);
+                    let successCount = 0;
+                    let failCount = 0;
                     for (const row of entriesToSave) {
                         try { 
                             await (prisma.realizedEntry as any).upsert({
@@ -365,13 +368,15 @@ export async function runCronSync(reqYear: number, targetTenantId?: string) {
                                 update: row,
                                 create: row
                             });
+                            successCount++;
                         } catch (err: any) {
-                            // Silently continue for now
+                            failCount++;
                         }
                     }
+                    pushLog(`[SYNC] [${t.name}] Individual sync finished: ${successCount} success, ${failCount} failed.`);
                 }
             } else {
-                console.warn(`[SYNC] [${t.name}] NO DATA to save for ${viewMode}.`);
+                pushLog(`[SYNC] [${t.name}] WARNING: No data filtered for 2026. Check API content.`);
             }
         }
         report.push({ tenant: t.name, status: 'Success' });

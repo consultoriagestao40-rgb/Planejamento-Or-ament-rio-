@@ -514,10 +514,10 @@ select.premium-select:focus {
 .spreadsheet-table .sticky-col {
   position: sticky;
   left: 0;
-  background-color: #ffffff !important;
   z-index: 20;
   border-right: 2px solid #cbd5e1;
   box-shadow: 2px 0 4px -2px rgba(0,0,0,0.1);
+  background-color: inherit; /* Inherit row background for zebra effect */
 }
 
 /* INTERSECTION: Top-left cell remains fixed on both axes */
@@ -534,14 +534,28 @@ select.premium-select:focus {
   background-color: #f1f5f9;
 }
 
-/* Force opacity for all rows to prevent transparency leak */
+/* Force solid background for all rows to prevent transparency leak */
 .spreadsheet-table tr {
   background-color: #ffffff;
 }
 
+.spreadsheet-table tr:nth-child(even) {
+  background-color: #f8fafc; /* Very light slate for zebra effect */
+}
+
+/* Ensure sticky columns in even rows also get the zebra color */
+.spreadsheet-table tr:nth-child(even) .sticky-col {
+  background-color: #f8fafc !important;
+}
+
+/* Base sticky-col background for odd rows */
+.spreadsheet-table tr:nth-child(odd) .sticky-col {
+  background-color: #ffffff !important;
+}
+
 .spreadsheet-table tr.spreadsheet-summary-row,
 .spreadsheet-table tr.spreadsheet-summary-row .sticky-col {
-  background-color: #f8fafc !important;
+  background-color: #eff6ff !important; /* Light blue for summaries */
 }
 
 .spreadsheet-table tr.spreadsheet-group-header,
@@ -549,11 +563,8 @@ select.premium-select:focus {
   background-color: #f1f5f9 !important;
 }
 
-.spreadsheet-table tr:nth-child(even) {
-  background-color: #fcfdfe;
-}
-
-.spreadsheet-table tr:hover {
+.spreadsheet-table tr:hover,
+.spreadsheet-table tr:hover .sticky-col {
   background-color: #f1f5f9 !important;
 }
 
@@ -577,8 +588,19 @@ select.premium-select:focus {
 }
 
 .spreadsheet-summary-row {
-  background: #f8fafc !important;
+  background: #eff6ff !important;
   font-weight: 600;
+}
+
+.spreadsheet-net-profit-row,
+.spreadsheet-net-profit-row .sticky-col {
+  background-color: #2563eb !important;
+  color: #ffffff !important;
+  font-weight: 800;
+}
+
+.spreadsheet-net-profit-row .spreadsheet-value {
+  color: #ffffff !important;
 }
 
 .spreadsheet-indent-0 { padding-left: 0.75rem !important; }

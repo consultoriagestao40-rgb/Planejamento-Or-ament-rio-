@@ -33,20 +33,24 @@ export async function GET() {
             group_totals[key].total += parseFloat(row.total || 0);
         }
 
-        // Sample of Jan 2026 for first group
-        const sample = await prisma.realizedEntry.findMany({
-            where: { year: 2026, month: 1 },
-            take: 10,
-            include: { category: { select: { name: true } } }
-        });
+        // Category breakdown for Jan 2026
+        const cat_breakdown: any[] = await prisma.$queryRaw`
+            SELECT c.name, t.name as tenant, sum(r.amount) as total
+            FROM "RealizedEntry" r
+            JOIN "Category" c ON r."categoryId" = c.id
+            JOIN "Tenant" t ON r."tenantId" = t.id
+            WHERE r.year = 2026 AND r.month = 1
+            GROUP BY c.name, t.name
+            ORDER BY total DESC
+        `;
 
         return NextResponse.json({
             success: true,
             group_totals,
+            category_breakdown: cat_breakdown,
             db_distribution: stats,
             active_tenants: tenants,
-            groups,
-            sample_jan_2026: sample
+            groups
         });
     } catch (e: any) {
         return NextResponse.json({ success: false, error: e.message });

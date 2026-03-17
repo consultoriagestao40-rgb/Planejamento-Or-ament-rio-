@@ -1037,7 +1037,17 @@ export default function BudgetGrid({
                         const getMoM = () => {
                             if (i === 0) return 0;
                             const prevR = totals.realized[i - 1];
-                            return rVal                        const totalRevReal = (nodeTotals.get(dreStructure.buckets.rev[0]?.id)?.realized[i]) || 0;
+                            return rVal - prevR;
+                        };
+
+                        const getMoMPercent = () => {
+                            if (i === 0) return 0;
+                            const prevR = totals.realized[i - 1];
+                            if (prevR === 0) return 0;
+                            return ((rVal / prevR) - 1) * 100;
+                        };
+
+                        const totalRevReal = (nodeTotals.get(dreStructure.buckets.rev[0]?.id)?.realized[i]) || 0;
                         const totalRevRadar = (nodeTotals.get(dreStructure.buckets.rev[0]?.id)?.radar[i]) || 0;
                         
                         const avReal = totalRevReal !== 0 ? (rVal / totalRevReal) * 100 : 0;
@@ -1101,10 +1111,8 @@ export default function BudgetGrid({
                                 )}
                                 {showAH && <td className="spreadsheet-value" style={{ color: getAH(rVal, bVal) < 0 ? '#ef4444' : '#10b981', fontSize: '0.6rem', background: '#f8fafc', textAlign: 'center' }}>{getAH(rVal, bVal).toFixed(1)}%</td>}
                                 {showAR && <td className="spreadsheet-value" style={{ color: getAH(rVal, rdVal) < 0 ? '#ef4444' : '#10b981', fontSize: '0.6rem', background: '#f8fafc', textAlign: 'center' }}>{getAH(rVal, rdVal).toFixed(1)}%</td>}
-                                {showAH_MoM && <td className="spreadsheet-value" style={{ color: getMoM() < 0 ? '#ef4444' : '#10b981', fontSize: '0.6rem', background: '#f8fafc', textAlign: 'center' }}>{getMoM() !== 0 ? `${(getMoM() > 0 ? '+' : '')}${formatCurrency(getMoM())}` : '-'}</td>}
+                                {showAH_MoM && <td className="spreadsheet-value" style={{ color: getMoMPercent() < 0 ? '#ef4444' : '#10b981', fontSize: '0.6rem', background: '#f8fafc', textAlign: 'center' }}>{i === 0 ? '-' : `${getMoMPercent().toFixed(1)}%`}</td>}
                             </React.Fragment>
-                        );
-/React.Fragment>
                         );
                     })}
                 </tr>
@@ -1171,7 +1179,18 @@ export default function BudgetGrid({
                         if (i === 0) return 0;
                         const prevSums = precomputedDreTotals[i - 1];
                         const prevVal = (prevSums[validx] as any)?.r || 0;
-                        retur                    const totalRevReal = sums.vRev.r || 0;
+                        return realizedVal - prevVal;
+                    };
+
+                    const getMoMPercent = () => {
+                        if (i === 0) return 0;
+                        const prevSums = precomputedDreTotals[i - 1];
+                        const prevVal = (prevSums[validx] as any)?.r || 0;
+                        if (prevVal === 0) return 0;
+                        return ((realizedVal / prevVal) - 1) * 100;
+                    };
+
+                    const totalRevReal = sums.vRev.r || 0;
                     const totalRevRadar = sums.vRev.rd || 0;
                     
                     const avReal = totalRevReal !== 0 ? (realizedVal / totalRevReal) * 100 : 0;
@@ -1208,13 +1227,11 @@ export default function BudgetGrid({
                                 </td>
                             )}
                             {showAH_MoM && (
-                                <td className="spreadsheet-value" style={{ color: getMoM() < 0 ? '#ef4444' : (isLucroLiquido ? '#fff' : '#10b981'), fontSize: '0.65rem', background: isLucroLiquido ? '#2563eb' : '#f8fafc', textAlign: 'center' }}>
-                                    {getMoM() !== 0 ? `${(getMoM() > 0 ? '+' : '')}${formatCurrency(getMoM())}` : '-'}
+                                <td className="spreadsheet-value" style={{ color: getMoMPercent() < 0 ? '#ef4444' : (isLucroLiquido ? '#fff' : '#10b981'), fontSize: '0.65rem', background: isLucroLiquido ? '#2563eb' : '#f8fafc', textAlign: 'center' }}>
+                                    {i === 0 ? '-' : `${getMoMPercent().toFixed(1)}%`}
                                 </td>
                             )}
                         </React.Fragment>
-                    );
-        </React.Fragment>
                     );
                 })}
             </tr>

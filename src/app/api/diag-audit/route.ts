@@ -39,8 +39,8 @@ export async function GET() {
             { desc: "Venda 665", val: 9565.65 }
         ];
 
-        const missing = [];
-        const extra = [];
+        const missing: any[] = [];
+        const extra: any[] = [];
         
         targetList.forEach(t => {
             const found = entries.find(e => e.description?.includes(t.desc.split(' ')[1]));

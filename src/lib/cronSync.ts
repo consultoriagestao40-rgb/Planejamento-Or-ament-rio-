@@ -87,14 +87,18 @@ export async function fetchAllTransactionsForYear(accessToken: string, baseUrl: 
                     dateStr = item.data_competencia || item.data_vencimento || item.vencimento;
                 }
 
-                const dateObj = dateStr ? new Date(dateStr) : new Date();
-                // Filter by year after extracting the correct date field
-                if (dateObj.getFullYear() !== targetYear) continue;
+                if (!dateStr) continue;
+                // Safe parsing: YYYY-MM-DD string processing to avoid Timezone shifts
+                const [yStr, mStr] = dateStr.includes('T') ? dateStr.split('T')[0].split('-') : dateStr.split('-');
+                const itemYear = parseInt(yStr);
+                const itemMonth = parseInt(mStr);
+
+                if (itemYear !== targetYear) continue;
 
                 transactions.push({
                     id: item.id,
                     description: item.descricao,
-                    month: dateObj.getMonth() + 1, // 1-12 to match budgets logic
+                    month: itemMonth,
                     amount: isExpense ? -Math.abs(amount) : Math.abs(amount),
                     categories: cats,
                     costCenters: ccs
@@ -208,14 +212,24 @@ export async function runCronSync(reqYear: number, targetTenantId?: string) {
 
         for (const viewMode of ['competencia', 'caixa'] as const) {
             const isCaixa = viewMode === 'caixa';
-            const startStr = reqYear === 2026 ? `2025-11-01` : `${reqYear}-01-01`; 
-            const endStr = `${reqYear}-12-31`;
-            const url1 = `https://api-v2.contaazul.com/v1/financeiro/eventos-financeiros/contas-a-receber/buscar?data_vencimento_de=${startStr}&data_vencimento_ate=${endStr}&tamanho_pagina=100`;
-            const url2 = `https://api-v2.contaazul.com/v1/financeiro/eventos-financeiros/contas-a-pagar/buscar?data_vencimento_de=${startStr}&data_vencimento_ate=${endStr}&tamanho_pagina=100`;
+            // Window of 18 months to catch any competencia/vencimento mismatch
+            // (competencia in target year but due in previous or next year)
+            const startStr = `${reqYear - 1}-10-01`; 
+            const endStr = `${reqYear + 1}-03-31`;
+            
+            const endpoints = [
+                { url: `https://api-v2.contaazul.com/v1/financeiro/eventos-financeiros/contas-a-receber/buscar`, isExpense: false },
+                { url: `https://api-v2.contaazul.com/v1/financeiro/eventos-financeiros/contas-a-pagar/buscar`, isExpense: true },
+                { url: `https://api-v2.contaazul.com/v1/financeiro/eventos-financeiros/outros-recebimentos/buscar`, isExpense: false },
+                { url: `https://api-v2.contaazul.com/v1/financeiro/eventos-financeiros/outros-pagamentos/buscar`, isExpense: true }
+            ];
 
-            const receivables = (await fetchAllTransactionsForYear(token, url1, reqYear, viewMode, false)).map(tx => ({ ...tx, isExpense: false }));
-            const payables = (await fetchAllTransactionsForYear(token, url2, reqYear, viewMode, true)).map(tx => ({ ...tx, isExpense: true }));
-            const transactions = [...receivables, ...payables];
+            const transactions: any[] = [];
+            for (const ep of endpoints) {
+                const fullUrl = `${ep.url}?${isCaixa ? 'data_vencimento_de' : 'data_vencimento_de'}=${startStr}&${isCaixa ? 'data_vencimento_ate' : 'data_vencimento_ate'}=${endStr}&tamanho_pagina=100`;
+                const items = await fetchAllTransactionsForYear(token, fullUrl, reqYear, viewMode, ep.isExpense);
+                transactions.push(...items.map(tx => ({ ...tx, isExpense: ep.isExpense })));
+            }
 
             let totalRevenue = 0;
             let totalExpense = 0;
@@ -227,9 +241,14 @@ export async function runCronSync(reqYear: number, targetTenantId?: string) {
                 if (processedIds.has(txn.id)) continue;
                 processedIds.add(txn.id);
                 // Track total raw amounts for diagnostic
-                if (txn.amount > 0) totalRevenue += Math.abs(txn.amount);
-                else totalExpense += Math.abs(txn.amount);
-                if (txn.categories.length === 0) continue;
+                const absAmt = Math.abs(txn.amount);
+                if (txn.amount > 0) totalRevenue += absAmt;
+                else totalExpense += absAmt;
+                
+                if (txn.categories.length === 0) {
+                    pushLog(`[SYNC] [${t.name}] Item ${txn.id} skipped - No categories.`);
+                    continue;
+                }
 
                 // No restrictive filters here anymore. We capture what the API gives us.
 

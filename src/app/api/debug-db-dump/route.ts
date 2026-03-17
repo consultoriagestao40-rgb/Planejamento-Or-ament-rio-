@@ -23,13 +23,14 @@ export async function GET() {
             take: 20
         });
 
+        const variants = await prisma.tenant.findMany({ select: { id: true, name: true } });
         return NextResponse.json({
             tenant: { id: spot.id, name: spot.name },
             categoriesCount: cats.length,
             entriesCount: entries.length,
             entriesSample: entries,
             categoriesSample: cats.slice(0, 50).map(c => ({ id: c.id, name: c.name })),
-            allVariants: variants.map(v => ({ id: v.id, name: v.name }))
+            allVariants: variants.map((v: any) => ({ id: v.id, name: v.name }))
         });
     } catch (e: any) {
         return NextResponse.json({ error: e.message });

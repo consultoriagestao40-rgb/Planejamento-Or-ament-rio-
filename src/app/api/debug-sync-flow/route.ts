@@ -1,7 +1,6 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { getValidAccessToken } from '@/lib/services';
-import { fetchAllTransactionsForYear } from '@/lib/cronSync';
 import { getPrimaryTenantId, getAllVariantIds } from '@/lib/tenant-utils';
 
 export const dynamic = 'force-dynamic';
@@ -42,16 +41,47 @@ export async function GET() {
         });
 
         // 4. Trace why first 5 items would/wouldn't be saved
+        const entriesToSave: any[] = [];
         const trace = (caRaw.itens || []).slice(0, 5).map((item: any) => {
             const cats = item.categorias || [];
-            const mappedCats = cats.map((c: any) => ({
-                id: c.id,
-                name: c.nome,
-                mappedId: catMap.get(String(c.id)) || null
-            }));
-            const skip = mappedCats.length === 0 || mappedCats.every(c => !c.mappedId);
+            const mappedCats = cats.map((c: any) => {
+                const mid = catMap.get(String(c.id));
+                const dateObj = item.data_vencimento ? new Date(item.data_vencimento) : new Date();
+                if (mid) {
+                    entriesToSave.push({
+                        tenantId: primaryId,
+                        categoryId: mid,
+                        costCenterId: null,
+                        month: dateObj.getMonth() + 1,
+                        year: reqYear,
+                        amount: Math.abs(item.valor || 0),
+                        viewMode,
+                        description: item.descricao || 'Trace Debug',
+                        externalId: `trace-${item.id}-${c.id}`
+                    });
+                }
+                return {
+                    id: c.id,
+                    name: c.nome,
+                    mappedId: mid || null
+                };
+            });
+            const skip = mappedCats.length === 0 || mappedCats.every((c: any) => !c.mappedId);
             return { id: item.id, status: item.status, vencimento: item.data_vencimento, categories: mappedCats, will_skip: skip };
         });
+
+        let write_result = null;
+        if (entriesToSave.length > 0) {
+            try {
+                const res = await (prisma.realizedEntry as any).createMany({
+                    data: entriesToSave.map((e: any) => ({ ...e, description: e.description.substring(0, 100) })), // safety
+                    skipDuplicates: true
+                });
+                write_result = { success: true, count: res.count };
+            } catch (err: any) {
+                write_result = { success: false, error: err.message };
+            }
+        }
 
         return NextResponse.json({
             success: true,
@@ -61,9 +91,10 @@ export async function GET() {
             categories_count: categoriesDb.length,
             catMap_size: catMap.size,
             ca_total: caRaw.total,
-            trace
+            trace,
+            write_result
         });
     } catch (e: any) {
-        return NextResponse.json({ success: false, error: e.stack });
+        return NextResponse.json({ success: false, error: e.message });
     }
 }

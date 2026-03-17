@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { getTenantGroups, getPrimaryTenantId } from '@/lib/tenant-utils';
 
 export const dynamic = 'force-dynamic';
 
@@ -15,6 +16,8 @@ export async function GET() {
         const tenants = await prisma.tenant.findMany({
             select: { id: true, name: true, cnpj: true }
         });
+
+        const groups = await getTenantGroups();
 
         const firstTenant = tenants.find(t => t.name.includes('SPOT')) || tenants[0];
         let ca_sample = null;
@@ -33,6 +36,7 @@ export async function GET() {
             success: true,
             db_distribution: stats,
             active_tenants: tenants,
+            groups,
             ca_sample
         });
     } catch (e: any) {

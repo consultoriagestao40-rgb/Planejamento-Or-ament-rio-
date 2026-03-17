@@ -7,8 +7,8 @@ export const dynamic = 'force-dynamic';
 
 export async function GET() {
     try {
-        const tenant = await prisma.tenant.findFirst({ where: { name: { contains: 'SPOT' } } });
-        if (!tenant) return NextResponse.json({ error: "No SPOT tenant found" });
+        const tenant = await prisma.tenant.findFirst({ where: { name: { contains: 'CLEAN' } } });
+        if (!tenant) return NextResponse.json({ error: "No CLEAN TECH tenant found" });
 
         const { token } = await getValidAccessToken(tenant.id);
         const reqYear = 2026;

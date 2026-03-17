@@ -145,10 +145,10 @@ export async function runCronSync(reqYear: number, targetTenantId?: string) {
         }
     });
 
-    const tenants = Array.from(companyMap.values());
     const report = [];
+    const cleanedGroups = new Set<string>(); // tenantId + viewMode + year
 
-    for (const t of tenants) {
+    for (const t of allTenants) {
         let token: string = '';
         try {
             const res = await getValidAccessToken(t.id);
@@ -336,14 +336,19 @@ export async function runCronSync(reqYear: number, targetTenantId?: string) {
             if (entriesToSave.length > 0) {
                 pushLog(`[SYNC] [${t.name}] Attempting to save ${entriesToSave.length} individual transactions to DB...`);
                 try {
-                    // 1. Targetted cleanup: only for this tenant/year/viewMode
-                    await prisma.realizedEntry.deleteMany({ 
-                        where: { 
-                            tenantId: primaryId, 
-                            year: reqYear, 
-                            viewMode 
-                        } 
-                    });
+                    // 1. Targetted cleanup: only ONCE per primary group
+                    const cleanupKey = `${primaryId}|${viewMode}|${reqYear}`;
+                    if (!cleanedGroups.has(cleanupKey)) {
+                        pushLog(`[SYNC] [${t.name}] First variant of group. Cleaning up existing records for ${primaryId}/${reqYear}/${viewMode}...`);
+                        await prisma.realizedEntry.deleteMany({ 
+                            where: { 
+                                tenantId: primaryId, 
+                                year: reqYear, 
+                                viewMode 
+                            } 
+                        });
+                        cleanedGroups.add(cleanupKey);
+                    }
 
                     // 2. Bulk insert
                     const res = await (prisma.realizedEntry as any).createMany({ 

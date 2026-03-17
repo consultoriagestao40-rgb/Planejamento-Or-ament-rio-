@@ -19,15 +19,30 @@ export async function GET() {
 
         const groups = await getTenantGroups();
 
+        // Calculate consolidated totals per group based on the logic
+        const group_totals: any = {};
+        for (const row of stats) {
+            const group = groups.find(g => g.includes(row.tenantId));
+            const primaryId = group ? group[0] : row.tenantId;
+            const tenantObj = tenants.find(t => t.id === primaryId);
+            const name = tenantObj ? tenantObj.name : primaryId;
+            const key = `${name} | ${row.viewMode}`;
+            
+            if (!group_totals[key]) group_totals[key] = { count: 0, total: 0 };
+            group_totals[key].count += parseInt(row.count, 10);
+            group_totals[key].total += parseFloat(row.total || 0);
+        }
+
         // Sample of Jan 2026 for first group
         const sample = await prisma.realizedEntry.findMany({
             where: { year: 2026, month: 1 },
-            take: 5,
+            take: 10,
             include: { category: { select: { name: true } } }
         });
 
         return NextResponse.json({
             success: true,
+            group_totals,
             db_distribution: stats,
             active_tenants: tenants,
             groups,

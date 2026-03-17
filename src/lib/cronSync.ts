@@ -339,14 +339,18 @@ export async function runCronSync(reqYear: number, targetTenantId?: string) {
                     // 1. Targetted cleanup: only ONCE per primary group
                     const cleanupKey = `${primaryId}|${viewMode}|${reqYear}`;
                     if (!cleanedGroups.has(cleanupKey)) {
-                        pushLog(`[SYNC] [${t.name}] First variant of group. Cleaning up existing records for ${primaryId}/${reqYear}/${viewMode}...`);
-                        await prisma.realizedEntry.deleteMany({ 
+                        pushLog(`[SYNC] [${t.name}] First variant of group detected (${t.id}). Cleaning up ALL related variant records for ${primaryId}/${reqYear}/${viewMode}...`);
+                        
+                        // We use allEntityIds here because we want to wipe anything that might have been saved 
+                        // under variant IDs in the past (v0.9.11 and earlier).
+                        const deleted = await prisma.realizedEntry.deleteMany({ 
                             where: { 
-                                tenantId: primaryId, 
+                                tenantId: { in: allEntityIds }, 
                                 year: reqYear, 
                                 viewMode 
                             } 
                         });
+                        pushLog(`[SYNC] [${t.name}] Deleted ${deleted.count} legacy/variant records.`);
                         cleanedGroups.add(cleanupKey);
                     }
 

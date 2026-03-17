@@ -20,7 +20,7 @@ export async function GET() {
         const groups = await getTenantGroups();
 
         // Calculate consolidated totals per group based on the logic
-        const group_totals: any = {};
+        const consolidated: any = {};
         for (const row of stats) {
             const group = groups.find(g => g.includes(row.tenantId));
             const primaryId = group ? group[0] : row.tenantId;
@@ -28,29 +28,29 @@ export async function GET() {
             const name = tenantObj ? tenantObj.name : primaryId;
             const key = `${name} | ${row.viewMode}`;
             
-            if (!group_totals[key]) group_totals[key] = { count: 0, total: 0 };
-            group_totals[key].count += parseInt(row.count, 10);
-            group_totals[key].total += parseFloat(row.total || 0);
+            if (!consolidated[key]) consolidated[key] = { count: 0, total: 0 };
+            consolidated[key].count += parseInt(row.count, 10);
+            consolidated[key].total += parseFloat(row.total || 0);
         }
 
-        // Category breakdown for Jan 2026
+        // Category breakdown for Jan 2026 (Separated by viewMode)
         const cat_breakdown: any[] = await prisma.$queryRaw`
-            SELECT c.name, t.name as tenant, sum(r.amount) as total
+            SELECT c.name, t.name as tenant, r."viewMode", sum(r.amount) as total
             FROM "RealizedEntry" r
             JOIN "Category" c ON r."categoryId" = c.id
             JOIN "Tenant" t ON r."tenantId" = t.id
             WHERE r.year = 2026 AND r.month = 1
-            GROUP BY c.name, t.name
-            ORDER BY total DESC
+            GROUP BY c.name, t.name, r."viewMode"
+            ORDER BY r."viewMode", total DESC
         `;
 
         return NextResponse.json({
             success: true,
-            group_totals,
+            consolidated_summary: consolidated,
             category_breakdown: cat_breakdown,
-            db_distribution: stats,
             active_tenants: tenants,
-            groups
+            groups,
+            db_distribution: stats
         });
     } catch (e: any) {
         return NextResponse.json({ success: false, error: e.message });

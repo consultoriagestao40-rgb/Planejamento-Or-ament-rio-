@@ -124,6 +124,7 @@ model RealizedEntry {
   costCenterId String?  
   month        Int      // 1-12
   year         Int
+  amount       Float
   description  String?
   externalId   String?
   viewMode     String   @default("competencia") // "caixa" ou "competencia"

@@ -12,6 +12,9 @@ async function ensureRealizedSchema() {
         IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='RealizedEntry' AND column_name='description') THEN
           ALTER TABLE "RealizedEntry" ADD COLUMN "description" TEXT;
         END IF;
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='RealizedEntry' AND column_name='amount') THEN
+          ALTER TABLE "RealizedEntry" ADD COLUMN "amount" DOUBLE PRECISION DEFAULT 0;
+        END IF;
         IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='RealizedEntry' AND column_name='externalId') THEN
           ALTER TABLE "RealizedEntry" ADD COLUMN "externalId" TEXT;
         END IF;

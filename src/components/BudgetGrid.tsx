@@ -1081,7 +1081,7 @@ export default function BudgetGrid({
                                         {formatCurrency(bVal)}
                                     </div>
                                 </td>
-                                {showAV && <td className="spreadsheet-value" style={{ color: '#94a3b8', fontSize: '0.6rem', background: '#f8fafc', textAlign: 'center' }} title="AV Orçado">{avBudget.toFixed(1)}%</td>}
+                                {showAV && <td className="spreadsheet-value" style={{ color: '#94a3b8', fontSize: '0.6rem', textAlign: 'center' }} title="AV Orçado">{avBudget.toFixed(1)}%</td>}
                                 <td
                                     className="spreadsheet-value"
                                     onClick={() => isCellEditable && openBudgetModal(node.id, node.name, i, 'radar')}
@@ -1095,7 +1095,7 @@ export default function BudgetGrid({
                                         {formatCurrency(rdVal)}
                                     </div>
                                 </td>
-                                {showAV && <td className="spreadsheet-value" style={{ color: '#94a3b8', fontSize: '0.6rem', background: '#f1f5f9', textAlign: 'center' }} title="AV Radar">{avRadar.toFixed(1)}%</td>}
+                                {showAV && <td className="spreadsheet-value" style={{ color: '#94a3b8', fontSize: '0.6rem', textAlign: 'center' }} title="AV Radar">{avRadar.toFixed(1)}%</td>}
                                 <td 
                                     className="spreadsheet-value"
                                     onClick={() => viewPeriod === 'month' && handleCellClick(node.id, i, node.name)} 
@@ -1107,10 +1107,10 @@ export default function BudgetGrid({
                                 >
                                     {formatCurrency(rVal)}
                                 </td>
-                                {showAV && <td className="spreadsheet-value" style={{ color: '#94a3b8', fontSize: '0.6rem', background: '#f8fafc', textAlign: 'center' }} title="AV Real">{avReal.toFixed(1)}%</td>}
-                                {showAH && <td className="spreadsheet-value" style={{ color: getAH(rVal, bVal) < 0 ? '#ef4444' : '#10b981', fontSize: '0.6rem', background: '#f8fafc', textAlign: 'center' }}>{getAH(rVal, bVal).toFixed(1)}%</td>}
-                                {showAR && <td className="spreadsheet-value" style={{ color: getAH(rVal, rdVal) < 0 ? '#ef4444' : '#10b981', fontSize: '0.6rem', background: '#f8fafc', textAlign: 'center' }}>{getAH(rVal, rdVal).toFixed(1)}%</td>}
-                                {showAH_MoM && <td className="spreadsheet-value" style={{ color: getMoMPercent() < 0 ? '#ef4444' : '#10b981', fontSize: '0.6rem', background: '#f8fafc', textAlign: 'center' }}>{i === 0 ? '-' : `${getMoMPercent().toFixed(1)}%`}</td>}
+                                {showAV && <td className="spreadsheet-value" style={{ color: '#94a3b8', fontSize: '0.6rem', textAlign: 'center' }} title="AV Real">{avReal.toFixed(1)}%</td>}
+                                {showAH && <td className="spreadsheet-value" style={{ color: getAH(rVal, bVal) < 0 ? '#ef4444' : '#10b981', fontSize: '0.6rem', textAlign: 'center' }}>{getAH(rVal, bVal).toFixed(1)}%</td>}
+                                {showAR && <td className="spreadsheet-value" style={{ color: getAH(rVal, rdVal) < 0 ? '#ef4444' : '#10b981', fontSize: '0.6rem', textAlign: 'center' }}>{getAH(rVal, rdVal).toFixed(1)}%</td>}
+                                {showAH_MoM && <td className="spreadsheet-value" style={{ color: getMoMPercent() < 0 ? '#ef4444' : '#10b981', fontSize: '0.6rem', textAlign: 'center' }}>{i === 0 ? '-' : `${getMoMPercent().toFixed(1)}%`}</td>}
                             </React.Fragment>
                         );
                     })}
@@ -1206,34 +1206,34 @@ export default function BudgetGrid({
                         <React.Fragment key={i}>
                             <td className="spreadsheet-value" style={{ borderLeft: '2px solid #cbd5e1', color: bColor, fontWeight: 700, background: isLucroLiquido ? '#2563eb' : undefined }}>{formatCurrency(budgetVal)}</td>
                             {showAV && (
-                                <td className="spreadsheet-value" style={{ color: isLucroLiquido ? '#fff' : '#94a3b8', fontSize: '0.65rem', background: isLucroLiquido ? '#2563eb' : '#f8fafc', textAlign: 'center' }}>
+                                <td className="spreadsheet-value" style={{ color: isLucroLiquido ? '#fff' : '#94a3b8', fontSize: '0.65rem', textAlign: 'center' }}>
                                     {avBudget.toFixed(1)}%
                                 </td>
                             )}
                             <td className="spreadsheet-value" style={{ color: rdColor, fontWeight: 700, background: isLucroLiquido ? '#2563eb' : undefined }}>{formatCurrency(radarVal)}</td>
                             {showAV && (
-                                <td className="spreadsheet-value" style={{ color: isLucroLiquido ? '#fff' : '#94a3b8', fontSize: '0.65rem', background: isLucroLiquido ? '#2563eb' : '#f1f5f9', textAlign: 'center' }}>
+                                <td className="spreadsheet-value" style={{ color: isLucroLiquido ? '#fff' : '#94a3b8', fontSize: '0.65rem', textAlign: 'center' }}>
                                     {avRadar.toFixed(1)}%
                                 </td>
                             )}
                             <td className="spreadsheet-value" style={{ color: rColor, fontWeight: 800, background: isLucroLiquido ? '#2563eb' : undefined }}>{formatCurrency(realizedVal)}</td>
                             {showAV && (
-                                <td className="spreadsheet-value" style={{ color: isLucroLiquido ? '#fff' : '#94a3b8', fontSize: '0.65rem', background: isLucroLiquido ? '#2563eb' : '#f8fafc', textAlign: 'center' }}>
+                                <td className="spreadsheet-value" style={{ color: isLucroLiquido ? '#fff' : '#94a3b8', fontSize: '0.65rem', textAlign: 'center' }}>
                                     {avReal.toFixed(1)}%
                                 </td>
                             )}
                             {showAH && (
-                                <td className="spreadsheet-value" style={{ color: getAH(realizedVal, budgetVal) < 0 ? '#ef4444' : (isLucroLiquido ? '#fff' : '#10b981'), fontSize: '0.65rem', background: isLucroLiquido ? '#2563eb' : '#f8fafc', textAlign: 'center' }}>
+                                <td className="spreadsheet-value" style={{ color: getAH(realizedVal, budgetVal) < 0 ? '#ef4444' : (isLucroLiquido ? '#fff' : '#10b981'), fontSize: '0.65rem', textAlign: 'center' }}>
                                     {getAH(realizedVal, budgetVal).toFixed(1)}%
                                 </td>
                             )}
                             {showAR && (
-                                <td className="spreadsheet-value" style={{ color: getAH(realizedVal, radarVal) < 0 ? '#ef4444' : (isLucroLiquido ? '#fff' : '#10b981'), fontSize: '0.65rem', background: isLucroLiquido ? '#2563eb' : '#f8fafc', textAlign: 'center' }}>
+                                <td className="spreadsheet-value" style={{ color: getAH(realizedVal, radarVal) < 0 ? '#ef4444' : (isLucroLiquido ? '#fff' : '#10b981'), fontSize: '0.65rem', textAlign: 'center' }}>
                                     {getAH(realizedVal, radarVal).toFixed(1)}%
                                 </td>
                             )}
                             {showAH_MoM && (
-                                <td className="spreadsheet-value" style={{ color: getMoMPercent() < 0 ? '#ef4444' : (isLucroLiquido ? '#fff' : '#10b981'), fontSize: '0.65rem', background: isLucroLiquido ? '#2563eb' : '#f8fafc', textAlign: 'center' }}>
+                                <td className="spreadsheet-value" style={{ color: getMoMPercent() < 0 ? '#ef4444' : (isLucroLiquido ? '#fff' : '#10b981'), fontSize: '0.65rem', textAlign: 'center' }}>
                                     {i === 0 ? '-' : `${getMoMPercent().toFixed(1)}%`}
                                 </td>
                             )}
@@ -1482,14 +1482,14 @@ export default function BudgetGrid({
                             {(viewPeriod === 'month' ? MONTHS : [1, 2, 3, 4]).map((_, i) => (
                                 <React.Fragment key={i}>
                                     <th style={{ fontSize: '0.6rem', color: '#64748b', borderLeft: '2px solid #cbd5e1', textAlign: 'center', padding: '0.2rem' }}>ORÇ</th>
-                                    {showAV && <th style={{ fontSize: '0.55rem', color: '#94a3b8', textAlign: 'center', padding: '0.2rem', background: '#f8fafc' }}>AV OR</th>}
+                                    <th style={{ fontSize: '0.55rem', color: '#94a3b8', textAlign: 'center', padding: '0.2rem' }}>AV OR</th>
                                     <th style={{ fontSize: '0.6rem', color: '#64748b', textAlign: 'center', padding: '0.2rem' }}>RADAR</th>
-                                    {showAV && <th style={{ fontSize: '0.55rem', color: '#94a3b8', textAlign: 'center', padding: '0.2rem', background: '#f1f5f9' }}>AV RD</th>}
+                                    <th style={{ fontSize: '0.55rem', color: '#94a3b8', textAlign: 'center', padding: '0.2rem' }}>AV RD</th>
                                     <th style={{ fontSize: '0.6rem', color: '#64748b', textAlign: 'center', padding: '0.2rem' }}>REAL</th>
-                                    {showAV && <th style={{ fontSize: '0.55rem', color: '#94a3b8', textAlign: 'center', padding: '0.2rem', background: '#f8fafc' }}>AV RL</th>}
-                                    {showAH && <th style={{ fontSize: '0.55rem', color: '#94a3b8', textAlign: 'center', padding: '0.2rem', background: '#f8fafc' }}>AH %</th>}
-                                    {showAR && <th style={{ fontSize: '0.55rem', color: '#94a3b8', textAlign: 'center', padding: '0.2rem', background: '#f8fafc' }}>AR %</th>}
-                                    {showAH_MoM && <th style={{ fontSize: '0.55rem', color: '#94a3b8', textAlign: 'center', padding: '0.2rem', background: '#f8fafc' }}>MoM</th>}
+                                    <th style={{ fontSize: '0.55rem', color: '#94a3b8', textAlign: 'center', padding: '0.2rem' }}>AV RL</th>
+                                    {showAH && <th style={{ fontSize: '0.55rem', color: '#94a3b8', textAlign: 'center', padding: '0.2rem' }}>AH %</th>}
+                                    {showAR && <th style={{ fontSize: '0.55rem', color: '#94a3b8', textAlign: 'center', padding: '0.2rem' }}>AR %</th>}
+                                    {showAH_MoM && <th style={{ fontSize: '0.55rem', color: '#94a3b8', textAlign: 'center', padding: '0.2rem' }}>MoM</th>}
                                 </React.Fragment>
                             ))}
                         </tr>

@@ -1,50 +1,51 @@
 import { prisma } from './prisma';
 
 /**
- * Gets the primary tenant ID for a given tenant.
- * Useful to ensure we always write/read from the same record when duplicates exist.
+ * Normalizes a tenant name for grouping purposes.
  */
-export async function getPrimaryTenantId(tenant: { id: string, name: string, cnpj: string | null }) {
-    const cleanName = (tenant.name || '').trim().toUpperCase();
-    const cleanCnpj = (tenant.cnpj || '').replace(/\D/g, '');
+export function normalizeTenantName(name: string): string {
+    return (name || '')
+        .trim()
+        .toUpperCase()
+        .replace(/[^A-Z0-9]/g, '')
+        .replace(/LTDA$/, '')
+        .replace(/SA$/, '');
+}
 
-    const allVariants = await prisma.tenant.findMany({
-        where: {
-            OR: [
-                { cnpj: cleanCnpj && cleanCnpj !== '' ? cleanCnpj : undefined },
-                { name: { contains: cleanName, mode: 'insensitive' } }
-            ]
-        }
+/**
+ * Gets all tenant groups based on CNPJ or normalized name.
+ */
+export async function getTenantGroups(): Promise<string[][]> {
+    const allTenants = await prisma.tenant.findMany({ select: { id: true, name: true, cnpj: true } });
+    const groups = new Map<string, string[]>();
+
+    allTenants.forEach(t => {
+        const cleanCnpj = (t.cnpj || '').replace(/\D/g, '');
+        const cleanName = normalizeTenantName(t.name);
+        
+        const key = cleanCnpj !== '' ? cleanCnpj : cleanName;
+        if (!groups.has(key)) groups.set(key, []);
+        groups.get(key)!.push(t.id);
     });
 
-    if (allVariants.length === 0) return tenant.id;
-    
-    // Pick the smallest ID alphabetically to be 100% deterministic
-    return allVariants.map(v => v.id).sort()[0];
+    return Array.from(groups.values()).map(ids => ids.sort());
+}
+
+/**
+ * Gets the primary tenant ID for a given tenant ID.
+ */
+export async function getPrimaryTenantId(tenant: { id: string, name?: string, cnpj?: string | null } | string) {
+    const id = typeof tenant === 'string' ? tenant : tenant.id;
+    const groups = await getTenantGroups();
+    const group = groups.find(g => g.includes(id));
+    return group ? group[0] : id;
 }
 
 /**
  * Returns a list of all tenant IDs that are "variants" of the same company.
  */
 export async function getAllVariantIds(tenantId: string) {
-    const t = await prisma.tenant.findUnique({ where: { id: tenantId } });
-    if (!t) return [tenantId];
-
-    const cleanCnpj = (t.cnpj || '').replace(/\D/g, '');
-    const cleanName = (t.name || '').trim().toUpperCase().replace(/[^A-Z0-9]/g, '');
-
-    const variants = await prisma.tenant.findMany({
-        where: {
-            OR: [
-                (cleanCnpj && cleanCnpj !== '') ? { cnpj: cleanCnpj } : { name: t.name },
-                { name: { contains: t.name } }
-            ]
-        },
-        select: { id: true, name: true }
-    });
-
-    // Filter by normalized name to be sure
-    return variants
-        .filter(v => (v.name || '').trim().toUpperCase().replace(/[^A-Z0-9]/g, '') === cleanName || v.id === tenantId)
-        .map(v => v.id);
+    const groups = await getTenantGroups();
+    const group = groups.find(g => g.includes(tenantId));
+    return group || [tenantId];
 }

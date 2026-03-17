@@ -43,36 +43,19 @@ export async function GET(request: Request) {
 
         const allTenants = await prisma.tenant.findMany({ orderBy: { updatedAt: 'desc' } });
         
-        // Deduplicate and pick Primary IDs for each company group
-        const companyGroups = new Map<string, string[]>(); // key -> list of variant IDs
-        allTenants.forEach((t: any) => {
-            const cleanCnpj = (t.cnpj || '').replace(/\D/g, '');
-            const cleanName = (t.name || '').trim().toUpperCase().replace(/[^A-Z0-9]/g, '');
-            const key = cleanCnpj !== '' ? cleanCnpj : cleanName;
-            if (!companyGroups.has(key)) companyGroups.set(key, []);
-            companyGroups.get(key)!.push(t.id);
-        });
-
-        const primaryTenantIds: string[] = Array.from(companyGroups.values()).map(ids => {
-            // Must match cronSync logic: Deterministic selection (alphabetical lowest ID)
-            return ids.sort()[0];
-        });
+        // Deduplicate and pick Primary IDs for each company group using unified logic
+        const { getTenantGroups } = await import('@/lib/tenant-utils');
+        const groups = await getTenantGroups();
 
         let targetTenantIds: string[] = [];
         if (tenantIdParam === 'ALL') {
-             targetTenantIds = primaryTenantIds;
+             targetTenantIds = groups.map(g => g[0]);
         } else {
             const inputIds = tenantIdParam.split(',').map(t => t.trim()).filter(Boolean);
             for (const id of inputIds) {
-                const t = allTenants.find((ten: any) => ten.id === id);
-                if (t) {
-                    const cleanCnpj = (t.cnpj || '').replace(/\D/g, '');
-                    const cleanName = (t.name || '').trim().toUpperCase().replace(/[^A-Z0-9]/g, '');
-                    const key = cleanCnpj !== '' ? cleanCnpj : cleanName;
-                    const group = companyGroups.get(key) || [id];
-                    const primary = group.sort()[0];
-                    if (!targetTenantIds.includes(primary)) targetTenantIds.push(primary);
-                }
+                const group = groups.find(g => g.includes(id));
+                const primary = group ? group[0] : id;
+                if (!targetTenantIds.includes(primary)) targetTenantIds.push(primary);
             }
         }
 
@@ -86,13 +69,11 @@ export async function GET(request: Request) {
 
         const allVariantIds: string[] = [];
         for (const pid of targetTenantIds) {
-            const t = allTenants.find((ten: any) => ten.id === pid);
-            if (t) {
-                const cleanCnpj = (t.cnpj || '').replace(/\D/g, '');
-                const cleanName = (t.name || '').trim().toUpperCase().replace(/[^A-Z0-9]/g, '');
-                const key = cleanCnpj !== '' ? cleanCnpj : cleanName;
-                const group = companyGroups.get(key) || [pid];
+            const group = groups.find(g => g.includes(pid));
+            if (group) {
                 allVariantIds.push(...group);
+            } else {
+                allVariantIds.push(pid);
             }
         }
 

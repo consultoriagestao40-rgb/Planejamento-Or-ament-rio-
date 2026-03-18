@@ -10,6 +10,7 @@ export function middleware(request: NextRequest) {
         pathname.startsWith('/api/auth') ||
         pathname.startsWith('/api/cron/sync') ||
         pathname.startsWith('/api/debug-deep-audit') ||
+        pathname.startsWith('/api/debug-tenants') ||
         pathname === '/login' ||
         pathname === '/favicon.ico'
     ) {

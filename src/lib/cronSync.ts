@@ -310,7 +310,10 @@ export async function runCronSync(reqYear: number, targetTenantId?: string) {
                 // Ensure we handle multiple categories per transaction
                 for (const cat of txn.categories) {
                     const catId = catMap.get(String(cat.id));
-                    if (!catId) continue;
+                    if (!catId) {
+                        pushLog(`[SYNC] [${t.name}] SKIPPED CATEGORY: ${cat.id} (${cat.nome || 'No Name'}) in txn ${txn.id}`);
+                        continue;
+                    }
 
                     let amount = Math.abs(cat.valor || (txn.amount / txn.categories.length));
                     

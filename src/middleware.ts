@@ -11,6 +11,7 @@ export function middleware(request: NextRequest) {
         pathname.startsWith('/api/cron/sync') ||
         pathname.startsWith('/api/debug-deep-audit') ||
         pathname.startsWith('/api/debug-tenants') ||
+        pathname === '/api/version' ||
         pathname === '/login' ||
         pathname === '/favicon.ico'
     ) {

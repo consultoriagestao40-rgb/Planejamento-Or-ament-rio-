@@ -12,11 +12,9 @@ async function fetchAll(url: string, token: string) {
 
 export async function GET() {
     try {
-        const tenants = await prisma.tenant.findMany({
-            where: { name: { contains: 'SPOT', mode: 'insensitive' } }
-        });
+        const tenants = await prisma.tenant.findMany();
 
-        if (tenants.length === 0) return NextResponse.json({ error: 'No SPOT tenants found' });
+        if (tenants.length === 0) return NextResponse.json({ error: 'No tenants found' });
 
         const results: any[] = [];
 

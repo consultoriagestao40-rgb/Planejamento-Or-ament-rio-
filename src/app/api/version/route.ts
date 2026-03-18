@@ -5,10 +5,10 @@ export const dynamic = 'force-dynamic';
 export async function GET() {
     return NextResponse.json({
         ok: true,
-        rev: "v0.3.11-final-stable",
-        version: "0.3.11",
+        rev: "v0.9.20-sync-precision",
+        version: "0.9.20",
         timestamp: new Date().toISOString(),
-        message: "Version 0.3.11 - DETAILED TELEMETRY (REVENUE VS EXPENSE)",
+        message: "Version 0.9.20 - Nova Precisão de Sincronização (Outras Receitas + Filtro Competência)",
         status: "STABLE"
     });
 }

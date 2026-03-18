@@ -9,6 +9,7 @@ export function middleware(request: NextRequest) {
         pathname.startsWith('/_next') ||
         pathname.startsWith('/api/auth') ||
         pathname.startsWith('/api/cron/sync') ||
+        pathname.startsWith('/api/debug-deep-audit') ||
         pathname === '/login' ||
         pathname === '/favicon.ico'
     ) {

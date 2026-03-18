@@ -19,6 +19,7 @@ export async function fetchAllTransactionsForYear(accessToken: string, baseUrl: 
 
             const data = await res.json();
             const items = data.itens || [];
+            console.log(`[SYNC] Fetched ${items.length} items from ${url.split('?')[0]}`);
             if (items.length === 0) break;
 
             for (const item of items) {
@@ -214,19 +215,25 @@ export async function runCronSync(reqYear: number, targetTenantId?: string) {
             const isCaixa = viewMode === 'caixa';
             // Window of 18 months to catch any competencia/vencimento mismatch
             // (competencia in target year but due in previous or next year)
-            const startStr = `${reqYear - 1}-10-01`; 
-            const endStr = `${reqYear + 1}-03-31`;
+            // Window of 24 months to catch any competencia/vencimento mismatch
+            // (competencia in target year but due many months before or after)
+            const startStr = `${reqYear - 1}-07-01`; 
+            const endStr = `${reqYear + 1}-06-30`;
             
             const endpoints = [
                 { url: `https://api-v2.contaazul.com/v1/financeiro/eventos-financeiros/contas-a-receber/buscar`, isExpense: false },
                 { url: `https://api-v2.contaazul.com/v1/financeiro/eventos-financeiros/contas-a-pagar/buscar`, isExpense: true },
                 { url: `https://api-v2.contaazul.com/v1/financeiro/eventos-financeiros/outros-recebimentos/buscar`, isExpense: false },
-                { url: `https://api-v2.contaazul.com/v1/financeiro/eventos-financeiros/outros-pagamentos/buscar`, isExpense: true }
+                { url: `https://api-v2.contaazul.com/v1/financeiro/eventos-financeiros/outros-pagamentos/buscar`, isExpense: true },
+                { url: `https://api-v2.contaazul.com/v1/financeiro/eventos-financeiros/outras-receitas/buscar`, isExpense: false },
+                { url: `https://api-v2.contaazul.com/v1/financeiro/eventos-financeiros/outras-despesas/buscar`, isExpense: true }
             ];
 
             const transactions: any[] = [];
             for (const ep of endpoints) {
-                const fullUrl = `${ep.url}?${isCaixa ? 'data_vencimento_de' : 'data_vencimento_de'}=${startStr}&${isCaixa ? 'data_vencimento_ate' : 'data_vencimento_ate'}=${endStr}&tamanho_pagina=100`;
+                // Precise filtering: Search by competence date when in competence mode
+                const dateFilterPrefix = isCaixa ? 'data_vencimento' : 'data_competencia';
+                const fullUrl = `${ep.url}?${dateFilterPrefix}_de=${startStr}&${dateFilterPrefix}_ate=${endStr}&tamanho_pagina=100`;
                 const items = await fetchAllTransactionsForYear(token, fullUrl, reqYear, viewMode, ep.isExpense);
                 transactions.push(...items.map(tx => ({ ...tx, isExpense: ep.isExpense })));
             }

@@ -116,6 +116,76 @@ export async function fetchAllTransactionsForYear(accessToken: string, baseUrl: 
     return transactions;
 }
 
+export async function fetchSalesForYear(accessToken: string, targetYear: number) {
+    let page = 1;
+    let hasMore = true;
+    const salesData: any[] = [];
+    
+    // Window: Jan-Dec of target year (Vendas competence is usually emission date)
+    const startStr = `${targetYear}-01-01`;
+    const endStr = `${targetYear}-12-31`;
+
+    while (hasMore && page <= 50) {
+        const url = `https://api-v2.contaazul.com/v1/vendas?data_inicio=${startStr}&data_fim=${endStr}&pagina=${page}&tamanho_pagina=100`;
+        try {
+            const res = await fetch(url, { headers: { 'Authorization': `Bearer ${accessToken}` } });
+            if (!res.ok) break;
+
+            const data = await res.json();
+            const items = data.itens || data.items || data || [];
+            if (!Array.isArray(items) || items.length === 0) break;
+
+            for (const sale of items) {
+                if ((sale.status || '').toUpperCase().includes('CANCEL')) continue;
+
+                const dateStr = sale.data_emissao || sale.data || '';
+                if (!dateStr) continue;
+
+                const [yStr, mStr] = dateStr.split('-');
+                const itemYear = parseInt(yStr);
+                const itemMonth = parseInt(mStr);
+                if (itemYear !== targetYear) continue;
+
+                // Revenue Distribution (Items)
+                // Note: Each sale can have multiple items, each with a category
+                const products = sale.itens || [];
+                for (const prod of products) {
+                    salesData.push({
+                        id: sale.id,
+                        description: `Venda ${sale.numero || sale.id}: ${prod.descricao || ''}`,
+                        month: itemMonth,
+                        amount: prod.valor_total || (prod.valor_unitario * prod.quantidade) || 0,
+                        categoryId: prod.id_categoria, // Directly from Sale Item
+                        costCenterId: sale.id_centro_custo,
+                        isRetention: false
+                    });
+                }
+
+                // Tax Retentions
+                const ret = sale.retencoes || {};
+                const totalRet = (ret.iss || 0) + (ret.irrf || 0) + (ret.csll || 0) + (ret.pis || 0) + (ret.cofins || 0);
+                if (totalRet > 0) {
+                    salesData.push({
+                        id: sale.id,
+                        description: `Retenção Impostos - Venda ${sale.numero || sale.id}`,
+                        month: itemMonth,
+                        amount: totalRet,
+                        categoryId: 'TRIBUTOS_PLACEHOLDER', // Will be mapped to 02.1
+                        costCenterId: sale.id_centro_custo,
+                        isRetention: true
+                    });
+                }
+            }
+
+            if (items.length < 100) hasMore = false;
+            else page++;
+        } catch (e) {
+            hasMore = false;
+        }
+    }
+    return salesData;
+}
+
 export async function runCronSync(reqYear: number, targetTenantId?: string) {
     const logs: string[] = [];
     const pushLog = (msg: string) => {
@@ -220,6 +290,7 @@ export async function runCronSync(reqYear: number, targetTenantId?: string) {
             const startStr = `${reqYear - 1}-07-01`; 
             const endStr = `${reqYear + 1}-06-30`;
             
+            const entriesToSave: any[] = [];
             const endpoints = [
                 { url: `https://api-v2.contaazul.com/v1/financeiro/eventos-financeiros/contas-a-receber/buscar`, isExpense: false },
                 { url: `https://api-v2.contaazul.com/v1/financeiro/eventos-financeiros/contas-a-pagar/buscar`, isExpense: true },
@@ -235,7 +306,50 @@ export async function runCronSync(reqYear: number, targetTenantId?: string) {
                 const dateFilterPrefix = isCaixa ? 'data_vencimento' : 'data_competencia';
                 const fullUrl = `${ep.url}?${dateFilterPrefix}_de=${startStr}&${dateFilterPrefix}_ate=${endStr}&tamanho_pagina=100`;
                 const items = await fetchAllTransactionsForYear(token, fullUrl, reqYear, viewMode, ep.isExpense);
-                transactions.push(...items.map(tx => ({ ...tx, isExpense: ep.isExpense })));
+                
+                // CRITICAL: Filter out revenue categories (01.1, 01.2) from Financial Events
+                // if we are in Competencia mode, as we will use the Vendas API for those.
+                const filteredItems = items.filter(tx => {
+                    if (viewMode === 'competencia' && !ep.isExpense) {
+                        const hasRevenueCat = tx.categories.some((c: any) => {
+                            const name = (c.nome || '').trim();
+                            return name.startsWith('01.1') || name.startsWith('01.2');
+                        });
+                        return !hasRevenueCat;
+                    }
+                    return true;
+                });
+
+                transactions.push(...filteredItems.map(tx => ({ ...tx, isExpense: ep.isExpense })));
+            }
+
+            // 2. FETCH DATA FROM SALES MODULE (Only for Competencia Mode)
+            if (viewMode === 'competencia') {
+                pushLog(`[SYNC] [${t.name}] Fetching Sales Module data...`);
+                const sales = await fetchSalesForYear(token, reqYear);
+                
+                // Find the DB ID for the Taxes category (02.1)
+                const taxesCat = primaryCategories.find(p => p.name.includes('02.1')) || 
+                                primaryCategories.find(p => p.name.includes('Tributos')) ||
+                                primaryCategories.find(p => p.name.includes('Impostos'));
+
+                for (const s of sales) {
+                    const mappedCatId = s.isRetention ? taxesCat?.id : (catMap.get(String(s.categoryId)) || s.categoryId);
+                    if (!mappedCatId) continue;
+
+                    entriesToSave.push({
+                        tenantId: primaryId,
+                        categoryId: mappedCatId,
+                        costCenterId: ccMap.get(String(s.costCenterId)) || null,
+                        month: s.month,
+                        year: reqYear,
+                        amount: s.isRetention ? Math.abs(s.amount) : Math.abs(s.amount), // Always positive as they are summed correctly in logic
+                        viewMode,
+                        description: s.description,
+                        externalId: `SALE-${s.id}-${s.categoryId}-${s.isRetention ? 'RET' : 'ITEM'}`
+                    });
+                }
+                pushLog(`[SYNC] [${t.name}] Integrated ${sales.length} sale-related records.`);
             }
 
             let totalRevenue = 0;
@@ -305,7 +419,6 @@ export async function runCronSync(reqYear: number, targetTenantId?: string) {
 
             pushLog(`[SYNC] [${t.name}] Raw Revenue: ${totalRevenue.toFixed(2)}, Raw Expense: ${totalExpense.toFixed(2)}. Net: ${(totalRevenue - totalExpense).toFixed(2)}`);
 
-            const entriesToSave: any[] = [];
             for (const txn of transactions) {
                 // Ensure we handle multiple categories per transaction
                 for (const cat of txn.categories) {

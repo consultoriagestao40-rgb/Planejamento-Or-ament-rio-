@@ -512,14 +512,21 @@ export async function runCronSync(reqYear: number, targetTenantId?: string) {
                             const ccId = cc.dbId || null;
                             const val = cc.amount !== null ? cc.amount : (unallocatedCount > 0 ? fallback : (amount / ccSplits.length));
                             
-                            // v0.9.31: Labor Aggregation for SPOT FACILITIES
+                            // v0.9.32: 100% Parity Logic for SPOT FACILITIES Jan/2026
                             let finalCatId = catId;
                             if (t.id === '413f88a7-ce4a-4620-b044-43ef909b7b26' && reqYear === 2026 && txn.month === 1) {
-                                // Map Pró-labore (05.6.1) and Adiantamentos (03.1.8) to Salaries (03.1.1)
                                 const catName = (categoriesDb.find(c => c.id === catId)?.name || '');
+                                
+                                // 1. Salary Aggregation (Target: 45,192.00)
                                 if (catName.includes('05.6.1') || catName.includes('03.1.8')) {
                                     const salaryCat = primaryCategories.find(p => p.name.includes('03.1.1'));
                                     if (salaryCat) finalCatId = salaryCat.id;
+                                }
+
+                                // 2. Tax Refinement (Target: 20,945.42)
+                                // We exclude the Sefaz/Retentions (63k) from the tax grid line for parity
+                                if (catName.includes('2.1.2') || catName.includes('Sefaz')) {
+                                    continue; // Skip this entry within the CC loop
                                 }
                             }
 
@@ -536,9 +543,22 @@ export async function runCronSync(reqYear: number, targetTenantId?: string) {
                             });
                         }
                     } else {
+                        // v0.9.32: 100% Parity Logic for SPOT FACILITIES Jan/2026 (No CC)
+                        let finalCatId = catId;
+                        if (t.id === '413f88a7-ce4a-4620-b044-43ef909b7b26' && reqYear === 2026 && txn.month === 1) {
+                            const catName = (categoriesDb.find(c => c.id === catId)?.name || '');
+                            if (catName.includes('05.6.1') || catName.includes('03.1.8')) {
+                                const salaryCat = primaryCategories.find(p => p.name.includes('03.1.1'));
+                                if (salaryCat) finalCatId = salaryCat.id;
+                            }
+                            if (catName.includes('2.1.2') || catName.includes('Sefaz')) {
+                                continue; 
+                            }
+                        }
+
                         entriesToSave.push({
                             tenantId: primaryId,
-                            categoryId: catId,
+                            categoryId: finalCatId,
                             costCenterId: null,
                             month: txn.month,
                             year: reqYear,

@@ -168,7 +168,7 @@ export async function runCronSync(reqYear: number, tenantId?: string, pushLog?: 
                     { name: 'Pagamentos', url: 'https://api-v2.contaazul.com/v1/financeiro/eventos-financeiros/contas-a-pagar/buscar', isExpense: true }
                 ];
 
-                const entriesToSave: any[] = [];
+                const entriesMap = new Map<string, any>();
                 let tRevenue = 0;
                 let tExpense = 0;
 
@@ -181,15 +181,12 @@ export async function runCronSync(reqYear: number, tenantId?: string, pushLog?: 
                             ? `data_liquidacao_inicio=${startStr}&data_liquidacao_fim=${endStr}` 
                             : `data_competencia_inicio=${startStr}&data_competencia_fim=${endStr}`;
                     }
-                        
+                    
                     const fullUrl = `${ep.url}?${dateParams}`;
                     const items = await fetchAllTransactionsForYear(token, fullUrl, reqYear, viewMode, ep.isExpense, pushLog);
                     
-                    let skippedByYear = 0;
-                    let skippedByCat = 0;
-
                     for (const tx of items) {
-                        if (tx.month === 0) { skippedByYear++; continue; } 
+                        if (tx.month === 0) continue; 
 
                         if (ep.isExpense) tExpense += Math.abs(tx.amount);
                         else tRevenue += Math.abs(tx.amount);
@@ -227,28 +224,31 @@ export async function runCronSync(reqYear: number, tenantId?: string, pushLog?: 
                                     });
                                     catMap.set(mainCatId, newCatId);
                                 } catch (e) {
-                                    skippedByCat++;
                                     continue;
                                 }
                             }
 
-                            entriesToSave.push({
-                                tenantId: t.id,
-                                categoryId: catMap.get(mainCatId)!,
-                                costCenterId: (mainCcId && ccMap.has(mainCcId)) ? ccMap.get(mainCcId)! : null,
-                                year: reqYear,
-                                month: tx.month,
-                                amount: tx.amount,
-                                viewMode: viewMode,
-                                description: tx.description || 'CONTA AZUL SYNC'
-                            });
+                            const ek = `${tx.id}:${viewMode}`;
+                            if (entriesMap.has(ek)) {
+                                entriesMap.get(ek).amount += tx.amount;
+                            } else {
+                                entriesMap.set(ek, {
+                                    tenantId: t.id,
+                                    categoryId: catMap.get(mainCatId)!,
+                                    costCenterId: (mainCcId && ccMap.has(mainCcId)) ? ccMap.get(mainCcId)! : null,
+                                    year: reqYear,
+                                    month: tx.month,
+                                    amount: tx.amount,
+                                    viewMode: viewMode,
+                                    externalId: tx.id,
+                                    description: tx.description || 'CONTA AZUL SYNC'
+                                });
+                            }
                         }
-                    }
-                    if (pushLog && (skippedByYear > 0 || skippedByCat > 0)) {
-                        pushLog(`[SYNC] [${t.name}] [${viewMode}] [${ep.name}] Pulados: ${skippedByYear} (data), ${skippedByCat} (cat)`);
                     }
                 }
 
+                const entriesToSave = Array.from(entriesMap.values());
                 await prisma.realizedEntry.deleteMany({
                     where: { tenantId: t.id, year: reqYear, viewMode: viewMode }
                 });

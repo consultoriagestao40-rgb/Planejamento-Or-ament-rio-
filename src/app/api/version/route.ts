@@ -6,9 +6,9 @@ export async function GET() {
     return NextResponse.json({
         ok: true,
         rev: "v0.9.27-deep-diag",
-        version: '0.9.72',
+        version: '0.9.73',
         timestamp: new Date().toISOString(),
-        message: 'Version 0.9.72 - Hybrid Sync Engine (Vendas/Financeiro)',
+        message: 'Version 0.9.73 - Robust Batch Aggregator (v1)',
         status: "STABLE"
     });
 }

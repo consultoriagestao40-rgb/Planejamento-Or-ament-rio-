@@ -26,6 +26,9 @@ export async function GET() {
             return results;
         };
 
+        // Trigger Sync first
+        await runCronSync(2026);
+
         const parity = await audit();
 
         return NextResponse.json({

@@ -1,28 +1,47 @@
 import { PrismaClient } from '@prisma/client';
+
 const prisma = new PrismaClient();
 
-async function main() {
-    console.log('--- AUDITING SPOT CATEGORIES ---');
-    const spot = await prisma.tenant.findFirst({ where: { name: { contains: 'SPOT' } } });
-    if (!spot) {
-        console.log('SPOT not found');
-        return;
+async function audit() {
+    try {
+        console.log("--- Category Audit (Rev) ---");
+        const revCats = await prisma.category.findMany({
+            where: { name: { startsWith: '01' } }
+        });
+        revCats.forEach(c => {
+            console.log(`JSON: ${JSON.stringify({ id: c.id, name: c.name, caId: c.caId, parentId: c.parentId })}`);
+        });
+
+        console.log("\n--- Financial Entries Jan 2026 ---");
+        const entries = await prisma.financialEntry.findMany({
+            where: { 
+                date: { 
+                    gte: new Date('2026-01-01T00:00:00.000Z'), 
+                    lte: new Date('2026-01-31T23:59:59.999Z') 
+                } 
+            },
+            include: { category: true }
+        });
+        
+        console.log(`Total entries for Jan 2026: ${entries.length}`);
+        
+        const summary: Record<string, any> = {};
+        entries.forEach(e => {
+            const catName = e.category?.name || 'Unknown';
+            const catId = e.category?.id || 'Unknown';
+            const key = `${catName} | ${catId}`;
+            if (!summary[key]) summary[key] = { count: 0, total: 0 };
+            summary[key].count++;
+            summary[key].total += Number(e.amount);
+        });
+        
+        console.log("Summary Table:");
+        Object.entries(summary).forEach(([key, data]) => {
+            console.log(`${key}: Count=${data.count}, Total=${data.total.toFixed(2)}`);
+        });
+    } catch (e) {
+        console.error(e);
     }
-    console.log(`SPOT ID: ${spot.id}`);
-
-    const cats = await prisma.category.findMany({
-        where: { tenantId: spot.id },
-        select: { id: true, name: true }
-    });
-
-    console.log(`Found ${cats.length} categories.`);
-    console.log('Sample IDs:', cats.slice(0, 5).map(c => c.id));
-    
-    // Check for the specific ID found in debug
-    const target = 'c3c491af-26f8-4260-9958-64222c73dffd';
-    const match = cats.find(c => c.id.includes(target));
-    console.log(`Match for ${target}:`, match ? 'YES' : 'NO');
-    if (match) console.log(`Actual DB ID: ${match.id}`);
 }
 
-main();
+audit().catch(console.error).finally(() => prisma.$disconnect());

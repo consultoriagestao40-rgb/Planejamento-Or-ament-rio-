@@ -13,15 +13,19 @@ export async function GET() {
             include: { category: true }
         });
 
-        const summary: any = {};
+        const breakdown: Record<string, { total: number, ids: string[] }> = {};
         let totalRevenue = 0;
         let totalTaxes = 0;
         let saleRecords = 0;
 
         entries.forEach(e => {
             const catName = e.category?.name || 'Unknown';
-            if (!summary[catName]) summary[catName] = 0;
-            summary[catName] += e.amount;
+            const catId = e.category?.id || 'Unknown';
+            if (!breakdown[catName]) breakdown[catName] = { total: 0, ids: [] };
+            breakdown[catName].total += e.amount;
+            if (!breakdown[catName].ids.includes(catId)) {
+                breakdown[catName].ids.push(catId);
+            }
 
             if (catName.startsWith('01.1') || catName.startsWith('01.2')) {
                 totalRevenue += e.amount;
@@ -36,13 +40,13 @@ export async function GET() {
 
         return NextResponse.json({
             success: true,
-            version: '0.9.23',
+            version: '0.9.27-diag',
             jan2026: {
                 totalRevenue,
                 totalTaxes,
                 saleRecords,
                 entriesCount: entries.length,
-                breakdown: summary
+                breakdown
             }
         });
     } catch (e: any) {

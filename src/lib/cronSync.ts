@@ -110,14 +110,14 @@ export async function fetchSalesForYear(accessToken: string, targetYear: number,
     return salesData;
 }
 
-export async function syncTenants(reqYear: number, pushLog?: (msg: string) => void) {
-    if (pushLog) pushLog(`[SYNC] Invocando Sincronização v0.9.46 - Mirror 1:1 [Year ${reqYear}]`);
+export async function runCronSync(reqYear: number, pushLog?: (msg: string) => void) {
+    if (pushLog) pushLog(`[SYNC] Invocando Sincronização v0.9.49 - Mirror 1:1 [Year ${reqYear}]`);
     
     const tenants = await prisma.tenant.findMany();
     const allCategories = await prisma.category.findMany();
     const allCostCenters = await prisma.costCenter.findMany();
 
-    // Map IDs (since CA category ID is stored as the primary key 'id' in our Category table)
+    // ID Map
     const catMap = new Map(allCategories.map(c => [c.id, c.id]));
     const ccMap = new Map(allCostCenters.map(c => [c.id, c.id]));
 
@@ -125,8 +125,8 @@ export async function syncTenants(reqYear: number, pushLog?: (msg: string) => vo
 
     for (const t of tenants) {
         try {
-            const primaryId = getPrimaryTenantId(t.id);
-            const allEntityIds = getAllVariantIds(t.id);
+            const primaryId = await getPrimaryTenantId(t.id);
+            const allEntityIds = await getAllVariantIds(t.id);
             const authResponse = await getValidAccessToken(primaryId);
             const token = typeof authResponse === 'string' ? authResponse : (authResponse as any).token;
 
@@ -159,13 +159,12 @@ export async function syncTenants(reqYear: number, pushLog?: (msg: string) => vo
                         if (mainCatId && catMap.has(mainCatId)) {
                             entriesToSave.push({
                                 tenantId: t.id,
-                                categoryId: mainCatId, // It's a mirror 1:1
+                                categoryId: mainCatId,
                                 costCenterId: (mainCcId && ccMap.has(mainCcId)) ? mainCcId : null,
                                 year: reqYear,
                                 month: tx.month,
                                 amount: tx.amount,
                                 viewMode: viewMode,
-                                isManual: false,
                                 description: tx.description || 'CONTA AZUL SYNC'
                             });
                         }
@@ -177,8 +176,7 @@ export async function syncTenants(reqYear: number, pushLog?: (msg: string) => vo
                     where: { 
                         tenantId: { in: allEntityIds }, 
                         year: reqYear, 
-                        viewMode: viewMode,
-                        isManual: false 
+                        viewMode: viewMode
                     }
                 });
 

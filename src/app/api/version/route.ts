@@ -6,9 +6,9 @@ export async function GET() {
     return NextResponse.json({
         ok: true,
         rev: "v0.9.27-deep-diag",
-        version: '0.9.47',
+        version: '0.9.49',
         timestamp: new Date().toISOString(),
-        message: 'Version 0.9.47 - Middleware Bypass for Silent Diag',
+        message: 'Version 0.9.49 - Build Fix & Living System Parity',
         status: "STABLE"
     });
 }

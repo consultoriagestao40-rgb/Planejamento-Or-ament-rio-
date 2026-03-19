@@ -1,7 +1,7 @@
 
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { syncTenants } from '@/lib/cronSync'; // Assuming I can export/extract it
+import { runCronSync } from '@/lib/cronSync'; 
 
 export async function GET() {
     try {
@@ -29,8 +29,8 @@ export async function GET() {
 
         const before = await audit();
         
-        // v0.9.46: Trigger actual sync silently
-        await syncTenants(2026);
+        // v0.9.49: Trigger actual sync silently
+        await runCronSync(2026);
 
         const after = await audit();
 

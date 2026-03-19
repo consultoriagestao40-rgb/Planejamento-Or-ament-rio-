@@ -179,12 +179,22 @@ export async function runCronSync(reqYear: number, tenantId?: string, pushLog?: 
                         if (ep.isExpense) tExpense += Math.abs(tx.amount);
                         else tRevenue += Math.abs(tx.amount);
 
-                        const mainCatId = tx.categories[0]?.id;
-                        const mainCcId = tx.costCenters[0]?.id;
+                        let mainCatId = tx.categories?.[0]?.id;
+                        let mainCatName = tx.categories?.[0]?.name;
+                        const mainCcId = tx.costCenters?.[0]?.id;
+
+                        // Support for Vendas V1 item categories
+                        if (!mainCatId && ep.name === 'Vendas') {
+                            const firstItem = tx.itens?.[0] || tx.servicos?.[0];
+                            mainCatId = firstItem?.categoria?.id;
+                            mainCatName = firstItem?.categoria?.nome || 'Receita de Vendas';
+                        }
+
+                        if (!mainCatId) mainCatId = 'SYSTEM_GENERIC_REVENUE';
 
                         if (mainCatId) {
                             if (!catMap.has(mainCatId)) {
-                                const newCatName = tx.categories[0]?.name || 'Importado CA';
+                                const newCatName = mainCatName || 'Importado CA';
                                 const newCatId = `${t.id}:${mainCatId}`;
                                 const catType = ep.isExpense ? 'EXPENSE' : 'REVENUE';
                                 

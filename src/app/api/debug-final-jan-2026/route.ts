@@ -3,13 +3,19 @@ import { prisma } from '@/lib/prisma';
 
 export const dynamic = 'force-dynamic';
 
-export async function GET() {
+export async function GET(request: Request) {
     try {
+        const url = new URL(request.url);
+        const targetTenantId = url.searchParams.get('tenantId');
+        
         const year = 2026;
         const month = 1;
 
+        const where: any = { year, month, viewMode: 'competencia' };
+        if (targetTenantId) where.tenantId = targetTenantId;
+
         const entries = await prisma.realizedEntry.findMany({
-            where: { year, month, viewMode: 'competencia' },
+            where,
             include: { category: true }
         });
 

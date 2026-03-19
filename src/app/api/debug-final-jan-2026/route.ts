@@ -14,12 +14,14 @@ export async function GET(request: Request) {
         const allTenants = await prisma.tenant.findMany();
         const tenantMap = allTenants.map(t => ({ id: t.id, name: t.name }));
 
-        const where: any = { year, month, viewMode: 'competencia' };
+        const where: any = { viewMode: 'competencia' };
         if (targetTenantId) where.tenantId = targetTenantId;
 
         const entries = await prisma.realizedEntry.findMany({
             where,
-            include: { category: true }
+            include: { category: true },
+            take: 200,
+            orderBy: { createdAt: 'desc' }
         });
 
         const breakdown: Record<string, { total: number, items: any[] }> = {};

@@ -143,8 +143,8 @@ export async function runCronSync(reqYear: number, tenantId?: string, pushLog?: 
             if (pushLog) pushLog(`[SYNC] [${t.name}] Iniciando...`);
 
             for (const viewMode of ['competencia', 'caixa'] as const) {
-                const startStr = `${reqYear}-01-01`;
-                const endStr = `${reqYear}-12-31`;
+                const startStr = `${reqYear - 1}-01-01`; // Start 1 year before
+                const endStr = `${reqYear + 1}-12-31`;   // End 1 year after
                 
                 const endpoints = [
                     { name: 'Recebimentos', url: 'https://api-v2.contaazul.com/v1/financeiro/eventos-financeiros/contas-a-receber/buscar', isExpense: false },

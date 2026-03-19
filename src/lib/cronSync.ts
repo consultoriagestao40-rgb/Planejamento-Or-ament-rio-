@@ -358,20 +358,7 @@ export async function runCronSync(reqYear: number, targetTenantId?: string) {
                 const fullUrl = `${ep.url}?${dateFilterPrefix}_de=${startStr}&${dateFilterPrefix}_ate=${endStr}&tamanho_pagina=100`;
                 const items = await fetchAllTransactionsForYear(token, fullUrl, reqYear, viewMode, ep.isExpense);
                 
-                const filteredItems = items.filter(tx => {
-                    if (viewMode === 'competencia') {
-                        // Global exclusion of noise IDs in competence mode
-                        const hasExcludedCat = tx.categories.some((c: any) => excludedRawIds.includes(String(c.id)));
-                        if (hasExcludedCat) return false;
-
-                        // Legacy filter for anything starting with 01 (Revenue) if not from sales
-                        if (!ep.isExpense) {
-                            const hasRevenueCat = tx.categories.some((c: any) => revenueRawIds.includes(String(c.id)));
-                            return !hasRevenueCat;
-                        }
-                    }
-                    return true;
-                });
+                const filteredItems = items; // 1:1 Mirroring: No exclusions
                 transactions.push(...filteredItems.map(tx => ({ ...tx, isExpense: ep.isExpense })));
             }
 

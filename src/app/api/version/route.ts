@@ -6,9 +6,9 @@ export async function GET() {
     return NextResponse.json({
         ok: true,
         rev: "v0.9.27-deep-diag",
-        version: '0.9.34',
+        version: '0.9.35',
         timestamp: new Date().toISOString(),
-        message: 'Version 0.9.34 - Strict 1:1 Mirroring (Aggregates at Parent/Total level) [SPOT]',
+        message: 'Version 0.9.35 - Total Mirroring (Exclusions Removed) [SPOT]',
         status: "STABLE"
     });
 }

@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 
 export async function GET() {
-    const spotId = 'e2079373-f938-4eac-aae3-43edef291129';
+    const spotId = '413f88a7-ce4a-4620-b044-43ef909b7b26';
     try {
         const entries = await prisma.realizedEntry.findMany({
             where: { tenantId: spotId, year: 2026 },

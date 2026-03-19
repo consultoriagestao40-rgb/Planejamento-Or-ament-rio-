@@ -19,25 +19,25 @@ export async function GET(request: Request) {
             include: { category: true }
         });
 
-        const breakdown: Record<string, { total: number, ids: string[], tenants: string[] }> = {};
+        const breakdown: Record<string, { total: number, items: any[] }> = {};
         let totalRevenue = 0;
         let totalTaxes = 0;
         let saleRecords = 0;
 
         entries.forEach(e => {
             const catName = e.category?.name || 'Unknown';
-            const catId = e.category?.id || 'Unknown';
-            const tid = e.tenantId || 'Unknown';
-            
-            if (!breakdown[catName]) breakdown[catName] = { total: 0, ids: [], tenants: [] };
+            if (!breakdown[catName]) breakdown[catName] = { total: 0, items: [] };
             breakdown[catName].total += e.amount;
-            if (!breakdown[catName].ids.includes(catId)) breakdown[catName].ids.push(catId);
-            if (!breakdown[catName].tenants.includes(tid)) breakdown[catName].tenants.push(tid);
+            breakdown[catName].items.push({
+                desc: e.description,
+                amt: e.amount,
+                extId: e.externalId
+            });
 
-            if (catName.startsWith('01.1') || catName.startsWith('01.2')) {
+            if (catName.startsWith('01.1') || catName.startsWith('01.2') || catName.startsWith('01 ')) {
                 totalRevenue += e.amount;
             }
-            if (catName.startsWith('02.1')) {
+            if (catName.startsWith('02.1') || catName.startsWith('2.1')) {
                 totalTaxes += e.amount;
             }
             if (e.externalId?.startsWith('SALE-')) {
@@ -47,7 +47,7 @@ export async function GET(request: Request) {
 
         return NextResponse.json({
             success: true,
-            version: '0.9.27-diag-v2',
+            version: '0.9.29-deep-diag',
             jan2026: {
                 totalRevenue,
                 totalTaxes,

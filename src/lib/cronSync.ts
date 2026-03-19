@@ -124,41 +124,55 @@ export async function fetchSalesForYear(accessToken: string, targetYear: number,
     const startStr = `${targetYear}-01-01`;
     const endStr = `${targetYear}-12-31`;
 
-    while (hasMore && page <= 50) {
+    while (hasMore && page <= 10) {
         const url = `https://api-v2.contaazul.com/v1/venda/busca?data_inicio=${startStr}&data_fim=${endStr}&pagina=${page}&tamanho_pagina=100`;
         try {
             const res = await fetch(url, { headers: { 'Authorization': `Bearer ${accessToken}` } });
             if (!res.ok) {
-                if (pushLog) pushLog(`[SALES] API Error ${res.status} on ${url}`);
+                if (pushLog) pushLog(`[SALES] HTTP Error ${res.status} on ${url}`);
                 break;
             }
 
-            const data = await res.json();
+            const rawText = await res.text();
+            if (pushLog && page === 1) pushLog(`[SALES] RAW RESPONSE (first 200 chars): ${rawText.substring(0, 200)}`);
+            
+            const data = JSON.parse(rawText);
             const items = data.itens || data.items || [];
+            
             if (!Array.isArray(items) || items.length === 0) {
-                if (pushLog && page === 1) pushLog(`[SALES] No items returned for ${targetYear}`);
+                if (pushLog && page === 1) pushLog(`[SALES] No sales items array found in response.`);
                 break;
             }
 
-            if (pushLog && page === 1) pushLog(`[SALES] Fetched ${items.length} records. Sample #0 ID: ${items[0].id}, Total: ${items[0].valor_total}`);
+            if (pushLog && page === 1) {
+                const sample = items[0];
+                pushLog(`[SALES] First Item ID type: ${typeof sample.id}, val: ${sample.id}`);
+                pushLog(`[SALES] First Item Status type: ${typeof (sample.status || sample.situacao)}, val: ${sample.status || sample.situacao}`);
+                pushLog(`[SALES] First Item Total type: ${typeof sample.valor_total}, val: ${sample.valor_total}`);
+            }
 
             for (const sale of items) {
-                const status = String(sale.status || sale.situacao || '').toUpperCase();
-                if (status.includes('CANCEL')) continue;
+                const statusStr = String(sale.status || sale.situacao || '').toUpperCase();
+                if (statusStr.includes('CANCEL')) continue;
 
-                const dateStr = String(sale.data_emissao || sale.data_venda || sale.data || '');
+                // V1 Emission Date is often 'data_emissao' or 'data_venda'
+                const dateRaw = sale.data_emissao || sale.data_venda || sale.data || '';
+                const dateStr = String(dateRaw);
                 if (!dateStr) continue;
 
-                const [yStr, mStr] = dateStr.includes('T') ? dateStr.split('T')[0].split('-') : dateStr.split('-');
-                const itemYear = parseInt(yStr);
-                const itemMonth = parseInt(mStr);
+                // Robust Date extraction (finds YYYY-MM)
+                const dateMatch = dateStr.match(/(\d{4})-(\d{2})/);
+                if (!dateMatch) continue;
+
+                const itemYear = parseInt(dateMatch[1]);
+                const itemMonth = parseInt(dateMatch[2]);
                 if (itemYear !== targetYear) continue;
 
                 const saleAmount = parseFloat(String(sale.valor_total || sale.total || 0));
                 
                 salesData.push({
-                    id: sale.id,
-                    description: `Venda ${sale.numero || sale.id}: ${sale.cliente?.nome || 'Consumidor'}`,
+                    id: String(sale.id),
+                    description: `Venda ${sale.numero || sale.id}: ${sale.cliente?.nome || 'Cliente'}`,
                     month: itemMonth,
                     amount: saleAmount,
                     categoryId: sale.id_categoria || sale.category_id,
@@ -172,9 +186,10 @@ export async function fetchSalesForYear(accessToken: string, targetYear: number,
                                 parseFloat(String(ret.csll || 0)) + 
                                 parseFloat(String(ret.pis || 0)) + 
                                 parseFloat(String(ret.cofins || 0));
+                
                 if (totalRet > 0) {
                     salesData.push({
-                        id: sale.id,
+                        id: String(sale.id),
                         description: `Retenção Impostos - Venda ${sale.numero || sale.id}`,
                         month: itemMonth,
                         amount: totalRet,
@@ -188,7 +203,7 @@ export async function fetchSalesForYear(accessToken: string, targetYear: number,
             if (items.length < 100) hasMore = false;
             else page++;
         } catch (e: any) {
-            if (pushLog) pushLog(`[SALES] Exception: ${e.message}`);
+            if (pushLog) pushLog(`[SALES] Catch Error: ${e.message}`);
             hasMore = false;
         }
     }

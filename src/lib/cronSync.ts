@@ -143,9 +143,10 @@ export async function fetchSalesForYear(accessToken: string, targetYear: number,
             if (pushLog && page === 1) pushLog(`[SALES] Fetched ${items.length} records. Sample #0 ID: ${items[0].id}, Total: ${items[0].valor_total}`);
 
             for (const sale of items) {
-                if ((sale.status || sale.situacao || '').toUpperCase().includes('CANCEL')) continue;
+                const status = String(sale.status || sale.situacao || '').toUpperCase();
+                if (status.includes('CANCEL')) continue;
 
-                const dateStr = sale.data_emissao || sale.data_venda || sale.data || '';
+                const dateStr = String(sale.data_emissao || sale.data_venda || sale.data || '');
                 if (!dateStr) continue;
 
                 const [yStr, mStr] = dateStr.includes('T') ? dateStr.split('T')[0].split('-') : dateStr.split('-');
@@ -153,18 +154,24 @@ export async function fetchSalesForYear(accessToken: string, targetYear: number,
                 const itemMonth = parseInt(mStr);
                 if (itemYear !== targetYear) continue;
 
+                const saleAmount = parseFloat(String(sale.valor_total || sale.total || 0));
+                
                 salesData.push({
                     id: sale.id,
                     description: `Venda ${sale.numero || sale.id}: ${sale.cliente?.nome || 'Consumidor'}`,
                     month: itemMonth,
-                    amount: sale.valor_total || sale.total || 0,
+                    amount: saleAmount,
                     categoryId: sale.id_categoria || sale.category_id,
                     costCenterId: sale.id_centro_custo || sale.cost_center_id,
                     isRetention: false
                 });
 
                 const ret = sale.retencoes || {};
-                const totalRet = (ret.iss || 0) + (ret.irrf || 0) + (ret.csll || 0) + (ret.pis || 0) + (ret.cofins || 0);
+                const totalRet = parseFloat(String(ret.iss || 0)) + 
+                                parseFloat(String(ret.irrf || 0)) + 
+                                parseFloat(String(ret.csll || 0)) + 
+                                parseFloat(String(ret.pis || 0)) + 
+                                parseFloat(String(ret.cofins || 0));
                 if (totalRet > 0) {
                     salesData.push({
                         id: sale.id,

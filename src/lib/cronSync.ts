@@ -21,7 +21,15 @@ async function getValidAccessToken(tenantId: string) {
     }
 }
 
-async function fetchAllTransactionsForYear(accessToken: string, url: string, targetYear: number, viewMode: string, isExpense: boolean, pushLog?: (msg: string) => void): Promise<any[]> {
+async function fetchAllTransactionsForYear(
+    accessToken: string, 
+    url: string, 
+    endpointName: string,
+    targetYear: number, 
+    viewMode: string, 
+    isExpense: boolean, 
+    pushLog?: (msg: string) => void
+): Promise<any[]> {
     let page = 1;
     let hasMore = true;
     const allItems: any[] = [];
@@ -31,7 +39,10 @@ async function fetchAllTransactionsForYear(accessToken: string, url: string, tar
             const separator = url.includes('?') ? '&' : '?';
             const fullUrl = `${url}${separator}pagina=${page}&tamanho_pagina=100`;
             const res = await fetch(fullUrl, { headers: { 'Authorization': `Bearer ${accessToken}` } });
-            if (!res.ok) break;
+            if (!res.ok) {
+                if (pushLog) pushLog(`[API ERROR] ${endpointName} (Page ${page}) Status: ${res.status}`);
+                break;
+            }
             const data = await res.json();
             const itemList = Array.isArray(data) ? data : (data.vendas || data.itens || data.eventos || []);
 
@@ -109,8 +120,8 @@ export async function runCronSync(reqYear: number, tenantId?: string) {
             pushLog(`[SYNC] [${t.name}] Token renovado. Iniciando carga...`);
 
             for (const viewMode of ['competencia', 'caixa'] as const) {
-                const startStr = `${reqYear - 1}-01-01`;
-                const endStr = `${reqYear + 1}-12-31`;
+                const startStr = `01/01/${reqYear - 1}`;
+                const endStr = `31/12/${reqYear + 1}`;
 
                 const endpoints = viewMode === 'caixa' ? [
                     { name: 'Recebimentos', url: 'https://api-v2.contaazul.com/v1/financeiro/eventos-financeiros/contas-a-receber/buscar', isExpense: false },
@@ -134,7 +145,7 @@ export async function runCronSync(reqYear: number, tenantId?: string) {
                             : `data_vencimento_inicio=${startStr}&data_vencimento_fim=${endStr}`;
                     }
 
-                    const items = await fetchAllTransactionsForYear(token, ep.url + '?' + dateParams, reqYear, viewMode, ep.isExpense, pushLog);
+                    const items = await fetchAllTransactionsForYear(token, ep.url + '?' + dateParams, ep.name, reqYear, viewMode, ep.isExpense, pushLog);
                     
                     if (items.length > 0 && !firstItemInfo) {
                         const it = items[0];

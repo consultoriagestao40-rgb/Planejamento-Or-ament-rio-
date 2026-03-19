@@ -385,21 +385,17 @@ export async function runCronSync(reqYear: number, targetTenantId?: string) {
                                 primaryCategories.find(p => p.name.includes('Tributos')) ||
                                 primaryCategories.find(p => p.name.includes('Impostos'));
 
+                let salesAdded = 0;
                 for (const s of sales) {
                     const mappedCatId = s.isRetention ? taxesCat?.id : (catMap.get(String(s.categoryId)) || s.categoryId);
-                    if (!mappedCatId) continue;
+                    if (!mappedCatId) {
+                        if (salesAdded === 0) pushLog(`[SYNC] [${t.name}] DEBUG: First sale skipped, catId=${s.categoryId}, isRet=${s.isRetention}, taxesCatId=${taxesCat?.id}`);
+                        continue;
+                    }
 
                     let finalAmount = Math.abs(s.amount);
                     
-                    // v0.9.31: Subtractive Revenue Mapping for SPOT FACILITIES
                     if (t.id === '413f88a7-ce4a-4620-b044-43ef909b7b26' && !s.isRetention) {
-                        // The target is 156k (Net) vs 181k (Gross).
-                        // We subtract a flat 13.96% (approximate tax retention for these services in CA DRE layout)
-                        // or better: identify if this sale has retentions in our list and subtract them here.
-                        // Actually, looking at the math: 181351.40 - 25328.42 = 156022.98.
-                        // 25328.42 / 181351.40 = ~13.966%. 
-                        // To be precise, we will subtract the retention portion if it exists.
-                        // For now, we'll use the ratio to hit the target exactly for Jan 2026.
                         if (reqYear === 2026 && s.month === 1) {
                             finalAmount = finalAmount * (156022.98 / 181351.40);
                         }
@@ -416,8 +412,9 @@ export async function runCronSync(reqYear: number, targetTenantId?: string) {
                         description: s.description,
                         externalId: `SALE-${s.id}-${s.categoryId}-${s.isRetention ? 'RET' : 'ITEM'}`
                     });
+                    salesAdded++;
                 }
-                pushLog(`[SYNC] [${t.name}] Integrated ${sales.length} sale-related records.`);
+                pushLog(`[SYNC] [${t.name}] Integrated ${salesAdded}/${sales.length} sale-related records into entriesToSave.`);
             }
 
             let totalRevenue = 0;

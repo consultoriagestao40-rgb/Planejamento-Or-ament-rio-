@@ -324,107 +324,36 @@ export async function runCronSync(reqYear: number, targetTenantId?: string) {
             
             const entriesToSave: any[] = [];
             const endpoints = [
-                { url: `https://api-v2.contaazul.com/v1/financeiro/eventos-financeiros/contas-a-receber/buscar`, isExpense: false },
-                { url: `https://api-v2.contaazul.com/v1/financeiro/eventos-financeiros/contas-a-pagar/buscar`, isExpense: true },
-                { url: `https://api-v2.contaazul.com/v1/financeiro/eventos-financeiros/outros-recebimentos/buscar`, isExpense: false },
-                { url: `https://api-v2.contaazul.com/v1/financeiro/eventos-financeiros/outros-pagamentos/buscar`, isExpense: true },
-                { url: `https://api-v2.contaazul.com/v1/financeiro/eventos-financeiros/outras-receitas/buscar`, isExpense: false },
-                { url: `https://api-v2.contaazul.com/v1/financeiro/eventos-financeiros/outras-despesas/buscar`, isExpense: true }
+                { url: `https://api.contaazul.com/v1/recebimentos`, isExpense: false, name: 'RECEIVABLES' },
+                { url: `https://api.contaazul.com/v1/pagamentos`, isExpense: true, name: 'PAYABLES' }
             ];
 
-            // PRECISE REVENUE FILTER: Get all Raw IDs for revenue categories to ensure filter works
-            const revenueRawIds = categoriesDb
-                .filter(c => c.name.startsWith('01.1') || c.name.startsWith('01.2'))
-                .map(c => c.id.includes(':') ? c.id.split(':')[1] : c.id);
-
-            // v0.9.28: Robust ID exclusion for auto-generated financial noise in Jan/2026
-            const excludedRawIds = [
-                // Revenue (Financial)
-                'fce41170-e8b6-449f-bcfe-11202ef3a9ea', 'ff1133d9-438c-418f-9fbd-7aaea606c089', 
-                'a5e9a3c0-464b-4ee8-97c2-41589c16cb39', 'f6c46473-0ec2-4e40-a321-cf0668990a33', 
-                'c3c491af-26f8-4260-9958-64222c73dffd', '447a5886-192d-486e-bdea-bc0a25a777b9',
-                'f39eaeaa-5716-4261-8be3-4f199ad33339',
-                '3052f946-18d7-4327-8b43-429cdacbec58', '1452e2b7-3968-4370-9173-412736e4d1df', 
-                '0b6d812d-e9f2-476f-972b-55515225566f', '766f2181-e154-4b58-b073-ccdbb714562f',
-                '514d81fe-c366-4714-8243-39bbb4bc9e55', // v0.9.31: Duplicate Sefaz Revenue
-                // Salaries (Financial noise)
-                '29d3f340-fb99-4a45-8322-3dc3ae43efd1', '0f74ee3e-ed1e-4df8-9672-270873dc22b9', 
-                'aba9621d-1f86-4356-b1a1-8193bbecb423', '23b9c662-feca-4284-a11d-39bce5c233fc'
-            ];
-
+            // In v0.9.36, we use ONLY financial events filtered by competence to match CA's "Visão de Competência" report.
             const transactions: any[] = [];
             for (const ep of endpoints) {
                 const dateFilterPrefix = isCaixa ? 'data_vencimento' : 'data_competencia';
                 const fullUrl = `${ep.url}?${dateFilterPrefix}_de=${startStr}&${dateFilterPrefix}_ate=${endStr}&tamanho_pagina=100`;
                 const items = await fetchAllTransactionsForYear(token, fullUrl, reqYear, viewMode, ep.isExpense);
                 
-                const filteredItems = items; // 1:1 Mirroring: No exclusions
-                transactions.push(...filteredItems.map(tx => ({ ...tx, isExpense: ep.isExpense })));
-            }
-
-            // 2. FETCH DATA FROM SALES MODULE (Only for Competencia Mode)
-            if (viewMode === 'competencia') {
-                pushLog(`[SYNC] [${t.name}] Fetching Sales Module data...`);
-                const sales = await fetchSalesForYear(token, reqYear, pushLog);
-                
-                // Find the DB ID for the Taxes category (02.1)
-                const taxesCat = primaryCategories.find(p => p.name.includes('02.1')) || 
-                                primaryCategories.find(p => p.name.includes('Tributos')) ||
-                                primaryCategories.find(p => p.name.includes('Impostos'));
-
-                // Find the DB ID for the Revenue category (01.1.1)
-                const revenueCat = primaryCategories.find(p => p.name.includes('01.1.1')) || 
-                                 primaryCategories.find(p => p.name.includes('Serviços Vendidos'));
-
-                let salesAdded = 0;
-                for (const s of sales) {
-                    let mappedCatId = s.isRetention ? taxesCat?.id : (catMap.get(String(s.categoryId)) || s.categoryId);
-                    
-                    // Fallback to 01.1.1 for service sales without mapped category
-                    if (!mappedCatId && !s.isRetention) {
-                        mappedCatId = revenueCat?.id;
-                    }
-
-                    if (!mappedCatId) continue;
-
-                    let finalAmount = Math.abs(s.amount);
-                    
-                    entriesToSave.push({
-                        tenantId: primaryId,
-                        categoryId: mappedCatId,
-                        costCenterId: ccMap.get(String(s.costCenterId)) || null,
-                        month: s.month,
-                        year: reqYear,
-                        amount: finalAmount,
-                        viewMode,
-                        description: s.description,
-                        externalId: `SALE-${s.id}-${s.categoryId}-${s.isRetention ? 'RET' : 'ITEM'}`
-                    });
-                    salesAdded++;
-                }
-                pushLog(`[SYNC] [${t.name}] Integrated ${salesAdded}/${sales.length} sale-related records into entriesToSave.`);
+                transactions.push(...items.map(tx => ({ ...tx, isExpense: ep.isExpense })));
             }
 
             let totalRevenue = 0;
             let totalExpense = 0;
-
             const aggregates = new Map<string, { amount: number, desc: string }>();
             const processedIds = new Set<string>();
 
             for (const txn of transactions) {
                 if (processedIds.has(txn.id)) continue;
                 processedIds.add(txn.id);
-                // Track total raw amounts for diagnostic
                 const absAmt = Math.abs(txn.amount);
                 if (txn.amount > 0) totalRevenue += absAmt;
                 else totalExpense += absAmt;
                 
-                if (txn.categories.length === 0) {
+                if (!txn.categories || txn.categories.length === 0) {
                     pushLog(`[SYNC] [${t.name}] Item ${txn.id} skipped - No categories.`);
                     continue;
                 }
-
-                // No restrictive filters here anymore. We capture what the API gives us.
 
                 const leaves = txn.categories.filter((c: any) => {
                     const cid = c.id;
@@ -443,7 +372,7 @@ export async function runCronSync(reqYear: number, targetTenantId?: string) {
                 for (const cat of catEntries) {
                     if (!cat.dbId) continue;
                     
-                    if (txn.costCenters.length === 0) {
+                    if (!txn.costCenters || txn.costCenters.length === 0) {
                         const key = `${cat.dbId}|NONE|${txn.month}`;
                         if (!aggregates.has(key)) aggregates.set(key, { amount: 0, desc: txn.description || '' });
                         aggregates.get(key)!.amount += cat.amount;
@@ -470,66 +399,23 @@ export async function runCronSync(reqYear: number, targetTenantId?: string) {
                 }
             }
 
-            pushLog(`[SYNC] [${t.name}] Raw Revenue: ${totalRevenue.toFixed(2)}, Raw Expense: ${totalExpense.toFixed(2)}. Net: ${(totalRevenue - totalExpense).toFixed(2)}`);
+            pushLog(`[SYNC] [${t.name}] [${viewMode}] Raw Revenue: ${totalRevenue.toFixed(2)}, Raw Expense: ${totalExpense.toFixed(2)}.`);
 
-            for (const txn of transactions) {
-                // Ensure we handle multiple categories per transaction
-                for (const cat of txn.categories) {
-                    const catId = catMap.get(String(cat.id));
-                    if (!catId) {
-                        pushLog(`[SYNC] [${t.name}] SKIPPED CATEGORY: ${cat.id} (${cat.nome || 'No Name'}) in txn ${txn.id}`);
-                        continue;
-                    }
-
-                    let amount = Math.abs(cat.valor || (txn.amount / txn.categories.length));
-                    
-                    if (txn.costCenters && txn.costCenters.length > 0) {
-                        let totalCcAllocated = 0;
-                        let unallocatedCount = 0;
-                        const ccSplits = txn.costCenters.map((cc: any) => {
-                            let exp = null;
-                            if (typeof cc.valor === 'number') exp = Math.abs(cc.valor);
-                            else if (typeof cc.percentual === 'number') exp = amount * (cc.percentual / 100);
-                            if (exp !== null) totalCcAllocated += exp; else unallocatedCount++;
-                            return { dbId: ccMap.get(String(cc.id)), amount: exp };
-                        });
-                        const rem = Math.max(0, amount - totalCcAllocated);
-                        const fallback = unallocatedCount > 0 ? (rem / unallocatedCount) : 0;
-
-                        for (const cc of ccSplits) {
-                            const ccId = cc.dbId || null;
-                            const val = cc.amount !== null ? cc.amount : (unallocatedCount > 0 ? fallback : (amount / ccSplits.length));
-                            
-                            // v0.9.34: 1:1 Mapping (No forced grouping as per user request)
-                            entriesToSave.push({
-                                tenantId: primaryId,
-                                categoryId: catId,
-                                costCenterId: ccId,
-                                month: txn.month,
-                                year: reqYear,
-                                amount: val,
-                                viewMode,
-                                description: txn.description || 'Sem descrição',
-                                externalId: `${txn.id}-${cat.id}-${cc.id || 'NONE'}`
-                            });
-                        }
-                    } else {
-                        // v0.9.34: 1:1 Mapping (No forced grouping as per user request)
-                        entriesToSave.push({
-                            tenantId: primaryId,
-                            categoryId: catId,
-                            costCenterId: null,
-                            month: txn.month,
-                            year: reqYear,
-                            amount: amount,
-                            viewMode,
-                            description: txn.description || 'Sem descrição',
-                            externalId: `${txn.id}-${cat.id}-G`
-                        });
-                    }
-                }
+            for (const [key, data] of aggregates.entries()) {
+                const [categoryId, costCenterId, month] = key.split('|');
+                entriesToSave.push({
+                    tenantId: primaryId,
+                    categoryId,
+                    costCenterId: costCenterId === 'NONE' ? null : costCenterId,
+                    month: parseInt(month),
+                    year: reqYear,
+                    amount: data.amount,
+                    viewMode,
+                    description: data.desc || 'Mapped Transaction',
+                    externalId: `FIN-${categoryId}-${costCenterId}-${month}-${viewMode}`
+                });
             }
-
+        
             if (entriesToSave.length > 0) {
                 pushLog(`[SYNC] [${t.name}] Attempting to save ${entriesToSave.length} individual transactions to DB...`);
                 try {

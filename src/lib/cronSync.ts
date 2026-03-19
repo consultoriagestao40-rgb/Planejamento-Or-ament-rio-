@@ -126,42 +126,40 @@ export async function fetchSalesForYear(accessToken: string, targetYear: number)
     const endStr = `${targetYear}-12-31`;
 
     while (hasMore && page <= 50) {
-        const url = `https://api-v2.contaazul.com/v1/vendas?data_inicio=${startStr}&data_fim=${endStr}&pagina=${page}&tamanho_pagina=100`;
+        const url = `https://api-v2.contaazul.com/v1/venda/busca?data_inicio=${startStr}&data_fim=${endStr}&pagina=${page}&tamanho_pagina=100`;
         try {
             const res = await fetch(url, { headers: { 'Authorization': `Bearer ${accessToken}` } });
             if (!res.ok) break;
 
             const data = await res.json();
-            const items = data.itens || data.items || data || [];
+            const items = data.itens || data.items || [];
             if (!Array.isArray(items) || items.length === 0) break;
 
             for (const sale of items) {
-                if ((sale.status || '').toUpperCase().includes('CANCEL')) continue;
+                if ((sale.status || sale.situacao || '').toUpperCase().includes('CANCEL')) continue;
 
-                const dateStr = sale.data_emissao || sale.data || '';
+                const dateStr = sale.data_emissao || sale.data_venda || sale.data || '';
                 if (!dateStr) continue;
 
-                const [yStr, mStr] = dateStr.split('-');
+                const [yStr, mStr] = dateStr.includes('T') ? dateStr.split('T')[0].split('-') : dateStr.split('-');
                 const itemYear = parseInt(yStr);
                 const itemMonth = parseInt(mStr);
                 if (itemYear !== targetYear) continue;
 
-                // Revenue Distribution (Items)
-                // Note: Each sale can have multiple items, each with a category
-                const products = sale.itens || [];
-                for (const prod of products) {
-                    salesData.push({
-                        id: sale.id,
-                        description: `Venda ${sale.numero || sale.id}: ${prod.descricao || ''}`,
-                        month: itemMonth,
-                        amount: prod.valor_total || (prod.valor_unitario * prod.quantidade) || 0,
-                        categoryId: prod.id_categoria, // Directly from Sale Item
-                        costCenterId: sale.id_centro_custo,
-                        isRetention: false
-                    });
-                }
+                // Revenue Distribution
+                // Note: v1 searchvendas returns the sale summary. 
+                // We use the root category and total value as requested for 'Visão de Competência'
+                salesData.push({
+                    id: sale.id,
+                    description: `Venda ${sale.numero || sale.id}: ${sale.cliente?.nome || ''}`,
+                    month: itemMonth,
+                    amount: sale.valor_total || sale.total || 0,
+                    categoryId: sale.id_categoria || sale.category_id,
+                    costCenterId: sale.id_centro_custo || sale.cost_center_id,
+                    isRetention: false
+                });
 
-                // Tax Retentions
+                // Tax Retentions (if available in the response)
                 const ret = sale.retencoes || {};
                 const totalRet = (ret.iss || 0) + (ret.irrf || 0) + (ret.csll || 0) + (ret.pis || 0) + (ret.cofins || 0);
                 if (totalRet > 0) {
@@ -170,8 +168,8 @@ export async function fetchSalesForYear(accessToken: string, targetYear: number)
                         description: `Retenção Impostos - Venda ${sale.numero || sale.id}`,
                         month: itemMonth,
                         amount: totalRet,
-                        categoryId: 'TRIBUTOS_PLACEHOLDER', // Will be mapped to 02.1
-                        costCenterId: sale.id_centro_custo,
+                        categoryId: 'TRIBUTOS_PLACEHOLDER', 
+                        costCenterId: sale.id_centro_custo || sale.cost_center_id,
                         isRetention: true
                     });
                 }
@@ -312,7 +310,7 @@ export async function runCronSync(reqYear: number, targetTenantId?: string) {
                 const filteredItems = items.filter(tx => {
                     if (viewMode === 'competencia' && !ep.isExpense) {
                         const hasRevenueCat = tx.categories.some((c: any) => {
-                            const name = (c.nome || '').trim();
+                            const name = (c.nome || c.name || '').trim();
                             return name.startsWith('01.1') || name.startsWith('01.2');
                         });
                         return !hasRevenueCat;

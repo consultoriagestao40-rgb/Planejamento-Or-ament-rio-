@@ -8,23 +8,25 @@ export async function GET() {
     try {
 
         const allTenants = await prisma.tenant.findMany({
-            orderBy: { updatedAt: 'desc' }
+            select: { id: true, name: true, cnpj: true },
+            orderBy: { name: 'asc' }
         });
 
         const entityMap = new Map();
         const deduplicatedTenants = [];
 
         for (const t of allTenants) {
-            const key = (t.name || '').trim().toUpperCase().replace(/[^A-Z0-9]/g, '');
+            const key = (t.cnpj || t.name || '').trim().toUpperCase().replace(/[^A-Z0-9]/g, '');
             
             if (!entityMap.has(key)) {
                 entityMap.set(key, t.id);
-                deduplicatedTenants.push(t);
+                deduplicatedTenants.push({ id: t.id, name: t.name });
             }
         }
 
         return NextResponse.json({ success: true, companies: deduplicatedTenants });
     } catch (e: any) {
+        console.error("[COMPANIES API] Error:", e.message);
         return NextResponse.json({ success: false, error: e.message }, { status: 500 });
     }
 }

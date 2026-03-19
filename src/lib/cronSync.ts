@@ -110,7 +110,7 @@ export async function fetchSalesForYear(accessToken: string, targetYear: number,
     return salesData;
 }
 
-export async function runCronSync(reqYear: number, pushLog?: (msg: string) => void) {
+export async function runCronSync(reqYear: number, tenantId?: string, pushLog?: (msg: string) => void) {
     if (pushLog) pushLog(`[SYNC] Invocando Sincronização v0.9.49 - Mirror 1:1 [Year ${reqYear}]`);
     
     const tenants = await prisma.tenant.findMany();
@@ -123,7 +123,8 @@ export async function runCronSync(reqYear: number, pushLog?: (msg: string) => vo
 
     const report = [];
 
-    for (const t of tenants) {
+    const targets = tenantId ? tenants.filter(t => t.id === tenantId) : tenants;
+    for (const t of targets) {
         try {
             const primaryId = await getPrimaryTenantId(t.id);
             const allEntityIds = await getAllVariantIds(t.id);

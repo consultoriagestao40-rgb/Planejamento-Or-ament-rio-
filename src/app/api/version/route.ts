@@ -6,9 +6,9 @@ export async function GET() {
     return NextResponse.json({
         ok: true,
         rev: "v0.9.27-deep-diag",
-        version: '0.9.74',
+        version: '0.9.75',
         timestamp: new Date().toISOString(),
-        message: 'Version 0.9.74 - Sync Item Counter v1',
+        message: 'Version 0.9.75 - Raw SPOT DB Auditor v1',
         status: "STABLE"
     });
 }

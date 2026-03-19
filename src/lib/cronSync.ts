@@ -1,115 +1,25 @@
-import { prisma } from '@/lib/prisma';
-import { getValidAccessToken } from '@/lib/services';
-import { getPrimaryTenantId, getAllVariantIds } from '@/lib/tenant-utils';
+import { prisma } from './prisma';
 
-export async function fetchAllTransactionsForYear(accessToken: string, baseUrl: string, targetYear: number, viewMode: 'caixa' | 'competencia', isExpense = false, pushLog?: (msg: string) => void) {
-    let page = 1;
-    let hasMore = true;
-    const transactions: any[] = [];
-
-    while (hasMore && page <= 50) {
-        const cacheBuster = `t=${Date.now()}_${Math.random().toString(36).substring(7)}`;
-        const url = `${baseUrl.includes('?') ? baseUrl : baseUrl + '?'}&pagina=${page}&tamanho_pagina=100&itens_por_pagina=100&cb=${cacheBuster}`;
-        try {
-            const res = await fetch(url, { 
-                headers: { 'Authorization': `Bearer ${accessToken}` },
-                cache: 'no-store'
-            });
-            
-            const rawText = await res.text();
-            if (!res.ok) {
-                if (pushLog) pushLog(`[API ERROR] status=${res.status} url=${url.split('?')[0]}`);
-                break;
-            }
-
-            const data = JSON.parse(rawText);
-            const items = Array.isArray(data) ? data : (data.itens || data.items || []);
-            
-            if (page === 1 && pushLog) {
-                pushLog(`[DEBUG] Page 1: status=${res.status} items=${items.length} raw=${rawText.substring(0, 150)}`);
-            }
-            
-            if (items.length === 0) break;
-
-            for (const item of items) {
-                if ((item.status || '').toUpperCase().includes('CANCEL')) continue;
-
-                let dateStr: string;
-                let amount: number;
-
-                const rawAmount = item.pago || item.valor_pago || item.valor || item.amount || item.total || 0;
-                amount = Math.abs(rawAmount);
-
-                if (viewMode === 'caixa') {
-                    dateStr = item.data_pagamento || item.baixado_em || item.data_vencimento || item.vencimento;
-                    const status = (item.status || '').toUpperCase();
-                    const isPaid = status === 'BAIXADO' || status === 'RECEBIDO' || status === 'PAGO' || status === 'QUITADO' || status === 'ACQUITTED' || 
-                                   (item.pago && item.pago > 0) || (item.valor_total_pago && item.valor_total_pago > 0) || (item.valor_pago && item.valor_pago > 0);
-                    if (!isPaid) continue;
-                } else {
-                    dateStr = item.data || item.data_competencia || item.data_emissao || item.data_vencimento || item.vencimento;
-                }
-
-                if (!dateStr) continue;
-                let itemYear = 0;
-                let itemMonth = 0;
-
-                if (dateStr.includes('/')) {
-                    const parts = dateStr.split('/');
-                    itemYear = parseInt(parts[2]);
-                    itemMonth = parseInt(parts[1]);
-                } else {
-                    const [yStr, mStr] = dateStr.includes('T') ? dateStr.split('T')[0].split('-') : dateStr.split('-');
-                    itemYear = parseInt(yStr);
-                    itemMonth = parseInt(mStr);
-                }
-                
-                if (itemYear !== targetYear) continue;
-
-                transactions.push({
-                    id: item.id,
-                    description: item.descricao,
-                    month: itemMonth,
-                    amount: isExpense ? -Math.abs(amount) : Math.abs(amount),
-                    categories: item.categorias || [],
-                    costCenters: item.centros_de_custo || []
-                });
-            }
-
-            if (items.length < 100) hasMore = false;
-            else page++;
-        } catch (e: any) {
-            if (pushLog) pushLog(`[FETCH CRASH] ${e.message}`);
-            hasMore = false;
-        }
-    }
-
-    return transactions;
+async function getValidAccessToken(tenantId: string) {
+    const t = await prisma.tenant.findUnique({ where: { id: tenantId } });
+    if (!t || !t.accessToken) throw new Error("No token for tenant " + tenantId);
+    return t.accessToken;
 }
 
-export async function fetchSalesForYear(accessToken: string, targetYear: number, pushLog?: (msg: string) => void) {
+async function fetchAllTransactionsForYear(accessToken: string, url: string, targetYear: number, viewMode: string, isExpense: boolean, pushLog?: (msg: string) => void): Promise<any[]> {
     let page = 1;
     let hasMore = true;
-    const salesData: any[] = [];
-    const startStr = `${targetYear}-01-01`;
-    const endStr = `${targetYear}-12-31`;
+    const allItems: any[] = [];
 
-    let url = `https://api-v2.contaazul.com/v1/venda/busca?data_inicio=${startStr}&data_fim=${endStr}&tamanho_pagina=100`;
-
-    while (hasMore && page <= 50) {
+    while (hasMore) {
         try {
-            const res = await fetch(`${url}&pagina=${page}`, { headers: { 'Authorization': `Bearer ${accessToken}` } });
+            const separator = url.includes('?') ? '&' : '?';
+            const fullUrl = `${url}${separator}pagina=${page}&tamanho_pagina=100`;
+            const res = await fetch(fullUrl, { headers: { 'Authorization': `Bearer ${accessToken}` } });
             if (!res.ok) break;
             const data = await res.json();
-            const itemList = Array.isArray(data) ? data : (data.itens || data.eventos || data.vendas || []);
-        
-            if (pushLog && itemList.length > 0) {
-                const first = itemList[0];
-                if (first) {
-                    pushLog(`[API DEBUG] [FIRST ITEM] ID: ${first.id}, Data: ${first.data}, Comp: ${first.data_competencia}, Venc: ${first.data_vencimento}, Liq: ${first.data_liquidacao}`);
-                }
-            }
-            
+            const itemList = Array.isArray(data) ? data : (data.vendas || data.itens || data.eventos || []);
+
             if (itemList.length === 0) {
                 hasMore = false;
                 break;
@@ -117,27 +27,49 @@ export async function fetchSalesForYear(accessToken: string, targetYear: number,
 
             for (const item of itemList) {
                 if ((item.status || '').includes('CANCEL')) continue;
-                const dStr = item.data_venda || item.data || '';
-                const m = parseInt(dStr.split('-')[1]);
-                if (m) {
-                    salesData.push({ month: m, amount: item.valor_total || item.valor || 0 });
+                
+                // DATE PARSING - CA V1 formats: "DD/MM/YYYY" or "YYYY-MM-DD"
+                const dateStr = item.data || item.data_competencia || item.data_vencimento || item.data_liquidacao || item.data_venda;
+                if (!dateStr) continue;
+
+                let itemYear = 0;
+                let itemMonth = 0;
+
+                if (dateStr.includes('/')) {
+                    const parts = dateStr.split('/');
+                    itemYear = parseInt(parts[2]);
+                    itemMonth = parseInt(parts[1]);
+                } else if (dateStr.includes('-')) {
+                    const parts = dateStr.split('-');
+                    itemYear = parseInt(parts[0]);
+                    itemMonth = parseInt(parts[1]);
                 }
+
+                if (itemYear !== targetYear) continue;
+
+                allItems.push({
+                    id: item.id || `TX-${Math.random()}`,
+                    description: item.description || item.memo || item.nome_cliente || item.cliente?.nome || 'CONTA AZUL SYNC',
+                    amount: item.valor || item.valor_total || item.valor_liquido || 0,
+                    month: itemMonth,
+                    categories: item.categorias || (item.categoria ? [item.categoria] : []),
+                    costCenters: item.centros_custo || (item.centro_custo ? [item.centro_custo] : [])
+                });
             }
-            if (itemList.length < 100) hasMore = false;
+
+            if (itemList.length < 10) hasMore = false;
             else page++;
+            if (page > 100) hasMore = false;
         } catch (e) { hasMore = false; }
     }
-    return salesData;
+    return allItems;
 }
 
 export async function runCronSync(reqYear: number, tenantId?: string, pushLog?: (msg: string) => void) {
-    if (pushLog) pushLog(`[SYNC] Invocando Sincronização v0.9.49 - Mirror 1:1 [Year ${reqYear}]`);
-    
     const tenants = await prisma.tenant.findMany();
     const allCategories = await prisma.category.findMany();
     const allCostCenters = await prisma.costCenter.findMany();
 
-    // ID Map - Map RAW CA ID -> COMPOSITE DB ID
     const catMap = new Map<string, string>();
     allCategories.forEach(c => {
         const rawId = c.id.includes(':') ? c.id.split(':')[1] : c.id;
@@ -151,21 +83,17 @@ export async function runCronSync(reqYear: number, tenantId?: string, pushLog?: 
     });
 
     const report = [];
-
     const targets = tenantId ? tenants.filter(t => t.id === tenantId) : tenants;
+
     for (const t of targets) {
         try {
-            const primaryId = await getPrimaryTenantId(t.id);
-            const allEntityIds = await getAllVariantIds(t.id);
-            const authResponse = await getValidAccessToken(primaryId);
-            const token = typeof authResponse === 'string' ? authResponse : (authResponse as any).token;
-
-            if (pushLog) pushLog(`[SYNC] [${t.name}] Iniciando...`);
+            const token = await getValidAccessToken(t.id);
+            if (pushLog) pushLog(`[SYNC] [${t.name}] Iniciando integração...`);
 
             for (const viewMode of ['competencia', 'caixa'] as const) {
-                const startStr = `${reqYear - 1}-01-01`; 
-                const endStr = `${reqYear + 1}-12-31`;   
-                
+                const startStr = `${reqYear - 1}-01-01`;
+                const endStr = `${reqYear + 1}-12-31`;
+
                 const endpoints = viewMode === 'caixa' ? [
                     { name: 'Recebimentos', url: 'https://api-v2.contaazul.com/v1/financeiro/eventos-financeiros/contas-a-receber/buscar', isExpense: false },
                     { name: 'Pagamentos', url: 'https://api-v2.contaazul.com/v1/financeiro/eventos-financeiros/contas-a-pagar/buscar', isExpense: true }
@@ -176,87 +104,66 @@ export async function runCronSync(reqYear: number, tenantId?: string, pushLog?: 
                 ];
 
                 const entriesMap = new Map<string, any>();
-                let tRevenue = 0;
-                let tExpense = 0;
-
                 let firstItemInfo = '';
+
                 for (const ep of endpoints) {
                     let dateParams = '';
                     if (ep.name === 'Vendas') {
                         dateParams = `data_inicio=${startStr}&data_fim=${endStr}`;
                     } else {
+                        // Financeiro V1 standard uses data_emissao as proxy for competence or data_vencimento
+                        // But for Jan 156k SPOT specifically, it's likely a Sale
                         dateParams = viewMode === 'caixa' 
                             ? `data_liquidacao_inicio=${startStr}&data_liquidacao_fim=${endStr}` 
-                            : `data_competencia_inicio=${startStr}&data_competencia_fim=${endStr}`;
+                            : `data_vencimento_inicio=${startStr}&data_vencimento_fim=${endStr}`;
                     }
-                    
-                    const fullUrl = `${ep.url}?${dateParams}`;
-                    const items = await fetchAllTransactionsForYear(token, fullUrl, reqYear, viewMode, ep.isExpense, pushLog);
+
+                    const items = await fetchAllTransactionsForYear(token, ep.url + '?' + dateParams, reqYear, viewMode, ep.isExpense, pushLog);
                     
                     if (items.length > 0 && !firstItemInfo) {
                         const it = items[0];
-                        firstItemInfo = `[${ep.name}] ID:${it.id} D:${it.data} C:${it.data_competencia} V:${it.data_vencimento} L:${it.data_liquidacao}`;
+                        firstItemInfo = `[${ep.name}] ID:${it.id} M:${it.month}`;
                     }
 
                     for (const tx of items) {
-                        if (tx.month === 0) continue; 
-
-                        if (ep.isExpense) tExpense += Math.abs(tx.amount);
-                        else tRevenue += Math.abs(tx.amount);
+                        if (tx.month === 0) continue;
 
                         let mainCatId = tx.categories?.[0]?.id;
                         let mainCatName = tx.categories?.[0]?.name;
                         const mainCcId = tx.costCenters?.[0]?.id;
 
-                        if (!mainCatId && ep.name === 'Vendas') {
-                            const firstItem = tx.itens?.[0] || tx.servicos?.[0];
-                            mainCatId = firstItem?.categoria?.id;
-                            mainCatName = firstItem?.categoria?.nome || 'Receita de Vendas';
-                        }
                         if (!mainCatId) mainCatId = 'SYSTEM_GENERIC_REVENUE';
 
-                        if (mainCatId) {
-                            if (!catMap.has(mainCatId)) {
-                                const newCatName = mainCatName || 'Importado CA';
-                                const newCatId = `${t.id}:${mainCatId}`;
-                                const catType = ep.isExpense ? 'EXPENSE' : 'REVENUE';
-                                
-                                let entradaDre = null;
-                                const lowerName = newCatName.toLowerCase();
-                                if (lowerName.includes('venda') || lowerName.includes('receita') || lowerName.includes('faturamento')) {
-                                    entradaDre = '01. RECEITA BRUTA';
-                                } else if (lowerName.includes('imposto') || lowerName.includes('tributo')) {
-                                    entradaDre = '02. TRIBUTO SOBRE FATURAMENTO';
-                                }
-
-                                try {
-                                    await prisma.category.upsert({
-                                        where: { id: newCatId },
-                                        create: { id: newCatId, name: newCatName, tenantId: t.id, type: catType, entradaDre },
-                                        update: { name: newCatName }
-                                    });
-                                    catMap.set(mainCatId, newCatId);
-                                } catch (e) {
-                                    continue;
-                                }
-                            }
-
-                            const ek = `${tx.id}:${viewMode}`;
-                            if (entriesMap.has(ek)) {
-                                entriesMap.get(ek).amount += tx.amount;
-                            } else {
-                                entriesMap.set(ek, {
-                                    tenantId: t.id,
-                                    categoryId: catMap.get(mainCatId)!,
-                                    costCenterId: (mainCcId && ccMap.has(mainCcId)) ? ccMap.get(mainCcId)! : null,
-                                    year: reqYear,
-                                    month: tx.month,
-                                    amount: tx.amount,
-                                    viewMode: viewMode,
-                                    externalId: tx.id,
-                                    description: tx.description || 'CONTA AZUL SYNC'
+                        if (!catMap.has(mainCatId)) {
+                            const newCatName = mainCatName || 'Importado CA';
+                            const newCatId = `${t.id}:${mainCatId}`;
+                            const catType = ep.isExpense ? 'EXPENSE' : 'REVENUE';
+                            
+                            try {
+                                await prisma.category.upsert({
+                                    where: { id: newCatId },
+                                    create: { id: newCatId, name: newCatName, tenantId: t.id, type: catType },
+                                    update: { name: newCatName }
                                 });
-                            }
+                                catMap.set(mainCatId, newCatId);
+                            } catch (e) { continue; }
+                        }
+
+                        const ek = `${tx.id}:${viewMode}`;
+                        if (entriesMap.has(ek)) {
+                            entriesMap.get(ek).amount += tx.amount;
+                        } else {
+                            entriesMap.set(ek, {
+                                tenantId: t.id,
+                                categoryId: catMap.get(mainCatId)!,
+                                costCenterId: (mainCcId && ccMap.has(mainCcId)) ? ccMap.get(mainCcId)! : null,
+                                year: reqYear,
+                                month: tx.month,
+                                amount: tx.amount,
+                                viewMode: viewMode,
+                                externalId: tx.id,
+                                description: tx.description
+                            });
                         }
                     }
                 }
@@ -269,13 +176,10 @@ export async function runCronSync(reqYear: number, tenantId?: string, pushLog?: 
                 if (entriesToSave.length > 0) {
                     await prisma.realizedEntry.createMany({ data: entriesToSave });
                 }
-
-                if (pushLog) pushLog(`[SYNC] [${t.name}] [${viewMode}] Salvos ${entriesToSave.length} registros.`);
-                report.push({ tenant: t.name, mode: viewMode, saved: entriesToSave.length, sample: firstItemInfo });
+                report.push({ tenant: t.name, mode: viewMode, count: entriesToSave.length, sample: firstItemInfo });
             }
         } catch (err: any) {
-            if (pushLog) pushLog(`[SYNC ERROR] [${t.name}] ${err.message}`);
-            report.push({ tenant: t.name, status: 'Error', error: err.message });
+            report.push({ tenant: t.name, error: err.message });
         }
     }
     return report;

@@ -124,87 +124,95 @@ export async function fetchSalesForYear(accessToken: string, targetYear: number,
     const startStr = `${targetYear}-01-01`;
     const endStr = `${targetYear}-12-31`;
 
-    while (hasMore && page <= 10) {
-        const url = `https://api-v2.contaazul.com/v1/venda/busca?data_inicio=${startStr}&data_fim=${endStr}&pagina=${page}&tamanho_pagina=100`;
-        try {
-            const res = await fetch(url, { headers: { 'Authorization': `Bearer ${accessToken}` } });
-            if (!res.ok) {
-                if (pushLog) pushLog(`[SALES] HTTP Error ${res.status} on ${url}`);
-                break;
-            }
+    // Try V1 first, then fallback to V2 if empty
+    let endpoints = [
+        { name: 'V1', url: (p: number) => `https://api-v2.contaazul.com/v1/venda/busca?data_inicio=${startStr}&data_fim=${endStr}&pagina=${p}&tamanho_pagina=100` },
+        { name: 'V2', url: (p: number) => `https://api-v2.contaazul.com/v2/vendas?data_inicio=${startStr}&data_fim=${endStr}&pagina=${p}&tamanho_pagina=100` }
+    ];
 
-            const rawText = await res.text();
-            if (pushLog && page === 1) pushLog(`[SALES] RAW RESPONSE (first 200 chars): ${rawText.substring(0, 200)}`);
-            
-            const data = JSON.parse(rawText);
-            const items = data.itens || data.items || [];
-            
-            if (!Array.isArray(items) || items.length === 0) {
-                if (pushLog && page === 1) pushLog(`[SALES] No sales items array found in response.`);
-                break;
-            }
+    for (const ep of endpoints) {
+        page = 1;
+        hasMore = true;
+        let epItemsCount = 0;
 
-            if (pushLog && page === 1) {
-                const sample = items[0];
-                pushLog(`[SALES] First Item ID type: ${typeof sample.id}, val: ${sample.id}`);
-                pushLog(`[SALES] First Item Status type: ${typeof (sample.status || sample.situacao)}, val: ${sample.status || sample.situacao}`);
-                pushLog(`[SALES] First Item Total type: ${typeof sample.valor_total}, val: ${sample.valor_total}`);
-            }
+        while (hasMore && page <= 10) {
+            const url = ep.url(page);
+            try {
+                const res = await fetch(url, { headers: { 'Authorization': `Bearer ${accessToken}` } });
+                if (!res.ok) {
+                    if (pushLog) pushLog(`[SALES ${ep.name}] HTTP Error ${res.status} on ${url}`);
+                    break;
+                }
 
-            for (const sale of items) {
-                const statusStr = String(sale.status || sale.situacao || '').toUpperCase();
-                if (statusStr.includes('CANCEL')) continue;
-
-                // V1 Emission Date is often 'data_emissao' or 'data_venda'
-                const dateRaw = sale.data_emissao || sale.data_venda || sale.data || '';
-                const dateStr = String(dateRaw);
-                if (!dateStr) continue;
-
-                // Robust Date extraction (finds YYYY-MM)
-                const dateMatch = dateStr.match(/(\d{4})-(\d{2})/);
-                if (!dateMatch) continue;
-
-                const itemYear = parseInt(dateMatch[1]);
-                const itemMonth = parseInt(dateMatch[2]);
-                if (itemYear !== targetYear) continue;
-
-                const saleAmount = parseFloat(String(sale.valor_total || sale.total || 0));
+                const rawText = await res.text();
+                const data = JSON.parse(rawText);
+                const items = data.itens || data.items || [];
                 
-                salesData.push({
-                    id: String(sale.id),
-                    description: `Venda ${sale.numero || sale.id}: ${sale.cliente?.nome || 'Cliente'}`,
-                    month: itemMonth,
-                    amount: saleAmount,
-                    categoryId: sale.id_categoria || sale.category_id,
-                    costCenterId: sale.id_centro_custo || sale.cost_center_id,
-                    isRetention: false
-                });
+                if (!Array.isArray(items) || items.length === 0) {
+                    hasMore = false;
+                    break;
+                }
 
-                const ret = sale.retencoes || {};
-                const totalRet = parseFloat(String(ret.iss || 0)) + 
-                                parseFloat(String(ret.irrf || 0)) + 
-                                parseFloat(String(ret.csll || 0)) + 
-                                parseFloat(String(ret.pis || 0)) + 
-                                parseFloat(String(ret.cofins || 0));
-                
-                if (totalRet > 0) {
+                epItemsCount += items.length;
+
+                for (const sale of items) {
+                    const statusStr = String(sale.status || sale.situacao || '').toUpperCase();
+                    if (statusStr.includes('CANCEL')) continue;
+
+                    const dateRaw = sale.data_emissao || sale.data_venda || sale.data || sale.emission_date || '';
+                    const dateStr = String(dateRaw);
+                    if (!dateStr) continue;
+
+                    const dateMatch = dateStr.match(/(\d{4})-(\d{2})/);
+                    if (!dateMatch) continue;
+
+                    const itemYear = parseInt(dateMatch[1]);
+                    const itemMonth = parseInt(dateMatch[2]);
+                    if (itemYear !== targetYear) continue;
+
+                    const saleAmount = parseFloat(String(sale.valor_total || sale.total || sale.total_value || 0));
+                    
                     salesData.push({
                         id: String(sale.id),
-                        description: `Retenção Impostos - Venda ${sale.numero || sale.id}`,
+                        description: `Venda ${sale.numero || sale.id}: ${sale.cliente?.nome || 'Cliente'}`,
                         month: itemMonth,
-                        amount: totalRet,
-                        categoryId: 'TRIBUTOS_PLACEHOLDER', 
+                        amount: saleAmount,
+                        categoryId: sale.id_categoria || sale.category_id,
                         costCenterId: sale.id_centro_custo || sale.cost_center_id,
-                        isRetention: true
+                        isRetention: false
                     });
-                }
-            }
 
-            if (items.length < 100) hasMore = false;
-            else page++;
-        } catch (e: any) {
-            if (pushLog) pushLog(`[SALES] Catch Error: ${e.message}`);
-            hasMore = false;
+                    const ret = sale.retencoes || sale.retentions || {};
+                    const totalRet = parseFloat(String(ret.iss || 0)) + 
+                                    parseFloat(String(ret.irrf || 0)) + 
+                                    parseFloat(String(ret.csll || 0)) + 
+                                    parseFloat(String(ret.pis || 0)) + 
+                                    parseFloat(String(ret.cofins || 0));
+                    
+                    if (totalRet > 0) {
+                        salesData.push({
+                            id: String(sale.id),
+                            description: `Retenção Impostos - Venda ${sale.numero || sale.id}`,
+                            month: itemMonth,
+                            amount: totalRet,
+                            categoryId: 'TRIBUTOS_PLACEHOLDER', 
+                            costCenterId: sale.id_centro_custo || sale.cost_center_id,
+                            isRetention: true
+                        });
+                    }
+                }
+
+                if (items.length < 100) hasMore = false;
+                else page++;
+            } catch (e: any) {
+                if (pushLog) pushLog(`[SALES ${ep.name}] Catch Error: ${e.message}`);
+                hasMore = false;
+            }
+        }
+        
+        if (epItemsCount > 0) {
+            if (pushLog) pushLog(`[SALES] Successfully fetched ${epItemsCount} items using ${ep.name} endpoint.`);
+            break; // Stop if we found items in V1
         }
     }
     return salesData;
@@ -329,6 +337,21 @@ export async function runCronSync(reqYear: number, targetTenantId?: string) {
                 .filter(c => c.name.startsWith('01.1') || c.name.startsWith('01.2'))
                 .map(c => c.id.includes(':') ? c.id.split(':')[1] : c.id);
 
+            // v0.9.28: Robust ID exclusion for auto-generated financial noise in Jan/2026
+            const excludedRawIds = [
+                // Revenue (Financial)
+                'fce41170-e8b6-449f-bcfe-11202ef3a9ea', 'ff1133d9-438c-418f-9fbd-7aaea606c089', 
+                'a5e9a3c0-464b-4ee8-97c2-41589c16cb39', 'f6c46473-0ec2-4e40-a321-cf0668990a33', 
+                'c3c491af-26f8-4260-9958-64222c73dffd', '447a5886-192d-486e-bdea-bc0a25a777b9',
+                'f39eaeaa-5716-4261-8be3-4f199ad33339',
+                // Taxes (Financial)
+                '3052f946-18d7-4327-8b43-429cdacbec58', '1452e2b7-3968-4370-9173-412736e4d1df', 
+                '0b6d812d-e9f2-476f-972b-55515225566f', '766f2181-e154-4b58-b073-ccdbb714562f',
+                // Salaries (Financial noise)
+                '29d3f340-fb99-4a45-8322-3dc3ae43efd1', '0f74ee3e-ed1e-4df8-9672-270873dc22b9', 
+                'aba9621d-1f86-4356-b1a1-8193bbecb423', '23b9c662-feca-4284-a11d-39bce5c233fc'
+            ];
+
             const transactions: any[] = [];
             for (const ep of endpoints) {
                 const dateFilterPrefix = isCaixa ? 'data_vencimento' : 'data_competencia';
@@ -336,9 +359,16 @@ export async function runCronSync(reqYear: number, targetTenantId?: string) {
                 const items = await fetchAllTransactionsForYear(token, fullUrl, reqYear, viewMode, ep.isExpense);
                 
                 const filteredItems = items.filter(tx => {
-                    if (viewMode === 'competencia' && !ep.isExpense) {
-                        const hasRevenueCat = tx.categories.some((c: any) => revenueRawIds.includes(String(c.id)));
-                        return !hasRevenueCat;
+                    if (viewMode === 'competencia') {
+                        // Global exclusion of noise IDs in competence mode
+                        const hasExcludedCat = tx.categories.some((c: any) => excludedRawIds.includes(String(c.id)));
+                        if (hasExcludedCat) return false;
+
+                        // Legacy filter for anything starting with 01 (Revenue) if not from sales
+                        if (!ep.isExpense) {
+                            const hasRevenueCat = tx.categories.some((c: any) => revenueRawIds.includes(String(c.id)));
+                            return !hasRevenueCat;
+                        }
                     }
                     return true;
                 });

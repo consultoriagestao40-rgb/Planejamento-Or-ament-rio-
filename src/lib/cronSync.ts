@@ -3,23 +3,34 @@ import { getValidAccessToken } from '@/lib/services';
 import { getPrimaryTenantId, getAllVariantIds } from '@/lib/tenant-utils';
 // V0.3.11-BYPASS-CACHE-1773618480
 
-export async function fetchAllTransactionsForYear(accessToken: string, baseUrl: string, targetYear: number, viewMode: 'caixa' | 'competencia', isExpense = false) {
+export async function fetchAllTransactionsForYear(accessToken: string, baseUrl: string, targetYear: number, viewMode: 'caixa' | 'competencia', isExpense = false, pushLog?: (msg: string) => void) {
     let page = 1;
     let hasMore = true;
     const transactions: any[] = [];
 
     while (hasMore && page <= 50) {
-        const url = `${baseUrl.includes('?') ? baseUrl : baseUrl + '?'}&pagina=${page}&itens_por_pagina=100`;
+        const cacheBuster = `t=${Date.now()}_${Math.random().toString(36).substring(7)}`;
+        const url = `${baseUrl.includes('?') ? baseUrl : baseUrl + '?'}&pagina=${page}&itens_por_pagina=100&cb=${cacheBuster}`;
         try {
-            const res = await fetch(url, { headers: { 'Authorization': `Bearer ${accessToken}` } });
+            const res = await fetch(url, { 
+                headers: { 'Authorization': `Bearer ${accessToken}` },
+                cache: 'no-store'
+            });
+            
+            const rawText = await res.text();
             if (!res.ok) {
                 console.error(`Cron API fetch error ${res.status} on ${url}`);
                 break;
             }
 
-            const data = await res.json();
+            const data = JSON.parse(rawText);
             const items = Array.isArray(data) ? data : (data.itens || data.items || []);
-            console.log(`[SYNC] Fetched ${items.length} items from ${url.split('?')[0]}`);
+            
+            // Log structure for debugging if empty
+            if (items.length === 0 && page === 1 && pushLog) {
+                pushLog(`[DEBUG] Empty items from ${url.split('?')[0]}. Raw response start: ${rawText.substring(0, 200)}`);
+            }
+            
             if (items.length === 0) break;
 
             for (const item of items) {
@@ -334,7 +345,7 @@ export async function runCronSync(reqYear: number, targetTenantId?: string) {
                 // API V1 only supports data_vencimento_de in the list query efficiently.
                 // We use the wide window (startStr/endStr) to catch all possible items.
                 const fullUrl = `${ep.url}?data_vencimento_de=${startStr}&data_vencimento_ate=${endStr}`;
-                const items = await fetchAllTransactionsForYear(token, fullUrl, reqYear, viewMode, ep.isExpense);
+                const items = await fetchAllTransactionsForYear(token, fullUrl, reqYear, viewMode, ep.isExpense, pushLog);
                 
                 // LOCAL FILTER: Match CA's "Visão de Competência" or "Visão de Caixa"
                 const matches = items.filter(tx => {

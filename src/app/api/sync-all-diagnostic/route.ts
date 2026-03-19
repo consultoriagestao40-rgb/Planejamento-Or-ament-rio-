@@ -29,9 +29,8 @@ export async function GET() {
 
         const before = await audit();
         
-        // This is the functional part. We should actually TRIGGER the sync here if possible.
-        // But since we already have the cron route, we'll just check the current state 
-        // after our last triggered sync v0.9.42 finished.
+        // v0.9.46: Trigger actual sync silently
+        await syncTenants(2026);
 
         const after = await audit();
 

@@ -1,7 +1,6 @@
 import { prisma } from '@/lib/prisma';
 import { getValidAccessToken } from '@/lib/services';
 import { getPrimaryTenantId, getAllVariantIds } from '@/lib/tenant-utils';
-// V0.3.11-BYPASS-CACHE-1773618480
 
 export async function fetchAllTransactionsForYear(accessToken: string, baseUrl: string, targetYear: number, viewMode: 'caixa' | 'competencia', isExpense = false, pushLog?: (msg: string) => void) {
     let page = 1;
@@ -19,7 +18,7 @@ export async function fetchAllTransactionsForYear(accessToken: string, baseUrl: 
             
             const rawText = await res.text();
             if (!res.ok) {
-                if (pushLog) pushLog(`[API ERROR] status=${res.statusCode || res.status} url=${url.split('?')[0]}`);
+                if (pushLog) pushLog(`[API ERROR] status=${res.status} url=${url.split('?')[0]}`);
                 break;
             }
 
@@ -35,16 +34,9 @@ export async function fetchAllTransactionsForYear(accessToken: string, baseUrl: 
             for (const item of items) {
                 if ((item.status || '').toUpperCase().includes('CANCEL')) continue;
 
-                const cats = item.categorias || [];
-                let ccs = item.centros_de_custo || [];
-
-                // Performance: Simplified categorization for V1/V2 Mirroring.
-                // We use the primary category provided in the list for 1:1 DRE alignment.
-
                 let dateStr: string;
                 let amount: number;
 
-                // CA uses 'pago' or 'total' for the actual values in many responses
                 const rawAmount = item.pago || item.valor_pago || item.valor || item.amount || item.total || 0;
                 amount = Math.abs(rawAmount);
 
@@ -59,7 +51,6 @@ export async function fetchAllTransactionsForYear(accessToken: string, baseUrl: 
                 }
 
                 if (!dateStr) continue;
-                // Safe parsing: YYYY-MM-DD string processing to avoid Timezone shifts
                 const [yStr, mStr] = dateStr.includes('T') ? dateStr.split('T')[0].split('-') : dateStr.split('-');
                 const itemYear = parseInt(yStr);
                 const itemMonth = parseInt(mStr);
@@ -71,14 +62,15 @@ export async function fetchAllTransactionsForYear(accessToken: string, baseUrl: 
                     description: item.descricao,
                     month: itemMonth,
                     amount: isExpense ? -Math.abs(amount) : Math.abs(amount),
-                    categories: cats,
-                    costCenters: ccs
+                    categories: item.categorias || [],
+                    costCenters: item.centros_de_custo || []
                 });
             }
 
             if (items.length < 100) hasMore = false;
             else page++;
         } catch (e: any) {
+            if (pushLog) pushLog(`[FETCH CRASH] ${e.message}`);
             hasMore = false;
         }
     }
@@ -90,367 +82,117 @@ export async function fetchSalesForYear(accessToken: string, targetYear: number,
     let page = 1;
     let hasMore = true;
     const salesData: any[] = [];
-    
     const startStr = `${targetYear}-01-01`;
     const endStr = `${targetYear}-12-31`;
 
-    // Try V1 first, then fallback to V2 if empty
-    let endpoints = [
-        { name: 'V1', url: (p: number) => `https://api-v2.contaazul.com/v1/venda/busca?data_inicio=${startStr}&data_fim=${endStr}&pagina=${p}&tamanho_pagina=100` },
-        { name: 'V2', url: (p: number) => `https://api-v2.contaazul.com/v2/vendas?data_inicio=${startStr}&data_fim=${endStr}&pagina=${p}&tamanho_pagina=100` }
-    ];
+    let url = `https://api-v2.contaazul.com/v1/venda/busca?data_inicio=${startStr}&data_fim=${endStr}&tamanho_pagina=100`;
 
-    for (const ep of endpoints) {
-        page = 1;
-        hasMore = true;
-        let epItemsCount = 0;
+    while (hasMore && page <= 50) {
+        try {
+            const res = await fetch(`${url}&pagina=${page}`, { headers: { 'Authorization': `Bearer ${accessToken}` } });
+            if (!res.ok) break;
+            const data = await res.json();
+            const items = Array.isArray(data) ? data : (data.itens || []);
+            if (items.length === 0) break;
 
-        while (hasMore && page <= 10) {
-            const url = ep.url(page);
-            try {
-                const res = await fetch(url, { headers: { 'Authorization': `Bearer ${accessToken}` } });
-                if (!res.ok) {
-                    if (pushLog) pushLog(`[SALES ${ep.name}] HTTP Error ${res.status} on ${url}`);
-                    break;
+            for (const item of items) {
+                if ((item.status || '').includes('CANCEL')) continue;
+                const dStr = item.data_venda || item.data || '';
+                const m = parseInt(dStr.split('-')[1]);
+                if (m) {
+                    salesData.push({ month: m, amount: item.valor_total || item.valor || 0 });
                 }
-
-                const rawText = await res.text();
-                const data = JSON.parse(rawText);
-                const items = data.itens || data.items || [];
-                
-                if (!Array.isArray(items) || items.length === 0) {
-                    hasMore = false;
-                    break;
-                }
-
-                epItemsCount += items.length;
-
-                for (const sale of items) {
-                    const statusStr = String(sale.status || sale.situacao || '').toUpperCase();
-                    if (statusStr.includes('CANCEL')) continue;
-
-                    const dateRaw = sale.data_emissao || sale.data_venda || sale.data || sale.emission_date || '';
-                    const dateStr = String(dateRaw);
-                    if (!dateStr) continue;
-
-                    const dateMatch = dateStr.match(/(\d{4})-(\d{2})/);
-                    if (!dateMatch) continue;
-
-                    const itemYear = parseInt(dateMatch[1]);
-                    const itemMonth = parseInt(dateMatch[2]);
-                    if (itemYear !== targetYear) continue;
-
-                    const saleAmount = parseFloat(String(sale.valor_total || sale.total || sale.total_value || 0));
-                    
-                    salesData.push({
-                        id: String(sale.id),
-                        description: `Venda ${sale.numero || sale.id}: ${sale.cliente?.nome || 'Cliente'}`,
-                        month: itemMonth,
-                        amount: saleAmount,
-                        categoryId: sale.id_categoria || sale.category_id,
-                        costCenterId: sale.id_centro_custo || sale.cost_center_id,
-                        isRetention: false
-                    });
-
-                    const ret = sale.retencoes || sale.retentions || {};
-                    const totalRet = parseFloat(String(ret.iss || 0)) + 
-                                    parseFloat(String(ret.irrf || 0)) + 
-                                    parseFloat(String(ret.csll || 0)) + 
-                                    parseFloat(String(ret.pis || 0)) + 
-                                    parseFloat(String(ret.cofins || 0));
-                    
-                    if (totalRet > 0) {
-                        salesData.push({
-                            id: String(sale.id),
-                            description: `Retenção Impostos - Venda ${sale.numero || sale.id}`,
-                            month: itemMonth,
-                            amount: totalRet,
-                            categoryId: 'TRIBUTOS_PLACEHOLDER', 
-                            costCenterId: sale.id_centro_custo || sale.cost_center_id,
-                            isRetention: true
-                        });
-                    }
-                }
-
-                if (items.length < 100) hasMore = false;
-                else page++;
-            } catch (e: any) {
-                if (pushLog) pushLog(`[SALES ${ep.name}] Catch Error: ${e.message}`);
-                hasMore = false;
             }
-        }
-        
-        if (epItemsCount > 0) {
-            if (pushLog) pushLog(`[SALES] Successfully fetched ${epItemsCount} items using ${ep.name} endpoint.`);
-            break; // Stop if we found items in V1
-        }
+            if (items.length < 100) hasMore = false;
+            else page++;
+        } catch (e) { hasMore = false; }
     }
     return salesData;
 }
 
-export async function runCronSync(reqYear: number, targetTenantId?: string) {
-    const logs: string[] = [];
-    const pushLog = (msg: string) => {
-        console.log(msg);
-        logs.push(msg);
-    };
+export async function syncTenants(reqYear: number, pushLog?: (msg: string) => void) {
+    if (pushLog) pushLog(`[SYNC] Invocando Sincronização v0.9.46 - Mirror 1:1 [Year ${reqYear}]`);
+    
+    const tenants = await prisma.tenant.findMany();
+    const allCategories = await prisma.category.findMany();
+    const allCostCenters = await prisma.costCenter.findMany();
 
-    let allTenants;
-    if (targetTenantId && targetTenantId !== 'ALL') {
-        allTenants = await prisma.tenant.findMany({ where: { id: targetTenantId } });
-    } else {
-        allTenants = await prisma.tenant.findMany({ orderBy: { updatedAt: 'desc' } });
-    }
-
-    if (allTenants.length === 0) return { success: false, error: 'No tenants' };
-
-    const companyMap = new Map();
-    allTenants.forEach(t => {
-        const cleanCnpj = (t.cnpj || '').replace(/\D/g, '');
-        const cleanName = (t.name || '').trim().toUpperCase().replace(/[^A-Z0-9]/g, '');
-        const key = cleanCnpj !== '' ? cleanCnpj : cleanName;
-        
-        if (!companyMap.has(key)) {
-            companyMap.set(key, t);
-        } else {
-            // ALWAYS pick the oldest one (by createdAt) or the one with the lowest ID alphabetically
-            // to ensure stable primary ID across different sync triggerings.
-            const existing = companyMap.get(key);
-            if (t.id < existing.id) {
-                companyMap.set(key, t);
-            }
-        }
-    });
+    // Map IDs (since CA category ID is stored as the primary key 'id' in our Category table)
+    const catMap = new Map(allCategories.map(c => [c.id, c.id]));
+    const ccMap = new Map(allCostCenters.map(c => [c.id, c.id]));
 
     const report = [];
-    const cleanedGroups = new Set<string>(); // tenantId + viewMode + year
 
-    for (const t of allTenants) {
-        let token: string = '';
+    for (const t of tenants) {
         try {
-            const res = await getValidAccessToken(t.id);
-            token = res.token;
-        } catch (e: any) {
-            report.push({ tenant: t.name, status: `Token Error: ${e.message}` });
-            continue;
-        }
-        
-        const { getPrimaryTenantId } = await import('./tenant-utils');
-        const primaryId = await getPrimaryTenantId(t);
-        
-        // 1. FRESH METADATA SYNC: Ensure categories and CCs are in the DB before processing values
-        console.log(`[SYNC] Refreshing metadata for ${t.name}...`);
-        try {
-            const { syncData } = await import('./services');
-            await syncData('DEFAULT', reqYear, 'competencia', t.id);
-        } catch (e) {
-            console.error(`[SYNC] Metadata refresh failed for ${t.name}:`, e);
-        }
+            const primaryId = getPrimaryTenantId(t.id);
+            const allEntityIds = getAllVariantIds(t.id);
+            const authResponse = await getValidAccessToken(primaryId);
+            const token = typeof authResponse === 'string' ? authResponse : (authResponse as any).token;
 
-        const allEntityIds = await getAllVariantIds(t.id);
-        
-        const categoriesDb = await prisma.category.findMany({ 
-            where: { tenantId: { in: allEntityIds } }, 
-            select: { id: true, name: true, tenantId: true } 
-        });
-        const costCentersDb = await prisma.costCenter.findMany({ 
-            where: { tenantId: { in: allEntityIds } }, 
-            select: { id: true, name: true, tenantId: true } 
-        });
+            if (pushLog) pushLog(`[SYNC] [${t.name}] Iniciando...`);
 
-        // ALIGNMENT MAPS: Raw ID -> Primary or Existing DB ID (CRITICAL for Grid Visibility)
-        const primaryCategories = categoriesDb.filter((c: any) => c.tenantId === primaryId);
-        const primaryCCs = costCentersDb.filter((c: any) => (c as any).tenantId === primaryId);
-
-        const catMap = new Map<string, string>();
-        categoriesDb.forEach((cat: any) => {
-            const raw = cat.id.includes(':') ? cat.id.split(':')[1] : cat.id;
-            // Find primary equivalent by name and type
-            const primary = primaryCategories.find(p => p.name.trim() === cat.name.trim());
-            const targetId = primary?.id || cat.id;
-            
-            catMap.set(raw, targetId);
-            catMap.set(cat.id, targetId);
-        });
-
-        const ccMap = new Map<string, string>();
-        costCentersDb.forEach((cc: any) => {
-            const raw = cc.id.includes(':') ? cc.id.split(':')[1] : cc.id;
-            const primary = primaryCCs.find(p => p.name.trim() === (cc as any).name?.trim());
-            const targetId = primary?.id || cc.id;
-
-            ccMap.set(raw, targetId);
-            ccMap.set(cc.id, targetId);
-        });
-
-        for (const viewMode of ['competencia', 'caixa'] as const) {
-            const isCaixa = viewMode === 'caixa';
-            // Window of 18 months to catch any competencia/vencimento mismatch
-            // (competencia in target year but due in previous or next year)
-            // Window of 24 months to catch any competencia/vencimento mismatch
-            // (competencia in target year but due many months before or after)
-            const startStr = `${reqYear - 1}-07-01`; 
-            const endStr = `${reqYear + 1}-06-30`;
-            
-            const entriesToSave: any[] = [];
-            const endpoints = [
-                { url: `https://api-v2.contaazul.com/v1/financeiro/eventos-financeiros/contas-a-receber/buscar`, isExpense: false, name: 'RECEIVABLES' },
-                { url: `https://api-v2.contaazul.com/v1/financeiro/eventos-financeiros/contas-a-pagar/buscar`, isExpense: true, name: 'PAYABLES' }
-            ];
-
-            // In v0.9.36, we use ONLY financial events filtered by competence to match CA's "Visão de Competência" report.
-            const transactions: any[] = [];
-            for (const ep of endpoints) {
-                // API V1 only supports data_vencimento_de in the list query efficiently.
-                // We use the wide window (startStr/endStr) to catch all possible items.
-                const fullUrl = `${ep.url}?data_vencimento_de=${startStr}&data_vencimento_ate=${endStr}`;
-                const items = await fetchAllTransactionsForYear(token, fullUrl, reqYear, viewMode, ep.isExpense, pushLog);
+            for (const viewMode of ['competencia', 'caixa'] as const) {
+                const startStr = `${reqYear}-01-01`;
+                const endStr = `${reqYear}-12-31`;
                 
-                // LOCAL FILTER: Match CA's "Visão de Competência" or "Visão de Caixa"
-                const matches = items.filter(tx => {
-                    const dateRaw = isCaixa ? (tx.data_pagamento || tx.data_vencimento) : (tx.data_competencia || tx.data_emissao || tx.data_vencimento);
-                    if (!dateRaw) return false;
-                    const dateStr = String(dateRaw);
-                    return dateStr.startsWith(String(reqYear));
-                });
+                const endpoints = [
+                    { name: 'Recebimentos', url: 'https://api-v2.contaazul.com/v1/financeiro/eventos-financeiros/contas-a-receber/buscar', isExpense: false },
+                    { name: 'Pagamentos', url: 'https://api-v2.contaazul.com/v1/financeiro/eventos-financeiros/contas-a-pagar/buscar', isExpense: true }
+                ];
 
-                transactions.push(...matches.map(tx => ({ ...tx, isExpense: ep.isExpense })));
-            }
+                const entriesToSave: any[] = [];
+                let tRevenue = 0;
+                let tExpense = 0;
 
-            let totalRevenue = 0;
-            let totalExpense = 0;
-            const aggregates = new Map<string, { amount: number, desc: string }>();
-            const processedIds = new Set<string>();
+                for (const ep of endpoints) {
+                    const fullUrl = `${ep.url}?data_vencimento_de=${startStr}&data_vencimento_ate=${endStr}`;
+                    const items = await fetchAllTransactionsForYear(token, fullUrl, reqYear, viewMode, ep.isExpense, pushLog);
 
-            for (const txn of transactions) {
-                if (processedIds.has(txn.id)) continue;
-                processedIds.add(txn.id);
-                const absAmt = Math.abs(txn.valor || txn.amount || 0);
-                if (txn.amount > 0) totalRevenue += absAmt;
-                else totalExpense += absAmt;
-                
-                if (!txn.categories || txn.categories.length === 0) {
-                    pushLog(`[SYNC] [${t.name}] Item ${txn.id} skipped - No categories.`);
-                    continue;
-                }
+                    for (const tx of items) {
+                        if (ep.isExpense) tExpense += Math.abs(tx.amount);
+                        else tRevenue += Math.abs(tx.amount);
 
-                const leaves = txn.categories.filter((c: any) => {
-                    const cid = c.id;
-                    return !txn.categories.some((other: any) => (other.category_parent_id === cid || other.parent_id === cid));
-                });
+                        const mainCatId = tx.categories[0]?.id;
+                        const mainCcId = tx.costCenters[0]?.id;
 
-                if (leaves.length === 0) leaves.push(txn.categories[0]);
-
-                const catEntries = leaves.map((c: any) => {
-                    const rawId = String(c.id);
-                    const dbId = catMap.get(rawId);
-                    const val = typeof c.valor === 'number' ? Math.abs(c.valor) : (txn.amount / leaves.length);
-                    return { dbId, amount: val };
-                });
-
-                for (const cat of catEntries) {
-                    if (!cat.dbId) continue;
-                    
-                    if (!txn.costCenters || txn.costCenters.length === 0) {
-                        const key = `${cat.dbId}|NONE|${txn.month}`;
-                        if (!aggregates.has(key)) aggregates.set(key, { amount: 0, desc: txn.description || '' });
-                        aggregates.get(key)!.amount += cat.amount;
-                    } else {
-                        let totalCcAllocated = 0;
-                        let unallocatedCount = 0;
-                        const ccSplits = txn.costCenters.map((cc: any) => {
-                            let exp = null;
-                            if (typeof cc.valor === 'number') exp = Math.abs(cc.valor);
-                            else if (typeof cc.percentual === 'number') exp = cat.amount * (cc.percentual / 100);
-                            if (exp !== null) totalCcAllocated += exp; else unallocatedCount++;
-                            return { dbId: ccMap.get(String(cc.id)), amount: exp };
-                        });
-                        const rem = Math.max(0, cat.amount - totalCcAllocated);
-                        const fallback = unallocatedCount > 0 ? (rem / unallocatedCount) : 0;
-                        for (const cc of ccSplits) {
-                            const ccId = cc.dbId || 'NONE';
-                            const key = `${cat.dbId}|${ccId}|${txn.month}`;
-                            if (!aggregates.has(key)) aggregates.set(key, { amount: 0, desc: txn.description || '' });
-                            const val = cc.amount !== null ? cc.amount : (unallocatedCount > 0 ? fallback : (cat.amount / ccSplits.length));
-                            aggregates.get(key)!.amount += val;
-                        }
-                    }
-                }
-            }
-
-            pushLog(`[SYNC] [${t.name}] [${viewMode}] Raw Revenue: ${totalRevenue.toFixed(2)}, Raw Expense: ${totalExpense.toFixed(2)}.`);
-
-            for (const [key, data] of aggregates.entries()) {
-                const [categoryId, costCenterId, month] = key.split('|');
-                entriesToSave.push({
-                    tenantId: primaryId,
-                    categoryId,
-                    costCenterId: costCenterId === 'NONE' ? null : costCenterId,
-                    month: parseInt(month),
-                    year: reqYear,
-                    amount: data.amount,
-                    viewMode,
-                    description: data.desc || 'Mapped Transaction',
-                    externalId: `FIN-${categoryId}-${costCenterId}-${month}-${viewMode}`
-                });
-            }
-        
-            if (entriesToSave.length > 0) {
-                pushLog(`[SYNC] [${t.name}] Attempting to save ${entriesToSave.length} individual transactions to DB...`);
-                try {
-                    // 1. Targetted cleanup: only ONCE per primary group
-                    const cleanupKey = `${primaryId}|${viewMode}|${reqYear}`;
-                    if (!cleanedGroups.has(cleanupKey)) {
-                        pushLog(`[SYNC] [${t.name}] First variant of group detected (${t.id}). Cleaning up ALL related variant records for ${primaryId}/${reqYear}/${viewMode}...`);
-                        
-                        // We use allEntityIds here because we want to wipe anything that might have been saved 
-                        // under variant IDs in the past (v0.9.11 and earlier).
-                        const deleted = await prisma.realizedEntry.deleteMany({ 
-                            where: { 
-                                tenantId: { in: allEntityIds }, 
-                                year: reqYear, 
-                                viewMode 
-                            } 
-                        });
-                        pushLog(`[SYNC] [${t.name}] Deleted ${deleted.count} legacy/variant records.`);
-                        cleanedGroups.add(cleanupKey);
-                    }
-
-                    // 2. Bulk insert
-                    const res = await (prisma.realizedEntry as any).createMany({ 
-                        data: entriesToSave,
-                        skipDuplicates: true 
-                    });
-                    pushLog(`[SYNC] [${t.name}] SUCCESS: Saved ${res.count} records using createMany.`);
-                } catch (e: any) {
-                    pushLog(`[SYNC] [${t.name}] createMany FAILED: ${e.message}. Falling back to individual UPSERTs.`);
-                    let successCount = 0;
-                    let failCount = 0;
-                    for (const row of entriesToSave) {
-                        try { 
-                            await (prisma.realizedEntry as any).upsert({
-                                where: { 
-                                    externalId_viewMode_tenantId: { 
-                                        externalId: row.externalId, 
-                                        viewMode: row.viewMode,
-                                        tenantId: row.tenantId
-                                    } 
-                                },
-                                update: row,
-                                create: row
+                        if (mainCatId && catMap.has(mainCatId)) {
+                            entriesToSave.push({
+                                tenantId: t.id,
+                                categoryId: mainCatId, // It's a mirror 1:1
+                                costCenterId: (mainCcId && ccMap.has(mainCcId)) ? mainCcId : null,
+                                year: reqYear,
+                                month: tx.month,
+                                amount: tx.amount,
+                                viewMode: viewMode,
+                                isManual: false,
+                                description: tx.description || 'CONTA AZUL SYNC'
                             });
-                            successCount++;
-                        } catch (err: any) {
-                            failCount++;
                         }
                     }
-                    pushLog(`[SYNC] [${t.name}] Individual sync finished: ${successCount} success, ${failCount} failed.`);
                 }
-            } else {
-                pushLog(`[SYNC] [${t.name}] WARNING: No data filtered for 2026. Check API content.`);
+
+                // Cleanup and save
+                await prisma.realizedEntry.deleteMany({
+                    where: { 
+                        tenantId: { in: allEntityIds }, 
+                        year: reqYear, 
+                        viewMode: viewMode,
+                        isManual: false 
+                    }
+                });
+
+                if (entriesToSave.length > 0) {
+                    await prisma.realizedEntry.createMany({ data: entriesToSave });
+                }
+
+                if (pushLog) pushLog(`[SYNC] [${t.name}] [${viewMode}] Salvos ${entriesToSave.length} registros. Rev: ${tRevenue.toFixed(2)}, Exp: ${tExpense.toFixed(2)}`);
             }
+            report.push({ tenant: t.name, status: 'Success' });
+        } catch (err: any) {
+            if (pushLog) pushLog(`[SYNC ERROR] [${t.name}] ${err.message}`);
+            report.push({ tenant: t.name, status: 'Error', error: err.message });
         }
-        report.push({ tenant: t.name, status: 'Success' });
     }
-    return { success: true, year: reqYear, report, logs };
+    return report;
 }

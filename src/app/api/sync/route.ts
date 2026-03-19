@@ -62,14 +62,6 @@ export async function GET(request: Request) {
             }
         }
 
-        const entries = await prisma.realizedEntry.findMany({
-            where: {
-                tenantId: { in: targetTenantIds },
-                year,
-                viewMode
-            }
-        });
-
         const allVariantIds: string[] = [];
         for (const pid of targetTenantIds) {
             const group = groups.find(g => g.includes(pid));
@@ -79,6 +71,14 @@ export async function GET(request: Request) {
                 allVariantIds.push(pid);
             }
         }
+
+        const entries = await prisma.realizedEntry.findMany({
+            where: {
+                tenantId: { in: allVariantIds },
+                year,
+                viewMode
+            }
+        });
 
         const categories = await prisma.category.findMany({
             where: { tenantId: { in: allVariantIds } },

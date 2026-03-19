@@ -233,7 +233,7 @@ export async function runCronSync(reqYear: number, tenantId?: string, pushLog?: 
                 // Cleanup and save
                 await prisma.realizedEntry.deleteMany({
                     where: { 
-                        tenantId: { in: allEntityIds }, 
+                        tenantId: t.id, 
                         year: reqYear, 
                         viewMode: viewMode
                     }

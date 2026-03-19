@@ -34,7 +34,8 @@ export async function GET(request: Request) {
             breakdown[catName].items.push({
                 desc: e.description,
                 amt: e.amount,
-                extId: e.externalId
+                extId: e.externalId,
+                updatedAt: e.updatedAt
             });
 
             if (catName.startsWith('01.1') || catName.startsWith('01.2') || catName.startsWith('01 ')) {

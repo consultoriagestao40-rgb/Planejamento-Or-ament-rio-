@@ -11,33 +11,29 @@ export async function GET(request: Request) {
         const viewMode = (searchParams.get('viewMode') || 'competencia') as 'caixa' | 'competencia';
         const tenantIdParam = searchParams.get('tenantId') || 'ALL';
 
-        const allTenants = await prisma.tenant.findMany({ orderBy: { updatedAt: 'desc' } });
-        
         // Deduplicate and pick Primary IDs for each company group using unified logic
         const { getTenantGroups } = await import('@/lib/tenant-utils');
-        const groups = await getTenantGroups();
+        const allTenants = await prisma.tenant.findMany({ select: { id: true } });
+        const tenantGroups = await getTenantGroups();
 
-        let targetTenantIds: string[] = [];
+        let allVariantIds: string[] = [];
+
         if (tenantIdParam === 'ALL') {
-             targetTenantIds = groups.map(g => g[0]);
+            allVariantIds = allTenants.map(t => t.id);
         } else {
             const inputIds = tenantIdParam.split(',').map(t => t.trim()).filter(Boolean);
-            for (const id of inputIds) {
-                const group = groups.find(g => g.includes(id));
-                const primary = group ? group[0] : id;
-                if (!targetTenantIds.includes(primary)) targetTenantIds.push(primary);
+            for (const pid of inputIds) {
+                const group = tenantGroups.find(g => g.includes(pid));
+                if (group) {
+                    allVariantIds.push(...group);
+                } else {
+                    allVariantIds.push(pid);
+                }
             }
         }
 
-        const allVariantIds: string[] = [];
-        for (const pid of targetTenantIds) {
-            const group = groups.find(g => g.includes(pid));
-            if (group) {
-                allVariantIds.push(...group);
-            } else {
-                allVariantIds.push(pid);
-            }
-        }
+        // Deduplicate
+        allVariantIds = Array.from(new Set(allVariantIds));
 
         const entries = await prisma.realizedEntry.findMany({
             where: {
@@ -73,7 +69,7 @@ export async function GET(request: Request) {
         return NextResponse.json({
             success: true,
             realizedValues,
-            variantIdsUsed: targetTenantIds
+            variantIdsUsed: allVariantIds
         });
     } catch (error: any) {
         return NextResponse.json({ success: false, error: error.message }, { status: 500 });

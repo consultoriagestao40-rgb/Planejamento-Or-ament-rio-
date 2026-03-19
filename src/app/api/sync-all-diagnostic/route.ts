@@ -1,23 +1,27 @@
-
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { runCronSync } from '@/lib/cronSync';
 
 export async function GET() {
     try {
+        const report = await runCronSync(2026);
+        
+        const parityMap: any = {};
         const tenants = await prisma.tenant.findMany();
-        const audit = async () => {
+        
         for (const t of tenants) {
-            const spotEntries = await prisma.realizedEntry.findMany({
+            const entries = await prisma.realizedEntry.findMany({
                 where: { tenantId: t.id, year: 2026, month: 1 }
             });
             
             let compRev = 0, compExp = 0, caiRev = 0, caiExp = 0;
-            spotEntries.forEach(e => {
+            entries.forEach(e => {
+                const isRev = e.amount > 0;
+                const val = Math.abs(e.amount);
                 if (e.viewMode === 'competencia') {
-                    if (e.amount > 0) compRev += e.amount; else compExp += Math.abs(e.amount);
+                    if (isRev) compRev += val; else compExp += val;
                 } else {
-                    if (e.amount > 0) caiRev += e.amount; else caiExp += Math.abs(e.amount);
+                    if (isRev) caiRev += val; else caiExp += val;
                 }
             });
             
@@ -29,13 +33,11 @@ export async function GET() {
 
         return NextResponse.json({ 
             ok: true, 
-            timestamp: new Date().toISOString(), 
-            status: "Full Diagnostic v0.9.82", 
-            report, // NEW: Full engine report including errors and counts
+            version: '0.9.83',
+            report, 
             parity: parityMap 
         });
     } catch (e: any) {
         return NextResponse.json({ ok: false, error: e.message });
     }
 }
-```

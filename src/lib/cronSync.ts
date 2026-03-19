@@ -38,48 +38,8 @@ export async function fetchAllTransactionsForYear(accessToken: string, baseUrl: 
                 const cats = item.categorias || [];
                 let ccs = item.centros_de_custo || [];
 
-                // Se houver rateio (centro de custo OU múltiplas categorias), buscamos detalhes
-                if (ccs.length > 1 || cats.length > 1) {
-                    try {
-                        const pRes = await fetch(`https://api-v2.contaazul.com/v1/financeiro/eventos-financeiros/parcelas/${item.id}`, { headers: { 'Authorization': `Bearer ${accessToken}` } });
-                        if (pRes.ok) {
-                            const pData = await pRes.json();
-                            if (pData.evento && pData.evento.rateio) {
-                                // 1. RATEIO POR CATEGORIA (PARA VALOR BRUTO)
-                                const catRateioMap = new Map();
-                                pData.evento.rateio.forEach((r: any) => {
-                                    if (r.id_categoria) {
-                                        catRateioMap.set(r.id_categoria, (catRateioMap.get(r.id_categoria) || 0) + (r.valor || 0));
-                                    }
-                                });
-                                // Injetar valores reais nas categorias do item para o loop de agregacao
-                                cats.forEach((c: any) => {
-                                    if (catRateioMap.has(c.id)) {
-                                        c.valor = catRateioMap.get(c.id);
-                                    }
-                                });
-
-                                // 2. RATEIO POR CENTRO DE CUSTO
-                                const rateioMap = new Map();
-                                pData.evento.rateio.forEach((r: any) => {
-                                    if (r.rateio_centro_custo && r.valor) {
-                                        r.rateio_centro_custo.forEach((rc: any) => {
-                                            const percent = (rc.valor || 0) / r.valor;
-                                            const proportionalValue = (item.total || item.valor || 0) * percent;
-                                            rateioMap.set(rc.id_centro_custo, (rateioMap.get(rc.id_centro_custo) || 0) + proportionalValue);
-                                        });
-                                    }
-                                });
-                                const uniqueCcsMap = new Map();
-                                ccs.forEach((cc: any) => {
-                                    const val = rateioMap.has(cc.id) ? rateioMap.get(cc.id) : cc.valor;
-                                    uniqueCcsMap.set(cc.id, (uniqueCcsMap.get(cc.id) || 0) + val);
-                                });
-                                ccs = Array.from(uniqueCcsMap.entries()).map(([id, valor]) => ({ id, valor }));
-                            }
-                        }
-                    } catch(e) {}
-                }
+                // Performance: Simplified categorization for V1/V2 Mirroring.
+                // We use the primary category provided in the list for 1:1 DRE alignment.
 
                 let dateStr: string;
                 let amount: number;

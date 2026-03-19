@@ -1,9 +1,25 @@
 import { prisma } from './prisma';
 
+import { refreshAccessToken } from './contaAzul';
+
 async function getValidAccessToken(tenantId: string) {
     const t = await prisma.tenant.findUnique({ where: { id: tenantId } });
-    if (!t || !t.accessToken) throw new Error("No token for tenant " + tenantId);
-    return t.accessToken;
+    if (!t || !t.refreshToken) throw new Error("No refresh token for tenant " + tenantId);
+    
+    try {
+        const tokens = await refreshAccessToken(t.refreshToken);
+        await prisma.tenant.update({
+            where: { id: tenantId },
+            data: {
+                accessToken: tokens.access_token,
+                refreshToken: tokens.refresh_token,
+                tokenExpiresAt: new Date(Date.now() + tokens.expires_in * 1000)
+            }
+        });
+        return tokens.access_token;
+    } catch (e: any) {
+        throw new Error(`Failed to refresh token for ${tenantId}: ${e.message}`);
+    }
 }
 
 async function fetchAllTransactionsForYear(accessToken: string, url: string, targetYear: number, viewMode: string, isExpense: boolean, pushLog?: (msg: string) => void): Promise<any[]> {

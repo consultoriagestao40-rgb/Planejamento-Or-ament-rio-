@@ -92,10 +92,14 @@ export async function fetchSalesForYear(accessToken: string, targetYear: number,
             const res = await fetch(`${url}&pagina=${page}`, { headers: { 'Authorization': `Bearer ${accessToken}` } });
             if (!res.ok) break;
             const data = await res.json();
-            const items = Array.isArray(data) ? data : (data.itens || []);
-            if (items.length === 0) break;
+            const itemList = Array.isArray(data) ? data : (data.itens || data.eventos || data.vendas || []);
+        
+            if (itemList.length === 0) {
+                hasMore = false;
+                break;
+            }
 
-            for (const item of items) {
+            for (const item of itemList) {
                 if ((item.status || '').includes('CANCEL')) continue;
                 const dStr = item.data_venda || item.data || '';
                 const m = parseInt(dStr.split('-')[1]);
@@ -103,7 +107,7 @@ export async function fetchSalesForYear(accessToken: string, targetYear: number,
                     salesData.push({ month: m, amount: item.valor_total || item.valor || 0 });
                 }
             }
-            if (items.length < 100) hasMore = false;
+            if (itemList.length < 100) hasMore = false;
             else page++;
         } catch (e) { hasMore = false; }
     }

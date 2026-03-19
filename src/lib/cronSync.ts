@@ -1,6 +1,6 @@
 import { prisma } from './prisma';
 
-import { refreshAccessToken } from './contaAzul';
+import { refreshAccessToken } from './contaazul';
 
 async function getValidAccessToken(tenantId: string) {
     const t = await prisma.tenant.findUnique({ where: { id: tenantId } });

@@ -13,6 +13,7 @@ export function middleware(request: NextRequest) {
         pathname.startsWith('/api/debug-final-jan-2026') ||
         pathname.startsWith('/api/debug-deep-audit') ||
         pathname.startsWith('/api/debug-tenants') ||
+        pathname.startsWith('/api/nuclear-cleanup') ||
         pathname.startsWith('/api/version') ||
         pathname === '/login' ||
         pathname === '/favicon.ico'

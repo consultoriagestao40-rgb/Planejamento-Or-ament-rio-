@@ -10,7 +10,7 @@ export async function fetchAllTransactionsForYear(accessToken: string, baseUrl: 
 
     while (hasMore && page <= 50) {
         const cacheBuster = `t=${Date.now()}_${Math.random().toString(36).substring(7)}`;
-        const url = `${baseUrl.includes('?') ? baseUrl : baseUrl + '?'}&pagina=${page}&itens_por_pagina=100&cb=${cacheBuster}`;
+        const url = `${baseUrl.includes('?') ? baseUrl : baseUrl + '?'}&pagina=${page}&tamanho_pagina=100&itens_por_pagina=100&cb=${cacheBuster}`;
         try {
             const res = await fetch(url, { 
                 headers: { 'Authorization': `Bearer ${accessToken}` },
@@ -19,16 +19,15 @@ export async function fetchAllTransactionsForYear(accessToken: string, baseUrl: 
             
             const rawText = await res.text();
             if (!res.ok) {
-                console.error(`Cron API fetch error ${res.status} on ${url}`);
+                if (pushLog) pushLog(`[API ERROR] status=${res.statusCode || res.status} url=${url.split('?')[0]}`);
                 break;
             }
 
             const data = JSON.parse(rawText);
             const items = Array.isArray(data) ? data : (data.itens || data.items || []);
             
-            // Log structure for debugging if empty
-            if (items.length === 0 && page === 1 && pushLog) {
-                pushLog(`[DEBUG] Empty items from ${url.split('?')[0]}. Raw response start: ${rawText.substring(0, 200)}`);
+            if (page === 1 && pushLog) {
+                pushLog(`[DEBUG] Page 1: status=${res.status} items=${items.length} raw=${rawText.substring(0, 150)}`);
             }
             
             if (items.length === 0) break;

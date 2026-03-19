@@ -6,9 +6,9 @@ export async function GET() {
     return NextResponse.json({
         ok: true,
         rev: "v0.9.27-deep-diag",
-        version: '0.9.40',
+        version: '0.9.41',
         timestamp: new Date().toISOString(),
-        message: 'Version 0.9.40 - Telemetry & Cache Buster (Final Diag)',
+        message: 'Version 0.9.41 - Crash Logging & Multi-Pagination Params',
         status: "STABLE"
     });
 }

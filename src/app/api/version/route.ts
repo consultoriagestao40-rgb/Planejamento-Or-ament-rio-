@@ -6,9 +6,9 @@ export async function GET() {
     return NextResponse.json({
         ok: true,
         rev: "v0.9.27-deep-diag",
-        version: '0.9.51',
+        version: '0.9.52',
         timestamp: new Date().toISOString(),
-        message: 'Version 0.9.51 - Grid Visibility & Variant ID Fix',
+        message: 'Version 0.9.52 - Stability Fix [No Auto-Healing Overhead]',
         status: "STABLE"
     });
 }

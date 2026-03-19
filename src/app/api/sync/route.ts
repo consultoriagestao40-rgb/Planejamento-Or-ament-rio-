@@ -3,41 +3,8 @@ import { prisma } from '@/lib/prisma';
 
 export const dynamic = 'force-dynamic';
 
-async function ensureRealizedSchema() {
-  try {
-    console.log("[SCHEMA] Evolving RealizedEntry...");
-    await prisma.$executeRawUnsafe(`
-      DO $$ 
-      BEGIN 
-        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='RealizedEntry' AND column_name='description') THEN
-          ALTER TABLE "RealizedEntry" ADD COLUMN "description" TEXT;
-        END IF;
-        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='RealizedEntry' AND column_name='amount') THEN
-          ALTER TABLE "RealizedEntry" ADD COLUMN "amount" DOUBLE PRECISION DEFAULT 0;
-        END IF;
-        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='RealizedEntry' AND column_name='externalId') THEN
-          ALTER TABLE "RealizedEntry" ADD COLUMN "externalId" TEXT;
-        END IF;
-        
-        -- Drop old constraint if exists
-        IF EXISTS (SELECT 1 FROM information_schema.table_constraints WHERE constraint_name='RealizedEntry_tenantId_categoryId_costCenterId_month_year_viewMode_key') THEN
-            ALTER TABLE "RealizedEntry" DROP CONSTRAINT "RealizedEntry_tenantId_categoryId_costCenterId_month_year_viewMode_key";
-        END IF;
-        
-        -- Create unique index on externalId
-        IF NOT EXISTS (SELECT 1 FROM information_schema.table_constraints WHERE constraint_name='RealizedEntry_externalId_viewMode_tenantId_key') THEN
-            ALTER TABLE "RealizedEntry" ADD CONSTRAINT "RealizedEntry_externalId_viewMode_tenantId_key" UNIQUE ("externalId", "viewMode", "tenantId");
-        END IF;
-      END $$;
-    `);
-  } catch (err) {
-    console.error("[SCHEMA] Error evolving RealizedEntry:", err);
-  }
-}
-
 export async function GET(request: Request) {
     try {
-        await ensureRealizedSchema();
         const { searchParams } = new URL(request.url);
         const costCenterId = searchParams.get('costCenterId') || 'DEFAULT';
         const year = parseInt(searchParams.get('year') || new Date().getFullYear().toString(), 10);

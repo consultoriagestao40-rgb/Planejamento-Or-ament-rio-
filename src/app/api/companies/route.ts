@@ -6,13 +6,6 @@ export const dynamic = 'force-dynamic';
 
 export async function GET() {
     try {
-        await ensureTenantSchema();
-        
-        // Self-healing: Rename the fallback "Minha Empresa (Conta Azul)" to SPOT FACILITIES
-        await prisma.tenant.updateMany({
-            where: { name: { contains: 'Minha Empresa' } },
-            data: { name: 'SPOT FACILITIES' }
-        });
 
         const allTenants = await prisma.tenant.findMany({
             orderBy: { updatedAt: 'desc' }

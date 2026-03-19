@@ -6,9 +6,9 @@ export async function GET() {
     return NextResponse.json({
         ok: true,
         rev: "v0.9.27-deep-diag",
-        version: '0.9.36',
+        version: '0.9.37',
         timestamp: new Date().toISOString(),
-        message: 'Version 0.9.36 - Unified V1 Financial Events (Competence View)',
+        message: 'Version 0.9.37 - Local Competence Filtering (V1 Standard Params)',
         status: "STABLE"
     });
 }

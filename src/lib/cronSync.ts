@@ -331,11 +331,20 @@ export async function runCronSync(reqYear: number, targetTenantId?: string) {
             // In v0.9.36, we use ONLY financial events filtered by competence to match CA's "Visão de Competência" report.
             const transactions: any[] = [];
             for (const ep of endpoints) {
-                const dateFilterPrefix = isCaixa ? 'data_vencimento' : 'data_competencia';
-                const fullUrl = `${ep.url}?${dateFilterPrefix}_de=${startStr}&${dateFilterPrefix}_ate=${endStr}&tamanho_pagina=100`;
+                // API V1 only supports data_vencimento_de in the list query efficiently.
+                // We use the wide window (startStr/endStr) to catch all possible items.
+                const fullUrl = `${ep.url}?data_vencimento_de=${startStr}&data_vencimento_ate=${endStr}&tamanho_pagina=100`;
                 const items = await fetchAllTransactionsForYear(token, fullUrl, reqYear, viewMode, ep.isExpense);
                 
-                transactions.push(...items.map(tx => ({ ...tx, isExpense: ep.isExpense })));
+                // LOCAL FILTER: Match CA's "Visão de Competência" or "Visão de Caixa"
+                const matches = items.filter(tx => {
+                    const dateRaw = isCaixa ? (tx.data_pagamento || tx.data_vencimento) : (tx.data_competencia || tx.data_emissao || tx.data_vencimento);
+                    if (!dateRaw) return false;
+                    const dateStr = String(dateRaw);
+                    return dateStr.startsWith(String(reqYear));
+                });
+
+                transactions.push(...matches.map(tx => ({ ...tx, isExpense: ep.isExpense })));
             }
 
             let totalRevenue = 0;
@@ -346,7 +355,7 @@ export async function runCronSync(reqYear: number, targetTenantId?: string) {
             for (const txn of transactions) {
                 if (processedIds.has(txn.id)) continue;
                 processedIds.add(txn.id);
-                const absAmt = Math.abs(txn.amount);
+                const absAmt = Math.abs(txn.valor || txn.amount || 0);
                 if (txn.amount > 0) totalRevenue += absAmt;
                 else totalExpense += absAmt;
                 

@@ -6,9 +6,9 @@ export async function GET() {
     return NextResponse.json({
         ok: true,
         rev: "v0.9.27-deep-diag",
-        version: '0.9.37',
+        version: '0.9.38',
         timestamp: new Date().toISOString(),
-        message: 'Version 0.9.37 - Local Competence Filtering (V1 Standard Params)',
+        message: 'Version 0.9.38 - V1 Array Parser & Pagination Fix',
         status: "STABLE"
     });
 }

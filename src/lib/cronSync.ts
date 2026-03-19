@@ -9,7 +9,7 @@ export async function fetchAllTransactionsForYear(accessToken: string, baseUrl: 
     const transactions: any[] = [];
 
     while (hasMore && page <= 50) {
-        const url = `${baseUrl}&pagina=${page}`;
+        const url = `${baseUrl.includes('?') ? baseUrl : baseUrl + '?'}&pagina=${page}&itens_por_pagina=100`;
         try {
             const res = await fetch(url, { headers: { 'Authorization': `Bearer ${accessToken}` } });
             if (!res.ok) {
@@ -18,7 +18,7 @@ export async function fetchAllTransactionsForYear(accessToken: string, baseUrl: 
             }
 
             const data = await res.json();
-            const items = data.itens || [];
+            const items = Array.isArray(data) ? data : (data.itens || data.items || []);
             console.log(`[SYNC] Fetched ${items.length} items from ${url.split('?')[0]}`);
             if (items.length === 0) break;
 
@@ -333,7 +333,7 @@ export async function runCronSync(reqYear: number, targetTenantId?: string) {
             for (const ep of endpoints) {
                 // API V1 only supports data_vencimento_de in the list query efficiently.
                 // We use the wide window (startStr/endStr) to catch all possible items.
-                const fullUrl = `${ep.url}?data_vencimento_de=${startStr}&data_vencimento_ate=${endStr}&tamanho_pagina=100`;
+                const fullUrl = `${ep.url}?data_vencimento_de=${startStr}&data_vencimento_ate=${endStr}`;
                 const items = await fetchAllTransactionsForYear(token, fullUrl, reqYear, viewMode, ep.isExpense);
                 
                 // LOCAL FILTER: Match CA's "Visão de Competência" or "Visão de Caixa"

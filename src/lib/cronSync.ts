@@ -324,8 +324,8 @@ export async function runCronSync(reqYear: number, targetTenantId?: string) {
             
             const entriesToSave: any[] = [];
             const endpoints = [
-                { url: `https://api.contaazul.com/v1/recebimentos`, isExpense: false, name: 'RECEIVABLES' },
-                { url: `https://api.contaazul.com/v1/pagamentos`, isExpense: true, name: 'PAYABLES' }
+                { url: `https://api-v2.contaazul.com/v1/financeiro/eventos-financeiros/contas-a-receber/buscar`, isExpense: false, name: 'RECEIVABLES' },
+                { url: `https://api-v2.contaazul.com/v1/financeiro/eventos-financeiros/contas-a-pagar/buscar`, isExpense: true, name: 'PAYABLES' }
             ];
 
             // In v0.9.36, we use ONLY financial events filtered by competence to match CA's "Visão de Competência" report.

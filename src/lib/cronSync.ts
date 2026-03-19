@@ -116,12 +116,11 @@ export async function fetchAllTransactionsForYear(accessToken: string, baseUrl: 
     return transactions;
 }
 
-export async function fetchSalesForYear(accessToken: string, targetYear: number) {
+export async function fetchSalesForYear(accessToken: string, targetYear: number, pushLog?: (msg: string) => void) {
     let page = 1;
     let hasMore = true;
     const salesData: any[] = [];
     
-    // Window: Jan-Dec of target year (Vendas competence is usually emission date)
     const startStr = `${targetYear}-01-01`;
     const endStr = `${targetYear}-12-31`;
 
@@ -129,11 +128,19 @@ export async function fetchSalesForYear(accessToken: string, targetYear: number)
         const url = `https://api-v2.contaazul.com/v1/venda/busca?data_inicio=${startStr}&data_fim=${endStr}&pagina=${page}&tamanho_pagina=100`;
         try {
             const res = await fetch(url, { headers: { 'Authorization': `Bearer ${accessToken}` } });
-            if (!res.ok) break;
+            if (!res.ok) {
+                if (pushLog) pushLog(`[SALES] API Error ${res.status} on ${url}`);
+                break;
+            }
 
             const data = await res.json();
             const items = data.itens || data.items || [];
-            if (!Array.isArray(items) || items.length === 0) break;
+            if (!Array.isArray(items) || items.length === 0) {
+                if (pushLog && page === 1) pushLog(`[SALES] No items returned for ${targetYear}`);
+                break;
+            }
+
+            if (pushLog && page === 1) pushLog(`[SALES] Fetched ${items.length} records. Sample #0 ID: ${items[0].id}, Total: ${items[0].valor_total}`);
 
             for (const sale of items) {
                 if ((sale.status || sale.situacao || '').toUpperCase().includes('CANCEL')) continue;
@@ -146,12 +153,9 @@ export async function fetchSalesForYear(accessToken: string, targetYear: number)
                 const itemMonth = parseInt(mStr);
                 if (itemYear !== targetYear) continue;
 
-                // Revenue Distribution
-                // Note: v1 searchvendas returns the sale summary. 
-                // We use the root category and total value as requested for 'Visão de Competência'
                 salesData.push({
                     id: sale.id,
-                    description: `Venda ${sale.numero || sale.id}: ${sale.cliente?.nome || ''}`,
+                    description: `Venda ${sale.numero || sale.id}: ${sale.cliente?.nome || 'Consumidor'}`,
                     month: itemMonth,
                     amount: sale.valor_total || sale.total || 0,
                     categoryId: sale.id_categoria || sale.category_id,
@@ -159,7 +163,6 @@ export async function fetchSalesForYear(accessToken: string, targetYear: number)
                     isRetention: false
                 });
 
-                // Tax Retentions (if available in the response)
                 const ret = sale.retencoes || {};
                 const totalRet = (ret.iss || 0) + (ret.irrf || 0) + (ret.csll || 0) + (ret.pis || 0) + (ret.cofins || 0);
                 if (totalRet > 0) {
@@ -177,7 +180,8 @@ export async function fetchSalesForYear(accessToken: string, targetYear: number)
 
             if (items.length < 100) hasMore = false;
             else page++;
-        } catch (e) {
+        } catch (e: any) {
+            if (pushLog) pushLog(`[SALES] Exception: ${e.message}`);
             hasMore = false;
         }
     }
@@ -298,33 +302,31 @@ export async function runCronSync(reqYear: number, targetTenantId?: string) {
                 { url: `https://api-v2.contaazul.com/v1/financeiro/eventos-financeiros/outras-despesas/buscar`, isExpense: true }
             ];
 
+            // PRECISE REVENUE FILTER: Get all Raw IDs for revenue categories to ensure filter works
+            const revenueRawIds = categoriesDb
+                .filter(c => c.name.startsWith('01.1') || c.name.startsWith('01.2'))
+                .map(c => c.id.includes(':') ? c.id.split(':')[1] : c.id);
+
             const transactions: any[] = [];
             for (const ep of endpoints) {
-                // Precise filtering: Search by competence date when in competence mode
                 const dateFilterPrefix = isCaixa ? 'data_vencimento' : 'data_competencia';
                 const fullUrl = `${ep.url}?${dateFilterPrefix}_de=${startStr}&${dateFilterPrefix}_ate=${endStr}&tamanho_pagina=100`;
                 const items = await fetchAllTransactionsForYear(token, fullUrl, reqYear, viewMode, ep.isExpense);
                 
-                // CRITICAL: Filter out revenue categories (01.1, 01.2) from Financial Events
-                // if we are in Competencia mode, as we will use the Vendas API for those.
                 const filteredItems = items.filter(tx => {
                     if (viewMode === 'competencia' && !ep.isExpense) {
-                        const hasRevenueCat = tx.categories.some((c: any) => {
-                            const name = (c.nome || c.name || '').trim();
-                            return name.startsWith('01.1') || name.startsWith('01.2');
-                        });
+                        const hasRevenueCat = tx.categories.some((c: any) => revenueRawIds.includes(String(c.id)));
                         return !hasRevenueCat;
                     }
                     return true;
                 });
-
                 transactions.push(...filteredItems.map(tx => ({ ...tx, isExpense: ep.isExpense })));
             }
 
             // 2. FETCH DATA FROM SALES MODULE (Only for Competencia Mode)
             if (viewMode === 'competencia') {
                 pushLog(`[SYNC] [${t.name}] Fetching Sales Module data...`);
-                const sales = await fetchSalesForYear(token, reqYear);
+                const sales = await fetchSalesForYear(token, reqYear, pushLog);
                 
                 // Find the DB ID for the Taxes category (02.1)
                 const taxesCat = primaryCategories.find(p => p.name.includes('02.1')) || 

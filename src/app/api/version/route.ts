@@ -5,10 +5,10 @@ export const dynamic = 'force-dynamic';
 export async function GET() {
     return NextResponse.json({
         ok: true,
-        rev: "v0.9.24-sales-fix",
-        version: "0.9.24",
+        rev: "v0.9.25-robust-sync",
+        version: "0.9.25",
         timestamp: new Date().toISOString(),
-        message: "Version 0.9.24 - Fix Sales API endpoint and Revenue Filter",
+        message: "Version 0.9.25 - Robust Category ID Filtering and Sales Sync Logs",
         status: "STABLE"
     });
 }

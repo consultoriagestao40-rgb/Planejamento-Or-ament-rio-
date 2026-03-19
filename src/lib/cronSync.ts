@@ -154,12 +154,16 @@ export async function runCronSync(reqYear: number, tenantId?: string, pushLog?: 
                 const entriesToSave: any[] = [];
                 let tRevenue = 0;
                 let tExpense = 0;
+                let skippedByYear = 0;
+                let skippedByCat = 0;
 
                 for (const ep of endpoints) {
                     const fullUrl = `${ep.url}?data_vencimento_de=${startStr}&data_vencimento_ate=${endStr}`;
                     const items = await fetchAllTransactionsForYear(token, fullUrl, reqYear, viewMode, ep.isExpense, pushLog);
 
                     for (const tx of items) {
+                        if (tx.month === 0) { skippedByYear++; continue; } 
+
                         if (ep.isExpense) tExpense += Math.abs(tx.amount);
                         else tRevenue += Math.abs(tx.amount);
 
@@ -177,7 +181,13 @@ export async function runCronSync(reqYear: number, tenantId?: string, pushLog?: 
                                 viewMode: viewMode,
                                 description: tx.description || 'CONTA AZUL SYNC'
                             });
+                        } else {
+                            skippedByCat++;
                         }
+                    }
+
+                    if (pushLog && (skippedByYear > 0 || skippedByCat > 0)) {
+                        pushLog(`[SYNC] [${t.name}] [${viewMode}] [${ep.name}] Processados: ${items.length}, Salvos: ${entriesToSave.length}. Pulados: ${skippedByYear} (data), ${skippedByCat} (cat)`);
                     }
                 }
 

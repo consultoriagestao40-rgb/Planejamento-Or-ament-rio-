@@ -6,9 +6,9 @@ export async function GET() {
     return NextResponse.json({
         ok: true,
         rev: "v0.9.27-deep-diag",
-        version: '0.9.57',
+        version: '0.9.58',
         timestamp: new Date().toISOString(),
-        message: 'Version 0.9.57 - Competency Emission Date Fallback Fix',
+        message: 'Version 0.9.58 - Transactional Telemetry & Skip Logic V2',
         status: "STABLE"
     });
 }

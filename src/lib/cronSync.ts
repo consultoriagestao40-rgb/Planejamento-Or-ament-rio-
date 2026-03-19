@@ -181,6 +181,10 @@ export async function runCronSync(reqYear: number, tenantId?: string, pushLog?: 
                         
                     const fullUrl = `${ep.url}?${dateParams}`;
                     const items = await fetchAllTransactionsForYear(token, fullUrl, reqYear, viewMode, ep.isExpense, pushLog);
+                    console.log(`[SYNC][${t.name}][${ep.name}] Found ${items.length} items for ${viewMode}`);
+                    if (items.length > 0) {
+                        console.log(`[SYNC][SAMPLE] First item: ${JSON.stringify(items[0])}`);
+                    }
 
                     for (const tx of items) {
                         if (tx.month === 0) { skippedByYear++; continue; } 

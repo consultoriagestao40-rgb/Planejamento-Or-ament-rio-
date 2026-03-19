@@ -13,17 +13,21 @@ export async function GET() {
             
             const comp = await prisma.realizedEntry.aggregate({
                 where: { tenantId: { in: groupIds }, year: 2026, month: 1, viewMode: 'competencia' },
-                _sum: { amount: true }
+                _sum: { amount: true },
+                _count: { id: true }
             });
             
             const caixa = await prisma.realizedEntry.aggregate({
                 where: { tenantId: { in: groupIds }, year: 2026, month: 1, viewMode: 'caixa' },
-                _sum: { amount: true }
+                _sum: { amount: true },
+                _count: { id: true }
             });
             
             results[name] = {
                 competencia: comp._sum.amount || 0,
-                caixa: caixa._sum.amount || 0
+                compRows: comp._count.id,
+                caixa: caixa._sum.amount || 0,
+                caixaRows: caixa._count.id
             };
         }
         

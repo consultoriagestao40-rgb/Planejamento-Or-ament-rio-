@@ -6,9 +6,9 @@ export async function GET() {
     return NextResponse.json({
         ok: true,
         rev: "v0.9.27-deep-diag",
-        version: '0.9.63',
+        version: '0.9.64',
         timestamp: new Date().toISOString(),
-        message: 'Version 0.9.63 - Sales Sync & DRE Heuristic Fix',
+        message: 'Version 0.9.64 - Vendas Date Parameter Fix',
         status: "STABLE"
     });
 }

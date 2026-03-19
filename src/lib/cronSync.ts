@@ -162,7 +162,11 @@ export async function runCronSync(reqYear: number, tenantId?: string, pushLog?: 
                 let skippedByCat = 0;
 
                 for (const ep of endpoints) {
-                    const fullUrl = `${ep.url}?data_vencimento_de=${startStr}&data_vencimento_ate=${endStr}`;
+                    const dateParams = ep.name === 'Vendas' 
+                        ? `data_inicio=${startStr}&data_fim=${endStr}`
+                        : `data_vencimento_de=${startStr}&data_vencimento_ate=${endStr}`;
+                        
+                    const fullUrl = `${ep.url}?${dateParams}`;
                     const items = await fetchAllTransactionsForYear(token, fullUrl, reqYear, viewMode, ep.isExpense, pushLog);
 
                     for (const tx of items) {

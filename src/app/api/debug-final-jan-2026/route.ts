@@ -23,11 +23,18 @@ export async function GET() {
                 _count: { id: true }
             });
             
+            const raw = name.includes('SPOT') ? await prisma.realizedEntry.findMany({
+                where: { tenantId: { in: groupIds }, year: 2026, month: 1 },
+                take: 10,
+                select: { amount: true, viewMode: true, categoryId: true, externalId: true, description: true }
+            }) : [];
+
             results[name] = {
                 competencia: comp._sum.amount || 0,
                 compRows: comp._count.id,
                 caixa: caixa._sum.amount || 0,
-                caixaRows: caixa._count.id
+                caixaRows: caixa._count.id,
+                raw: raw
             };
         }
         

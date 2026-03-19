@@ -6,9 +6,9 @@ export async function GET() {
     return NextResponse.json({
         ok: true,
         rev: "v0.9.27-deep-diag",
-        version: '0.9.60',
+        version: '0.9.61',
         timestamp: new Date().toISOString(),
-        message: 'Version 0.9.60 - Middleware Diagnostic Fix',
+        message: 'Version 0.9.61 - Dynamic Category Auto-Import',
         status: "STABLE"
     });
 }

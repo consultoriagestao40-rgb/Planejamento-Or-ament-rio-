@@ -170,7 +170,25 @@ export async function runCronSync(reqYear: number, tenantId?: string, pushLog?: 
                         const mainCatId = tx.categories[0]?.id;
                         const mainCcId = tx.costCenters[0]?.id;
 
-                        if (mainCatId && catMap.has(mainCatId)) {
+                        if (mainCatId) {
+                            if (!catMap.has(mainCatId)) {
+                                const newCatName = tx.categories[0]?.name || 'Importado CA';
+                                const newCatId = `${t.id}:${mainCatId}`;
+                                const catType = ep.isExpense ? 'EXPENSE' : 'REVENUE';
+                                try {
+                                    await prisma.category.upsert({
+                                        where: { id: newCatId },
+                                        create: { id: newCatId, name: newCatName, tenantId: t.id, type: catType },
+                                        update: { name: newCatName }
+                                    });
+                                    catMap.set(mainCatId, newCatId);
+                                    if (pushLog) pushLog(`[SYNC] [${t.name}] Criada categoria faltante: ${newCatName}`);
+                                } catch (e) {
+                                    skippedByCat++;
+                                    continue;
+                                }
+                            }
+
                             entriesToSave.push({
                                 tenantId: t.id,
                                 categoryId: catMap.get(mainCatId)!,
@@ -183,10 +201,6 @@ export async function runCronSync(reqYear: number, tenantId?: string, pushLog?: 
                             });
                         } else {
                             skippedByCat++;
-                            if (pushLog && skippedByCat <= 10) {
-                                const catName = tx.categories[0]?.name || 'Unknown';
-                                pushLog(`[SYNC] [${t.name}] [Skip] Categoria não encontrada: [${mainCatId}] ${catName}`);
-                            }
                         }
                     }
 

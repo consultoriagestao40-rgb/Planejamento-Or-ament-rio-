@@ -183,6 +183,10 @@ export async function runCronSync(reqYear: number, tenantId?: string, pushLog?: 
                             });
                         } else {
                             skippedByCat++;
+                            if (pushLog && skippedByCat <= 10) {
+                                const catName = tx.categories[0]?.name || 'Unknown';
+                                pushLog(`[SYNC] [${t.name}] [Skip] Categoria não encontrada: [${mainCatId}] ${catName}`);
+                            }
                         }
                     }
 

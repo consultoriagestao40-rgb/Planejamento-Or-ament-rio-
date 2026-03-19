@@ -117,9 +117,18 @@ export async function runCronSync(reqYear: number, tenantId?: string, pushLog?: 
     const allCategories = await prisma.category.findMany();
     const allCostCenters = await prisma.costCenter.findMany();
 
-    // ID Map
-    const catMap = new Map(allCategories.map(c => [c.id, c.id]));
-    const ccMap = new Map(allCostCenters.map(c => [c.id, c.id]));
+    // ID Map - Map RAW CA ID -> COMPOSITE DB ID
+    const catMap = new Map<string, string>();
+    allCategories.forEach(c => {
+        const rawId = c.id.includes(':') ? c.id.split(':')[1] : c.id;
+        catMap.set(rawId, c.id);
+    });
+
+    const ccMap = new Map<string, string>();
+    allCostCenters.forEach(c => {
+        const rawId = c.id.includes(':') ? c.id.split(':')[1] : c.id;
+        ccMap.set(rawId, c.id);
+    });
 
     const report = [];
 
@@ -160,8 +169,8 @@ export async function runCronSync(reqYear: number, tenantId?: string, pushLog?: 
                         if (mainCatId && catMap.has(mainCatId)) {
                             entriesToSave.push({
                                 tenantId: t.id,
-                                categoryId: mainCatId,
-                                costCenterId: (mainCcId && ccMap.has(mainCcId)) ? mainCcId : null,
+                                categoryId: catMap.get(mainCatId)!,
+                                costCenterId: (mainCcId && ccMap.has(mainCcId)) ? ccMap.get(mainCcId)! : null,
                                 year: reqYear,
                                 month: tx.month,
                                 amount: tx.amount,

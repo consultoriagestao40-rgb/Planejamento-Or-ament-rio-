@@ -11,6 +11,9 @@ export async function GET(request: Request) {
         const year = 2026;
         const month = 1;
 
+        const allTenants = await prisma.tenant.findMany();
+        const tenantMap = allTenants.map(t => ({ id: t.id, name: t.name }));
+
         const where: any = { year, month, viewMode: 'competencia' };
         if (targetTenantId) where.tenantId = targetTenantId;
 
@@ -47,7 +50,8 @@ export async function GET(request: Request) {
 
         return NextResponse.json({
             success: true,
-            version: '0.9.29-deep-diag',
+            version: '0.9.30-deep-diag',
+            allTenants,
             jan2026: {
                 totalRevenue,
                 totalTaxes,

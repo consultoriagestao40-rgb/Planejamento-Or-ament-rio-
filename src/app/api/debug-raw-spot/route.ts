@@ -20,12 +20,15 @@ export async function GET(request: Request) {
         });
         
         const data = await res.json();
+        const isArray = Array.isArray(data);
 
         return NextResponse.json({
             success: true,
-            count: data.length,
-            sample: data.slice(0, 5),
-            full: data
+            status: res.status,
+            isArray,
+            count: isArray ? data.length : 0,
+            sample: isArray ? data.slice(0, 3) : null,
+            raw: data
         });
     } catch (error: any) {
         return NextResponse.json({ error: error.message });

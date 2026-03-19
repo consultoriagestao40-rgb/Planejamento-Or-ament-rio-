@@ -156,8 +156,8 @@ export async function runCronSync(reqYear: number, tenantId?: string, pushLog?: 
             if (pushLog) pushLog(`[SYNC] [${t.name}] Iniciando...`);
 
             for (const viewMode of ['competencia', 'caixa'] as const) {
-                const startStr = `${reqYear - 1}-01-01`; // Start 1 year before
-                const endStr = `${reqYear + 1}-12-31`;   // End 1 year after
+                const startStr = `${reqYear - 1}-01-01`; 
+                const endStr = `${reqYear + 1}-12-31`;   
                 
                 const endpoints = viewMode === 'caixa' ? [
                     { name: 'Recebimentos', url: 'https://api-v2.contaazul.com/v1/financeiro/eventos-financeiros/contas-a-receber/buscar', isExpense: false },
@@ -171,20 +171,22 @@ export async function runCronSync(reqYear: number, tenantId?: string, pushLog?: 
                 const entriesToSave: any[] = [];
                 let tRevenue = 0;
                 let tExpense = 0;
-                let skippedByYear = 0;
-                let skippedByCat = 0;
 
                 for (const ep of endpoints) {
-                    const dateParams = ep.name === 'Vendas' 
-                        ? `data_inicio=${startStr}&data_fim=${endStr}`
-                        : `data_vencimento_de=${startStr}&data_vencimento_ate=${endStr}`;
+                    let dateParams = '';
+                    if (ep.name === 'Vendas') {
+                        dateParams = `data_inicio=${startStr}&data_fim=${endStr}`;
+                    } else {
+                        dateParams = viewMode === 'caixa' 
+                            ? `data_liquidacao_inicio=${startStr}&data_liquidacao_fim=${endStr}` 
+                            : `data_competencia_inicio=${startStr}&data_competencia_fim=${endStr}`;
+                    }
                         
                     const fullUrl = `${ep.url}?${dateParams}`;
                     const items = await fetchAllTransactionsForYear(token, fullUrl, reqYear, viewMode, ep.isExpense, pushLog);
-                    console.log(`[SYNC][${t.name}][${ep.name}] Found ${items.length} items for ${viewMode}`);
-                    if (items.length > 0) {
-                        console.log(`[SYNC][SAMPLE] First item: ${JSON.stringify(items[0])}`);
-                    }
+                    
+                    let skippedByYear = 0;
+                    let skippedByCat = 0;
 
                     for (const tx of items) {
                         if (tx.month === 0) { skippedByYear++; continue; } 
@@ -196,13 +198,11 @@ export async function runCronSync(reqYear: number, tenantId?: string, pushLog?: 
                         let mainCatName = tx.categories?.[0]?.name;
                         const mainCcId = tx.costCenters?.[0]?.id;
 
-                        // Support for Vendas V1 item categories
                         if (!mainCatId && ep.name === 'Vendas') {
                             const firstItem = tx.itens?.[0] || tx.servicos?.[0];
                             mainCatId = firstItem?.categoria?.id;
                             mainCatName = firstItem?.categoria?.nome || 'Receita de Vendas';
                         }
-
                         if (!mainCatId) mainCatId = 'SYSTEM_GENERIC_REVENUE';
 
                         if (mainCatId) {
@@ -226,7 +226,6 @@ export async function runCronSync(reqYear: number, tenantId?: string, pushLog?: 
                                         update: { name: newCatName }
                                     });
                                     catMap.set(mainCatId, newCatId);
-                                    if (pushLog) pushLog(`[SYNC] [${t.name}] Criada categoria faltante: ${newCatName}`);
                                 } catch (e) {
                                     skippedByCat++;
                                     continue;
@@ -243,30 +242,22 @@ export async function runCronSync(reqYear: number, tenantId?: string, pushLog?: 
                                 viewMode: viewMode,
                                 description: tx.description || 'CONTA AZUL SYNC'
                             });
-                        } else {
-                            skippedByCat++;
                         }
                     }
-
                     if (pushLog && (skippedByYear > 0 || skippedByCat > 0)) {
-                        pushLog(`[SYNC] [${t.name}] [${viewMode}] [${ep.name}] Processados: ${items.length}, Salvos: ${entriesToSave.length}. Pulados: ${skippedByYear} (data), ${skippedByCat} (cat)`);
+                        pushLog(`[SYNC] [${t.name}] [${viewMode}] [${ep.name}] Pulados: ${skippedByYear} (data), ${skippedByCat} (cat)`);
                     }
                 }
 
-                // Cleanup and save
                 await prisma.realizedEntry.deleteMany({
-                    where: { 
-                        tenantId: t.id, 
-                        year: reqYear, 
-                        viewMode: viewMode
-                    }
+                    where: { tenantId: t.id, year: reqYear, viewMode: viewMode }
                 });
 
                 if (entriesToSave.length > 0) {
                     await prisma.realizedEntry.createMany({ data: entriesToSave });
                 }
 
-                if (pushLog) pushLog(`[SYNC] [${t.name}] [${viewMode}] Salvos ${entriesToSave.length} registros. Rev: ${tRevenue.toFixed(2)}, Exp: ${tExpense.toFixed(2)}`);
+                if (pushLog) pushLog(`[SYNC] [${t.name}] [${viewMode}] Salvos ${entriesToSave.length} registros.`);
             }
             report.push({ tenant: t.name, status: 'Success' });
         } catch (err: any) {

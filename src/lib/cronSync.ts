@@ -51,10 +51,19 @@ export async function fetchAllTransactionsForYear(accessToken: string, baseUrl: 
                 }
 
                 if (!dateStr) continue;
-                const [yStr, mStr] = dateStr.includes('T') ? dateStr.split('T')[0].split('-') : dateStr.split('-');
-                const itemYear = parseInt(yStr);
-                const itemMonth = parseInt(mStr);
+                let itemYear = 0;
+                let itemMonth = 0;
 
+                if (dateStr.includes('/')) {
+                    const parts = dateStr.split('/');
+                    itemYear = parseInt(parts[2]);
+                    itemMonth = parseInt(parts[1]);
+                } else {
+                    const [yStr, mStr] = dateStr.includes('T') ? dateStr.split('T')[0].split('-') : dateStr.split('-');
+                    itemYear = parseInt(yStr);
+                    itemMonth = parseInt(mStr);
+                }
+                
                 if (itemYear !== targetYear) continue;
 
                 transactions.push({

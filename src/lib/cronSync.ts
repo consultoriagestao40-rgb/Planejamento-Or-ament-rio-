@@ -103,6 +103,13 @@ export async function fetchSalesForYear(accessToken: string, targetYear: number,
             const data = await res.json();
             const itemList = Array.isArray(data) ? data : (data.itens || data.eventos || data.vendas || []);
         
+            if (pushLog && itemList.length > 0) {
+                const first = itemList[0];
+                if (first) {
+                    pushLog(`[API DEBUG] [FIRST ITEM] ID: ${first.id}, Data: ${first.data}, Comp: ${first.data_competencia}, Venc: ${first.data_vencimento}, Liq: ${first.data_liquidacao}`);
+                }
+            }
+            
             if (itemList.length === 0) {
                 hasMore = false;
                 break;
@@ -172,6 +179,7 @@ export async function runCronSync(reqYear: number, tenantId?: string, pushLog?: 
                 let tRevenue = 0;
                 let tExpense = 0;
 
+                let firstItemInfo = '';
                 for (const ep of endpoints) {
                     let dateParams = '';
                     if (ep.name === 'Vendas') {
@@ -185,6 +193,11 @@ export async function runCronSync(reqYear: number, tenantId?: string, pushLog?: 
                     const fullUrl = `${ep.url}?${dateParams}`;
                     const items = await fetchAllTransactionsForYear(token, fullUrl, reqYear, viewMode, ep.isExpense, pushLog);
                     
+                    if (items.length > 0 && !firstItemInfo) {
+                        const it = items[0];
+                        firstItemInfo = `[${ep.name}] ID:${it.id} D:${it.data} C:${it.data_competencia} V:${it.data_vencimento} L:${it.data_liquidacao}`;
+                    }
+
                     for (const tx of items) {
                         if (tx.month === 0) continue; 
 
@@ -258,7 +271,7 @@ export async function runCronSync(reqYear: number, tenantId?: string, pushLog?: 
                 }
 
                 if (pushLog) pushLog(`[SYNC] [${t.name}] [${viewMode}] Salvos ${entriesToSave.length} registros.`);
-                report.push({ tenant: t.name, mode: viewMode, saved: entriesToSave.length });
+                report.push({ tenant: t.name, mode: viewMode, saved: entriesToSave.length, sample: firstItemInfo });
             }
         } catch (err: any) {
             if (pushLog) pushLog(`[SYNC ERROR] [${t.name}] ${err.message}`);

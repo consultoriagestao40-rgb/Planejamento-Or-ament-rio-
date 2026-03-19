@@ -14,12 +14,8 @@ export function middleware(request: NextRequest) {
         pathname.startsWith('/api/debug-deep-audit') ||
         pathname.startsWith('/api/debug-tenants') ||
         pathname.startsWith('/api/debug-db-dump') ||
-        pathname.startsWith('/api/debug-raw-spot') ||
-        pathname.startsWith('/api/nuclear-cleanup') ||
-        pathname.startsWith('/api/sync-all-diagnostic') ||
-        pathname.startsWith('/api/diag-db-state') ||
         pathname.startsWith('/api/diag-cats') ||
-        pathname.startsWith('/api/debug-parity-check') ||
+        pathname.startsWith('/api/debug-final-jan-2026') ||
         pathname.startsWith('/api/version') ||
         pathname === '/login' ||
         pathname === '/favicon.ico'

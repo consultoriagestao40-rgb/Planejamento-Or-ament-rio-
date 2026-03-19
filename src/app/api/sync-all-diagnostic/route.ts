@@ -4,7 +4,7 @@ import { runCronSync } from '@/lib/cronSync';
 
 export async function GET() {
     try {
-        const report = await runCronSync(2026);
+        const results = await runCronSync(2026);
         
         const parityMap: any = {};
         const tenants = await prisma.tenant.findMany();
@@ -33,8 +33,8 @@ export async function GET() {
 
         return NextResponse.json({ 
             ok: true, 
-            version: '0.9.83',
-            report, 
+            version: '0.9.85',
+            results, 
             parity: parityMap 
         });
     } catch (e: any) {

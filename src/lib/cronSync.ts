@@ -1,5 +1,4 @@
 import { prisma } from './prisma';
-
 import { refreshAccessToken } from './contaazul';
 
 async function getValidAccessToken(tenantId: string) {
@@ -44,7 +43,6 @@ async function fetchAllTransactionsForYear(accessToken: string, url: string, tar
             for (const item of itemList) {
                 if ((item.status || '').includes('CANCEL')) continue;
                 
-                // DATE PARSING - CA V1 formats: "DD/MM/YYYY" or "YYYY-MM-DD"
                 const dateStr = item.data || item.data_competencia || item.data_vencimento || item.data_liquidacao || item.data_venda;
                 if (!dateStr) continue;
 
@@ -81,7 +79,10 @@ async function fetchAllTransactionsForYear(accessToken: string, url: string, tar
     return allItems;
 }
 
-export async function runCronSync(reqYear: number, tenantId?: string, pushLog?: (msg: string) => void) {
+export async function runCronSync(reqYear: number, tenantId?: string) {
+    const logs: string[] = [];
+    const pushLog = (msg: string) => logs.push(msg);
+
     const tenants = await prisma.tenant.findMany();
     const allCategories = await prisma.category.findMany();
     const allCostCenters = await prisma.costCenter.findMany();
@@ -98,13 +99,14 @@ export async function runCronSync(reqYear: number, tenantId?: string, pushLog?: 
         ccMap.set(rawId, c.id);
     });
 
-    const report = [];
+    const report: any[] = [];
     const targets = tenantId ? tenants.filter(t => t.id === tenantId) : tenants;
 
     for (const t of targets) {
         try {
+            pushLog(`[SYNC] [${t.name}] Verificando tokens...`);
             const token = await getValidAccessToken(t.id);
-            if (pushLog) pushLog(`[SYNC] [${t.name}] Iniciando integração...`);
+            pushLog(`[SYNC] [${t.name}] Token renovado. Iniciando carga...`);
 
             for (const viewMode of ['competencia', 'caixa'] as const) {
                 const startStr = `${reqYear - 1}-01-01`;
@@ -127,8 +129,6 @@ export async function runCronSync(reqYear: number, tenantId?: string, pushLog?: 
                     if (ep.name === 'Vendas') {
                         dateParams = `data_inicio=${startStr}&data_fim=${endStr}`;
                     } else {
-                        // Financeiro V1 standard uses data_emissao as proxy for competence or data_vencimento
-                        // But for Jan 156k SPOT specifically, it's likely a Sale
                         dateParams = viewMode === 'caixa' 
                             ? `data_liquidacao_inicio=${startStr}&data_liquidacao_fim=${endStr}` 
                             : `data_vencimento_inicio=${startStr}&data_vencimento_fim=${endStr}`;
@@ -195,8 +195,9 @@ export async function runCronSync(reqYear: number, tenantId?: string, pushLog?: 
                 report.push({ tenant: t.name, mode: viewMode, count: entriesToSave.length, sample: firstItemInfo });
             }
         } catch (err: any) {
+            pushLog(`[ERROR] [${t.name}] ${err.message}`);
             report.push({ tenant: t.name, error: err.message });
         }
     }
-    return report;
+    return { report, logs };
 }

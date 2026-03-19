@@ -258,8 +258,8 @@ export async function runCronSync(reqYear: number, tenantId?: string, pushLog?: 
                 }
 
                 if (pushLog) pushLog(`[SYNC] [${t.name}] [${viewMode}] Salvos ${entriesToSave.length} registros.`);
+                report.push({ tenant: t.name, mode: viewMode, saved: entriesToSave.length });
             }
-            report.push({ tenant: t.name, status: 'Success' });
         } catch (err: any) {
             if (pushLog) pushLog(`[SYNC ERROR] [${t.name}] ${err.message}`);
             report.push({ tenant: t.name, status: 'Error', error: err.message });

@@ -146,8 +146,12 @@ export async function runCronSync(reqYear: number, tenantId?: string, pushLog?: 
                 const startStr = `${reqYear - 1}-01-01`; // Start 1 year before
                 const endStr = `${reqYear + 1}-12-31`;   // End 1 year after
                 
-                const endpoints = [
+                const endpoints = viewMode === 'caixa' ? [
                     { name: 'Recebimentos', url: 'https://api-v2.contaazul.com/v1/financeiro/eventos-financeiros/contas-a-receber/buscar', isExpense: false },
+                    { name: 'Pagamentos', url: 'https://api-v2.contaazul.com/v1/financeiro/eventos-financeiros/contas-a-pagar/buscar', isExpense: true }
+                ] : [
+                    { name: 'Recebimentos', url: 'https://api-v2.contaazul.com/v1/financeiro/eventos-financeiros/contas-a-receber/buscar', isExpense: false },
+                    { name: 'Vendas', url: 'https://api-v2.contaazul.com/v1/vendas/buscar', isExpense: false },
                     { name: 'Pagamentos', url: 'https://api-v2.contaazul.com/v1/financeiro/eventos-financeiros/contas-a-pagar/buscar', isExpense: true }
                 ];
 
@@ -175,10 +179,19 @@ export async function runCronSync(reqYear: number, tenantId?: string, pushLog?: 
                                 const newCatName = tx.categories[0]?.name || 'Importado CA';
                                 const newCatId = `${t.id}:${mainCatId}`;
                                 const catType = ep.isExpense ? 'EXPENSE' : 'REVENUE';
+                                
+                                let entradaDre = null;
+                                const lowerName = newCatName.toLowerCase();
+                                if (lowerName.includes('venda') || lowerName.includes('receita') || lowerName.includes('faturamento')) {
+                                    entradaDre = '01. RECEITA BRUTA';
+                                } else if (lowerName.includes('imposto') || lowerName.includes('tributo')) {
+                                    entradaDre = '02. TRIBUTO SOBRE FATURAMENTO';
+                                }
+
                                 try {
                                     await prisma.category.upsert({
                                         where: { id: newCatId },
-                                        create: { id: newCatId, name: newCatName, tenantId: t.id, type: catType },
+                                        create: { id: newCatId, name: newCatName, tenantId: t.id, type: catType, entradaDre },
                                         update: { name: newCatName }
                                     });
                                     catMap.set(mainCatId, newCatId);

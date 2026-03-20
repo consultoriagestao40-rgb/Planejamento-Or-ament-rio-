@@ -64,33 +64,44 @@ export function ExcelPasteModal({ isOpen, onClose, tenantId: initialTenantId, co
         let revenueSumDetected = 0;
         let rawSumPInFile = 0;
 
+        // 1. Detectar Cabeçalhos (A, E, G, L, O, P correspondentes)
+        const headers = matrix[0] || [];
+        let colCat = headers.findIndex((h: any) => String(h || '').toLowerCase().includes('categoria'));
+        let colVal = headers.findIndex((h: any) => String(h || '').toLowerCase().includes('valor'));
+        
+        // Fallback para O (14) e P (15) se não achar headers
+        if (colCat === -1) colCat = 14;
+        if (colVal === -1) colVal = 15;
+        
+        console.log(`🔍 [HEADER DETECTED] Col Categoria: ${colCat}, Col Valor: ${colVal}`);
+
         // --- SOMA BRUTA PARA AUDITORIA DO USUÁRIO ---
         matrix.forEach((row, idx) => {
             if (idx === 0) return; // pular cabeçalho
-            const valP = typeof row[15] === 'number' ? row[15] : parseFloat(String(row[15] || '').replace(/[R$\s.]/g, '').replace(',', '.'));
+            const valP = typeof row[colVal] === 'number' ? row[colVal] : parseFloat(String(row[colVal] || '').replace(/[R$\s.]/g, '').replace(',', '.'));
             if (!isNaN(valP)) rawSumPInFile += valP;
         });
 
         console.log(`📊 [AUDITORIA ARQUIVO BRUTO]`);
-        console.log(` - SOMA TOTAL COLUNA P (Valor na Categoria): ${rawSumPInFile.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })} ✅`);
+        console.log(` - SOMA TOTAL COLUNA ${String.fromCharCode(65 + colVal)} (Valor na Categoria): ${rawSumPInFile.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })} ✅`);
         console.log(`-----------------------------------------------`);
 
-        for (const cols of matrix) {
+        for (let idx = 0; idx < matrix.length; idx++) {
+            const cols = matrix[idx];
             try {
-                if (!cols || cols.length < 15) continue;
+                if (idx === 0) continue; // Pular header detectado
+                if (!cols || cols.length <= colCat) continue;
 
-                // Dados Fixos (A=0, E=4, G=6, L=11, O=14, P=15)
+                // Dados Fixos (A=0, E=4, G=6...)
                 const dataCompetencia = String(cols[0] || '').trim();
                 const descricao = String(cols[4] || '').trim();
                 const fornecedor = String(cols[6] || '').trim();
-                const categoriaRaw = String(cols[14] || '').trim();
+                const categoriaRaw = String(cols[colCat] || '').trim();
 
-                // Pular cabeçalhos (mas ser tolerante se houver valor e categoria em baixo)
-                if (dataCompetencia.toLowerCase().includes('competência') || categoriaRaw.toLowerCase().includes('categoria')) continue;
-                if (!dataCompetencia && !categoriaRaw) continue;
+                if (!categoriaRaw && !dataCompetencia) continue;
 
-                // Extrair Código (ex: 03.3.1 ou 3.3.1)
-                const catCodeMatch = categoriaRaw.match(/^(\d{1,2}\.\d{1,2}(\.\d{1,2})?)/);
+                // Extrair Código (ex: 01.1.1 ou 1.1.1)
+                const catCodeMatch = categoriaRaw.match(/^(\d{1,2}(?:\.\d+)*)/);
                 const catCode = catCodeMatch ? catCodeMatch[1] : null;
 
                 // Mapeamento de Categoria (Now searching across all variants)
@@ -111,13 +122,13 @@ export function ExcelPasteModal({ isOpen, onClose, tenantId: initialTenantId, co
                     return cleanDBName === cleanCategoriaRaw || cleanDBName.includes(cleanCategoriaRaw) || cleanCategoriaRaw.includes(cleanDBName);
                 });
 
-                const valP = typeof cols[15] === 'number' ? cols[15] : parseFloat(String(cols[15] || '').replace(/[R$\s.]/g, '').replace(',', '.'));
+                const valP = typeof cols[colVal] === 'number' ? cols[colVal] : parseFloat(String(cols[colVal] || '').replace(/[R$\s.]/g, '').replace(',', '.'));
                 const finalAmount = isNaN(valP) ? 0 : valP;
 
                 if (!cat) {
                     if (Math.abs(finalAmount) > 0) {
                         ignoredSumTotal += Math.abs(finalAmount);
-                        console.warn("⚠️ Linha ignorada por falta de categoria:", categoriaRaw, "| Valor P:", finalAmount);
+                        console.warn(`⚠️ Linha ${idx} ignorada (Sem Categoria):`, categoriaRaw, "| Valor:", finalAmount);
                     }
                     continue;
                 }
@@ -133,6 +144,8 @@ export function ExcelPasteModal({ isOpen, onClose, tenantId: initialTenantId, co
                 const rateiosInfo: { ccId: string | null, ccName: string, amountInformado: number }[] = [];
                 let somaInformadaCCs = 0;
 
+                // Rateios começam em colunas fixas ou dinâmicas?
+                // No Conta Azul padrão começam na Col Q (16).
                 if (cols.length > 16) {
                     for (let i = 16; i < cols.length; i += 2) {
                         const ccName = String(cols[i] || '').trim();
@@ -162,8 +175,6 @@ export function ExcelPasteModal({ isOpen, onClose, tenantId: initialTenantId, co
                 // --- LÓGICA DE RATEIO (VALORES EXATOS) ---
                 if (Math.abs(finalAmount) > 0) {
                     if (rateiosInfo.length > 0) {
-                        // FIX: Não escalamos mais. Usamos os valores EXATOS informados nas colunas de CC.
-                        // O que sobrar (finalAmount - soma CCs) vai para "Sem Centro de Custo" (null).
                         let totalDistributed = 0;
                         
                         rateiosInfo.forEach((info) => {
@@ -205,7 +216,7 @@ export function ExcelPasteModal({ isOpen, onClose, tenantId: initialTenantId, co
                     }
                 }
             } catch (err) {
-                console.error("❌ Erro ao processar linha:", cols, err);
+                console.error("❌ Erro ao processar linha:", idx, err);
             }
         }
 
@@ -233,10 +244,6 @@ export function ExcelPasteModal({ isOpen, onClose, tenantId: initialTenantId, co
         console.log(` - Soma Geral Absoluta: ${totalSumRows.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}`);
         console.log(` - Valor Ignorado (Sem Categoria): ${ignoredSumTotal.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}`);
         console.log(`-----------------------------------------------`);
-        console.table(Object.values(categorySummary).sort((a,b) => a.code.localeCompare(b.code)));
-
-        (window as any).lastImportAnalytic = categorySummary;
-
         return rows;
     };
 

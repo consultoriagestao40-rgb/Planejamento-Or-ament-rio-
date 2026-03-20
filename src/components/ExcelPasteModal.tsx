@@ -64,32 +64,57 @@ export function ExcelPasteModal({ isOpen, onClose, tenantId: initialTenantId, co
         let revenueSumDetected = 0;
         let rawSumPInFile = 0;
 
-        // 1. Detectar Cabeçalhos (A, E, G, L, O, P correspondentes)
-        const headers = matrix[0] || [];
-        let colCat = headers.findIndex((h: any) => String(h || '').toLowerCase().includes('categoria'));
-        let colVal = headers.findIndex((h: any) => String(h || '').toLowerCase().includes('valor'));
+        // 1. VOTAÇÃO DE COLUNAS (Substitui detecção de header frágil)
+        const totalCols = matrix[0]?.length || 0;
+        const votesCat = new Array(totalCols).fill(0);
+        const votesVal = new Array(totalCols).fill(0);
+
+        matrix.slice(0, 30).forEach(row => {
+            row.forEach((cell, i) => {
+                const s = String(cell || '').trim();
+                // Vote for Category: pattern starting with digits (ex: 1.1.1 ou 01.1.1)
+                if (/^\d{1,2}(\.\d+)+/.test(s)) votesCat[i]++;
+                // Vote for Value: looks like a number
+                const clean = s.replace(/[R$\s.]/g, '').replace(',', '.');
+                const num = parseFloat(clean);
+                if (!isNaN(num) && num !== 0 && !/^\d{1,2}(\.\d+)+/.test(s)) votesVal[i]++;
+            });
+        });
+
+        let colCat = votesCat.indexOf(Math.max(...votesCat));
+        let colVal = votesVal.indexOf(Math.max(...votesVal));
         
-        // Fallback para O (14) e P (15) se não achar headers
-        if (colCat === -1) colCat = 14;
-        if (colVal === -1) colVal = 15;
+        if (colCat === colVal && colCat !== -1) {
+            votesVal[colVal] = -1;
+            colVal = votesVal.indexOf(Math.max(...votesVal));
+        }
+
+        // Fallback para O (14) e P (15) se a votação for inconclusiva
+        if (colCat === -1 || votesCat[colCat] === 0) colCat = 14;
+        if (colVal === -1 || votesVal[colVal] === 0) colVal = 15;
         
-        console.log(`🔍 [HEADER DETECTED] Col Categoria: ${colCat}, Col Valor: ${colVal}`);
+        console.log(`🗳️ [VOTAÇÃO CONCLUÍDA] Categoria: Col ${colCat} (${votesCat[colCat]} votos), Valor: Col ${colVal} (${votesVal[colVal]} votos)`);
+
+        // Detectar se a primeira linha é cabeçalho ou dados
+        const firstRow = matrix[0] || [];
+        const isHeader = String(firstRow[colCat] || '').toLowerCase().includes('categoria') || 
+                         String(firstRow[colVal] || '').toLowerCase().includes('valor');
 
         // --- SOMA BRUTA PARA AUDITORIA DO USUÁRIO ---
         matrix.forEach((row, idx) => {
-            if (idx === 0) return; // pular cabeçalho
+            if (idx === 0 && isHeader) return; 
             const valP = typeof row[colVal] === 'number' ? row[colVal] : parseFloat(String(row[colVal] || '').replace(/[R$\s.]/g, '').replace(',', '.'));
             if (!isNaN(valP)) rawSumPInFile += valP;
         });
 
         console.log(`📊 [AUDITORIA ARQUIVO BRUTO]`);
-        console.log(` - SOMA TOTAL COLUNA ${String.fromCharCode(65 + colVal)} (Valor na Categoria): ${rawSumPInFile.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })} ✅`);
+        console.log(` - SOMA TOTAL DETECTADA (Col ${String.fromCharCode(65 + colVal)}): ${rawSumPInFile.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })} ✅`);
         console.log(`-----------------------------------------------`);
 
         for (let idx = 0; idx < matrix.length; idx++) {
             const cols = matrix[idx];
             try {
-                if (idx === 0) continue; // Pular header detectado
+                if (idx === 0 && isHeader) continue; 
                 if (!cols || cols.length <= colCat) continue;
 
                 // Dados Fixos (A=0, E=4, G=6...)

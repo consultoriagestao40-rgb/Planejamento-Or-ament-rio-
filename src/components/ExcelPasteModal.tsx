@@ -66,41 +66,65 @@ export function ExcelPasteModal({ isOpen, onClose, tenantId: initialTenantId, co
 
         // 1. VOTAÇÃO DE COLUNAS (Substitui detecção de header frágil)
         const totalCols = matrix[0]?.length || 0;
-        const votesCat = new Array(totalCols).fill(0);
-        const votesVal = new Array(totalCols).fill(0);
+        const votesCat = new Array(totalCols).fill(0).map(() => 0);
+        const votesVal = new Array(totalCols).fill(0).map(() => 0);
 
-        matrix.slice(0, 30).forEach(row => {
+        matrix.slice(0, 50).forEach(row => {
             row.forEach((cell, i) => {
                 const s = String(cell || '').trim();
+                if (!s) return;
+
                 // Vote for Category: pattern starting with digits (ex: 1.1.1 ou 01.1.1)
-                if (/^\d{1,2}(\.\d+)+/.test(s)) votesCat[i]++;
+                if (/^\d{1,2}(\.\d+)+/.test(s)) {
+                    votesCat[i] += 10; // High weight for category pattern
+                }
+
                 // Vote for Value: looks like a number
                 const clean = s.replace(/[R$\s.]/g, '').replace(',', '.');
                 const num = parseFloat(clean);
-                if (!isNaN(num) && num !== 0 && !/^\d{1,2}(\.\d+)+/.test(s)) votesVal[i]++;
+                if (!isNaN(num) && num !== 0) {
+                    // Prevenir votar em colunas de código ou datas
+                    if (!/^\d{1,2}(\.\d+)+/.test(s) && !s.includes('/')) {
+                        // Peso proporcional ao tamanho do número para evitar colunas de "Mês" (1, 2, 3...)
+                        if (Math.abs(num) > 100) votesVal[i] += 5;
+                        else votesVal[i] += 1;
+                    }
+                }
             });
         });
+
+        // BÔNUS: Prioridade explicita para Coluna P (15) e O (14) se tiverem dados
+        if (votesVal[15] > 0) votesVal[15] += 50; 
+        if (votesCat[14] > 0) votesCat[14] += 50;
 
         let colCat = votesCat.indexOf(Math.max(...votesCat));
         let colVal = votesVal.indexOf(Math.max(...votesVal));
         
+        // Se as duas melhores colunas forem iguais, tenta desempatar
         if (colCat === colVal && colCat !== -1) {
-            votesVal[colVal] = -1;
-            colVal = votesVal.indexOf(Math.max(...votesVal));
+            if (votesCat[colCat] > votesVal[colVal]) {
+                const temp = [...votesVal];
+                temp[colVal] = -1;
+                colVal = temp.indexOf(Math.max(...temp));
+            } else {
+                const temp = [...votesCat];
+                temp[colCat] = -1;
+                colCat = temp.indexOf(Math.max(...temp));
+            }
         }
 
-        // Fallback para O (14) e P (15) se a votação for inconclusiva
+        // Fallback seguros
         if (colCat === -1 || votesCat[colCat] === 0) colCat = 14;
         if (colVal === -1 || votesVal[colVal] === 0) colVal = 15;
         
-        console.log(`🗳️ [VOTAÇÃO CONCLUÍDA] Categoria: Col ${colCat} (${votesCat[colCat]} votos), Valor: Col ${colVal} (${votesVal[colVal]} votos)`);
+        console.log(`🗳️ [VOTAÇÃO FINAL] Categoria: Col ${colCat}, Valor: Col ${colVal}`);
 
         // Detectar se a primeira linha é cabeçalho ou dados
         const firstRow = matrix[0] || [];
         const isHeader = String(firstRow[colCat] || '').toLowerCase().includes('categoria') || 
                          String(firstRow[colVal] || '').toLowerCase().includes('valor');
 
-        // --- SOMA BRUTA PARA AUDITORIA DO USUÁRIO ---
+        // --- SOMA BRUTA PARA AUDITORIA ---
         matrix.forEach((row, idx) => {
             if (idx === 0 && isHeader) return; 
             const valP = typeof row[colVal] === 'number' ? row[colVal] : parseFloat(String(row[colVal] || '').replace(/[R$\s.]/g, '').replace(',', '.'));

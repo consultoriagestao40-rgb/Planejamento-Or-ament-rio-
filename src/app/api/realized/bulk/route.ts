@@ -3,28 +3,39 @@ import { prisma } from '@/lib/prisma';
 
 export async function POST(request: Request) {
     try {
-        const { rows, tenantId, year, viewMode } = await request.json();
+        const { rows, tenantId, year, viewMode, overwrite, month } = await request.json();
 
-        if (!rows || !Array.isArray(rows) || !tenantId || !year) {
-            return NextResponse.json({ success: false, error: "Dados inválidos" }, { status: 400 });
+        if (!rows || !Array.isArray(rows) || !tenantId || !year || !month) {
+            return NextResponse.json({ success: false, error: "Dados incompletos (Empresa, Ano ou Mês ausentes)" }, { status: 400 });
         }
 
+        // 1. Se overwrite for true, removemos os registros manuais (ou todos) desse período
+        if (overwrite) {
+            console.log(`[EXCEL-BULK] Sobrescrevendo dados para Tenant: ${tenantId}, Mês: ${month}, Ano: ${year}`);
+            await prisma.realizedEntry.deleteMany({
+                where: {
+                    tenantId,
+                    year,
+                    month,
+                    viewMode: viewMode || 'competencia'
+                }
+            });
+        }
+
+        // 2. Prepara novos registros
         const entriesToSave = rows.map((row: any) => ({
             tenantId,
             categoryId: row.categoryId,
             costCenterId: row.costCenterId || null,
-            month: row.month,
+            month: row.month || month,
             year,
             amount: Math.abs(parseFloat(row.amount) || 0),
             viewMode: viewMode || 'competencia',
-            externalId: `excel-${tenantId}-${row.categoryId}-${row.costCenterId || 'NONE'}-${year}-${row.month}-${viewMode || 'competencia'}-${Date.now()}`,
-            description: "Upload via Excel"
+            description: row.description || "Upload via Excel",
+            externalId: `manual-${tenantId}-${row.categoryId}-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`
         }));
 
-        // Limpa dados anteriores do mesmo tipo para evitar duplicidade? 
-        // Melhor não apagar tudo, apenas inserir os novos (ou apagar se o usuário quiser substituir tudo).
-        // Por simplificação desta ferramenta de emergência, vamos apenas adicionar.
-
+        // 3. Inserção em massa
         if (entriesToSave.length > 0) {
             await prisma.realizedEntry.createMany({
                 data: entriesToSave,
@@ -35,6 +46,7 @@ export async function POST(request: Request) {
         return NextResponse.json({ success: true, count: entriesToSave.length });
 
     } catch (error: any) {
+        console.error("[EXCEL-BULK] Erro:", error);
         return NextResponse.json({ success: false, error: error.message }, { status: 500 });
     }
 }

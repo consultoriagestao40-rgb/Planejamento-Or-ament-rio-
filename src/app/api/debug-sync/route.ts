@@ -6,34 +6,40 @@ export const dynamic = 'force-dynamic';
 export async function GET() {
     try {
         const year = 2026;
-        const countRealized = await prisma.realizedEntry.count({ where: { year } });
-        const countCategories = await prisma.category.count();
-        const firstEntries = await prisma.realizedEntry.findMany({ 
-            where: { year },
-            take: 3,
-            select: { categoryId: true, amount: true, tenantId: true, month: true }
+        const month = 1; // Janeiro
+        
+        // 1. All entries for January 2026
+        const entries = await prisma.realizedEntry.findMany({
+            where: { year, month },
+            include: { category: true, costCenter: true }
         });
 
-        const checkCats = await Promise.all(firstEntries.map(async (e) => {
-            const cat = await prisma.category.findUnique({ where: { id: e.categoryId } });
-            return {
-                categoryId: e.categoryId,
-                amount: e.amount,
-                found: !!cat,
-                catName: cat?.name || 'NOT FOUND'
-            };
-        }));
-
-        const tenants = await prisma.tenant.findMany({ select: { id: true, name: true } });
+        const summary: Record<string, { cat: string, cc: string, sum: number, tenant: string }> = {};
+        let totalRevenue = 0;
+        
+        entries.forEach(e => {
+            const key = `${e.categoryId}-${e.costCenterId || 'null'}`;
+            if (!summary[key]) {
+                summary[key] = { 
+                    cat: e.category.name, 
+                    cc: e.costCenter?.name || 'SEM CC (Geral)', 
+                    sum: 0,
+                    tenant: e.tenantId
+                };
+            }
+            summary[key].sum += e.amount;
+            
+            if (e.category.name.startsWith('01')) {
+                totalRevenue += e.amount;
+            }
+        });
 
         return NextResponse.json({
             success: true,
-            year,
-            database: {
-                realizedCount: countRealized,
-                categoriesCount: countCategories,
-                tenants: tenants.map(t => ({ id: t.id, name: t.name })),
-                sampleIntegrity: checkCats
+            audit: {
+                januaryTotalRevenue: totalRevenue,
+                entryCount: entries.length,
+                details: Object.values(summary).sort((a,b) => b.sum - a.sum)
             },
             timestamp: new Date().toISOString()
         });

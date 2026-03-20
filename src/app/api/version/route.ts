@@ -6,9 +6,9 @@ export async function GET() {
     return NextResponse.json({
         ok: true,
         rev: "v0.9.27-deep-diag",
-        version: '0.9.91',
+        version: '0.9.92',
         timestamp: new Date().toISOString(),
-        message: 'Version 0.9.91 - V2 Domain Consolidation',
+        message: 'Version 0.9.92 - Hybrid V1/V2 Engine',
         status: "STABLE"
     });
 }

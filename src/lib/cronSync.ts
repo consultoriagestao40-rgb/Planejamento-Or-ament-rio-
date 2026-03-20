@@ -21,73 +21,72 @@ async function getValidAccessToken(tenantId: string) {
     }
 }
 
-async function fetchAllTransactionsV2(
+async function fetchHybrid(
     accessToken: string, 
-    url: string, 
+    v1Url: string,
+    v2Url: string,
     endpointName: string,
     targetYear: number, 
     pushLog?: (msg: string) => void
 ): Promise<any[]> {
-    let page = 1;
-    let hasMore = true;
     const allItems: any[] = [];
-
-    while (hasMore) {
-        try {
-            const separator = url.includes('?') ? '&' : '?';
-            const fullUrl = `${url}${separator}page=${page}&size=100`;
-            const res = await fetch(fullUrl, { 
-                headers: { 
-                    'Authorization': `Bearer ${accessToken}`,
-                    'Accept': 'application/json'
-                } 
-            });
-            
-            if (!res.ok) {
-                const errBody = await res.text();
-                const tokenPrefix = accessToken.substring(0, 15);
-                if (pushLog) pushLog(`[V2 ERROR] ${endpointName} (P${page}) Status: ${res.status} Token:${tokenPrefix}... Body: ${errBody.substring(0, 50)}`);
-                break;
+    
+    // TRY V1 FIRST (Legacy but often more compatible with upgraded tokens)
+    try {
+        const fullV1 = `${v1Url}${v1Url.includes('?') ? '&' : '?'}page=1`;
+        const resV1 = await fetch(fullV1, { 
+            headers: { 'Authorization': `Bearer ${accessToken}`, 'Accept': 'application/json' } 
+        });
+        if (resV1.ok) {
+            const data = await resV1.json();
+            const items = Array.isArray(data) ? data : (data.items || data.sales || []);
+            if (items.length > 0) {
+                if (pushLog) pushLog(`[SYNC] ${endpointName} encontrada em V1!`);
+                // Simple parser for V1 (assuming DD/MM/YYYY or ISO)
+                for (const item of items) {
+                    const dateStr = item.data_venda || item.data_liquidacao || item.data || item.emission_date;
+                    if (!dateStr) continue;
+                    const date = new Date(dateStr.split('/').reverse().join('-')); // Try BR to ISO conversion
+                    if (date.getFullYear() === targetYear) {
+                        allItems.push({
+                            id: item.id,
+                            description: item.descricao || item.cliente || 'V1 Item',
+                            amount: item.valor || item.valor_liquido || 0,
+                            month: date.getMonth() + 1
+                        });
+                    }
+                }
+                return allItems;
             }
-            
-            const data = await res.json();
-            // V2 usually returns array directly or inside "items"
-            const itemList = Array.isArray(data) ? data : (data.items || data.sales || []);
+        }
+    } catch (e) {}
 
-            if (itemList.length === 0) {
-                hasMore = false;
-                break;
-            }
-
-            for (const item of itemList) {
-                // V2 Date Fields: "emission_date", "date", "due_date", "settlement_date"
-                const dateStr = item.emission_date || item.date || item.due_date || item.settlement_date;
-                if (!dateStr) continue;
-
+    // FALLBACK TO V2
+    try {
+        const resV2 = await fetch(v2Url, { 
+            headers: { 'Authorization': `Bearer ${accessToken}`, 'Accept': 'application/json' } 
+        });
+        if (resV2.ok) {
+            const data = await resV2.json();
+            const items = Array.isArray(data) ? data : (data.items || data.sales || []);
+            for (const item of items) {
+                const dateStr = item.emission_date || item.date || item.due_date;
                 const date = new Date(dateStr);
-                const itemYear = date.getUTCFullYear();
-                const itemMonth = date.getUTCMonth() + 1;
-
-                if (itemYear !== targetYear) continue;
-
-                // V2 Amount: "total", "value", "net_value"
-                const amount = item.total || item.total_value || item.value || 0;
-
-                allItems.push({
-                    id: item.id,
-                    description: item.description || item.customer_name || item.memo || 'V2 SYNC',
-                    amount: amount,
-                    month: itemMonth,
-                    categories: item.categories || [],
-                    costCenters: item.cost_centers || []
-                });
+                if (date.getUTCFullYear() === targetYear) {
+                    allItems.push({
+                        id: item.id,
+                        description: item.description || item.customer_name || 'V2 Item',
+                        amount: item.total || item.value || 0,
+                        month: date.getUTCMonth() + 1
+                    });
+                }
             }
+        } else {
+            const err = await resV2.text();
+            if (pushLog) pushLog(`[SYNC ERROR] ${endpointName} V2 fail: ${resV2.status} ${err.substring(0,20)}`);
+        }
+    } catch (e) {}
 
-            if (itemList.length < 100) hasMore = false;
-            else page++;
-            if (page > 100) hasMore = false;
-        } catch (e) { hasMore = false; }
-    }
     return allItems;
 }
 
@@ -97,7 +96,6 @@ export async function runCronSync(reqYear: number, tenantId?: string) {
 
     const tenants = await prisma.tenant.findMany();
     const allCategories = await prisma.category.findMany();
-    const allCostCenters = await prisma.costCenter.findMany();
 
     const catMap = new Map<string, string>();
     allCategories.forEach(c => {
@@ -105,96 +103,54 @@ export async function runCronSync(reqYear: number, tenantId?: string) {
         catMap.set(rawId, c.id);
     });
 
-    const ccMap = new Map<string, string>();
-    allCostCenters.forEach(c => {
-        const rawId = c.id.includes(':') ? c.id.split(':')[1] : c.id;
-        ccMap.set(rawId, c.id);
-    });
-
     const report: any[] = [];
     const targets = tenantId ? tenants.filter(t => t.id === tenantId) : tenants;
 
     for (const t of targets) {
         try {
-            pushLog(`[SYNC] [${t.name}] Verificando tokens V2...`);
+            pushLog(`[SYNC] [${t.name}] Iniciando...`);
             const token = await getValidAccessToken(t.id);
-            pushLog(`[SYNC] [${t.name}] Token renovado. Explorando V2...`);
 
             for (const viewMode of ['competencia', 'caixa'] as const) {
-                const startStr = `${reqYear-1}-01-01T00:00:00Z`;
-                const endStr = `${reqYear+1}-12-31T23:59:59Z`;
-
-                // V2 ENDPOINTS (Native production domain)
-                const endpoints = viewMode === 'caixa' ? [
-                    { name: 'Financials-In', url: 'https://api.contaazul.com/v2/financials/receivables', isExpense: false },
-                    { name: 'Financials-Out', url: 'https://api.contaazul.com/v2/financials/payables', isExpense: true }
-                ] : [
-                    { name: 'Sales', url: 'https://api.contaazul.com/v2/sales', isExpense: false },
-                    { name: 'Financials-In', url: 'https://api.contaazul.com/v2/financials/receivables', isExpense: false },
-                    { name: 'Financials-Out', url: 'https://api.contaazul.com/v2/financials/payables', isExpense: true }
-                ];
-
                 const entriesMap = new Map<string, any>();
-                let firstItemInfo = '';
+                
+                // DEFINE HYBRID ENDPOINTS
+                const probeSales = await fetchHybrid(token, 
+                    'https://api.contaazul.com/v1/vendas/buscar', 
+                    `https://api.contaazul.com/v2/sales?emission_date_start=${reqYear}-01-01T00:00:00Z&emission_date_end=${reqYear}-12-31T23:59:59Z`,
+                    'Vendas', reqYear, pushLog
+                );
 
-                for (const ep of endpoints) {
-                    // V2 Filter Params
-                    let dateParams = '';
-                    if (ep.name === 'Sales') {
-                        dateParams = `emission_date_start=${startStr}&emission_date_end=${endStr}`;
+                const probeIn = await fetchHybrid(token, 
+                    'https://api.contaazul.com/v1/financeiro/eventos-financeiros/contas-a-receber/buscar', 
+                    `https://api.contaazul.com/v2/financials/receivables?settlement_date_start=${reqYear}-01-01T00:00:00Z&settlement_date_end=${reqYear}-12-31T23:59:59Z`,
+                    'Recebimentos', reqYear, pushLog
+                );
+
+                const probeOut = await fetchHybrid(token, 
+                    'https://api.contaazul.com/v1/financeiro/eventos-financeiros/contas-a-pagar/buscar', 
+                    `https://api.contaazul.com/v2/financials/payables?settlement_date_start=${reqYear}-01-01T00:00:00Z&settlement_date_end=${reqYear}-12-31T23:59:59Z`,
+                    'Pagamentos', reqYear, pushLog
+                );
+
+                const allFound = [...probeSales, ...probeIn, ...probeOut];
+
+                for (const tx of allFound) {
+                    const ek = `${tx.id}:${viewMode}`;
+                    if (entriesMap.has(ek)) {
+                        entriesMap.get(ek).amount += tx.amount;
                     } else {
-                        dateParams = viewMode === 'caixa'
-                            ? `settlement_date_start=${startStr}&settlement_date_end=${endStr}`
-                            : `due_date_start=${startStr}&due_date_end=${endStr}`;
-                    }
-
-                    const items = await fetchAllTransactionsV2(token, ep.url + '?' + dateParams, ep.name, reqYear, pushLog);
-                    
-                    if (items.length > 0 && !firstItemInfo) {
-                        const it = items[0];
-                        firstItemInfo = `[V2:${ep.name}] ID:${it.id} M:${it.month}`;
-                    }
-
-                    for (const tx of items) {
-                        if (tx.month === 0) continue;
-
-                        let mainCatId = tx.categories?.[0]?.id;
-                        let mainCatName = tx.categories?.[0]?.name;
-                        const mainCcId = tx.costCenters?.[0]?.id;
-
-                        if (!mainCatId) mainCatId = 'SYSTEM_GENERIC_REVENUE';
-
-                        if (!catMap.has(mainCatId)) {
-                            const newCatName = mainCatName || 'Importado CA V2';
-                            const newCatId = `${t.id}:${mainCatId}`;
-                            const catType = ep.isExpense ? 'EXPENSE' : 'REVENUE';
-                            
-                            try {
-                                await prisma.category.upsert({
-                                    where: { id: newCatId },
-                                    create: { id: newCatId, name: newCatName, tenantId: t.id, type: catType },
-                                    update: { name: newCatName }
-                                });
-                                catMap.set(mainCatId, newCatId);
-                            } catch (e) { continue; }
-                        }
-
-                        const ek = `${tx.id}:${viewMode}`;
-                        if (entriesMap.has(ek)) {
-                            entriesMap.get(ek).amount += tx.amount;
-                        } else {
-                            entriesMap.set(ek, {
-                                tenantId: t.id,
-                                categoryId: catMap.get(mainCatId)!,
-                                costCenterId: (mainCcId && ccMap.has(mainCcId)) ? ccMap.get(mainCcId)! : null,
-                                year: reqYear,
-                                month: tx.month,
-                                amount: tx.amount,
-                                viewMode: viewMode,
-                                externalId: tx.id,
-                                description: tx.description
-                            });
-                        }
+                        entriesMap.set(ek, {
+                            tenantId: t.id,
+                            categoryId: 'SYSTEM_GENERIC_REVENUE', // Placeholder
+                            costCenterId: null,
+                            year: reqYear,
+                            month: tx.month,
+                            amount: tx.amount,
+                            viewMode: viewMode,
+                            externalId: tx.id,
+                            description: tx.description
+                        });
                     }
                 }
 
@@ -206,7 +162,7 @@ export async function runCronSync(reqYear: number, tenantId?: string) {
                 if (entriesToSave.length > 0) {
                     await prisma.realizedEntry.createMany({ data: entriesToSave });
                 }
-                report.push({ tenant: t.name, mode: viewMode, count: entriesToSave.length, sample: firstItemInfo });
+                report.push({ tenant: t.name, mode: viewMode, count: entriesToSave.length });
             }
         } catch (err: any) {
             pushLog(`[ERROR] [${t.name}] ${err.message}`);

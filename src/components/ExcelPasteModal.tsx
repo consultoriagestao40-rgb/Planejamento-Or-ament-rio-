@@ -147,39 +147,41 @@ export function ExcelPasteModal({ isOpen, onClose, tenantId: initialTenantId, co
                     }
                 }
 
-                // --- CRITICAL: BLINDAGEM DO VALOR TOTAL ---
+                // --- LÓGICA DE RATEIO (VALORES EXATOS) ---
                 if (Math.abs(finalAmount) > 0) {
                     if (rateiosInfo.length > 0) {
-                        // Se houver CCs no Excel, distribuímos o valor da Coluna P proporcionalmente
-                        // Isso garante que o TOTAL seja sempre o da Coluna P, independente se o rateio bate 100% ou não
-                        let remainingToDistribute = Math.abs(finalAmount);
+                        // FIX: Não escalamos mais. Usamos os valores EXATOS informados nas colunas de CC.
+                        // O que sobrar (finalAmount - soma CCs) vai para "Sem Centro de Custo" (null).
+                        let totalDistributed = 0;
                         
-                        rateiosInfo.forEach((info, idx) => {
-                            let proportion = 1 / rateiosInfo.length;
-                            if (somaInformadaCCs > 0) {
-                                proportion = info.amountInformado / somaInformadaCCs;
+                        rateiosInfo.forEach((info) => {
+                            const amt = info.amountInformado;
+                            if (amt > 0) {
+                                rows.push({
+                                    categoryId: cat.id,
+                                    costCenterId: info.ccId,
+                                    description: finalDesc || 'Importação Excel',
+                                    amount: amt,
+                                    month: selectedMonth,
+                                    tenantId: cat.tenantId
+                                });
+                                totalDistributed += amt;
                             }
+                        });
 
-                            let calculatedAmount = Math.abs(finalAmount) * proportion;
-
-                            if (idx === rateiosInfo.length - 1) {
-                                calculatedAmount = remainingToDistribute;
-                            } else {
-                                calculatedAmount = parseFloat(calculatedAmount.toFixed(2));
-                                remainingToDistribute -= calculatedAmount;
-                            }
-
+                        const remainder = Math.abs(finalAmount) - totalDistributed;
+                        if (remainder > 0.01) { // Tolerância de centavos
                             rows.push({
                                 categoryId: cat.id,
-                                costCenterId: info.ccId,
-                                description: finalDesc || 'Importação Excel',
-                                amount: calculatedAmount,
+                                costCenterId: null,
+                                description: finalDesc || 'Importação (Resto Rateio)',
+                                amount: parseFloat(remainder.toFixed(2)),
                                 month: selectedMonth,
                                 tenantId: cat.tenantId
                             });
-                        });
+                        }
                     } else {
-                        // Sem Colunas de Rateio -> Vai tudo para o Centro de Custo da variante ou null (Geral)
+                        // Sem Colunas de Rateio -> Vai tudo para o Centro de Custo Geral (null)
                         rows.push({
                             categoryId: cat.id,
                             costCenterId: null,

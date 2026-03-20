@@ -293,6 +293,10 @@ export default function BudgetGrid({
                 tenantId: cat.tenantId
             };
             map.set(cat.id, node);
+            // Fallback for simple ID matching if IDs are prefixed with tenantId
+            if (cat.id.includes(':')) {
+                map.set(cat.id.split(':')[1], node);
+            }
             nameMap.set(uniqueKey, node);
             if (cleanCode) {
                 codeMap.set(cleanCode, node);

@@ -227,3 +227,9 @@ async function aggregateTransactions(
         } catch (e: any) { hasMore = false; break; }
     }
 }
+
+// V47.10.6: Compatibilidade de Build (Resolve erro no Vercel)
+export async function syncData() {
+    const { runCronSync } = await import('./cronSync');
+    return await runCronSync(new Date().getFullYear());
+}

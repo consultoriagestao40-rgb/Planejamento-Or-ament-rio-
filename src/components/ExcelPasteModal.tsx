@@ -28,19 +28,28 @@ export function ExcelPasteModal({ isOpen, onClose, tenantId: initialTenantId, co
 
     const selectedCompany = useMemo(() => companies.find(c => c.id === localTenantId), [companies, localTenantId]);
 
-    // --- VARIANT LOGIC (UI SIDE) ---
-    // Identify all variants of the currently selected company to broaden the search for Categories/CCs
+    // --- VARIANT LOGIC (CNPJ-BASED) ---
+    // Identify all variants of the currently selected company using CNPJ base (8 digits)
     const activeVariantIds = useMemo(() => {
         if (!localTenantId || localTenantId === 'DEFAULT') return [];
-        const current = companies.find(c => c.id === localTenantId);
+        const current = companies.find((c: any) => c.id === localTenantId);
         if (!current) return [localTenantId];
+        
+        // CNPJ grouping logic (Base 8 digits)
+        const getBaseCnpj = (cnpj: string) => (cnpj || '').replace(/\D/g, '').substring(0, 8);
+        const currentBase = getBaseCnpj(current.cnpj);
         
         const normalize = (n: string) => (n || '').trim().toUpperCase().replace(/[^A-Z0-9]/g, '').replace(/LTDA$/, '').replace(/SA$/, '');
         const currentNorm = normalize(current.name);
         
         return companies
-            .filter(c => normalize(c.name) === currentNorm)
-            .map(c => c.id);
+            .filter((c: any) => {
+                if (currentBase && currentBase.length === 8) {
+                    return getBaseCnpj(c.cnpj) === currentBase;
+                }
+                return normalize(c.name) === currentNorm;
+            })
+            .map((c: any) => c.id);
     }, [companies, localTenantId]);
 
     // Filter categories and cost centers for the WHOLE GROUP (all variants)

@@ -12,7 +12,7 @@ export async function GET() {
                 include: { tenant: { select: { name: true } } },
                 orderBy: { name: 'asc' } 
             }),
-            prisma.tenant.findMany({ select: { id: true, name: true } })
+            prisma.tenant.findMany({ select: { id: true, name: true, cnpj: true } })
         ]);
 
         console.log(`[RECOVERY] Loaded ${categories.length} categories and ${costCenters.length} cost centers`);
@@ -35,7 +35,8 @@ export async function GET() {
             })),
             tenants: tenants.map((t: any) => ({
                 id: t.id,
-                name: t.name
+                name: t.name,
+                cnpj: t.cnpj || ''
             }))
         });
     } catch (error: any) {

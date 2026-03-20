@@ -15,9 +15,10 @@ export async function POST(request: Request) {
             await prisma.realizedEntry.deleteMany({
                 where: {
                     tenantId,
-                    year,
-                    month,
-                    viewMode: viewMode || 'competencia'
+                    month: parseInt(month),
+                    year: parseInt(year)
+                    // REMOVIDO: externalId: { startsWith: 'manual-' } -> Agora deleta TUDO (incluindo sync)
+                    // REMOVIDO: viewMode filter
                 }
             });
         }

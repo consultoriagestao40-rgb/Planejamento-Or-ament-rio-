@@ -106,58 +106,15 @@ export function ExcelPasteModal({ isOpen, onClose, tenantId: initialTenantId, co
 
                 const finalDesc = fornecedor ? `${fornecedor} - ${descricao}` : descricao;
                 
-                // --- LÓGICA DE RATEIO MELHORADA ---
-                let distributedAmount = 0;
-                let hasRateioCols = false;
-
-                if (cols.length > 16) {
-                    for (let i = 16; i < cols.length; i += 2) {
-                        const ccName = String(cols[i] || '').trim();
-                        const ccAmountVal = cols[i+1];
-
-                        if (ccName && ccAmountVal !== undefined && ccAmountVal !== null && ccAmountVal !== '') {
-                            let ccAmount = 0;
-                            if (typeof ccAmountVal === 'number') ccAmount = ccAmountVal;
-                            else ccAmount = parseFloat(String(ccAmountVal).replace(/[R$\s.]/g, '').replace(',', '.'));
-
-                            if (!isNaN(ccAmount) && Math.abs(ccAmount) > 0) {
-                                hasRateioCols = true;
-                                distributedAmount += Math.abs(ccAmount);
-                                
-                                let ccId = null;
-                                const foundCC = tenantCCs.find(cc => (cc.name || '').trim().toLowerCase() === ccName.toLowerCase() || ccName.toLowerCase().includes((cc.name || '').trim().toLowerCase()));
-                                if (foundCC) ccId = foundCC.id;
-
-                                rows.push({
-                                    categoryId: cat.id,
-                                    costCenterId: ccId,
-                                    description: finalDesc || 'Importação Excel',
-                                    amount: Math.abs(ccAmount),
-                                    month: selectedMonth
-                                });
-                            }
-                        }
-                    }
-                }
-
-                // Se houve rateio mas sobrou valor na Coluna P, ou se não houve rateio nenhum
-                const remaining = Math.abs(finalAmount) - distributedAmount;
-                if (remaining > 0.01 || !hasRateioCols) {
-                    const amountToUse = hasRateioCols ? remaining : Math.abs(finalAmount);
-                    if (amountToUse > 0) {
-                        rows.push({
-                            categoryId: cat.id,
-                            costCenterId: null, // Sem Centro de Custo
-                            description: finalDesc || 'Importação Excel',
-                            amount: amountToUse,
-                            month: selectedMonth
-                        });
-                    }
-                }
-
-                if (cat.id.includes(':01') || cat.name.startsWith('01')) {
-                    // Soma de verificação para o log (sempre baseada na P para auditoria)
-                    revenueSum += Math.abs(finalAmount);
+                if (Math.abs(finalAmount) > 0) {
+                    rows.push({
+                        categoryId: cat.id,
+                        costCenterId: null, // Sem CC por enquanto para não perder os 156k
+                        description: finalDesc || 'Importação Excel',
+                        amount: Math.abs(finalAmount),
+                        month: selectedMonth
+                    });
+                    if (cat.id.includes(':01') || cat.name.startsWith('01')) revenueSum += Math.abs(finalAmount);
                 }
             } catch (err) {
                 console.error("❌ Erro ao processar linha:", cols, err);

@@ -51,6 +51,7 @@ export async function GET(request: Request) {
         const categoryMap = new Map<string, string>();
         categories.forEach((c: any) => {
             // Map both original ID and the clean version to name for aggregate sum
+            // Mapeia tanto o ID original (ex: SPOT:01.1.1) quanto o simplificado (ex: 01.1.1)
             categoryMap.set(c.id, c.name);
             if (c.id.includes(':')) {
                 categoryMap.set(c.id.split(':')[1], c.name);

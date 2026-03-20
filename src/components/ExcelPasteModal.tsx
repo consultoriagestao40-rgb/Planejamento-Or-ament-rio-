@@ -55,15 +55,26 @@ export function ExcelPasteModal({ isOpen, onClose, tenantId: initialTenantId, co
             const catCodeMatch = categoriaRaw.match(/^(\d{1,2}\.\d{1,2}(\.\d{1,2})?)/);
             const catCode = catCodeMatch ? catCodeMatch[1] : null;
 
-            // Mapeamento de Categoria
+            // Mapeamento de Categoria - PRIORIDADE PARA O CÓDIGO
             const cat = tenantCategories.find(c => {
-                const cleanName = c.name.toLowerCase();
-                if (catCode && (c.id === catCode || c.name.startsWith(catCode))) return true;
-                return cleanName === categoriaRaw.toLowerCase() || categoriaRaw.toLowerCase().includes(cleanName);
+                const cleanDBName = c.name.toLowerCase();
+                const cleanDBId = c.id.toLowerCase();
+                
+                // 1. Check if ID or Name matches the code exactly (e.g. 01.1.1)
+                if (catCode) {
+                    if (cleanDBId === catCode.toLowerCase() || 
+                        cleanDBId.endsWith(`:${catCode.toLowerCase()}`) ||
+                        cleanDBName.startsWith(catCode.toLowerCase())) {
+                        return true;
+                    }
+                }
+                
+                // 2. Fallback to name match
+                return cleanDBName === categoriaRaw.toLowerCase() || categoriaRaw.toLowerCase().includes(cleanDBName);
             });
 
             if (!cat) {
-                console.warn("Categoria não mapeada:", categoriaRaw);
+                console.warn("⚠️ Categoria não mapeada:", categoriaRaw, "| Código detectado:", catCode);
                 continue;
             }
 
@@ -71,6 +82,8 @@ export function ExcelPasteModal({ isOpen, onClose, tenantId: initialTenantId, co
             
             // Processar Rateios (Col 16 em diante, pares de CC e Valor)
             let hasRateio = false;
+            let rowProcessed = false;
+
             if (cols.length > 16) {
                 for (let i = 16; i < cols.length; i += 2) {
                     const ccName = String(cols[i] || '').trim();
@@ -93,10 +106,11 @@ export function ExcelPasteModal({ isOpen, onClose, tenantId: initialTenantId, co
                                 categoryId: cat.id,
                                 costCenterId: ccId,
                                 description: finalDesc || 'Importação Excel',
-                                amount: Math.abs(ccAmount), // Garantindo positivo para o banco
+                                amount: Math.abs(ccAmount),
                                 month: selectedMonth
                             });
                             hasRateio = true;
+                            rowProcessed = true;
                         }
                     }
                 }
@@ -104,23 +118,32 @@ export function ExcelPasteModal({ isOpen, onClose, tenantId: initialTenantId, co
 
             if (!hasRateio) {
                 let totalAmount = 0;
-                if (typeof cols[15] === 'number') {
-                    totalAmount = cols[15];
-                } else {
-                    totalAmount = parseFloat(valorTotalStr.replace(/[R$\s.]/g, '').replace(',', '.'));
-                }
+                // Col 15 (P) é Valor na Categoria, Col 11 (L) é Valor Total
+                const valP = typeof cols[15] === 'number' ? cols[15] : parseFloat(String(cols[15] || '').replace(/[R$\s.]/g, '').replace(',', '.'));
+                const valL = typeof cols[11] === 'number' ? cols[11] : parseFloat(String(cols[11] || '').replace(/[R$\s.]/g, '').replace(',', '.'));
+                
+                // FALLBACK: Se o valor na categoria estiver zerado mas o total da linha não, usa o total
+                totalAmount = (isNaN(valP) || valP === 0) ? (isNaN(valL) ? 0 : valL) : valP;
 
                 if (!isNaN(totalAmount) && totalAmount !== 0) {
                     rows.push({
                         categoryId: cat.id,
                         costCenterId: null,
                         description: finalDesc || 'Importação Excel',
-                        amount: Math.abs(totalAmount), // Garantindo positivo para o banco
+                        amount: Math.abs(totalAmount),
                         month: selectedMonth
                     });
+                    rowProcessed = true;
                 }
             }
         }
+
+        const totalSum = rows.reduce((acc, r) => acc + r.amount, 0);
+        console.log(`🚀 [IMPORT] Processamento Concluído!`);
+        console.log(` - Total de Linhas: ${rows.length}`);
+        console.log(` - Soma Acumulada: ${totalSum.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}`);
+        (window as any).lastImportSum = totalSum;
+
         return rows;
     };
 

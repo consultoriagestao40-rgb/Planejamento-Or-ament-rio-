@@ -19,7 +19,7 @@ export function ExcelPasteModal({ isOpen, onClose, tenantId: initialTenantId, co
     const [loading, setLoading] = useState(false);
     const [status, setStatus] = useState<string | null>(null);
     const [localTenantId, setLocalTenantId] = useState(initialTenantId);
-    const [summary, setSummary] = useState<{ totalP: number, totalRows: number, revenueP: number } | null>(null);
+    const [summary, setSummary] = useState<{ totalP: number, totalRows: number, revenueP: number, preparedSum: number } | null>(null);
     const [processedRows, setProcessedRows] = useState<any[] | null>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -136,14 +136,34 @@ export function ExcelPasteModal({ isOpen, onClose, tenantId: initialTenantId, co
                 const fornecedor = String(cols[6] || '').trim();
                 const categoriaRaw = String(cols[colCat] || '').trim();
 
+                const valP = typeof cols[colVal] === 'number' ? cols[colVal] : parseFloat(String(cols[colVal] || '').replace(/[R$\s.]/g, '').replace(',', '.'));
+                const finalAmount = isNaN(valP) ? 0 : valP;
+
                 if (!categoriaRaw && !dataCompetencia && Math.abs(finalAmount) === 0) continue;
 
-                // --- DETECÇÃO DE MÊS POR LINHA ---
+                // --- DETECÇÃO DE MÊS POR LINHA (BR-SAFE) ---
                 let rowMonth = selectedMonth;
                 if (dataCompetencia) {
-                    const rowDate = new Date(dataCompetencia);
-                    if (!isNaN(rowDate.getTime()) && rowDate.getFullYear() >= 2020) {
-                        rowMonth = rowDate.getMonth() + 1;
+                    const parts = dataCompetencia.split(/[/.-]/);
+                    if (parts.length === 3) {
+                        let d, m, y;
+                        if (parts[2].length === 4) { // DD/MM/YYYY
+                            d = parseInt(parts[0]);
+                            m = parseInt(parts[1]);
+                            y = parseInt(parts[2]);
+                        } else if (parts[0].length === 4) { // YYYY-MM-DD
+                            y = parseInt(parts[0]);
+                            m = parseInt(parts[1]);
+                            d = parseInt(parts[2]);
+                        }
+                        if (d && m && y && !isNaN(d) && !isNaN(m) && !isNaN(y) && y >= 2020) {
+                            rowMonth = m;
+                        }
+                    } else {
+                        const rowDate = new Date(dataCompetencia);
+                        if (!isNaN(rowDate.getTime()) && rowDate.getFullYear() >= 2020) {
+                            rowMonth = rowDate.getMonth() + 1;
+                        }
                     }
                 }
 
@@ -168,9 +188,6 @@ export function ExcelPasteModal({ isOpen, onClose, tenantId: initialTenantId, co
                     const cleanCategoriaRaw = categoriaRaw.toLowerCase();
                     return cleanDBName === cleanCategoriaRaw || cleanDBName.includes(cleanCategoriaRaw) || cleanCategoriaRaw.includes(cleanDBName);
                 });
-
-                const valP = typeof cols[colVal] === 'number' ? cols[colVal] : parseFloat(String(cols[colVal] || '').replace(/[R$\s.]/g, '').replace(',', '.'));
-                const finalAmount = isNaN(valP) ? 0 : valP;
 
                 let effectiveCat = cat;
                 if (!effectiveCat && Math.abs(finalAmount) > 0) {
@@ -321,7 +338,8 @@ export function ExcelPasteModal({ isOpen, onClose, tenantId: initialTenantId, co
         setSummary({
             totalP: rawSumPInFile,
             revenueP: revenueSumDetected,
-            totalRows: rows.length
+            totalRows: rows.length,
+            preparedSum: totalSumRows
         });
 
         console.log(`🚀 [AUDITORIA] Processamento Concluído!`);
@@ -546,17 +564,26 @@ export function ExcelPasteModal({ isOpen, onClose, tenantId: initialTenantId, co
                 </div>
 
                 {summary && (
-                    <div style={{ backgroundColor: '#f0fdf4', padding: '1rem', borderRadius: '12px', marginBottom: '1rem', border: '1px solid #bbf7d0', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                    <div style={{ backgroundColor: '#f0fdf4', padding: '1rem', borderRadius: '12px', marginBottom: '1rem', border: '1px solid #bbf7d0', display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '1rem' }}>
                         <div>
-                            <p style={{ margin: 0, fontSize: '0.75rem', color: '#166534', fontWeight: 600 }}>RECEITA DETECTADA (COL P)</p>
-                            <p style={{ margin: 0, fontSize: '1.25rem', color: '#15803d', fontWeight: 800 }}>{summary.revenueP.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</p>
+                            <p style={{ margin: 0, fontSize: '0.7rem', color: '#166534', fontWeight: 600 }}>DRE (RECEITA)</p>
+                            <p style={{ margin: 0, fontSize: '1rem', color: '#15803d', fontWeight: 800 }}>{summary.revenueP.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</p>
                         </div>
                         <div>
-                            <p style={{ margin: 0, fontSize: '0.75rem', color: '#166534', fontWeight: 600 }}>TOTAL GERAL (DRE)</p>
-                            <p style={{ margin: 0, fontSize: '1.25rem', color: '#15803d', fontWeight: 800 }}>{summary.totalP.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</p>
+                            <p style={{ margin: 0, fontSize: '0.7rem', color: '#166534', fontWeight: 600 }}>TOTAL COL P (ARQUIVO)</p>
+                            <p style={{ margin: 0, fontSize: '1rem', color: '#15803d', fontWeight: 800 }}>{summary.totalP.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</p>
                         </div>
-                        <div style={{ gridColumn: 'span 2', fontSize: '0.8rem', color: '#166534', borderTop: '1px dashed #bbf7d0', paddingTop: '0.5rem', marginTop: '0.5rem' }}>
-                            ✅ <b>{summary.totalRows}</b> lançamentos preparados (incluindo rateios e restos de Column P).
+                        <div>
+                            <p style={{ margin: 0, fontSize: '0.7rem', color: '#166534', fontWeight: 600 }}>TOTAL PREPARADO</p>
+                            <p style={{ margin: 0, fontSize: '1rem', color: '#15803d', fontWeight: 800 }}>{summary.preparedSum.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</p>
+                        </div>
+                        <div style={{ gridColumn: 'span 3', fontSize: '0.75rem', color: '#166534', borderTop: '1px dashed #bbf7d0', paddingTop: '0.5rem', marginTop: '0.5rem' }}>
+                            ✅ <b>{summary.totalRows}</b> lançamentos detectados (incluindo rateios e saldo Col P).
+                            {Math.abs(summary.totalP - summary.preparedSum) > 0.1 && (
+                                <span style={{ color: '#dc2626', marginLeft: '1rem', fontWeight: 800 }}>
+                                    ⚠️ DIFERENÇA DETECTADA: {(summary.totalP - summary.preparedSum).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                                </span>
+                            )}
                         </div>
                     </div>
                 )}

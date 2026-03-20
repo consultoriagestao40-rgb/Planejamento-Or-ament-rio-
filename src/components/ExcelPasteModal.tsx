@@ -114,11 +114,11 @@ export function ExcelPasteModal({ isOpen, onClose, tenantId: initialTenantId, co
 
         if (headerIndices.cat !== -1) colCat = headerIndices.cat;
         if (headerIndices.val !== -1) colVal = headerIndices.val;
-        // SE O AUTO-DETECT FALHAR OU DER VALORES ESTRANHOS (COMO 0), FORÇAMOS EXATAMENTE 15/16 (Conforme pedido pelo usuário)
-        if (colCat === 0 || colCat === -1) colCat = 15;
-        if (colVal === 0 || colVal === -1) colVal = 16;
+        // SE O AUTO-DETECT FALHAR OU DER VALORES ESTRANHOS (COMO 0), FORÇAMOS EXATAMENTE 14/15 (O=14, P=15)
+        if (colCat === 0 || colCat === -1) colCat = 14;
+        if (colVal === 0 || colVal === -1) colVal = 15;
 
-        console.log(`🗳️ [V50.4] Categoria: Col ${colCat} (${String.fromCharCode(65 + colCat)}), Valor: Col ${colVal} (${String.fromCharCode(65 + colVal)})`); 
+        console.log(`🗳️ [V50.5] Categoria: Col ${colCat} (O), Valor: Col ${colVal} (P)`); 
         console.log("📝 [NUCLEAR DEBUG] Primeiras 3 linhas da Matrix:", JSON.stringify(matrix.slice(0, 3)));
         
         // 3. Detectar se a primeira linha é cabeçalho ou dados (usando indices detectados ou fallback)

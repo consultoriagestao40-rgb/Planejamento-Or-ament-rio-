@@ -7,14 +7,14 @@ export async function GET() {
         const result = await prisma.realizedEntry.deleteMany({
             where: {
                 tenantId,
-                month: 1,
+                month: { in: [1, 2] },
                 year: 2026
             }
         });
 
         return NextResponse.json({
             success: true,
-            message: `Limpeza concluída! ${result.count} registros de Janeiro/2026 foram removidos para a SPOT FACILITIES.`,
+            message: `Limpeza concluída! ${result.count} registros de Janeiro e Fevereiro/2026 foram removidos para a SPOT FACILITIES.`,
             tenantId
         });
     } catch (error: any) {

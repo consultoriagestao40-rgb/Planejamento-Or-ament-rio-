@@ -78,6 +78,11 @@ export function ExcelPasteModal({ isOpen, onClose, tenantId: initialTenantId, co
                 const valL = typeof cols[11] === 'number' ? cols[11] : parseFloat(String(cols[11] || '').replace(/[R$\s.]/g, '').replace(',', '.'));
                 const finalAmount = (isNaN(valP) || valP === 0) ? (isNaN(valL) ? 0 : valL) : valP;
 
+                // DEBUG ESPECÍFICO PARA O USUÁRIO VER NO CONSOLE
+                if (catCode === '01.1.1' || catCode === '01.2.1' || catCode === '1.1.1' || catCode === '1.2.1') {
+                    console.log(`🔍 [DEBUG ${catCode}] Col O: "${categoriaRaw}" | Col L (idx11): ${cols[11]} | Col P (idx15): ${cols[15]} | Final Usado: ${finalAmount}`);
+                }
+
                 if (!cat) {
                     if (Math.abs(finalAmount) > 0) {
                         ignoredSum += Math.abs(finalAmount);

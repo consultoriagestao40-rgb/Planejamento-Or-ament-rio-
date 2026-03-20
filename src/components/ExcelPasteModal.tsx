@@ -179,7 +179,14 @@ export function ExcelPasteModal({ isOpen, onClose, tenantId: initialTenantId, co
             const res = await fetch('/api/realized/bulk', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ rows, tenantId: localTenantId, year, viewMode, overwrite, month: selectedMonth })
+                body: JSON.stringify({ 
+                    rows, 
+                    tenantId: localTenantId, 
+                    year, 
+                    viewMode, 
+                    overwrite: overwrite, // Use the state variable for overwrite
+                    month: selectedMonth 
+                })
             });
             const data = await res.json();
 

@@ -59,11 +59,9 @@ export async function GET(request: Request) {
 
         const realizedValues: Record<string, number> = {};
         entries.forEach((e: any) => {
-            const catName = categoryMap.get(e.categoryId);
-            if (catName) {
-                const key = `${catName.trim()}|${e.month - 1}`;
-                realizedValues[key] = (realizedValues[key] || 0) + e.amount;
-            }
+            // O Grid espera a chave no formato "categoryId-monthIdx" (sendo monthIdx 0-11)
+            const key = `${e.categoryId}-${e.month - 1}`;
+            realizedValues[key] = (realizedValues[key] || 0) + e.amount;
         });
 
         return NextResponse.json({

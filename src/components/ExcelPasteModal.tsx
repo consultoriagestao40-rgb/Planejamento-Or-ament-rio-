@@ -141,31 +141,9 @@ export function ExcelPasteModal({ isOpen, onClose, tenantId: initialTenantId, co
 
                 if (!categoriaRaw && !dataCompetencia && Math.abs(finalAmount) === 0) continue;
 
-                // --- DETECÇÃO DE MÊS POR LINHA (BR-SAFE) ---
+                // --- MÊS FIXO (SELECIONADO NO UI) ---
                 let rowMonth = selectedMonth;
-                if (dataCompetencia) {
-                    const parts = dataCompetencia.split(/[/.-]/);
-                    if (parts.length === 3) {
-                        let d, m, y;
-                        if (parts[2].length === 4) { // DD/MM/YYYY
-                            d = parseInt(parts[0]);
-                            m = parseInt(parts[1]);
-                            y = parseInt(parts[2]);
-                        } else if (parts[0].length === 4) { // YYYY-MM-DD
-                            y = parseInt(parts[0]);
-                            m = parseInt(parts[1]);
-                            d = parseInt(parts[2]);
-                        }
-                        if (d && m && y && !isNaN(d) && !isNaN(m) && !isNaN(y) && y >= 2020) {
-                            rowMonth = m;
-                        }
-                    } else {
-                        const rowDate = new Date(dataCompetencia);
-                        if (!isNaN(rowDate.getTime()) && rowDate.getFullYear() >= 2020) {
-                            rowMonth = rowDate.getMonth() + 1;
-                        }
-                    }
-                }
+                // Removido detecção por linha pois estava "perdendo" valores em outros meses (ex: competência de Dez)
 
                 // Extrair Código (ex: 01.1.1 ou 1.1.1)
                 const catCodeMatch = categoriaRaw.match(/^(\d{1,2}(?:\.\d+)*)/);
@@ -317,6 +295,12 @@ export function ExcelPasteModal({ isOpen, onClose, tenantId: initialTenantId, co
         }
 
         const totalSumRows = rows.reduce((acc, r) => acc + r.amount, 0);
+        const netSumRows = rows.reduce((acc, r) => {
+            // Se for categoria 01 (Receita), soma. Senão (Despesa), subtrai para bater com o Net da Coluna P.
+            const catId = (r.categoryId || '').toLowerCase();
+            const isRevenue = catId.includes(':01') || catId.startsWith('01');
+            return isRevenue ? acc + r.amount : acc - r.amount;
+        }, 0);
         
         // --- RESUMO ANALÍTICO POR CATEGORIA ---
         const categorySummary: Record<string, { code: string, name: string, total: number }> = {};
@@ -339,7 +323,7 @@ export function ExcelPasteModal({ isOpen, onClose, tenantId: initialTenantId, co
             totalP: rawSumPInFile,
             revenueP: revenueSumDetected,
             totalRows: rows.length,
-            preparedSum: totalSumRows
+            preparedSum: netSumRows // Use net sum to match rawSumPInFile
         });
 
         console.log(`🚀 [AUDITORIA] Processamento Concluído!`);
@@ -389,7 +373,13 @@ export function ExcelPasteModal({ isOpen, onClose, tenantId: initialTenantId, co
                 const totalSent = rows.reduce((acc: number, r: any) => acc + r.amount, 0);
                 window.alert(`✅ SUCESSO NA IMPORTAÇÃO!\n\n💰 Valor Total Enviado: ${totalSent.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}\n📝 Total de Lançamentos: ${data.count}\n\nOs valores devem aparecer agora no DRE (${meses[selectedMonth - 1]} / ${year}).`);
                 setStatus(`Sucesso! ${data.count} registros importados.`);
-                setTimeout(() => { onClose(); setText(''); setStatus(null); }, 1500);
+                setTimeout(() => { 
+                    onClose(); 
+                    setText(''); 
+                    setSummary(null); 
+                    setProcessedRows(null);
+                    setStatus(null); 
+                }, 1500);
             } else {
                 throw new Error(data.error);
             }
@@ -566,34 +556,25 @@ export function ExcelPasteModal({ isOpen, onClose, tenantId: initialTenantId, co
                 {summary && (
                     <div style={{ backgroundColor: '#f0fdf4', padding: '1rem', borderRadius: '12px', marginBottom: '1rem', border: '1px solid #bbf7d0', display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '1rem' }}>
                         <div>
-                            <p style={{ margin: 0, fontSize: '0.7rem', color: '#166534', fontWeight: 600 }}>DRE (RECEITA)</p>
+                            <p style={{ margin: 0, fontSize: '0.7rem', color: '#166534', fontWeight: 600 }}>RECEITA (01.1.1)</p>
                             <p style={{ margin: 0, fontSize: '1rem', color: '#15803d', fontWeight: 800 }}>{summary.revenueP.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</p>
                         </div>
                         <div>
-                            <p style={{ margin: 0, fontSize: '0.7rem', color: '#166534', fontWeight: 600 }}>TOTAL COL P (ARQUIVO)</p>
+                            <p style={{ margin: 0, fontSize: '0.7rem', color: '#166534', fontWeight: 600 }}>NET TOTAL (ARQUIVO)</p>
                             <p style={{ margin: 0, fontSize: '1rem', color: '#15803d', fontWeight: 800 }}>{summary.totalP.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</p>
                         </div>
                         <div>
-                            <p style={{ margin: 0, fontSize: '0.7rem', color: '#166534', fontWeight: 600 }}>TOTAL PREPARADO</p>
+                            <p style={{ margin: 0, fontSize: '0.7rem', color: '#166534', fontWeight: 600 }}>NET PREPARADO</p>
                             <p style={{ margin: 0, fontSize: '1rem', color: '#15803d', fontWeight: 800 }}>{summary.preparedSum.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</p>
                         </div>
                         <div style={{ gridColumn: 'span 3', fontSize: '0.75rem', color: '#166534', borderTop: '1px dashed #bbf7d0', paddingTop: '0.5rem', marginTop: '0.5rem' }}>
-                            ✅ <b>{summary.totalRows}</b> lançamentos detectados (incluindo rateios e saldo Col P).
+                            ✅ <b>{summary.totalRows}</b> lançamentos detectados (fidelidade total à Coluna P).
                             {Math.abs(summary.totalP - summary.preparedSum) > 0.1 && (
-                                <span style={{ color: '#dc2626', marginLeft: '1rem', fontWeight: 800 }}>
-                                    ⚠️ DIFERENÇA DETECTADA: {(summary.totalP - summary.preparedSum).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
-                                </span>
-                            )}
-                        </div>
+                                <p style={{ color: '#dc2626', margin: '0.25rem 0 0', fontWeight: 800 }}>
+                                    ⚠️ DIFERENÇA DE NET: {(summary.totalP - summary.preparedSum).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                                </p>
                     </div>
                 )}
-
-                <div style={{ backgroundColor: '#f8fafc', padding: '1rem', borderRadius: '10px', marginBottom: '1rem', border: '1px solid #e2e8f0' }}>
-                    <p style={{ margin: 0, fontSize: '0.8rem', color: '#475569' }}>
-                        📊 <b>Smart Parser Ativo:</b> Identificamos automaticamente <b>Categoria</b> e <b>Valor Total</b>. 
-                        O sistema preserva o valor da <b>Coluna P</b> criando lançamentos "Sem Centro de Custo" para a diferença.
-                    </p>
-                </div>
 
                 <textarea
                     value={text}

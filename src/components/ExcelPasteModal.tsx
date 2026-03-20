@@ -1,6 +1,7 @@
 'use client';
 
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, useRef } from 'react';
+import * as XLSX from 'xlsx';
 
 export function ExcelPasteModal({ isOpen, onClose, tenantId: initialTenantId, companies, categories, costCenters, year, viewMode }: {
     isOpen: boolean;
@@ -18,6 +19,7 @@ export function ExcelPasteModal({ isOpen, onClose, tenantId: initialTenantId, co
     const [loading, setLoading] = useState(false);
     const [status, setStatus] = useState<string | null>(null);
     const [localTenantId, setLocalTenantId] = useState(initialTenantId);
+    const fileInputRef = useRef<HTMLInputElement>(null);
 
     // Sync localTenantId when prop changes (e.g. user filters in the grid)
     useEffect(() => {
@@ -32,98 +34,115 @@ export function ExcelPasteModal({ isOpen, onClose, tenantId: initialTenantId, co
     
     if (!isOpen) return null;
 
-    const handleProcess = async () => {
+    const processMatrix = (matrix: any[][]) => {
+        const rows: any[] = [];
+        console.log("Processando matriz de", matrix.length, "linhas");
+
+        for (const cols of matrix) {
+            if (!cols || cols.length < 15) continue;
+
+            // Dados Fixos (A=0, E=4, G=6, L=11, O=14)
+            const dataCompetencia = String(cols[0] || '').trim();
+            const descricao = String(cols[4] || '').trim();
+            const fornecedor = String(cols[6] || '').trim();
+            const valorTotalStr = String(cols[11] || '').trim();
+            const categoriaRaw = String(cols[14] || '').trim();
+
+            // Pular cabeçalhos
+            if (dataCompetencia.toLowerCase().includes('data') || categoriaRaw.toLowerCase().includes('categoria') || !dataCompetencia) continue;
+
+            // Extrair Código de Categoria (ex: 03.3.1)
+            const catCodeMatch = categoriaRaw.match(/^(\d{1,2}\.\d{1,2}(\.\d{1,2})?)/);
+            const catCode = catCodeMatch ? catCodeMatch[1] : null;
+
+            // Mapeamento de Categoria
+            const cat = tenantCategories.find(c => {
+                const cleanName = c.name.toLowerCase();
+                if (catCode && (c.id === catCode || c.name.startsWith(catCode))) return true;
+                return cleanName === categoriaRaw.toLowerCase() || categoriaRaw.toLowerCase().includes(cleanName);
+            });
+
+            if (!cat) {
+                console.warn("Categoria não mapeada:", categoriaRaw);
+                continue;
+            }
+
+            const finalDesc = fornecedor ? `${fornecedor} - ${descricao}` : descricao;
+            
+            // Processar Rateios (Col 16 em diante, pares de CC e Valor)
+            let hasRateio = false;
+            if (cols.length > 16) {
+                for (let i = 16; i < cols.length; i += 2) {
+                    const ccName = String(cols[i] || '').trim();
+                    const ccAmountVal = cols[i+1];
+
+                    if (ccName && ccAmountVal !== undefined && ccAmountVal !== null && ccAmountVal !== '') {
+                        let ccAmount = 0;
+                        if (typeof ccAmountVal === 'number') {
+                            ccAmount = ccAmountVal;
+                        } else {
+                            ccAmount = parseFloat(String(ccAmountVal).replace(/[R$\s.]/g, '').replace(',', '.'));
+                        }
+
+                        if (!isNaN(ccAmount) && ccAmount !== 0) {
+                            let ccId = null;
+                            const foundCC = tenantCCs.find(cc => cc.name.trim().toLowerCase() === ccName.toLowerCase() || ccName.toLowerCase().includes(cc.name.trim().toLowerCase()));
+                            if (foundCC) ccId = foundCC.id;
+
+                            rows.push({
+                                categoryId: cat.id,
+                                costCenterId: ccId,
+                                description: finalDesc || 'Importação Excel',
+                                amount: ccAmount,
+                                month: selectedMonth
+                            });
+                            hasRateio = true;
+                        }
+                    }
+                }
+            }
+
+            if (!hasRateio) {
+                let totalAmount = 0;
+                if (typeof cols[11] === 'number') {
+                    totalAmount = cols[11];
+                } else {
+                    totalAmount = parseFloat(valorTotalStr.replace(/[R$\s.]/g, '').replace(',', '.'));
+                }
+
+                if (!isNaN(totalAmount) && totalAmount !== 0) {
+                    rows.push({
+                        categoryId: cat.id,
+                        costCenterId: null,
+                        description: finalDesc || 'Importação Excel',
+                        amount: totalAmount,
+                        month: selectedMonth
+                    });
+                }
+            }
+        }
+        return rows;
+    };
+
+    const handleProcess = async (preProcessedRows?: any[]) => {
         if (localTenantId === 'DEFAULT' || !localTenantId) {
             alert("Por favor, selecione uma empresa primeiro.");
             return;
         }
 
         setLoading(true);
-        setStatus("Processando colagem...");
+        setStatus("Enviando dados...");
+
         try {
-            const lines = text.split('\n').filter(l => l.trim() !== '');
-            const rows: any[] = [];
+            let rows = preProcessedRows;
             
-            console.log("Iniciando processamento de", lines.length, "linhas");
-
-            for (const line of lines) {
-                const cols = line.split('\t');
-                if (cols.length < 15) continue; // Precisa ter pelo menos até a coluna da Categoria
-
-                // Dados Fixos
-                const dataCompetencia = cols[0].trim();
-                const descricao = cols[4]?.trim() || '';
-                const fornecedor = cols[6]?.trim() || '';
-                const valorTotalStr = cols[11]?.trim() || '0';
-                const categoriaRaw = cols[14]?.trim() || '';
-
-                // Se for cabeçalho, pular
-                if (dataCompetencia.toLowerCase().includes('data') || categoriaRaw.toLowerCase().includes('categoria')) continue;
-
-                // Extrair Código de Categoria (ex: 03.3.1)
-                const catCodeMatch = categoriaRaw.match(/^(\d{1,2}\.\d{1,2}(\.\d{1,2})?)/);
-                const catCode = catCodeMatch ? catCodeMatch[1] : null;
-
-                // Mapeamento de Categoria
-                const cat = tenantCategories.find(c => {
-                    const cleanName = c.name.toLowerCase();
-                    if (catCode && (c.id === catCode || c.name.startsWith(catCode))) return true;
-                    return cleanName === categoriaRaw.toLowerCase() || categoriaRaw.toLowerCase().includes(cleanName);
-                });
-
-                if (!cat) {
-                    console.warn("Categoria não mapeada:", categoriaRaw);
-                    continue;
-                }
-
-                const finalDesc = fornecedor ? `${fornecedor} - ${descricao}` : descricao;
-                
-                // Processar Rateios (Col 16 em diante, pares de CC e Valor)
-                let hasRateio = false;
-                if (cols.length > 16) {
-                    for (let i = 16; i < cols.length; i += 2) {
-                        const ccName = cols[i]?.trim();
-                        const ccAmountStr = cols[i+1]?.trim();
-
-                        if (ccName && ccAmountStr) {
-                            const ccAmount = parseFloat(ccAmountStr.replace(/[R$\s.]/g, '').replace(',', '.'));
-                            if (!isNaN(ccAmount) && ccAmount !== 0) {
-                                // Mapeamento de CC
-                                let ccId = null;
-                                const foundCC = tenantCCs.find(cc => cc.name.trim().toLowerCase() === ccName.toLowerCase() || ccName.toLowerCase().includes(cc.name.trim().toLowerCase()));
-                                if (foundCC) ccId = foundCC.id;
-
-                                rows.push({
-                                    categoryId: cat.id,
-                                    costCenterId: ccId,
-                                    description: finalDesc || 'Importação Excel',
-                                    amount: ccAmount,
-                                    month: selectedMonth
-                                });
-                                hasRateio = true;
-                            }
-                        }
-                    }
-                }
-
-                // Se não teve rateio ou as colunas de rateio estavam vazias, usa o valor total
-                if (!hasRateio) {
-                    const totalAmount = parseFloat(valorTotalStr.replace(/[R$\s.]/g, '').replace(',', '.'));
-                    if (!isNaN(totalAmount) && totalAmount !== 0) {
-                        rows.push({
-                            categoryId: cat.id,
-                            costCenterId: null, // Geral
-                            description: finalDesc || 'Importação Excel',
-                            amount: totalAmount,
-                            month: selectedMonth
-                        });
-                    }
-                }
+            if (!rows) {
+                const lines = text.split('\n').filter(l => l.trim() !== '');
+                const matrix = lines.map(line => line.split('\t'));
+                rows = processMatrix(matrix);
             }
 
-            if (rows.length === 0) throw new Error("Nenhum dado válido processado. Verifique se copiou as colunas corretas (Data até Rateios).");
-
-            console.log("Enviando", rows.length, "registros para o servidor");
+            if (!rows || rows.length === 0) throw new Error("Nenhum dado válido processado. Verifique o formato do arquivo ou da colagem.");
 
             const res = await fetch('/api/realized/bulk', {
                 method: 'POST',
@@ -138,12 +157,46 @@ export function ExcelPasteModal({ isOpen, onClose, tenantId: initialTenantId, co
             } else {
                 throw new Error(data.error);
             }
-
         } catch (err: any) {
             alert("Erro: " + err.message);
             setStatus(null);
         }
         setLoading(false);
+    };
+
+    const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+
+        setLoading(true);
+        setStatus("Lendo arquivo...");
+
+        const reader = new FileReader();
+        reader.onload = async (evt) => {
+            try {
+                const bstr = evt.target?.result;
+                const wb = XLSX.read(bstr, { type: 'binary', cellDates: true });
+                // Tenta pegar a aba "Visão Competência" ou a primeira
+                const wsname = wb.SheetNames.find(n => n.includes('Competência')) || wb.SheetNames[0];
+                const ws = wb.Sheets[wsname];
+                const data = XLSX.utils.sheet_to_json(ws, { header: 1 }) as any[][];
+                
+                const rows = processMatrix(data);
+                if (rows.length > 0) {
+                    if (confirm(`Encontrados ${rows.length} registros no arquivo. Deseja importar agora para ${selectedCompany?.name || 'a empresa selecionada'}?`)) {
+                        await handleProcess(rows);
+                    }
+                } else {
+                    alert("Não foi possível extrair dados válidos deste arquivo. Verifique se é a planilha de Visão Competência do Conta Azul.");
+                }
+            } catch (err: any) {
+                alert("Erro ao ler arquivo: " + err.message);
+            }
+            setLoading(false);
+            setStatus(null);
+            if (fileInputRef.current) fileInputRef.current.value = '';
+        };
+        reader.readAsBinaryString(file);
     };
 
     const meses = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"];
@@ -158,9 +211,9 @@ export function ExcelPasteModal({ isOpen, onClose, tenantId: initialTenantId, co
                 <div style={{ marginBottom: '1.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                     <div>
                         <h2 style={{ margin: 0, color: '#0f172a', display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                            <span style={{ fontSize: '1.5rem' }}>📂</span> Importar do Excel
+                            <span style={{ fontSize: '1.5rem' }}>📂</span> Importar Excel / Arquivo
                         </h2>
-                        <p style={{ color: '#64748b', margin: '0.5rem 0 0', fontSize: '0.9rem' }}>Os dados serão vinculados à empresa e centros de custo selecionados.</p>
+                        <p style={{ color: '#64748b', margin: '0.5rem 0 0', fontSize: '0.9rem' }}>Suporta colagem de células ou upload de arquivo .xlsx do Conta Azul.</p>
                     </div>
                     <button onClick={onClose} style={{ background: 'none', border: 'none', fontSize: '2rem', cursor: 'pointer', color: '#94a3b8', lineHeight: 1 }}>×</button>
                 </div>
@@ -190,30 +243,50 @@ export function ExcelPasteModal({ isOpen, onClose, tenantId: initialTenantId, co
                     <div style={{ paddingBottom: '0.65rem' }}>
                         <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.8rem', color: '#1e293b', cursor: 'pointer', fontWeight: 600 }}>
                             <input type="checkbox" checked={overwrite} onChange={(e) => setOverwrite(e.target.checked)} style={{ width: '1.1rem', height: '1.1rem' }} />
-                            <span>Sobrescrever Mês</span>
+                                <span>Sobrescrever Mês</span>
                         </label>
                     </div>
                 </div>
 
+                {/* Upload Zone */}
+                <div 
+                    onClick={() => fileInputRef.current?.click()}
+                    style={{ 
+                        border: '2px dashed #cbd5e1', 
+                        borderRadius: '12px', 
+                        padding: '1.5rem', 
+                        textAlign: 'center', 
+                        cursor: 'pointer', 
+                        backgroundColor: '#f8fafc',
+                        marginBottom: '1rem',
+                        transition: 'all 0.2s'
+                    }}
+                    onMouseOver={(e) => e.currentTarget.style.borderColor = '#3b82f6'}
+                    onMouseOut={(e) => e.currentTarget.style.borderColor = '#cbd5e1'}
+                >
+                    <input type="file" ref={fileInputRef} onChange={handleFileChange} accept=".xlsx,.xls,.csv" style={{ display: 'none' }} />
+                    <div style={{ fontSize: '1.5rem', marginBottom: '0.5rem' }}>📤</div>
+                    <p style={{ margin: 0, fontWeight: 700, color: '#1e293b' }}>Clique para fazer upload do arquivo .xlsx</p>
+                    <p style={{ margin: '0.25rem 0 0', fontSize: '0.75rem', color: '#64748b' }}>Ou use a área de colagem abaixo</p>
+                </div>
+
                 <div style={{ backgroundColor: '#f0f9ff', padding: '1rem', borderRadius: '10px', marginBottom: '1rem', border: '1px solid #bae6fd' }}>
                     <p style={{ fontSize: '0.8rem', color: '#0369a1', margin: 0 }}>
-                        📊 <b>Smart Parser Ativo:</b> Copie as linhas da planilha <b>"Visão Competência"</b> do Conta Azul.
-                        <br/>
-                        O sistema identifica automaticamente: <b>Data, Descrição, Fornecedor, Categoria</b> e todos os <b>Rateios (Col Q em diante)</b>.
+                        📊 <b>Smart Parser Ativo:</b> Ele identifica automaticamente <b>Data, Fornecedor, Categoria</b> e todos os <b>Rateios (Horizontal)</b> na planilha do Conta Azul.
                     </p>
                 </div>
 
                 <textarea
                     value={text}
                     onChange={(e) => setText(e.target.value)}
-                    placeholder="Cole as células do Excel aqui..."
-                    style={{ width: '100%', height: '220px', borderRadius: '12px', border: '2px solid #e2e8f0', padding: '1rem', fontSize: '0.85rem', fontFamily: 'SFMono-Regular, Consolas, monospace', outline: 'none', resize: 'none' }}
+                    placeholder="OU cole as células do Excel aqui..."
+                    style={{ width: '100%', height: '120px', borderRadius: '12px', border: '2px solid #e2e8f0', padding: '1rem', fontSize: '0.85rem', fontFamily: 'SFMono-Regular, Consolas, monospace', outline: 'none', resize: 'none' }}
                 />
 
                 <div style={{ marginTop: '1.5rem', display: 'flex', justifyContent: 'flex-end', gap: '1rem' }}>
                     <button onClick={onClose} style={{ padding: '0.75rem 1.5rem', borderRadius: '10px', border: 'none', backgroundColor: '#f1f5f9', color: '#475569', fontWeight: 600, cursor: 'pointer' }}>Cancelar</button>
                     <button 
-                        onClick={handleProcess} 
+                        onClick={() => handleProcess()} 
                         disabled={loading || !text || localTenantId === 'DEFAULT'}
                         style={{ 
                             backgroundColor: (loading || !text || localTenantId === 'DEFAULT') ? '#cbd5e1' : '#16a34a', 
@@ -226,7 +299,7 @@ export function ExcelPasteModal({ isOpen, onClose, tenantId: initialTenantId, co
                             boxShadow: (loading || !text || localTenantId === 'DEFAULT') ? 'none' : '0 4px 6px -1px rgba(22, 163, 74, 0.4)' 
                         }}
                     >
-                        {loading ? status : (!text ? 'Cole os dados do Excel' : (localTenantId === 'DEFAULT' ? 'Selecione a Empresa' : '🚀 Importar agora'))}
+                        {loading ? status : (!text ? 'Cole os dados ou Suba o Arquivo' : (localTenantId === 'DEFAULT' ? 'Selecione a Empresa' : '🚀 Importar agora'))}
                     </button>
                 </div>
             </div>

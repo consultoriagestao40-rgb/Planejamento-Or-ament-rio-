@@ -203,11 +203,9 @@ export function ExcelPasteModal({ isOpen, onClose, tenantId: initialTenantId, co
                     continue;
                 }
 
-                // If we found a category, mark as detected revenue if it starts with 01
-                if (effectiveCat.id.includes(':01') || effectiveCat.name.startsWith('01') || catCode?.startsWith('01')) {
-                    revenueSumDetected += finalAmount;
-                    console.log(`   ✅ SOMA RECEITA: +${finalAmount} -> Total agora: ${revenueSumDetected}`);
-                }
+                const catId = (effectiveCat.id || '').toLowerCase();
+                const isRevenue = catId.includes(':01') || catId.startsWith('01');
+                const finalAmountPrepared = isRevenue ? finalAmount : -Math.abs(finalAmount);
 
                 const finalDesc = fornecedor ? `${fornecedor} - ${descricao}` : (categoriaRaw ? `${categoriaRaw} - ${descricao}` : descricao);
                 
@@ -250,25 +248,24 @@ export function ExcelPasteModal({ isOpen, onClose, tenantId: initialTenantId, co
                         
                         rateiosInfo.forEach((info) => {
                             const amt = info.amountInformado;
-                            if (Math.abs(amt) > 0) { // Pode ser negativo, mas tem que ser != 0
+                            if (Math.abs(amt) > 0) { 
+                                // O valor informado no rateio já é o final, mas aplicamos o sinal preparado
+                                const amtPrepared = isRevenue ? amt : -Math.abs(amt);
                                 rows.push({
                                     categoryId: effectiveCat!.id,
                                     costCenterId: info.ccId,
                                     description: finalDesc || 'Importação Excel',
-                                    amount: amt,
+                                    amount: amtPrepared,
                                     month: rowMonth,
                                     tenantId: effectiveCat!.tenantId
                                 });
-                                totalDistributed += amt;
+                                totalDistributed += amtPrepared;
                             }
                         });
 
-                        const remainder = finalAmount - totalDistributed;
+                        const remainder = finalAmountPrepared - totalDistributed;
                         if (Math.abs(remainder) > 0.01) { 
-                            // --- REGRA DE OURO (V47.48.1) ---
-                            // Se for receita (01), força o saldo para a conta primordial 01.1.1
                             let targetCatId = effectiveCat!.id;
-                            const isRevenue = targetCatId.includes(':01') || targetCatId.startsWith('01');
                             
                             if (isRevenue) {
                                 const sub = groupCategories.find(c => 
@@ -294,7 +291,7 @@ export function ExcelPasteModal({ isOpen, onClose, tenantId: initialTenantId, co
                             categoryId: effectiveCat!.id,
                             costCenterId: null,
                             description: finalDesc || 'Importação Excel',
-                            amount: finalAmount, // VALOR REAL
+                            amount: finalAmountPrepared,
                             month: rowMonth,
                             tenantId: effectiveCat!.tenantId
                         });

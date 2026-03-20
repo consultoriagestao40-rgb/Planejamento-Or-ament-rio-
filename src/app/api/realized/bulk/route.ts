@@ -33,7 +33,7 @@ export async function POST(request: Request) {
             costCenterId: row.costCenterId || null,
             month: row.month || month,
             year,
-            amount: Math.abs(parseFloat(row.amount) || 0),
+            amount: parseFloat(row.amount) || 0,
             viewMode: viewMode || 'competencia',
             description: row.description || "Upload via Excel",
             // FIXED: Added idx and more randomness to guarantee uniqueness even for rateio rows from the same category/millisecond

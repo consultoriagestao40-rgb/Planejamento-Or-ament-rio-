@@ -482,10 +482,8 @@ export default function BudgetGrid({
             });
 
             for (let i = 0; i < 12; i++) {
-                // RULE: Only consider items with 3 segments (Ex: 01.1.1) as data points.
-                // 1 or 2 segments (Ex: 01, 01.1) are treated as summaries calculated by the system.
-                const codeSegments = (node.code || '').split('.').filter(Boolean).length;
-                const isDataPoint = codeSegments === 3;
+                // RULE: Allow all categories regardless of code segments
+                const isDataPoint = !node.isSynthetic;
 
                 if (!node.isSynthetic && isDataPoint) {
                     const sign = negated ? -1 : 1;

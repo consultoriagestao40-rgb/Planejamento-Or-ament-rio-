@@ -190,12 +190,9 @@ export async function GET(request: Request) {
                 if (entry.tenantId !== primaryId) return;
 
                 const cat = categories.find((c: any) => c.id === entry.categoryId);
-                const codeMatch = (cat?.name || '').match(/^(\d{1,2}(?:\.\d+)*)/);
-                const code = codeMatch ? codeMatch[1] : '';
-                const codeSegments = code.split('.').filter(Boolean).length;
-                
-                // RULE: Only 3-segment codes (X.Y.Z) are data points. Others are summaries.
-                if (codeSegments !== 3) return;
+                // RULE: Allow all categories regardless of code segments
+                const isDataPoint = true;
+                if (!isDataPoint) return;
 
                 const type = categoryTypeMap.get(entry.categoryId);
                 if (type === 'REVENUE') {
@@ -218,12 +215,9 @@ export async function GET(request: Request) {
                 if (entry.tenantId !== primaryId) return;
 
                 const cat = categories.find((c: any) => c.id === entry.categoryId);
-                const codeMatch = (cat?.name || '').match(/^(\d{1,2}(?:\.\d+)*)/);
-                const code = codeMatch ? codeMatch[1] : '';
-                const codeSegments = code.split('.').filter(Boolean).length;
-                
-                // RULE: Only 3-segment codes (X.Y.Z) are data points. Others are summaries.
-                if (codeSegments !== 3) return;
+                // RULE: Allow all categories regardless of code segments
+                const isDataPoint = true;
+                if (!isDataPoint) return;
 
                 const type = categoryTypeMap.get(entry.categoryId);
                 const nameLower = (cat?.name || '').toLowerCase();

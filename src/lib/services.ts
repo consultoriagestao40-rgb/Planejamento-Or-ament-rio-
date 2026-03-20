@@ -431,7 +431,7 @@ async function aggregateTransactions(
             if (!res.ok) { hasMore = false; break; }
 
             const data = await res.json();
-            const items = data.itens || [];
+            const items = Array.isArray(data) ? data : (data.itens || data.items || data.eventos || []);
             if (items.length === 0) { hasMore = false; break; }
 
             for (const item of items) {

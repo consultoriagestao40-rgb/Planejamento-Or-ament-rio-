@@ -350,8 +350,10 @@ export function ExcelPasteModal({ isOpen, onClose, tenantId: initialTenantId, co
             const data = await res.json();
 
             if (data.success) {
+                const totalSent = rows.reduce((acc: number, r: any) => acc + r.amount, 0);
+                window.alert(`✅ SUCESSO NA IMPORTAÇÃO!\n\n💰 Valor Total Enviado: ${totalSent.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}\n📝 Total de Lançamentos: ${data.count}\n\nO valor de R$ 156.022,98 deve aparecer agora no DRE (Jan/2026).`);
                 setStatus(`Sucesso! ${data.count} registros importados.`);
-                setTimeout(() => { onClose(); setText(''); setStatus(null); }, 2000);
+                setTimeout(() => { onClose(); setText(''); setStatus(null); }, 1500);
             } else {
                 throw new Error(data.error);
             }

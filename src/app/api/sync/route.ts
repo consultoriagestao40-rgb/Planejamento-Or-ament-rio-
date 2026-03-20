@@ -60,11 +60,19 @@ export async function GET(request: Request) {
                 catName = categoryNameMap.get(e.categoryId.split(':')[1]);
             }
 
+            // --- SEGURANÇA MÁXIMA PARA COLUNA P ---
+            // Se ainda não achou nome, mas o ID indica que é Receita (01)
+            if (!catName && (e.categoryId.includes(':01') || e.categoryId.startsWith('01'))) {
+                catName = "01. RECEITA BRUTA"; // Fallback para a raiz
+            }
+
             if (catName) {
                 // FIXED: Aggressive normalization to handle " -Serviço" vs " - Serviço" vs "Serviço"
                 const normalizedName = catName.toUpperCase().replace(/[^A-Z0-9]/g, '');
                 const key = `${normalizedName}|${e.month - 1}`;
                 realizedValues[key] = (realizedValues[key] || 0) + e.amount;
+            } else {
+                console.warn(`[SYNC] Valor de ${e.amount} DESCARTADO por falta de nome de categoria (ID: ${e.categoryId})`);
             }
         });
 

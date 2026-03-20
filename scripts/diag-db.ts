@@ -1,47 +1,47 @@
-import { PrismaClient } from '@prisma/client';
+import { prisma } from '../src/lib/prisma';
+import fs from 'fs';
 
-const DATABASE_URL = 'postgresql://postgres.ryfshgnyghzrqrsvjkyz:BudgetHub20250@sa-east-1.pooler.supabase.com:6543/postgres';
-
-const prisma = new PrismaClient({
-    datasources: { db: { url: DATABASE_URL } }
-});
-
-async function main() {
-    const year = 2026;
-    const viewMode = 'competencia';
+async function diag() {
+    console.log("🔍 [DIAG-JAN] Extraindo lançamentos de Janeiro 2026...");
     
-    console.log(`--- DIAGNÓSTICO: RealizedEntry (${year}, ${viewMode}) ---`);
-    const count = await prisma.realizedEntry.count({
-        where: { year, viewMode }
+    // Busca TODOS os lançamentos de Janeiro 2026
+    const entries = await prisma.realizedEntry.findMany({
+        where: { month: 1, year: 2026 },
+        include: {
+            // Se houver relações, incluir. Mas o schema parece simples.
+        }
     });
-    console.log(`Total de entradas encontradas: ${count}`);
 
-    if (count > 0) {
-        const entries = await prisma.realizedEntry.findMany({
-            where: { year, viewMode },
-            take: 5
-        });
-        console.log('Exemplo das primeiras 5 entradas:');
-        entries.forEach(e => {
-            console.log(`- Tenant: ${e.tenantId} | Cat: ${e.categoryId} | Mês: ${e.month} | Valor: ${e.amount}`);
-        });
+    const categories = await prisma.category.findMany({});
+    const catMap = new Map(categories.map(c => [c.id, c.name]));
 
-        // Verificar categorias
-        const firstCatId = entries[0].categoryId;
-        const cat = await prisma.category.findUnique({
-            where: { id: firstCatId }
-        });
-        console.log(`Verificação de Categoria (${firstCatId}): ${cat ? cat.name : 'NÃO ENCONTRADA'}`);
-    } else {
-        console.log('NENHUMA entrada encontrada para o período especificado.');
-    }
-
-    // Verificar Tenants
-    const tenants = await prisma.tenant.findMany();
-    console.log(`\nTotal de Tenants no banco: ${tenants.length}`);
-    tenants.forEach(t => {
-        console.log(`- ${t.name} (ID: ${t.id})`);
+    let totalRevenue = 0;
+    const report = entries.map(e => {
+        const catName = catMap.get(e.categoryId) || "DESCONHECIDA";
+        if (catName.startsWith("01")) totalRevenue += e.amount;
+        
+        return {
+            tenantId: e.tenantId,
+            categoryId: e.categoryId,
+            categoryName: catName,
+            ccId: e.costCenterId,
+            amount: e.amount,
+            desc: e.description
+        };
     });
+
+    console.log(`✅ Total de Lançamentos: ${report.length}`);
+    console.log(`💰 Total Receita (Começa com 01): ${totalRevenue.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}`);
+    
+    fs.writeFileSync('diag-jan-entries.json', JSON.stringify({
+        summary: {
+            count: report.length,
+            totalRevenue
+        },
+        entries: report
+    }, null, 2));
+    
+    console.log("📄 Relatório salvo em diag-jan-entries.json");
 }
 
-main().catch(console.error).finally(() => prisma.$disconnect());
+diag().catch(console.error);

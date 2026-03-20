@@ -157,3 +157,12 @@ async function aggregateTransactions(accessToken: string, url: string, targetVal
         } catch (e) { hasMore = false; break; }
     }
 }
+
+/**
+ * Compatibility wrapper for Server Actions (syncFinancialData)
+ * Calls runCronSync to perform the actual synchronization.
+ */
+import { runCronSync } from "./cronSync";
+export async function syncData() {
+    return await runCronSync();
+}

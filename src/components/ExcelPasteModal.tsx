@@ -96,16 +96,19 @@ export function ExcelPasteModal({ isOpen, onClose, tenantId: initialTenantId, co
                 // Mapeamento de Categoria (Now searching across all variants)
                 const cat = groupCategories.find(c => {
                     const cleanDBName = (c.name || '').toLowerCase();
-                    const cleanDBId = (c.id || '').toLowerCase();
+                    const cleanDBId = (c.id || '').toLowerCase().split(':').pop() || '';
                     
                     if (catCode) {
-                        const dbIdPart = cleanDBId.split(':').pop();
-                        const isDbIdMatch = dbIdPart === catCode || (catCode.startsWith('0') && dbIdPart === catCode.substring(1));
-                        if (isDbIdMatch || cleanDBName.startsWith(catCode) || (catCode.startsWith('0') && cleanDBName.startsWith(catCode.substring(1)))) {
+                        const normCatCode = catCode.startsWith('0') ? catCode.substring(1) : catCode;
+                        const normDBId = cleanDBId.startsWith('0') ? cleanDBId.substring(1) : cleanDBId;
+                        
+                        if (normDBId === normCatCode || cleanDBName.includes(catCode) || (catCode.startsWith('0') && cleanDBName.includes(catCode.substring(1)))) {
                             return true;
                         }
                     }
-                    return cleanDBName === categoriaRaw.toLowerCase() || categoriaRaw.toLowerCase().includes(cleanDBName);
+                    
+                    const cleanCategoriaRaw = categoriaRaw.toLowerCase();
+                    return cleanDBName === cleanCategoriaRaw || cleanDBName.includes(cleanCategoriaRaw) || cleanCategoriaRaw.includes(cleanDBName);
                 });
 
                 const valP = typeof cols[15] === 'number' ? cols[15] : parseFloat(String(cols[15] || '').replace(/[R$\s.]/g, '').replace(',', '.'));

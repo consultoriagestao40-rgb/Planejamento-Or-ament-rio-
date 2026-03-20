@@ -299,7 +299,7 @@ export default function BudgetGrid({
             // V47.142 - Strict Key: Isolation + Identity
             // REMOVED cat.tenantId from uniqueKey to merge identical categories across variants/companies in consolidated view.
             const cleanCode = (cat.name.match(/^(\d{1,2}(?:\.\d+)*)/) || [])[1] || '';
-            const uniqueKey = `${cat.type}|${cleanCode}|${cat.name.trim()}`;
+            const uniqueKey = `${cat.type}|${cleanCode || cat.name.trim()}`;
 
             if (nameMap.has(uniqueKey)) {
                 const existingNode = nameMap.get(uniqueKey)!;

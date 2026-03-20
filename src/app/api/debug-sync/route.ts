@@ -6,42 +6,33 @@ export const dynamic = 'force-dynamic';
 export async function GET() {
     try {
         const year = 2026;
-        const month = 1; // Janeiro
+        const month = 1;
         
-        // 1. All entries for January 2026
         const entries = await prisma.realizedEntry.findMany({
             where: { year, month },
-            include: { category: true, costCenter: true }
+            include: { category: true, costCenter: true, tenant: true }
         });
 
-        const summary: Record<string, { cat: string, cc: string, sum: number, tenant: string }> = {};
-        let totalRevenue = 0;
-        
-        entries.forEach(e => {
-            const key = `${e.categoryId}-${e.costCenterId || 'null'}`;
-            if (!summary[key]) {
-                summary[key] = { 
-                    cat: e.category.name, 
-                    cc: e.costCenter?.name || 'SEM CC (Geral)', 
-                    sum: 0,
-                    tenant: e.tenantId
-                };
-            }
-            summary[key].sum += e.amount;
-            
-            if (e.category.name.startsWith('01')) {
-                totalRevenue += e.amount;
-            }
-        });
+        // Focus on Revenue (starts with 01)
+        const revenueEntries = entries.filter(e => e.category?.name?.startsWith('01'));
+        const revenueTotal = revenueEntries.reduce((acc, e) => acc + e.amount, 0);
+
+        const breakdown = revenueEntries.map(e => ({
+            cat: e.category.name,
+            cc: e.costCenter?.name || "SEM CC (GERAL)",
+            amt: e.amount,
+            tenant: e.tenant.name,
+            id: e.id,
+            extId: e.externalId
+        })).sort((a,b) => b.amt - a.amt);
 
         return NextResponse.json({
             success: true,
-            audit: {
-                januaryTotalRevenue: totalRevenue,
-                entryCount: entries.length,
-                details: Object.values(summary).sort((a,b) => b.sum - a.sum)
-            },
-            timestamp: new Date().toISOString()
+            month,
+            revenueTotal,
+            entryCount: revenueEntries.length,
+            breakdown,
+            allEntriesTotal: entries.reduce((acc, e) => acc + e.amount, 0)
         });
     } catch (e: any) {
         return NextResponse.json({ success: false, error: e.message });

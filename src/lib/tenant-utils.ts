@@ -20,7 +20,8 @@ export async function getTenantGroups(): Promise<string[][]> {
     const groups = new Map<string, string[]>();
 
     allTenants.forEach(t => {
-        const cleanCnpj = (t.cnpj || '').replace(/\D/g, '');
+        const fullCnpj = (t.cnpj || '').replace(/\D/g, '');
+        const cleanCnpj = fullCnpj.length >= 8 ? fullCnpj.substring(0, 8) : fullCnpj;
         const cleanName = normalizeTenantName(t.name);
         
         const key = cleanCnpj !== '' ? cleanCnpj : cleanName;

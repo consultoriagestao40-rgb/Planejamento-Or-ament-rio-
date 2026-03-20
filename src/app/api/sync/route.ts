@@ -11,26 +11,16 @@ export async function GET(request: Request) {
         const viewMode = (searchParams.get('viewMode') || 'competencia') as 'caixa' | 'competencia';
         const tenantIdParam = searchParams.get('tenantId') || 'ALL';
 
-        // Deduplicate and pick Primary IDs for each company group using unified logic
-        const { getTenantGroups } = await import('@/lib/tenant-utils');
-        const allTenants = await prisma.tenant.findMany({ select: { id: true, cnpj: true } });
-        const tenantGroups = await getTenantGroups();
-
+        const { getAllVariantIds } = await import('@/lib/tenant-utils');
         let allVariantIds: string[] = [];
 
         if (tenantIdParam === 'ALL' || tenantIdParam === 'DEFAULT') {
+            const allTenants = await prisma.tenant.findMany({ select: { id: true } });
             allVariantIds = allTenants.map(t => t.id);
         } else {
             const requestedIds = tenantIdParam.split(',').map(id => id.trim()).filter(Boolean);
-            const selectedTenants = allTenants.filter(t => requestedIds.includes(t.id));
-            const getBaseCnpj = (cnpj: string) => (cnpj || '').replace(/\D/g, '').substring(0, 8);
-            const bases = new Set(selectedTenants.map(t => getBaseCnpj(t.cnpj)).filter(b => b.length === 8));
-            
-            allVariantIds = allTenants.filter(t => {
-                if (requestedIds.includes(t.id)) return true;
-                const b = getBaseCnpj(t.cnpj);
-                return b.length === 8 && bases.has(b);
-            }).map(t => t.id);
+            const variantSets = await Promise.all(requestedIds.map(id => getAllVariantIds(id)));
+            allVariantIds = Array.from(new Set(variantSets.flat()));
         }
 
         // Deduplicate

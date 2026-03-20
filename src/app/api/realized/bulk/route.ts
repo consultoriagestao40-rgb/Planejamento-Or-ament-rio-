@@ -9,23 +9,26 @@ export async function POST(request: Request) {
             return NextResponse.json({ success: false, error: "Dados incompletos (Empresa, Ano ou Mês ausentes)" }, { status: 400 });
         }
 
-        // 1. Se overwrite for true, removemos os registros manuais (ou todos) desse período
+        // 1. Se overwrite for true, removemos os registros de TODA a família de empresas (variantes)
+        // para garantir que não fiquem dados "fantasmas" de outras variantes no mesmo período.
         if (overwrite) {
-            console.log(`[EXCEL-BULK] Sobrescrevendo dados para Tenant: ${tenantId}, Mês: ${month}, Ano: ${year}`);
+            const { getAllVariantIds } = await import('@/lib/tenant-utils');
+            const allVariantIds = await getAllVariantIds(tenantId);
+            
+            console.log(`[EXCEL-BULK] Sobrescrevendo dados para Tenant Group: [${allVariantIds.join(',')}] Month: ${month}, Year: ${year}`);
+            
             await prisma.realizedEntry.deleteMany({
                 where: {
-                    tenantId,
+                    tenantId: { in: allVariantIds },
                     month: parseInt(month),
                     year: parseInt(year)
-                    // REMOVIDO: externalId: { startsWith: 'manual-' } -> Agora deleta TUDO (incluindo sync)
-                    // REMOVIDO: viewMode filter
                 }
             });
         }
 
         // 2. Prepara novos registros
         const entriesToSave = rows.map((row: any) => ({
-            tenantId,
+            tenantId: row.tenantId || tenantId, // Respect variant tenant if provided
             categoryId: row.categoryId,
             costCenterId: row.costCenterId || null,
             month: row.month || month,
@@ -33,7 +36,7 @@ export async function POST(request: Request) {
             amount: Math.abs(parseFloat(row.amount) || 0),
             viewMode: viewMode || 'competencia',
             description: row.description || "Upload via Excel",
-            externalId: `manual-${tenantId}-${row.categoryId}-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`
+            externalId: `manual-${row.tenantId || tenantId}-${row.categoryId}-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`
         }));
 
         // 3. Inserção em massa

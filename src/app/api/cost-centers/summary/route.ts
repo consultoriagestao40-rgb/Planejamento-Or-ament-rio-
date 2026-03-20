@@ -186,8 +186,8 @@ export async function GET(request: Request) {
             const summary = summaryMap.get(key);
 
             if (summary) {
-                // IMPORTANT: Only count data for the PRIMARY tenant ID to avoid double counting variants
-                if (entry.tenantId !== primaryId) return;
+                // FIXED: Include variant data but only aggregate into the primary summary
+                // Removed strict primaryId filter to allow variant data consolidation
 
                 const cat = categories.find((c: any) => c.id === entry.categoryId);
                 // RULE: Allow all categories regardless of segments
@@ -211,9 +211,11 @@ export async function GET(request: Request) {
             const summary = summaryMap.get(key);
             
             if (summary) {
-                // IMPORTANT: Only count data for the PRIMARY tenant ID to avoid double counting variants
-                if (entry.tenantId !== primaryId) return;
-
+                // FIXED: We still only aggregate into the PRIMARY summary entry,
+                // but we ACCEPT entries that belong to ANY variant of that primary tenant.
+                // Previously it was: if (entry.tenantId !== primaryId) return;
+                // Since we want to consolidate ALL variants into the single summary row for the group.
+                
                 const cat = categories.find((c: any) => c.id === entry.categoryId);
                 // RULE: Allow all categories regardless of segments
                 const isDataPoint = true;

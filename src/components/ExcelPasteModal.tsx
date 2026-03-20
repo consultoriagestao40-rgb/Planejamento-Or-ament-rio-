@@ -28,31 +28,42 @@ export function ExcelPasteModal({ isOpen, onClose, tenantId: initialTenantId, co
 
     const selectedCompany = useMemo(() => companies.find(c => c.id === localTenantId), [companies, localTenantId]);
 
-    // Filter categories and cost centers for the specific tenant
-    const tenantCategories = useMemo(() => categories.filter(c => c.tenantId === localTenantId), [categories, localTenantId]);
-    const tenantCCs = useMemo(() => costCenters.filter(cc => cc.tenantId === localTenantId || !cc.tenantId || cc.id === 'DEFAULT'), [costCenters, localTenantId]);
+    // --- VARIANT LOGIC (UI SIDE) ---
+    // Identify all variants of the currently selected company to broaden the search for Categories/CCs
+    const activeVariantIds = useMemo(() => {
+        if (!localTenantId || localTenantId === 'DEFAULT') return [];
+        const current = companies.find(c => c.id === localTenantId);
+        if (!current) return [localTenantId];
+        
+        const normalize = (n: string) => (n || '').trim().toUpperCase().replace(/[^A-Z0-9]/g, '').replace(/LTDA$/, '').replace(/SA$/, '');
+        const currentNorm = normalize(current.name);
+        
+        return companies
+            .filter(c => normalize(c.name) === currentNorm)
+            .map(c => c.id);
+    }, [companies, localTenantId]);
+
+    // Filter categories and cost centers for the WHOLE GROUP (all variants)
+    const groupCategories = useMemo(() => categories.filter(c => activeVariantIds.includes(c.tenantId)), [categories, activeVariantIds]);
+    const groupCCs = useMemo(() => costCenters.filter(cc => activeVariantIds.includes(cc.tenantId) || !cc.tenantId || cc.id === 'DEFAULT'), [costCenters, activeVariantIds]);
     
     if (!isOpen) return null;
 
     const processMatrix = (matrix: any[][]) => {
         const rows: any[] = [];
-        let ignoredSum = 0;
-        let revenueSum = 0;
-        let rawSumL = 0;
-        let rawSumP = 0;
+        let ignoredSumTotal = 0;
+        let revenueSumDetected = 0;
+        let rawSumPInFile = 0;
 
         // --- SOMA BRUTA PARA AUDITORIA DO USUÁRIO ---
         matrix.forEach((row, idx) => {
             if (idx === 0) return; // pular cabeçalho
-            const valL = typeof row[11] === 'number' ? row[11] : parseFloat(String(row[11] || '').replace(/[R$\s.]/g, '').replace(',', '.'));
             const valP = typeof row[15] === 'number' ? row[15] : parseFloat(String(row[15] || '').replace(/[R$\s.]/g, '').replace(',', '.'));
-            if (!isNaN(valL)) rawSumL += valL;
-            if (!isNaN(valP)) rawSumP += valP;
+            if (!isNaN(valP)) rawSumPInFile += valP;
         });
 
         console.log(`📊 [AUDITORIA ARQUIVO BRUTO]`);
-        console.log(` - SOMA TOTAL COLUNA L (Valor R$): ${rawSumL.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}`);
-        console.log(` - SOMA TOTAL COLUNA P (Valor na Categoria): ${rawSumP.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })} ✅`);
+        console.log(` - SOMA TOTAL COLUNA P (Valor na Categoria): ${rawSumPInFile.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })} ✅`);
         console.log(`-----------------------------------------------`);
 
         for (const cols of matrix) {
@@ -73,64 +84,128 @@ export function ExcelPasteModal({ isOpen, onClose, tenantId: initialTenantId, co
                 const catCodeMatch = categoriaRaw.match(/^(\d{1,2}\.\d{1,2}(\.\d{1,2})?)/);
                 const catCode = catCodeMatch ? catCodeMatch[1] : null;
 
-                // Mapeamento de Categoria
-                const cat = tenantCategories.find(c => {
+                // Mapeamento de Categoria (Now searching across all variants)
+                const cat = groupCategories.find(c => {
                     const cleanDBName = (c.name || '').toLowerCase();
                     const cleanDBId = (c.id || '').toLowerCase();
                     
                     if (catCode) {
-                        // Comparar códigos normalizados (removendo zeros à esquerda se necessário)
                         const dbIdPart = cleanDBId.split(':').pop();
                         const isDbIdMatch = dbIdPart === catCode || (catCode.startsWith('0') && dbIdPart === catCode.substring(1));
-                        
                         if (isDbIdMatch || cleanDBName.startsWith(catCode) || (catCode.startsWith('0') && cleanDBName.startsWith(catCode.substring(1)))) {
                             return true;
                         }
                     }
                     return cleanDBName === categoriaRaw.toLowerCase() || categoriaRaw.toLowerCase().includes(cleanDBName);
                 });
+
                 const valP = typeof cols[15] === 'number' ? cols[15] : parseFloat(String(cols[15] || '').replace(/[R$\s.]/g, '').replace(',', '.'));
                 const finalAmount = isNaN(valP) ? 0 : valP;
 
-                if (catCode === '01.1.1' || catCode === '01.2.1' || catCode === '1.1.1' || catCode === '1.2.1') {
-                    console.log(`🔍 [DEBUG ${catCode}] Col O: "${categoriaRaw}" | Valor P: ${finalAmount}`);
-                }
-
                 if (!cat) {
                     if (Math.abs(finalAmount) > 0) {
-                        ignoredSum += Math.abs(finalAmount);
-                        console.warn("⚠️ Linha ignorada por falta de categoria:", categoriaRaw, "| Valor:", finalAmount);
+                        ignoredSumTotal += Math.abs(finalAmount);
+                        console.warn("⚠️ Linha ignorada por falta de categoria:", categoriaRaw, "| Valor P:", finalAmount);
                     }
                     continue;
                 }
 
+                // If we found a category, mark as detected revenue if it starts with 01
+                if (cat.id.includes(':01') || cat.name.startsWith('01') || catCode?.startsWith('01')) {
+                    revenueSumDetected += Math.abs(finalAmount);
+                }
+
                 const finalDesc = fornecedor ? `${fornecedor} - ${descricao}` : descricao;
                 
+                // --- LÓGICA DE RATEIO PROPORCIONAL ---
+                const rateiosInfo: { ccId: string | null, ccName: string, amountInformado: number }[] = [];
+                let somaInformadaCCs = 0;
+
+                if (cols.length > 16) {
+                    for (let i = 16; i < cols.length; i += 2) {
+                        const ccName = String(cols[i] || '').trim();
+                        const ccAmountRaw = cols[i+1];
+
+                        if (ccName) {
+                            let amtCC = 0;
+                            if (typeof ccAmountRaw === 'number') amtCC = ccAmountRaw;
+                            else amtCC = parseFloat(String(ccAmountRaw || '').replace(/[R$\s.]/g, '').replace(',', '.'));
+                            
+                            if (isNaN(amtCC)) amtCC = 0;
+
+                            let ccId = null;
+                            const cleanCCName = ccName.toLowerCase().replace(/[^a-z0-9]/g, '');
+                            const foundCC = groupCCs.find(cc => {
+                                const dbCCName = (cc.name || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+                                return dbCCName === cleanCCName || dbCCName.includes(cleanCCName) || cleanCCName.includes(dbCCName);
+                            });
+                            if (foundCC) ccId = foundCC.id;
+
+                            rateiosInfo.push({ ccId, ccName, amountInformado: Math.abs(amtCC) });
+                            somaInformadaCCs += Math.abs(amtCC);
+                        }
+                    }
+                }
+
+                // --- CRITICAL: BLINDAGEM DO VALOR TOTAL ---
                 if (Math.abs(finalAmount) > 0) {
-                    rows.push({
-                        categoryId: cat.id,
-                        costCenterId: null, // Sem CC por enquanto para não perder os 156k
-                        description: finalDesc || 'Importação Excel',
-                        amount: Math.abs(finalAmount),
-                        month: selectedMonth
-                    });
-                    if (cat.id.includes(':01') || cat.name.startsWith('01')) revenueSum += Math.abs(finalAmount);
+                    if (rateiosInfo.length > 0) {
+                        // Se houver CCs no Excel, distribuímos o valor da Coluna P proporcionalmente
+                        // Isso garante que o TOTAL seja sempre o da Coluna P, independente se o rateio bate 100% ou não
+                        let remainingToDistribute = Math.abs(finalAmount);
+                        
+                        rateiosInfo.forEach((info, idx) => {
+                            let proportion = 1 / rateiosInfo.length;
+                            if (somaInformadaCCs > 0) {
+                                proportion = info.amountInformado / somaInformadaCCs;
+                            }
+
+                            let calculatedAmount = Math.abs(finalAmount) * proportion;
+
+                            if (idx === rateiosInfo.length - 1) {
+                                calculatedAmount = remainingToDistribute;
+                            } else {
+                                calculatedAmount = parseFloat(calculatedAmount.toFixed(2));
+                                remainingToDistribute -= calculatedAmount;
+                            }
+
+                            rows.push({
+                                categoryId: cat.id,
+                                costCenterId: info.ccId,
+                                description: finalDesc || 'Importação Excel',
+                                amount: calculatedAmount,
+                                month: selectedMonth,
+                                tenantId: cat.tenantId
+                            });
+                        });
+                    } else {
+                        // Sem Colunas de Rateio -> Vai tudo para o Centro de Custo da variante ou null (Geral)
+                        rows.push({
+                            categoryId: cat.id,
+                            costCenterId: null,
+                            description: finalDesc || 'Importação Excel',
+                            amount: Math.abs(finalAmount),
+                            month: selectedMonth,
+                            tenantId: cat.tenantId
+                        });
+                    }
                 }
             } catch (err) {
                 console.error("❌ Erro ao processar linha:", cols, err);
             }
         }
 
-        const totalSum = rows.reduce((acc, r) => acc + r.amount, 0);
+        const totalSumRows = rows.reduce((acc, r) => acc + r.amount, 0);
         
-        // --- RESUMO ANALÍTICO POR CATEGORIA (ESPELHO DA DINÂMICA) ---
+        // --- RESUMO ANALÍTICO POR CATEGORIA ---
         const categorySummary: Record<string, { code: string, name: string, total: number }> = {};
         rows.forEach(r => {
-            const cat = tenantCategories.find(c => c.id === r.categoryId);
+            const cat = groupCategories.find(c => c.id === r.categoryId);
             const catId = cat?.id || 'DESCONHECIDO';
             if (!categorySummary[catId]) {
+                const codePart = catId.split(':').pop() || '';
                 categorySummary[catId] = { 
-                    code: catId.split(':').pop() || '', 
+                    code: codePart, 
                     name: cat?.name || '?', 
                     total: 0 
                 };
@@ -138,18 +213,13 @@ export function ExcelPasteModal({ isOpen, onClose, tenantId: initialTenantId, co
             categorySummary[catId].total += r.amount;
         });
 
-        console.log(`🚀 [RESUMO DE IMPORTAÇÃO ANALÍTICO]`);
+        console.log(`🚀 [AUDITORIA] Processamento Concluído!`);
+        console.log(` - Empresa Selecionada: ${selectedCompany?.name} (${localTenantId})`);
+        console.log(` - Receita Detectada (01.x): ${revenueSumDetected.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })} ✅`);
+        console.log(` - Soma Geral Absoluta: ${totalSumRows.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}`);
+        console.log(` - Valor Ignorado (Sem Categoria): ${ignoredSumTotal.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}`);
+        console.log(`-----------------------------------------------`);
         console.table(Object.values(categorySummary).sort((a,b) => a.code.localeCompare(b.code)));
-        
-        revenueSum = Object.values(categorySummary)
-            .filter(s => s.code.startsWith('01') || s.code.startsWith('1.'))
-            .reduce((acc, s) => acc + s.total, 0);
-
-        console.log(`📊 ESTATÍSTICAS FINAIS:`);
-        console.log(` - Empresa: ${selectedCompany?.name}`);
-        console.log(` - Receita Total Detectada (01.x): ${revenueSum.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}`);
-        console.log(` - Soma Geral Absoluta: ${totalSum.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}`);
-        console.log(` - Valor Ignorado (Sem Categoria): ${ignoredSum.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}`);
 
         (window as any).lastImportAnalytic = categorySummary;
 

@@ -134,10 +134,24 @@ export function ExcelPasteModal({ isOpen, onClose, tenantId: initialTenantId, co
         }
 
         const totalSum = rows.reduce((acc, r) => acc + r.amount, 0);
+        const revenueRows = rows.filter(r => {
+            const cat = categories.find(c => c.id === r.categoryId);
+            return cat && (cat.id.includes(':01') || cat.name.startsWith('01'));
+        });
+        const revenueSum = revenueRows.reduce((acc, r) => acc + r.amount, 0);
+
         console.log(`🚀 [IMPORT] Processamento Concluído!`);
+        console.log(` - Empresa Selecionada: ${selectedCompany?.name} (ID: ${localTenantId})`);
         console.log(` - Total de Linhas: ${rows.length}`);
-        console.log(` - Soma Acumulada: ${totalSum.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}`);
-        (window as any).lastImportSum = totalSum;
+        console.log(` - Receita Detectada (01.x): ${revenueSum.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}`);
+        console.log(` - Soma Geral Absoluta: ${totalSum.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}`);
+        
+        (window as any).lastImportData = {
+            tenantId: localTenantId,
+            revenueSum,
+            totalSum,
+            rowCount: rows.length
+        };
 
         return rows;
     };

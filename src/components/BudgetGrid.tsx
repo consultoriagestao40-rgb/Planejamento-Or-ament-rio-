@@ -504,7 +504,8 @@ export default function BudgetGrid({
                     const idsToRead = node.id.split(',');
                     let sumB = 0, sumR = 0, sumRadar = 0;
 
-                    sumR = realizedValues[`${node.name.trim()}|${i}`] || 0;
+                    const normalizedNodeName = node.name.replace(/\s+/g, ' ').trim();
+                    sumR = realizedValues[`${normalizedNodeName}|${i}`] || 0;
 
                     for (const rawId of idsToRead) {
                         const bData = budgetValues[`${rawId}-${i}`] || { amount: 0, radarAmount: 0, isLocked: false };

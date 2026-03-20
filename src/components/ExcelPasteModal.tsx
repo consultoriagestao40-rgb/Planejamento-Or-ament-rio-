@@ -89,14 +89,12 @@ export function ExcelPasteModal({ isOpen, onClose, tenantId: initialTenantId, co
                     }
                     return cleanDBName === categoriaRaw.toLowerCase() || categoriaRaw.toLowerCase().includes(cleanDBName);
                 });
-
                 const valP = typeof cols[15] === 'number' ? cols[15] : parseFloat(String(cols[15] || '').replace(/[R$\s.]/g, '').replace(',', '.'));
-                const valL = typeof cols[11] === 'number' ? cols[11] : parseFloat(String(cols[11] || '').replace(/[R$\s.]/g, '').replace(',', '.'));
-                const finalAmount = (isNaN(valP) || valP === 0) ? (isNaN(valL) ? 0 : valL) : valP;
+                const finalAmount = isNaN(valP) ? 0 : valP;
 
                 // DEBUG ESPECÍFICO PARA O USUÁRIO VER NO CONSOLE
                 if (catCode === '01.1.1' || catCode === '01.2.1' || catCode === '1.1.1' || catCode === '1.2.1') {
-                    console.log(`🔍 [DEBUG ${catCode}] Col O: "${categoriaRaw}" | Col L (idx11): ${cols[11]} | Col P (idx15): ${cols[15]} | Final Usado: ${finalAmount}`);
+                    console.log(`🔍 [DEBUG ${catCode}] Col O: "${categoriaRaw}" | Valor P (idx15): ${cols[15]} | Final Usado: ${finalAmount}`);
                 }
 
                 if (!cat) {
@@ -109,44 +107,11 @@ export function ExcelPasteModal({ isOpen, onClose, tenantId: initialTenantId, co
 
                 const finalDesc = fornecedor ? `${fornecedor} - ${descricao}` : descricao;
                 
-                // Processar Rateios (Col 16 em diante, pares de CC e Valor)
-                let hasRateio = false;
-                if (cols.length > 16) {
-                    for (let i = 16; i < cols.length; i += 2) {
-                        const ccName = String(cols[i] || '').trim();
-                        const ccAmountVal = cols[i+1];
-
-                        if (ccName && ccAmountVal !== undefined && ccAmountVal !== null && ccAmountVal !== '') {
-                            let ccAmount = 0;
-                            if (typeof ccAmountVal === 'number') {
-                                ccAmount = ccAmountVal;
-                            } else {
-                                ccAmount = parseFloat(String(ccAmountVal).replace(/[R$\s.]/g, '').replace(',', '.'));
-                            }
-
-                            if (!isNaN(ccAmount) && ccAmount !== 0) {
-                                let ccId = null;
-                                const foundCC = tenantCCs.find(cc => (cc.name || '').trim().toLowerCase() === ccName.toLowerCase() || ccName.toLowerCase().includes((cc.name || '').trim().toLowerCase()));
-                                if (foundCC) ccId = foundCC.id;
-
-                                rows.push({
-                                    categoryId: cat.id,
-                                    costCenterId: ccId,
-                                    description: finalDesc || 'Importação Excel',
-                                    amount: Math.abs(ccAmount),
-                                    month: selectedMonth
-                                });
-                                hasRateio = true;
-                                if (cat.id.includes(':01') || cat.name.startsWith('01')) revenueSum += Math.abs(ccAmount);
-                            }
-                        }
-                    }
-                }
-
-                if (!hasRateio && Math.abs(finalAmount) > 0) {
+                // FORÇAR USO DA COLUNA P (IGNORAR RATEIOS POR ENQUANTO PARA GARANTIR O VALOR BRUTO)
+                if (Math.abs(finalAmount) > 0) {
                     rows.push({
                         categoryId: cat.id,
-                        costCenterId: null,
+                        costCenterId: null, // Sem CC para garantir que o valor da P não seja dividido/perdido
                         description: finalDesc || 'Importação Excel',
                         amount: Math.abs(finalAmount),
                         month: selectedMonth

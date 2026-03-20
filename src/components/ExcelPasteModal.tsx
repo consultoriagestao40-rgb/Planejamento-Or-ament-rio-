@@ -239,10 +239,26 @@ export function ExcelPasteModal({ isOpen, onClose, tenantId: initialTenantId, co
 
                         const remainder = Math.abs(finalAmount) - totalDistributed;
                         if (remainder > 0.01) { // Tolerância de centavos
+                            // --- REGRA DE OURO (V47.39) ---
+                            // O resto NUNCA pode ir para o nó pai '01', senão ele some no DRE.
+                            // Procuramos a primeira subcategoria folha (01.1, 01.1.1, etc)
+                            let finalLeafId = effectiveCat!.id;
+                            
+                            // Se a categoria detectada for a raiz ou uma categoria curta (id: ...:01)
+                            const isRoot = finalLeafId.endsWith(':01') || finalLeafId === '01';
+                            if (isRoot) {
+                                // Tenta achar a 01.1.1 que o usuário mostrou no print
+                                const leaf = groupCategories.find(c => 
+                                    c.id.includes(':01.1.1') || c.name.includes('01.1.1') ||
+                                    c.id.includes(':01.1') || c.name.includes('01.1')
+                                );
+                                if (leaf) finalLeafId = leaf.id;
+                            }
+
                             rows.push({
-                                categoryId: effectiveCat!.id,
+                                categoryId: finalLeafId,
                                 costCenterId: null,
-                                description: finalDesc || 'AJUSTE TOTALIZADOR COLUNA P',
+                                description: finalDesc || 'AJUSTE RESIDUO COLUNA P',
                                 amount: parseFloat(remainder.toFixed(2)),
                                 month: selectedMonth,
                                 tenantId: effectiveCat!.tenantId

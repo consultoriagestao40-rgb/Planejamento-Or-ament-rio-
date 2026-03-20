@@ -99,27 +99,11 @@ export function ExcelPasteModal({ isOpen, onClose, tenantId: initialTenantId, co
         if (votesVal[15] > 0) votesVal[15] += 50; 
         if (votesCat[14] > 0) votesCat[14] += 50;
 
-        let colCat = votesCat.indexOf(Math.max(...votesCat));
-        let colVal = votesVal.indexOf(Math.max(...votesVal));
+        // FORÇANDO COLUNA 14 (O) COMO CATEGORIA E 15 (P) COMO VALOR (LEI DO USUÁRIO)
+        let colCat = 14;
+        let colVal = 15;
         
-        // Se as duas melhores colunas forem iguais, tenta desempatar
-        if (colCat === colVal && colCat !== -1) {
-            if (votesCat[colCat] > votesVal[colVal]) {
-                const temp = [...votesVal];
-                temp[colVal] = -1;
-                colVal = temp.indexOf(Math.max(...temp));
-            } else {
-                const temp = [...votesCat];
-                temp[colCat] = -1;
-                colCat = temp.indexOf(Math.max(...temp));
-            }
-        }
-
-        // Fallback seguros
-        if (colCat === -1 || votesCat[colCat] === 0) colCat = 14;
-        if (colVal === -1 || votesVal[colVal] === 0) colVal = 15;
-        
-        console.log(`🗳️ [VOTAÇÃO FINAL] Categoria: Col ${colCat}, Valor: Col ${colVal}`);
+        console.log(`🗳️ [FORÇADO] Categoria: Col 14 (O), Valor: Col 15 (P)`);
 
         // Detectar se a primeira linha é cabeçalho ou dados
         const firstRow = matrix[0] || [];
@@ -255,16 +239,8 @@ export function ExcelPasteModal({ isOpen, onClose, tenantId: initialTenantId, co
 
                         const remainder = Math.abs(finalAmount) - totalDistributed;
                         if (remainder > 0.01) { // Tolerância de centavos
-                            // USAR A MESMA CATEGORIA (EFICAZ) OU FILHA (01.1) PARA O RESTO
-                            // Se a categoria for a raiz 01, tenta botar na 01.1
-                            let leafCatId = effectiveCat!.id;
-                            if (leafCatId.endsWith(':01')) {
-                                const leaf = groupCategories.find(c => c.id.includes(':01.1') || c.name.startsWith('01.1'));
-                                if (leaf) leafCatId = leaf.id;
-                            }
-
                             rows.push({
-                                categoryId: leafCatId,
+                                categoryId: effectiveCat!.id,
                                 costCenterId: null,
                                 description: finalDesc || 'AJUSTE TOTALIZADOR COLUNA P',
                                 amount: parseFloat(remainder.toFixed(2)),

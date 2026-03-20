@@ -118,14 +118,14 @@ export async function runCronSync(reqYear: number, tenantId?: string) {
                 const startStr = `${reqYear-1}-01-01T00:00:00Z`;
                 const endStr = `${reqYear+1}-12-31T23:59:59Z`;
 
-                // V2 ENDPOINTS
+                // V2 ENDPOINTS (Native production domain)
                 const endpoints = viewMode === 'caixa' ? [
-                    { name: 'Financials-In', url: 'https://api.contaazul.com/v2/financials/receivables', isExpense: false },
-                    { name: 'Financials-Out', url: 'https://api.contaazul.com/v2/financials/payables', isExpense: true }
+                    { name: 'Financials-In', url: 'https://api-v2.contaazul.com/v2/financials/receivables', isExpense: false },
+                    { name: 'Financials-Out', url: 'https://api-v2.contaazul.com/v2/financials/payables', isExpense: true }
                 ] : [
-                    { name: 'Sales', url: 'https://api.contaazul.com/v2/sales', isExpense: false },
-                    { name: 'Financials-In', url: 'https://api.contaazul.com/v2/financials/receivables', isExpense: false },
-                    { name: 'Financials-Out', url: 'https://api.contaazul.com/v2/financials/payables', isExpense: true }
+                    { name: 'Sales', url: 'https://api-v2.contaazul.com/v2/sales', isExpense: false },
+                    { name: 'Financials-In', url: 'https://api-v2.contaazul.com/v2/financials/receivables', isExpense: false },
+                    { name: 'Financials-Out', url: 'https://api-v2.contaazul.com/v2/financials/payables', isExpense: true }
                 ];
 
                 const entriesMap = new Map<string, any>();

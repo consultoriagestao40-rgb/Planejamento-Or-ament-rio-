@@ -36,7 +36,8 @@ export function ExcelPasteModal({ isOpen, onClose, tenantId: initialTenantId, co
 
     const processMatrix = (matrix: any[][]) => {
         const rows: any[] = [];
-        console.log("Processando matriz de", matrix.length, "linhas");
+        let ignoredSum = 0;
+        let revenueSum = 0;
 
         for (const cols of matrix) {
             try {
@@ -46,34 +47,42 @@ export function ExcelPasteModal({ isOpen, onClose, tenantId: initialTenantId, co
                 const dataCompetencia = String(cols[0] || '').trim();
                 const descricao = String(cols[4] || '').trim();
                 const fornecedor = String(cols[6] || '').trim();
-                const valorTotalStr = String(cols[15] || '').trim(); // Usando Coluna P (Valor na Categoria)
                 const categoriaRaw = String(cols[14] || '').trim();
 
                 // Pular cabeçalhos (mas ser tolerante se houver valor e categoria em baixo)
                 if (dataCompetencia.toLowerCase().includes('competência') || categoriaRaw.toLowerCase().includes('categoria')) continue;
                 if (!dataCompetencia && !categoriaRaw) continue;
 
-                // Extrair Código de Categoria (ex: 03.3.1)
+                // Extrair Código (ex: 03.3.1 ou 3.3.1)
                 const catCodeMatch = categoriaRaw.match(/^(\d{1,2}\.\d{1,2}(\.\d{1,2})?)/);
                 const catCode = catCodeMatch ? catCodeMatch[1] : null;
 
-                // Mapeamento de Categoria - PRIORIDADE PARA O CÓDIGO
+                // Mapeamento de Categoria
                 const cat = tenantCategories.find(c => {
                     const cleanDBName = (c.name || '').toLowerCase();
                     const cleanDBId = (c.id || '').toLowerCase();
                     
                     if (catCode) {
-                        if (cleanDBId === catCode.toLowerCase() || 
-                            cleanDBId.endsWith(`:${catCode.toLowerCase()}`) ||
-                            cleanDBName.startsWith(catCode.toLowerCase())) {
+                        // Comparar códigos normalizados (removendo zeros à esquerda se necessário)
+                        const dbIdPart = cleanDBId.split(':').pop();
+                        const isDbIdMatch = dbIdPart === catCode || (catCode.startsWith('0') && dbIdPart === catCode.substring(1));
+                        
+                        if (isDbIdMatch || cleanDBName.startsWith(catCode) || (catCode.startsWith('0') && cleanDBName.startsWith(catCode.substring(1)))) {
                             return true;
                         }
                     }
                     return cleanDBName === categoriaRaw.toLowerCase() || categoriaRaw.toLowerCase().includes(cleanDBName);
                 });
 
+                const valP = typeof cols[15] === 'number' ? cols[15] : parseFloat(String(cols[15] || '').replace(/[R$\s.]/g, '').replace(',', '.'));
+                const valL = typeof cols[11] === 'number' ? cols[11] : parseFloat(String(cols[11] || '').replace(/[R$\s.]/g, '').replace(',', '.'));
+                const finalAmount = (isNaN(valP) || valP === 0) ? (isNaN(valL) ? 0 : valL) : valP;
+
                 if (!cat) {
-                    console.warn("⚠️ Categoria não mapeada:", categoriaRaw, "| Código detectado:", catCode);
+                    if (Math.abs(finalAmount) > 0) {
+                        ignoredSum += Math.abs(finalAmount);
+                        console.warn("⚠️ Linha ignorada por falta de categoria:", categoriaRaw, "| Valor:", finalAmount);
+                    }
                     continue;
                 }
 
@@ -107,27 +116,21 @@ export function ExcelPasteModal({ isOpen, onClose, tenantId: initialTenantId, co
                                     month: selectedMonth
                                 });
                                 hasRateio = true;
+                                if (cat.id.includes(':01') || cat.name.startsWith('01')) revenueSum += Math.abs(ccAmount);
                             }
                         }
                     }
                 }
 
-                if (!hasRateio) {
-                    let totalAmount = 0;
-                    const valP = typeof cols[15] === 'number' ? cols[15] : parseFloat(String(cols[15] || '').replace(/[R$\s.]/g, '').replace(',', '.'));
-                    const valL = typeof cols[11] === 'number' ? cols[11] : parseFloat(String(cols[11] || '').replace(/[R$\s.]/g, '').replace(',', '.'));
-                    
-                    totalAmount = (isNaN(valP) || valP === 0) ? (isNaN(valL) ? 0 : valL) : valP;
-
-                    if (!isNaN(totalAmount) && totalAmount !== 0) {
-                        rows.push({
-                            categoryId: cat.id,
-                            costCenterId: null,
-                            description: finalDesc || 'Importação Excel',
-                            amount: Math.abs(totalAmount),
-                            month: selectedMonth
-                        });
-                    }
+                if (!hasRateio && Math.abs(finalAmount) > 0) {
+                    rows.push({
+                        categoryId: cat.id,
+                        costCenterId: null,
+                        description: finalDesc || 'Importação Excel',
+                        amount: Math.abs(finalAmount),
+                        month: selectedMonth
+                    });
+                    if (cat.id.includes(':01') || cat.name.startsWith('01')) revenueSum += Math.abs(finalAmount);
                 }
             } catch (err) {
                 console.error("❌ Erro ao processar linha:", cols, err);
@@ -135,24 +138,13 @@ export function ExcelPasteModal({ isOpen, onClose, tenantId: initialTenantId, co
         }
 
         const totalSum = rows.reduce((acc, r) => acc + r.amount, 0);
-        const revenueRows = rows.filter(r => {
-            const cat = categories.find(c => c.id === r.categoryId);
-            return cat && (cat.id.includes(':01') || cat.name.startsWith('01'));
-        });
-        const revenueSum = revenueRows.reduce((acc, r) => acc + r.amount, 0);
-
         console.log(`🚀 [IMPORT] Processamento Concluído!`);
-        console.log(` - Empresa Selecionada: ${selectedCompany?.name} (ID: ${localTenantId})`);
-        console.log(` - Total de Linhas: ${rows.length}`);
-        console.log(` - Receita Detectada (01.x): ${revenueSum.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}`);
-        console.log(` - Soma Geral Absoluta: ${totalSum.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}`);
-        
-        (window as any).lastImportData = {
-            tenantId: localTenantId,
-            revenueSum,
-            totalSum,
-            rowCount: rows.length
-        };
+        console.log(` - Empresa: ${selectedCompany?.name} (ID: ${localTenantId})`);
+        console.log(` - Mês Alvo: ${meses[selectedMonth-1]}`);
+        console.log(` - Total de Linhas Importadas: ${rows.length}`);
+        console.log(` - Receita (01.x): ${revenueSum.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}`);
+        console.log(` - TOTAL GERAL ABSOLUTO: ${totalSum.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}`);
+        console.log(` - VALOR IGNORADO (SEM CATEGORIA): ${ignoredSum.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })} 🚩`);
 
         return rows;
     };

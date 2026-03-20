@@ -569,10 +569,9 @@ export function ExcelPasteModal({ isOpen, onClose, tenantId: initialTenantId, co
                         </div>
                         <div style={{ gridColumn: 'span 3', fontSize: '0.75rem', color: '#166534', borderTop: '1px dashed #bbf7d0', paddingTop: '0.5rem', marginTop: '0.5rem' }}>
                             ✅ <b>{summary.totalRows}</b> lançamentos detectados (fidelidade total à Coluna P).
-                            {Math.abs(summary.totalP - summary.preparedSum) > 0.1 && (
-                                <p style={{ color: '#dc2626', margin: '0.25rem 0 0', fontWeight: 800 }}>
-                                    ⚠️ DIFERENÇA DE NET: {(summary.totalP - summary.preparedSum).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
                                 </p>
+                            )}
+                        </div>
                     </div>
                 )}
 

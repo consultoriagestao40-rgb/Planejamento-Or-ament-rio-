@@ -39,102 +39,97 @@ export function ExcelPasteModal({ isOpen, onClose, tenantId: initialTenantId, co
         console.log("Processando matriz de", matrix.length, "linhas");
 
         for (const cols of matrix) {
-            if (!cols || cols.length < 15) continue;
+            try {
+                if (!cols || cols.length < 15) continue;
 
-            // Dados Fixos (A=0, E=4, G=6, L=11, O=14, P=15)
-            const dataCompetencia = String(cols[0] || '').trim();
-            const descricao = String(cols[4] || '').trim();
-            const fornecedor = String(cols[6] || '').trim();
-            const valorTotalStr = String(cols[15] || '').trim(); // Usando Coluna P (Valor na Categoria)
-            const categoriaRaw = String(cols[14] || '').trim();
+                // Dados Fixos (A=0, E=4, G=6, L=11, O=14, P=15)
+                const dataCompetencia = String(cols[0] || '').trim();
+                const descricao = String(cols[4] || '').trim();
+                const fornecedor = String(cols[6] || '').trim();
+                const valorTotalStr = String(cols[15] || '').trim(); // Usando Coluna P (Valor na Categoria)
+                const categoriaRaw = String(cols[14] || '').trim();
 
-            // Pular cabeçalhos
-            if (dataCompetencia.toLowerCase().includes('data') || categoriaRaw.toLowerCase().includes('categoria') || !dataCompetencia) continue;
+                // Pular cabeçalhos
+                if (dataCompetencia.toLowerCase().includes('data') || categoriaRaw.toLowerCase().includes('categoria') || !dataCompetencia) continue;
 
-            // Extrair Código de Categoria (ex: 03.3.1)
-            const catCodeMatch = categoriaRaw.match(/^(\d{1,2}\.\d{1,2}(\.\d{1,2})?)/);
-            const catCode = catCodeMatch ? catCodeMatch[1] : null;
+                // Extrair Código de Categoria (ex: 03.3.1)
+                const catCodeMatch = categoriaRaw.match(/^(\d{1,2}\.\d{1,2}(\.\d{1,2})?)/);
+                const catCode = catCodeMatch ? catCodeMatch[1] : null;
 
-            // Mapeamento de Categoria - PRIORIDADE PARA O CÓDIGO
-            const cat = tenantCategories.find(c => {
-                const cleanDBName = c.name.toLowerCase();
-                const cleanDBId = c.id.toLowerCase();
-                
-                // 1. Check if ID or Name matches the code exactly (e.g. 01.1.1)
-                if (catCode) {
-                    if (cleanDBId === catCode.toLowerCase() || 
-                        cleanDBId.endsWith(`:${catCode.toLowerCase()}`) ||
-                        cleanDBName.startsWith(catCode.toLowerCase())) {
-                        return true;
-                    }
-                }
-                
-                // 2. Fallback to name match
-                return cleanDBName === categoriaRaw.toLowerCase() || categoriaRaw.toLowerCase().includes(cleanDBName);
-            });
-
-            if (!cat) {
-                console.warn("⚠️ Categoria não mapeada:", categoriaRaw, "| Código detectado:", catCode);
-                continue;
-            }
-
-            const finalDesc = fornecedor ? `${fornecedor} - ${descricao}` : descricao;
-            
-            // Processar Rateios (Col 16 em diante, pares de CC e Valor)
-            let hasRateio = false;
-            let rowProcessed = false;
-
-            if (cols.length > 16) {
-                for (let i = 16; i < cols.length; i += 2) {
-                    const ccName = String(cols[i] || '').trim();
-                    const ccAmountVal = cols[i+1];
-
-                    if (ccName && ccAmountVal !== undefined && ccAmountVal !== null && ccAmountVal !== '') {
-                        let ccAmount = 0;
-                        if (typeof ccAmountVal === 'number') {
-                            ccAmount = ccAmountVal;
-                        } else {
-                            ccAmount = parseFloat(String(ccAmountVal).replace(/[R$\s.]/g, '').replace(',', '.'));
+                // Mapeamento de Categoria - PRIORIDADE PARA O CÓDIGO
+                const cat = tenantCategories.find(c => {
+                    const cleanDBName = (c.name || '').toLowerCase();
+                    const cleanDBId = (c.id || '').toLowerCase();
+                    
+                    if (catCode) {
+                        if (cleanDBId === catCode.toLowerCase() || 
+                            cleanDBId.endsWith(`:${catCode.toLowerCase()}`) ||
+                            cleanDBName.startsWith(catCode.toLowerCase())) {
+                            return true;
                         }
+                    }
+                    return cleanDBName === categoriaRaw.toLowerCase() || categoriaRaw.toLowerCase().includes(cleanDBName);
+                });
 
-                        if (!isNaN(ccAmount) && ccAmount !== 0) {
-                            let ccId = null;
-                            const foundCC = tenantCCs.find(cc => cc.name.trim().toLowerCase() === ccName.toLowerCase() || ccName.toLowerCase().includes(cc.name.trim().toLowerCase()));
-                            if (foundCC) ccId = foundCC.id;
+                if (!cat) {
+                    console.warn("⚠️ Categoria não mapeada:", categoriaRaw, "| Código detectado:", catCode);
+                    continue;
+                }
 
-                            rows.push({
-                                categoryId: cat.id,
-                                costCenterId: ccId,
-                                description: finalDesc || 'Importação Excel',
-                                amount: Math.abs(ccAmount),
-                                month: selectedMonth
-                            });
-                            hasRateio = true;
-                            rowProcessed = true;
+                const finalDesc = fornecedor ? `${fornecedor} - ${descricao}` : descricao;
+                
+                // Processar Rateios (Col 16 em diante, pares de CC e Valor)
+                let hasRateio = false;
+                if (cols.length > 16) {
+                    for (let i = 16; i < cols.length; i += 2) {
+                        const ccName = String(cols[i] || '').trim();
+                        const ccAmountVal = cols[i+1];
+
+                        if (ccName && ccAmountVal !== undefined && ccAmountVal !== null && ccAmountVal !== '') {
+                            let ccAmount = 0;
+                            if (typeof ccAmountVal === 'number') {
+                                ccAmount = ccAmountVal;
+                            } else {
+                                ccAmount = parseFloat(String(ccAmountVal).replace(/[R$\s.]/g, '').replace(',', '.'));
+                            }
+
+                            if (!isNaN(ccAmount) && ccAmount !== 0) {
+                                let ccId = null;
+                                const foundCC = tenantCCs.find(cc => (cc.name || '').trim().toLowerCase() === ccName.toLowerCase() || ccName.toLowerCase().includes((cc.name || '').trim().toLowerCase()));
+                                if (foundCC) ccId = foundCC.id;
+
+                                rows.push({
+                                    categoryId: cat.id,
+                                    costCenterId: ccId,
+                                    description: finalDesc || 'Importação Excel',
+                                    amount: Math.abs(ccAmount),
+                                    month: selectedMonth
+                                });
+                                hasRateio = true;
+                            }
                         }
                     }
                 }
-            }
 
-            if (!hasRateio) {
-                let totalAmount = 0;
-                // Col 15 (P) é Valor na Categoria, Col 11 (L) é Valor Total
-                const valP = typeof cols[15] === 'number' ? cols[15] : parseFloat(String(cols[15] || '').replace(/[R$\s.]/g, '').replace(',', '.'));
-                const valL = typeof cols[11] === 'number' ? cols[11] : parseFloat(String(cols[11] || '').replace(/[R$\s.]/g, '').replace(',', '.'));
-                
-                // FALLBACK: Se o valor na categoria estiver zerado mas o total da linha não, usa o total
-                totalAmount = (isNaN(valP) || valP === 0) ? (isNaN(valL) ? 0 : valL) : valP;
+                if (!hasRateio) {
+                    let totalAmount = 0;
+                    const valP = typeof cols[15] === 'number' ? cols[15] : parseFloat(String(cols[15] || '').replace(/[R$\s.]/g, '').replace(',', '.'));
+                    const valL = typeof cols[11] === 'number' ? cols[11] : parseFloat(String(cols[11] || '').replace(/[R$\s.]/g, '').replace(',', '.'));
+                    
+                    totalAmount = (isNaN(valP) || valP === 0) ? (isNaN(valL) ? 0 : valL) : valP;
 
-                if (!isNaN(totalAmount) && totalAmount !== 0) {
-                    rows.push({
-                        categoryId: cat.id,
-                        costCenterId: null,
-                        description: finalDesc || 'Importação Excel',
-                        amount: Math.abs(totalAmount),
-                        month: selectedMonth
-                    });
-                    rowProcessed = true;
+                    if (!isNaN(totalAmount) && totalAmount !== 0) {
+                        rows.push({
+                            categoryId: cat.id,
+                            costCenterId: null,
+                            description: finalDesc || 'Importação Excel',
+                            amount: Math.abs(totalAmount),
+                            month: selectedMonth
+                        });
+                    }
                 }
+            } catch (err) {
+                console.error("❌ Erro ao processar linha:", cols, err);
             }
         }
 

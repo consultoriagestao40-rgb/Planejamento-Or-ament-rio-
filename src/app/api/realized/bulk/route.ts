@@ -27,8 +27,8 @@ export async function POST(request: Request) {
         }
 
         // 2. Prepara novos registros
-        const entriesToSave = rows.map((row: any) => ({
-            tenantId: row.tenantId || tenantId, // Respect variant tenant if provided
+        const entriesToSave = rows.map((row: any, idx: number) => ({
+            tenantId: row.tenantId || tenantId,
             categoryId: row.categoryId,
             costCenterId: row.costCenterId || null,
             month: row.month || month,
@@ -36,7 +36,8 @@ export async function POST(request: Request) {
             amount: Math.abs(parseFloat(row.amount) || 0),
             viewMode: viewMode || 'competencia',
             description: row.description || "Upload via Excel",
-            externalId: `manual-${row.tenantId || tenantId}-${row.categoryId}-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`
+            // FIXED: Added idx and more randomness to guarantee uniqueness even for rateio rows from the same category/millisecond
+            externalId: `manual-${row.tenantId || tenantId}-${row.categoryId}-${Date.now()}-${idx}-${Math.random().toString(36).substr(2, 9)}`
         }));
 
         // 3. Inserção em massa

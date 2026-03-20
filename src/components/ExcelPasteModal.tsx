@@ -239,11 +239,10 @@ export function ExcelPasteModal({ isOpen, onClose, tenantId: initialTenantId, co
 
                         const remainder = Math.abs(finalAmount) - totalDistributed;
                         if (remainder > 0.01) { // Tolerância de centavos
-                            // --- REGRA DE OURO (V47.40) ---
-                            // O resto vai para a categoria 01.1 (ou filha) com CC NULL
+                            // --- REGRA DE OURO (V47.42) ---
+                            // Se sobrar valor da Coluna P, jogamos na categoria folha.
+                            // Para o Centro de Custo, tentamos usar o "Geral" da empresa se existir.
                             let forceCatId = effectiveCat!.id;
-                            
-                            // Busca ativa por uma conta folha de receita caso a atual seja raiz
                             if (forceCatId.endsWith(':01') || forceCatId === '01') {
                                 const backup = groupCategories.find(c => 
                                     (c.id.includes(':01.1') || c.id.includes(':01.1.1')) ||
@@ -252,10 +251,13 @@ export function ExcelPasteModal({ isOpen, onClose, tenantId: initialTenantId, co
                                 if (backup) forceCatId = backup.id;
                             }
 
+                            // Tentamos achar um CC chamado "Geral" ou pegamos o do primeiro rateio
+                            const fallbackCC = rateiosInfo.length > 0 ? rateiosInfo[0].ccId : null;
+
                             rows.push({
                                 categoryId: forceCatId,
-                                costCenterId: null,
-                                description: finalDesc || 'SALDO COLUNA P (DIF. RATEIO)',
+                                costCenterId: fallbackCC, // Usamos um CC real para evitar ser filtrado como NULL
+                                description: finalDesc || 'DIFERENÇA COLUNA P (RATEIO INCOMPLETO)',
                                 amount: parseFloat(remainder.toFixed(2)),
                                 month: selectedMonth,
                                 tenantId: effectiveCat!.tenantId

@@ -3,7 +3,6 @@
 import React, { useState, useEffect } from 'react';
 import BudgetGrid from '@/components/BudgetGrid';
 import { SyncButton } from '@/components/SyncButton';
-import { ExcelPasteModal } from '@/components/ExcelPasteModal';
 
 interface FinancialDashboardProps {
     isConnected: boolean;
@@ -146,14 +145,6 @@ export default function FinancialDashboard({
                                     </div>
 
                                     <SyncButton onSyncStart={() => setIsSyncing(true)} onSyncComplete={triggerRefresh} year={selectedYear} />
-
-                                    <button 
-                                        onClick={() => (window as any).dispatchOpenExcelModal?.()}
-                                        className="btn btn-secondary" 
-                                        style={{ height: '34px', fontSize: '0.78rem', backgroundColor: '#f59e0b', color: 'white', border: 'none' }}
-                                    >
-                                        📊 Importar Excel
-                                    </button>
 
                                     <a href="/summary" className="btn btn-secondary" style={{ height: '34px', fontSize: '0.78rem' }}>
                                         📋 Resumo por CC

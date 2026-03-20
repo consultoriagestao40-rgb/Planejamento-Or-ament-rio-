@@ -3,7 +3,6 @@
 
 import React, { useState, useMemo, useEffect } from 'react';
 import { MONTHS, MOCK_COST_CENTERS } from '@/lib/mock-data';
-import { ExcelPasteModal } from '@/components/ExcelPasteModal';
 
 interface BudgetGridProps {
     refreshKey?: number;
@@ -58,18 +57,11 @@ export default function BudgetGrid({
     const [isCCLocked, setIsCCLocked] = useState(false);
     const [radarLocks, setRadarLocks] = useState<any[]>([]);
     const [realizedValues, setRealizedValues] = useState<Record<string, number>>({});
-    const [isExcelModalOpen, setIsExcelModalOpen] = useState(false);
 
     const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
     const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set()); // New state for main groups
 
     const [loading, setLoading] = useState(true);
-    
-    // --- Global Excel Modal Trigger ---
-    useEffect(() => {
-        (window as any).dispatchOpenExcelModal = () => setIsExcelModalOpen(true);
-    }, []);
-
     const [selectedCompany, setSelectedCompany] = useState<string[]>(['DEFAULT']);
     const [pendingCompany, setPendingCompany] = useState<string[]>(['DEFAULT']);
     const [companyDropdownOpen, setCompanyDropdownOpen] = useState(false);
@@ -201,7 +193,7 @@ export default function BudgetGrid({
         const loadSetup = async () => {
             try {
                 // Ensure we get fresh categories and cost centers
-                const setupRes = await fetch('/api/setup?t=' + Date.now(), { cache: 'no-store' });
+                const setupRes = await fetch('/api/setup?primaryOnly=true&t=' + Date.now(), { cache: 'no-store' });
                 const setupData = await setupRes.json();
                 
                 if (setupData.success) {
@@ -277,7 +269,20 @@ export default function BudgetGrid({
 
         // 1. Initial Load
         validCategories.forEach((cat: any) => {
+            // V47.142 - Strict Key: Isolation + Identity
+            // REMOVED cat.tenantId from uniqueKey to merge identical categories across variants/companies in consolidated view.
             const cleanCode = (cat.name.match(/^(\d{1,2}(?:\.\d+)*)/) || [])[1] || '';
+            const uniqueKey = `${cat.type}|${cleanCode}|${cat.name.trim()}`;
+
+            if (nameMap.has(uniqueKey)) {
+                const existingNode = nameMap.get(uniqueKey)!;
+                if (!existingNode.id.split(',').includes(cat.id)) {
+                    existingNode.id += ',' + cat.id;
+                }
+                map.set(cat.id, existingNode);
+                return;
+            }
+
             const node: CategoryNode = {
                 ...cat,
                 name: cat.name,
@@ -288,6 +293,7 @@ export default function BudgetGrid({
                 tenantId: cat.tenantId
             };
             map.set(cat.id, node);
+            nameMap.set(uniqueKey, node);
             if (cleanCode) {
                 codeMap.set(cleanCode, node);
                 // Also map with leading zero if missing for hierarchy matching
@@ -482,8 +488,10 @@ export default function BudgetGrid({
             });
 
             for (let i = 0; i < 12; i++) {
-                // RULE: Allow all categories regardless of code segments
-                const isDataPoint = !node.isSynthetic;
+                // RULE: Only consider items with 3 segments (Ex: 01.1.1) as data points.
+                // 1 or 2 segments (Ex: 01, 01.1) are treated as summaries calculated by the system.
+                const codeSegments = (node.code || '').split('.').filter(Boolean).length;
+                const isDataPoint = codeSegments === 3;
 
                 if (!node.isSynthetic && isDataPoint) {
                     const sign = negated ? -1 : 1;
@@ -1386,15 +1394,6 @@ export default function BudgetGrid({
                     <div style={{ display: 'flex', gap: '0.4rem' }}>
                         <button onClick={applyFilter} className="btn btn-primary" style={{ padding: '0 1rem', height: '32px', fontSize: '0.75rem' }}>Filtrar</button>
                         <button onClick={clearFilter} className="btn btn-secondary" style={{ padding: '0 1rem', height: '32px', fontSize: '0.75rem' }}>Limpar</button>
-                        
-                        <button 
-                            onClick={() => setIsExcelModalOpen(true)}
-                            className="btn btn-secondary" 
-                            style={{ padding: '0 1rem', height: '32px', fontSize: '0.75rem', backgroundColor: '#f59e0b', color: 'white', border: 'none' }}
-                            title="Importar Realizado do Excel"
-                        >
-                            📊 Importar Excel
-                        </button>
                     </div>
                 </div>
 
@@ -1914,21 +1913,6 @@ export default function BudgetGrid({
                     </div>
                 )}
             <div style={{ height: '2rem' }}></div> {/* Spacer after card */}
-
-            {/* Excel Paste Modal */}
-            <ExcelPasteModal 
-                isOpen={isExcelModalOpen}
-                onClose={() => {
-                    setIsExcelModalOpen(false);
-                    triggerRefresh();
-                }}
-                tenantId={selectedCompany[0]}
-                companies={companies}
-                categories={categories}
-                costCenters={costCenters}
-                year={selectedYear}
-                viewMode={viewMode}
-            />
         </>
     );
 }

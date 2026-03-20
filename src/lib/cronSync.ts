@@ -36,11 +36,17 @@ async function fetchAllTransactionsV2(
         try {
             const separator = url.includes('?') ? '&' : '?';
             const fullUrl = `${url}${separator}page=${page}&size=100`;
-            const res = await fetch(fullUrl, { headers: { 'Authorization': `Bearer ${accessToken}` } });
+            const res = await fetch(fullUrl, { 
+                headers: { 
+                    'Authorization': `Bearer ${accessToken}`,
+                    'Accept': 'application/json'
+                } 
+            });
             
             if (!res.ok) {
                 const errBody = await res.text();
-                if (pushLog) pushLog(`[V2 ERROR] ${endpointName} (P${page}) Status: ${res.status} Body: ${errBody.substring(0, 100)}`);
+                const tokenPrefix = accessToken.substring(0, 15);
+                if (pushLog) pushLog(`[V2 ERROR] ${endpointName} (P${page}) Status: ${res.status} Token:${tokenPrefix}... Body: ${errBody.substring(0, 50)}`);
                 break;
             }
             
@@ -120,12 +126,12 @@ export async function runCronSync(reqYear: number, tenantId?: string) {
 
                 // V2 ENDPOINTS (Native production domain)
                 const endpoints = viewMode === 'caixa' ? [
-                    { name: 'Financials-In', url: 'https://api-v2.contaazul.com/v2/financials/receivables', isExpense: false },
-                    { name: 'Financials-Out', url: 'https://api-v2.contaazul.com/v2/financials/payables', isExpense: true }
+                    { name: 'Financials-In', url: 'https://api.contaazul.com/v2/financials/receivables', isExpense: false },
+                    { name: 'Financials-Out', url: 'https://api.contaazul.com/v2/financials/payables', isExpense: true }
                 ] : [
-                    { name: 'Sales', url: 'https://api-v2.contaazul.com/v2/sales', isExpense: false },
-                    { name: 'Financials-In', url: 'https://api-v2.contaazul.com/v2/financials/receivables', isExpense: false },
-                    { name: 'Financials-Out', url: 'https://api-v2.contaazul.com/v2/financials/payables', isExpense: true }
+                    { name: 'Sales', url: 'https://api.contaazul.com/v2/sales', isExpense: false },
+                    { name: 'Financials-In', url: 'https://api.contaazul.com/v2/financials/receivables', isExpense: false },
+                    { name: 'Financials-Out', url: 'https://api.contaazul.com/v2/financials/payables', isExpense: true }
                 ];
 
                 const entriesMap = new Map<string, any>();

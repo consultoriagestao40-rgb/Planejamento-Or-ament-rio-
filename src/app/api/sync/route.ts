@@ -59,9 +59,12 @@ export async function GET(request: Request) {
 
         const realizedValues: Record<string, number> = {};
         entries.forEach((e: any) => {
-            // O Grid espera a chave no formato "categoryId-monthIdx" (sendo monthIdx 0-11)
-            const key = `${e.categoryId}-${e.month - 1}`;
-            realizedValues[key] = (realizedValues[key] || 0) + e.amount;
+            const catName = categoryMap.get(e.categoryId);
+            if (catName) {
+                // O BudgetGrid espera a chave no formato "categoryName|monthIdx" (monthIdx 0-11)
+                const key = `${catName.trim()}|${e.month - 1}`;
+                realizedValues[key] = (realizedValues[key] || 0) + e.amount;
+            }
         });
 
         return NextResponse.json({

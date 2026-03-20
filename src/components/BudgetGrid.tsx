@@ -1931,7 +1931,7 @@ export default function BudgetGrid({
                 )}
             <div style={{ height: '2rem' }}></div> {/* Spacer after card */}
 
-            {/* Excel Paste Modal - Contextualized per single company selection */}
+            {/* Excel Paste Modal */}
             <ExcelPasteModal 
                 isOpen={isExcelModalOpen}
                 onClose={() => {
@@ -1939,7 +1939,7 @@ export default function BudgetGrid({
                     triggerRefresh();
                 }}
                 tenantId={selectedCompany[0]}
-                companyName={companies.find(c => c.id === selectedCompany[0])?.name || selectedCompany[0]}
+                companies={companies}
                 categories={categories}
                 costCenters={costCenters}
                 year={selectedYear}

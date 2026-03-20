@@ -154,11 +154,12 @@ export function ExcelPasteModal({ isOpen, onClose, tenantId: initialTenantId, co
 
                 // --- MÊS FIXO (SELECIONADO NO UI) ---
                 let rowMonth = selectedMonth;
-                // Removido detecção por linha pois estava "perdendo" valores em outros meses (ex: competência de Dez)
 
                 // Extrair Código (ex: 01.1.1 ou 1.1.1)
                 const catCodeMatch = categoriaRaw.match(/^(\d{1,2}(?:\.\d+)*)/);
                 const catCode = catCodeMatch ? catCodeMatch[1] : null;
+
+                console.log(`🔍 [DEBUG LINHA ${idx}] P=${finalAmount} | CatRaw="${categoriaRaw}" | CatCode="${catCode}"`);
 
                 // Mapeamento de Categoria (Now searching across all variants)
                 const cat = groupCategories.find(c => {
@@ -204,7 +205,8 @@ export function ExcelPasteModal({ isOpen, onClose, tenantId: initialTenantId, co
 
                 // If we found a category, mark as detected revenue if it starts with 01
                 if (effectiveCat.id.includes(':01') || effectiveCat.name.startsWith('01') || catCode?.startsWith('01')) {
-                    revenueSumDetected += finalAmount; // USAR VALOR REAL PARA SOMA (Pode ser negativo de ajuste)
+                    revenueSumDetected += finalAmount;
+                    console.log(`   ✅ SOMA RECEITA: +${finalAmount} -> Total agora: ${revenueSumDetected}`);
                 }
 
                 const finalDesc = fornecedor ? `${fornecedor} - ${descricao}` : (categoriaRaw ? `${categoriaRaw} - ${descricao}` : descricao);

@@ -119,7 +119,7 @@ export function ExcelPasteModal({ isOpen, onClose, tenantId: initialTenantId, co
         if (colCat === 0 || colCat === -1) colCat = 14;
         if (colVal === 0 || colVal === -1) colVal = 15;
 
-        console.log(`🗳️ [V50.6] Categoria: Col ${colCat}, Valor: Col ${colVal}`); 
+        console.log(`🗳️ [V50.9] Categoria: Col ${colCat}, Valor: Col ${colVal}`); 
         console.log("📝 [NUCLEAR DEBUG] Primeiras 3 linhas da Matrix:", JSON.stringify(matrix.slice(0, 3)));
         
         // 3. Detectar se a primeira linha é cabeçalho ou dados (usando indices detectados ou fallback)
@@ -261,16 +261,21 @@ export function ExcelPasteModal({ isOpen, onClose, tenantId: initialTenantId, co
                             
                             if (isNaN(amtCC)) amtCC = 0;
 
-                            let ccId = null;
                             const cleanCCName = ccName.toLowerCase().replace(/[^a-z0-9]/g, '');
                             const foundCC = groupCCs.find(cc => {
                                 const dbCCName = (cc.name || '').toLowerCase().replace(/[^a-z0-9]/g, '');
                                 return dbCCName === cleanCCName || dbCCName.includes(cleanCCName) || cleanCCName.includes(dbCCName);
                             });
-                            if (foundCC) ccId = foundCC.id;
 
-                            rateiosInfo.push({ ccId, ccName, amountInformado: amtCC });
-                            somaInformadaCCs += amtCC;
+                            if (foundCC) {
+                                let ccId = foundCC.id;
+                                rateiosInfo.push({ ccId, ccName, amountInformado: amtCC });
+                                somaInformadaCCs += amtCC;
+                                console.log(`🔗 [DEBUG RATEIO] Linha ${idx} | CC="${ccName}" | Val=${amtCC}`);
+                            } else {
+                                // SE NÃO FOR UM CENTRO DE CUSTO VÁLIDO, NÃO ADMITE COMO AMOUNT (EVITA LEAK DE CNPJ/OUTROS)
+                                // console.warn(`⏭️ [DEBUG] Coluna ${i} (${ccName}) não é um Centro de Custo válido. Ignorando.`);
+                            }
                         }
                     }
                 }

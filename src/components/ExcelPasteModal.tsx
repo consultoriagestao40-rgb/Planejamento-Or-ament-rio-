@@ -239,25 +239,24 @@ export function ExcelPasteModal({ isOpen, onClose, tenantId: initialTenantId, co
 
                         const remainder = Math.abs(finalAmount) - totalDistributed;
                         if (remainder > 0.01) { // Tolerância de centavos
-                            // --- REGRA DE OURO (V47.42) ---
-                            // Se sobrar valor da Coluna P, jogamos na categoria folha.
-                            // Para o Centro de Custo, tentamos usar o "Geral" da empresa se existir.
-                            let forceCatId = effectiveCat!.id;
-                            if (forceCatId.endsWith(':01') || forceCatId === '01') {
-                                const backup = groupCategories.find(c => 
-                                    (c.id.includes(':01.1') || c.id.includes(':01.1.1')) ||
-                                    (c.name.startsWith('01.1') || c.name.startsWith('01.1.1'))
+                            // --- REGRA DE OURO (V47.48) ---
+                            // O saldo da Coluna P deve ir obrigatoriamente para a mesma conta da linha.
+                            // Se a conta for genérica (01), buscamos a 01.1.1 que é o padrão de venda do usuário.
+                            let targetCatId = effectiveCat!.id;
+                            if (targetCatId.endsWith(':01') || targetCatId === '01') {
+                                const sub = groupCategories.find(c => 
+                                    c.id.includes(':01.1.1') || c.name.includes('01.1.1')
                                 );
-                                if (backup) forceCatId = backup.id;
+                                if (sub) targetCatId = sub.id;
                             }
 
-                            // Tentamos achar um CC chamado "Geral" ou pegamos o do primeiro rateio
-                            const fallbackCC = rateiosInfo.length > 0 ? rateiosInfo[0].ccId : null;
+                            // CC REAL: Usamos o primeiro disponível ou NULL se não houver (mas o Sync V47.41 agora aceita ambos)
+                            const ccIdToUse = rateiosInfo.length > 0 ? rateiosInfo[0].ccId : null;
 
                             rows.push({
-                                categoryId: forceCatId,
-                                costCenterId: fallbackCC, // Usamos um CC real para evitar ser filtrado como NULL
-                                description: finalDesc || 'DIFERENÇA COLUNA P (RATEIO INCOMPLETO)',
+                                categoryId: targetCatId,
+                                costCenterId: ccIdToUse,
+                                description: finalDesc || 'SALDO COLUNA P',
                                 amount: parseFloat(remainder.toFixed(2)),
                                 month: selectedMonth,
                                 tenantId: effectiveCat!.tenantId

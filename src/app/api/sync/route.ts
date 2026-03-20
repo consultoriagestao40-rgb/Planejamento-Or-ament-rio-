@@ -62,7 +62,8 @@ export async function GET(request: Request) {
 
             // --- SEGURANÇA MÁXIMA PARA COLUNA P ---
             // Se ainda não achou nome, mas o ID indica que é Receita (01)
-            if (!catName && (e.categoryId.includes(':01') || e.categoryId.startsWith('01'))) {
+            const isRevenue = e.categoryId.includes(':01') || e.categoryId.startsWith('01');
+            if (!catName && isRevenue) {
                 catName = "01. RECEITA BRUTA"; // Fallback para a raiz
             }
 
@@ -71,6 +72,18 @@ export async function GET(request: Request) {
                 const normalizedName = catName.toUpperCase().replace(/[^A-Z0-9]/g, '');
                 const key = `${normalizedName}|${e.month - 1}`;
                 realizedValues[key] = (realizedValues[key] || 0) + e.amount;
+                
+                // --- DUPLA INJEÇÃO NO PAI (SE FOR FILHO) ---
+                // Se o lançamento for em uma subcategoria (ex: 01.1.1), 
+                // também somamos explicitamente na raiz 01 para evitar falha no DRE
+                if (isRevenue && normalizedName !== '01RECEITABRUTA') {
+                    const parentKey = `01RECEITABRUTA|${e.month - 1}`;
+                    realizedValues[parentKey] = (realizedValues[parentKey] || 0) + e.amount;
+                }
+
+                if (e.month === 1 && isRevenue) {
+                    console.log(`[SYNC-JAN] Somando ${e.amount} em ${normalizedName} (Total Acumulado: ${realizedValues[key]})`);
+                }
             } else {
                 console.warn(`[SYNC] Valor de ${e.amount} DESCARTADO por falta de nome de categoria (ID: ${e.categoryId})`);
             }

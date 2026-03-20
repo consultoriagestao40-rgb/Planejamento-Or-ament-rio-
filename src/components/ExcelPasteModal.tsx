@@ -99,11 +99,17 @@ export function ExcelPasteModal({ isOpen, onClose, tenantId: initialTenantId, co
         if (votesVal[15] > 0) votesVal[15] += 50; 
         if (votesCat[14] > 0) votesCat[14] += 50;
 
-        // FORÇANDO COLUNA 14 (O) COMO CATEGORIA E 15 (P) COMO VALOR (LEI DO USUÁRIO)
-        let colCat = 14;
-        let colVal = 15;
+        // 2. DETECÇÃO DINÂMICA (SUBSTITUI HARDCODE)
+        let colCat = votesCat.indexOf(Math.max(...votesCat));
+        let colVal = votesVal.indexOf(Math.max(...votesVal));
+
+        // Fallback para os padrões históricos se a votação for inconclusiva
+        if (votesCat[colCat] === 0) colCat = 14; 
+        if (votesVal[colVal] === 0) colVal = 15;
         
-        console.log(`🗳️ [FORÇADO] Categoria: Col 14 (O), Valor: Col 15 (P)`);
+        console.log(`🗳️ [DETECÇÃO] Categoria: Col ${colCat} (${String.fromCharCode(65 + colCat)}), Valor: Col ${colVal} (${String.fromCharCode(65 + colVal)})`);
+        
+
 
         // Detectar se a primeira linha é cabeçalho ou dados
         const firstRow = matrix[0] || [];
@@ -349,7 +355,7 @@ export function ExcelPasteModal({ isOpen, onClose, tenantId: initialTenantId, co
 
             if (data.success) {
                 const totalSent = rows.reduce((acc: number, r: any) => acc + r.amount, 0);
-                window.alert(`✅ SUCESSO NA IMPORTAÇÃO!\n\n💰 Valor Total Enviado: ${totalSent.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}\n📝 Total de Lançamentos: ${data.count}\n\nO valor de R$ 156.022,98 deve aparecer agora no DRE (Jan/2026).`);
+                window.alert(`✅ SUCESSO NA IMPORTAÇÃO!\n\n💰 Valor Total Enviado: ${totalSent.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}\n📝 Total de Lançamentos: ${data.count}\n\nOs valores devem aparecer agora no DRE (${meses[selectedMonth - 1]} / ${year}).`);
                 setStatus(`Sucesso! ${data.count} registros importados.`);
                 setTimeout(() => { onClose(); setText(''); setStatus(null); }, 1500);
             } else {

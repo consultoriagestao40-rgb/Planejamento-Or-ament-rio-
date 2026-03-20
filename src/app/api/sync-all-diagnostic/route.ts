@@ -33,7 +33,6 @@ export async function GET() {
 
         return NextResponse.json({ 
             ok: true, 
-            version: '0.9.85',
             results, 
             parity: parityMap 
         });

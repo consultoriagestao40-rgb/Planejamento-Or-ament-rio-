@@ -124,12 +124,12 @@ export async function runCronSync(reqYear: number, tenantId?: string) {
                 const endStr = `31/12/${reqYear + 1}`;
 
                 const endpoints = viewMode === 'caixa' ? [
-                    { name: 'Recebimentos', url: 'https://api-v2.contaazul.com/v1/financeiro/eventos-financeiros/contas-a-receber/buscar', isExpense: false },
-                    { name: 'Pagamentos', url: 'https://api-v2.contaazul.com/v1/financeiro/eventos-financeiros/contas-a-pagar/buscar', isExpense: true }
+                    { name: 'Recebimentos', url: 'https://api.contaazul.com/v1/financeiro/eventos-financeiros/contas-a-receber/buscar', isExpense: false },
+                    { name: 'Pagamentos', url: 'https://api.contaazul.com/v1/financeiro/eventos-financeiros/contas-a-pagar/buscar', isExpense: true }
                 ] : [
-                    { name: 'Recebimentos', url: 'https://api-v2.contaazul.com/v1/financeiro/eventos-financeiros/contas-a-receber/buscar', isExpense: false },
-                    { name: 'Vendas', url: 'https://api-v2.contaazul.com/v1/vendas/buscar', isExpense: false },
-                    { name: 'Pagamentos', url: 'https://api-v2.contaazul.com/v1/financeiro/eventos-financeiros/contas-a-pagar/buscar', isExpense: true }
+                    { name: 'Recebimentos', url: 'https://api.contaazul.com/v1/financeiro/eventos-financeiros/contas-a-receber/buscar', isExpense: false },
+                    { name: 'Vendas', url: 'https://api.contaazul.com/v1/vendas/buscar', isExpense: false },
+                    { name: 'Pagamentos', url: 'https://api.contaazul.com/v1/financeiro/eventos-financeiros/contas-a-pagar/buscar', isExpense: true }
                 ];
 
                 const entriesMap = new Map<string, any>();

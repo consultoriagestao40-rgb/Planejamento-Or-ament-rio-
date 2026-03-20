@@ -169,10 +169,10 @@ export function ExcelPasteModal({ isOpen, onClose, tenantId: initialTenantId, co
                 const rateiosInfo: { ccId: string | null, ccName: string, amountInformado: number }[] = [];
                 let somaInformadaCCs = 0;
 
-                // Rateios começam em colunas fixas ou dinâmicas?
-                // No Conta Azul padrão começam na Col Q (16).
-                if (cols.length > 16) {
-                    for (let i = 16; i < cols.length; i += 2) {
+                // Rateios começam logo após a coluna de Valor (colVal + 1)
+                const rateioStart = colVal + 1;
+                if (cols.length > rateioStart) {
+                    for (let i = rateioStart; i < cols.length; i += 2) {
                         const ccName = String(cols[i] || '').trim();
                         const ccAmountRaw = cols[i+1];
 

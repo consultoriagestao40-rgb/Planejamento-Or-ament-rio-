@@ -176,20 +176,30 @@ export function ExcelPasteModal({ isOpen, onClose, tenantId: initialTenantId, co
                 const valP = typeof cols[colVal] === 'number' ? cols[colVal] : parseFloat(String(cols[colVal] || '').replace(/[R$\s.]/g, '').replace(',', '.'));
                 const finalAmount = isNaN(valP) ? 0 : valP;
 
-                if (!cat) {
+                let effectiveCat = cat;
+                if (!effectiveCat && Math.abs(finalAmount) > 0) {
+                    // SE NÃO ACHOU CATEGORIA, NÃO PODE PERDER O VALOR (PEDIDO DO USUÁRIO)
+                    // Tenta achar a primeira categoria de RECEITA (01) do grupo
+                    effectiveCat = groupCategories.find(c => c.id.includes(':01') || c.name.startsWith('01'));
+                    if (effectiveCat) {
+                        console.warn(`⚠️ Categoria [${categoriaRaw}] não encontrada. Atribuindo ao fallback de Receita para não perder os ${finalAmount} da Coluna P.`);
+                    }
+                }
+
+                if (!effectiveCat) {
                     if (Math.abs(finalAmount) > 0) {
                         ignoredSumTotal += Math.abs(finalAmount);
-                        console.warn(`⚠️ Linha ${idx} ignorada (Sem Categoria):`, categoriaRaw, "| Valor:", finalAmount);
+                        console.warn(`❌ Linha ${idx} ignorada TOTALMENTE (Sem Categoria e sem Fallback):`, categoriaRaw, "| Valor:", finalAmount);
                     }
                     continue;
                 }
 
                 // If we found a category, mark as detected revenue if it starts with 01
-                if (cat.id.includes(':01') || cat.name.startsWith('01') || catCode?.startsWith('01')) {
+                if (effectiveCat.id.includes(':01') || effectiveCat.name.startsWith('01') || catCode?.startsWith('01')) {
                     revenueSumDetected += Math.abs(finalAmount);
                 }
 
-                const finalDesc = fornecedor ? `${fornecedor} - ${descricao}` : descricao;
+                const finalDesc = fornecedor ? `${fornecedor} - ${descricao}` : (categoriaRaw ? `${categoriaRaw} - ${descricao}` : descricao);
                 
                 // --- LÓGICA DE RATEIO PROPORCIONAL ---
                 const rateiosInfo: { ccId: string | null, ccName: string, amountInformado: number }[] = [];
@@ -232,12 +242,12 @@ export function ExcelPasteModal({ isOpen, onClose, tenantId: initialTenantId, co
                             const amt = info.amountInformado;
                             if (amt > 0) {
                                 rows.push({
-                                    categoryId: cat.id,
+                                    categoryId: effectiveCat!.id,
                                     costCenterId: info.ccId,
                                     description: finalDesc || 'Importação Excel',
                                     amount: amt,
                                     month: selectedMonth,
-                                    tenantId: cat.tenantId
+                                    tenantId: effectiveCat!.tenantId
                                 });
                                 totalDistributed += amt;
                             }
@@ -246,23 +256,23 @@ export function ExcelPasteModal({ isOpen, onClose, tenantId: initialTenantId, co
                         const remainder = Math.abs(finalAmount) - totalDistributed;
                         if (remainder > 0.01) { // Tolerância de centavos
                             rows.push({
-                                categoryId: cat.id,
+                                categoryId: effectiveCat!.id,
                                 costCenterId: null,
-                                description: finalDesc || 'Importação (Resto Rateio)',
+                                description: finalDesc || 'Importação (Resto Column P)',
                                 amount: parseFloat(remainder.toFixed(2)),
                                 month: selectedMonth,
-                                tenantId: cat.tenantId
+                                tenantId: effectiveCat!.tenantId
                             });
                         }
                     } else {
                         // Sem Colunas de Rateio -> Vai tudo para o Centro de Custo Geral (null)
                         rows.push({
-                            categoryId: cat.id,
+                            categoryId: effectiveCat!.id,
                             costCenterId: null,
                             description: finalDesc || 'Importação Excel',
                             amount: Math.abs(finalAmount),
                             month: selectedMonth,
-                            tenantId: cat.tenantId
+                            tenantId: effectiveCat!.tenantId
                         });
                     }
                 }

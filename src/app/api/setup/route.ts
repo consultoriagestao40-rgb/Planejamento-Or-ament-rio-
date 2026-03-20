@@ -6,12 +6,13 @@ export const dynamic = 'force-dynamic';
 export async function GET() {
     try {
         // ABSOLUTELY NO FILTERS - LOAD EVERYTHING TO RECOVER VISIBILITY
-        const [categories, costCenters] = await Promise.all([
+        const [categories, costCenters, tenants] = await Promise.all([
             prisma.category.findMany({ orderBy: { name: 'asc' } }),
             prisma.costCenter.findMany({ 
                 include: { tenant: { select: { name: true } } },
                 orderBy: { name: 'asc' } 
-            })
+            }),
+            prisma.tenant.findMany({ select: { id: true, name: true } })
         ]);
 
         console.log(`[RECOVERY] Loaded ${categories.length} categories and ${costCenters.length} cost centers`);
@@ -31,6 +32,10 @@ export async function GET() {
                 name: cc.name,
                 tenantId: cc.tenantId,
                 tenantName: cc.tenant?.name || 'Empresa Desconhecida'
+            })),
+            tenants: tenants.map((t: any) => ({
+                id: t.id,
+                name: t.name
             }))
         });
     } catch (error: any) {

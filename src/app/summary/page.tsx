@@ -76,12 +76,13 @@ export default function BudgetSummaryPage() {
             if (summaryResult.success) setData(summaryResult.data);
             if (authResult.success) setUserRole(authResult.user.role);
             if (setupResult.success) {
-                const companies = Array.from(new Set(setupResult.costCenters.map((cc: any) => JSON.stringify({ id: cc.tenantId, name: cc.tenantName }))))
-                    .map((s: any) => JSON.parse(s));
+                // Use the complete list of tenants from the setup API
+                const companies = setupResult.tenants || [];
+                
                 setSetupData({ 
                     categories: setupResult.categories, 
                     costCenters: setupResult.costCenters,
-                    companies: companies
+                    companies: companies 
                 });
             }
         } catch (e: any) {

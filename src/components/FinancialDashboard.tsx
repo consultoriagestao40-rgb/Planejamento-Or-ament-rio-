@@ -22,9 +22,7 @@ export default function FinancialDashboard({
 }: FinancialDashboardProps) {
     const [refreshKey, setRefreshKey] = useState(0);
     const [companies, setCompanies] = useState<any[]>([]);
-    const [categories, setCategories] = useState<any[]>([]);
     const [isSyncing, setIsSyncing] = useState(false);
-    const [isExcelModalOpen, setIsExcelModalOpen] = useState(false);
     const [showAV, setShowAV] = useState(false);
     const [showAH, setShowAH] = useState(false);
     const [showAH_MoM, setShowAH_MoM] = useState(false);
@@ -38,13 +36,6 @@ export default function FinancialDashboard({
                 .then(res => res.json())
                 .then(data => {
                     if (data.success) setCompanies(data.companies);
-                })
-                .catch(console.error);
-            
-            fetch('/api/setup?tenantId=ALL')
-                .then(res => res.json())
-                .then(data => {
-                    if (data.success) setCategories(data.categories);
                 })
                 .catch(console.error);
         }
@@ -156,13 +147,7 @@ export default function FinancialDashboard({
 
                                     <SyncButton onSyncStart={() => setIsSyncing(true)} onSyncComplete={triggerRefresh} year={selectedYear} />
 
-                                    <button 
-                                        onClick={() => setIsExcelModalOpen(true)}
-                                        className="btn btn-secondary" 
-                                        style={{ height: '34px', fontSize: '0.78rem', backgroundColor: '#f59e0b', color: 'white', border: 'none' }}
-                                    >
-                                        📊 Importar Excel
-                                    </button>
+                                    <SyncButton onSyncStart={() => setIsSyncing(true)} onSyncComplete={triggerRefresh} year={selectedYear} />
 
                                     <a href="/summary" className="btn btn-secondary" style={{ height: '34px', fontSize: '0.78rem' }}>
                                         📋 Resumo por CC
@@ -260,19 +245,6 @@ export default function FinancialDashboard({
                     />
                 </section>
             </div>
-
-            {/* Excel Paste Modal */}
-            <ExcelPasteModal 
-                isOpen={isExcelModalOpen}
-                onClose={() => {
-                    setIsExcelModalOpen(false);
-                    triggerRefresh();
-                }}
-                tenantId={companies[0]?.id || ''}
-                year={selectedYear}
-                viewMode="competencia"
-                categories={categories}
-            />
         </main>
     );
 }

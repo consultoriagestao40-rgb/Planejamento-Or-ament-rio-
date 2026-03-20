@@ -3,6 +3,7 @@
 
 import React, { useState, useMemo, useEffect } from 'react';
 import { MONTHS, MOCK_COST_CENTERS } from '@/lib/mock-data';
+import { ExcelPasteModal } from '@/components/ExcelPasteModal';
 
 interface BudgetGridProps {
     refreshKey?: number;
@@ -57,6 +58,7 @@ export default function BudgetGrid({
     const [isCCLocked, setIsCCLocked] = useState(false);
     const [radarLocks, setRadarLocks] = useState<any[]>([]);
     const [realizedValues, setRealizedValues] = useState<Record<string, number>>({});
+    const [isExcelModalOpen, setIsExcelModalOpen] = useState(false);
 
     const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
     const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set()); // New state for main groups
@@ -1394,6 +1396,17 @@ export default function BudgetGrid({
                     <div style={{ display: 'flex', gap: '0.4rem' }}>
                         <button onClick={applyFilter} className="btn btn-primary" style={{ padding: '0 1rem', height: '32px', fontSize: '0.75rem' }}>Filtrar</button>
                         <button onClick={clearFilter} className="btn btn-secondary" style={{ padding: '0 1rem', height: '32px', fontSize: '0.75rem' }}>Limpar</button>
+                        
+                        {selectedCompany.length === 1 && selectedCompany[0] !== 'DEFAULT' && (
+                            <button 
+                                onClick={() => setIsExcelModalOpen(true)}
+                                className="btn btn-secondary" 
+                                style={{ padding: '0 1rem', height: '32px', fontSize: '0.75rem', backgroundColor: '#f59e0b', color: 'white', border: 'none' }}
+                                title="Importar Realizado do Excel para esta empresa"
+                            >
+                                📊 Importar Excel
+                            </button>
+                        )}
                     </div>
                 </div>
 
@@ -1913,6 +1926,21 @@ export default function BudgetGrid({
                     </div>
                 )}
             <div style={{ height: '2rem' }}></div> {/* Spacer after card */}
+
+            {/* Excel Paste Modal - Contextualized per single company selection */}
+            <ExcelPasteModal 
+                isOpen={isExcelModalOpen}
+                onClose={() => {
+                    setIsExcelModalOpen(false);
+                    triggerRefresh();
+                }}
+                tenantId={selectedCompany[0]}
+                companyName={companies.find(c => c.id === selectedCompany[0])?.name || selectedCompany[0]}
+                categories={categories}
+                costCenters={costCenters}
+                year={selectedYear}
+                viewMode={viewMode}
+            />
         </>
     );
 }

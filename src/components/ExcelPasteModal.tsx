@@ -114,24 +114,21 @@ export function ExcelPasteModal({ isOpen, onClose, tenantId: initialTenantId, co
 
         if (headerIndices.cat !== -1) colCat = headerIndices.cat;
         if (headerIndices.val !== -1) colVal = headerIndices.val;
-
         // SE O AUTO-DETECT FALHAR OU DER VALORES ESTRANHOS (COMO 0), FORÇAMOS 15/16 (Onde 15=Categoria, 16=Valor)
         if (colCat === 0 || colCat === -1) colCat = 15;
         if (colVal === 0 || colVal === -1) colVal = 16;
 
-        console.log(`🗳️ [AUTO-DETECT] Categoria: Col ${colCat}, Valor: Col ${colVal}`);
-        console.log("📝 [NUCLEAR DEBUG] Primeiras 3 linhas da Matrix:", matrix.slice(0, 3));
+        console.log(`🗳️ [V50.2] Categoria: Col ${colCat}, Valor: Col ${colVal}`); 
+        console.log("📝 [NUCLEAR DEBUG] Primeiras 3 linhas da Matrix:", JSON.stringify(matrix.slice(0, 3)));
         
-
-
         // 3. Detectar se a primeira linha é cabeçalho ou dados (usando indices detectados ou fallback)
         const isHeader = headerIndices.cat !== -1 || headerIndices.val !== -1 ||
                          String(firstRow[14] || '').toLowerCase().includes('categoria') || 
                          String(firstRow[15] || '').toLowerCase().includes('valor');
 
         // --- SOMA BRUTA PARA AUDITORIA ---
-        matrix.forEach((row, idx) => {
-            if (idx === 0 && isHeader) return; 
+        matrix.forEach((row, rIdx) => {
+            if (rIdx === 0 && isHeader) return; 
             const valP = typeof row[colVal] === 'number' ? row[colVal] : parseFloat(String(row[colVal] || '').replace(/[R$\s.]/g, '').replace(',', '.'));
             if (!isNaN(valP)) rawSumPInFile += valP;
         });
@@ -144,15 +141,27 @@ export function ExcelPasteModal({ isOpen, onClose, tenantId: initialTenantId, co
             const cols = matrix[idx];
             try {
                 if (idx === 0 && isHeader) continue; 
-                if (!cols || cols.length <= colCat) continue;
+                if (!cols || cols.length <= 1) continue;
 
                 // Dados Fixos (A=0, E=4, G=6...)
                 const dataCompetencia = String(cols[0] || '').trim();
                 const descricao = String(cols[4] || '').trim();
                 const fornecedor = String(cols[6] || '').trim();
-                const categoriaRaw = String(cols[colCat] || '').trim();
+                
+                // --- LÓGICA ULTRA-RESILIENTE PARA CATEGORIA E VALOR ---
+                let categoriaRaw = String(cols[colCat] || '').trim();
+                let valP = typeof cols[colVal] === 'number' ? cols[colVal] : parseFloat(String(cols[colVal] || '').replace(/[R$\s.]/g, '').replace(',', '.'));
+                
+                if (isNaN(valP) || valP === 0) {
+                    const altVal = parseFloat(String(cols[colCat] || '').replace(/[R$\s.]/g, '').replace(',', '.'));
+                    if (!isNaN(altVal) && altVal !== 0) {
+                        valP = altVal;
+                        if (!categoriaRaw.includes('.') && cols[colCat-1]) {
+                             categoriaRaw = String(cols[colCat-1] || '').trim();
+                        }
+                    }
+                }
 
-                const valP = typeof cols[colVal] === 'number' ? cols[colVal] : parseFloat(String(cols[colVal] || '').replace(/[R$\s.]/g, '').replace(',', '.'));
                 const finalAmount = isNaN(valP) ? 0 : valP;
 
                 if (!categoriaRaw && !dataCompetencia && Math.abs(finalAmount) === 0) continue;

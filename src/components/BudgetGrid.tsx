@@ -259,6 +259,29 @@ export default function BudgetGrid({
 
         loadValues();
     }, [selectedCostCenter, selectedCompany, selectedYear, refreshKey, viewMode]);
+    
+    // --- VARIANT LOGIC (CNPJ-BASED) ---
+    const activeVariantIds = useMemo(() => {
+        if (selectedCompany.includes('DEFAULT')) return [];
+        const localTenantId = selectedCompany[0];
+        const current = companies.find(c => c.id === localTenantId);
+        if (!current) return selectedCompany;
+        
+        const getBaseCnpj = (cnpj: string) => (cnpj || '').replace(/\D/g, '').substring(0, 8);
+        const currentBase = getBaseCnpj((current as any).cnpj);
+        
+        const normalize = (n: string) => (n || '').trim().toUpperCase().replace(/[^A-Z0-9]/g, '').replace(/LTDA$/, '').replace(/SA$/, '');
+        const currentNorm = normalize(current.name);
+        
+        return companies
+            .filter((c: any) => {
+                if (currentBase && currentBase.length === 8) {
+                    return getBaseCnpj(c.cnpj) === currentBase;
+                }
+                return normalize(c.name) === currentNorm;
+            })
+            .map(c => c.id);
+    }, [companies, selectedCompany]);
 
     // --- HIERARCHY BUILDER ---
     const treeRoots = useMemo(() => {
@@ -269,7 +292,7 @@ export default function BudgetGrid({
 
         const validCategories = selectedCompany.includes('DEFAULT') 
             ? categories 
-            : categories.filter((c: any) => selectedCompany.includes(c.tenantId || ''));
+            : categories.filter((c: any) => activeVariantIds.includes(c.tenantId || ''));
 
         // 1. Initial Load
         validCategories.forEach((cat: any) => {

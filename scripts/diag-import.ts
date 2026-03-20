@@ -2,36 +2,32 @@ import { PrismaClient } from '@prisma/client';
 const prisma = new PrismaClient();
 
 async function main() {
-  console.log("=== ÚLTIMOS REGISTROS NO REALIZADO (Últimas 24h) ===");
+  console.log("=== DIAGNÓSTICO DE VALORES (Últimas 24h) ===");
   const yesterday = new Date();
   yesterday.setHours(yesterday.getHours() - 24);
 
-  const latest = await prisma.realizedEntry.findMany({
+  const entries = await prisma.realizedEntry.findMany({
     where: {
       createdAt: { gte: yesterday }
     },
-    take: 50,
-    orderBy: { createdAt: 'desc' },
-    select: {
-      id: true,
-      description: true,
-      amount: true,
-      month: true,
-      year: true,
-      viewMode: true,
-      tenantId: true,
-      createdAt: true,
-      category: { select: { name: true } },
-      costCenter: { select: { name: true } }
+    include: {
+        category: true
     }
   });
   
-  if (latest.length === 0) {
+  const summary: Record<string, number> = {};
+  entries.forEach((e: any) => {
+      const catName = e.category?.name || "SEM CATEGORIA";
+      summary[catName] = (summary[catName] || 0) + e.amount;
+  });
+
+  console.log("Resumo por Categoria:");
+  Object.entries(summary).forEach(([name, total]) => {
+      console.log(`${name}: ${total.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`);
+  });
+
+  if (entries.length === 0) {
     console.log("Nenhum registro encontrado nas últimas 24h.");
-  } else {
-    latest.forEach((r: any) => {
-      console.log(`[${r.createdAt.toISOString()}] | ${r.tenantId} | Mês: ${r.month} | ${r.amount} | ${r.category?.name} | ${r.costCenter?.name || 'GERAL'} | ${r.description}`);
-    });
   }
 }
 

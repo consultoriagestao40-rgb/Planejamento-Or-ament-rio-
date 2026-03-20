@@ -41,11 +41,11 @@ export function ExcelPasteModal({ isOpen, onClose, tenantId: initialTenantId, co
         for (const cols of matrix) {
             if (!cols || cols.length < 15) continue;
 
-            // Dados Fixos (A=0, E=4, G=6, L=11, O=14)
+            // Dados Fixos (A=0, E=4, G=6, L=11, O=14, P=15)
             const dataCompetencia = String(cols[0] || '').trim();
             const descricao = String(cols[4] || '').trim();
             const fornecedor = String(cols[6] || '').trim();
-            const valorTotalStr = String(cols[11] || '').trim();
+            const valorTotalStr = String(cols[15] || '').trim(); // Usando Coluna P (Valor na Categoria)
             const categoriaRaw = String(cols[14] || '').trim();
 
             // Pular cabeçalhos
@@ -93,7 +93,7 @@ export function ExcelPasteModal({ isOpen, onClose, tenantId: initialTenantId, co
                                 categoryId: cat.id,
                                 costCenterId: ccId,
                                 description: finalDesc || 'Importação Excel',
-                                amount: ccAmount,
+                                amount: Math.abs(ccAmount), // Garantindo positivo para o banco
                                 month: selectedMonth
                             });
                             hasRateio = true;
@@ -104,8 +104,8 @@ export function ExcelPasteModal({ isOpen, onClose, tenantId: initialTenantId, co
 
             if (!hasRateio) {
                 let totalAmount = 0;
-                if (typeof cols[11] === 'number') {
-                    totalAmount = cols[11];
+                if (typeof cols[15] === 'number') {
+                    totalAmount = cols[15];
                 } else {
                     totalAmount = parseFloat(valorTotalStr.replace(/[R$\s.]/g, '').replace(',', '.'));
                 }
@@ -115,7 +115,7 @@ export function ExcelPasteModal({ isOpen, onClose, tenantId: initialTenantId, co
                         categoryId: cat.id,
                         costCenterId: null,
                         description: finalDesc || 'Importação Excel',
-                        amount: totalAmount,
+                        amount: Math.abs(totalAmount), // Garantindo positivo para o banco
                         month: selectedMonth
                     });
                 }

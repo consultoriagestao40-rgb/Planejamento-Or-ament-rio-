@@ -3,59 +3,40 @@ import { prisma } from '@/lib/prisma';
 
 export const dynamic = 'force-dynamic';
 
-export async function GET(request: Request) {
+export async function GET() {
     try {
-        const tenants = await prisma.tenant.findMany({
-            where: { accessToken: { not: null } }
+        const year = 2026;
+        const countRealized = await prisma.realizedEntry.count({ where: { year } });
+        const countCategories = await prisma.category.count();
+        const firstEntries = await prisma.realizedEntry.findMany({ 
+            where: { year },
+            take: 3,
+            select: { categoryId: true, amount: true, tenantId: true, month: true }
         });
 
-        const results: any[] = [];
+        const checkCats = await Promise.all(firstEntries.map(async (e) => {
+            const cat = await prisma.category.findUnique({ where: { id: e.categoryId } });
+            return {
+                categoryId: e.categoryId,
+                amount: e.amount,
+                found: !!cat,
+                catName: cat?.name || 'NOT FOUND'
+            };
+        }));
 
-        for (const tenant of tenants) {
-            if (!tenant.name.includes("JVS FACILITIES")) continue;
-            
-            let page = 1;
-            let hasMore = true;
+        const tenants = await prisma.tenant.findMany({ select: { id: true, name: true } });
 
-            while (hasMore && page <= 5) { // Search up to 5 pages
-                const url = `https://api-v2.contaazul.com/v1/financeiro/eventos-financeiros/contas-a-pagar/buscar?data_vencimento_de=2025-12-01&data_vencimento_ate=2026-02-28&tamanho_pagina=100&pagina=${page}`;
-
-                const res = await fetch(url, {
-                    headers: { 'Authorization': `Bearer ${tenant.accessToken}` },
-                    cache: 'no-store'
-                });
-
-                if (!res.ok) { hasMore = false; break; }
-
-                const body = await res.json();
-                const items = body.itens || [];
-                if (items.length === 0) { hasMore = false; break; }
-
-                const matchingTotal = items.filter((i: any) => {
-                    const val = i.valor || i.total || i.valor_original;
-                    // match specific rateio or title
-                    return (val >= 5740 && val <= 5750) || (i.descricao && i.descricao.includes('VT'));
-                });
-
-                if (matchingTotal.length > 0) {
-                    results.push({
-                        tenant: tenant.name,
-                        page,
-                        transactions: matchingTotal.map((t: any) => ({
-                            id: t.id,
-                            desc: t.descricao,
-                            total: t.valor || t.total,
-                            ccs: t.centros_de_custo
-                        }))
-                    });
-                }
-                
-                page++;
-            }
-        }
-
-        return NextResponse.json({ success: true, results });
-
+        return NextResponse.json({
+            success: true,
+            year,
+            database: {
+                realizedCount: countRealized,
+                categoriesCount: countCategories,
+                tenants: tenants.map(t => ({ id: t.id, name: t.name })),
+                sampleIntegrity: checkCats
+            },
+            timestamp: new Date().toISOString()
+        });
     } catch (e: any) {
         return NextResponse.json({ success: false, error: e.message });
     }

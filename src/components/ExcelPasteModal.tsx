@@ -99,19 +99,30 @@ export function ExcelPasteModal({ isOpen, onClose, tenantId: initialTenantId, co
         if (votesVal[15] > 0) votesVal[15] += 50; 
         if (votesCat[14] > 0) votesCat[14] += 50;
 
-        // 2. FORÇANDO COLUNA 14 (O) COMO CATEGORIA E 15 (P) COMO VALOR (LEI DO USUÁRIO)
-        // A detecção dinâmica foi removida a pedido para garantir fidelidade ao arquivo padrão.
-        let colCat = 14;
-        let colVal = 15;
-        
-        console.log(`🗳️ [FORÇADO] Categoria: Col 14 (O), Valor: Col 15 (P)`);
-        
+        // 1.5. DETECÇÃO DINÂMICA DE CABEÇALHO (NOVA LOGICA V47.49)
+        // Buscamos as colunas certas pelos nomes, independente de estarem na posição 14/15 ou não.
+        let colCat = 14; 
+        let colVal = 15; 
 
-
-        // Detectar se a primeira linha é cabeçalho ou dados
         const firstRow = matrix[0] || [];
-        const isHeader = String(firstRow[colCat] || '').toLowerCase().includes('categoria') || 
-                         String(firstRow[colVal] || '').toLowerCase().includes('valor');
+        const headerIndices = firstRow.reduce((acc: any, cell, i) => {
+            const s = String(cell || '').toLowerCase().trim();
+            if (s.includes('valor na categoria')) acc.val = i;
+            if (s.includes('categoria 1')) acc.cat = i;
+            return acc;
+        }, { val: -1, cat: -1 });
+
+        if (headerIndices.cat !== -1) colCat = headerIndices.cat;
+        if (headerIndices.val !== -1) colVal = headerIndices.val;
+
+        console.log(`🗳️ [AUTO-DETECT] Categoria: Col ${colCat}, Valor: Col ${colVal}`);
+        
+
+
+        // 3. Detectar se a primeira linha é cabeçalho ou dados (usando indices detectados ou fallback)
+        const isHeader = headerIndices.cat !== -1 || headerIndices.val !== -1 ||
+                         String(firstRow[14] || '').toLowerCase().includes('categoria') || 
+                         String(firstRow[15] || '').toLowerCase().includes('valor');
 
         // --- SOMA BRUTA PARA AUDITORIA ---
         matrix.forEach((row, idx) => {
@@ -193,7 +204,7 @@ export function ExcelPasteModal({ isOpen, onClose, tenantId: initialTenantId, co
 
                 // If we found a category, mark as detected revenue if it starts with 01
                 if (effectiveCat.id.includes(':01') || effectiveCat.name.startsWith('01') || catCode?.startsWith('01')) {
-                    revenueSumDetected += Math.abs(finalAmount);
+                    revenueSumDetected += finalAmount; // USAR VALOR REAL PARA SOMA (Pode ser negativo de ajuste)
                 }
 
                 const finalDesc = fornecedor ? `${fornecedor} - ${descricao}` : (categoriaRaw ? `${categoriaRaw} - ${descricao}` : descricao);
@@ -224,8 +235,8 @@ export function ExcelPasteModal({ isOpen, onClose, tenantId: initialTenantId, co
                             });
                             if (foundCC) ccId = foundCC.id;
 
-                            rateiosInfo.push({ ccId, ccName, amountInformado: Math.abs(amtCC) });
-                            somaInformadaCCs += Math.abs(amtCC);
+                            rateiosInfo.push({ ccId, ccName, amountInformado: amtCC });
+                            somaInformadaCCs += amtCC;
                         }
                     }
                 }
@@ -237,7 +248,7 @@ export function ExcelPasteModal({ isOpen, onClose, tenantId: initialTenantId, co
                         
                         rateiosInfo.forEach((info) => {
                             const amt = info.amountInformado;
-                            if (amt > 0) {
+                            if (Math.abs(amt) > 0) { // Pode ser negativo, mas tem que ser != 0
                                 rows.push({
                                     categoryId: effectiveCat!.id,
                                     costCenterId: info.ccId,
@@ -250,12 +261,14 @@ export function ExcelPasteModal({ isOpen, onClose, tenantId: initialTenantId, co
                             }
                         });
 
-                        const remainder = Math.abs(finalAmount) - totalDistributed;
-                        if (Math.abs(remainder) > 0.01) { // Tolerância de centavos (agora aceita negativo se rateios > P)
-                            // --- REGRA DE OURO (V47.48) ---
-                            // O saldo da Coluna P deve ir obrigatoriamente para a mesma conta da linha.
+                        const remainder = finalAmount - totalDistributed;
+                        if (Math.abs(remainder) > 0.01) { 
+                            // --- REGRA DE OURO (V47.48.1) ---
+                            // Se for receita (01), força o saldo para a conta primordial 01.1.1
                             let targetCatId = effectiveCat!.id;
-                            if (targetCatId.endsWith(':01') || targetCatId === '01') {
+                            const isRevenue = targetCatId.includes(':01') || targetCatId.startsWith('01');
+                            
+                            if (isRevenue) {
                                 const sub = groupCategories.find(c => 
                                     c.id.includes(':01.1.1') || c.name.includes('01.1.1')
                                 );
@@ -268,11 +281,7 @@ export function ExcelPasteModal({ isOpen, onClose, tenantId: initialTenantId, co
                                 categoryId: targetCatId,
                                 costCenterId: ccIdToUse,
                                 description: finalDesc || (remainder > 0 ? 'SALDO COLUNA P' : 'AJUSTE RATEIO > COL P'),
-                                amount: parseFloat(remainder.toFixed(2)), // Pode ser negativo se rateios forem maiores que P? 
-                                // Na verdade, amount no Prisma costuma ser Float positivo. 
-                                // Se remainder < 0, significa que os rateios já cobriram o valor bruto e passaram.
-                                // Para garantir Column P, se remainder < 0, deveríamos subtrair do total?
-                                // Por ora, vamos garantir que a SOMA de todos os rows desta 'linha' seja igual a finalAmount.
+                                amount: parseFloat(remainder.toFixed(2)), 
                                 month: rowMonth,
                                 tenantId: effectiveCat!.tenantId
                             });
@@ -283,7 +292,7 @@ export function ExcelPasteModal({ isOpen, onClose, tenantId: initialTenantId, co
                             categoryId: effectiveCat!.id,
                             costCenterId: null,
                             description: finalDesc || 'Importação Excel',
-                            amount: Math.abs(finalAmount),
+                            amount: finalAmount, // VALOR REAL
                             month: rowMonth,
                             tenantId: effectiveCat!.tenantId
                         });

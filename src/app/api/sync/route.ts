@@ -18,7 +18,7 @@ export async function GET(request: Request) {
 
         let allVariantIds: string[] = [];
 
-        if (tenantIdParam === 'ALL') {
+        if (tenantIdParam === 'ALL' || tenantIdParam === 'DEFAULT') {
             allVariantIds = allTenants.map(t => t.id);
         } else {
             const inputIds = tenantIdParam.split(',').map(t => t.trim()).filter(Boolean);

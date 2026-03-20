@@ -49,8 +49,9 @@ export function ExcelPasteModal({ isOpen, onClose, tenantId: initialTenantId, co
                 const valorTotalStr = String(cols[15] || '').trim(); // Usando Coluna P (Valor na Categoria)
                 const categoriaRaw = String(cols[14] || '').trim();
 
-                // Pular cabeçalhos
-                if (dataCompetencia.toLowerCase().includes('data') || categoriaRaw.toLowerCase().includes('categoria') || !dataCompetencia) continue;
+                // Pular cabeçalhos (mas ser tolerante se houver valor e categoria em baixo)
+                if (dataCompetencia.toLowerCase().includes('competência') || categoriaRaw.toLowerCase().includes('categoria')) continue;
+                if (!dataCompetencia && !categoriaRaw) continue;
 
                 // Extrair Código de Categoria (ex: 03.3.1)
                 const catCodeMatch = categoriaRaw.match(/^(\d{1,2}\.\d{1,2}(\.\d{1,2})?)/);

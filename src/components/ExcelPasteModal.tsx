@@ -255,10 +255,18 @@ export function ExcelPasteModal({ isOpen, onClose, tenantId: initialTenantId, co
 
                         const remainder = Math.abs(finalAmount) - totalDistributed;
                         if (remainder > 0.01) { // Tolerância de centavos
+                            // USAR A MESMA CATEGORIA (EFICAZ) OU FILHA (01.1) PARA O RESTO
+                            // Se a categoria for a raiz 01, tenta botar na 01.1
+                            let leafCatId = effectiveCat!.id;
+                            if (leafCatId.endsWith(':01')) {
+                                const leaf = groupCategories.find(c => c.id.includes(':01.1') || c.name.startsWith('01.1'));
+                                if (leaf) leafCatId = leaf.id;
+                            }
+
                             rows.push({
-                                categoryId: effectiveCat!.id,
+                                categoryId: leafCatId,
                                 costCenterId: null,
-                                description: finalDesc || 'Importação (Resto Column P)',
+                                description: finalDesc || 'AJUSTE TOTALIZADOR COLUNA P',
                                 amount: parseFloat(remainder.toFixed(2)),
                                 month: selectedMonth,
                                 tenantId: effectiveCat!.tenantId

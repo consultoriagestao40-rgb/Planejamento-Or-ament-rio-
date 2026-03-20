@@ -336,6 +336,70 @@ export async function fetchRealizedValues(accessToken: string, targetYear: numbe
     return values;
 }
 
+/**
+ * V47.10.2: Sincroniza os valores realizados (DRE) para um tenant e ano específicos.
+ * Agora com suporte total a quebra por Categoria e Centro de Custo.
+ */
+export async function syncRealizedEntries(tenantId: string, year: number, viewMode: 'caixa' | 'competencia' = 'competencia') {
+    console.log(`[SYNC-REALIZED] Iniciando para Tenant: ${tenantId}, Ano: ${year}, Modo: ${viewMode}`);
+    
+    const { token } = await getValidAccessToken(tenantId);
+    
+    // Busca os valores agregados (Categoria|CentroCusto-Mês)
+    // Passamos 'DEFAULT' para pegar todos os centros de custo quebrados.
+    const realizedMap = await fetchRealizedValues(token, year, 'DEFAULT', viewMode, tenantId);
+
+    const entriesToSave: any[] = [];
+    
+    for (const [key, amount] of Object.entries(realizedMap)) {
+        // Formato da chave: "catId|ccId-monthIdx" ou "catId|NONE-monthIdx"
+        const [idsPart, monthIdxStr] = key.split('-');
+        const [catId, ccId] = idsPart.split('|');
+        const monthIdx = parseInt(monthIdxStr, 10);
+        
+        if (isNaN(monthIdx)) continue;
+
+        const finalCcId = (ccId === 'NONE' || !ccId) ? null : ccId;
+
+        entriesToSave.push({
+            tenantId,
+            categoryId: catId,
+            costCenterId: finalCcId,
+            month: monthIdx + 1,
+            year,
+            amount,
+            viewMode,
+            externalId: `sync-${tenantId}-${catId}-${ccId || 'NONE'}-${year}-${monthIdx}-${viewMode}`,
+            description: `Sincronização Automática ${viewMode}`
+        });
+    }
+
+    // Limpa dados anteriores do mesmo período/modo para evitar duplicidade
+    await prisma.realizedEntry.deleteMany({
+        where: {
+            tenantId,
+            year,
+            viewMode
+        }
+    });
+
+    // Salva em lote
+    if (entriesToSave.length > 0) {
+        await prisma.realizedEntry.createMany({
+            data: entriesToSave,
+            skipDuplicates: true
+        });
+    }
+
+    return {
+        success: true,
+        count: entriesToSave.length,
+        tenantId,
+        year,
+        viewMode
+    };
+}
+
 async function aggregateTransactions(
     accessToken: string,
     baseUrl: string,
@@ -469,38 +533,24 @@ async function aggregateTransactions(
 
                     for (const cat of finalCats) {
                         const catId = `${tenantId}:${cat.id}`;
-                        const catValue = typeof cat.valor === 'number' ? Math.abs(cat.valor) : (amount / finalCats.length);
+                        const catValueTotal = typeof cat.valor === 'number' ? Math.abs(cat.valor) : (amount / finalCats.length);
 
-                        const key = `${catId}-${monthIdx}`;
-                        
-                        if (isMultiSelect) {
-                            // Sum allocated values for the target CCs
-                            let sumMatchingCCs = 0;
-                            processedCcs.forEach((c: any) => {
-                                const compositeCcId = `${tenantId}:${c.id}`;
-                                if (targetCcs.includes(compositeCcId) || targetCcs.includes(c.id)) {
-                                    sumMatchingCCs += c.explicitAmount !== null ? c.explicitAmount : fallbackPerCc;
-                                }
-                            });
-                            // If calculating percentage-based catValue, we should probably scale sumMatchingCCs
-                            // but usually CA doesn't split categories and CCs orthogonally in complex ways that we need to perfectly replicate here if it's already divided.
-                            targetValues[key] = (targetValues[key] || 0) + (sumMatchingCCs * (catValue / amount));
+                        // Agora distribuímos o valor da categoria entre os Centros de Custo
+                        if (ccs.length === 0) {
+                            const key = `${catId}|NONE-${monthIdx}`;
+                            targetValues[key] = (targetValues[key] || 0) + (isExpense ? -catValueTotal : catValueTotal);
                         } else {
-                            if (!isFiltered || ccs.length === 1) {
-                                targetValues[key] = (targetValues[key] || 0) + catValue;
-                            } else {
-                                let specificAmount = 0;
-                                const targetC = processedCcs.find((c: any) => {
-                                    const compositeCcId = `${tenantId}:${c.id}`;
-                                    return targetCcs.includes(compositeCcId) || targetCcs.includes(c.id);
-                                });
+                            for (const c of processedCcs) {
+                                const ccId = `${tenantId}:${c.id}`;
                                 
-                                if (targetC) {
-                                    specificAmount = targetC.explicitAmount !== null ? targetC.explicitAmount : fallbackPerCc;
-                                } else {
-                                    specificAmount = fallbackPerCc; 
-                                }
-                                targetValues[key] = (targetValues[key] || 0) + (specificAmount * (catValue / amount));
+                                // Se estivermos filtrando, ignorar CCs que não batem
+                                if (isFiltered && !targetCcs.includes(c.id) && !targetCcs.includes(ccId)) continue;
+
+                                const specificCcAmount = c.explicitAmount !== null ? c.explicitAmount : fallbackPerCc;
+                                const proportionalCatValue = catValueTotal * (specificCcAmount / amount);
+                                
+                                const key = `${catId}|${ccId}-${monthIdx}`;
+                                targetValues[key] = (targetValues[key] || 0) + (isExpense ? -proportionalCatValue : proportionalCatValue);
                             }
                         }
                     }

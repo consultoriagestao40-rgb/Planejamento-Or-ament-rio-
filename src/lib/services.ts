@@ -305,33 +305,27 @@ export async function fetchRealizedValues(accessToken: string, targetYear: numbe
     const values: Record<string, number> = {};
 
     const isCaixa = viewMode === 'caixa';
-    const startStr = isCaixa ? `${targetYear}-01-01` : `${targetYear - 1}-07-01`;
-    const endStr = isCaixa ? `${targetYear}-12-31` : `${targetYear + 1}-06-30`;
-    const dateParam = isCaixa ? 'data_pagamento' : 'data_vencimento';
+    const startStr = `${targetYear}-01-01`;
+    const endStr = `${targetYear}-12-31`;
+    const dateParam = isCaixa ? 'data_pagamento' : 'data_competencia';
     
+    // Tenta primeiro o endpoint V2 (mais moderno)
+    const baseUrlReceivables = `https://api-v2.contaazul.com/v1/financeiro/eventos-financeiros/contas-a-receber/buscar?${dateParam}_de=${startStr}&${dateParam}_ate=${endStr}&tamanho_pagina=100`;
+    const baseUrlPayables = `https://api-v2.contaazul.com/v1/financeiro/eventos-financeiros/contas-a-pagar/buscar?${dateParam}_de=${startStr}&${dateParam}_ate=${endStr}&tamanho_pagina=100`;
+
     // 1. Fetch Receivables
-    await aggregateTransactions(
-        accessToken,
-        `https://api-v2.contaazul.com/v1/financeiro/eventos-financeiros/contas-a-receber/buscar?${dateParam}_de=${startStr}&${dateParam}_ate=${endStr}&tamanho_pagina=100`,
-        values,
-        false,
-        costCenterId,
-        targetYear,
-        viewMode,
-        tenantId
-    );
+    await aggregateTransactions(accessToken, baseUrlReceivables, values, false, costCenterId, targetYear, viewMode, tenantId);
 
     // 2. Fetch Payables
-    await aggregateTransactions(
-        accessToken,
-        `https://api-v2.contaazul.com/v1/financeiro/eventos-financeiros/contas-a-pagar/buscar?${dateParam}_de=${startStr}&${dateParam}_ate=${endStr}&tamanho_pagina=100`,
-        values,
-        true, // isExpense
-        costCenterId,
-        targetYear,
-        viewMode,
-        tenantId
-    );
+    await aggregateTransactions(accessToken, baseUrlPayables, values, true, costCenterId, targetYear, viewMode, tenantId);
+
+    // 3. Fallback se estiver vazio (tenta endpoint sem v2)
+    if (Object.keys(values).length === 0) {
+        const fallbackUrlRec = baseUrlReceivables.replace('api-v2', 'api');
+        const fallbackUrlPay = baseUrlPayables.replace('api-v2', 'api');
+        await aggregateTransactions(accessToken, fallbackUrlRec, values, false, costCenterId, targetYear, viewMode, tenantId);
+        await aggregateTransactions(accessToken, fallbackUrlPay, values, true, costCenterId, targetYear, viewMode, tenantId);
+    }
 
     return values;
 }

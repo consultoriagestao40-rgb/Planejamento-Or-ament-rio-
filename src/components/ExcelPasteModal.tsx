@@ -38,6 +38,22 @@ export function ExcelPasteModal({ isOpen, onClose, tenantId: initialTenantId, co
         const rows: any[] = [];
         let ignoredSum = 0;
         let revenueSum = 0;
+        let rawSumL = 0;
+        let rawSumP = 0;
+
+        // --- SOMA BRUTA PARA AUDITORIA DO USUÁRIO ---
+        matrix.forEach((row, idx) => {
+            if (idx === 0) return; // pular cabeçalho
+            const valL = typeof row[11] === 'number' ? row[11] : parseFloat(String(row[11] || '').replace(/[R$\s.]/g, '').replace(',', '.'));
+            const valP = typeof row[15] === 'number' ? row[15] : parseFloat(String(row[15] || '').replace(/[R$\s.]/g, '').replace(',', '.'));
+            if (!isNaN(valL)) rawSumL += valL;
+            if (!isNaN(valP)) rawSumP += valP;
+        });
+
+        console.log(`📊 [AUDITORIA ARQUIVO BRUTO]`);
+        console.log(` - SOMA TOTAL COLUNA L (Valor R$): ${rawSumL.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}`);
+        console.log(` - SOMA TOTAL COLUNA P (Valor na Categoria): ${rawSumP.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })} ✅`);
+        console.log(`-----------------------------------------------`);
 
         for (const cols of matrix) {
             try {

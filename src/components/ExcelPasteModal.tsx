@@ -284,6 +284,46 @@ export function ExcelPasteModal({ isOpen, onClose, tenantId: initialTenantId, co
         setLoading(false);
     };
 
+    const handleReset = async () => {
+        if (localTenantId === 'DEFAULT' || !localTenantId) {
+            alert("Por favor, selecione uma empresa primeiro.");
+            return;
+        }
+        if (!confirm(`⚠️ ATENÇÃO: Tem certeza que deseja ZERAR todos os dados realizados de ${meses[selectedMonth - 1]} / ${year} para esta empresa e suas variantes?\n\nEsta ação apagará todos os registros importados deste mês.`)) {
+            return;
+        }
+
+        setLoading(true);
+        setStatus("Limpando dados...");
+
+        try {
+            const res = await fetch('/api/realized/bulk', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ 
+                    rows: [], 
+                    tenantId: localTenantId, 
+                    year, 
+                    viewMode, 
+                    overwrite: true, 
+                    month: selectedMonth 
+                })
+            });
+            const data = await res.json();
+
+            if (data.success) {
+                setStatus(`Sucesso! Dados de ${meses[selectedMonth - 1]} removidos.`);
+                setTimeout(() => { onClose(); setStatus(null); }, 2000);
+            } else {
+                throw new Error(data.error);
+            }
+        } catch (err: any) {
+            alert("Erro ao zerar: " + err.message);
+            setStatus(null);
+        }
+        setLoading(false);
+    };
+
     const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
         if (!file) return;
@@ -420,24 +460,44 @@ export function ExcelPasteModal({ isOpen, onClose, tenantId: initialTenantId, co
                     style={{ width: '100%', height: '120px', borderRadius: '12px', border: '2px solid #e2e8f0', padding: '1rem', fontSize: '0.85rem', fontFamily: 'SFMono-Regular, Consolas, monospace', outline: 'none', resize: 'none' }}
                 />
 
-                <div style={{ marginTop: '1.5rem', display: 'flex', justifyContent: 'flex-end', gap: '1rem' }}>
-                    <button onClick={onClose} style={{ padding: '0.75rem 1.5rem', borderRadius: '10px', border: 'none', backgroundColor: '#f1f5f9', color: '#475569', fontWeight: 600, cursor: 'pointer' }}>Cancelar</button>
+                <div style={{ marginTop: '1.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <button 
-                        onClick={() => handleProcess()} 
-                        disabled={loading || !text || localTenantId === 'DEFAULT'}
+                        onClick={handleReset}
+                        disabled={loading || localTenantId === 'DEFAULT'}
                         style={{ 
-                            backgroundColor: (loading || !text || localTenantId === 'DEFAULT') ? '#cbd5e1' : '#16a34a', 
-                            color: 'white', 
-                            padding: '0.75rem 2.5rem', 
+                            padding: '0.75rem 1.25rem', 
                             borderRadius: '10px', 
-                            border: 'none', 
+                            border: '1px solid #fee2e2', 
+                            backgroundColor: '#fef2f2', 
+                            color: '#dc2626', 
                             fontWeight: 700, 
-                            cursor: (loading || !text || localTenantId === 'DEFAULT') ? 'default' : 'pointer', 
-                            boxShadow: (loading || !text || localTenantId === 'DEFAULT') ? 'none' : '0 4px 6px -1px rgba(22, 163, 74, 0.4)' 
+                            fontSize: '0.8rem',
+                            cursor: (loading || localTenantId === 'DEFAULT') ? 'default' : 'pointer',
+                            opacity: (loading || localTenantId === 'DEFAULT') ? 0.5 : 1
                         }}
                     >
-                        {loading ? status : (!text ? 'Cole os dados ou Suba o Arquivo' : (localTenantId === 'DEFAULT' ? 'Selecione a Empresa' : '🚀 Importar agora'))}
+                        🗑️ ZERAR DADOS DO MÊS
                     </button>
+                    
+                    <div style={{ display: 'flex', gap: '1rem' }}>
+                        <button onClick={onClose} style={{ padding: '0.75rem 1.5rem', borderRadius: '10px', border: 'none', backgroundColor: '#f1f5f9', color: '#475569', fontWeight: 600, cursor: 'pointer' }}>Cancelar</button>
+                        <button 
+                            onClick={() => handleProcess()} 
+                            disabled={loading || !text || localTenantId === 'DEFAULT'}
+                            style={{ 
+                                backgroundColor: (loading || !text || localTenantId === 'DEFAULT') ? '#cbd5e1' : '#16a34a', 
+                                color: 'white', 
+                                padding: '0.75rem 2.5rem', 
+                                borderRadius: '10px', 
+                                border: 'none', 
+                                fontWeight: 700, 
+                                cursor: (loading || !text || localTenantId === 'DEFAULT') ? 'default' : 'pointer', 
+                                boxShadow: (loading || !text || localTenantId === 'DEFAULT') ? 'none' : '0 4px 6px -1px rgba(22, 163, 74, 0.4)' 
+                            }}
+                        >
+                            {loading ? status : (!text ? 'Cole os dados ou Suba o Arquivo' : (localTenantId === 'DEFAULT' ? 'Selecione a Empresa' : '🚀 Importar agora'))}
+                        </button>
+                    </div>
                 </div>
             </div>
         </div>

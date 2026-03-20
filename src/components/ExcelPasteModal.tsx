@@ -159,13 +159,36 @@ export function ExcelPasteModal({ isOpen, onClose, tenantId: initialTenantId, co
         }
 
         const totalSum = rows.reduce((acc, r) => acc + r.amount, 0);
-        console.log(`🚀 [IMPORT] Processamento Concluído!`);
-        console.log(` - Empresa: ${selectedCompany?.name} (ID: ${localTenantId})`);
-        console.log(` - Mês Alvo: ${meses[selectedMonth-1]}`);
-        console.log(` - Total de Linhas Importadas: ${rows.length}`);
-        console.log(` - Receita (01.x): ${revenueSum.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}`);
-        console.log(` - TOTAL GERAL ABSOLUTO: ${totalSum.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}`);
-        console.log(` - VALOR IGNORADO (SEM CATEGORIA): ${ignoredSum.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })} 🚩`);
+        
+        // --- RESUMO ANALÍTICO POR CATEGORIA (ESPELHO DA DINÂMICA) ---
+        const categorySummary: Record<string, { code: string, name: string, total: number }> = {};
+        rows.forEach(r => {
+            const cat = tenantCategories.find(c => c.id === r.categoryId);
+            const catId = cat?.id || 'DESCONHECIDO';
+            if (!categorySummary[catId]) {
+                categorySummary[catId] = { 
+                    code: catId.split(':').pop() || '', 
+                    name: cat?.name || '?', 
+                    total: 0 
+                };
+            }
+            categorySummary[catId].total += r.amount;
+        });
+
+        console.log(`🚀 [RESUMO DE IMPORTAÇÃO ANALÍTICO]`);
+        console.table(Object.values(categorySummary).sort((a,b) => a.code.localeCompare(b.code)));
+        
+        revenueSum = Object.values(categorySummary)
+            .filter(s => s.code.startsWith('01') || s.code.startsWith('1.'))
+            .reduce((acc, s) => acc + s.total, 0);
+
+        console.log(`📊 ESTATÍSTICAS FINAIS:`);
+        console.log(` - Empresa: ${selectedCompany?.name}`);
+        console.log(` - Receita Total Detectada (01.x): ${revenueSum.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}`);
+        console.log(` - Soma Geral Absoluta: ${totalSum.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}`);
+        console.log(` - Valor Ignorado (Sem Categoria): ${ignoredSum.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}`);
+
+        (window as any).lastImportAnalytic = categorySummary;
 
         return rows;
     };

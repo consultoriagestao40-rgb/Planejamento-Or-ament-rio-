@@ -16,8 +16,9 @@ export function middleware(request: NextRequest) {
         pathname.startsWith('/api/debug-final-jan-2026') ||
         pathname.startsWith('/api/debug-deep-audit') ||
         pathname.startsWith('/api/debug-tenants') ||
-        pathname.startsWith('/api/debug-db-dump') ||
-        pathname.startsWith('/api/diag-cats') ||
+        pathname.startsWith('/api/debug-sync') ||
+        pathname.startsWith('/api/debug-db') ||
+        pathname.startsWith('/api/diag-db') ||
         pathname.startsWith('/api/version') ||
         pathname === '/login' ||
         pathname === '/favicon.ico'

@@ -304,12 +304,7 @@ export function ExcelPasteModal({ isOpen, onClose, tenantId: initialTenantId, co
         }
 
         const totalSumRows = rows.reduce((acc, r) => acc + r.amount, 0);
-        const netSumRows = rows.reduce((acc, r) => {
-            // Se for categoria 01 (Receita), soma. Senão (Despesa), subtrai para bater com o Net da Coluna P.
-            const catId = (r.categoryId || '').toLowerCase();
-            const isRevenue = catId.includes(':01') || catId.startsWith('01');
-            return isRevenue ? acc + r.amount : acc - r.amount;
-        }, 0);
+        const netSumRows = rows.reduce((acc, r) => acc + r.amount, 0);
         
         // --- RESUMO ANALÍTICO POR CATEGORIA ---
         const categorySummary: Record<string, { code: string, name: string, total: number }> = {};

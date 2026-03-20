@@ -20,6 +20,7 @@ export function ExcelPasteModal({ isOpen, onClose, tenantId: initialTenantId, co
     const [status, setStatus] = useState<string | null>(null);
     const [localTenantId, setLocalTenantId] = useState(initialTenantId);
     const [summary, setSummary] = useState<{ totalP: number, totalRows: number, revenueP: number } | null>(null);
+    const [processedRows, setProcessedRows] = useState<any[] | null>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
 
     // Sync localTenantId when prop changes (e.g. user filters in the grid)
@@ -300,7 +301,7 @@ export function ExcelPasteModal({ isOpen, onClose, tenantId: initialTenantId, co
         console.log(` - Receita Detectada (Col P): ${revenueSumDetected.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })} ✅`);
         console.log(` - Soma Geral Absoluta: ${totalSumRows.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}`);
         console.log(` - Valor Ignorado (Sem Categoria): ${ignoredSumTotal.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}`);
-        console.log(`-----------------------------------------------`);
+        setProcessedRows(rows);
         return rows;
     };
 
@@ -566,20 +567,20 @@ export function ExcelPasteModal({ isOpen, onClose, tenantId: initialTenantId, co
                     <div style={{ display: 'flex', gap: '1rem' }}>
                         <button onClick={onClose} style={{ padding: '0.75rem 1.5rem', borderRadius: '10px', border: 'none', backgroundColor: '#f1f5f9', color: '#475569', fontWeight: 600, cursor: 'pointer' }}>Cancelar</button>
                         <button 
-                            onClick={() => handleProcess()} 
-                            disabled={loading || !text || localTenantId === 'DEFAULT'}
+                            onClick={() => handleProcess(processedRows || undefined)} 
+                            disabled={loading || (!text && !processedRows) || localTenantId === 'DEFAULT'}
                             style={{ 
-                                backgroundColor: (loading || !text || localTenantId === 'DEFAULT') ? '#cbd5e1' : '#16a34a', 
+                                backgroundColor: (loading || (!text && !processedRows) || localTenantId === 'DEFAULT') ? '#cbd5e1' : '#16a34a', 
                                 color: 'white', 
                                 padding: '0.75rem 2.5rem', 
                                 borderRadius: '10px', 
                                 border: 'none', 
                                 fontWeight: 700, 
-                                cursor: (loading || !text || localTenantId === 'DEFAULT') ? 'default' : 'pointer', 
-                                boxShadow: (loading || !text || localTenantId === 'DEFAULT') ? 'none' : '0 4px 6px -1px rgba(22, 163, 74, 0.4)' 
+                                cursor: (loading || (!text && !processedRows) || localTenantId === 'DEFAULT') ? 'default' : 'pointer', 
+                                boxShadow: (loading || (!text && !processedRows) || localTenantId === 'DEFAULT') ? 'none' : '0 4px 6px -1px rgba(22, 163, 74, 0.4)' 
                             }}
                         >
-                            {loading ? status : (!text ? 'Cole os dados ou Suba o Arquivo' : (localTenantId === 'DEFAULT' ? 'Selecione a Empresa' : '🚀 Importar agora'))}
+                            {loading ? status : ((!text && !processedRows) ? 'Cole os dados ou Suba o Arquivo' : (localTenantId === 'DEFAULT' ? 'Selecione a Empresa' : '🚀 Importar agora'))}
                         </button>
                     </div>
                 </div>

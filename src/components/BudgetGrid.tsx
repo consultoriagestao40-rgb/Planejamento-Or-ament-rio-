@@ -201,7 +201,7 @@ export default function BudgetGrid({
         const loadSetup = async () => {
             try {
                 // Ensure we get fresh categories and cost centers
-                const setupRes = await fetch('/api/setup?primaryOnly=true&t=' + Date.now(), { cache: 'no-store' });
+                const setupRes = await fetch('/api/setup?t=' + Date.now(), { cache: 'no-store' });
                 const setupData = await setupRes.json();
                 
                 if (setupData.success) {
@@ -277,20 +277,7 @@ export default function BudgetGrid({
 
         // 1. Initial Load
         validCategories.forEach((cat: any) => {
-            // V47.142 - Strict Key: Isolation + Identity
-            // REMOVED cat.tenantId from uniqueKey to merge identical categories across variants/companies in consolidated view.
             const cleanCode = (cat.name.match(/^(\d{1,2}(?:\.\d+)*)/) || [])[1] || '';
-            const uniqueKey = `${cat.type}|${cleanCode}|${cat.name.trim()}`;
-
-            if (nameMap.has(uniqueKey)) {
-                const existingNode = nameMap.get(uniqueKey)!;
-                if (!existingNode.id.split(',').includes(cat.id)) {
-                    existingNode.id += ',' + cat.id;
-                }
-                map.set(cat.id, existingNode);
-                return;
-            }
-
             const node: CategoryNode = {
                 ...cat,
                 name: cat.name,
@@ -301,7 +288,6 @@ export default function BudgetGrid({
                 tenantId: cat.tenantId
             };
             map.set(cat.id, node);
-            nameMap.set(uniqueKey, node);
             if (cleanCode) {
                 codeMap.set(cleanCode, node);
                 // Also map with leading zero if missing for hierarchy matching

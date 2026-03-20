@@ -181,9 +181,26 @@ export function ExcelPasteModal({ isOpen, onClose, tenantId: initialTenantId, co
                 const ws = wb.Sheets[wsname];
                 const data = XLSX.utils.sheet_to_json(ws, { header: 1 }) as any[][];
                 
+                // --- AUTO-DETECT MONTH FROM COLUMN A ---
+                let detectedMonth = null;
+                for (const row of data) {
+                    const dateVal = row[0];
+                    if (dateVal && (typeof dateVal === 'string' || dateVal instanceof Date)) {
+                        const d = new Date(dateVal);
+                        if (!isNaN(d.getTime()) && d.getFullYear() >= 2020) {
+                            detectedMonth = d.getMonth() + 1;
+                            break;
+                        }
+                    }
+                }
+                if (detectedMonth && detectedMonth !== selectedMonth) {
+                    setSelectedMonth(detectedMonth);
+                }
+
                 const rows = processMatrix(data);
                 if (rows.length > 0) {
-                    if (confirm(`Encontrados ${rows.length} registros no arquivo. Deseja importar agora para ${selectedCompany?.name || 'a empresa selecionada'}?`)) {
+                    const monthName = detectedMonth ? meses[detectedMonth - 1] : meses[selectedMonth - 1];
+                    if (confirm(`✅ Detectamos ${rows.length} lançamentos de ${monthName} para a empresa ${selectedCompany?.name || 'selecionada'}.\n\nDeseja realizar a importação agora?`)) {
                         await handleProcess(rows);
                     }
                 } else {

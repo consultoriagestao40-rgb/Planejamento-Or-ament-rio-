@@ -19,6 +19,7 @@ export function ExcelPasteModal({ isOpen, onClose, tenantId: initialTenantId, co
     const [loading, setLoading] = useState(false);
     const [status, setStatus] = useState<string | null>(null);
     const [localTenantId, setLocalTenantId] = useState(initialTenantId);
+    const [summary, setSummary] = useState<{ totalP: number, totalRows: number, revenueP: number } | null>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
 
     // Sync localTenantId when prop changes (e.g. user filters in the grid)
@@ -287,9 +288,16 @@ export function ExcelPasteModal({ isOpen, onClose, tenantId: initialTenantId, co
             categorySummary[catId].total += r.amount;
         });
 
+        // Final summary for UI
+        setSummary({
+            totalP: rawSumPInFile,
+            revenueP: revenueSumDetected,
+            totalRows: rows.length
+        });
+
         console.log(`🚀 [AUDITORIA] Processamento Concluído!`);
         console.log(` - Empresa Selecionada: ${selectedCompany?.name} (${localTenantId})`);
-        console.log(` - Receita Detectada (01.x): ${revenueSumDetected.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })} ✅`);
+        console.log(` - Receita Detectada (Col P): ${revenueSumDetected.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })} ✅`);
         console.log(` - Soma Geral Absoluta: ${totalSumRows.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}`);
         console.log(` - Valor Ignorado (Sem Categoria): ${ignoredSumTotal.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}`);
         console.log(`-----------------------------------------------`);
@@ -506,9 +514,26 @@ export function ExcelPasteModal({ isOpen, onClose, tenantId: initialTenantId, co
                     <p style={{ margin: '0.25rem 0 0', fontSize: '0.75rem', color: '#64748b' }}>Ou use a área de colagem abaixo</p>
                 </div>
 
-                <div style={{ backgroundColor: '#f0f9ff', padding: '1rem', borderRadius: '10px', marginBottom: '1rem', border: '1px solid #bae6fd' }}>
-                    <p style={{ fontSize: '0.8rem', color: '#0369a1', margin: 0 }}>
-                        📊 <b>Smart Parser Ativo:</b> Ele identifica automaticamente <b>Data, Fornecedor, Categoria</b> e todos os <b>Rateios (Horizontal)</b> na planilha do Conta Azul.
+                {summary && (
+                    <div style={{ backgroundColor: '#f0fdf4', padding: '1rem', borderRadius: '12px', marginBottom: '1rem', border: '1px solid #bbf7d0', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                        <div>
+                            <p style={{ margin: 0, fontSize: '0.75rem', color: '#166534', fontWeight: 600 }}>RECEITA DETECTADA (COL P)</p>
+                            <p style={{ margin: 0, fontSize: '1.25rem', color: '#15803d', fontWeight: 800 }}>{summary.revenueP.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</p>
+                        </div>
+                        <div>
+                            <p style={{ margin: 0, fontSize: '0.75rem', color: '#166534', fontWeight: 600 }}>TOTAL GERAL (DRE)</p>
+                            <p style={{ margin: 0, fontSize: '1.25rem', color: '#15803d', fontWeight: 800 }}>{summary.totalP.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</p>
+                        </div>
+                        <div style={{ gridColumn: 'span 2', fontSize: '0.8rem', color: '#166534', borderTop: '1px dashed #bbf7d0', paddingTop: '0.5rem', marginTop: '0.5rem' }}>
+                            ✅ <b>{summary.totalRows}</b> lançamentos preparados (incluindo rateios e restos de Column P).
+                        </div>
+                    </div>
+                )}
+
+                <div style={{ backgroundColor: '#f8fafc', padding: '1rem', borderRadius: '10px', marginBottom: '1rem', border: '1px solid #e2e8f0' }}>
+                    <p style={{ margin: 0, fontSize: '0.8rem', color: '#475569' }}>
+                        📊 <b>Smart Parser Ativo:</b> Identificamos automaticamente <b>Categoria</b> e <b>Valor Total</b>. 
+                        O sistema preserva o valor da <b>Coluna P</b> criando lançamentos "Sem Centro de Custo" para a diferença.
                     </p>
                 </div>
 

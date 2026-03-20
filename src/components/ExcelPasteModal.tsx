@@ -21,9 +21,7 @@ export function ExcelPasteModal({ isOpen, onClose, tenantId: initialTenantId, co
 
     // Sync localTenantId when prop changes (e.g. user filters in the grid)
     useEffect(() => {
-        if (initialTenantId !== 'DEFAULT') {
-            setLocalTenantId(initialTenantId);
-        }
+        setLocalTenantId(initialTenantId);
     }, [initialTenantId]);
 
     const selectedCompany = useMemo(() => companies.find(c => c.id === localTenantId), [companies, localTenantId]);
@@ -46,41 +44,86 @@ export function ExcelPasteModal({ isOpen, onClose, tenantId: initialTenantId, co
             const lines = text.split('\n').filter(l => l.trim() !== '');
             const rows: any[] = [];
             
+            console.log("Iniciando processamento de", lines.length, "linhas");
+
             for (const line of lines) {
                 const cols = line.split('\t');
-                if (cols.length < 2) continue;
+                if (cols.length < 15) continue; // Precisa ter pelo menos até a coluna da Categoria
 
-                // Suportando 4 colunas: CATEGORIA | CENTRO DE CUSTO | DESCRIÇÃO | VALOR
-                let catName = cols[0].trim();
-                let ccName = cols.length >= 4 ? cols[1].trim() : '';
-                let desc = cols.length >= 4 ? cols[2].trim() : (cols.length === 3 ? cols[1].trim() : '');
-                let amountStr = cols[cols.length - 1].trim();
-                
-                const amount = parseFloat(amountStr.replace(/[R$\s.]/g, '').replace(',', '.'));
+                // Dados Fixos
+                const dataCompetencia = cols[0].trim();
+                const descricao = cols[4]?.trim() || '';
+                const fornecedor = cols[6]?.trim() || '';
+                const valorTotalStr = cols[11]?.trim() || '0';
+                const categoriaRaw = cols[14]?.trim() || '';
+
+                // Se for cabeçalho, pular
+                if (dataCompetencia.toLowerCase().includes('data') || categoriaRaw.toLowerCase().includes('categoria')) continue;
+
+                // Extrair Código de Categoria (ex: 03.3.1)
+                const catCodeMatch = categoriaRaw.match(/^(\d{1,2}\.\d{1,2}(\.\d{1,2})?)/);
+                const catCode = catCodeMatch ? catCodeMatch[1] : null;
 
                 // Mapeamento de Categoria
-                const cat = tenantCategories.find(c => c.name.toLowerCase() === catName.toLowerCase()) 
-                         || tenantCategories.find(c => c.name.toLowerCase().includes(catName.toLowerCase()));
+                const cat = tenantCategories.find(c => {
+                    const cleanName = c.name.toLowerCase();
+                    if (catCode && (c.id === catCode || c.name.startsWith(catCode))) return true;
+                    return cleanName === categoriaRaw.toLowerCase() || categoriaRaw.toLowerCase().includes(cleanName);
+                });
 
-                if (!cat) continue;
-
-                // Mapeamento de Centro de Custo
-                let ccId = null;
-                if (ccName && ccName.toLowerCase() !== 'geral') {
-                    const foundCC = tenantCCs.find(cc => cc.name.toLowerCase().includes(ccName.toLowerCase()));
-                    if (foundCC) ccId = foundCC.id;
+                if (!cat) {
+                    console.warn("Categoria não mapeada:", categoriaRaw);
+                    continue;
                 }
 
-                rows.push({ 
-                    categoryId: cat.id, 
-                    costCenterId: ccId, 
-                    description: desc || 'Importação Excel',
-                    amount,
-                    month: selectedMonth
-                });
+                const finalDesc = fornecedor ? `${fornecedor} - ${descricao}` : descricao;
+                
+                // Processar Rateios (Col 16 em diante, pares de CC e Valor)
+                let hasRateio = false;
+                if (cols.length > 16) {
+                    for (let i = 16; i < cols.length; i += 2) {
+                        const ccName = cols[i]?.trim();
+                        const ccAmountStr = cols[i+1]?.trim();
+
+                        if (ccName && ccAmountStr) {
+                            const ccAmount = parseFloat(ccAmountStr.replace(/[R$\s.]/g, '').replace(',', '.'));
+                            if (!isNaN(ccAmount) && ccAmount !== 0) {
+                                // Mapeamento de CC
+                                let ccId = null;
+                                const foundCC = tenantCCs.find(cc => cc.name.trim().toLowerCase() === ccName.toLowerCase() || ccName.toLowerCase().includes(cc.name.trim().toLowerCase()));
+                                if (foundCC) ccId = foundCC.id;
+
+                                rows.push({
+                                    categoryId: cat.id,
+                                    costCenterId: ccId,
+                                    description: finalDesc || 'Importação Excel',
+                                    amount: ccAmount,
+                                    month: selectedMonth
+                                });
+                                hasRateio = true;
+                            }
+                        }
+                    }
+                }
+
+                // Se não teve rateio ou as colunas de rateio estavam vazias, usa o valor total
+                if (!hasRateio) {
+                    const totalAmount = parseFloat(valorTotalStr.replace(/[R$\s.]/g, '').replace(',', '.'));
+                    if (!isNaN(totalAmount) && totalAmount !== 0) {
+                        rows.push({
+                            categoryId: cat.id,
+                            costCenterId: null, // Geral
+                            description: finalDesc || 'Importação Excel',
+                            amount: totalAmount,
+                            month: selectedMonth
+                        });
+                    }
+                }
             }
 
-            if (rows.length === 0) throw new Error("Nenhuma categoria reconhecida. Verifique se os nomes batem com o sistema.");
+            if (rows.length === 0) throw new Error("Nenhum dado válido processado. Verifique se copiou as colunas corretas (Data até Rateios).");
+
+            console.log("Enviando", rows.length, "registros para o servidor");
 
             const res = await fetch('/api/realized/bulk', {
                 method: 'POST',
@@ -154,12 +197,9 @@ export function ExcelPasteModal({ isOpen, onClose, tenantId: initialTenantId, co
 
                 <div style={{ backgroundColor: '#f0f9ff', padding: '1rem', borderRadius: '10px', marginBottom: '1rem', border: '1px solid #bae6fd' }}>
                     <p style={{ fontSize: '0.8rem', color: '#0369a1', margin: 0 }}>
-                        📊 <b>Formato Esperado (4 Colunas):</b> 
+                        📊 <b>Smart Parser Ativo:</b> Copie as linhas da planilha <b>"Visão Competência"</b> do Conta Azul.
                         <br/>
-                        <code style={{ background: '#fff', padding: '2px 4px', borderRadius: '4px', border: '1px solid #bae6fd' }}>CATEGORIA</code> | 
-                        <code style={{ background: '#fff', padding: '2px 4px', borderRadius: '4px', border: '1px solid #bae6fd' }}>CENTRO DE CUSTO</code> | 
-                        <code style={{ background: '#fff', padding: '2px 4px', borderRadius: '4px', border: '1px solid #bae6fd' }}>DESCRIÇÃO</code> | 
-                        <code style={{ background: '#fff', padding: '2px 4px', borderRadius: '4px', border: '1px solid #bae6fd' }}>VALOR</code>
+                        O sistema identifica automaticamente: <b>Data, Descrição, Fornecedor, Categoria</b> e todos os <b>Rateios (Col Q em diante)</b>.
                     </p>
                 </div>
 
@@ -176,17 +216,17 @@ export function ExcelPasteModal({ isOpen, onClose, tenantId: initialTenantId, co
                         onClick={handleProcess} 
                         disabled={loading || !text || localTenantId === 'DEFAULT'}
                         style={{ 
-                            backgroundColor: localTenantId === 'DEFAULT' ? '#cbd5e1' : '#f59e0b', 
+                            backgroundColor: (loading || !text || localTenantId === 'DEFAULT') ? '#cbd5e1' : '#16a34a', 
                             color: 'white', 
                             padding: '0.75rem 2.5rem', 
                             borderRadius: '10px', 
                             border: 'none', 
                             fontWeight: 700, 
-                            cursor: localTenantId === 'DEFAULT' ? 'default' : 'pointer', 
-                            boxShadow: localTenantId === 'DEFAULT' ? 'none' : '0 4px 6px -1px rgba(245, 158, 11, 0.4)' 
+                            cursor: (loading || !text || localTenantId === 'DEFAULT') ? 'default' : 'pointer', 
+                            boxShadow: (loading || !text || localTenantId === 'DEFAULT') ? 'none' : '0 4px 6px -1px rgba(22, 163, 74, 0.4)' 
                         }}
                     >
-                        {loading ? status : (localTenantId === 'DEFAULT' ? 'Selecione a Empresa' : '🚀 Importar para ' + (selectedCompany?.name || ''))}
+                        {loading ? status : (!text ? 'Cole os dados do Excel' : (localTenantId === 'DEFAULT' ? 'Selecione a Empresa' : '🚀 Importar agora'))}
                     </button>
                 </div>
             </div>

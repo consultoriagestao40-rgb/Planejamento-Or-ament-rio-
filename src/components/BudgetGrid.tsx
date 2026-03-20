@@ -504,7 +504,8 @@ export default function BudgetGrid({
                     const idsToRead = node.id.split(',');
                     let sumB = 0, sumR = 0, sumRadar = 0;
 
-                    const normalizedNodeName = node.name.replace(/\s+/g, ' ').trim();
+                    // FIXED: Aggressive normalization matching the Sync API to consolidate variants (hyphens, spaces, etc)
+                    const normalizedNodeName = node.name.toUpperCase().replace(/[^A-Z0-9]/g, '');
                     sumR = realizedValues[`${normalizedNodeName}|${i}`] || 0;
 
                     for (const rawId of idsToRead) {

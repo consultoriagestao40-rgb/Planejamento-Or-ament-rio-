@@ -65,13 +65,13 @@ export async function GET(request: Request) {
         entries.forEach((e: any) => {
             let catName = categoryNameMap.get(e.categoryId);
             
-            // Fallback for variant IDs that might not be in the map but have a known code
             if (!catName && e.categoryId.includes(':')) {
                 catName = categoryNameMap.get(e.categoryId.split(':')[1]);
             }
+
             if (catName) {
-                // Normaliza o nome para remover discrepâncias de espaços (ex: " -Serviço" vs " - Serviço")
-                const normalizedName = catName.replace(/\s+/g, ' ').trim();
+                // FIXED: Aggressive normalization to handle " -Serviço" vs " - Serviço" vs "Serviço"
+                const normalizedName = catName.toUpperCase().replace(/[^A-Z0-9]/g, '');
                 const key = `${normalizedName}|${e.month - 1}`;
                 realizedValues[key] = (realizedValues[key] || 0) + e.amount;
             }

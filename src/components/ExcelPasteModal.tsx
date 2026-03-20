@@ -1,12 +1,12 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 
-export function ExcelPasteModal({ isOpen, onClose, tenantId, companyName, categories, costCenters, year, viewMode }: {
+export function ExcelPasteModal({ isOpen, onClose, tenantId: initialTenantId, companies, categories, costCenters, year, viewMode }: {
     isOpen: boolean;
     onClose: () => void;
     tenantId: string;
-    companyName: string;
+    companies: any[];
     categories: any[];
     costCenters: any[];
     year: number;
@@ -17,14 +17,29 @@ export function ExcelPasteModal({ isOpen, onClose, tenantId, companyName, catego
     const [overwrite, setOverwrite] = useState(true);
     const [loading, setLoading] = useState(false);
     const [status, setStatus] = useState<string | null>(null);
+    const [localTenantId, setLocalTenantId] = useState(initialTenantId);
+
+    // Sync localTenantId when prop changes (e.g. user filters in the grid)
+    useEffect(() => {
+        if (initialTenantId !== 'DEFAULT') {
+            setLocalTenantId(initialTenantId);
+        }
+    }, [initialTenantId]);
+
+    const selectedCompany = useMemo(() => companies.find(c => c.id === localTenantId), [companies, localTenantId]);
 
     // Filter categories and cost centers for the specific tenant
-    const tenantCategories = useMemo(() => categories.filter(c => c.tenantId === tenantId), [categories, tenantId]);
-    const tenantCCs = useMemo(() => costCenters.filter(cc => cc.tenantId === tenantId || !cc.tenantId || cc.id === 'DEFAULT'), [costCenters, tenantId]);
+    const tenantCategories = useMemo(() => categories.filter(c => c.tenantId === localTenantId), [categories, localTenantId]);
+    const tenantCCs = useMemo(() => costCenters.filter(cc => cc.tenantId === localTenantId || !cc.tenantId || cc.id === 'DEFAULT'), [costCenters, localTenantId]);
     
     if (!isOpen) return null;
 
     const handleProcess = async () => {
+        if (localTenantId === 'DEFAULT' || !localTenantId) {
+            alert("Por favor, selecione uma empresa primeiro.");
+            return;
+        }
+
         setLoading(true);
         setStatus("Processando colagem...");
         try {
@@ -36,7 +51,6 @@ export function ExcelPasteModal({ isOpen, onClose, tenantId, companyName, catego
                 if (cols.length < 2) continue;
 
                 // Suportando 4 colunas: CATEGORIA | CENTRO DE CUSTO | DESCRIÇÃO | VALOR
-                // Se vierem menos colunas, tentamos deduzir.
                 let catName = cols[0].trim();
                 let ccName = cols.length >= 4 ? cols[1].trim() : '';
                 let desc = cols.length >= 4 ? cols[2].trim() : (cols.length === 3 ? cols[1].trim() : '');
@@ -71,7 +85,7 @@ export function ExcelPasteModal({ isOpen, onClose, tenantId, companyName, catego
             const res = await fetch('/api/realized/bulk', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ rows, tenantId, year, viewMode, overwrite, month: selectedMonth })
+                body: JSON.stringify({ rows, tenantId: localTenantId, year, viewMode, overwrite, month: selectedMonth })
             });
             const data = await res.json();
 
@@ -97,59 +111,82 @@ export function ExcelPasteModal({ isOpen, onClose, tenantId, companyName, catego
             backgroundColor: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10000,
             backdropFilter: 'blur(8px)'
         }}>
-            <div style={{ backgroundColor: 'white', padding: '2.5rem', borderRadius: '20px', width: '750px', maxWidth: '95%', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.5)' }}>
-                <div style={{ marginBottom: '1.5rem' }}>
-                    <h2 style={{ margin: 0, color: '#0f172a', display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                        <span style={{ fontSize: '1.5rem' }}>📂</span> Importar Excel: {companyName}
-                    </h2>
-                    <p style={{ color: '#64748b', margin: '0.5rem 0 0', fontSize: '0.9rem' }}>Os dados serão salvos especificamente para esta empresa.</p>
+            <div style={{ backgroundColor: 'white', padding: '2.5rem', borderRadius: '20px', width: '800px', maxWidth: '95%', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.5)' }}>
+                <div style={{ marginBottom: '1.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                    <div>
+                        <h2 style={{ margin: 0, color: '#0f172a', display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                            <span style={{ fontSize: '1.5rem' }}>📂</span> Importar do Excel
+                        </h2>
+                        <p style={{ color: '#64748b', margin: '0.5rem 0 0', fontSize: '0.9rem' }}>Os dados serão vinculados à empresa e centros de custo selecionados.</p>
+                    </div>
+                    <button onClick={onClose} style={{ background: 'none', border: 'none', fontSize: '2rem', cursor: 'pointer', color: '#94a3b8', lineHeight: 1 }}>×</button>
                 </div>
 
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem', marginBottom: '1.5rem' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr 1fr', gap: '1rem', marginBottom: '1.5rem', alignItems: 'flex-end' }}>
                     <div>
-                        <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 700, color: '#475569', marginBottom: '0.5rem', textTransform: 'uppercase' }}>Mês do Excel</label>
+                        <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 800, color: '#475569', marginBottom: '0.5rem', textTransform: 'uppercase' }}>Empresa Destino</label>
+                        <select 
+                            value={localTenantId} 
+                            onChange={(e) => setLocalTenantId(e.target.value)}
+                            style={{ width: '100%', padding: '0.6rem', borderRadius: '8px', border: '2px solid #e2e8f0', fontSize: '0.9rem', outline: 'none' }}
+                        >
+                            <option value="DEFAULT">-- Selecione a Empresa --</option>
+                            {companies.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                        </select>
+                    </div>
+                    <div>
+                        <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 800, color: '#475569', marginBottom: '0.5rem', textTransform: 'uppercase' }}>Mês de Competência</label>
                         <select 
                             value={selectedMonth} 
                             onChange={(e) => setSelectedMonth(parseInt(e.target.value))}
-                            style={{ width: '100%', padding: '0.75rem', borderRadius: '10px', border: '2px solid #e2e8f0', fontSize: '1rem', outline: 'none' }}
+                            style={{ width: '100%', padding: '0.6rem', borderRadius: '8px', border: '2px solid #e2e8f0', fontSize: '0.9rem', outline: 'none' }}
                         >
                             {meses.map((m, i) => <option key={i+1} value={i+1}>{m} / {year}</option>)}
                         </select>
                     </div>
-                    <div style={{ display: 'flex', alignItems: 'flex-end', paddingBottom: '0.75rem' }}>
-                        <label style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', fontSize: '0.9rem', color: '#1e293b', cursor: 'pointer', fontWeight: 500 }}>
-                            <input type="checkbox" checked={overwrite} onChange={(e) => setOverwrite(e.target.checked)} style={{ width: '1.2rem', height: '1.2rem' }} />
-                            <span>Sobrescrever este mês (Versão Semanal)</span>
+                    <div style={{ paddingBottom: '0.65rem' }}>
+                        <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.8rem', color: '#1e293b', cursor: 'pointer', fontWeight: 600 }}>
+                            <input type="checkbox" checked={overwrite} onChange={(e) => setOverwrite(e.target.checked)} style={{ width: '1.1rem', height: '1.1rem' }} />
+                            <span>Sobrescrever Mês</span>
                         </label>
                     </div>
                 </div>
 
-                <div style={{ backgroundColor: '#f8fafc', padding: '1rem', borderRadius: '10px', marginBottom: '1rem', border: '1px dashed #cbd5e1' }}>
-                    <p style={{ fontSize: '0.8rem', color: '#475569', margin: 0 }}>
-                        💡 <b>Instrução:</b> Cole 4 colunas do seu Excel: 
+                <div style={{ backgroundColor: '#f0f9ff', padding: '1rem', borderRadius: '10px', marginBottom: '1rem', border: '1px solid #bae6fd' }}>
+                    <p style={{ fontSize: '0.8rem', color: '#0369a1', margin: 0 }}>
+                        📊 <b>Formato Esperado (4 Colunas):</b> 
                         <br/>
-                        <code style={{ background: '#e2e8f0', padding: '2px 4px', borderRadius: '4px' }}>CATEGORIA</code> | 
-                        <code style={{ background: '#e2e8f0', padding: '2px 4px', borderRadius: '4px' }}>CENTRO DE CUSTO</code> | 
-                        <code style={{ background: '#e2e8f0', padding: '2px 4px', borderRadius: '4px' }}>DESCRIÇÃO</code> | 
-                        <code style={{ background: '#e2e8f0', padding: '2px 4px', borderRadius: '4px' }}>VALOR</code>
+                        <code style={{ background: '#fff', padding: '2px 4px', borderRadius: '4px', border: '1px solid #bae6fd' }}>CATEGORIA</code> | 
+                        <code style={{ background: '#fff', padding: '2px 4px', borderRadius: '4px', border: '1px solid #bae6fd' }}>CENTRO DE CUSTO</code> | 
+                        <code style={{ background: '#fff', padding: '2px 4px', borderRadius: '4px', border: '1px solid #bae6fd' }}>DESCRIÇÃO</code> | 
+                        <code style={{ background: '#fff', padding: '2px 4px', borderRadius: '4px', border: '1px solid #bae6fd' }}>VALOR</code>
                     </p>
                 </div>
 
                 <textarea
                     value={text}
                     onChange={(e) => setText(e.target.value)}
-                    placeholder="Cole aqui as células..."
-                    style={{ width: '100%', height: '240px', borderRadius: '12px', border: '2px solid #e2e8f0', padding: '1rem', fontSize: '0.85rem', fontFamily: 'SFMono-Regular, Consolas, monospace', outline: 'none' }}
+                    placeholder="Cole as células do Excel aqui..."
+                    style={{ width: '100%', height: '220px', borderRadius: '12px', border: '2px solid #e2e8f0', padding: '1rem', fontSize: '0.85rem', fontFamily: 'SFMono-Regular, Consolas, monospace', outline: 'none', resize: 'none' }}
                 />
 
-                <div style={{ marginTop: '2rem', display: 'flex', justifyContent: 'flex-end', gap: '1rem' }}>
+                <div style={{ marginTop: '1.5rem', display: 'flex', justifyContent: 'flex-end', gap: '1rem' }}>
                     <button onClick={onClose} style={{ padding: '0.75rem 1.5rem', borderRadius: '10px', border: 'none', backgroundColor: '#f1f5f9', color: '#475569', fontWeight: 600, cursor: 'pointer' }}>Cancelar</button>
                     <button 
                         onClick={handleProcess} 
-                        disabled={loading || !text}
-                        style={{ backgroundColor: '#2563eb', color: 'white', padding: '0.75rem 2rem', borderRadius: '10px', border: 'none', fontWeight: 700, cursor: 'pointer', boxShadow: '0 4px 6px -1px rgba(37, 99, 235, 0.4)' }}
+                        disabled={loading || !text || localTenantId === 'DEFAULT'}
+                        style={{ 
+                            backgroundColor: localTenantId === 'DEFAULT' ? '#cbd5e1' : '#f59e0b', 
+                            color: 'white', 
+                            padding: '0.75rem 2.5rem', 
+                            borderRadius: '10px', 
+                            border: 'none', 
+                            fontWeight: 700, 
+                            cursor: localTenantId === 'DEFAULT' ? 'default' : 'pointer', 
+                            boxShadow: localTenantId === 'DEFAULT' ? 'none' : '0 4px 6px -1px rgba(245, 158, 11, 0.4)' 
+                        }}
                     >
-                        {loading ? status : '🚀 Importar para ' + companyName}
+                        {loading ? status : (localTenantId === 'DEFAULT' ? 'Selecione a Empresa' : '🚀 Importar para ' + (selectedCompany?.name || ''))}
                     </button>
                 </div>
             </div>

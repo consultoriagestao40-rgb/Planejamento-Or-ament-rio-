@@ -64,6 +64,12 @@ export default function BudgetGrid({
     const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set()); // New state for main groups
 
     const [loading, setLoading] = useState(true);
+    
+    // --- Global Excel Modal Trigger ---
+    useEffect(() => {
+        (window as any).dispatchOpenExcelModal = () => setIsExcelModalOpen(true);
+    }, []);
+
     const [selectedCompany, setSelectedCompany] = useState<string[]>(['DEFAULT']);
     const [pendingCompany, setPendingCompany] = useState<string[]>(['DEFAULT']);
     const [companyDropdownOpen, setCompanyDropdownOpen] = useState(false);
@@ -1397,16 +1403,14 @@ export default function BudgetGrid({
                         <button onClick={applyFilter} className="btn btn-primary" style={{ padding: '0 1rem', height: '32px', fontSize: '0.75rem' }}>Filtrar</button>
                         <button onClick={clearFilter} className="btn btn-secondary" style={{ padding: '0 1rem', height: '32px', fontSize: '0.75rem' }}>Limpar</button>
                         
-                        {selectedCompany.length === 1 && selectedCompany[0] !== 'DEFAULT' && (
-                            <button 
-                                onClick={() => setIsExcelModalOpen(true)}
-                                className="btn btn-secondary" 
-                                style={{ padding: '0 1rem', height: '32px', fontSize: '0.75rem', backgroundColor: '#f59e0b', color: 'white', border: 'none' }}
-                                title="Importar Realizado do Excel para esta empresa"
-                            >
-                                📊 Importar Excel
-                            </button>
-                        )}
+                        <button 
+                            onClick={() => setIsExcelModalOpen(true)}
+                            className="btn btn-secondary" 
+                            style={{ padding: '0 1rem', height: '32px', fontSize: '0.75rem', backgroundColor: '#f59e0b', color: 'white', border: 'none' }}
+                            title="Importar Realizado do Excel"
+                        >
+                            📊 Importar Excel
+                        </button>
                     </div>
                 </div>
 

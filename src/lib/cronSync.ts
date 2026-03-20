@@ -39,7 +39,8 @@ async function fetchAllTransactionsV2(
             const res = await fetch(fullUrl, { headers: { 'Authorization': `Bearer ${accessToken}` } });
             
             if (!res.ok) {
-                if (pushLog) pushLog(`[V2 ERROR] ${endpointName} (P${page}) Status: ${res.status}`);
+                const errBody = await res.text();
+                if (pushLog) pushLog(`[V2 ERROR] ${endpointName} (P${page}) Status: ${res.status} Body: ${errBody.substring(0, 100)}`);
                 break;
             }
             

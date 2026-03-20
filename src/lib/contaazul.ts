@@ -14,8 +14,8 @@ export const getAuthUrl = (state: string) => {
     // Priority: Env Vars > Hardcoded
     const clientId = process.env.CONTA_AZUL_CLIENT_ID || '4obnij6ehp1q45oecojivdta7n'.trim();
 
-    // V52: Ultra-Minimal Scope (Finance Resource Only, No OIDC)
-    const scope = 'finance offline_access';
+    // Full scopes for V2 compatibility
+    const scope = 'finance sales offline_access';
 
     const isDev = process.env.NODE_ENV === 'development';
     const baseUrl = isDev ? 'http://127.0.0.1:3000' : 'https://planejamento-or-ament-rio.vercel.app';

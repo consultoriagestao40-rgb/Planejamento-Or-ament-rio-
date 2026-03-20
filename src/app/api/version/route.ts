@@ -6,9 +6,9 @@ export async function GET() {
     return NextResponse.json({
         ok: true,
         rev: "v0.9.27-deep-diag",
-        version: '0.9.88',
+        version: '0.9.89',
         timestamp: new Date().toISOString(),
-        message: 'Version 0.9.88 - Native API V2 Migration',
+        message: 'Version 0.9.89 - Scope Expansion & Error Body Logging',
         status: "STABLE"
     });
 }

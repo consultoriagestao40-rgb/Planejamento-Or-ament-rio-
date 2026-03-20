@@ -19,7 +19,7 @@ export function ExcelPasteModal({ isOpen, onClose, tenantId: initialTenantId, co
     const [loading, setLoading] = useState(false);
     const [status, setStatus] = useState<string | null>(null);
     const [localTenantId, setLocalTenantId] = useState(initialTenantId);
-    const [summary, setSummary] = useState<{ totalP: number, totalRows: number, revenueP: number, preparedSum: number } | null>(null);
+    const [summary, setSummary] = useState<{ totalP: number, totalRows: number, revenueP: number, preparedSum: number, ignoredSum: number, ignoredRowsCount: number } | null>(null);
     const [processedRows, setProcessedRows] = useState<any[] | null>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -62,8 +62,9 @@ export function ExcelPasteModal({ isOpen, onClose, tenantId: initialTenantId, co
 
     const processMatrix = (matrix: any[][]) => {
         const rows: any[] = [];
-        let ignoredSumTotal = 0;
         let revenueSumDetected = 0;
+        let ignoredRowsCount = 0;
+        let ignoredSumTotal = 0;
         let rawSumPInFile = 0;
 
         // 1. VOTAÇÃO DE COLUNAS (Substitui detecção de header frágil)
@@ -114,9 +115,9 @@ export function ExcelPasteModal({ isOpen, onClose, tenantId: initialTenantId, co
 
         if (headerIndices.cat !== -1) colCat = headerIndices.cat;
         if (headerIndices.val !== -1) colVal = headerIndices.val;
-        // SE O AUTO-DETECT FALHAR OU DER VALORES ESTRANHOS (COMO 0), FORÇAMOS EXATAMENTE 15/16 (O=15, P=16)
-        if (colCat === 0 || colCat === -1) colCat = 15;
-        if (colVal === 0 || colVal === -1) colVal = 16;
+        // SE O AUTO-DETECT FALHAR OU DER VALORES ESTRANHOS (COMO 0), FORÇAMOS EXATAMENTE 14/15 (O=14, P=15 conforme print e planilha)
+        if (colCat === 0 || colCat === -1) colCat = 14;
+        if (colVal === 0 || colVal === -1) colVal = 15;
 
         console.log(`🗳️ [V50.6] Categoria: Col ${colCat}, Valor: Col ${colVal}`); 
         console.log("📝 [NUCLEAR DEBUG] Primeiras 3 linhas da Matrix:", JSON.stringify(matrix.slice(0, 3)));
@@ -143,6 +144,13 @@ export function ExcelPasteModal({ isOpen, onClose, tenantId: initialTenantId, co
                 if (idx === 0 && isHeader) continue; 
                 if (!cols || cols.length <= 1) continue;
 
+                // SKIP "TOTAL" ROWS to avoid massive discrepancies (e.g. 14M leak)
+                const rowStr = JSON.stringify(cols).toLowerCase();
+                if (rowStr.includes('"total"') || rowStr.includes('"soma"')) {
+                    console.log(`⏭️ [DEBUG] Pulando linha ${idx} por ser um resumo/total.`);
+                    continue;
+                }
+
                 // Dados Fixos (A=0, E=4, G=6...)
                 const dataCompetencia = String(cols[0] || '').trim();
                 const descricao = String(cols[4] || '').trim();
@@ -153,8 +161,11 @@ export function ExcelPasteModal({ isOpen, onClose, tenantId: initialTenantId, co
                 let valP = typeof cols[colVal] === 'number' ? cols[colVal] : parseFloat(String(cols[colVal] || '').replace(/[R$\s.]/g, '').replace(',', '.'));
                 
                 if (isNaN(valP) || valP === 0) {
-                    const altVal = parseFloat(String(cols[colCat] || '').replace(/[R$\s.]/g, '').replace(',', '.'));
-                    if (!isNaN(altVal) && altVal !== 0) {
+                    const altValStr = String(cols[colCat] || '').trim();
+                    const altVal = parseFloat(altValStr.replace(/[R$\s.]/g, '').replace(',', '.'));
+                    
+                    // Só assume altVal se ele parecer um número E colCat NÃO for uma categoria válida
+                    if (!isNaN(altVal) && altVal !== 0 && !/^\d{1,2}(\.\d+)+/.test(altValStr)) {
                         valP = altVal;
                         if (!categoriaRaw.includes('.') && cols[colCat-1]) {
                              categoriaRaw = String(cols[colCat-1] || '').trim();
@@ -212,13 +223,22 @@ export function ExcelPasteModal({ isOpen, onClose, tenantId: initialTenantId, co
                 if (!effectiveCat) {
                     if (Math.abs(finalAmount) > 0) {
                         ignoredSumTotal += Math.abs(finalAmount);
-                        console.warn(`❌ Linha ${idx} ignorada TOTALMENTE (Sem Categoria e sem Fallback):`, categoriaRaw, "| Valor:", finalAmount);
+                        ignoredRowsCount++;
+                        console.warn(`❌ Linha ${idx} ignorada TOTALMENTE (Sem Categoria e sem Fallback):`, categoriaRaw, "| Valor:", finalAmount, "| Descrição:", descricao);
                     }
                     continue;
                 }
 
                 const catId = (effectiveCat.id || '').toLowerCase();
-                const isRevenue = catId.includes(':01') || catId.startsWith('01');
+                const catName = (effectiveCat.name || '').toLowerCase();
+                // REVENUE DETECTION: Starts with 01 OR Name starts with 01 OR contains 01.1.1
+                const isRevenue = catId.includes(':01') || catId.startsWith('01') || catName.startsWith('01') || categoriaRaw.includes('01.1.1');
+                
+                // TRACK REVENUE SUM (FIX)
+                if (isRevenue) {
+                    revenueSumDetected += finalAmount;
+                }
+
                 const finalAmountPrepared = isRevenue ? finalAmount : -Math.abs(finalAmount);
 
                 const finalDesc = fornecedor ? `${fornecedor} - ${descricao}` : (categoriaRaw ? `${categoriaRaw} - ${descricao}` : descricao);
@@ -340,7 +360,9 @@ export function ExcelPasteModal({ isOpen, onClose, tenantId: initialTenantId, co
             totalP: rawSumPInFile,
             revenueP: revenueSumDetected,
             totalRows: rows.length,
-            preparedSum: netSumRows // Use net sum to match rawSumPInFile
+            preparedSum: netSumRows,
+            ignoredSum: ignoredSumTotal,
+            ignoredRowsCount: ignoredRowsCount
         });
 
         console.log(`🚀 [AUDITORIA] Processamento Concluído!`);
@@ -584,6 +606,13 @@ export function ExcelPasteModal({ isOpen, onClose, tenantId: initialTenantId, co
                             <p style={{ margin: 0, fontSize: '0.7rem', color: '#166534', fontWeight: 600 }}>NET PREPARADO</p>
                             <p style={{ margin: 0, fontSize: '1rem', color: '#15803d', fontWeight: 800 }}>{summary.preparedSum.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</p>
                         </div>
+                        {summary.ignoredSum > 0 && (
+                            <div style={{ backgroundColor: '#fef2f2', padding: '0.5rem', borderRadius: '8px', border: '1px solid #fee2e2', gridColumn: 'span 3' }}>
+                                <p style={{ margin: 0, fontSize: '0.75rem', color: '#dc2626', fontWeight: 700 }}>
+                                    ⚠️ {summary.ignoredRowsCount} Lançamentos Ignorados (Sem Categoria): {summary.ignoredSum.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                                </p>
+                            </div>
+                        )}
                         <div style={{ gridColumn: 'span 3', fontSize: '0.75rem', color: '#166534', borderTop: '1px dashed #bbf7d0', paddingTop: '0.5rem', marginTop: '0.5rem' }}>
                             ✅ <b>{summary.totalRows}</b> lançamentos detectados (fidelidade total à Coluna P).
                             {Math.abs(summary.totalP - summary.preparedSum) > 0.1 && (

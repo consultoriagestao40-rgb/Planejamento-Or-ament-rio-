@@ -3,6 +3,7 @@
 
 import React, { useState, useMemo, useEffect } from 'react';
 import { MONTHS, MOCK_COST_CENTERS } from '@/lib/mock-data';
+import { ExcelPasteModal } from '@/components/ExcelPasteModal';
 
 interface BudgetGridProps {
     refreshKey?: number;
@@ -96,6 +97,9 @@ export default function BudgetGrid({
     const [modalObservation, setModalObservation] = useState<string>('');
     // --- Budget Drill-Down State ---
     const [budgetDrillModal, setBudgetDrillModal] = useState<{ categoryId: string, categoryName: string, month: number, entries: any[], loading: boolean, drillStep: 'company' | 'costcenter' | 'detail', drillCompany: string | null, drillCC: string | null } | null>(null);
+
+    // --- Excel Import State ---
+    const [isExcelModalOpen, setIsExcelModalOpen] = useState(false);
 
     const evaluateFormula = (formula: string): number => {
         if (!formula.startsWith('=')) {
@@ -1393,9 +1397,28 @@ export default function BudgetGrid({
                         </div>
                     </div>
 
-                    <div style={{ display: 'flex', gap: '0.4rem' }}>
+                    <div style={{ display: 'flex', gap: '0.4rem', alignItems: 'center' }}>
                         <button onClick={applyFilter} className="btn btn-primary" style={{ padding: '0 1rem', height: '32px', fontSize: '0.75rem' }}>Filtrar</button>
                         <button onClick={clearFilter} className="btn btn-secondary" style={{ padding: '0 1rem', height: '32px', fontSize: '0.75rem' }}>Limpar</button>
+                        <button 
+                            onClick={() => setIsExcelModalOpen(true)} 
+                            className="btn" 
+                            style={{ 
+                                padding: '0 1.25rem', 
+                                height: '32px', 
+                                fontSize: '0.75rem', 
+                                background: '#16a34a', 
+                                color: 'white', 
+                                fontWeight: 800,
+                                borderRadius: '8px',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '0.4rem',
+                                boxShadow: '0 4px 6px -1px rgba(22, 163, 74, 0.4)'
+                            }}
+                        >
+                            <span>📊</span> IMPORTAR
+                        </button>
                     </div>
                 </div>
 
@@ -1913,7 +1936,19 @@ export default function BudgetGrid({
                             </div>
                         </div>
                     </div>
-                )}
+            )}
+
+            <ExcelPasteModal 
+                isOpen={isExcelModalOpen}
+                onClose={() => { setIsExcelModalOpen(false); triggerRefresh(); }}
+                tenantId={selectedCompany[0]}
+                companies={companies}
+                categories={categories}
+                costCenters={costCenters}
+                year={selectedYear}
+                viewMode={viewMode}
+            />
+
             <div style={{ height: '2rem' }}></div> {/* Spacer after card */}
         </>
     );

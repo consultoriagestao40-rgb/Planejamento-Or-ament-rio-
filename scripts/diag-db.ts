@@ -1,66 +1,47 @@
-
 import { PrismaClient } from '@prisma/client';
 
 const DATABASE_URL = 'postgresql://postgres.ryfshgnyghzrqrsvjkyz:BudgetHub20250@sa-east-1.pooler.supabase.com:6543/postgres';
 
-const db = new PrismaClient({
-  datasources: { db: { url: DATABASE_URL } }
+const prisma = new PrismaClient({
+    datasources: { db: { url: DATABASE_URL } }
 });
 
 async function main() {
-  console.log('--- DIAGNOSTIC: CLEAN TECH JAN 2026 ---');
-  
-  const tenants = await db.tenant.findMany({ 
-    where: { name: { contains: 'SPOT', mode: 'insensitive' } } 
-  });
-  
-  if (tenants.length === 0) {
-    console.log('No Clean Tech tenants found');
-    return;
-  }
-
-  console.log(`Found ${tenants.length} variants of Clean Tech.`);
-  
-  for (const t of tenants) {
-    console.log(`\nInspecting Tenant: ${t.name} (${t.id}) - CNPJ: ${t.cnpj}`);
+    const year = 2026;
+    const viewMode = 'competencia';
     
-    const entries = await db.realizedEntry.findMany({
-      where: { 
-        tenantId: t.id, 
-        month: 0, 
-        year: 2026, 
-        viewMode: 'competencia' 
-      },
-      include: { category: true }
+    console.log(`--- DIAGNÓSTICO: RealizedEntry (${year}, ${viewMode}) ---`);
+    const count = await prisma.realizedEntry.count({
+        where: { year, viewMode }
     });
+    console.log(`Total de entradas encontradas: ${count}`);
 
-    console.log(`- Total entries (Competência): ${entries.length}`);
-    
-    const revenueEntries = entries.filter(e => {
-        const name = e.category.name || '';
-        const level = name.split('.').filter(Boolean).length;
-        return (name.startsWith('01') || name.startsWith('1')) && level === 3;
-    });
-
-    const sumRevenue = revenueEntries.reduce((s, e) => s + e.amount, 0);
-    console.log(`- Calculated Revenue (3-segment): R$ ${sumRevenue.toLocaleString('pt-BR')}`);
-    
-    if (revenueEntries.length > 0) {
-        console.log('  Breakdown:');
-        revenueEntries.forEach(e => {
-            console.log(`    [${e.category.id}] ${e.category.name}: R$ ${e.amount.toLocaleString('pt-BR')}`);
+    if (count > 0) {
+        const entries = await prisma.realizedEntry.findMany({
+            where: { year, viewMode },
+            take: 5
         });
+        console.log('Exemplo das primeiras 5 entradas:');
+        entries.forEach(e => {
+            console.log(`- Tenant: ${e.tenantId} | Cat: ${e.categoryId} | Mês: ${e.month} | Valor: ${e.amount}`);
+        });
+
+        // Verificar categorias
+        const firstCatId = entries[0].categoryId;
+        const cat = await prisma.category.findUnique({
+            where: { id: firstCatId }
+        });
+        console.log(`Verificação de Categoria (${firstCatId}): ${cat ? cat.name : 'NÃO ENCONTRADA'}`);
+    } else {
+        console.log('NENHUMA entrada encontrada para o período especificado.');
     }
 
-    const allRevenueEntries = entries.filter(e => {
-        const name = e.category.name || '';
-        return (name.startsWith('01') || name.startsWith('1'));
+    // Verificar Tenants
+    const tenants = await prisma.tenant.findMany();
+    console.log(`\nTotal de Tenants no banco: ${tenants.length}`);
+    tenants.forEach(t => {
+        console.log(`- ${t.name} (ID: ${t.id})`);
     });
-    const sumAllRev = allRevenueEntries.reduce((s, e) => s + e.amount, 0);
-    console.log(`- Total Revenue (ANY segment): R$ ${sumAllRev.toLocaleString('pt-BR')}`);
-  }
 }
 
-main()
-  .catch(console.error)
-  .finally(() => db.$disconnect());
+main().catch(console.error).finally(() => prisma.$disconnect());

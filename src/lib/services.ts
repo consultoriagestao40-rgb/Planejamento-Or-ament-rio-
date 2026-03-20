@@ -100,7 +100,14 @@ export async function syncRealizedEntries(tenantId: string, year: number, viewMo
         });
     }
 
-    await prisma.realizedEntry.deleteMany({ where: { tenantId, year, viewMode } });
+    await prisma.realizedEntry.deleteMany({ 
+        where: { 
+            tenantId, 
+            year, 
+            viewMode,
+            externalId: { startsWith: 'sync-' }
+        } 
+    });
     if (entriesToSave.length > 0) {
         await prisma.realizedEntry.createMany({ data: entriesToSave, skipDuplicates: true });
     }

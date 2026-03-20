@@ -115,9 +115,9 @@ export function ExcelPasteModal({ isOpen, onClose, tenantId: initialTenantId, co
         if (headerIndices.cat !== -1) colCat = headerIndices.cat;
         if (headerIndices.val !== -1) colVal = headerIndices.val;
 
-        // SE O AUTO-DETECT FALHAR OU DER VALORES ESTRANHOS (COMO 0), FORÇAMOS 14/15
-        if (colCat === 0 || colCat === -1) colCat = 14;
-        if (colVal === 0 || colVal === -1) colVal = 15;
+        // SE O AUTO-DETECT FALHAR OU DER VALORES ESTRANHOS (COMO 0), FORÇAMOS 15/16 (Onde 15=Categoria, 16=Valor)
+        if (colCat === 0 || colCat === -1) colCat = 15;
+        if (colVal === 0 || colVal === -1) colVal = 16;
 
         console.log(`🗳️ [AUTO-DETECT] Categoria: Col ${colCat}, Valor: Col ${colVal}`);
         

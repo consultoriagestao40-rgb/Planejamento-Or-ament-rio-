@@ -48,19 +48,27 @@ export async function GET(request: Request) {
             select: { id: true, name: true }
         });
 
-        const categoryMap = new Map<string, string>();
-        categories.forEach((c: any) => {
-            // Map both original ID and the clean version to name for aggregate sum
-            // Mapeia tanto o ID original (ex: SPOT:01.1.1) quanto o simplificado (ex: 01.1.1)
-            categoryMap.set(c.id, c.name);
+        const categoryNameMap = new Map<string, string>();
+        categories.forEach(c => {
+            // Map the FULL ID to the name
+            categoryNameMap.set(c.id, c.name);
+            // Also map the CODE part (if it has a colon) for fallback
             if (c.id.includes(':')) {
-                categoryMap.set(c.id.split(':')[1], c.name);
+                const code = c.id.split(':')[1];
+                if (!categoryNameMap.has(code)) {
+                    categoryNameMap.set(code, c.name);
+                }
             }
         });
 
         const realizedValues: Record<string, number> = {};
         entries.forEach((e: any) => {
-            const catName = categoryMap.get(e.categoryId);
+            let catName = categoryNameMap.get(e.categoryId);
+            
+            // Fallback for variant IDs that might not be in the map but have a known code
+            if (!catName && e.categoryId.includes(':')) {
+                catName = categoryNameMap.get(e.categoryId.split(':')[1]);
+            }
             if (catName) {
                 // Normaliza o nome para remover discrepâncias de espaços (ex: " -Serviço" vs " - Serviço")
                 const normalizedName = catName.replace(/\s+/g, ' ').trim();

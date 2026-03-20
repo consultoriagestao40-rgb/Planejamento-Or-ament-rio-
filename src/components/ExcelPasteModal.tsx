@@ -120,6 +120,7 @@ export function ExcelPasteModal({ isOpen, onClose, tenantId: initialTenantId, co
         if (colVal === 0 || colVal === -1) colVal = 16;
 
         console.log(`🗳️ [AUTO-DETECT] Categoria: Col ${colCat}, Valor: Col ${colVal}`);
+        console.log("📝 [NUCLEAR DEBUG] Primeiras 3 linhas da Matrix:", matrix.slice(0, 3));
         
 
 

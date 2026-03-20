@@ -21,13 +21,11 @@ async function getValidAccessToken(tenantId: string) {
     }
 }
 
-async function fetchAllTransactionsForYear(
+async function fetchAllTransactionsV2(
     accessToken: string, 
     url: string, 
     endpointName: string,
     targetYear: number, 
-    viewMode: string, 
-    isExpense: boolean, 
     pushLog?: (msg: string) => void
 ): Promise<any[]> {
     let page = 1;
@@ -37,14 +35,17 @@ async function fetchAllTransactionsForYear(
     while (hasMore) {
         try {
             const separator = url.includes('?') ? '&' : '?';
-            const fullUrl = `${url}${separator}pagina=${page}&tamanho_pagina=100`;
+            const fullUrl = `${url}${separator}page=${page}&size=100`;
             const res = await fetch(fullUrl, { headers: { 'Authorization': `Bearer ${accessToken}` } });
+            
             if (!res.ok) {
-                if (pushLog) pushLog(`[API ERROR] ${endpointName} (Page ${page}) Status: ${res.status}`);
+                if (pushLog) pushLog(`[V2 ERROR] ${endpointName} (P${page}) Status: ${res.status}`);
                 break;
             }
+            
             const data = await res.json();
-            const itemList = Array.isArray(data) ? data : (data.vendas || data.itens || data.eventos || []);
+            // V2 usually returns array directly or inside "items"
+            const itemList = Array.isArray(data) ? data : (data.items || data.sales || []);
 
             if (itemList.length === 0) {
                 hasMore = false;
@@ -52,37 +53,30 @@ async function fetchAllTransactionsForYear(
             }
 
             for (const item of itemList) {
-                if ((item.status || '').includes('CANCEL')) continue;
-                
-                const dateStr = item.data || item.data_competencia || item.data_vencimento || item.data_liquidacao || item.data_venda;
+                // V2 Date Fields: "emission_date", "date", "due_date", "settlement_date"
+                const dateStr = item.emission_date || item.date || item.due_date || item.settlement_date;
                 if (!dateStr) continue;
 
-                let itemYear = 0;
-                let itemMonth = 0;
-
-                if (dateStr.includes('/')) {
-                    const parts = dateStr.split('/');
-                    itemYear = parseInt(parts[2]);
-                    itemMonth = parseInt(parts[1]);
-                } else if (dateStr.includes('-')) {
-                    const parts = dateStr.split('-');
-                    itemYear = parseInt(parts[0]);
-                    itemMonth = parseInt(parts[1]);
-                }
+                const date = new Date(dateStr);
+                const itemYear = date.getUTCFullYear();
+                const itemMonth = date.getUTCMonth() + 1;
 
                 if (itemYear !== targetYear) continue;
 
+                // V2 Amount: "total", "value", "net_value"
+                const amount = item.total || item.total_value || item.value || 0;
+
                 allItems.push({
-                    id: item.id || `TX-${Math.random()}`,
-                    description: item.description || item.memo || item.nome_cliente || item.cliente?.nome || 'CONTA AZUL SYNC',
-                    amount: item.valor || item.valor_total || item.valor_liquido || 0,
+                    id: item.id,
+                    description: item.description || item.customer_name || item.memo || 'V2 SYNC',
+                    amount: amount,
                     month: itemMonth,
-                    categories: item.categorias || (item.categoria ? [item.categoria] : []),
-                    costCenters: item.centros_custo || (item.centro_custo ? [item.centro_custo] : [])
+                    categories: item.categories || [],
+                    costCenters: item.cost_centers || []
                 });
             }
 
-            if (itemList.length < 10) hasMore = false;
+            if (itemList.length < 100) hasMore = false;
             else page++;
             if (page > 100) hasMore = false;
         } catch (e) { hasMore = false; }
@@ -115,41 +109,43 @@ export async function runCronSync(reqYear: number, tenantId?: string) {
 
     for (const t of targets) {
         try {
-            pushLog(`[SYNC] [${t.name}] Verificando tokens...`);
+            pushLog(`[SYNC] [${t.name}] Verificando tokens V2...`);
             const token = await getValidAccessToken(t.id);
-            pushLog(`[SYNC] [${t.name}] Token renovado. Iniciando carga...`);
+            pushLog(`[SYNC] [${t.name}] Token renovado. Explorando V2...`);
 
             for (const viewMode of ['competencia', 'caixa'] as const) {
-                const startStr = `01/01/${reqYear - 1}`;
-                const endStr = `31/12/${reqYear + 1}`;
+                const startStr = `${reqYear-1}-01-01T00:00:00Z`;
+                const endStr = `${reqYear+1}-12-31T23:59:59Z`;
 
+                // V2 ENDPOINTS
                 const endpoints = viewMode === 'caixa' ? [
-                    { name: 'Recebimentos', url: 'https://api.contaazul.com/v1/financeiro/eventos-financeiros/contas-a-receber/buscar', isExpense: false },
-                    { name: 'Pagamentos', url: 'https://api.contaazul.com/v1/financeiro/eventos-financeiros/contas-a-pagar/buscar', isExpense: true }
+                    { name: 'Financials-In', url: 'https://api.contaazul.com/v2/financials/receivables', isExpense: false },
+                    { name: 'Financials-Out', url: 'https://api.contaazul.com/v2/financials/payables', isExpense: true }
                 ] : [
-                    { name: 'Recebimentos', url: 'https://api.contaazul.com/v1/financeiro/eventos-financeiros/contas-a-receber/buscar', isExpense: false },
-                    { name: 'Vendas', url: 'https://api.contaazul.com/v1/vendas/buscar', isExpense: false },
-                    { name: 'Pagamentos', url: 'https://api.contaazul.com/v1/financeiro/eventos-financeiros/contas-a-pagar/buscar', isExpense: true }
+                    { name: 'Sales', url: 'https://api.contaazul.com/v2/sales', isExpense: false },
+                    { name: 'Financials-In', url: 'https://api.contaazul.com/v2/financials/receivables', isExpense: false },
+                    { name: 'Financials-Out', url: 'https://api.contaazul.com/v2/financials/payables', isExpense: true }
                 ];
 
                 const entriesMap = new Map<string, any>();
                 let firstItemInfo = '';
 
                 for (const ep of endpoints) {
+                    // V2 Filter Params
                     let dateParams = '';
-                    if (ep.name === 'Vendas') {
-                        dateParams = `data_inicio=${startStr}&data_fim=${endStr}`;
+                    if (ep.name === 'Sales') {
+                        dateParams = `emission_date_start=${startStr}&emission_date_end=${endStr}`;
                     } else {
-                        dateParams = viewMode === 'caixa' 
-                            ? `data_liquidacao_inicio=${startStr}&data_liquidacao_fim=${endStr}` 
-                            : `data_vencimento_inicio=${startStr}&data_vencimento_fim=${endStr}`;
+                        dateParams = viewMode === 'caixa'
+                            ? `settlement_date_start=${startStr}&settlement_date_end=${endStr}`
+                            : `due_date_start=${startStr}&due_date_end=${endStr}`;
                     }
 
-                    const items = await fetchAllTransactionsForYear(token, ep.url + '?' + dateParams, ep.name, reqYear, viewMode, ep.isExpense, pushLog);
+                    const items = await fetchAllTransactionsV2(token, ep.url + '?' + dateParams, ep.name, reqYear, pushLog);
                     
                     if (items.length > 0 && !firstItemInfo) {
                         const it = items[0];
-                        firstItemInfo = `[${ep.name}] ID:${it.id} M:${it.month}`;
+                        firstItemInfo = `[V2:${ep.name}] ID:${it.id} M:${it.month}`;
                     }
 
                     for (const tx of items) {
@@ -162,7 +158,7 @@ export async function runCronSync(reqYear: number, tenantId?: string) {
                         if (!mainCatId) mainCatId = 'SYSTEM_GENERIC_REVENUE';
 
                         if (!catMap.has(mainCatId)) {
-                            const newCatName = mainCatName || 'Importado CA';
+                            const newCatName = mainCatName || 'Importado CA V2';
                             const newCatId = `${t.id}:${mainCatId}`;
                             const catType = ep.isExpense ? 'EXPENSE' : 'REVENUE';
                             

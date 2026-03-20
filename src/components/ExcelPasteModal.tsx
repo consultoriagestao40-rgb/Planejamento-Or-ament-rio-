@@ -99,15 +99,12 @@ export function ExcelPasteModal({ isOpen, onClose, tenantId: initialTenantId, co
         if (votesVal[15] > 0) votesVal[15] += 50; 
         if (votesCat[14] > 0) votesCat[14] += 50;
 
-        // 2. DETECÇÃO DINÂMICA (SUBSTITUI HARDCODE)
-        let colCat = votesCat.indexOf(Math.max(...votesCat));
-        let colVal = votesVal.indexOf(Math.max(...votesVal));
-
-        // Fallback para os padrões históricos se a votação for inconclusiva
-        if (votesCat[colCat] === 0) colCat = 14; 
-        if (votesVal[colVal] === 0) colVal = 15;
+        // 2. FORÇANDO COLUNA 14 (O) COMO CATEGORIA E 15 (P) COMO VALOR (LEI DO USUÁRIO)
+        // A detecção dinâmica foi removida a pedido para garantir fidelidade ao arquivo padrão.
+        let colCat = 14;
+        let colVal = 15;
         
-        console.log(`🗳️ [DETECÇÃO] Categoria: Col ${colCat} (${String.fromCharCode(65 + colCat)}), Valor: Col ${colVal} (${String.fromCharCode(65 + colVal)})`);
+        console.log(`🗳️ [FORÇADO] Categoria: Col 14 (O), Valor: Col 15 (P)`);
         
 
 
@@ -139,7 +136,16 @@ export function ExcelPasteModal({ isOpen, onClose, tenantId: initialTenantId, co
                 const fornecedor = String(cols[6] || '').trim();
                 const categoriaRaw = String(cols[colCat] || '').trim();
 
-                if (!categoriaRaw && !dataCompetencia) continue;
+                if (!categoriaRaw && !dataCompetencia && Math.abs(finalAmount) === 0) continue;
+
+                // --- DETECÇÃO DE MÊS POR LINHA ---
+                let rowMonth = selectedMonth;
+                if (dataCompetencia) {
+                    const rowDate = new Date(dataCompetencia);
+                    if (!isNaN(rowDate.getTime()) && rowDate.getFullYear() >= 2020) {
+                        rowMonth = rowDate.getMonth() + 1;
+                    }
+                }
 
                 // Extrair Código (ex: 01.1.1 ou 1.1.1)
                 const catCodeMatch = categoriaRaw.match(/^(\d{1,2}(?:\.\d+)*)/);
@@ -169,10 +175,16 @@ export function ExcelPasteModal({ isOpen, onClose, tenantId: initialTenantId, co
                 let effectiveCat = cat;
                 if (!effectiveCat && Math.abs(finalAmount) > 0) {
                     // SE NÃO ACHOU CATEGORIA, NÃO PODE PERDER O VALOR (PEDIDO DO USUÁRIO)
-                    // Tenta achar a primeira categoria de RECEITA (01) do grupo
+                    // Tenta achar a primeira categoria de RECEITA (01) do grupo como último recurso
                     effectiveCat = groupCategories.find(c => c.id.includes(':01') || c.name.startsWith('01'));
                     if (effectiveCat) {
                         console.warn(`⚠️ Categoria [${categoriaRaw}] não encontrada. Atribuindo ao fallback de Receita para não perder os ${finalAmount} da Coluna P.`);
+                    } else {
+                        // Se nem a categoria 01 existir no grupo, usa a primeira categoria qualquer para garantir o dado
+                        effectiveCat = groupCategories[0];
+                        if (effectiveCat) {
+                            console.warn(`⚠️ Nenhuma categoria 01 encontrada. Usando ${effectiveCat.name} como fallback final para os ${finalAmount}.`);
+                        }
                     }
                 }
 
@@ -236,7 +248,7 @@ export function ExcelPasteModal({ isOpen, onClose, tenantId: initialTenantId, co
                                     costCenterId: info.ccId,
                                     description: finalDesc || 'Importação Excel',
                                     amount: amt,
-                                    month: selectedMonth,
+                                    month: rowMonth,
                                     tenantId: effectiveCat!.tenantId
                                 });
                                 totalDistributed += amt;
@@ -244,10 +256,9 @@ export function ExcelPasteModal({ isOpen, onClose, tenantId: initialTenantId, co
                         });
 
                         const remainder = Math.abs(finalAmount) - totalDistributed;
-                        if (remainder > 0.01) { // Tolerância de centavos
+                        if (Math.abs(remainder) > 0.01) { // Tolerância de centavos (agora aceita negativo se rateios > P)
                             // --- REGRA DE OURO (V47.48) ---
                             // O saldo da Coluna P deve ir obrigatoriamente para a mesma conta da linha.
-                            // Se a conta for genérica (01), buscamos a 01.1.1 que é o padrão de venda do usuário.
                             let targetCatId = effectiveCat!.id;
                             if (targetCatId.endsWith(':01') || targetCatId === '01') {
                                 const sub = groupCategories.find(c => 
@@ -256,15 +267,18 @@ export function ExcelPasteModal({ isOpen, onClose, tenantId: initialTenantId, co
                                 if (sub) targetCatId = sub.id;
                             }
 
-                            // CC REAL: Usamos o primeiro disponível ou NULL se não houver (mas o Sync V47.41 agora aceita ambos)
                             const ccIdToUse = rateiosInfo.length > 0 ? rateiosInfo[0].ccId : null;
 
                             rows.push({
                                 categoryId: targetCatId,
                                 costCenterId: ccIdToUse,
-                                description: finalDesc || 'SALDO COLUNA P',
-                                amount: parseFloat(remainder.toFixed(2)),
-                                month: selectedMonth,
+                                description: finalDesc || (remainder > 0 ? 'SALDO COLUNA P' : 'AJUSTE RATEIO > COL P'),
+                                amount: parseFloat(remainder.toFixed(2)), // Pode ser negativo se rateios forem maiores que P? 
+                                // Na verdade, amount no Prisma costuma ser Float positivo. 
+                                // Se remainder < 0, significa que os rateios já cobriram o valor bruto e passaram.
+                                // Para garantir Column P, se remainder < 0, deveríamos subtrair do total?
+                                // Por ora, vamos garantir que a SOMA de todos os rows desta 'linha' seja igual a finalAmount.
+                                month: rowMonth,
                                 tenantId: effectiveCat!.tenantId
                             });
                         }
@@ -275,7 +289,7 @@ export function ExcelPasteModal({ isOpen, onClose, tenantId: initialTenantId, co
                             costCenterId: null,
                             description: finalDesc || 'Importação Excel',
                             amount: Math.abs(finalAmount),
-                            month: selectedMonth,
+                            month: rowMonth,
                             tenantId: effectiveCat!.tenantId
                         });
                     }

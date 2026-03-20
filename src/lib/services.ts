@@ -452,11 +452,11 @@ async function aggregateTransactions(
                     const isPaid = (item.status || '').toUpperCase() === 'BAIXADO' || (item.pago && item.pago > 0);
                     if (!isPaid) continue;
 
-                    amount = item.pago || item.total || item.valor || 0;
+                    amount = item.pago || item.total || item.valor || item.valor_original || 0;
                 } else {
                     // Regime de Competência: Priorizar data de competência
-                    amount = item.total || item.valor_original || item.valor || 0;
-                    dateStr = item.data_competencia || item.data_vencimento || item.vencimento;
+                    amount = item.total || item.valor_original || item.valor || item.pago || 0;
+                    dateStr = item.data_competencia || item.data_vencimento || item.venda_em || item.vencimento;
                 }
 
                 let dateObj = dateStr ? new Date(dateStr) : new Date();
@@ -536,9 +536,13 @@ async function aggregateTransactions(
                         const catValueTotal = typeof cat.valor === 'number' ? Math.abs(cat.valor) : (amount / finalCats.length);
 
                         // Agora distribuímos o valor da categoria entre os Centros de Custo
+                        // IMPORTANTE: O sistema espera valores positivos no banco para todos os buckets do DRE.
+                        // O cálculo do Lucro Líquido no BudgetEntryGrid.tsx já faz a subtração.
+                        const finalAmountToSave = Math.abs(catValueTotal);
+
                         if (ccs.length === 0) {
                             const key = `${catId}|NONE-${monthIdx}`;
-                            targetValues[key] = (targetValues[key] || 0) + (isExpense ? -catValueTotal : catValueTotal);
+                            targetValues[key] = (targetValues[key] || 0) + finalAmountToSave;
                         } else {
                             for (const c of processedCcs) {
                                 const ccId = `${tenantId}:${c.id}`;
@@ -547,10 +551,10 @@ async function aggregateTransactions(
                                 if (isFiltered && !targetCcs.includes(c.id) && !targetCcs.includes(ccId)) continue;
 
                                 const specificCcAmount = c.explicitAmount !== null ? c.explicitAmount : fallbackPerCc;
-                                const proportionalCatValue = catValueTotal * (specificCcAmount / amount);
+                                const proportionalCatValue = finalAmountToSave * (specificCcAmount / (amount || 1));
                                 
                                 const key = `${catId}|${ccId}-${monthIdx}`;
-                                targetValues[key] = (targetValues[key] || 0) + (isExpense ? -proportionalCatValue : proportionalCatValue);
+                                targetValues[key] = (targetValues[key] || 0) + proportionalCatValue;
                             }
                         }
                     }

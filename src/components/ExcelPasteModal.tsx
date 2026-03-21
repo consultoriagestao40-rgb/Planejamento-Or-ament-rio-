@@ -136,11 +136,11 @@ export function ExcelPasteModal({ isOpen, onClose, tenantId: initialTenantId, co
         if (headerIndices.cat !== -1) colCat = headerIndices.cat;
         if (headerIndices.val !== -1) colVal = headerIndices.val;
         
-        // SE O AUTO-DETECT FALHAR, FORÇAMOS 14/15 (O=14, P=15)
+        // SE O AUTO-DETECT FALHAR, FORÇAMOS 14/15 E LIMPEZA
         if (colCat === 0 || colCat === -1) colCat = 14;
         if (colVal === 0 || colVal === -1) colVal = 15;
 
-        console.log(`🗳️ [V51.2] Categoria: Col ${colCat}, Valor: Col ${colVal}`); 
+        console.log(`🗳️ [V51.3] Categoria: Col ${colCat}, Valor: Col ${colVal}`); 
         console.log("📝 [NUCLEAR DEBUG] Primeiras 3 linhas da Matrix:", JSON.stringify(matrix.slice(0, 3)));
         
         // 3. Detectar se a primeira linha é cabeçalho ou dados (usando indices detectados ou fallback)
@@ -165,10 +165,12 @@ export function ExcelPasteModal({ isOpen, onClose, tenantId: initialTenantId, co
                 if (idx === 0 && isHeader) continue; 
                 if (!cols || cols.length <= 1) continue;
 
-                // SKIP "TOTAL" ROWS to avoid massive discrepancies (e.g. 14M leak)
-                const rowStr = JSON.stringify(cols).toLowerCase();
-                if (rowStr.includes('"total"') || rowStr.includes('"soma"')) {
-                    console.log(`⏭️ [DEBUG] Pulando linha ${idx} por ser um resumo/total.`);
+                // SKIP "TOTAL" ROWS SAFELY (Somente se for literalmente na primeira coluna de data ou categoria)
+                const col0 = String(cols[0] || '').toLowerCase().trim();
+                const colC = String(cols[colCat] || '').toLowerCase().trim();
+                
+                if (col0.includes('total') || col0.includes('soma') || colC.includes('total geral') || col0 === 'saldo') {
+                    console.log(`⏭️ [DEBUG] Pulando linha ${idx} por ser um resumo/total estrutural.`);
                     continue;
                 }
 

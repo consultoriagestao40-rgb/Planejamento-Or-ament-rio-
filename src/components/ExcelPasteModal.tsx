@@ -128,8 +128,8 @@ export function ExcelPasteModal({ isOpen, onClose, tenantId: initialTenantId, co
         const firstRow = matrix[0] || [];
         const headerIndices = firstRow.reduce((acc: any, cell, i) => {
             const s = String(cell || '').toLowerCase().trim();
-            if (s === 'valor' || s.includes('valor na categoria')) acc.val = i;
-            if (s === 'categoria' || s.includes('categoria 1') || s.includes('categoria 01')) acc.cat = i;
+            if (acc.val === -1 && (s === 'valor' || s.includes('valor na categoria'))) acc.val = i;
+            if (acc.cat === -1 && (s === 'categoria' || s.includes('categoria 1') || s.includes('categoria 01'))) acc.cat = i;
             return acc;
         }, { val: -1, cat: -1 });
 
@@ -140,7 +140,7 @@ export function ExcelPasteModal({ isOpen, onClose, tenantId: initialTenantId, co
         if (colCat === 0 || colCat === -1) colCat = 14;
         if (colVal === 0 || colVal === -1) colVal = 15;
 
-        console.log(`🗳️ [V51.3] Categoria: Col ${colCat}, Valor: Col ${colVal}`); 
+        console.log(`🗳️ [V51.4] Categoria: Col ${colCat}, Valor: Col ${colVal}`); 
         console.log("📝 [NUCLEAR DEBUG] Primeiras 3 linhas da Matrix:", JSON.stringify(matrix.slice(0, 3)));
         
         // 3. Detectar se a primeira linha é cabeçalho ou dados (usando indices detectados ou fallback)

@@ -60,6 +60,27 @@ export function ExcelPasteModal({ isOpen, onClose, tenantId: initialTenantId, co
     
     if (!isOpen) return null;
 
+    // Helper ultra-resiliente para números (PT-BR e US)
+    const parseSaneNumber = (val: any): number => {
+        if (typeof val === 'number') return val;
+        let s = String(val || '').trim().replace(/[R$\s]/g, '');
+        if (!s) return 0;
+        
+        const lastComma = s.lastIndexOf(',');
+        const lastDot = s.lastIndexOf('.');
+
+        if (lastComma > -1 && lastDot > -1) {
+            if (lastComma > lastDot) s = s.replace(/\./g, '').replace(',', '.'); // 1.234,56
+            else s = s.replace(/,/g, ''); // 1,234.56
+        } else if (lastComma > -1) {
+            s = s.replace(',', '.'); // 1234,56
+        } else if (lastDot > -1) {
+            const parts = s.split('.');
+            if (parts[parts.length - 1].length === 3) s = s.replace(/\./g, ''); // 1.500
+        }
+        return parseFloat(s) || 0;
+    };
+
     const processMatrix = (matrix: any[][]) => {
         const rows: any[] = [];
         let revenueSumDetected = 0;
@@ -119,7 +140,7 @@ export function ExcelPasteModal({ isOpen, onClose, tenantId: initialTenantId, co
         if (colCat === 0 || colCat === -1) colCat = 14;
         if (colVal === 0 || colVal === -1) colVal = 15;
 
-        console.log(`🗳️ [V50.9] Categoria: Col ${colCat}, Valor: Col ${colVal}`); 
+        console.log(`🗳️ [V51.0] Categoria: Col ${colCat}, Valor: Col ${colVal}`); 
         console.log("📝 [NUCLEAR DEBUG] Primeiras 3 linhas da Matrix:", JSON.stringify(matrix.slice(0, 3)));
         
         // 3. Detectar se a primeira linha é cabeçalho ou dados (usando indices detectados ou fallback)
@@ -130,7 +151,7 @@ export function ExcelPasteModal({ isOpen, onClose, tenantId: initialTenantId, co
         // --- SOMA BRUTA PARA AUDITORIA ---
         matrix.forEach((row, rIdx) => {
             if (rIdx === 0 && isHeader) return; 
-            const valP = typeof row[colVal] === 'number' ? row[colVal] : parseFloat(String(row[colVal] || '').replace(/[R$\s.]/g, '').replace(',', '.'));
+            const valP = parseSaneNumber(row[colVal]);
             if (!isNaN(valP)) rawSumPInFile += valP;
         });
 
@@ -158,18 +179,15 @@ export function ExcelPasteModal({ isOpen, onClose, tenantId: initialTenantId, co
                 
                 // --- LÓGICA ULTRA-RESILIENTE PARA CATEGORIA E VALOR ---
                 let categoriaRaw = String(cols[colCat] || '').trim();
-                let valP = typeof cols[colVal] === 'number' ? cols[colVal] : parseFloat(String(cols[colVal] || '').replace(/[R$\s.]/g, '').replace(',', '.'));
+                let valP = parseSaneNumber(cols[colVal]);
                 
-                if (isNaN(valP) || valP === 0) {
+                if (valP === 0 && String(cols[colVal] || '').trim() === '') {
                     const altValStr = String(cols[colCat] || '').trim();
-                    const altVal = parseFloat(altValStr.replace(/[R$\s.]/g, '').replace(',', '.'));
+                    const altVal = parseSaneNumber(altValStr);
                     
-                    // Só assume altVal se ele parecer um número E colCat NÃO for uma categoria válida
-                    if (!isNaN(altVal) && altVal !== 0 && !/^\d{1,2}(\.\d+)+/.test(altValStr)) {
+                    if (altVal !== 0 && !/^\d{1,2}(\.\d+)+/.test(altValStr)) {
                         valP = altVal;
-                        if (!categoriaRaw.includes('.') && cols[colCat-1]) {
-                             categoriaRaw = String(cols[colCat-1] || '').trim();
-                        }
+                        categoriaRaw = String(cols[colCat-1] || '').trim();
                     }
                 }
 
@@ -206,18 +224,14 @@ export function ExcelPasteModal({ isOpen, onClose, tenantId: initialTenantId, co
 
                 let effectiveCat = cat;
                 if (!effectiveCat && Math.abs(finalAmount) > 0) {
-                    // SE NÃO ACHOU CATEGORIA, NÃO PODE PERDER O VALOR (PEDIDO DO USUÁRIO)
-                    // Tenta achar a primeira categoria de RECEITA (01) do grupo como último recurso
-                    effectiveCat = groupCategories.find(c => c.id.includes(':01') || c.name.startsWith('01'));
-                    if (effectiveCat) {
-                        console.warn(`⚠️ Categoria [${categoriaRaw}] não encontrada. Atribuindo ao fallback de Receita para não perder os ${finalAmount} da Coluna P.`);
+                    if (finalAmount > 0) {
+                        effectiveCat = groupCategories.find(c => c.id.includes(':01') || c.name.startsWith('01'));
+                        console.warn(`⚠️ Cat [${categoriaRaw}] não achada. Fallback Receita pois valor é POSITIVO (+${finalAmount}).`);
                     } else {
-                        // Se nem a categoria 01 existir no grupo, usa a primeira categoria qualquer para garantir o dado
-                        effectiveCat = groupCategories[0];
-                        if (effectiveCat) {
-                            console.warn(`⚠️ Nenhuma categoria 01 encontrada. Usando ${effectiveCat.name} como fallback final para os ${finalAmount}.`);
-                        }
+                        effectiveCat = groupCategories.find(c => !c.id.includes(':01') && !c.name.startsWith('01'));
+                        console.warn(`⚠️ Cat [${categoriaRaw}] não achada. Fallback Despesa pois valor é NEGATIVO (${finalAmount}).`);
                     }
+                    if (!effectiveCat) effectiveCat = groupCategories[0];
                 }
 
                 if (!effectiveCat) {
@@ -255,9 +269,7 @@ export function ExcelPasteModal({ isOpen, onClose, tenantId: initialTenantId, co
                         const ccAmountRaw = cols[i+1];
 
                         if (ccName) {
-                            let amtCC = 0;
-                            if (typeof ccAmountRaw === 'number') amtCC = ccAmountRaw;
-                            else amtCC = parseFloat(String(ccAmountRaw || '').replace(/[R$\s.]/g, '').replace(',', '.'));
+                            let amtCC = parseSaneNumber(ccAmountRaw);
                             
                             if (isNaN(amtCC)) amtCC = 0;
 

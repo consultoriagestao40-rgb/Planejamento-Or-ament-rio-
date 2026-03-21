@@ -140,7 +140,7 @@ export function ExcelPasteModal({ isOpen, onClose, tenantId: initialTenantId, co
         if (colCat === 0 || colCat === -1) colCat = 14;
         if (colVal === 0 || colVal === -1) colVal = 15;
 
-        console.log(`🗳️ [V51.0] Categoria: Col ${colCat}, Valor: Col ${colVal}`); 
+        console.log(`🗳️ [V51.1] Categoria: Col ${colCat}, Valor: Col ${colVal}`); 
         console.log("📝 [NUCLEAR DEBUG] Primeiras 3 linhas da Matrix:", JSON.stringify(matrix.slice(0, 3)));
         
         // 3. Detectar se a primeira linha é cabeçalho ou dados (usando indices detectados ou fallback)
@@ -274,10 +274,14 @@ export function ExcelPasteModal({ isOpen, onClose, tenantId: initialTenantId, co
                             if (isNaN(amtCC)) amtCC = 0;
 
                             const cleanCCName = ccName.toLowerCase().replace(/[^a-z0-9]/g, '');
-                            const foundCC = groupCCs.find(cc => {
+                            
+                            const ccMatches = groupCCs.filter(cc => {
                                 const dbCCName = (cc.name || '').toLowerCase().replace(/[^a-z0-9]/g, '');
                                 return dbCCName === cleanCCName || dbCCName.includes(cleanCCName) || cleanCCName.includes(dbCCName);
                             });
+
+                            // Prioritize finding the cost center in the EXACT CURRENT TENANT it belongs to
+                            const foundCC = ccMatches.find(c => c.tenantId === effectiveCat!.tenantId) || ccMatches[0];
 
                             if (foundCC) {
                                 let ccId = foundCC.id;
@@ -317,13 +321,6 @@ export function ExcelPasteModal({ isOpen, onClose, tenantId: initialTenantId, co
                         const remainder = finalAmountPrepared - totalDistributed;
                         if (Math.abs(remainder) > 0.01) { 
                             let targetCatId = effectiveCat!.id;
-                            
-                            if (isRevenue) {
-                                const sub = groupCategories.find(c => 
-                                    c.id.includes(':01.1.1') || c.name.includes('01.1.1')
-                                );
-                                if (sub) targetCatId = sub.id;
-                            }
 
                             const ccIdToUse = rateiosInfo.length > 0 ? rateiosInfo[0].ccId : null;
 

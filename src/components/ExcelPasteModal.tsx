@@ -121,26 +121,26 @@ export function ExcelPasteModal({ isOpen, onClose, tenantId: initialTenantId, co
         if (votesVal[15] > 0) votesVal[15] += 50; 
         if (votesCat[14] > 0) votesCat[14] += 50;
 
-        // 1.5. DETECÇÃO DINÂMICA DE CABEÇALHO (NOVA LOGICA V47.49)
-        // Buscamos as colunas certas pelos nomes, independente de estarem na posição 14/15 ou não.
+        // 1.5. DETECÇÃO DINÂMICA DE CABEÇALHO
         let colCat = 14; 
         let colVal = 15; 
 
         const firstRow = matrix[0] || [];
         const headerIndices = firstRow.reduce((acc: any, cell, i) => {
             const s = String(cell || '').toLowerCase().trim();
-            if (s.includes('valor na categoria')) acc.val = i;
-            if (s.includes('categoria 1')) acc.cat = i;
+            if (s === 'valor' || s.includes('valor na categoria')) acc.val = i;
+            if (s === 'categoria' || s.includes('categoria 1') || s.includes('categoria 01')) acc.cat = i;
             return acc;
         }, { val: -1, cat: -1 });
 
         if (headerIndices.cat !== -1) colCat = headerIndices.cat;
         if (headerIndices.val !== -1) colVal = headerIndices.val;
-        // SE O AUTO-DETECT FALHAR OU DER VALORES ESTRANHOS (COMO 0), FORÇAMOS EXATAMENTE 14/15 (O=14, P=15 conforme print e planilha)
+        
+        // SE O AUTO-DETECT FALHAR, FORÇAMOS 14/15 (O=14, P=15)
         if (colCat === 0 || colCat === -1) colCat = 14;
         if (colVal === 0 || colVal === -1) colVal = 15;
 
-        console.log(`🗳️ [V51.1] Categoria: Col ${colCat}, Valor: Col ${colVal}`); 
+        console.log(`🗳️ [V51.2] Categoria: Col ${colCat}, Valor: Col ${colVal}`); 
         console.log("📝 [NUCLEAR DEBUG] Primeiras 3 linhas da Matrix:", JSON.stringify(matrix.slice(0, 3)));
         
         // 3. Detectar se a primeira linha é cabeçalho ou dados (usando indices detectados ou fallback)
@@ -281,7 +281,8 @@ export function ExcelPasteModal({ isOpen, onClose, tenantId: initialTenantId, co
                             });
 
                             // Prioritize finding the cost center in the EXACT CURRENT TENANT it belongs to
-                            const foundCC = ccMatches.find(c => c.tenantId === effectiveCat!.tenantId) || ccMatches[0];
+                            // NEVER FALL BACK to another tenant's cost center, otherwise DRE silently drops the row.
+                            const foundCC = ccMatches.find(c => c.tenantId === effectiveCat!.tenantId || c.tenantId === null || c.id === 'DEFAULT');
 
                             if (foundCC) {
                                 let ccId = foundCC.id;

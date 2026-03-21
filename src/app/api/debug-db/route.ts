@@ -10,7 +10,7 @@ export async function GET() {
         const month = 1;
 
         const entries = await prisma.realizedEntry.findMany({
-            where: { tenantId: spotTenantId, year, month },
+            where: { year, month },
             include: { category: true, costCenter: true }
         });
 

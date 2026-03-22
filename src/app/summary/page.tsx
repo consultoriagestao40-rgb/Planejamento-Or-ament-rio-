@@ -303,9 +303,10 @@ export default function BudgetSummaryPage() {
                         <p style={{ color: 'var(--text-secondary)', fontSize: '1rem' }}>Visão geral de orçamentos e centros de custo.</p>
                     </div>
                     <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
-                        {userRole === 'MASTER' && (
+                        {/* RADAR LINK HIDDEN */}
+                        {/* {userRole === 'MASTER' && (
                             <Link href="/radar" className="btn btn-primary" style={{ padding: '0.75rem 1.25rem' }}>🎯 Gestão de Radar</Link>
-                        )}
+                        )} */}
                         <SyncButton year={selectedYear} onSyncStart={() => setLoading(true)} onSyncComplete={fetchData} />
                         <Link href="/" className="btn btn-secondary" style={{ padding: '0.75rem 1.25rem' }}>⬅️ Dashboard</Link>
                     </div>

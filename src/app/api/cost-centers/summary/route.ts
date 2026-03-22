@@ -184,10 +184,16 @@ export async function GET(request: Request) {
         }
 
         // Garantir que todos os Centros de Custo apareçam
+        // Build lookup map: primaryTenantId -> tenant object
+        const primaryIdToTenantMap = new Map<string, any>();
+        tenants.forEach((t: any) => primaryIdToTenantMap.set(t.id, t));
+
         costCenters.forEach((cc: any) => {
             const primaryTenantId = tenantToPrimaryMap.get(cc.tenantId);
-            const tenant = tenants.find((t: any) => t.id === primaryTenantId);
-            if (!tenant) return;
+            if (!primaryTenantId) return; // CC belongs to totally unknown tenant, skip
+            
+            const tenant = primaryIdToTenantMap.get(primaryTenantId);
+            if (!tenant) return; // Primary not in user's visible tenants, skip
 
             const key = cc.id;
             const lock = locks.find((l: any) => l.costCenterId === cc.id);

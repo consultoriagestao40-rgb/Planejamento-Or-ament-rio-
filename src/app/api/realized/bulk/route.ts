@@ -26,8 +26,8 @@ export async function POST(request: Request) {
             });
         }
 
-        // 2. Prepara novos registros
-        const entriesToSave = rows.map((row: any, idx: number) => ({
+        // 2. Prepara novos registros — cada linha recebe um UUID único para nunca colidir
+        const entriesToSave = rows.map((row: any) => ({
             tenantId: row.tenantId || tenantId,
             categoryId: row.categoryId,
             costCenterId: row.costCenterId || null,
@@ -36,19 +36,20 @@ export async function POST(request: Request) {
             amount: parseFloat(row.amount) || 0,
             viewMode: viewMode || 'competencia',
             description: row.description || "Upload via Excel",
-            // FIXED: Added idx and more randomness to guarantee uniqueness even for rateio rows from the same category/millisecond
-            externalId: `manual-${row.tenantId || tenantId}-${row.categoryId}-${Date.now()}-${idx}-${Math.random().toString(36).substr(2, 9)}`
+            // UUID garante unicidade absoluta — sem colisão por Date.now() em batch
+            externalId: crypto.randomUUID()
         }));
 
-        // 3. Inserção em massa
+        // 3. Inserção em massa — sem skipDuplicates pois externalId é único
+        let createdCount = 0;
         if (entriesToSave.length > 0) {
-            await prisma.realizedEntry.createMany({
+            const result = await prisma.realizedEntry.createMany({
                 data: entriesToSave,
-                skipDuplicates: true
             });
+            createdCount = result.count;
         }
 
-        return NextResponse.json({ success: true, count: entriesToSave.length });
+        return NextResponse.json({ success: true, count: createdCount });
 
     } catch (error: any) {
         console.error("[EXCEL-BULK] Erro:", error);

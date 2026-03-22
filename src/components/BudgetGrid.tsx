@@ -1572,7 +1572,7 @@ export default function BudgetGrid({
                                 </div>
                             </th>
                             {(viewPeriod === 'month' ? MONTHS : ['1º Tri', '2º Tri', '3º Tri', '4º Tri']).map((c, i) => {
-                                const colsPerMonth = 3 + (showAV ? 3 : 0) + (showAH ? 1 : 0) + (showAR ? 1 : 0) + (showAH_MoM ? 1 : 0);
+                                const colsPerMonth = 2 + (showAV ? 2 : 0) + (showAH ? 1 : 0) + (showAH_MoM ? 1 : 0);
                                 return (
                                     <th key={i} colSpan={colsPerMonth} style={{ textAlign: 'center', padding: '0.4rem', borderLeft: '2px solid #cbd5e1', fontSize: '0.7rem' }}>
                                         {c}

@@ -211,7 +211,10 @@ export async function GET(request: Request) {
         });
 
         // 4. Agregar valores do orçamento
-        console.log(`[DEBUG] Aggregating ${budgetEntries.length} budget entries`);
+        let directMatches = 0;
+        let fallbackMatches = 0;
+        let notFound = 0;
+
         budgetEntries.forEach((entry: any) => {
             const primaryId = tenantToPrimaryMap.get(entry.tenantId);
             if (!primaryId) return;
@@ -221,7 +224,15 @@ export async function GET(request: Request) {
                 key = `GERAL-${primaryId}`;
             }
             
-            const summary = summaryMap.get(key);
+            let summary = summaryMap.get(key);
+            
+            if (summary) {
+                directMatches++;
+            } else {
+                summary = summaryMap.get(`GERAL-${primaryId}`);
+                if (summary) fallbackMatches++;
+                else notFound++;
+            }
 
             if (summary) {
                 const type = categoryTypeMap.get(entry.categoryId);
@@ -233,42 +244,32 @@ export async function GET(request: Request) {
                 if (entry.amount && entry.amount !== 0) {
                     summary.hasBudgetData = true;
                 }
-                
-                if (summary.tenantName?.includes('SPOT') || summary.costCenterName?.includes('SPOT')) {
-                    console.log(`[DEBUG] SPOT ADDED: ${entry.amount} to ${summary.costCenterName} (${key}). New Rev: ${summary.totalRevenueBudget}`);
-                }
-            } else if (entry.amount !== 0) {
-                console.log(`[DEBUG] Summary NOT FOUND for CC ${key} (Tenant ${entry.tenantId}) with amount ${entry.amount}`);
             }
         });
+        console.log(`[SUMMARY DEBUG] Budget: Direct=${directMatches}, Fallback=${fallbackMatches}, NotFound=${notFound}`);
 
-        // 4.1 Agregar movimentação Realizada (DRE Realizado)
+        // 5. Agregar valores do realizado
         realizedEntries.forEach((entry: any) => {
             const primaryId = tenantToPrimaryMap.get(entry.tenantId);
             if (!primaryId) return;
 
-            // Se costCenterId for null ou DEFAULT, agregar no GERAL do Tenant Principal
             let key = entry.costCenterId;
             if (!key || key === 'DEFAULT') {
                 key = `GERAL-${primaryId}`;
             }
-            const summary = summaryMap.get(key);
             
-            if (summary) {
-                // FIXED: We still only aggregate into the PRIMARY summary entry,
-                // but we ACCEPT entries that belong to ANY variant of that primary tenant.
-                // Previously it was: if (entry.tenantId !== primaryId) return;
-                // Since we want to consolidate ALL variants into the single summary row for the group.
-                
-                const cat = categories.find((c: any) => c.id === entry.categoryId);
-                // RULE: Allow all categories regardless of segments
-                const isDataPoint = true;
-                if (!isDataPoint) return;
+            let summary = summaryMap.get(key);
+            
+            // Fallback para GERAL se CC não encontrado
+            if (!summary) {
+                summary = summaryMap.get(`GERAL-${primaryId}`);
+            }
 
+            if (summary) {
                 const type = categoryTypeMap.get(entry.categoryId);
+                const cat = categories.find((c: any) => c.id === entry.categoryId);
                 const nameLower = (cat?.name || '').toLowerCase();
                 
-                // STAGE 3: EXTREMELY STRICT TAX CLASSIFICATION
                 const isTax = cat?.entradaDre === '02. TRIBUTO SOBRE FATURAMENTO' || 
                               cat?.entradaDre === '02. DEDUÇÕES DA RECEITA BRUTA' || 
                               nameLower.includes('simples nacional') ||
@@ -322,7 +323,8 @@ export async function GET(request: Request) {
                 budgetEntriesCount: budgetEntries.length,
                 realizedEntriesCount: realizedEntries.length,
                 summaryMapSize: summaryMap.size,
-                year: currentYear
+                year: currentYear,
+                budgetStats: { directMatches, fallbackMatches, notFound }
             }
         });
 

@@ -26,13 +26,29 @@ export async function GET(request: Request) {
         // Deduplicate
         allVariantIds = Array.from(new Set(allVariantIds));
 
-        const entries = await prisma.realizedEntry.findMany({
-            where: {
-                tenantId: { in: allVariantIds },
-                year,
-                viewMode
-            }
-        });
+        const whereClause: any = {
+            tenantId: { in: allVariantIds },
+            year
+        };
+
+        // Apply cost center filter
+        // DEFAULT means show everything (no CC filter)
+        // null means show only unallocated (Geral)
+        // specific ID means show only that CC
+        if (costCenterId === 'null') {
+            whereClause.costCenterId = null;
+        } else if (costCenterId !== 'DEFAULT') {
+            whereClause.costCenterId = costCenterId;
+        }
+
+        const [realizedEntries, budgetEntries] = await Promise.all([
+            prisma.realizedEntry.findMany({
+                where: { ...whereClause, viewMode }
+            }),
+            prisma.budgetEntry.findMany({
+                where: whereClause
+            })
+        ]);
 
         const categories = await prisma.category.findMany({
             where: { tenantId: { in: allVariantIds } },
@@ -41,9 +57,7 @@ export async function GET(request: Request) {
 
         const categoryNameMap = new Map<string, string>();
         categories.forEach(c => {
-            // Map the FULL ID to the name
             categoryNameMap.set(c.id, c.name);
-            // Also map the CODE part (if it has a colon) for fallback
             if (c.id.includes(':')) {
                 const code = c.id.split(':')[1];
                 if (!categoryNameMap.has(code)) {
@@ -52,35 +66,42 @@ export async function GET(request: Request) {
             }
         });
 
-        const realizedValues: Record<string, number> = {};
-        entries.forEach((e: any) => {
-            // 1. ID-based key for BudgetEntryGrid
-            const idKey = `${e.categoryId}-${e.month - 1}`;
-            realizedValues[idKey] = (realizedValues[idKey] || 0) + e.amount;
+        const values: Record<string, number> = {};
+        
+        // Helper to aggregate entries (Realized or Budget)
+        const aggregate = (entries: any[], prefix: string = '') => {
+            entries.forEach((e: any) => {
+                // 1. ID-based key for BudgetEntryGrid (Realized always prefixed with 'realized-', Budget has no prefix or 'budget-')
+                const idKey = prefix ? `${prefix}${e.categoryId}-${e.month - 1}` : `${e.categoryId}-${e.month - 1}`;
+                values[idKey] = (values[idKey] || 0) + e.amount;
 
-            // 2. Name-based key for Dashboard aggregation across variants
-            let catName = categoryNameMap.get(e.categoryId);
-            if (!catName && e.categoryId.includes(':')) {
-                catName = categoryNameMap.get(e.categoryId.split(':')[1]);
-            }
-
-            if (catName) {
-                const normalizedName = catName.toUpperCase().replace(/[^A-Z0-9]/g, '');
-                const nameKey = `${normalizedName}|${e.month - 1}`;
-                realizedValues[nameKey] = (realizedValues[nameKey] || 0) + e.amount;
-                
-                // Aggregator for Revenue
-                const isRevenue = normalizedName.startsWith('01');
-                if (isRevenue && normalizedName !== '01RECEITABRUTA') {
-                    const parentKey = `01RECEITABRUTA|${e.month - 1}`;
-                    realizedValues[parentKey] = (realizedValues[parentKey] || 0) + e.amount;
+                // 2. Name-based key for Dashboard aggregation across variants
+                let catName = categoryNameMap.get(e.categoryId);
+                if (!catName && e.categoryId.includes(':')) {
+                    catName = categoryNameMap.get(e.categoryId.split(':')[1]);
                 }
-            }
-        });
+
+                if (catName) {
+                    const normalizedName = catName.toUpperCase().replace(/[^A-Z0-9]/g, '');
+                    const nameKey = prefix ? `${prefix}${normalizedName}|${e.month - 1}` : `${normalizedName}|${e.month - 1}`;
+                    values[nameKey] = (values[nameKey] || 0) + e.amount;
+                    
+                    // Aggregator for Revenue (Special handling for 01 prefix)
+                    const isRevenue = normalizedName.startsWith('01');
+                    if (isRevenue && normalizedName !== '01RECEITABRUTA') {
+                        const parentKey = prefix ? `${prefix}01RECEITABRUTA|${e.month - 1}` : `01RECEITABRUTA|${e.month - 1}`;
+                        values[parentKey] = (values[parentKey] || 0) + e.amount;
+                    }
+                }
+            });
+        };
+
+        aggregate(realizedEntries, 'realized-');
+        aggregate(budgetEntries, ''); // Budget entries use the normalized name key without prefix for Dashboard
 
         return NextResponse.json({
             success: true,
-            realizedValues,
+            realizedValues: values,
             variantIdsUsed: allVariantIds
         });
     } catch (error: any) {

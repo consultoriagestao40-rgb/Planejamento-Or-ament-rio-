@@ -21,6 +21,7 @@ export function middleware(request: NextRequest) {
         pathname.startsWith('/api/diag-db') ||
         pathname.startsWith('/api/debug-check-jan') ||
         pathname.startsWith('/api/cost-centers/summary') ||
+        pathname.startsWith('/api/debug-summary-data') ||
         pathname.startsWith('/api/debug-env') ||
         pathname.startsWith('/api/version') ||
         pathname === '/login' ||

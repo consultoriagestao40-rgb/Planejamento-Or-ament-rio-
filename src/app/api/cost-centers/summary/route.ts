@@ -110,7 +110,7 @@ export async function GET(request: Request) {
 
         const primaryTenantIds = new Set(tenants.map(t => t.id));
 
-        const [costCenters, categories, budgetEntries, realizedEntries, locks] = await Promise.all([
+        const [costCenters, categories, budgetEntries, locks] = await Promise.all([
             prisma.costCenter.findMany({ 
                 // Load ALL cost centers including INATIVO — their budget entries need to be mapped.
                 // Frontend filtering (dropdown) is handled separately.
@@ -122,13 +122,6 @@ export async function GET(request: Request) {
             prisma.budgetEntry.findMany({
                 where: { year: currentYear },
                 select: { amount: true, radarAmount: true, categoryId: true, costCenterId: true, tenantId: true }
-            }),
-            prisma.realizedEntry.findMany({
-                where: { 
-                    year: currentYear,
-                    viewMode: (searchParams.get('viewMode') || 'competencia') as 'caixa' | 'competencia'
-                },
-                select: { amount: true, categoryId: true, costCenterId: true, tenantId: true }
             }),
             (prisma as any).costCenterLock.findMany({
                 where: { year: currentYear }
@@ -269,51 +262,6 @@ export async function GET(request: Request) {
         });
         console.log(`[SUMMARY DEBUG] Budget: Direct=${directMatches}, Fallback=${fallbackMatches}, NotFound=${notFound}`);
 
-        // 5. Agregar valores do realizado
-        realizedEntries.forEach((entry: any) => {
-            const primaryId = tenantToPrimaryMap.get(entry.tenantId);
-            if (!primaryId) return;
-
-            let key = entry.costCenterId ? ccIdToKeyMap.get(entry.costCenterId) : null;
-            if (!key || entry.costCenterId === 'DEFAULT') {
-                key = `GERAL-${primaryId}`;
-            }
-            
-            let summary = summaryMap.get(key);
-            
-            // Fallback para GERAL se CC não encontrado
-            if (!summary) {
-                summary = summaryMap.get(`GERAL-${primaryId}`);
-            }
-
-            if (summary) {
-                const type = categoryTypeMap.get(entry.categoryId);
-                const cat = categories.find((c: any) => c.id === entry.categoryId);
-                const nameLower = (cat?.name || '').toLowerCase();
-                
-                const isTax = cat?.entradaDre === '02. TRIBUTO SOBRE FATURAMENTO' || 
-                              cat?.entradaDre === '02. DEDUÇÕES DA RECEITA BRUTA' || 
-                              nameLower.includes('simples nacional') ||
-                              nameLower.includes('das ') || 
-                              nameLower.includes(' iss ') ||
-                              (nameLower.includes('imposto') && (nameLower.includes('sobre') || nameLower.includes('receita')));
-
-                if (type === 'REVENUE') {
-                    summary.totalRevenueRealized += (entry.amount || 0);
-                } else {
-                    summary.totalExpenseRealized += (entry.amount || 0);
-                }
-                
-                if (isTax) {
-                    summary.totalTaxesRealized += (entry.amount || 0);
-                }
-
-                if (entry.amount !== 0) {
-                    summary.hasRealizedData = true;
-                }
-            }
-        });
-
         // 5. Finalize totals and filter results
         const result = Array.from(summaryMap.values())
             .filter(item => {
@@ -328,7 +276,6 @@ export async function GET(request: Request) {
             data: result,
             debugInfo: {
                 budgetEntriesCount: budgetEntries.length,
-                realizedEntriesCount: realizedEntries.length,
                 summaryMapSize: summaryMap.size,
                 year: currentYear,
                 budgetStats: { directMatches, fallbackMatches, notFound }

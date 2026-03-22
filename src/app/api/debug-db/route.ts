@@ -5,84 +5,57 @@ export const dynamic = 'force-dynamic';
 
 export async function GET() {
     try {
-        const targetNames = [
-            'MRV - LOJA BRASIL',
-            'MRV - LOJA JOHN KENNEDY',
-            'MRV - LOJA SENSIA CURITIBA',
-            'MRV - LOJA SENSIA LONDRINA',
-            'MRV - LOJA SENSIA MARINGA',
-            'MRV - PL VENDAS FATEC'
-        ];
+        const mrvTenants = await prisma.tenant.findMany({
+            where: { name: { contains: 'MRV' } },
+            select: { id: true, name: true }
+        });
+        
+        const tenantIds = mrvTenants.map(t => t.id);
+        
+        // 1. Get all budgets for these tenants in 2026
+        const budgets = await prisma.budgetEntry.findMany({
+            where: { tenantId: { in: tenantIds }, year: 2026 },
+            select: { amount: true, costCenterId: true }
+        });
 
-        const normalize = (name: string) => 
-            (name || '').toLowerCase()
-                .replace(/^\[inativo\]\s*/i, '')
-                .replace(/^encerrado\s*/i, '')
-                .replace(/[^a-z0-9]/g, '')
-                .trim();
+        // 2. Sum by costCenterId
+        const ccStats = new Map<string, number>();
+        let nullCount = 0;
+        let nullAmount = 0;
 
-        const results: any[] = [];
-
-        for (const name of targetNames) {
-            const norm = normalize(name);
-            
-            const ccs = await prisma.costCenter.findMany({
-                where: {
-                    OR: [
-                        { name: { contains: name } },
-                        { name: { contains: name.replace('MRV - ', '') } }
-                    ]
-                },
-                include: { tenant: true }
-            });
-
-            const matchedCcs = ccs.filter(cc => normalize(cc.name) === norm);
-            
-            if (matchedCcs.length > 0) {
-                const ccIds = matchedCcs.map(cc => cc.id);
-                const tenantIds = Array.from(new Set(matchedCcs.map(cc => cc.tenantId)));
-
-                const budgets = await prisma.budgetEntry.findMany({
-                    where: {
-                        tenantId: { in: tenantIds },
-                        year: 2026
-                    }
-                });
-
-                const directBudget = budgets.filter(b => b.costCenterId && ccIds.includes(b.costCenterId));
-                const totalDirect = directBudget.reduce((sum, b) => sum + (Number(b.amount) || 0), 0);
-                
-                let synonymsWithBudgets: string[] = [];
-                if (totalDirect === 0 && budgets.length > 0) {
-                    const mappedBudgets = budgets.filter(b => b.costCenterId);
-                    const otherCcIds = Array.from(new Set(mappedBudgets.map(b => b.costCenterId).filter(id => id && !ccIds.includes(id))));
-                    
-                    if (otherCcIds.length > 0) {
-                        const otherCcs = await prisma.costCenter.findMany({
-                            where: { id: { in: otherCcIds as string[] } },
-                            select: { id: true, name: true }
-                        });
-                        synonymsWithBudgets = otherCcs
-                            .filter(cc => normalize(cc.name) === norm)
-                            .map(cc => cc.name);
-                    }
-                }
-
-                results.push({
-                    name,
-                    norm,
-                    foundCcs: matchedCcs.map(cc => cc.name),
-                    directBudgetCount: directBudget.length,
-                    totalDirectAmount: totalDirect,
-                    tenantBudgetsTotalCount: budgets.length,
-                    synonymsWithBudgets
-                });
+        budgets.forEach(b => {
+            if (!b.costCenterId || b.costCenterId === 'DEFAULT') {
+                nullCount++;
+                nullAmount += b.amount || 0;
             } else {
-                results.push({ name, norm, status: 'NOT_FOUND' });
+                ccStats.set(b.costCenterId, (ccStats.get(b.costCenterId) || 0) + (b.amount || 0));
             }
-        }
+        });
 
-        return NextResponse.json({ success: true, results });
+        // 3. Get Names for these CCs
+        const ccIds = Array.from(ccStats.keys());
+        const ccs = await prisma.costCenter.findMany({
+            where: { id: { in: ccIds } },
+            select: { id: true, name: true }
+        });
+
+        const ccResults = ccs.map(cc => ({
+            id: cc.id,
+            name: cc.name,
+            totalAmount: ccStats.get(cc.id) || 0
+        })).sort((a, b) => b.totalAmount - a.totalAmount);
+
+        return NextResponse.json({ 
+            success: true, 
+            tenants: mrvTenants,
+            summary: {
+                totalEntries: budgets.length,
+                nullCcEntries: nullCount,
+                nullCcAmount: nullAmount,
+                uniqueCcsWithBudgets: ccResults.length
+            },
+            topCcsWithBudgets: ccResults.slice(0, 50)
+        });
     } catch (error: any) {
         return NextResponse.json({ success: false, error: error.message });
     }

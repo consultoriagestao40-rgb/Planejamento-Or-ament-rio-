@@ -130,7 +130,10 @@ export async function GET(request: Request) {
                 select: { amount: true, radarAmount: true, categoryId: true, costCenterId: true, tenantId: true }
             }),
             prisma.realizedEntry.findMany({
-                where: { year: currentYear },
+                where: { 
+                    year: currentYear,
+                    viewMode: (searchParams.get('viewMode') || 'competencia') as 'caixa' | 'competencia'
+                },
                 select: { amount: true, categoryId: true, costCenterId: true, tenantId: true }
             }),
             (prisma as any).costCenterLock.findMany({

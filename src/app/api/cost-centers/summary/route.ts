@@ -91,14 +91,6 @@ export async function GET(request: Request) {
                 select: { id: true, name: true, tenantId: true } 
             }),
             prisma.category.findMany({ 
-                where: {
-                    NOT: {
-                        OR: [
-                            { name: { contains: '[INATIVO]' } },
-                            { name: { contains: 'ENCERRADO', mode: 'insensitive' } }
-                        ]
-                    }
-                },
                 select: { id: true, type: true, name: true, entradaDre: true } 
             }),
             prisma.budgetEntry.findMany({
@@ -146,8 +138,35 @@ export async function GET(request: Request) {
             tenantToPrimaryMap.set(t.id, primary.id);
         });
 
-        // 3. Inicializar extrutura de resumo
+        // 3. Inicializar estrutura de resumo
         const summaryMap = new Map();
+
+        // Adicionar uma entrada "Geral" para cada Tenant Principal
+        for (const tenantId of primaryTenantIds) {
+            const tenant = tenants.find(t => t.id === tenantId);
+            if (!tenant) continue;
+            
+            const key = `GERAL-${tenantId}`;
+            summaryMap.set(key, {
+                tenantId: tenantId,
+                tenantName: tenant.name,
+                costCenterName: 'GERAL (NÃO ALOCADO)',
+                taxRate: tenant.taxRate || 0,
+                costCenterId: 'DEFAULT',
+                totalRevenueBudget: 0,
+                totalRevenueRealized: 0,
+                totalExpenseBudget: 0,
+                totalExpenseRealized: 0,
+                totalTaxesRealized: 0,
+                totalRevenue: 0,
+                totalExpense: 0,
+                hasBudgetData: false,
+                hasRealizedData: false,
+                isLocked: false,
+                status: 'APPROVED',
+                currentUserAccessLevel: 'MASTER'
+            });
+        }
 
         // Garantir que todos os Centros de Custo apareçam
         costCenters.forEach((cc: any) => {
@@ -182,18 +201,17 @@ export async function GET(request: Request) {
         // 4. Agregar valores do orçamento
         budgetEntries.forEach((entry: any) => {
             const primaryId = tenantToPrimaryMap.get(entry.tenantId);
-            const key = entry.costCenterId; 
+            if (!primaryId) return;
+
+            // Se costCenterId for null ou DEFAULT, agregar no GERAL do Tenant Principal
+            let key = entry.costCenterId;
+            if (!key || key === 'DEFAULT') {
+                key = `GERAL-${primaryId}`;
+            }
+            
             const summary = summaryMap.get(key);
 
             if (summary) {
-                // FIXED: Include variant data but only aggregate into the primary summary
-                // Removed strict primaryId filter to allow variant data consolidation
-
-                const cat = categories.find((c: any) => c.id === entry.categoryId);
-                // RULE: Allow all categories regardless of segments
-                const isDataPoint = true; 
-                if (!isDataPoint) return;
-
                 const type = categoryTypeMap.get(entry.categoryId);
                 if (type === 'REVENUE') {
                     summary.totalRevenueBudget += entry.amount || 0;
@@ -207,7 +225,13 @@ export async function GET(request: Request) {
         // 4.1 Agregar movimentação Realizada (DRE Realizado)
         realizedEntries.forEach((entry: any) => {
             const primaryId = tenantToPrimaryMap.get(entry.tenantId);
-            const key = entry.costCenterId;
+            if (!primaryId) return;
+
+            // Se costCenterId for null ou DEFAULT, agregar no GERAL do Tenant Principal
+            let key = entry.costCenterId;
+            if (!key || key === 'DEFAULT') {
+                key = `GERAL-${primaryId}`;
+            }
             const summary = summaryMap.get(key);
             
             if (summary) {
@@ -248,10 +272,10 @@ export async function GET(request: Request) {
             }
         });
 
-        // 5. Finalize totals (Decide if showing Budget or Realized in the main column)
+        // 5. Finalize totals (Budget is primary for this module)
         for (const summary of summaryMap.values()) {
-            summary.totalRevenue = summary.totalRevenueRealized || 0;
-            summary.totalExpense = summary.totalExpenseRealized || 0;
+            summary.totalRevenue = summary.totalRevenueBudget || 0;
+            summary.totalExpense = summary.totalExpenseBudget || 0;
         }
 
         const result = Array.from(summaryMap.values())

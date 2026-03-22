@@ -369,8 +369,8 @@ export default function BudgetSummaryPage() {
                             <thead>
                                 <tr>
                                     <th style={{ ...th, textAlign: 'left', width: '350px' }}>Organização / Centro de Custo</th>
-                                    <th style={{ ...th, textAlign: 'right' }}>Receita (Conta Azul)</th>
-                                    <th style={{ ...th, textAlign: 'right' }}>Despesa (Conta Azul)</th>
+                                    <th style={{ ...th, textAlign: 'right' }}>RECEITA (ORÇADA)</th>
+                                    <th style={{ ...th, textAlign: 'right' }}>DESPESA (ORÇADA)</th>
                                     <th style={{ ...th, textAlign: 'center' }}>Progresso</th>
                                     <th style={{ ...th, textAlign: 'center' }}>🔒 Cadeado</th>
                                     <th style={{ ...th, textAlign: 'center' }}>Configuração / Status</th>
@@ -389,8 +389,8 @@ export default function BudgetSummaryPage() {
                                                     <span style={{ transform: isExpanded ? 'rotate(90deg)' : 'rotate(0deg)', transition: 'transform 0.2s', display: 'inline-block' }}>▶</span>
                                                     {group.tenantName}
                                                 </td>
-                                                <td style={{ ...td, textAlign: 'right', fontWeight: 800 }}>{formatCurrency(group.totalRevenueRealized)}</td>
-                                                <td style={{ ...td, textAlign: 'right', fontWeight: 800 }}>{formatCurrency(group.totalExpenseRealized)}</td>
+                                                <td style={{ ...td, textAlign: 'right', fontWeight: 800 }}>{formatCurrency(group.totalRevenue)}</td>
+                                                <td style={{ ...td, textAlign: 'right', fontWeight: 800 }}>{formatCurrency(group.totalExpense)}</td>
                                                 <td style={{ ...td, textAlign: 'center' }}>
                                                     <span style={{ background: isComplete ? 'var(--accent-green-glow)' : 'var(--accent-red-glow)', color: isComplete ? 'var(--accent-green)' : 'var(--accent-red)', padding: '0.2rem 0.6rem', borderRadius: '12px', fontSize: '0.7rem', fontWeight: 800 }}>
                                                         {isComplete ? 'FINALIZADO' : `PENDENTE (${group.finishedCount}/${group.totalCount})`}
@@ -455,8 +455,8 @@ export default function BudgetSummaryPage() {
                                                             <Link href={`/orcamento/${cc.costCenterId}?year=${selectedYear}`} className="btn" style={{ padding: '0.2rem 0.4rem', fontSize: '0.65rem', background: 'rgba(59,130,246,0.1)', color: 'var(--accent-blue)' }}>✏️ Orçar</Link>
                                                         </div>
                                                     </td>
-                                                    <td style={{ ...td, textAlign: 'right' }}>{formatCurrency(cc.totalRevenueRealized)}</td>
-                                                    <td style={{ ...td, textAlign: 'right' }}>{formatCurrency(cc.totalExpenseRealized)}</td>
+                                                    <td style={{ ...td, textAlign: 'right' }}>{formatCurrency(cc.totalRevenue)}</td>
+                                                    <td style={{ ...td, textAlign: 'right' }}>{formatCurrency(cc.totalExpense)}</td>
                                                     <td style={{ ...td, textAlign: 'center' }}>{cc.hasBudgetData ? '✓' : '-'}</td>
                                                     <td style={{ ...td, textAlign: 'center' }}>
                                                         <button 

@@ -112,14 +112,8 @@ export async function GET(request: Request) {
 
         const [costCenters, categories, budgetEntries, realizedEntries, locks] = await Promise.all([
             prisma.costCenter.findMany({ 
-                where: { 
-                    NOT: { 
-                        OR: [
-                            { name: { contains: '[INATIVO]' } },
-                            { name: { contains: 'ENCERRADO', mode: 'insensitive' } }
-                        ]
-                    } 
-                },
+                // Load ALL cost centers including INATIVO — their budget entries need to be mapped.
+                // Frontend filtering (dropdown) is handled separately.
                 select: { id: true, name: true, tenantId: true } 
             }),
             prisma.category.findMany({ 

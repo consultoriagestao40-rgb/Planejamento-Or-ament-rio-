@@ -399,8 +399,8 @@ export default function BudgetSummaryPage() {
                                                 </td>
                                                 <td style={{ ...td, textAlign: 'right', fontWeight: 800 }}>{formatCurrency(group.totalRevenueRealized)}</td>
                                                 <td style={{ ...td, textAlign: 'right', fontWeight: 800 }}>{formatCurrency(group.totalExpenseRealized)}</td>
-                                                <td style={{ ...td, textAlign: 'right', fontWeight: 900, color: 'var(--accent-blue)' }}>{formatCurrency(group.totalRevenueBudget)}</td>
-                                                <td style={{ ...td, textAlign: 'right', fontWeight: 900, color: 'var(--accent-red)' }}>{formatCurrency(group.totalExpenseBudget)}</td>
+                                                <td style={{ ...td, textAlign: 'right', fontWeight: 900, color: 'var(--accent-blue)', background: 'rgba(59, 130, 246, 0.03)' }}>{formatCurrency(group.totalRevenueBudget)}</td>
+                                                <td style={{ ...td, textAlign: 'right', fontWeight: 900, color: 'var(--accent-red)', background: 'rgba(239, 68, 68, 0.03)' }}>{formatCurrency(group.totalExpenseBudget)}</td>
                                                 <td style={{ ...td, textAlign: 'center' }}>
                                                     <span style={{ background: isComplete ? 'var(--accent-green-glow)' : 'var(--accent-red-glow)', color: isComplete ? 'var(--accent-green)' : 'var(--accent-red)', padding: '0.2rem 0.6rem', borderRadius: '12px', fontSize: '0.7rem', fontWeight: 800 }}>
                                                         {isComplete ? 'FINALIZADO' : `PENDENTE (${group.finishedCount}/${group.totalCount})`}
@@ -467,8 +467,8 @@ export default function BudgetSummaryPage() {
                                                     </td>
                                                     <td style={{ ...td, textAlign: 'right' }}>{formatCurrency(cc.totalRevenueRealized)}</td>
                                                     <td style={{ ...td, textAlign: 'right' }}>{formatCurrency(cc.totalExpenseRealized)}</td>
-                                                    <td style={{ ...td, textAlign: 'right', fontWeight: 700, color: 'var(--accent-blue)' }}>{formatCurrency(cc.totalRevenueBudget)}</td>
-                                                    <td style={{ ...td, textAlign: 'right', fontWeight: 700, color: 'var(--accent-red)' }}>{formatCurrency(cc.totalExpenseBudget)}</td>
+                                                    <td style={{ ...td, textAlign: 'right', fontWeight: 700, color: 'var(--accent-blue)', background: 'rgba(59, 130, 246, 0.02)' }}>{formatCurrency(cc.totalRevenueBudget)}</td>
+                                                    <td style={{ ...td, textAlign: 'right', fontWeight: 700, color: 'var(--accent-red)', background: 'rgba(239, 68, 68, 0.02)' }}>{formatCurrency(cc.totalExpenseBudget)}</td>
                                                     <td style={{ ...td, textAlign: 'center' }}>{cc.hasBudgetData ? '✓' : '-'}</td>
                                                     <td style={{ ...td, textAlign: 'center' }}>
                                                         <button 

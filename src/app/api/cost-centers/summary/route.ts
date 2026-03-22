@@ -80,9 +80,25 @@ export async function GET(request: Request) {
             prisma.tenant.findMany({ select: { id: true, name: true, taxRate: true } }),
 
             prisma.costCenter.findMany({ 
+                where: { 
+                    NOT: { 
+                        OR: [
+                            { name: { contains: '[INATIVO]' } },
+                            { name: { contains: 'ENCERRADO', mode: 'insensitive' } }
+                        ]
+                    } 
+                },
                 select: { id: true, name: true, tenantId: true } 
             }),
             prisma.category.findMany({ 
+                where: {
+                    NOT: {
+                        OR: [
+                            { name: { contains: '[INATIVO]' } },
+                            { name: { contains: 'ENCERRADO', mode: 'insensitive' } }
+                        ]
+                    }
+                },
                 select: { id: true, type: true, name: true, entradaDre: true } 
             }),
             prisma.budgetEntry.findMany({
@@ -264,16 +280,26 @@ export async function GET(request: Request) {
             }
         });
 
-        // 5. Finalize totals (Realized is displayed in main table, Budget is for KPIs)
-        for (const summary of summaryMap.values()) {
-            summary.totalRevenue = summary.totalRevenueRealized || 0;
-            summary.totalExpense = summary.totalExpenseRealized || 0;
-        }
-
+        // 5. Finalize totals and filter results
         const result = Array.from(summaryMap.values())
+            .filter(item => {
+                // Se for um item real (CC), mostrar sempre (se não for inativo/encerrado já filtrado no SQL)
+                if (item.costCenterId !== 'DEFAULT') return true;
+                // Se for item GERAL, mostrar apenas se tiver algum dado
+                return item.hasBudgetData || item.hasRealizedData;
+            })
+            .map(item => ({
+                ...item,
+                // Garantir que totalRevenue/totalExpense reflitam o Realizado para compatibilidade, 
+                // mas mantemos os campos explicitos orçado para o novo front
+                totalRevenue: item.totalRevenueRealized || 0,
+                totalExpense: item.totalExpenseRealized || 0,
+            }))
             .sort((a, b) => {
-                // Ordenar por Empresa e depois por Centro de Custo
                 if (a.tenantName !== b.tenantName) return (a.tenantName || '').localeCompare(b.tenantName || '');
+                // GERAL sempre no topo da empresa
+                if (a.costCenterName === 'GERAL (NÃO ALOCADO)') return -1;
+                if (b.costCenterName === 'GERAL (NÃO ALOCADO)') return 1;
                 return (a.costCenterName || '').localeCompare(b.costCenterName || '');
             });
 

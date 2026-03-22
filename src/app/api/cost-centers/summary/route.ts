@@ -195,7 +195,7 @@ export async function GET(request: Request) {
             summaryMap.set(key, {
                 tenantId: primaryTenantId,
                 tenantName: tenant.name,
-                costCenterName: cc.name,
+                costCenterName: (cc.name || '').replace(/^\[INATIVO\]\s*/i, '').replace(/^ENCERRADO\s*/i, '').trim(),
                 taxRate: tenant.taxRate || 0,
                 costCenterId: cc.id,
                 totalRevenueBudget: 0,

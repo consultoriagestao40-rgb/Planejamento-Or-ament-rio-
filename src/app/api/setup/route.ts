@@ -8,14 +8,8 @@ export async function GET() {
         const [categories, costCenters, tenants] = await Promise.all([
             prisma.category.findMany({ orderBy: { name: 'asc' } }),
             prisma.costCenter.findMany({ 
-                where: {
-                    NOT: {
-                        OR: [
-                            { name: { contains: '[INATIVO]' } },
-                            { name: { contains: 'ENCERRADO', mode: 'insensitive' } }
-                        ]
-                    }
-                },
+                // Load ALL cost centers — INATIVO CCs have valid budget data stored against their IDs
+                // The [INATIVO] prefix filtering is handled on the frontend display level
                 include: { tenant: { select: { name: true } } },
                 orderBy: { name: 'asc' } 
             }),
@@ -36,7 +30,12 @@ export async function GET() {
             })),
             costCenters: costCenters.map((cc: any) => ({
                 id: cc.id,
-                name: cc.name,
+                // Strip [INATIVO] prefix from CC names — these CCs have valid budget data
+                // and must remain accessible. The prefix is cosmetic from Conta Azul sync.
+                name: (cc.name || '')
+                    .replace(/^\[INATIVO\]\s*/i, '')
+                    .replace(/^ENCERRADO\s*/i, '')
+                    .trim(),
                 tenantId: cc.tenantId,
                 tenantName: cc.tenant?.name || 'Empresa Desconhecida'
             })),

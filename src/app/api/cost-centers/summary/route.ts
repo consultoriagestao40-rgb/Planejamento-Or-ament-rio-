@@ -300,20 +300,6 @@ export async function GET(request: Request) {
                 if (item.costCenterId !== 'DEFAULT') return true;
                 // Se for item GERAL, mostrar apenas se tiver algum dado
                 return item.hasBudgetData || item.hasRealizedData;
-            })
-            .map(item => ({
-                ...item,
-                // Garantir que totalRevenue/totalExpense reflitam o Realizado para compatibilidade, 
-                // mas mantemos os campos explicitos orçado para o novo front
-                totalRevenue: item.totalRevenueRealized || 0,
-                totalExpense: item.totalExpenseRealized || 0,
-            }))
-            .sort((a, b) => {
-                if (a.tenantName !== b.tenantName) return (a.tenantName || '').localeCompare(b.tenantName || '');
-                // GERAL sempre no topo da empresa
-                if (a.costCenterName === 'GERAL (NÃO ALOCADO)') return -1;
-                if (b.costCenterName === 'GERAL (NÃO ALOCADO)') return 1;
-                return (a.costCenterName || '').localeCompare(b.costCenterName || '');
             });
 
         return NextResponse.json({ 

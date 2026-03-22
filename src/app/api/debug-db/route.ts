@@ -1,6 +1,8 @@
 import { prisma } from '@/lib/prisma';
 import { NextResponse } from 'next/server';
 
+export const dynamic = 'force-dynamic';
+
 export async function GET(request: Request) {
     const { searchParams } = new URL(request.url);
     const year = parseInt(searchParams.get('year') || '2026');
@@ -10,39 +12,44 @@ export async function GET(request: Request) {
         const budgetCount = await prisma.budgetEntry.count({ where: { year } });
         const realizedCount = await prisma.realizedEntry.count({ where: { year } });
         
-        const sampleBudget = await prisma.budgetEntry.findMany({
-            where: { year, amount: { gt: 0 } },
+        // How many budget entries have no CC (null = GERAL) vs specific CC
+        const budgetNullCC = await prisma.budgetEntry.count({ where: { year, costCenterId: null } });
+        const budgetWithCC = await prisma.budgetEntry.count({ where: { year, costCenterId: { not: null } } });
+        
+        // Sample budget entries that HAVE a specific CC
+        const sampleWithCC = await prisma.budgetEntry.findMany({
+            where: { year, amount: { gt: 0 }, costCenterId: { not: null } },
             take: 5,
-            include: { category: true, costCenter: true }
+            include: { costCenter: true }
         });
 
-        const sampleRealized = await prisma.realizedEntry.findMany({
-            where: { year, amount: { gt: 0 } },
-            take: 5,
-            include: { category: true, costCenter: true }
+        // Sample budget entries with null CC (GERAL)
+        const sampleNullCC = await prisma.budgetEntry.findMany({
+            where: { year, amount: { gt: 0 }, costCenterId: null },
+            take: 3,
+            include: { category: true }
         });
-
+        
         return NextResponse.json({
             success: true,
             year,
             tenants,
             budgetCount,
             realizedCount,
-            sampleBudget: sampleBudget.map(b => ({
-                id: b.id,
+            budgetDistribution: {
+                withNullCC: budgetNullCC,
+                withSpecificCC: budgetWithCC
+            },
+            sampleWithCC: sampleWithCC.map((b: any) => ({
                 amount: b.amount,
-                tenant: b.tenantId,
+                tenantId: b.tenantId,
                 ccId: b.costCenterId,
-                ccName: b.costCenter?.name,
-                catId: b.categoryId,
-                catName: b.category?.name
+                ccName: b.costCenter?.name
             })),
-            sampleRealized: sampleRealized.map(r => ({
-                id: r.id,
-                amount: r.amount,
-                tenant: r.tenantId,
-                ccId: r.costCenterId,
-                ccName: r.costCenter?.name
+            sampleNullCC: sampleNullCC.map((b: any) => ({
+                amount: b.amount,
+                tenantId: b.tenantId,
+                catName: b.category?.name
             }))
         });
     } catch (error: any) {

@@ -126,18 +126,24 @@ export async function GET(request: Request) {
 
     // Build the costCenter filter:
     // - MASTER + isGeneralView → no filter at all (fetch everything)
-    // - MASTER + specific CCs → filter by those CCs
+    // - MASTER + specific CCs → filter by those CCs OR null CC (GERAL)
+    //   IMPORTANT: we always include null-CC entries so company-level budget 
+    //   (entered without a specific CC) is always visible regardless of CC filter.
     // - GESTOR + any view → filter by their allowed CCs (handled above)
     let ccFilter: any = {};
     if (isGeneralView && user.role === 'MASTER') {
       // No CC filter — return all entries for the selected tenant(s)
       ccFilter = {};
     } else if (!isGeneralView) {
-      ccFilter = { costCenterId: { in: costCenterIds } };
+      // Include entries for the selected CC(s) AND entries with no CC (GERAL)
+      ccFilter = { OR: [
+        { costCenterId: { in: costCenterIds } },
+        { costCenterId: null }
+      ]};
     } else {
       // GESTOR general view: restricted to their CCs (costCenterIds already populated above)
       ccFilter = costCenterIds.length > 0
-        ? { costCenterId: { in: costCenterIds } }
+        ? { OR: [{ costCenterId: { in: costCenterIds } }, { costCenterId: null }] }
         : {};
     }
 

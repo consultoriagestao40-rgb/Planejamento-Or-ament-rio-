@@ -76,9 +76,41 @@ export async function GET(request: Request) {
         }
 
         // 1. Buscar todos os dados necessários
-        const [tenants, costCenters, categories, budgetEntries, realizedEntries, locks] = await Promise.all([
-            prisma.tenant.findMany({ select: { id: true, name: true, taxRate: true } }),
+        const allTenants = await prisma.tenant.findMany({ select: { id: true, name: true, cnpj: true, taxRate: true } });
+        
+        // 1. Mapeamento de Entidades (Deduplicação)
+        const tenantToPrimaryMap = new Map<string, string>();
+        const seenKeys = new Set<string>();
+        const deduplicatedTenantsMap = new Map<string, any>();
+        
+        allTenants.forEach((t: any) => {
+            const cleanName = (t.name || '').trim().toUpperCase().replace(/[^A-Z0-9]/g, '');
+            const cleanCnpj = (t.cnpj || '').replace(/\D/g, '');
+            const key = cleanCnpj !== '' ? cleanCnpj : cleanName;
 
+            if (!seenKeys.has(key)) {
+                seenKeys.add(key);
+                deduplicatedTenantsMap.set(key, t);
+            }
+            const primary = deduplicatedTenantsMap.get(key);
+            tenantToPrimaryMap.set(t.id, primary.id);
+        });
+
+        const dbUser = await prisma.user.findUnique({
+            where: { email: (user as any).email },
+            include: { tenantAccess: true }
+        });
+
+        const userRole = dbUser?.role || 'GESTOR';
+
+        // Use role-based filtering for the tenants shown in the summary
+        const tenants = userRole === 'MASTER' 
+            ? Array.from(deduplicatedTenantsMap.values())
+            : allTenants.filter(t => dbUser?.tenantAccess.some(a => a.tenantId === t.id));
+
+        const primaryTenantIds = new Set(tenants.map(t => t.id));
+
+        const [costCenters, categories, budgetEntries, realizedEntries, locks] = await Promise.all([
             prisma.costCenter.findMany({ 
                 where: { 
                     NOT: { 
@@ -117,26 +149,6 @@ export async function GET(request: Request) {
                              c.entradaDre === '01. RECEITA BRUTA';
             return [c.id, isRevenue ? 'REVENUE' : 'EXPENSE'];
         }));
-
-        // 2. Mapeamento de Entidades (Deduplicação)
-        const tenantToPrimaryMap = new Map<string, string>();
-        const seenKeys = new Set<string>();
-        const deduplicatedTenantsMap = new Map<string, any>();
-
-        const primaryTenantIds = new Set<string>();
-        tenants.forEach((t: any) => {
-            const cleanName = (t.name || '').trim().toUpperCase().replace(/[^A-Z0-9]/g, '');
-            const cleanCnpj = (t.cnpj || '').replace(/\D/g, '');
-            const key = cleanCnpj !== '' ? cleanCnpj : cleanName;
-
-            if (!seenKeys.has(key)) {
-                seenKeys.add(key);
-                deduplicatedTenantsMap.set(key, t);
-                primaryTenantIds.add(t.id);
-            }
-            const primary = deduplicatedTenantsMap.get(key);
-            tenantToPrimaryMap.set(t.id, primary.id);
-        });
 
         // 3. Inicializar estrutura de resumo
         const summaryMap = new Map();

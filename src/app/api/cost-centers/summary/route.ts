@@ -149,6 +149,8 @@ export async function GET(request: Request) {
 
         // 3. Inicializar estrutura de resumo
         const summaryMap = new Map();
+        // Map to help route budget/realized entries to the correct summary row
+        const ccIdToKeyMap = new Map<string, string>();
 
         // Adicionar uma entrada "Geral" para cada Tenant Principal
         for (const tenantId of primaryTenantIds) {
@@ -177,40 +179,56 @@ export async function GET(request: Request) {
             });
         }
 
-        // Garantir que todos os Centros de Custo apareçam
-        // Build lookup map: primaryTenantId -> tenant object
+        // Garantir que todos os Centros de Custo apareçam e consolidar duplicatas por nome
         const primaryIdToTenantMap = new Map<string, any>();
         tenants.forEach((t: any) => primaryIdToTenantMap.set(t.id, t));
 
         costCenters.forEach((cc: any) => {
             const primaryTenantId = tenantToPrimaryMap.get(cc.tenantId);
-            if (!primaryTenantId) return; // CC belongs to totally unknown tenant, skip
+            if (!primaryTenantId) return;
             
             const tenant = primaryIdToTenantMap.get(primaryTenantId);
-            if (!tenant) return; // Primary not in user's visible tenants, skip
+            if (!tenant) return;
 
-            const key = cc.id;
-            const lock = locks.find((l: any) => l.costCenterId === cc.id);
+            const cleanName = (cc.name || '').replace(/^\[INATIVO\]\s*/i, '').replace(/^ENCERRADO\s*/i, '').trim();
+            const key = `CC-${primaryTenantId}-${cleanName}`;
+            
+            // Map this specific ID to the consolidated row key
+            ccIdToKeyMap.set(cc.id, key);
 
-            summaryMap.set(key, {
-                tenantId: primaryTenantId,
-                tenantName: tenant.name,
-                costCenterName: (cc.name || '').replace(/^\[INATIVO\]\s*/i, '').replace(/^ENCERRADO\s*/i, '').trim(),
-                taxRate: tenant.taxRate || 0,
-                costCenterId: cc.id,
-                totalRevenueBudget: 0,
-                totalRevenueRealized: 0,
-                totalExpenseBudget: 0,
-                totalExpenseRealized: 0,
-                totalTaxesRealized: 0,
-                totalRevenue: 0,
-                totalExpense: 0,
-                hasBudgetData: false,
-                hasRealizedData: false,
-                isLocked: lock?.isLocked || false,
-                status: lock?.status || 'PENDING',
-                currentUserAccessLevel: user.role === 'MASTER' ? 'MASTER' : (costCenterAccessMap[cc.id] || 'NONE')
-            });
+            if (!summaryMap.has(key)) {
+                const lock = locks.find((l: any) => l.costCenterId === cc.id);
+                summaryMap.set(key, {
+                    tenantId: primaryTenantId,
+                    tenantName: tenant.name,
+                    costCenterName: cleanName,
+                    taxRate: tenant.taxRate || 0,
+                    costCenterId: cc.id, // We'll keep one ID for selection purposes
+                    totalRevenueBudget: 0,
+                    totalRevenueRealized: 0,
+                    totalExpenseBudget: 0,
+                    totalExpenseRealized: 0,
+                    totalTaxesRealized: 0,
+                    totalRevenue: 0,
+                    totalExpense: 0,
+                    hasBudgetData: false,
+                    hasRealizedData: false,
+                    isLocked: lock?.isLocked || false,
+                    status: lock?.status || 'PENDING',
+                    currentUserAccessLevel: user.role === 'MASTER' ? 'MASTER' : (costCenterAccessMap[cc.id] || 'NONE')
+                });
+            } else {
+                // If it's a second entry for the same clean name, check if this one is the "active" one (no prefix)
+                const current = summaryMap.get(key);
+                const hasPrefix = (cc.name || '').startsWith('[INATIVO]') || (cc.name || '').startsWith('ENCERRADO');
+                if (!hasPrefix) {
+                    // Update the primary CC ID and status to the active version
+                    const lock = locks.find((l: any) => l.costCenterId === cc.id);
+                    current.costCenterId = cc.id;
+                    current.isLocked = lock?.isLocked || current.isLocked;
+                    current.status = lock?.status || current.status;
+                }
+            }
         });
 
         // 4. Agregar valores do orçamento
@@ -222,8 +240,8 @@ export async function GET(request: Request) {
             const primaryId = tenantToPrimaryMap.get(entry.tenantId);
             if (!primaryId) return;
 
-            let key = entry.costCenterId;
-            if (!key || key === 'DEFAULT') {
+            let key = entry.costCenterId ? ccIdToKeyMap.get(entry.costCenterId) : null;
+            if (!key || entry.costCenterId === 'DEFAULT') {
                 key = `GERAL-${primaryId}`;
             }
             
@@ -256,8 +274,8 @@ export async function GET(request: Request) {
             const primaryId = tenantToPrimaryMap.get(entry.tenantId);
             if (!primaryId) return;
 
-            let key = entry.costCenterId;
-            if (!key || key === 'DEFAULT') {
+            let key = entry.costCenterId ? ccIdToKeyMap.get(entry.costCenterId) : null;
+            if (!key || entry.costCenterId === 'DEFAULT') {
                 key = `GERAL-${primaryId}`;
             }
             

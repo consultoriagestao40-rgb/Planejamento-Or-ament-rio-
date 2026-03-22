@@ -32,14 +32,41 @@ export async function GET(request: Request) {
         };
 
         // Apply cost center filter
-        // DEFAULT means show everything (no CC filter)
-        // null means show only unallocated (Geral)
         if (costCenterId === 'null') {
             whereClause.costCenterId = null;
         } else if (costCenterId !== 'DEFAULT') {
-            const ids = costCenterId.split(',').map(id => id.trim()).filter(Boolean);
-            if (ids.length > 0) {
-                whereClause.costCenterId = { in: ids };
+            const requestedIds = costCenterId.split(',').map(id => id.trim()).filter(Boolean);
+            if (requestedIds.length > 0) {
+                // Find all IDs that share the same clean name as the selected costCenterIds
+                const selectedCCs = await prisma.costCenter.findMany({
+                    where: { id: { in: requestedIds } },
+                    select: { name: true, tenantId: true }
+                });
+                
+                const allSynonymousIds = new Set<string>(requestedIds);
+                if (selectedCCs.length > 0) {
+                    const cleanNames = selectedCCs.map(cc => 
+                        (cc.name || '').replace(/^\[INATIVO\]\s*/i, '').replace(/^ENCERRADO\s*/i, '').trim()
+                    );
+                    
+                    const synonymousCCs = await prisma.costCenter.findMany({
+                        where: {
+                            tenantId: { in: selectedCCs.map(cc => cc.tenantId) },
+                            OR: cleanNames.map(name => ({
+                                name: { contains: name }
+                            }))
+                        },
+                        select: { id: true, name: true }
+                    });
+                    
+                    synonymousCCs.forEach(cc => {
+                        const cn = (cc.name || '').replace(/^\[INATIVO\]\s*/i, '').replace(/^ENCERRADO\s*/i, '').trim();
+                        if (cleanNames.includes(cn)) {
+                            allSynonymousIds.add(cc.id);
+                        }
+                    });
+                }
+                whereClause.costCenterId = { in: Array.from(allSynonymousIds) };
             }
         }
 

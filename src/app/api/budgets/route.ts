@@ -125,19 +125,42 @@ export async function GET(request: Request) {
     }
 
     // Build the costCenter filter:
-    // - MASTER + isGeneralView → no filter at all (fetch everything)
-    // - MASTER + specific CCs → filter by those CCs OR null CC (GERAL)
-    //   IMPORTANT: we always include null-CC entries so company-level budget 
-    //   (entered without a specific CC) is always visible regardless of CC filter.
-    // - GESTOR + any view → filter by their allowed CCs (handled above)
     let ccFilter: any = {};
     if (isGeneralView && user.role === 'MASTER') {
-      // No CC filter — return all entries for the selected tenant(s)
       ccFilter = {};
     } else if (!isGeneralView) {
-      // Include entries for the selected CC(s) AND entries with no CC (GERAL)
+      // Find all IDs that share the same clean name as the selected costCenterIds
+      const selectedCCs = await prisma.costCenter.findMany({
+          where: { id: { in: costCenterIds } },
+          select: { name: true, tenantId: true }
+      });
+      
+      const allSynonymousIds = new Set<string>(costCenterIds);
+      if (selectedCCs.length > 0) {
+          const cleanNames = selectedCCs.map(cc => 
+              (cc.name || '').replace(/^\[INATIVO\]\s*/i, '').replace(/^ENCERRADO\s*/i, '').trim()
+          );
+          
+          const synonymousCCs = await prisma.costCenter.findMany({
+              where: {
+                  tenantId: { in: selectedCCs.map(cc => cc.tenantId) },
+                  OR: cleanNames.map(name => ({
+                      name: { contains: name } // Use contains + post-filter for better matching
+                  }))
+              },
+              select: { id: true, name: true }
+          });
+          
+          synonymousCCs.forEach(cc => {
+              const cn = (cc.name || '').replace(/^\[INATIVO\]\s*/i, '').replace(/^ENCERRADO\s*/i, '').trim();
+              if (cleanNames.includes(cn)) {
+                  allSynonymousIds.add(cc.id);
+              }
+          });
+      }
+
       ccFilter = { OR: [
-        { costCenterId: { in: costCenterIds } },
+        { costCenterId: { in: Array.from(allSynonymousIds) } },
         { costCenterId: null }
       ]};
     } else {

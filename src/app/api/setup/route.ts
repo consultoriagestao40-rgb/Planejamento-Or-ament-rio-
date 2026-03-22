@@ -28,17 +28,27 @@ export async function GET() {
                 tenantId: cat.tenantId,
                 entradaDre: (cat as any).entradaDre || null
             })),
-            costCenters: costCenters.map((cc: any) => ({
-                id: cc.id,
-                // Strip [INATIVO] prefix from CC names — these CCs have valid budget data
-                // and must remain accessible. The prefix is cosmetic from Conta Azul sync.
-                name: (cc.name || '')
-                    .replace(/^\[INATIVO\]\s*/i, '')
-                    .replace(/^ENCERRADO\s*/i, '')
-                    .trim(),
-                tenantId: cc.tenantId,
-                tenantName: cc.tenant?.name || 'Empresa Desconhecida'
-            })),
+            costCenters: (() => {
+                const map = new Map<string, any>();
+                costCenters.forEach((cc: any) => {
+                    const cleanName = (cc.name || '')
+                        .replace(/^\[INATIVO\]\s*/i, '')
+                        .replace(/^ENCERRADO\s*/i, '')
+                        .trim();
+                    const key = `${cc.tenantId}-${cleanName}`;
+                    const hasPrefix = (cc.name || '').startsWith('[INATIVO]') || (cc.name || '').startsWith('ENCERRADO');
+
+                    if (!map.has(key) || !hasPrefix) {
+                        map.set(key, {
+                            id: cc.id,
+                            name: cleanName,
+                            tenantId: cc.tenantId,
+                            tenantName: cc.tenant?.name || 'Empresa Desconhecida'
+                        });
+                    }
+                });
+                return Array.from(map.values());
+            })(),
             tenants: tenants.map((t: any) => ({
                 id: t.id,
                 name: t.name,

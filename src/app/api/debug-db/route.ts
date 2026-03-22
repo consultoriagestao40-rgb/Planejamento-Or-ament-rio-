@@ -5,56 +5,27 @@ export const dynamic = 'force-dynamic';
 
 export async function GET() {
     try {
-        const targetNames = [
-            'MRV - LOJA BRASIL',
-            'MRV - LOJA JOHN KENNEDY',
-            'MRV - LOJA SENSIA CURITIBA',
-            'MRV - LOJA SENSIA LONDRINA',
-            'MRV - LOJA SENSIA MARINGA'
-        ];
+        const yearStats = await prisma.budgetEntry.groupBy({
+            by: ['year'],
+            _count: true
+        });
 
-        const normalize = (name: string) => 
-            (name || '').toLowerCase()
-                .replace(/^\[inativo\]\s*/i, '')
-                .replace(/^encerrado\s*/i, '')
-                .replace(/[^a-z0-9]/g, '')
-                .trim();
+        const mrvTenants = await prisma.tenant.findMany({
+            where: { name: { contains: 'MRV', mode: 'insensitive' } }
+        });
 
-        const results: any[] = [];
+        const spotTenants = await prisma.tenant.findMany({
+            where: { name: { contains: 'SPOT', mode: 'insensitive' } }
+        });
 
-        for (const name of targetNames) {
-            const norm = normalize(name);
-            const matchedCcs = await prisma.costCenter.findMany({
-                where: {
-                    OR: [
-                        { name: { contains: name } },
-                        { name: { contains: name.replace('MRV - ', '') } }
-                    ]
-                }
-            });
-
-            const filteredCcs = matchedCcs.filter(cc => normalize(cc.name) === norm);
-            const ccIds = filteredCcs.map(cc => cc.id);
-
-            // Check budgets for 2025
-            const budgets2025 = await prisma.budgetEntry.groupBy({
-                by: ['year'],
-                where: { costCenterId: { in: ccIds }, year: 2025 },
-                _count: true,
-                _sum: { amount: true }
-            });
-
-            results.push({
-                name,
-                ccNamesFound: filteredCcs.map(c => c.name),
-                budgets2025: budgets2025.map(b => ({
-                    count: b._count,
-                    total: b._sum.amount
-                }))
-            });
-        }
-
-        return NextResponse.json({ success: true, results });
+        return NextResponse.json({ 
+            success: true, 
+            yearStats,
+            tenants: {
+                mrv: mrvTenants.map(t => t.name),
+                spot: spotTenants.map(t => t.name)
+            }
+        });
     } catch (error: any) {
         return NextResponse.json({ success: false, error: error.message });
     }

@@ -9,8 +9,7 @@ export async function POST(request: Request) {
             return NextResponse.json({ success: false, error: "Dados incompletos (Empresa, Ano ou Mês ausentes)" }, { status: 400 });
         }
 
-        // 1. Se overwrite for true, removemos os registros de TODA a família de empresas (variantes)
-        // para garantir que não fiquem dados "fantasmas" de outras variantes no mesmo período.
+        // 1. Se overwrite for true, remove todos os dados do período para o grupo de empresas
         if (overwrite) {
             const { getAllVariantIds } = await import('@/lib/tenant-utils');
             const allVariantIds = await getAllVariantIds(tenantId);
@@ -26,21 +25,62 @@ export async function POST(request: Request) {
             });
         }
 
-        // 2. Prepara novos registros — cada linha recebe um UUID único para nunca colidir
-        const entriesToSave = rows.map((row: any) => ({
-            tenantId: row.tenantId || tenantId,
-            categoryId: row.categoryId,
-            costCenterId: row.costCenterId || null,
-            month: row.month || month,
-            year,
-            amount: parseFloat(row.amount) || 0,
-            viewMode: viewMode || 'competencia',
-            description: row.description || "Upload via Excel",
-            // UUID garante unicidade absoluta — sem colisão por Date.now() em batch
+        // 2. Agregar linhas por chave única (tenantId, categoryId, costCenterId, month, year, viewMode)
+        // Isso respeita a constraint única do banco e preserva 100% do valor total
+        const aggregated = new Map<string, {
+            tenantId: string;
+            categoryId: string;
+            costCenterId: string | null;
+            month: number;
+            year: number;
+            viewMode: string;
+            amount: number;
+            description: string;
+        }>();
+
+        const effectiveViewMode = viewMode || 'competencia';
+        const effectiveMonth = parseInt(month);
+        const effectiveYear = parseInt(year);
+
+        for (const row of rows) {
+            const rowTenantId = row.tenantId || tenantId;
+            const rowCategoryId = row.categoryId;
+            const rowCostCenterId = row.costCenterId || null;
+            const rowMonth = row.month || effectiveMonth;
+            const rowAmount = parseFloat(row.amount) || 0;
+            const rowDesc = row.description || "Upload via Excel";
+
+            const key = `${rowTenantId}||${rowCategoryId}||${rowCostCenterId}||${rowMonth}||${effectiveYear}||${effectiveViewMode}`;
+            
+            if (aggregated.has(key)) {
+                const existing = aggregated.get(key)!;
+                existing.amount += rowAmount;
+                // Keep first description unless new one is more informative
+                if (rowDesc.length > existing.description.length) {
+                    existing.description = rowDesc;
+                }
+            } else {
+                aggregated.set(key, {
+                    tenantId: rowTenantId,
+                    categoryId: rowCategoryId,
+                    costCenterId: rowCostCenterId,
+                    month: typeof rowMonth === 'number' ? rowMonth : parseInt(rowMonth),
+                    year: effectiveYear,
+                    viewMode: effectiveViewMode,
+                    amount: rowAmount,
+                    description: rowDesc,
+                });
+            }
+        }
+
+        const entriesToSave = Array.from(aggregated.values()).map(entry => ({
+            ...entry,
             externalId: crypto.randomUUID()
         }));
 
-        // 3. Inserção em massa — sem skipDuplicates pois externalId é único
+        console.log(`[EXCEL-BULK] ${rows.length} linhas -> ${entriesToSave.length} entradas únicas agregadas`);
+
+        // 3. Inserção em massa com valores agregados
         let createdCount = 0;
         if (entriesToSave.length > 0) {
             const result = await prisma.realizedEntry.createMany({
@@ -49,7 +89,7 @@ export async function POST(request: Request) {
             createdCount = result.count;
         }
 
-        return NextResponse.json({ success: true, count: createdCount });
+        return NextResponse.json({ success: true, count: createdCount, rawRows: rows.length, aggregatedRows: entriesToSave.length });
 
     } catch (error: any) {
         console.error("[EXCEL-BULK] Erro:", error);

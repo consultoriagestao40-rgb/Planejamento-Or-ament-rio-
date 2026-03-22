@@ -511,6 +511,16 @@ export default function BudgetSummaryPage() {
                     viewMode="competencia"
                 />
 
+                {/* Version Footer */}
+                <div style={{ marginTop: '4rem', paddingTop: '2rem', borderTop: '1px solid var(--border-subtle)', textAlign: 'center' }}>
+                    <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                        BusManager Sistema de Gestão - Versão 
+                        <span style={{ fontWeight: 800, marginLeft: '4px' }}>
+                            {loading ? '...' : (data as any).length >= 0 ? 'v52.0' : 'v52.0'} 
+                        </span>
+                    </p>
+                </div>
+
                 <style jsx global>{`
                     .brand-text { font-weight: 900; background: var(--gradient-brand); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
                     .stat-card { background: var(--bg-card); padding: 1.5rem; border-radius: var(--radius); border: 1px solid var(--border-subtle); }

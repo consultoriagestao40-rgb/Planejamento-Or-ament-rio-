@@ -71,12 +71,11 @@ export async function GET(request: Request) {
         // Helper to aggregate entries (Realized or Budget)
         const aggregate = (entries: any[], prefix: string = '') => {
             entries.forEach((e: any) => {
-                // 1. ID-based key for BudgetEntryGrid (Realized always prefixed with 'realized-')
+                // 1. ID-based key for BudgetEntryGrid (unprefixed ID or 'realized-' prefixed ID)
                 const idKey = prefix ? `${prefix}${e.categoryId}-${e.month - 1}` : `${e.categoryId}-${e.month - 1}`;
                 values[idKey] = (values[idKey] || 0) + e.amount;
 
                 // 2. Name-based key for Dashboard (DRE)
-                // IMPORTANT: Name-based keys MUST NOT have the 'realized-' prefix for the Dashboard to work.
                 let catName = categoryNameMap.get(e.categoryId);
                 if (!catName && e.categoryId.includes(':')) {
                     catName = categoryNameMap.get(e.categoryId.split(':')[1]);
@@ -84,14 +83,17 @@ export async function GET(request: Request) {
 
                 if (catName) {
                     const normalizedName = catName.toUpperCase().replace(/[^A-Z0-9]/g, '');
-                    // Use prefix ONLY for IDs, NOT for names in DRE Dashboard
-                    const nameKey = `${normalizedName}|${e.month - 1}`;
+                    // IMPORTANT: The Dashboard expects plain name keys for Realized data.
+                    // For Budget data, we use 'budget-' prefix to avoid collision.
+                    const nameKeyPrefix = prefix === 'realized-' ? '' : 'budget-';
+                    const nameKey = `${nameKeyPrefix}${normalizedName}|${e.month - 1}`;
+                    
                     values[nameKey] = (values[nameKey] || 0) + e.amount;
                     
                     // Aggregator for Revenue
                     const isRevenue = normalizedName.startsWith('01');
                     if (isRevenue && normalizedName !== '01RECEITABRUTA') {
-                        const parentKey = `01RECEITABRUTA|${e.month - 1}`;
+                        const parentKey = `${nameKeyPrefix}01RECEITABRUTA|${e.month - 1}`;
                         values[parentKey] = (values[parentKey] || 0) + e.amount;
                     }
                 }
@@ -99,7 +101,7 @@ export async function GET(request: Request) {
         };
 
         aggregate(realizedEntries, 'realized-');
-        aggregate(budgetEntries, ''); 
+        aggregate(budgetEntries, ''); // Budget uses prefix='' but then nameKeyPrefix='budget-'
 
         return NextResponse.json({
             success: true,

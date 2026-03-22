@@ -592,14 +592,15 @@ select.premium-select:focus {
   font-weight: 600;
 }
 
-.spreadsheet-net-profit-row,
-.spreadsheet-net-profit-row .sticky-col {
+.spreadsheet-table tr.spreadsheet-net-profit-row,
+.spreadsheet-table tr.spreadsheet-net-profit-row td,
+.spreadsheet-table tr.spreadsheet-net-profit-row .sticky-col {
   background-color: #2563eb !important;
   color: #ffffff !important;
   font-weight: 800;
 }
 
-.spreadsheet-net-profit-row .spreadsheet-value {
+.spreadsheet-table tr.spreadsheet-net-profit-row .spreadsheet-value {
   color: #ffffff !important;
 }
 

@@ -35,24 +35,30 @@ export async function GET(request: Request) {
         if (costCenterId === 'null') {
             whereClause.costCenterId = null;
         } else if (costCenterId !== 'DEFAULT') {
-            const requestedIds = costCenterId.split(',').map(id => id.trim()).filter(Boolean);
-            if (requestedIds.length > 0) {
                 // Find all IDs that share the same clean name as the selected costCenterIds
+                const requestedIds = costCenterId.split(',').map(id => id.trim()).filter(Boolean);
                 const selectedCCs = await prisma.costCenter.findMany({
                     where: { id: { in: requestedIds } },
                     select: { name: true, tenantId: true }
                 });
                 
+                const normalizeName = (name: string) => 
+                    (name || '')
+                        .toLowerCase()
+                        .replace(/^\[inativo\]\s*/i, '')
+                        .replace(/^encerrado\s*/i, '')
+                        .replace(/[^a-z0-9]/g, '')
+                        .trim();
+
                 const allSynonymousIds = new Set<string>(requestedIds);
                 if (selectedCCs.length > 0) {
-                    const cleanNames = selectedCCs.map(cc => 
-                        (cc.name || '').replace(/^\[INATIVO\]\s*/i, '').replace(/^ENCERRADO\s*/i, '').trim()
-                    );
+                    const targetNorms = selectedCCs.map(cc => normalizeName(cc.name));
+                    const firstPartNames = selectedCCs.map(cc => (cc.name || '').split('-')[0].trim());
                     
                     const synonymousCCs = await prisma.costCenter.findMany({
                         where: {
                             tenantId: { in: selectedCCs.map(cc => cc.tenantId) },
-                            OR: cleanNames.map(name => ({
+                            OR: firstPartNames.map(name => ({
                                 name: { contains: name }
                             }))
                         },
@@ -60,14 +66,13 @@ export async function GET(request: Request) {
                     });
                     
                     synonymousCCs.forEach(cc => {
-                        const cn = (cc.name || '').replace(/^\[INATIVO\]\s*/i, '').replace(/^ENCERRADO\s*/i, '').trim();
-                        if (cleanNames.includes(cn)) {
+                        const cn = normalizeName(cc.name);
+                        if (targetNorms.includes(cn)) {
                             allSynonymousIds.add(cc.id);
                         }
                     });
                 }
                 whereClause.costCenterId = { in: Array.from(allSynonymousIds) };
-            }
         }
 
         const [realizedEntries, budgetEntries] = await Promise.all([

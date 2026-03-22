@@ -135,29 +135,34 @@ export async function GET(request: Request) {
           select: { name: true, tenantId: true }
       });
       
-      const allSynonymousIds = new Set<string>(costCenterIds);
-      if (selectedCCs.length > 0) {
-          const cleanNames = selectedCCs.map(cc => 
-              (cc.name || '').replace(/^\[INATIVO\]\s*/i, '').replace(/^ENCERRADO\s*/i, '').trim()
-          );
-          
-          const synonymousCCs = await prisma.costCenter.findMany({
-              where: {
-                  tenantId: { in: selectedCCs.map(cc => cc.tenantId) },
-                  OR: cleanNames.map(name => ({
-                      name: { contains: name } // Use contains + post-filter for better matching
-                  }))
-              },
-              select: { id: true, name: true }
-          });
-          
-          synonymousCCs.forEach(cc => {
-              const cn = (cc.name || '').replace(/^\[INATIVO\]\s*/i, '').replace(/^ENCERRADO\s*/i, '').trim();
-              if (cleanNames.includes(cn)) {
-                  allSynonymousIds.add(cc.id);
-              }
-          });
-      }
+          const normalizeName = (name: string) => 
+               (name || '')
+                   .toLowerCase()
+                   .replace(/^\[inativo\]\s*/i, '')
+                   .replace(/^encerrado\s*/i, '')
+                   .replace(/[^a-z0-9]/g, '')
+                   .trim();
+
+          const allSynonymousIds = new Set<string>(costCenterIds);
+          if (selectedCCs.length > 0) {
+              const targetNorms = selectedCCs.map(cc => normalizeName(cc.name));
+              const firstPartNames = selectedCCs.map(cc => (cc.name || '').split('-')[0].trim());
+              
+              const synonymousCCs = await prisma.costCenter.findMany({
+                  where: {
+                      tenantId: { in: selectedCCs.map(cc => cc.tenantId) },
+                      OR: firstPartNames.map(n => ({ name: { contains: n } }))
+                  },
+                  select: { id: true, name: true }
+              });
+              
+              synonymousCCs.forEach(cc => {
+                  const cn = normalizeName(cc.name);
+                  if (targetNorms.includes(cn)) {
+                      allSynonymousIds.add(cc.id);
+                  }
+              });
+          }
 
       ccFilter = { OR: [
         { costCenterId: { in: Array.from(allSynonymousIds) } },

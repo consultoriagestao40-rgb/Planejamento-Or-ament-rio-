@@ -11,10 +11,7 @@ interface SummaryItem {
     costCenterId: string;
     costCenterName: string;
     totalRevenueBudget: number;
-    totalRevenueRealized: number;
     totalExpenseBudget: number;
-    totalExpenseRealized: number;
-    totalTaxesRealized: number;
     totalRevenue: number;
     totalExpense: number;
     hasBudgetData: boolean;
@@ -33,9 +30,7 @@ interface TenantGroup {
     tenantId: string;
     tenantName: string;
     totalRevenueBudget: number;
-    totalRevenueRealized: number;
     totalExpenseBudget: number;
-    totalExpenseRealized: number;
     totalRevenue: number;
     totalExpense: number;
     hasBudget: boolean;
@@ -75,7 +70,14 @@ export default function BudgetSummaryPage() {
                 setupRes.json()
             ]);
 
-            if (summaryResult.success) setData(summaryResult.data);
+            if (summaryResult.success) {
+                setData(summaryResult.data.filter((item: SummaryItem) => {
+                    // If it's a real item (CC), always show (if not inactive/closed already filtered in SQL)
+                    if (item.costCenterId !== 'DEFAULT') return true;
+                    // If it's a GENERAL item, show only if it has some budget data
+                    return item.hasBudgetData;
+                }));
+            }
             if (authResult.success) setUserRole(authResult.user.role);
             if (setupResult.success) {
                 // Use the complete list of tenants from the setup API
@@ -107,9 +109,7 @@ export default function BudgetSummaryPage() {
                     tenantId: item.tenantId,
                     tenantName: item.tenantName,
                     totalRevenueBudget: 0,
-                    totalRevenueRealized: 0,
                     totalExpenseBudget: 0,
-                    totalExpenseRealized: 0,
                     totalRevenue: 0,
                     totalExpense: 0,
                     hasBudget: false,
@@ -121,9 +121,7 @@ export default function BudgetSummaryPage() {
             }
             const group = groups.get(item.tenantId)!;
             group.totalRevenueBudget += (item.totalRevenueBudget || 0);
-            group.totalRevenueRealized += (item.totalRevenueRealized || 0);
             group.totalExpenseBudget += (item.totalExpenseBudget || 0);
-            group.totalExpenseRealized += (item.totalExpenseRealized || 0);
             group.totalRevenue += (item.totalRevenue || 0);
             group.totalExpense += (item.totalExpense || 0);
             group.totalCount++;
@@ -375,8 +373,6 @@ export default function BudgetSummaryPage() {
                             <thead>
                                 <tr>
                                     <th style={{ ...th, textAlign: 'left', width: '350px' }}>Organização / Centro de Custo</th>
-                                    <th style={{ ...th, textAlign: 'right' }}>RECEITA (CONTA AZUL)</th>
-                                    <th style={{ ...th, textAlign: 'right' }}>DESPESA (CONTA AZUL)</th>
                                     <th style={{ ...th, textAlign: 'right', color: 'var(--accent-blue)' }}>RECEITA (ORÇADA)</th>
                                     <th style={{ ...th, textAlign: 'right', color: 'var(--accent-red)' }}>DESPESA (ORÇADA)</th>
                                     <th style={{ ...th, textAlign: 'center' }}>Progresso</th>
@@ -397,8 +393,6 @@ export default function BudgetSummaryPage() {
                                                     <span style={{ transform: isExpanded ? 'rotate(90deg)' : 'rotate(0deg)', transition: 'transform 0.2s', display: 'inline-block' }}>▶</span>
                                                     {group.tenantName}
                                                 </td>
-                                                <td style={{ ...td, textAlign: 'right', fontWeight: 800 }}>{formatCurrency(group.totalRevenueRealized)}</td>
-                                                <td style={{ ...td, textAlign: 'right', fontWeight: 800 }}>{formatCurrency(group.totalExpenseRealized)}</td>
                                                 <td style={{ ...td, textAlign: 'right', fontWeight: 900, color: 'var(--accent-blue)', background: 'rgba(59, 130, 246, 0.03)' }}>{formatCurrency(group.totalRevenueBudget)}</td>
                                                 <td style={{ ...td, textAlign: 'right', fontWeight: 900, color: 'var(--accent-red)', background: 'rgba(239, 68, 68, 0.03)' }}>{formatCurrency(group.totalExpenseBudget)}</td>
                                                 <td style={{ ...td, textAlign: 'center' }}>
@@ -465,8 +459,6 @@ export default function BudgetSummaryPage() {
                                                             <Link href={`/orcamento/${cc.costCenterId}?year=${selectedYear}`} className="btn" style={{ padding: '0.2rem 0.4rem', fontSize: '0.65rem', background: 'rgba(59,130,246,0.1)', color: 'var(--accent-blue)' }}>✏️ Orçar</Link>
                                                         </div>
                                                     </td>
-                                                    <td style={{ ...td, textAlign: 'right' }}>{formatCurrency(cc.totalRevenueRealized)}</td>
-                                                    <td style={{ ...td, textAlign: 'right' }}>{formatCurrency(cc.totalExpenseRealized)}</td>
                                                     <td style={{ ...td, textAlign: 'right', fontWeight: 700, color: 'var(--accent-blue)', background: 'rgba(59, 130, 246, 0.02)' }}>{formatCurrency(cc.totalRevenueBudget)}</td>
                                                     <td style={{ ...td, textAlign: 'right', fontWeight: 700, color: 'var(--accent-red)', background: 'rgba(239, 68, 68, 0.02)' }}>{formatCurrency(cc.totalExpenseBudget)}</td>
                                                     <td style={{ ...td, textAlign: 'center' }}>{cc.hasBudgetData ? '✓' : '-'}</td>

@@ -29,19 +29,29 @@ export async function GET() {
                 entradaDre: (cat as any).entradaDre || null
             })),
             costCenters: (() => {
+                const normalizeName = (name: string) => 
+                    (name || '')
+                        .toLowerCase()
+                        .replace(/^\[inativo\]\s*/i, '')
+                        .replace(/^encerrado\s*/i, '')
+                        .replace(/[^a-z0-9]/g, '')
+                        .trim();
+
                 const map = new Map<string, any>();
                 costCenters.forEach((cc: any) => {
-                    const cleanName = (cc.name || '')
-                        .replace(/^\[INATIVO\]\s*/i, '')
-                        .replace(/^ENCERRADO\s*/i, '')
-                        .trim();
-                    const key = `${cc.tenantId}-${cleanName}`;
+                    const nName = normalizeName(cc.name);
+                    const key = `${cc.tenantId}-${nName}`;
                     const hasPrefix = (cc.name || '').startsWith('[INATIVO]') || (cc.name || '').startsWith('ENCERRADO');
 
                     if (!map.has(key) || !hasPrefix) {
+                        const displayName = (cc.name || '')
+                            .replace(/^\[INATIVO\]\s*/i, '')
+                            .replace(/^ENCERRADO\s*/i, '')
+                            .trim();
+
                         map.set(key, {
                             id: cc.id,
-                            name: cleanName,
+                            name: displayName,
                             tenantId: cc.tenantId,
                             tenantName: cc.tenant?.name || 'Empresa Desconhecida'
                         });

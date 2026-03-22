@@ -160,9 +160,10 @@ export default function FinancialDashboard({
                                     <a href="/users" className="btn btn-secondary" style={{ height: '34px', fontSize: '0.78rem' }}>
                                         🪪 Usuários
                                     </a>
-                                    <a href="/radar" className="btn btn-secondary" style={{ height: '34px', fontSize: '0.78rem' }}>
+                                    {/* RADAR BUTTON HIDDEN - preserved for future use */}
+                                    {/* <a href="/radar" className="btn btn-secondary" style={{ height: '34px', fontSize: '0.78rem' }}>
                                         🎯 Gestão de Radar
-                                    </a>
+                                    </a> */}
                                     <a href={authUrl} className="btn btn-primary" style={{ height: '34px', fontSize: '0.78rem' }}>
                                         ➕ Conectar Empresa
                                     </a>

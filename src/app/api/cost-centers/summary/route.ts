@@ -199,11 +199,11 @@ export async function GET(request: Request) {
         });
 
         // 4. Agregar valores do orçamento
+        console.log(`[DEBUG] Aggregating ${budgetEntries.length} budget entries`);
         budgetEntries.forEach((entry: any) => {
             const primaryId = tenantToPrimaryMap.get(entry.tenantId);
             if (!primaryId) return;
 
-            // Se costCenterId for null ou DEFAULT, agregar no GERAL do Tenant Principal
             let key = entry.costCenterId;
             if (!key || key === 'DEFAULT') {
                 key = `GERAL-${primaryId}`;
@@ -218,7 +218,15 @@ export async function GET(request: Request) {
                 } else {
                     summary.totalExpenseBudget += entry.amount || 0;
                 }
-                if (entry.amount && entry.amount !== 0) summary.hasBudgetData = true;
+                if (entry.amount && entry.amount !== 0) {
+                    summary.hasBudgetData = true;
+                }
+                
+                if (summary.tenantName?.includes('SPOT') || summary.costCenterName?.includes('SPOT')) {
+                    console.log(`[DEBUG] SPOT ADDED: ${entry.amount} to ${summary.costCenterName} (${key}). New Rev: ${summary.totalRevenueBudget}`);
+                }
+            } else if (entry.amount !== 0) {
+                console.log(`[DEBUG] Summary NOT FOUND for CC ${key} (Tenant ${entry.tenantId}) with amount ${entry.amount}`);
             }
         });
 
@@ -295,10 +303,15 @@ export async function GET(request: Request) {
                 return (a.costCenterName || '').localeCompare(b.costCenterName || '');
             });
 
-        return NextResponse.json({
-            success: true,
-            year: currentYear,
-            data: result
+        return NextResponse.json({ 
+            success: true, 
+            data: result,
+            debugInfo: {
+                budgetEntriesCount: budgetEntries.length,
+                realizedEntriesCount: realizedEntries.length,
+                summaryMapSize: summaryMap.size,
+                year: currentYear
+            }
         });
 
     } catch (error: any) {

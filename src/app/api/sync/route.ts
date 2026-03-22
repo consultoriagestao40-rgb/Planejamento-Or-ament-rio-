@@ -54,8 +54,28 @@ export async function GET(request: Request) {
 
         const realizedValues: Record<string, number> = {};
         entries.forEach((e: any) => {
-            const key = `${e.categoryId}-${e.month - 1}`;
-            realizedValues[key] = (realizedValues[key] || 0) + e.amount;
+            // 1. ID-based key for BudgetEntryGrid
+            const idKey = `${e.categoryId}-${e.month - 1}`;
+            realizedValues[idKey] = (realizedValues[idKey] || 0) + e.amount;
+
+            // 2. Name-based key for Dashboard aggregation across variants
+            let catName = categoryNameMap.get(e.categoryId);
+            if (!catName && e.categoryId.includes(':')) {
+                catName = categoryNameMap.get(e.categoryId.split(':')[1]);
+            }
+
+            if (catName) {
+                const normalizedName = catName.toUpperCase().replace(/[^A-Z0-9]/g, '');
+                const nameKey = `${normalizedName}|${e.month - 1}`;
+                realizedValues[nameKey] = (realizedValues[nameKey] || 0) + e.amount;
+                
+                // Aggregator for Revenue
+                const isRevenue = normalizedName.startsWith('01');
+                if (isRevenue && normalizedName !== '01RECEITABRUTA') {
+                    const parentKey = `01RECEITABRUTA|${e.month - 1}`;
+                    realizedValues[parentKey] = (realizedValues[parentKey] || 0) + e.amount;
+                }
+            }
         });
 
         return NextResponse.json({

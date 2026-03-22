@@ -80,14 +80,6 @@ export async function GET(request: Request) {
             prisma.tenant.findMany({ select: { id: true, name: true, taxRate: true } }),
 
             prisma.costCenter.findMany({ 
-                where: { 
-                    NOT: { 
-                        OR: [
-                            { name: { contains: '[INATIVO]' } },
-                            { name: { contains: 'ENCERRADO', mode: 'insensitive' } }
-                        ]
-                    } 
-                },
                 select: { id: true, name: true, tenantId: true } 
             }),
             prisma.category.findMany({ 
@@ -272,10 +264,10 @@ export async function GET(request: Request) {
             }
         });
 
-        // 5. Finalize totals (Budget is primary for this module)
+        // 5. Finalize totals (Realized is displayed in main table, Budget is for KPIs)
         for (const summary of summaryMap.values()) {
-            summary.totalRevenue = summary.totalRevenueBudget || 0;
-            summary.totalExpense = summary.totalExpenseBudget || 0;
+            summary.totalRevenue = summary.totalRevenueRealized || 0;
+            summary.totalExpense = summary.totalExpenseRealized || 0;
         }
 
         const result = Array.from(summaryMap.values())

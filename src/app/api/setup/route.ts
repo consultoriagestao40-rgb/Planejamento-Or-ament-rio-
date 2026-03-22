@@ -5,10 +5,17 @@ export const dynamic = 'force-dynamic';
 
 export async function GET() {
     try {
-        // ABSOLUTELY NO FILTERS - LOAD EVERYTHING TO RECOVER VISIBILITY
         const [categories, costCenters, tenants] = await Promise.all([
             prisma.category.findMany({ orderBy: { name: 'asc' } }),
             prisma.costCenter.findMany({ 
+                where: {
+                    NOT: {
+                        OR: [
+                            { name: { contains: '[INATIVO]' } },
+                            { name: { contains: 'ENCERRADO', mode: 'insensitive' } }
+                        ]
+                    }
+                },
                 include: { tenant: { select: { name: true } } },
                 orderBy: { name: 'asc' } 
             }),

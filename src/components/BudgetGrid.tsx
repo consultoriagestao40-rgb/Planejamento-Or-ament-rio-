@@ -1140,9 +1140,38 @@ export default function BudgetGrid({
                                     {formatCurrency(rVal)}
                                 </td>
                                 {showAV && <td className="spreadsheet-value" style={{ color: '#94a3b8', fontSize: '0.6rem', textAlign: 'center' }} title="AV Real">{avReal.toFixed(1)}%</td>}
-                                {showAH && <td className="spreadsheet-value" style={{ color: getAH(rVal, bVal) < 0 ? '#ef4444' : '#10b981', fontSize: '0.6rem', textAlign: 'center' }}>{getAH(rVal, bVal).toFixed(1)}%</td>}
+                                {showAH && (
+                                    <td className="spreadsheet-value" style={{ 
+                                        color: (() => {
+                                            const val = getAH(rVal, bVal);
+                                            const isRevenue = node.code?.startsWith('01') || node.code?.startsWith('1');
+                                            if (val === 0) return '#64748b';
+                                            if (isRevenue) return val < 0 ? '#ef4444' : '#10b981';
+                                            // Costs/Expenses: Higher is BAD (Red)
+                                            return val > 0 ? '#ef4444' : '#10b981';
+                                        })(), 
+                                        fontSize: '0.6rem', 
+                                        textAlign: 'center' 
+                                    }}>
+                                        {getAH(rVal, bVal).toFixed(1)}%
+                                    </td>
+                                )}
                                 {/* {showAR && <td className="spreadsheet-value" style={{ color: getAH(rVal, rdVal) < 0 ? '#ef4444' : '#10b981', fontSize: '0.6rem', textAlign: 'center' }}>{getAH(rVal, rdVal).toFixed(1)}%</td>} */}
-                                {showAH_MoM && <td className="spreadsheet-value" style={{ color: getMoMPercent() < 0 ? '#ef4444' : '#10b981', fontSize: '0.6rem', textAlign: 'center' }}>{i === 0 ? '-' : `${getMoMPercent().toFixed(1)}%`}</td>}
+                                {showAH_MoM && (
+                                    <td className="spreadsheet-value" style={{ 
+                                        color: (() => {
+                                            const val = getMoMPercent();
+                                            const isRevenue = node.code?.startsWith('01') || node.code?.startsWith('1');
+                                            if (val === 0) return '#64748b';
+                                            if (isRevenue) return val < 0 ? '#ef4444' : '#10b981';
+                                            return val > 0 ? '#ef4444' : '#10b981';
+                                        })(), 
+                                        fontSize: '0.6rem', 
+                                        textAlign: 'center' 
+                                    }}>
+                                        {i === 0 ? '-' : `${getMoMPercent().toFixed(1)}%`}
+                                    </td>
+                                )}
                             </React.Fragment>
                         );
                     })}
@@ -1256,7 +1285,18 @@ export default function BudgetGrid({
                                 </td>
                             )}
                             {showAH && (
-                                <td className="spreadsheet-value" style={{ color: getAH(realizedVal, budgetVal) < 0 ? '#ef4444' : (isLucroLiquido ? '#fff' : '#10b981'), fontSize: '0.65rem', textAlign: 'center' }}>
+                                <td className="spreadsheet-value" style={{ 
+                                    color: (() => {
+                                        const val = getAH(realizedVal, budgetVal);
+                                        const isProfitRow = ['vRev', 'vRecLiq', 'vGrossMarg', 'vContribMarg', 'vEbitda', 'vNetProfit'].includes(validx as string);
+                                        if (val === 0) return isLucroLiquido ? '#fff' : '#64748b';
+                                        if (isProfitRow) return val < 0 ? '#ef4444' : (isLucroLiquido ? '#fff' : '#10b981');
+                                        // Expense rows: higher is Red
+                                        return val > 0 ? '#ef4444' : (isLucroLiquido ? '#fff' : '#10b981');
+                                    })(),
+                                    fontSize: '0.65rem', 
+                                    textAlign: 'center' 
+                                }}>
                                     {getAH(realizedVal, budgetVal).toFixed(1)}%
                                 </td>
                             )}
@@ -1267,7 +1307,17 @@ export default function BudgetGrid({
                                 </td>
                             )} */}
                             {showAH_MoM && (
-                                <td className="spreadsheet-value" style={{ color: getMoMPercent() < 0 ? '#ef4444' : (isLucroLiquido ? '#fff' : '#10b981'), fontSize: '0.65rem', textAlign: 'center' }}>
+                                <td className="spreadsheet-value" style={{ 
+                                    color: (() => {
+                                        const val = getMoMPercent();
+                                        const isProfitRow = ['vRev', 'vRecLiq', 'vGrossMarg', 'vContribMarg', 'vEbitda', 'vNetProfit'].includes(validx as string);
+                                        if (val === 0) return isLucroLiquido ? '#fff' : '#64748b';
+                                        if (isProfitRow) return val < 0 ? '#ef4444' : (isLucroLiquido ? '#fff' : '#10b981');
+                                        return val > 0 ? '#ef4444' : (isLucroLiquido ? '#fff' : '#10b981');
+                                    })(),
+                                    fontSize: '0.65rem', 
+                                    textAlign: 'center' 
+                                }}>
                                     {i === 0 ? '-' : `${getMoMPercent().toFixed(1)}%`}
                                 </td>
                             )}

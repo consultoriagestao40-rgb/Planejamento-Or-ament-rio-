@@ -255,7 +255,7 @@ export function ExcelPasteModal({ isOpen, onClose, tenantId: initialTenantId, co
                     revenueSumDetected += finalAmount;
                 }
 
-                const finalAmountPrepared = isRevenue ? finalAmount : -Math.abs(finalAmount);
+                const finalAmountPrepared = isRevenue ? finalAmount : Math.abs(finalAmount);
 
                 const finalDesc = fornecedor ? `${fornecedor} - ${descricao}` : (categoriaRaw ? `${categoriaRaw} - ${descricao}` : descricao);
                 
@@ -308,7 +308,7 @@ export function ExcelPasteModal({ isOpen, onClose, tenantId: initialTenantId, co
                             const amt = info.amountInformado;
                             if (Math.abs(amt) > 0) { 
                                 // O valor informado no rateio já é o final, mas aplicamos o sinal preparado
-                                const amtPrepared = isRevenue ? amt : -Math.abs(amt);
+                                const amtPrepared = isRevenue ? amt : Math.abs(amt);
                                 rows.push({
                                     categoryId: effectiveCat!.id,
                                     costCenterId: info.ccId,

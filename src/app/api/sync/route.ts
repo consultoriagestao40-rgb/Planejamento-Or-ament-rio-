@@ -54,28 +54,8 @@ export async function GET(request: Request) {
 
         const realizedValues: Record<string, number> = {};
         entries.forEach((e: any) => {
-            let catName = categoryNameMap.get(e.categoryId);
-            
-            if (!catName && e.categoryId.includes(':')) {
-                catName = categoryNameMap.get(e.categoryId.split(':')[1]);
-            }
-
-            if (catName) {
-                // FIXED: Aggressive normalization to handle " -Serviço" vs " - Serviço" vs "Serviço"
-                const normalizedName = catName.toUpperCase().replace(/[^A-Z0-9]/g, '');
-                const key = `${normalizedName}|${e.month - 1}`;
-                realizedValues[key] = (realizedValues[key] || 0) + e.amount;
-                
-                // --- AGREGADOR INFALÍVEL DE RECEITA (V47.41) ---
-                // Se o nome da categoria começar com o código de receita "01"
-                const isRevenue = normalizedName.startsWith('01');
-                if (isRevenue && normalizedName !== '01RECEITABRUTA') {
-                    const parentKey = `01RECEITABRUTA|${e.month - 1}`;
-                    realizedValues[parentKey] = (realizedValues[parentKey] || 0) + e.amount;
-                }
-            } else {
-                console.warn(`[SYNC] Valor de ${e.amount} DESCARTADO por falta de nome de categoria (ID: ${e.categoryId})`);
-            }
+            const key = `${e.categoryId}-${e.month - 1}`;
+            realizedValues[key] = (realizedValues[key] || 0) + e.amount;
         });
 
         return NextResponse.json({

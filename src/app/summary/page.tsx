@@ -253,14 +253,14 @@ export default function BudgetSummaryPage() {
         const totalCCs = data.length;
         const withBudget = data.filter(i => i.hasBudgetData).length;
         const withoutBudget = totalCCs - withBudget;
-        const totalRevenueRealized = data.reduce((acc, curr) => acc + curr.totalRevenueRealized, 0);
-        const totalExpenseRealized = data.reduce((acc, curr) => acc + curr.totalExpenseRealized, 0);
-        const resultValue = totalRevenueRealized - totalExpenseRealized;
-        const resultPercent = totalRevenueRealized !== 0 ? (resultValue / totalRevenueRealized) * 100 : 0;
+        const totalRevenueBudget = data.reduce((acc, curr) => acc + curr.totalRevenueBudget, 0);
+        const totalExpenseBudget = data.reduce((acc, curr) => acc + curr.totalExpenseBudget, 0);
+        const resultValue = totalRevenueBudget - totalExpenseBudget;
+        const resultPercent = totalRevenueBudget !== 0 ? (resultValue / totalRevenueBudget) * 100 : 0;
 
         return {
             totalCCs, withBudget, withoutBudget,
-            totalRevenueRealized, totalExpenseRealized,
+            totalRevenueBudget, totalExpenseBudget,
             resultValue, resultPercent
         };
     }, [data]);
@@ -339,19 +339,19 @@ export default function BudgetSummaryPage() {
                 {/* Financial KPIs */}
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '1.5rem', marginBottom: '3rem' }}>
                     <div className="stat-card" style={{ background: 'rgba(16, 185, 129, 0.05)' }}>
-                        <p className="stat-label" style={{ color: 'var(--accent-green)' }}>1. Receita Conta Azul</p>
-                        <p className="stat-value" style={{ color: 'var(--accent-green)' }}>{formatCurrency(stats.totalRevenueRealized)}</p>
+                        <p className="stat-label" style={{ color: 'var(--accent-green)' }}>1. Receita Orçada</p>
+                        <p className="stat-value" style={{ color: 'var(--accent-green)' }}>{formatCurrency(stats.totalRevenueBudget)}</p>
                     </div>
                     <div className="stat-card" style={{ background: 'rgba(239, 68, 68, 0.05)' }}>
-                        <p className="stat-label" style={{ color: 'var(--accent-red)' }}>2. Despesa Conta Azul</p>
-                        <p className="stat-value" style={{ color: 'var(--accent-red)' }}>{formatCurrency(stats.totalExpenseRealized)}</p>
+                        <p className="stat-label" style={{ color: 'var(--accent-red)' }}>2. Despesa Orçada</p>
+                        <p className="stat-value" style={{ color: 'var(--accent-red)' }}>{formatCurrency(stats.totalExpenseBudget)}</p>
                     </div>
                     <div className="stat-card" style={{ borderLeft: '4px solid var(--accent-blue)' }}>
-                        <p className="stat-label">3. Resultado</p>
+                        <p className="stat-label">3. Resultado Orçado</p>
                         <p className="stat-value">{formatCurrency(stats.resultValue)}</p>
                     </div>
                     <div className="stat-card" style={{ background: 'var(--gradient-brand)', border: 'none' }}>
-                        <p className="stat-label" style={{ color: 'rgba(255,255,255,0.7)' }}>4. % Margem</p>
+                        <p className="stat-label" style={{ color: 'rgba(255,255,255,0.7)' }}>4. % Margem Orçada</p>
                         <p className="stat-value" style={{ color: '#fff' }}>{stats.resultPercent.toFixed(1)}%</p>
                     </div>
                 </div>
@@ -397,7 +397,32 @@ export default function BudgetSummaryPage() {
                                                     </span>
                                                 </td>
                                                 <td style={{ ...td, textAlign: 'center' }}>-</td>
-                                                <td style={{ ...td, textAlign: 'center' }}>{group.taxRate}% DAS</td>
+                                                <td style={{ ...td, textAlign: 'center' }}>
+                                                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem' }}>
+                                                        {updatingTaxId === group.tenantId ? (
+                                                            <div className="spinner" style={{ width: '12px', height: '12px', borderWidth: '2px' }}></div>
+                                                        ) : (
+                                                            <input 
+                                                                type="text" 
+                                                                defaultValue={group.taxRate} 
+                                                                onBlur={(e) => handleTaxRateUpdate(group.tenantId, e.target.value)}
+                                                                onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }}
+                                                                style={{ 
+                                                                    width: '45px', 
+                                                                    textAlign: 'center', 
+                                                                    background: 'transparent', 
+                                                                    border: '1px solid var(--border-subtle)', 
+                                                                    borderRadius: '4px',
+                                                                    fontSize: '0.8rem',
+                                                                    fontWeight: 700,
+                                                                    padding: '2px'
+                                                                }}
+                                                            />
+                                                        )}
+                                                        <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 600 }}>% DAS</span>
+                                                        <span title="Clique no número para editar" style={{ cursor: 'help', fontSize: '0.8rem', opacity: 0.6 }}>✏️</span>
+                                                    </div>
+                                                </td>
                                                 <td style={{ ...td, textAlign: 'center' }}>
                                                     <button 
                                                         onClick={(e) => { e.stopPropagation(); setExcelTenantId(group.tenantId); setIsExcelModalOpen(true); }}

@@ -154,11 +154,19 @@ export async function GET(request: Request) {
 
     let isCCLocked = false;
     if (!isGeneralView && costCenterIds.length === 1) {
+      const ccId = costCenterIds[0];
+      const targetCC = await prisma.costCenter.findUnique({
+        where: { id: ccId },
+        select: { tenantId: true }
+      });
+      
+      const lockTenantId = targetCC?.tenantId || anyTenant?.id;
+
       const lock = await (prisma as any).costCenterLock.findUnique({
         where: {
           tenantId_costCenterId_year: {
-            tenantId: tenantIdParam === 'ALL' ? anyTenant?.id : tenantIdParam,
-            costCenterId: costCenterIds[0],
+            tenantId: lockTenantId,
+            costCenterId: ccId,
             year: selectedYear
           }
         }

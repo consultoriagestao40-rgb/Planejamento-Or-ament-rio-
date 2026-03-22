@@ -255,7 +255,6 @@ export async function GET(request: Request) {
         }
 
         const result = Array.from(summaryMap.values())
-            .filter(item => item.hasRealizedData || item.hasBudgetData)
             .sort((a, b) => {
                 // Ordenar por Empresa e depois por Centro de Custo
                 if (a.tenantName !== b.tenantName) return (a.tenantName || '').localeCompare(b.tenantName || '');

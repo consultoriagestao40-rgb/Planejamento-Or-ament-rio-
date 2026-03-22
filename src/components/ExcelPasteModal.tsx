@@ -140,7 +140,7 @@ export function ExcelPasteModal({ isOpen, onClose, tenantId: initialTenantId, co
         if (colCat === 0 || colCat === -1) colCat = 14;
         if (colVal === 0 || colVal === -1) colVal = 15;
 
-        console.log(`🗳️ [V51.4] Categoria: Col ${colCat}, Valor: Col ${colVal}`); 
+        console.log(`🗳️ [V51.5] Categoria: Col ${colCat}, Valor: Col ${colVal}`); 
         console.log("📝 [NUCLEAR DEBUG] Primeiras 3 linhas da Matrix:", JSON.stringify(matrix.slice(0, 3)));
         
         // 3. Detectar se a primeira linha é cabeçalho ou dados (usando indices detectados ou fallback)

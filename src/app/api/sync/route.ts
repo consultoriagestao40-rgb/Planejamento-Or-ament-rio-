@@ -34,11 +34,13 @@ export async function GET(request: Request) {
         // Apply cost center filter
         // DEFAULT means show everything (no CC filter)
         // null means show only unallocated (Geral)
-        // specific ID means show only that CC
         if (costCenterId === 'null') {
             whereClause.costCenterId = null;
         } else if (costCenterId !== 'DEFAULT') {
-            whereClause.costCenterId = costCenterId;
+            const ids = costCenterId.split(',').map(id => id.trim()).filter(Boolean);
+            if (ids.length > 0) {
+                whereClause.costCenterId = { in: ids };
+            }
         }
 
         const [realizedEntries, budgetEntries] = await Promise.all([

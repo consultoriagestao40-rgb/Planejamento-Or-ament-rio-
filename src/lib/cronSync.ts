@@ -1,5 +1,5 @@
 import { prisma } from './prisma';
-import { syncRealizedEntries } from './services';
+import { syncRealizedEntries, syncMasterData } from './services';
 
 /**
  * V47.10.4: Orquestrador do Cron Sync com logs detalhados.
@@ -21,6 +21,10 @@ export async function runCronSync(reqYear: number, tenantId?: string) {
         try {
             pushLog(`[SYNC] [${t.name}] Iniciando sincronização (Ano: ${reqYear})...`);
             
+            // Sincroniza Metadados (Categorias e Centros de Custo)
+            pushLog(`[SYNC] [${t.name}] Sincronizando Estrutura (Categorias/CCs)...`);
+            await syncMasterData(t.id);
+
             // Sincroniza Competência
             pushLog(`[SYNC] [${t.name}] Sincronizando Competência...`);
             const resComp = await syncRealizedEntries(t.id, reqYear, 'competencia');

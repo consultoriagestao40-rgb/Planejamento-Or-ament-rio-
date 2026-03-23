@@ -114,6 +114,56 @@ export async function syncRealizedEntries(tenantId: string, year: number, viewMo
     return { success: true, count: entriesToSave.length };
 }
 
+export async function syncMasterData(tenantId: string) {
+    const { token } = await getValidAccessToken(tenantId);
+    
+    // 1. Sync Categories
+    try {
+        const catRes = await fetch(`https://api-v2.contaazul.com/v1/categorias?tamanho_pagina=100`, { 
+            headers: { 'Authorization': `Bearer ${token}` } 
+        });
+        if (catRes.ok) {
+            const data = await catRes.json();
+            const items = Array.isArray(data) ? data : (data.itens || []);
+            
+            for (const item of items) {
+                const catId = `${tenantId}:${item.id}`;
+                await (prisma.category as any).upsert({
+                    where: { id: catId },
+                    update: { name: item.name, parentId: item.parent_id ? `${tenantId}:${item.parent_id}` : null },
+                    create: { id: catId, name: item.name, tenantId, parentId: item.parent_id ? `${tenantId}:${item.parent_id}` : null, type: 'OTHER' }
+                });
+            }
+        }
+    } catch (e) {
+        console.error(`[SYNC-MASTER] Categorias error for ${tenantId}:`, e);
+    }
+
+    // 2. Sync Cost Centers
+    try {
+        const ccRes = await fetch(`https://api-v2.contaazul.com/v1/centros-de-custo?tamanho_pagina=100`, { 
+            headers: { 'Authorization': `Bearer ${token}` } 
+        });
+        if (ccRes.ok) {
+            const data = await ccRes.json();
+            const items = Array.isArray(data) ? data : (data.itens || []);
+            
+            for (const item of items) {
+                const ccId = `${tenantId}:${item.id}`;
+                await (prisma.costCenter as any).upsert({
+                    where: { id: ccId },
+                    update: { name: item.name },
+                    create: { id: ccId, name: item.name, tenantId }
+                });
+            }
+        }
+    } catch (e) {
+        console.error(`[SYNC-MASTER] Cost Centers error for ${tenantId}:`, e);
+    }
+
+    return { success: true };
+}
+
 async function aggregateTransactions(accessToken: string, url: string, targetValues: Record<string, number>, isExpense: boolean, costCenterIdString: string, targetYear: number, viewMode: string, tenantId: string) {
     let page = 1;
     let hasMore = true;
@@ -171,5 +221,5 @@ async function aggregateTransactions(accessToken: string, url: string, targetVal
  */
 import { runCronSync } from "./cronSync";
 export async function syncData() {
-    return await runCronSync();
+    return await runCronSync(new Date().getFullYear());
 }

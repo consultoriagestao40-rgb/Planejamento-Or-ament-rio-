@@ -1478,25 +1478,27 @@ export default function BudgetGrid({
                     <div style={{ display: 'flex', gap: '0.4rem', alignItems: 'center' }}>
                         <button onClick={applyFilter} className="btn btn-primary" style={{ padding: '0 1rem', height: '32px', fontSize: '0.75rem' }}>Filtrar</button>
                         <button onClick={clearFilter} className="btn btn-secondary" style={{ padding: '0 1rem', height: '32px', fontSize: '0.75rem' }}>Limpar</button>
-                        <button 
-                            onClick={() => setIsExcelModalOpen(true)} 
-                            className="btn" 
-                            style={{ 
-                                padding: '0 1.25rem', 
-                                height: '32px', 
-                                fontSize: '0.75rem', 
-                                background: '#16a34a', 
-                                color: 'white', 
-                                fontWeight: 800,
-                                borderRadius: '8px',
-                                display: 'flex',
-                                alignItems: 'center',
-                                gap: '0.4rem',
-                                boxShadow: '0 4px 6px -1px rgba(22, 163, 74, 0.4)'
-                            }}
-                        >
-                            <span>📊</span> IMPORTAR
-                        </button>
+                        {userRole === 'MASTER' && (
+                            <button 
+                                onClick={() => setIsExcelModalOpen(true)} 
+                                className="btn" 
+                                style={{ 
+                                    padding: '0 1.25rem', 
+                                    height: '32px', 
+                                    fontSize: '0.75rem', 
+                                    background: '#16a34a', 
+                                    color: 'white', 
+                                    fontWeight: 800,
+                                    borderRadius: '8px',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: '0.4rem',
+                                    boxShadow: '0 4px 6px -1px rgba(22, 163, 74, 0.4)'
+                                }}
+                            >
+                                <span>📊</span> IMPORTAR
+                            </button>
+                        )}
                     </div>
                 </div>
 

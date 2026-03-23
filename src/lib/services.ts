@@ -123,19 +123,19 @@ export async function syncMasterData(tenantId: string) {
     
     // 1. Sync Categories
     try {
-        const catRes = await fetch(`https://api.contaazul.com/v1/categories?tamanho_pagina=100`, { 
+        const catRes = await fetch(`https://api-v2.contaazul.com/v1/categorias?tamanho_pagina=100`, { 
             headers: { 'Authorization': `Bearer ${token}` } 
         });
         if (catRes.ok) {
             const data = await catRes.json();
-            const items = Array.isArray(data) ? data : (data.itens || []);
+            const items = data.itens || [];
             
             for (const item of items) {
                 const catId = `${tenantId}:${item.id}`;
                 await (prisma.category as any).upsert({
                     where: { id: catId },
-                    update: { name: item.name, parentId: item.parent_id ? `${tenantId}:${item.parent_id}` : null },
-                    create: { id: catId, name: item.name, tenantId, parentId: item.parent_id ? `${tenantId}:${item.parent_id}` : null, type: 'OTHER' }
+                    update: { name: item.name, parentId: item.categoria_pai ? `${tenantId}:${item.categoria_pai.id}` : null },
+                    create: { id: catId, name: item.name, tenantId, parentId: item.categoria_pai ? `${tenantId}:${item.categoria_pai.id}` : null, type: 'OTHER' }
                 });
             }
         }
@@ -145,7 +145,7 @@ export async function syncMasterData(tenantId: string) {
 
     // 2. Sync Cost Centers
     try {
-        const ccRes = await fetch(`https://api.contaazul.com/v1/cost-centers?tamanho_pagina=100`, { 
+        const ccRes = await fetch(`https://api-v2.contaazul.com/v1/centro-de-custo?tamanho_pagina=100`, { 
             headers: { 'Authorization': `Bearer ${token}` } 
         });
         if (ccRes.ok) {

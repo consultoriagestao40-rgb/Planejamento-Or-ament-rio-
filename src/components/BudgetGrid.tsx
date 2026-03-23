@@ -263,24 +263,32 @@ export default function BudgetGrid({
     // --- VARIANT LOGIC (CNPJ-BASED) ---
     const activeVariantIds = useMemo(() => {
         if (selectedCompany.includes('DEFAULT')) return [];
-        const localTenantId = selectedCompany[0];
-        const current = companies.find(c => c.id === localTenantId);
-        if (!current) return selectedCompany;
         
-        const getBaseCnpj = (cnpj: string) => (cnpj || '').replace(/\D/g, '').substring(0, 8);
-        const currentBase = getBaseCnpj((current as any).cnpj);
+        const allIds = new Set<string>();
         
-        const normalize = (n: string) => (n || '').trim().toUpperCase().replace(/[^A-Z0-9]/g, '').replace(/LTDA$/, '').replace(/SA$/, '');
-        const currentNorm = normalize(current.name);
-        
-        return companies
-            .filter((c: any) => {
-                if (currentBase && currentBase.length === 8) {
-                    return getBaseCnpj(c.cnpj) === currentBase;
+        selectedCompany.forEach(localTenantId => {
+            const current = companies.find(c => c.id === localTenantId);
+            if (!current) {
+                allIds.add(localTenantId);
+                return;
+            }
+            
+            const getBaseCnpj = (cnpj: string) => (cnpj || '').replace(/\D/g, '').substring(0, 8);
+            const currentBase = getBaseCnpj((current as any).cnpj);
+            
+            const normalize = (n: string) => (n || '').trim().toUpperCase().replace(/[^A-Z0-9]/g, '').replace(/LTDA$/, '').replace(/SA$/, '');
+            const currentNorm = normalize(current.name);
+            
+            companies.forEach((c: any) => {
+                const matchesCnpj = currentBase && currentBase.length === 8 && getBaseCnpj(c.cnpj) === currentBase;
+                const matchesName = normalize(c.name) === currentNorm;
+                if (matchesCnpj || matchesName) {
+                    allIds.add(c.id);
                 }
-                return normalize(c.name) === currentNorm;
-            })
-            .map(c => c.id);
+            });
+        });
+        
+        return Array.from(allIds);
     }, [companies, selectedCompany]);
 
     // --- HIERARCHY BUILDER ---

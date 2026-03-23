@@ -54,20 +54,23 @@ export default function BudgetSummaryPage() {
     const [isExcelModalOpen, setIsExcelModalOpen] = useState(false);
     const [excelTenantId, setExcelTenantId] = useState('DEFAULT');
     const [setupData, setSetupData] = useState<{ categories: any[], costCenters: any[], companies: any[] }>({ categories: [], costCenters: [], companies: [] });
+    const [appVersion, setAppVersion] = useState('...');
 
     const fetchData = useCallback(async () => {
         setLoading(true);
         try {
-            const [summaryRes, authRes, setupRes] = await Promise.all([
+            const [summaryRes, authRes, setupRes, versionRes] = await Promise.all([
                 fetch(`/api/cost-centers/summary?year=${selectedYear}`),
                 fetch('/api/auth/me'),
-                fetch(`/api/setup?year=${selectedYear}`)
+                fetch(`/api/setup?year=${selectedYear}`),
+                fetch('/api/version')
             ]);
             
-            const [summaryResult, authResult, setupResult] = await Promise.all([
+            const [summaryResult, authResult, setupResult, versionResult] = await Promise.all([
                 summaryRes.json(),
                 authRes.json(),
-                setupRes.json()
+                setupRes.json(),
+                versionRes.json()
             ]);
 
             if (summaryResult.success) {
@@ -89,6 +92,7 @@ export default function BudgetSummaryPage() {
                     companies: companies 
                 });
             }
+            if (versionResult.version) setAppVersion(versionResult.version);
         } catch (e: any) {
             console.error(e);
         } finally {
@@ -514,9 +518,9 @@ export default function BudgetSummaryPage() {
                 {/* Version Footer */}
                 <div style={{ marginTop: '4rem', paddingTop: '2rem', borderTop: '1px solid var(--border-subtle)', textAlign: 'center' }}>
                     <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-                        BusManager Sistema de Gestão - Versão 
+                        Budget Hub - Sistema de Planejamento - Versão 
                         <span style={{ fontWeight: 800, marginLeft: '4px' }}>
-                            {loading ? '...' : (data as any).length >= 0 ? 'v52.0' : 'v52.0'} 
+                            {appVersion}
                         </span>
                     </p>
                 </div>

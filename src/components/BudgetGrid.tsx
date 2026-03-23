@@ -283,33 +283,46 @@ export default function BudgetGrid({
                 const [budgetRes, syncRes, indicatorsRes] = await Promise.all([
                     fetch(`/api/budgets?costCenterId=${selectedCostCenter.join(',')}&tenantId=${companyParam}&year=${selectedYear}&t=${Date.now()}`, { cache: 'no-store' }),
                     fetch(`/api/sync?costCenterId=${selectedCostCenter.join(',')}&tenantId=${companyParam}&year=${selectedYear}&viewMode=${viewMode}&t=${Date.now()}`, { cache: 'no-store' }),
-                    fetch(`/api/realized/justifications/indicators?tenantId=${companyParam}&year=${selectedYear}&viewMode=${viewMode}&t=${Date.now()}`, { cache: 'no-store' })
+                    fetch(`/api/realized/justifications/indicators?tenantId=${companyParam}&year=${selectedYear}&viewMode=${viewMode}&t=${Date.now()}`, { cache: 'no-store' }).catch(() => null)
                 ]);
 
-                const [budgetData, syncData, indicatorsData] = await Promise.all([budgetRes.json(), syncRes.json(), indicatorsRes.json()]);
-
-                if (budgetData.success) {
-                    setIsCCLocked(budgetData.isCCLocked || false);
-                    setRadarLocks(budgetData.radarLocks || []);
-                    const values: Record<string, { amount: number, radarAmount: number | null, isLocked: boolean, observation: string | null }> = {};
-
-                    budgetData.data.forEach((item: any) => {
-                        values[`${item.categoryId}-${item.month - 1}`] = {
-                            amount: item.amount || 0,
-                            radarAmount: (item.radarAmount !== undefined && item.radarAmount !== null) ? item.radarAmount : null,
-                            isLocked: item.isLocked || false,
-                            observation: item.observation || null
-                        };
-                    });
-                    setBudgetValues(values);
+                // 1. Process Budget
+                if (budgetRes?.ok) {
+                    const budgetData = await budgetRes.json();
+                    if (budgetData.success) {
+                        setIsCCLocked(budgetData.isCCLocked || false);
+                        setRadarLocks(budgetData.radarLocks || []);
+                        const values: Record<string, { amount: number, radarAmount: number | null, isLocked: boolean, observation: string | null }> = {};
+                        budgetData.data.forEach((item: any) => {
+                            values[`${item.categoryId}-${item.month - 1}`] = {
+                                amount: item.amount || 0,
+                                radarAmount: (item.radarAmount !== undefined && item.radarAmount !== null) ? item.radarAmount : null,
+                                isLocked: item.isLocked || false,
+                                observation: item.observation || null
+                            };
+                        });
+                        setBudgetValues(values);
+                    }
                 }
 
-                if (syncData.success && syncData.realizedValues) {
-                    setRealizedValues(syncData.realizedValues);
+                // 2. Process Sync/Realized
+                if (syncRes?.ok) {
+                    const syncData = await syncRes.json();
+                    if (syncData.success && syncData.realizedValues) {
+                        setRealizedValues(syncData.realizedValues);
+                    }
                 }
 
-                if (indicatorsData.success) {
-                    setHasJustificationMap(indicatorsData.indicators);
+                // 3. Process Indicators (Optional)
+                if (indicatorsRes?.ok) {
+                    try {
+                        const indicatorsData = await indicatorsRes.json();
+                        if (indicatorsData.success) {
+                            setHasJustificationMap(indicatorsData.indicators);
+                        }
+                    } catch (e) {
+                        console.warn("Indicators data error:", e);
+                    }
                 }
             } catch (err: any) {
                 console.error('Grid Load Error:', err);

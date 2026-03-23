@@ -1543,10 +1543,6 @@ export default function BudgetGrid({
                             <button onClick={() => setViewPeriod('month')} className={`toggle-btn ${viewPeriod === 'month' ? 'active' : ''}`} style={{ padding: '0 0.75rem', fontSize: '0.7rem' }}>Mês</button>
                             <button onClick={() => setViewPeriod('quarter')} className={`toggle-btn ${viewPeriod === 'quarter' ? 'active' : ''}`} style={{ padding: '0 0.75rem', fontSize: '0.7rem' }}>Trimestre</button>
                         </div>
-                        <div className="toggle-group" style={{ height: '30px', padding: '2px' }}>
-                            <button onClick={() => setViewMode('competencia')} className={`toggle-btn ${viewMode === 'competencia' ? 'active' : ''}`} style={{ padding: '0 0.75rem', fontSize: '0.7rem' }}>Competência</button>
-                            <button onClick={() => setViewMode('caixa')} className={`toggle-btn ${viewMode === 'caixa' ? 'active' : ''}`} style={{ padding: '0 0.75rem', fontSize: '0.7rem' }}>Caixa</button>
-                        </div>
                     </div>
                 </div>
             </div>

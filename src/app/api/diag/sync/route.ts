@@ -21,29 +21,40 @@ export async function GET(request: Request) {
 
         const { token } = await getValidAccessToken(tenantId);
         
-        const ccRes = await fetch(`https://api-v2.contaazul.com/v1/centros-de-custo?tamanho_pagina=100`, { 
-            headers: { 'Authorization': `Bearer ${token}` } 
-        });
-        
-        let details = null;
-        if (!ccRes.ok) {
-            details = await ccRes.text();
+        const endpoints = [
+            'https://api-v2.contaazul.com/v1/centros-de-custo',
+            'https://api-v2.contaazul.com/v1/financeiro/centros-de-custo',
+            'https://api.contaazul.com/v1/cost-centers'
+        ];
+
+        const results: any[] = [];
+        for (const url of endpoints) {
+            const res = await fetch(`${url}?tamanho_pagina=100`, { 
+                headers: { 'Authorization': `Bearer ${token}` } 
+            });
+            const text = await res.text();
+            let data = null;
+            try { data = JSON.parse(text); } catch(e) {}
+            
+            results.push({
+                url,
+                status: res.status,
+                ok: res.ok,
+                count: data ? (Array.isArray(data) ? data.length : (data.itens?.length || 0)) : 0,
+                error: res.ok ? null : text
+            });
         }
 
-        const data = ccRes.ok ? await ccRes.json() : null;
-        const items = data ? (Array.isArray(data) ? data : (data.itens || [])) : [];
-
-        const redeTonin = items.find((item: any) => item.name.toUpperCase().includes('REDE'));
+        const successResult = results.find(r => r.ok);
+        const items = successResult ? [] : []; // We'll just report the results array
         
         return NextResponse.json({
-            success: ccRes.ok,
+            success: !!successResult,
             now: new Date().toISOString(),
             dbExpiresAt: tenant.tokenExpiresAt ? new Date(tenant.tokenExpiresAt).toISOString() : 'N/A',
             envStatus,
             usedTokenPrefix: token.substring(0, 10) + '...',
-            found: redeTonin,
-            errorDetails: details,
-            allNames: items.map((i: any) => i.name)
+            endpointResults: results
         });
 
     } catch (error: any) {

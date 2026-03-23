@@ -1229,7 +1229,7 @@ export default function BudgetGrid({
                                                 }}
                                                 title="Analisar Valor Realizado"
                                             >
-                                                {hasJustificationMap[`${node.id}-${i}`] ? '📝' : '🔍'}
+                                                {hasJustificationMap[`${node.id}-${i}`] ? '📝' : '✏️'}
                                             </button>
                                         )}
                                     </div>
@@ -1395,7 +1395,7 @@ export default function BudgetGrid({
                                             }}
                                             title="Analisar Valor Realizado"
                                         >
-                                            {hasJustificationMap[`${validx}-${i}`] ? '📝' : '🔍'}
+                                            {hasJustificationMap[`${validx}-${i}`] ? '📝' : '✏️'}
                                         </button>
                                     )}
                                 </div>

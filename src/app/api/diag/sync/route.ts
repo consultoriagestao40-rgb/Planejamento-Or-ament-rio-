@@ -13,6 +13,12 @@ export async function GET(request: Request) {
         const tenant = await prisma.tenant.findUnique({ where: { id: tenantId } });
         if (!tenant) return NextResponse.json({ error: 'Tenant not found' });
 
+        const envStatus = {
+            hasClientId: !!process.env.CONTA_AZUL_CLIENT_ID,
+            hasClientSecret: !!process.env.CONTA_AZUL_CLIENT_SECRET,
+            clientIdPrefix: process.env.CONTA_AZUL_CLIENT_ID?.substring(0, 5)
+        };
+
         const { token } = await getValidAccessToken(tenantId);
         
         const ccRes = await fetch(`https://api-v2.contaazul.com/v1/centros-de-custo?tamanho_pagina=100`, { 
@@ -27,12 +33,13 @@ export async function GET(request: Request) {
         const data = ccRes.ok ? await ccRes.json() : null;
         const items = data ? (Array.isArray(data) ? data : (data.itens || [])) : [];
 
-        const redeTonin = items.find((item: any) => item.name.includes('REDE') || item.id.includes('252'));
+        const redeTonin = items.find((item: any) => item.name.toUpperCase().includes('REDE'));
         
         return NextResponse.json({
             success: ccRes.ok,
             now: new Date().toISOString(),
             dbExpiresAt: tenant.tokenExpiresAt ? new Date(tenant.tokenExpiresAt).toISOString() : 'N/A',
+            envStatus,
             usedTokenPrefix: token.substring(0, 10) + '...',
             found: redeTonin,
             errorDetails: details,

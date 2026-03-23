@@ -25,6 +25,7 @@ model Tenant {
   userAccess   UserTenantAccess[]
   locks        CostCenterLock[]
   radarLocks   RadarLock[]
+  justifications RealizedJustification[]
 }
 
 model RadarLock {
@@ -55,6 +56,7 @@ model Category {
   tenant     Tenant   @relation(fields: [tenantId], references: [id])
   budgets    BudgetEntry[]
   realized   RealizedEntry[]
+  justifications RealizedJustification[]
 }
 
 model CostCenter {
@@ -67,6 +69,7 @@ model CostCenter {
   realized  RealizedEntry[]
   userAccess UserCostCenterAccess[]
   locks      CostCenterLock[]
+  justifications RealizedJustification[]
 }
 
 model CostCenterLock {
@@ -175,6 +178,26 @@ model UserCostCenterAccess {
   costCenter CostCenter @relation(fields: [costCenterId], references: [id], onDelete: Cascade)
 
   @@unique([userId, costCenterId])
+}
+
+model RealizedJustification {
+  id           String   @id @default(uuid())
+  tenantId     String
+  categoryId   String
+  costCenterId String?
+  month        Int      // 1-12
+  year         Int
+  viewMode     String   @default("competencia")
+  content      String   @db.Text
+  userName     String
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  tenant       Tenant      @relation(fields: [tenantId], references: [id])
+  category     Category    @relation(fields: [categoryId], references: [id])
+  costCenter   CostCenter? @relation(fields: [costCenterId], references: [id])
+
+  @@index([tenantId, categoryId, month, year])
 }
 
 enum Role {

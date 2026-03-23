@@ -101,6 +101,14 @@ export default function BudgetGrid({
     // --- Excel Import State ---
     const [isExcelModalOpen, setIsExcelModalOpen] = useState(false);
 
+    // --- Realized Justification State ---
+    const [justificationModal, setJustificationModal] = useState<{ categoryId: string, month: number, categoryName: string, tenantId: string, costCenterId: string | null } | null>(null);
+    const [justificationHistory, setJustificationHistory] = useState<any[]>([]);
+    const [loadingJustification, setLoadingJustification] = useState(false);
+    const [newJustification, setNewJustification] = useState('');
+    const [isSavingJustification, setIsSavingJustification] = useState(false);
+    const [hasJustificationMap, setHasJustificationMap] = useState<Record<string, boolean>>({});
+
     const evaluateFormula = (formula: string): number => {
         if (!formula.startsWith('=')) {
             // Remove thousand dots and replace decimal comma with dot for proper parseFloat
@@ -138,6 +146,58 @@ export default function BudgetGrid({
             console.error("Failed to fetch transactions", error);
         } finally {
             setLoadingTransactions(false);
+        }
+    };
+
+    const handleJustificationClick = async (categoryId: string, month: number, categoryName: string) => {
+        const tenantId = selectedCompany.includes('DEFAULT') ? companies[0]?.id : selectedCompany[0];
+        const costCenterId = selectedCostCenter.includes('DEFAULT') ? null : selectedCostCenter[0];
+        
+        setJustificationModal({ categoryId, month, categoryName, tenantId, costCenterId });
+        setLoadingJustification(true);
+        setJustificationHistory([]);
+        try {
+            const res = await fetch(`/api/realized/justifications?tenantId=${tenantId}&categoryId=${categoryId}&costCenterId=${costCenterId || 'DEFAULT'}&month=${month + 1}&year=${selectedYear}&viewMode=${viewMode}`);
+            const data = await res.json();
+            if (data.success) {
+                setJustificationHistory(data.justifications);
+            }
+        } catch (e) {
+            console.error("Justification fetch error", e);
+        } finally {
+            setLoadingJustification(false);
+        }
+    };
+
+    const saveJustification = async () => {
+        if (!justificationModal || !newJustification.trim()) return;
+        setIsSavingJustification(true);
+        try {
+            const userName = localStorage.getItem('userName') || (userRole === 'MASTER' ? 'Master Admin' : 'Gestor');
+            const res = await fetch('/api/realized/justifications', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    tenantId: justificationModal.tenantId,
+                    categoryId: justificationModal.categoryId,
+                    costCenterId: justificationModal.costCenterId || 'DEFAULT',
+                    month: justificationModal.month + 1,
+                    year: selectedYear,
+                    viewMode,
+                    content: newJustification,
+                    userName
+                })
+            });
+            const data = await res.json();
+            if (data.success) {
+                setJustificationHistory([data.justification, ...justificationHistory]);
+                setNewJustification('');
+                setHasJustificationMap(prev => ({ ...prev, [`${justificationModal.categoryId}-${justificationModal.month}`]: true }));
+            }
+        } catch (e) {
+            alert("Erro ao salvar justificativa");
+        } finally {
+            setIsSavingJustification(false);
         }
     };
 
@@ -220,22 +280,20 @@ export default function BudgetGrid({
             setError(null);
             try {
                 const companyParam = selectedCompany.includes('DEFAULT') ? 'ALL' : selectedCompany.join(',');
-                const [budgetRes, syncRes] = await Promise.all([
+                const [budgetRes, syncRes, indicatorsRes] = await Promise.all([
                     fetch(`/api/budgets?costCenterId=${selectedCostCenter.join(',')}&tenantId=${companyParam}&year=${selectedYear}&t=${Date.now()}`, { cache: 'no-store' }),
-                    fetch(`/api/sync?costCenterId=${selectedCostCenter.join(',')}&tenantId=${companyParam}&year=${selectedYear}&viewMode=${viewMode}&t=${Date.now()}`, { cache: 'no-store' })
+                    fetch(`/api/sync?costCenterId=${selectedCostCenter.join(',')}&tenantId=${companyParam}&year=${selectedYear}&viewMode=${viewMode}&t=${Date.now()}`, { cache: 'no-store' }),
+                    fetch(`/api/realized/justifications/indicators?tenantId=${companyParam}&year=${selectedYear}&viewMode=${viewMode}&t=${Date.now()}`, { cache: 'no-store' })
                 ]);
 
-                const budgetData = await budgetRes.json();
-                const syncData = await syncRes.json();
+                const [budgetData, syncData, indicatorsData] = await Promise.all([budgetRes.json(), syncRes.json(), indicatorsRes.json()]);
 
                 if (budgetData.success) {
                     setIsCCLocked(budgetData.isCCLocked || false);
                     setRadarLocks(budgetData.radarLocks || []);
                     const values: Record<string, { amount: number, radarAmount: number | null, isLocked: boolean, observation: string | null }> = {};
 
-
                     budgetData.data.forEach((item: any) => {
-                        // Map 1-12 from DB to 0-11 for UI
                         values[`${item.categoryId}-${item.month - 1}`] = {
                             amount: item.amount || 0,
                             radarAmount: (item.radarAmount !== undefined && item.radarAmount !== null) ? item.radarAmount : null,
@@ -248,6 +306,10 @@ export default function BudgetGrid({
 
                 if (syncData.success && syncData.realizedValues) {
                     setRealizedValues(syncData.realizedValues);
+                }
+
+                if (indicatorsData.success) {
+                    setHasJustificationMap(indicatorsData.indicators);
                 }
             } catch (err: any) {
                 console.error('Grid Load Error:', err);
@@ -1142,10 +1204,35 @@ export default function BudgetGrid({
                                     style={{ 
                                         cursor: viewPeriod === 'month' ? 'pointer' : 'default',
                                         color: rVal < 0 ? '#dc2626' : 'var(--accent-blue)',
-                                        fontWeight: 700 
+                                        fontWeight: 700,
+                                        position: 'relative'
                                     }}
                                 >
-                                    {formatCurrency(rVal)}
+                                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '0.25rem' }}>
+                                        {formatCurrency(rVal)}
+                                        {viewPeriod === 'month' && (
+                                            <button 
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    handleJustificationClick(node.id, i, node.name);
+                                                }}
+                                                style={{
+                                                    background: 'none',
+                                                    border: 'none',
+                                                    padding: 0,
+                                                    cursor: 'pointer',
+                                                    fontSize: '0.65rem',
+                                                    opacity: hasJustificationMap[`${node.id}-${i}`] ? 1 : 0.3,
+                                                    color: hasJustificationMap[`${node.id}-${i}`] ? '#2563eb' : '#94a3b8',
+                                                    display: 'flex',
+                                                    alignItems: 'center'
+                                                }}
+                                                title="Analisar Valor Realizado"
+                                            >
+                                                {hasJustificationMap[`${node.id}-${i}`] ? '📝' : '🔍'}
+                                            </button>
+                                        )}
+                                    </div>
                                 </td>
                                 {showAV && <td className="spreadsheet-value" style={{ color: '#94a3b8', fontSize: '0.6rem', textAlign: 'center' }} title="AV Real">{avReal.toFixed(1)}%</td>}
                                 {showAH && (
@@ -1286,7 +1373,33 @@ export default function BudgetGrid({
                                     {avRadar.toFixed(1)}%
                                 </td>
                             )} */}
-                            <td className="spreadsheet-value" style={{ color: rColor, fontWeight: 800, background: isLucroLiquido ? '#2563eb' : undefined }}>{formatCurrency(realizedVal)}</td>
+                            <td className="spreadsheet-value" style={{ color: rColor, fontWeight: 800, background: isLucroLiquido ? '#2563eb' : undefined, position: 'relative' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '0.25rem' }}>
+                                    {formatCurrency(realizedVal)}
+                                    {viewPeriod === 'month' && (
+                                        <button 
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                handleJustificationClick(validx as string, i, label);
+                                            }}
+                                            style={{
+                                                background: 'none',
+                                                border: 'none',
+                                                padding: 0,
+                                                cursor: 'pointer',
+                                                fontSize: '0.65rem',
+                                                opacity: hasJustificationMap[`${validx}-${i}`] ? 1 : 0.3,
+                                                color: isLucroLiquido ? '#fff' : (hasJustificationMap[`${validx}-${i}`] ? '#2563eb' : '#94a3b8'),
+                                                display: 'flex',
+                                                alignItems: 'center'
+                                            }}
+                                            title="Analisar Valor Realizado"
+                                        >
+                                            {hasJustificationMap[`${validx}-${i}`] ? '📝' : '🔍'}
+                                        </button>
+                                    )}
+                                </div>
+                            </td>
                             {showAV && (
                                 <td className="spreadsheet-value" style={{ color: isLucroLiquido ? '#fff' : '#94a3b8', fontSize: '0.65rem', textAlign: 'center' }}>
                                     {avReal.toFixed(1)}%
@@ -2021,7 +2134,78 @@ export default function BudgetGrid({
                             </div>
                         </div>
                     </div>
-            )}
+                )}
+
+                {/* 3. Realized Justification Modal (Análise) */}
+                {justificationModal && (
+                    <div className="modal-overlay" style={{ zIndex: 1200 }}>
+                        <div className="modal-content" style={{ maxWidth: '600px', backgroundColor: '#fff', maxHeight: '90vh', display: 'flex', flexDirection: 'column' }}>
+                            <div style={{ padding: '1.5rem', borderBottom: '1px solid #f1f5f9' }}>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                    <div>
+                                        <h3 style={{ margin: 0, fontSize: '1.2rem', fontWeight: 800, color: '#1e293b' }}>
+                                            📝 Análise Realizado: {justificationModal.categoryName}
+                                        </h3>
+                                        <div style={{ fontSize: '0.8rem', color: '#64748b', marginTop: '0.2rem' }}>
+                                            {MONTHS[justificationModal.month]} / {selectedYear}
+                                        </div>
+                                    </div>
+                                    <button onClick={() => setJustificationModal(null)} style={{ border: 'none', background: 'none', cursor: 'pointer', fontSize: '1.5rem', color: '#94a3b8' }}>✕</button>
+                                </div>
+                            </div>
+
+                            <div style={{ flex: 1, overflowY: 'auto', padding: '1.5rem' }}>
+                                {/* New Justification Input */}
+                                <div style={{ marginBottom: '2rem' }}>
+                                    <label style={{ display: 'block', fontSize: '0.7rem', fontWeight: 800, color: '#475569', marginBottom: '0.5rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Nova Justificativa / Análise</label>
+                                    <textarea
+                                        value={newJustification}
+                                        onChange={(e) => setNewJustification(e.target.value)}
+                                        placeholder="Descreva o motivo da variação ou observação sobre este valor real..."
+                                        style={{ 
+                                            width: '100%', minHeight: '100px', padding: '0.75rem', borderRadius: '12px', border: '1px solid #e2e8f0', 
+                                            fontSize: '0.9rem', outline: 'none', transition: 'border-color 0.2s', resize: 'vertical' 
+                                        }}
+                                        onFocus={(e) => (e.target.style.borderColor = '#2563eb')}
+                                        onBlur={(e) => (e.target.style.borderColor = '#e2e8f0')}
+                                    />
+                                    <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '0.75rem' }}>
+                                        <button 
+                                            disabled={isSavingJustification || !newJustification.trim()} 
+                                            onClick={saveJustification}
+                                            className="btn btn-primary"
+                                            style={{ padding: '0.5rem 1.5rem', fontSize: '0.85rem' }}
+                                        >
+                                            {isSavingJustification ? 'Salvando...' : 'Salvar Justificativa'}
+                                        </button>
+                                    </div>
+                                </div>
+
+                                {/* History */}
+                                <div style={{ borderTop: '1px solid #f1f5f9', paddingTop: '1.5rem' }}>
+                                    <h4 style={{ fontSize: '0.7rem', fontWeight: 800, color: '#475569', marginBottom: '1rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Histórico de Análises</h4>
+                                    {loadingJustification ? (
+                                        <div style={{ textAlign: 'center', padding: '1rem', color: '#94a3b8' }}>Carregando histórico...</div>
+                                    ) : justificationHistory.length === 0 ? (
+                                        <div style={{ textAlign: 'center', padding: '1rem', color: '#94a3b8', fontSize: '0.85rem', fontStyle: 'italic' }}>Nenhuma análise anterior registrada.</div>
+                                    ) : (
+                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                                            {justificationHistory.map((j) => (
+                                                <div key={j.id} style={{ padding: '1rem', background: '#f8fafc', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
+                                                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
+                                                        <span style={{ fontSize: '0.75rem', fontWeight: 700, color: '#2563eb' }}>👤 {j.userName}</span>
+                                                        <span style={{ fontSize: '0.7rem', color: '#94a3b8' }}>{new Date(j.createdAt).toLocaleString('pt-BR')}</span>
+                                                    </div>
+                                                    <p style={{ margin: 0, fontSize: '0.85rem', color: '#1e293b', whiteSpace: 'pre-wrap', lineHeight: '1.5' }}>{j.content}</p>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                )}
 
             <ExcelPasteModal 
                 isOpen={isExcelModalOpen}

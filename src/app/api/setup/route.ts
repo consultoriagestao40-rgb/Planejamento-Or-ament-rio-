@@ -3,13 +3,30 @@ import { prisma } from '@/lib/prisma';
 
 export const dynamic = 'force-dynamic';
 
-export async function GET() {
+export async function GET(request: Request) {
     try {
+        const { searchParams } = new URL(request.url);
+        const year = searchParams.get('year') ? parseInt(searchParams.get('year')!, 10) : new Date().getFullYear();
+
         const [categories, costCenters, tenants] = await Promise.all([
-            prisma.category.findMany({ orderBy: { name: 'asc' } }),
-            prisma.costCenter.findMany({ 
-                // Load ALL cost centers — INATIVO CCs have valid budget data stored against their IDs
-                // The [INATIVO] prefix filtering is handled on the frontend display level
+            (prisma.category as any).findMany({ 
+                where: {
+                    OR: [
+                        { isActive: true },
+                        { budgets: { some: { year } } },
+                        { realized: { some: { year } } }
+                    ]
+                },
+                orderBy: { name: 'asc' } 
+            }),
+            (prisma.costCenter as any).findMany({ 
+                where: {
+                    OR: [
+                        { isActive: true },
+                        { budgets: { some: { year } } },
+                        { realized: { some: { year } } }
+                    ]
+                },
                 include: { tenant: { select: { name: true } } },
                 orderBy: { name: 'asc' } 
             }),

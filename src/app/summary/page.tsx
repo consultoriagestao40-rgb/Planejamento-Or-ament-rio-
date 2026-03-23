@@ -61,7 +61,7 @@ export default function BudgetSummaryPage() {
             const [summaryRes, authRes, setupRes] = await Promise.all([
                 fetch(`/api/cost-centers/summary?year=${selectedYear}`),
                 fetch('/api/auth/me'),
-                fetch('/api/setup')
+                fetch(`/api/setup?year=${selectedYear}`)
             ]);
             
             const [summaryResult, authResult, setupResult] = await Promise.all([

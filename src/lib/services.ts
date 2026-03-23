@@ -126,12 +126,18 @@ export async function syncMasterData(tenantId: string) {
             const data = await catRes.json();
             const items = Array.isArray(data) ? data : (data.itens || []);
             
+            // Mark all as inactive first
+            await (prisma.category as any).updateMany({
+                where: { tenantId },
+                data: { isActive: false }
+            });
+
             for (const item of items) {
                 const catId = `${tenantId}:${item.id}`;
                 await (prisma.category as any).upsert({
                     where: { id: catId },
-                    update: { name: item.name, parentId: item.parent_id ? `${tenantId}:${item.parent_id}` : null },
-                    create: { id: catId, name: item.name, tenantId, parentId: item.parent_id ? `${tenantId}:${item.parent_id}` : null, type: 'OTHER' }
+                    update: { name: item.name, parentId: item.parent_id ? `${tenantId}:${item.parent_id}` : null, isActive: true },
+                    create: { id: catId, name: item.name, tenantId, parentId: item.parent_id ? `${tenantId}:${item.parent_id}` : null, type: 'OTHER', isActive: true }
                 });
             }
         }
@@ -148,12 +154,18 @@ export async function syncMasterData(tenantId: string) {
             const data = await ccRes.json();
             const items = Array.isArray(data) ? data : (data.itens || []);
             
+            // Mark all as inactive first
+            await (prisma.costCenter as any).updateMany({
+                where: { tenantId },
+                data: { isActive: false }
+            });
+
             for (const item of items) {
                 const ccId = `${tenantId}:${item.id}`;
                 await (prisma.costCenter as any).upsert({
                     where: { id: ccId },
-                    update: { name: item.name },
-                    create: { id: ccId, name: item.name, tenantId }
+                    update: { name: item.name, isActive: true },
+                    create: { id: ccId, name: item.name, tenantId, isActive: true }
                 });
             }
         }

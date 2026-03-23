@@ -196,8 +196,8 @@ export default function BudgetGrid({
     useEffect(() => {
         const loadSetup = async () => {
             try {
-                // Ensure we get fresh categories and cost centers
-                const setupRes = await fetch('/api/setup?t=' + Date.now(), { cache: 'no-store' });
+                // Ensure we get fresh categories and cost centers (filtered by year/activity)
+                const setupRes = await fetch(`/api/setup?year=${selectedYear}&t=${Date.now()}`, { cache: 'no-store' });
                 const setupData = await setupRes.json();
                 
                 if (setupData.success) {
@@ -211,7 +211,7 @@ export default function BudgetGrid({
             }
         };
         loadSetup();
-    }, [refreshKey]);
+    }, [refreshKey, selectedYear]);
 
     // 2. Data Effect
     useEffect(() => {

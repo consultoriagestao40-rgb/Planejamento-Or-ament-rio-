@@ -13,7 +13,10 @@ export async function GET(request: Request) {
         const endpoints = [
             'https://api-v2.contaazul.com/v1/categorias',
             'https://api-v2.contaazul.com/v1/centro-de-custo',
-            'https://api-v2.contaazul.com/v1/financeiro/centro-de-custo'
+            'https://api-v2.contaazul.com/v1/financeiro/centro-de-custo',
+            `https://api-v2.contaazul.com/v1/tenants/${tenantId}/centro-de-custo`,
+            `https://api-v2.contaazul.com/v1/tenants/${tenantId}/centros-de-custo`,
+            'https://api-v2.contaazul.com/v1/classificacoes/centros-de-custo'
         ];
 
         const results: any[] = [];

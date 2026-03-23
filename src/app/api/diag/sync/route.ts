@@ -23,26 +23,31 @@ export async function GET(request: Request) {
         
         const endpoints = [
             'https://api-v2.contaazul.com/v1/centros-de-custo',
-            'https://api-v2.contaazul.com/v1/financeiro/centros-de-custo',
-            'https://api.contaazul.com/v1/cost-centers'
+            'https://api-v2.contaazul.com/v1/cost-centers',
+            'https://api-v2.contaazul.com/v1/financeiro/cost-centers',
+            'https://api-v2.contaazul.com/v1/financeiro/centros-de-custo'
         ];
 
         const results: any[] = [];
         for (const url of endpoints) {
-            const res = await fetch(`${url}?tamanho_pagina=100`, { 
-                headers: { 'Authorization': `Bearer ${token}` } 
-            });
-            const text = await res.text();
-            let data = null;
-            try { data = JSON.parse(text); } catch(e) {}
-            
-            results.push({
-                url,
-                status: res.status,
-                ok: res.ok,
-                count: data ? (Array.isArray(data) ? data.length : (data.itens?.length || 0)) : 0,
-                error: res.ok ? null : text
-            });
+            try {
+                const res = await fetch(`${url}?tamanho_pagina=100`, { 
+                    headers: { 'Authorization': `Bearer ${token}` } 
+                });
+                const text = await res.text();
+                let data = null;
+                try { data = JSON.parse(text); } catch(e) {}
+                
+                results.push({
+                    url,
+                    status: res.status,
+                    ok: res.ok,
+                    count: data ? (Array.isArray(data) ? data.length : (data.itens?.length || 0)) : 0,
+                    error: res.ok ? null : text.substring(0, 100)
+                });
+            } catch (err: any) {
+                results.push({ url, ok: false, error: err.message });
+            }
         }
 
         const successResult = results.find(r => r.ok);

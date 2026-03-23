@@ -13,10 +13,10 @@ export async function GET(request: Request) {
         const endpoints = [
             'https://api-v2.contaazul.com/v1/categorias',
             'https://api-v2.contaazul.com/v1/centros-de-custo',
+            'https://api-v2.contaazul.com/v1/centros-de-custos',
+            'https://api-v2.contaazul.com/v1/centros-custos',
             'https://api-v2.contaazul.com/v1/financeiro/categorias',
-            'https://api-v2.contaazul.com/v1/financeiro/centros-de-custo',
-            'https://api-v2.contaazul.com/v1/cost-centers',
-            'https://api-v2.contaazul.com/v1/categories'
+            'https://api-v2.contaazul.com/v1/financeiro/centros-de-custo'
         ];
 
         const results: any[] = [];
@@ -33,9 +33,10 @@ export async function GET(request: Request) {
                     url,
                     status: res.status,
                     ok: res.ok,
+                    keys: data ? Object.keys(data) : null,
+                    firstItemKeys: (data?.itens ? Object.keys(data.itens[0] || {}) : (Array.isArray(data) ? Object.keys(data[0] || {}) : null)),
                     total: data ? (Array.isArray(data) ? data.length : (data.itens?.length || data.total || 0)) : 0,
-                    errorSnippet: res.ok ? null : text.substring(0, 150),
-                    firstItemName: data && (data.itens ? data.itens[0]?.name : data[0]?.name)
+                    errorSnippet: res.ok ? null : text.substring(0, 150)
                 });
             } catch (err: any) {
                 results.push({ url, ok: false, error: err.message });

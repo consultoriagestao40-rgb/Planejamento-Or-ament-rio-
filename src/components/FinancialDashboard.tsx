@@ -22,7 +22,6 @@ export default function FinancialDashboard({
     const [refreshKey, setRefreshKey] = useState(0);
     const [companies, setCompanies] = useState<any[]>([]);
     const [isSyncing, setIsSyncing] = useState(false);
-    const [appVersion, setAppVersion] = useState('...');
     const [showAV, setShowAV] = useState(false);
     const [showAH, setShowAH] = useState(false);
     const [showAH_MoM, setShowAH_MoM] = useState(false);
@@ -243,16 +242,6 @@ export default function FinancialDashboard({
                         externalYear={selectedYear}
                     />
                 </section>
-
-                {/* Version Footer */}
-                <div style={{ marginTop: '4rem', padding: '2rem 0', borderTop: '1px solid var(--border-subtle)', textAlign: 'center' }}>
-                    <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-                        Budget Hub - Sistema de Planejamento - Versão 
-                        <span style={{ fontWeight: 800, marginLeft: '4px' }}>
-                            {appVersion}
-                        </span>
-                    </p>
-                </div>
             </div>
         </main>
     );

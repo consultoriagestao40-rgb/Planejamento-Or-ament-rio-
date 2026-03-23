@@ -51,7 +51,6 @@ model Category {
   parentId   String?
   type       String   // REVENUE / EXPENSE
   entradaDre String?  // Metadata for DRE grouping (e.g., DESPESAS_ADMINISTRATIVAS)
-  isActive   Boolean  @default(true)
   
   tenant     Tenant   @relation(fields: [tenantId], references: [id])
   budgets    BudgetEntry[]
@@ -62,7 +61,6 @@ model CostCenter {
   id        String   @id // Cost Center ID from Conta Azul (UUID)
   name      String
   tenantId  String
-  isActive  Boolean  @default(true)
   
   tenant    Tenant   @relation(fields: [tenantId], references: [id])
   budgets   BudgetEntry[]

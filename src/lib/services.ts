@@ -18,7 +18,7 @@ export async function getValidAccessToken(tenantId?: string) {
         const clientSecret = process.env.CONTA_AZUL_CLIENT_SECRET;
         const auth = Buffer.from(`${clientId}:${clientSecret}`).toString('base64');
 
-        const res = await fetch('https://api.contaazul.com/oauth2/token', {
+        const res = await fetch('https://auth.contaazul.com/oauth2/token', {
             method: 'POST',
             headers: { 'Authorization': `Basic ${auth}`, 'Content-Type': 'application/x-www-form-urlencoded' },
             body: new URLSearchParams({ grant_type: 'refresh_token', refresh_token: tenant.refreshToken })
@@ -35,6 +35,10 @@ export async function getValidAccessToken(tenantId?: string) {
                 }
             });
             return { token: newToken.access_token, tenant };
+        } else {
+            const errBody = await res.text();
+            console.error(`[AUTH] Refresh failed for ${tenant.id}:`, errBody);
+            throw new Error(`Conexão expirada com Conta Azul (Refresh Failed). Por favor, reconecte a empresa.`);
         }
     }
     return { token: tenant.accessToken, tenant };

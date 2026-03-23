@@ -1205,7 +1205,8 @@ export default function BudgetGrid({
                                         cursor: viewPeriod === 'month' ? 'pointer' : 'default',
                                         color: rVal < 0 ? '#dc2626' : 'var(--accent-blue)',
                                         fontWeight: 700,
-                                        position: 'relative'
+                                        position: 'relative',
+                                        background: hasJustificationMap[`${node.id}-${i}`] ? '#eff6ff' : undefined
                                     }}
                                 >
                                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '0.25rem' }}>
@@ -1373,7 +1374,7 @@ export default function BudgetGrid({
                                     {avRadar.toFixed(1)}%
                                 </td>
                             )} */}
-                            <td className="spreadsheet-value" style={{ color: rColor, fontWeight: 800, background: isLucroLiquido ? '#2563eb' : undefined, position: 'relative' }}>
+                            <td className="spreadsheet-value" style={{ color: rColor, fontWeight: 800, background: hasJustificationMap[`${validx}-${i}`] ? '#dbeafe' : (isLucroLiquido ? '#2563eb' : undefined), position: 'relative' }}>
                                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '0.25rem' }}>
                                     {formatCurrency(realizedVal)}
                                     {viewPeriod === 'month' && (

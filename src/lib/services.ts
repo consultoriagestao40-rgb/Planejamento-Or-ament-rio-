@@ -123,7 +123,7 @@ export async function syncMasterData(tenantId: string) {
     
     // 1. Sync Categories
     try {
-        const catRes = await fetch(`https://api-v2.contaazul.com/v1/categorias?tamanho_pagina=100`, { 
+        const catRes = await fetch(`https://api.contaazul.com/v1/categories?tamanho_pagina=100`, { 
             headers: { 'Authorization': `Bearer ${token}` } 
         });
         if (catRes.ok) {
@@ -145,7 +145,7 @@ export async function syncMasterData(tenantId: string) {
 
     // 2. Sync Cost Centers
     try {
-        const ccRes = await fetch(`https://api-v2.contaazul.com/v1/centros-de-custo?tamanho_pagina=100`, { 
+        const ccRes = await fetch(`https://api.contaazul.com/v1/cost-centers?tamanho_pagina=100`, { 
             headers: { 'Authorization': `Bearer ${token}` } 
         });
         if (ccRes.ok) {

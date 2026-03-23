@@ -55,10 +55,10 @@ export async function POST(request: Request) {
             data: {
                 tenantId,
                 categoryId,
-                costCenterId: costCenterId === 'DEFAULT' ? null : costCenterId,
-                month,
-                year,
-                viewMode,
+                costCenterId: (costCenterId && costCenterId !== 'DEFAULT') ? costCenterId : 'DEFAULT',
+                month: parseInt(month.toString(), 10),
+                year: parseInt(year.toString(), 10),
+                viewMode: viewMode || 'competencia',
                 content,
                 userName
             }

@@ -11,12 +11,12 @@ export async function GET(request: Request) {
         const { token, tenant } = await getValidAccessToken(tenantId);
         
         const endpoints = [
-            'https://api.contaazul.com/v2/categorias',
-            'https://api.contaazul.com/v2/centros-de-custo',
-            'https://api.contaazul.com/v1/categories',
-            'https://api.contaazul.com/v1/cost-centers',
+            'https://api-v2.contaazul.com/v1/categorias',
             'https://api-v2.contaazul.com/v1/centros-de-custo',
-            'https://api-v2.contaazul.com/v1/financeiro/centros-de-custo'
+            'https://api-v2.contaazul.com/v1/financeiro/categorias',
+            'https://api-v2.contaazul.com/v1/financeiro/centros-de-custo',
+            'https://api-v2.contaazul.com/v1/cost-centers',
+            'https://api-v2.contaazul.com/v1/categories'
         ];
 
         const results: any[] = [];

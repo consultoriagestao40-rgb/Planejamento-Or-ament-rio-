@@ -1219,12 +1219,12 @@ export default function BudgetGrid({
                                         color: rVal < 0 ? '#dc2626' : 'var(--accent-blue)',
                                         fontWeight: 700,
                                         position: 'relative',
-                                        background: hasJustificationMap[`${node.id}-${i}`] ? '#eff6ff' : undefined
+                                        background: (hasJustificationMap[`${node.id}-${i}`] && node.children.length === 0) ? '#eff6ff' : undefined
                                     }}
                                 >
                                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '0.25rem' }}>
                                         {formatCurrency(rVal)}
-                                        {viewPeriod === 'month' && (
+                                        {viewPeriod === 'month' && node.children.length === 0 && (
                                             <button 
                                                 onClick={(e) => {
                                                     e.stopPropagation();
@@ -1387,31 +1387,9 @@ export default function BudgetGrid({
                                     {avRadar.toFixed(1)}%
                                 </td>
                             )} */}
-                            <td className="spreadsheet-value" style={{ color: rColor, fontWeight: 800, background: hasJustificationMap[`${validx}-${i}`] ? '#dbeafe' : (isLucroLiquido ? '#2563eb' : undefined), position: 'relative' }}>
+                            <td className="spreadsheet-value" style={{ color: rColor, fontWeight: 800, background: isLucroLiquido ? '#2563eb' : undefined, position: 'relative' }}>
                                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '0.25rem' }}>
                                     {formatCurrency(realizedVal)}
-                                    {viewPeriod === 'month' && (
-                                        <button 
-                                            onClick={(e) => {
-                                                e.stopPropagation();
-                                                handleJustificationClick(validx as string, i, label);
-                                            }}
-                                            style={{
-                                                background: 'none',
-                                                border: 'none',
-                                                padding: 0,
-                                                cursor: 'pointer',
-                                                fontSize: '0.65rem',
-                                                opacity: hasJustificationMap[`${validx}-${i}`] ? 1 : 0.3,
-                                                color: isLucroLiquido ? '#fff' : (hasJustificationMap[`${validx}-${i}`] ? '#2563eb' : '#94a3b8'),
-                                                display: 'flex',
-                                                alignItems: 'center'
-                                            }}
-                                            title="Analisar Valor Realizado"
-                                        >
-                                            {hasJustificationMap[`${validx}-${i}`] ? '📝' : '✏️'}
-                                        </button>
-                                    )}
                                 </div>
                             </td>
                             {showAV && (

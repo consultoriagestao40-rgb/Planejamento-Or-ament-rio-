@@ -19,7 +19,7 @@ export async function GET(request: Request) {
             where: {
                 tenantId,
                 categoryId,
-                costCenterId: costCenterId === 'DEFAULT' ? null : costCenterId,
+                costCenterId: (costCenterId && costCenterId !== 'DEFAULT') ? costCenterId : 'DEFAULT',
                 month,
                 year,
                 viewMode

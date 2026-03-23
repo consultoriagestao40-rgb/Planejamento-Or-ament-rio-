@@ -315,7 +315,9 @@ export default function BudgetSummaryPage() {
                         {/* {userRole === 'MASTER' && (
                             <Link href="/radar" className="btn btn-primary" style={{ padding: '0.75rem 1.25rem' }}>🎯 Gestão de Radar</Link>
                         )} */}
-                        <SyncButton year={selectedYear} onSyncStart={() => setLoading(true)} onSyncComplete={fetchData} />
+                        {userRole === 'MASTER' && (
+                            <SyncButton year={selectedYear} onSyncStart={() => setLoading(true)} onSyncComplete={fetchData} />
+                        )}
                         <Link href="/" className="btn btn-secondary" style={{ padding: '0.75rem 1.25rem' }}>⬅️ Dashboard</Link>
                     </div>
                 </div>
@@ -432,26 +434,28 @@ export default function BudgetSummaryPage() {
                                                     </div>
                                                 </td>
                                                 <td style={{ ...td, textAlign: 'center' }}>
-                                                    <button 
-                                                        onClick={(e) => { e.stopPropagation(); setExcelTenantId(group.tenantId); setIsExcelModalOpen(true); }}
-                                                        style={{ 
-                                                            padding: '0.6rem 1rem', 
-                                                            fontSize: '0.75rem', 
-                                                            background: '#16a34a', 
-                                                            color: 'white',
-                                                            border: 'none',
-                                                            borderRadius: '8px',
-                                                            fontWeight: 800,
-                                                            cursor: 'pointer',
-                                                            boxShadow: '0 4px 6px -1px rgba(22, 163, 74, 0.4)',
-                                                            display: 'flex',
-                                                            alignItems: 'center',
-                                                            gap: '0.5rem',
-                                                            margin: '0 auto'
-                                                        }}
-                                                    >
-                                                        <span>📊</span> IMPORTAR EXCEL
-                                                    </button>
+                                                    {userRole === 'MASTER' && (
+                                                        <button 
+                                                            onClick={(e) => { e.stopPropagation(); setExcelTenantId(group.tenantId); setIsExcelModalOpen(true); }}
+                                                            style={{ 
+                                                                padding: '0.6rem 1rem', 
+                                                                fontSize: '0.75rem', 
+                                                                background: '#16a34a', 
+                                                                color: 'white',
+                                                                border: 'none',
+                                                                borderRadius: '8px',
+                                                                fontWeight: 800,
+                                                                cursor: 'pointer',
+                                                                boxShadow: '0 4px 6px -1px rgba(22, 163, 74, 0.4)',
+                                                                display: 'flex',
+                                                                alignItems: 'center',
+                                                                gap: '0.5rem',
+                                                                margin: '0 auto'
+                                                            }}
+                                                        >
+                                                            <span>📊</span> IMPORTAR EXCEL
+                                                        </button>
+                                                    )}
                                                 </td>
                                             </tr>
 

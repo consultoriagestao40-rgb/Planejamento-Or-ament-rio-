@@ -1,6 +1,7 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
+import Link from 'next/link';
 import BudgetGrid from '@/components/BudgetGrid';
 import { SyncButton } from '@/components/SyncButton';
 
@@ -144,11 +145,10 @@ export default function FinancialDashboard({
                                         </button>
                                     </div>
 
-                                    <SyncButton onSyncStart={() => setIsSyncing(true)} onSyncComplete={triggerRefresh} year={selectedYear} />
-
-                                    <a href="/summary" className="btn btn-secondary" style={{ height: '34px', fontSize: '0.78rem' }}>
-                                        📋 Resumo por CC
-                                    </a>
+                                    {userRole === 'MASTER' && (
+                                        <SyncButton year={selectedYear} onSyncStart={() => setIsSyncing(true)} onSyncComplete={() => { setIsSyncing(false); setRefreshKey(prev => prev + 1); }} />
+                                    )}
+                                    <Link href="/summary" className="btn btn-secondary" style={{ padding: '0.75rem 1.25rem' }}>📊 Resumo por CC</Link>
                                 </div>
                             )}
                         </div>

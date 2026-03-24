@@ -222,15 +222,15 @@ export default function BudgetSummaryPage() {
     };
 
     const toggleLockStatus = async (cc: SummaryItem, currentLockState: boolean) => {
-        if (!userRole) return;
-        const access = cc.currentUserAccessLevel;
-        const canLock = userRole === 'MASTER' || ['APROVADOR_N1', 'APROVADOR_N2', 'APROVADOR_N1_N2'].includes(access);
-        
-        if (!canLock) {
-            alert('Você não tem permissão para alterar o bloqueio deste orçamento.');
+        if (userRole !== 'MASTER') {
+            alert("Apenas administradores (Master) podem trancar/destrancar unidades manualmente.");
             return;
         }
 
+        if (currentLockState && !confirm(`Deseja reabrir o orçamento de "${cc.costCenterName}"? \nIsso resetará o status para PENDENTE e excluirá o histórico de aprovações. \n\nO cadeado abrirá para edição e o fluxo de aprovação deverá ser refeito.`)) {
+            return;
+        }
+        
         setIsTogglingLock(cc.costCenterId);
         try {
             const res = await fetch('/api/cost-centers/approve', {

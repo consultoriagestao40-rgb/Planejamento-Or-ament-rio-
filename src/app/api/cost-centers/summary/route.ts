@@ -168,6 +168,10 @@ export async function GET(request: Request) {
                 hasRealizedData: false,
                 isLocked: false,
                 status: 'APPROVED',
+                n1ApprovedBy: null,
+                n1ApprovedAt: null,
+                n2ApprovedBy: null,
+                n2ApprovedAt: null,
                 currentUserAccessLevel: 'MASTER'
             });
         }
@@ -218,6 +222,10 @@ export async function GET(request: Request) {
                     hasBudgetData: false,
                     isLocked: lock?.isLocked || false,
                     status: lock?.status || 'PENDING',
+                    n1ApprovedBy: lock?.n1ApprovedBy || null,
+                    n1ApprovedAt: lock?.n1ApprovedAt || null,
+                    n2ApprovedBy: lock?.n2ApprovedBy || null,
+                    n2ApprovedAt: lock?.n2ApprovedAt || null,
                     currentUserAccessLevel: user.role === 'MASTER' ? 'MASTER' : (costCenterAccessMap[cc.id] || 'NONE')
                 });
             } else {

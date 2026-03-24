@@ -381,7 +381,8 @@ export default function BudgetSummaryPage() {
                                     <th style={{ ...th, textAlign: 'left', width: '350px' }}>Organização / Centro de Custo</th>
                                     <th style={{ ...th, textAlign: 'right', color: 'var(--accent-blue)' }}>RECEITA (ORÇADA)</th>
                                     <th style={{ ...th, textAlign: 'right', color: 'var(--accent-red)' }}>DESPESA (ORÇADA)</th>
-                                    <th style={{ ...th, textAlign: 'center' }}>Progresso</th>
+                                    <th style={{ ...th, textAlign: 'right', color: 'var(--accent-green)' }}>RESULTADO</th>
+                                    <th style={{ ...th, textAlign: 'center' }}>% Margem</th>
                                     <th style={{ ...th, textAlign: 'center' }}>🔒 Cadeado</th>
                                     <th style={{ ...th, textAlign: 'center' }}>Configuração / Status</th>
                                     <th style={{ ...th, textAlign: 'center', width: '150px' }}>Ações</th>
@@ -401,9 +402,10 @@ export default function BudgetSummaryPage() {
                                                 </td>
                                                 <td style={{ ...td, textAlign: 'right', fontWeight: 900, color: 'var(--accent-blue)', background: 'rgba(59, 130, 246, 0.03)' }}>{formatCurrency(group.totalRevenueBudget)}</td>
                                                 <td style={{ ...td, textAlign: 'right', fontWeight: 900, color: 'var(--accent-red)', background: 'rgba(239, 68, 68, 0.03)' }}>{formatCurrency(group.totalExpenseBudget)}</td>
+                                                <td style={{ ...td, textAlign: 'right', fontWeight: 900, color: 'var(--accent-green)', background: 'rgba(16, 185, 129, 0.03)' }}>{formatCurrency(group.totalRevenueBudget - group.totalExpenseBudget)}</td>
                                                 <td style={{ ...td, textAlign: 'center' }}>
                                                     <span style={{ background: isComplete ? 'var(--accent-green-glow)' : 'var(--accent-red-glow)', color: isComplete ? 'var(--accent-green)' : 'var(--accent-red)', padding: '0.2rem 0.6rem', borderRadius: '12px', fontSize: '0.7rem', fontWeight: 800 }}>
-                                                        {isComplete ? 'FINALIZADO' : `PENDENTE (${group.finishedCount}/${group.totalCount})`}
+                                                        {group.totalRevenueBudget > 0 ? ((group.totalRevenueBudget - group.totalExpenseBudget) / group.totalRevenueBudget * 100).toFixed(1) : '0'}%
                                                     </span>
                                                 </td>
                                                 <td style={{ ...td, textAlign: 'center' }}>-</td>
@@ -469,7 +471,10 @@ export default function BudgetSummaryPage() {
                                                     </td>
                                                     <td style={{ ...td, textAlign: 'right', fontWeight: 700, color: 'var(--accent-blue)', background: 'rgba(59, 130, 246, 0.02)' }}>{formatCurrency(cc.totalRevenueBudget)}</td>
                                                     <td style={{ ...td, textAlign: 'right', fontWeight: 700, color: 'var(--accent-red)', background: 'rgba(239, 68, 68, 0.02)' }}>{formatCurrency(cc.totalExpenseBudget)}</td>
-                                                    <td style={{ ...td, textAlign: 'center' }}>{cc.hasBudgetData ? '✓' : '-'}</td>
+                                                    <td style={{ ...td, textAlign: 'right', fontWeight: 700, color: 'var(--accent-green)', background: 'rgba(16, 185, 129, 0.02)' }}>{formatCurrency(cc.totalRevenueBudget - cc.totalExpenseBudget)}</td>
+                                                    <td style={{ ...td, textAlign: 'center', fontSize: '0.75rem', fontWeight: 600 }}>
+                                                        {cc.totalRevenueBudget > 0 ? ((cc.totalRevenueBudget - cc.totalExpenseBudget) / cc.totalRevenueBudget * 100).toFixed(1) : '0'}%
+                                                    </td>
                                                     <td style={{ ...td, textAlign: 'center' }}>
                                                         <button 
                                                             onClick={(e) => { e.stopPropagation(); toggleLockStatus(cc, cc.isLocked); }}
@@ -479,8 +484,39 @@ export default function BudgetSummaryPage() {
                                                         </button>
                                                     </td>
                                                     <td style={{ ...td, textAlign: 'center' }}>
-                                                        <button onClick={(e) => { e.stopPropagation(); setSelectedForAudit(cc); }} className="btn" style={{ fontSize: '0.65rem', padding: '0.2rem 0.4rem' }}>
-                                                            {cc.status === 'APPROVED' ? '✅' : cc.status === 'AWAITING_N2' ? '⏳' : '🔍'}
+                                                        <div style={{ 
+                                                            display: 'flex', 
+                                                            alignItems: 'center', 
+                                                            justifyContent: 'center',
+                                                            gap: '0.4rem',
+                                                            fontSize: '0.7rem',
+                                                            fontWeight: 800,
+                                                            color: cc.status === 'APPROVED' ? 'var(--accent-green)' : cc.status === 'AWAITING_N2' ? 'var(--accent-blue)' : 'var(--text-muted)',
+                                                            background: cc.status === 'APPROVED' ? 'var(--accent-green-glow)' : cc.status === 'AWAITING_N2' ? 'rgba(59,130,246,0.1)' : 'rgba(156,163,175,0.1)',
+                                                            padding: '0.3rem 0.6rem',
+                                                            borderRadius: '8px'
+                                                        }}>
+                                                            {cc.status === 'APPROVED' ? '✅ APROVADO' : cc.status === 'AWAITING_N2' ? '⏳ AUDITORIA' : cc.status === 'REJECTED' ? '❌ REVISAR' : '🕒 PENDENTE'}
+                                                        </div>
+                                                    </td>
+                                                    <td style={{ ...td, textAlign: 'center' }}>
+                                                        <button 
+                                                            onClick={(e) => { e.stopPropagation(); setSelectedForAudit(cc); }} 
+                                                            style={{ 
+                                                                background: cc.status === 'AWAITING_N2' ? 'var(--accent-blue)' : 'var(--bg-elevated)',
+                                                                color: cc.status === 'AWAITING_N2' ? 'white' : 'var(--text-primary)',
+                                                                border: '1px solid var(--border-subtle)',
+                                                                borderRadius: '8px',
+                                                                padding: '0.4rem 0.8rem',
+                                                                fontSize: '0.7rem',
+                                                                fontWeight: 800,
+                                                                cursor: 'pointer',
+                                                                transition: 'all 0.2s',
+                                                                boxShadow: cc.status === 'AWAITING_N2' ? '0 4px 6px -1px rgba(59, 130, 246, 0.3)' : 'none'
+                                                            }}
+                                                            className="hover-opacity"
+                                                        >
+                                                            {cc.status === 'AWAITING_N2' ? '🔍 AUDITAR' : '📄 DETALHES'}
                                                         </button>
                                                     </td>
                                                     <td style={{ ...td }}></td>
@@ -498,12 +534,117 @@ export default function BudgetSummaryPage() {
                     </div>
                 </div>
 
-                {/* Modais omitidos para brevidade neste write_to_file, mas vou incluir o essencial para funcionar */}
+                {/* Audit Modal */}
                 {selectedForAudit && (
-                    <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
-                        <div style={{ background: 'white', padding: '2rem', borderRadius: '12px', width: '500px' }}>
-                            <h3>Auditoria: {selectedForAudit.costCenterName}</h3>
-                            <button onClick={() => setSelectedForAudit(null)} className="btn btn-secondary">Fechar</button>
+                    <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', background: 'rgba(0,0,0,0.4)', backdropFilter: 'blur(8px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '1rem' }} onClick={() => setSelectedForAudit(null)}>
+                        <div style={{ background: 'var(--bg-card)', padding: '2.5rem', borderRadius: '24px', width: '100%', maxWidth: '600px', border: '1px solid var(--border-default)', boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)' }} onClick={e => e.stopPropagation()}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '2rem' }}>
+                                <div>
+                                    <h3 style={{ fontSize: '1.5rem', fontWeight: 900, marginBottom: '0.25rem' }}>Auditoria de Orçamento</h3>
+                                    <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem' }}>{selectedForAudit.costCenterName} ({selectedForAudit.tenantName})</p>
+                                </div>
+                                <button onClick={() => setSelectedForAudit(null)} style={{ background: 'none', border: 'none', fontSize: '1.5rem', cursor: 'pointer', opacity: 0.5 }}>×</button>
+                            </div>
+
+                            {/* Modal Content - Financial Summary */}
+                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '1rem', marginBottom: '2rem' }}>
+                                <div style={{ background: 'rgba(59, 130, 246, 0.05)', padding: '1rem', borderRadius: '12px', border: '1px solid rgba(59, 130, 246, 0.1)' }}>
+                                    <p style={{ fontSize: '0.65rem', fontWeight: 800, color: 'var(--accent-blue)', textTransform: 'uppercase', marginBottom: '0.4rem' }}>Receita</p>
+                                    <p style={{ fontSize: '1.1rem', fontWeight: 900 }}>{formatCurrency(selectedForAudit.totalRevenueBudget)}</p>
+                                </div>
+                                <div style={{ background: 'rgba(239, 68, 68, 0.05)', padding: '1rem', borderRadius: '12px', border: '1px solid rgba(239, 68, 68, 0.1)' }}>
+                                    <p style={{ fontSize: '0.65rem', fontWeight: 800, color: 'var(--accent-red)', textTransform: 'uppercase', marginBottom: '0.4rem' }}>Despesa</p>
+                                    <p style={{ fontSize: '1.1rem', fontWeight: 900 }}>{formatCurrency(selectedForAudit.totalExpenseBudget)}</p>
+                                </div>
+                                <div style={{ background: 'rgba(16, 185, 129, 0.05)', padding: '1rem', borderRadius: '12px', border: '1px solid rgba(16, 185, 129, 0.1)' }}>
+                                    <p style={{ fontSize: '0.65rem', fontWeight: 800, color: 'var(--accent-green)', textTransform: 'uppercase', marginBottom: '0.4rem' }}>Resultado</p>
+                                    <p style={{ fontSize: '1.1rem', fontWeight: 900 }}>{formatCurrency(selectedForAudit.totalRevenueBudget - selectedForAudit.totalExpenseBudget)}</p>
+                                </div>
+                            </div>
+
+                            {/* Status & History */}
+                            <div style={{ background: 'var(--bg-elevated)', padding: '1.5rem', borderRadius: '16px', marginBottom: '2.5rem', border: '1px solid var(--border-subtle)' }}>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '1rem' }}>
+                                    <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>Status Atual:</span>
+                                    <span style={{ 
+                                        fontWeight: 800, 
+                                        fontSize: '0.75rem', 
+                                        padding: '0.2rem 0.6rem', 
+                                        borderRadius: '12px',
+                                        background: selectedForAudit.status === 'APPROVED' ? 'var(--accent-green-glow)' : selectedForAudit.status === 'AWAITING_N2' ? 'rgba(59,130,246,0.1)' : 'rgba(156,163,175,0.1)',
+                                        color: selectedForAudit.status === 'APPROVED' ? 'var(--accent-green)' : selectedForAudit.status === 'AWAITING_N2' ? 'var(--accent-blue)' : 'var(--text-muted)'
+                                    }}>
+                                        {selectedForAudit.status === 'APPROVED' ? 'APROVADO MASTER' : selectedForAudit.status === 'AWAITING_N2' ? 'AGUARDANDO MASTER' : 'EM DIGITAÇÃO / PENDENTE'}
+                                    </span>
+                                </div>
+                                
+                                {selectedForAudit.n1ApprovedBy && (
+                                    <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginBottom: '0.5rem', display: 'flex', justifyContent: 'space-between' }}>
+                                        <span>Submetido por N1:</span>
+                                        <span style={{ fontWeight: 600 }}>{selectedForAudit.n1ApprovedBy} em {new Date(selectedForAudit.n1ApprovedAt!).toLocaleDateString('pt-BR')}</span>
+                                    </div>
+                                )}
+                                {selectedForAudit.n2ApprovedBy && (
+                                    <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', display: 'flex', justifyContent: 'space-between' }}>
+                                        <span>Aprovado por Master:</span>
+                                        <span style={{ fontWeight: 600 }}>{selectedForAudit.n2ApprovedBy} em {new Date(selectedForAudit.n2ApprovedAt!).toLocaleDateString('pt-BR')}</span>
+                                    </div>
+                                )}
+                            </div>
+
+                            {/* Action Buttons */}
+                            <div style={{ display: 'flex', gap: '1rem' }}>
+                                {auditActionLoading ? (
+                                    <div style={{ width: '100%', textAlign: 'center' }}><div className="spinner" style={{ margin: '0 auto' }}></div></div>
+                                ) : (
+                                    <>
+                                        {/* Master or N2 Approver can Approve Final or Reject when awaiting N2 */}
+                                        {(userRole === 'MASTER' || ['APROVADOR_N2', 'APROVADOR_N1_N2'].includes(selectedForAudit.currentUserAccessLevel)) && selectedForAudit.status === 'AWAITING_N2' && (
+                                            <>
+                                                <button 
+                                                    onClick={() => handleApprovalAction('APPROVE_N2')}
+                                                    style={{ flex: 1, padding: '1rem', background: '#16a34a', color: 'white', border: 'none', borderRadius: '12px', fontWeight: 800, cursor: 'pointer', boxShadow: '0 4px 12px rgba(22,163,74,0.3)' }}
+                                                >
+                                                    ✅ APROVAR FINAL
+                                                </button>
+                                                <button 
+                                                    onClick={() => handleApprovalAction('REJECT')}
+                                                    style={{ flex: 1, padding: '1rem', background: '#dc2626', color: 'white', border: 'none', borderRadius: '12px', fontWeight: 800, cursor: 'pointer', boxShadow: '0 4px 12px rgba(220,38,38,0.3)' }}
+                                                >
+                                                    ❌ PEDIR REVISÃO
+                                                </button>
+                                            </>
+                                        )}
+
+                                        {/* Master or N2 Approver can Reopen once approved */}
+                                        {(userRole === 'MASTER' || ['APROVADOR_N2', 'APROVADOR_N1_N2'].includes(selectedForAudit.currentUserAccessLevel)) && selectedForAudit.status === 'APPROVED' && (
+                                            <button 
+                                                onClick={() => handleApprovalAction('REOPEN')}
+                                                style={{ flex: 1, padding: '1rem', background: '#f59e0b', color: 'white', border: 'none', borderRadius: '12px', fontWeight: 800, cursor: 'pointer', boxShadow: '0 4px 12px rgba(245,158,11,0.3)' }}
+                                            >
+                                                🔓 REABRIR PARA AJUSTES
+                                            </button>
+                                        )}
+
+                                        {selectedForAudit.status === 'PENDING' && (userRole === 'MASTER' || ['APROVADOR_N1', 'APROVADOR_N1_N2'].includes(selectedForAudit.currentUserAccessLevel)) && (
+                                            <button 
+                                                onClick={() => handleApprovalAction('SUBMIT_N1')}
+                                                style={{ flex: 1, padding: '1rem', background: 'var(--accent-blue)', color: 'white', border: 'none', borderRadius: '12px', fontWeight: 800, cursor: 'pointer', boxShadow: '0 4px 12px rgba(59,130,246,0.3)' }}
+                                            >
+                                                🚀 FINALIZAR E ENVIAR AO MASTER
+                                            </button>
+                                        )}
+
+                                        {/* Close button for all states */}
+                                        <button 
+                                            onClick={() => setSelectedForAudit(null)}
+                                            style={{ padding: '1rem 1.5rem', background: 'var(--bg-elevated)', color: 'var(--text-primary)', border: '1px solid var(--border-default)', borderRadius: '12px', fontWeight: 700, cursor: 'pointer' }}
+                                        >
+                                            Fechar
+                                        </button>
+                                    </>
+                                )}
+                            </div>
                         </div>
                     </div>
                 )}

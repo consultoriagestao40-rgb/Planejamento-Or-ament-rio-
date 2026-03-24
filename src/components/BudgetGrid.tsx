@@ -1614,6 +1614,26 @@ export default function BudgetGrid({
                     <div style={{ display: 'flex', gap: '0.4rem', alignItems: 'center' }}>
                         <button onClick={applyFilter} className="btn btn-primary" style={{ padding: '0 1rem', height: '32px', fontSize: '0.75rem' }}>Filtrar</button>
                         <button onClick={clearFilter} className="btn btn-secondary" style={{ padding: '0 1rem', height: '32px', fontSize: '0.75rem' }}>Limpar</button>
+                        
+                        {/* Status Badge */}
+                        {selectedCostCenter.length === 1 && selectedCostCenter[0] !== 'DEFAULT' && isCCLocked && (
+                            <div style={{ 
+                                display: 'flex', 
+                                alignItems: 'center', 
+                                gap: '0.4rem', 
+                                padding: '0 0.75rem', 
+                                height: '32px', 
+                                background: 'var(--accent-red-glow)', 
+                                color: 'var(--accent-red)', 
+                                borderRadius: '8px', 
+                                fontSize: '0.7rem', 
+                                fontWeight: 800,
+                                border: '1px solid rgba(239, 68, 68, 0.2)'
+                            }}>
+                                🔒 ORÇAMENTO BLOQUEADO
+                            </div>
+                        )}
+
                         {userRole === 'MASTER' && (
                             <button 
                                 onClick={() => setIsExcelModalOpen(true)} 

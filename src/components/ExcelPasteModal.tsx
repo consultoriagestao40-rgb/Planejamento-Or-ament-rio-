@@ -19,8 +19,17 @@ export function ExcelPasteModal({ isOpen, onClose, tenantId: initialTenantId, co
     const [loading, setLoading] = useState(false);
     const [status, setStatus] = useState<string | null>(null);
     const [localTenantId, setLocalTenantId] = useState(initialTenantId);
-    const [summary, setSummary] = useState<{ totalP: number, totalRows: number, revenueP: number, preparedSum: number, ignoredSum: number, ignoredRowsCount: number, retentionSum: number } | null>(null);
     const [processedRows, setProcessedRows] = useState<any[] | null>(null);
+    const [summary, setSummary] = useState<{ 
+        totalP: number, 
+        totalRows: number, 
+        revenueP: number, 
+        preparedSum: number, 
+        ignoredSum: number, 
+        ignoredRowsCount: number, 
+        retentionSum: number,
+        colsDetected?: string
+    } | null>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
 
     // Sync localTenantId when prop changes (e.g. user filters in the grid)
@@ -140,56 +149,54 @@ export function ExcelPasteModal({ isOpen, onClose, tenantId: initialTenantId, co
         if (votesVal[15] > 0) votesVal[15] += 50; 
         if (votesCat[14] > 0) votesCat[14] += 50;
 
-        // 1.5. DETECÇÃO DINÂMICA DE CABEÇALHO
-        let colVal = 15; // Fallback for colVal loop control
+        // 1.5. DETECÇÃO DINÂMICA DE CABEÇALHO (Busca nas primeiras 5 linhas)
+        let colVal = 15; 
+        let headerRowIdx = -1;
+        let detectedIndices = { valNet: -1, valGross: -1, cat: -1, desc: -1, cust: -1 };
 
-        const firstRow = matrix[0] || [];
-        const headerIndices = firstRow.reduce((acc: any, cell, i) => {
-            const s = String(cell || '').toLowerCase().trim();
-            
-            // Lógica de Sinônimos Robusta
-            const isValNet = s === 'valor (r$)' || s === 'valor' || s === 'líquido' || s === 'vlr. líquido' || s === 'recebido' || s === 'pago';
-            const isValGross = s.includes('valor na categoria') || s === 'valor bruto' || s === 'vlr. bruto' || s === 'total bruto';
-            const isCat = s === 'categoria' || s.includes('categoria 1') || s.includes('categoria 01') || s === 'conta contábil' || s === 'nº categoria 1';
-            const isDesc = s === 'descrição' || s === 'histórico' || s === 'detalhe';
-            const isCustomer = s === 'nome do fornecedor/cliente' || s === 'cliente' || s === 'fornecedor' || s === 'contato' || s.includes('fornecedor/cliente');
+        for (let i = 0; i < Math.min(5, matrix.length); i++) {
+            const row = matrix[i];
+            const indices = row.reduce((acc: any, cell, idx) => {
+                const s = String(cell || '').toLowerCase().trim();
+                const isValNet = s === 'valor (r$)' || s === 'valor' || s === 'líquido' || s === 'vlr. líquido' || s === 'recebido' || s === 'pago';
+                const isValGross = s.includes('valor na categoria') || s === 'valor bruto' || s === 'vlr. bruto' || s === 'total bruto';
+                const isCat = s === 'categoria' || s.includes('categoria 1') || s.includes('categoria 01') || s === 'conta contábil' || s === 'nº categoria 1';
+                const isDesc = s === 'descrição' || s === 'histórico' || s === 'detalhe';
+                const isCustomer = s === 'nome do fornecedor/cliente' || s === 'cliente' || s === 'fornecedor' || s === 'contato' || s.includes('fornecedor/cliente');
 
-            if (acc.valNet === -1 && isValNet) acc.valNet = i;
-            if (acc.valGross === -1 && isValGross) acc.valGross = i;
-            if (acc.cat === -1 && isCat) acc.cat = i;
-            if (acc.desc === -1 && isDesc) acc.desc = i;
-            if (acc.cust === -1 && isCustomer) acc.cust = i;
-            
-            return acc;
-        }, { valNet: -1, valGross: -1, cat: -1, desc: -1, cust: -1 });
+                if (acc.valNet === -1 && isValNet) acc.valNet = idx;
+                if (acc.valGross === -1 && isValGross) acc.valGross = idx;
+                if (acc.cat === -1 && isCat) acc.cat = idx;
+                if (acc.desc === -1 && isDesc) acc.desc = idx;
+                if (acc.cust === -1 && isCustomer) acc.cust = idx;
+                return acc;
+            }, { valNet: -1, valGross: -1, cat: -1, desc: -1, cust: -1 });
+
+            if (indices.cat !== -1 || indices.valGross !== -1) {
+                detectedIndices = indices;
+                headerRowIdx = i;
+                break;
+            }
+        }
 
         // FALLBACKS INTELIGENTES se o header falhar
-        let colCat = headerIndices.cat !== -1 ? headerIndices.cat : 14; 
-        let colValNet = headerIndices.valNet !== -1 ? headerIndices.valNet : 11;
-        let colValGross = headerIndices.valGross !== -1 ? headerIndices.valGross : 15;
-        let colDesc = headerIndices.desc !== -1 ? headerIndices.desc : 4;
-        let colCust = headerIndices.cust !== -1 ? headerIndices.cust : 6;
+        let colCat = detectedIndices.cat !== -1 ? detectedIndices.cat : 14; 
+        let colValNet = detectedIndices.valNet !== -1 ? detectedIndices.valNet : 11;
+        let colValGross = detectedIndices.valGross !== -1 ? detectedIndices.valGross : 15;
+        let colDesc = detectedIndices.desc !== -1 ? detectedIndices.desc : 4;
+        let colCust = detectedIndices.cust !== -1 ? detectedIndices.cust : 6;
 
-        // Se detectou colunas explícitas no início (como no resumo do usuário), prevalece a detecção
-        if (headerIndices.valNet !== -1 && headerIndices.valNet < 10) colValNet = headerIndices.valNet;
-        if (headerIndices.valGross !== -1 && headerIndices.valGross < 10) colValGross = headerIndices.valGross;
-        if (headerIndices.cat !== -1 && headerIndices.cat < 10) colCat = headerIndices.cat;
+        // BÔNUS: Se detectamos colunas muito cedo (resumo), priorizamos
+        if (detectedIndices.valGross !== -1 && detectedIndices.valGross < 10) colValGross = detectedIndices.valGross;
+        if (detectedIndices.valNet === -1 && detectedIndices.valGross !== -1) colValNet = detectedIndices.valGross; // Se só tem 1 valor, usa ele pros dois
 
-        // colVal (usado para decidir se pula a linha)
         colVal = colValGross; 
-
-        console.log(`🗳️ [RETER V2] Net: ${colValNet}, Gross: ${colValGross}, Cat: ${colCat}, Desc: ${colDesc}, Cust: ${colCust}`);
-        console.log("📝 [CABECALHO] ", JSON.stringify(firstRow));
-        
-        // 3. Detectar se a primeira linha é cabeçalho ou dados (usando indices detectados ou fallback)
-        const isHeader = headerIndices.cat !== -1 || headerIndices.val !== -1 ||
-                         String(firstRow[14] || '').toLowerCase().includes('categoria') || 
-                         String(firstRow[15] || '').toLowerCase().includes('valor');
+        const isHeader = headerRowIdx !== -1;
 
         // --- SOMA BRUTA PARA AUDITORIA ---
         matrix.forEach((row, rIdx) => {
-            if (rIdx === 0 && isHeader) return; 
-            const valP = parseSaneNumber(row[colVal]);
+            if (rIdx <= headerRowIdx) return; 
+            const valP = parseSaneNumber(row[colValGross]);
             if (!isNaN(valP)) rawSumPInFile += valP;
         });
 
@@ -200,7 +207,7 @@ export function ExcelPasteModal({ isOpen, onClose, tenantId: initialTenantId, co
         for (let idx = 0; idx < matrix.length; idx++) {
             const cols = matrix[idx];
             try {
-                if (idx === 0 && isHeader) continue; 
+                if (idx <= headerRowIdx) continue; 
                 if (!cols || cols.length <= 1) continue;
 
                 // SKIP "TOTAL" ROWS SAFELY (Somente se for literalmente na primeira coluna de data ou categoria)
@@ -443,6 +450,9 @@ export function ExcelPasteModal({ isOpen, onClose, tenantId: initialTenantId, co
 
         const totalRetention = rows.filter(r => r.categoryId.endsWith(':02.01.03')).reduce((acc, r) => acc + r.amount, 0);
 
+        const colLetters = (idx: number) => String.fromCharCode(65 + idx);
+        const colsDetected = `Cat: ${colLetters(colCat)}, Bruto: ${colLetters(colValGross)}, Líquido: ${colLetters(colValNet)}, Desc: ${colLetters(colDesc)}, Cliente: ${colLetters(colCust)}`;
+
         // Final summary for UI
         setSummary({
             totalP: rawSumPInFile,
@@ -451,7 +461,8 @@ export function ExcelPasteModal({ isOpen, onClose, tenantId: initialTenantId, co
             preparedSum: netSumRows,
             ignoredSum: ignoredSumTotal,
             ignoredRowsCount: ignoredRowsCount,
-            retentionSum: totalRetention
+            retentionSum: totalRetention,
+            colsDetected
         });
 
         console.log(`🚀 [AUDITORIA] Processamento Concluído!`);
@@ -709,6 +720,9 @@ export function ExcelPasteModal({ isOpen, onClose, tenantId: initialTenantId, co
                                 </p>
                             </div>
                         )}
+                        <div style={{ gridColumn: 'span 3', fontSize: '0.7rem', color: '#166534', backgroundColor: '#eef2ff', padding: '0.4rem', borderRadius: '6px', border: '1px solid #c7d2fe' }}>
+                             🔍 <b>Colunas Detectadas:</b> {summary.colsDetected}
+                        </div>
                         <div style={{ gridColumn: 'span 3', fontSize: '0.75rem', color: '#166534', borderTop: '1px dashed #bbf7d0', paddingTop: '0.5rem', marginTop: '0.5rem' }}>
                             ✅ <b>{summary.totalRows}</b> lançamentos detectados (fidelidade total à Coluna P).
                             {Math.abs(summary.totalP - summary.preparedSum) > 0.1 && (

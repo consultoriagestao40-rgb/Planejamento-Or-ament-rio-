@@ -15,14 +15,27 @@ export async function GET(request: Request) {
             return NextResponse.json({ error: 'Missing parameters' }, { status: 400 });
         }
 
+        const queryCC = (costCenterId && costCenterId !== 'DEFAULT' && costCenterId !== 'ALL') 
+            ? costCenterId 
+            : (costCenterId === 'ALL' ? undefined : 'DEFAULT');
+
+        const filter: any = {
+            tenantId,
+            categoryId,
+            month,
+            year,
+            viewMode
+        };
+
+        if (queryCC) {
+            filter.costCenterId = queryCC;
+        }
+
         const justifications = await (prisma as any).realizedJustification.findMany({
-            where: {
-                tenantId,
-                categoryId,
-                costCenterId: (costCenterId && costCenterId !== 'DEFAULT') ? costCenterId : 'DEFAULT',
-                month,
-                year,
-                viewMode
+            where: filter,
+            include: {
+                costCenter: { select: { name: true } },
+                tenant: { select: { name: true } }
             },
             orderBy: { createdAt: 'desc' }
         });

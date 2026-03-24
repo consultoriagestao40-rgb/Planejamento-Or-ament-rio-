@@ -28,9 +28,21 @@ export async function GET(request: Request) {
             }
         });
 
+        const categories = await prisma.category.findMany({
+            where: { tenantId: { in: tenantIds } },
+            select: { id: true, parentId: true }
+        });
+        const categoryMap: Record<string, string | null> = {};
+        categories.forEach(c => { categoryMap[c.id] = c.parentId; });
+
         const indicators: Record<string, boolean> = {};
+        
         justifications.forEach((j: any) => {
-            indicators[`${j.categoryId}-${j.month - 1}`] = true;
+            let currentId: string | null = j.categoryId;
+            while (currentId) {
+                indicators[`${currentId}-${j.month - 1}`] = true;
+                currentId = categoryMap[currentId] || null;
+            }
         });
 
         return NextResponse.json({ success: true, indicators });

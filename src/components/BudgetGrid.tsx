@@ -151,13 +151,20 @@ export default function BudgetGrid({
 
     const handleJustificationClick = async (categoryId: string, month: number, categoryName: string) => {
         const tenantId = selectedCompany.includes('DEFAULT') ? companies[0]?.id : selectedCompany[0];
-        const costCenterId = selectedCostCenter.includes('DEFAULT') ? null : selectedCostCenter[0];
+        const isConsolidated = selectedCostCenter.length > 1 || selectedCostCenter.includes('DEFAULT');
+        const ccParam = isConsolidated ? 'ALL' : selectedCostCenter[0];
         
-        setJustificationModal({ categoryId, month, categoryName, tenantId, costCenterId });
+        setJustificationModal({ 
+            categoryId, 
+            month, 
+            categoryName, 
+            tenantId, 
+            costCenterId: ccParam 
+        });
         setLoadingJustification(true);
         setJustificationHistory([]);
         try {
-            const res = await fetch(`/api/realized/justifications?tenantId=${tenantId}&categoryId=${categoryId}&costCenterId=${costCenterId || 'DEFAULT'}&month=${month + 1}&year=${selectedYear}&viewMode=${viewMode}`);
+            const res = await fetch(`/api/realized/justifications?tenantId=${tenantId}&categoryId=${categoryId}&costCenterId=${ccParam}&month=${month + 1}&year=${selectedYear}&viewMode=${viewMode}`);
             const data = await res.json();
             if (data.success) {
                 setJustificationHistory(data.justifications);
@@ -1224,28 +1231,44 @@ export default function BudgetGrid({
                                 >
                                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '0.25rem' }}>
                                         {formatCurrency(rVal)}
-                                        {viewPeriod === 'month' && node.children.length === 0 && (
-                                            <button 
-                                                onClick={(e) => {
-                                                    e.stopPropagation();
-                                                    handleJustificationClick(node.id, i, node.name);
-                                                }}
-                                                style={{
-                                                    background: 'none',
-                                                    border: 'none',
-                                                    padding: 0,
-                                                    cursor: 'pointer',
-                                                    fontSize: '0.65rem',
-                                                    opacity: hasJustificationMap[`${node.id}-${i}`] ? 1 : 0.3,
-                                                    color: hasJustificationMap[`${node.id}-${i}`] ? '#2563eb' : '#94a3b8',
-                                                    display: 'flex',
-                                                    alignItems: 'center'
-                                                }}
-                                                title="Analisar Valor Realizado"
-                                            >
-                                                {hasJustificationMap[`${node.id}-${i}`] ? '📝' : '✏️'}
-                                            </button>
-                                        )}
+                                        {viewPeriod === 'month' && (() => {
+                                            const isCCTailored = selectedCostCenter.length === 1 && selectedCostCenter[0] !== 'DEFAULT';
+                                            const hasJustif = hasJustificationMap[`${node.id}-${i}`];
+                                            const isLeaf = node.children.length === 0;
+
+                                            // Only show pencil if we are in a specific CC AND it's a leaf node
+                                            const shouldShowPencil = isCCTailored && isLeaf;
+                                            
+                                            // Only show orange icon if we are in consolidated mode AND data exists (at any level)
+                                            const shouldShowOrange = !isCCTailored && hasJustif;
+
+                                            if (!shouldShowPencil && !shouldShowOrange && !hasJustif) return null;
+                                            if (!shouldShowPencil && !shouldShowOrange) return null;
+
+                                            return (
+                                                <button 
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        handleJustificationClick(node.id, i, node.name);
+                                                    }}
+                                                    style={{
+                                                        background: 'none',
+                                                        border: 'none',
+                                                        padding: 0,
+                                                        cursor: 'pointer',
+                                                        fontSize: '0.65rem',
+                                                        opacity: hasJustif ? 1 : 0.3,
+                                                        color: shouldShowOrange ? '#f97316' : (hasJustif ? '#2563eb' : '#94a3b8'),
+                                                        display: 'flex',
+                                                        alignItems: 'center',
+                                                        marginLeft: '0.25rem'
+                                                    }}
+                                                    title={shouldShowOrange ? "Ver Análises Consolidadas" : "Analisar Valor Realizado"}
+                                                >
+                                                    {shouldShowOrange ? '💬' : (hasJustif ? '📝' : '✏️')}
+                                                </button>
+                                            );
+                                        })()}
                                     </div>
                                 </td>
                                 {showAV && <td className="spreadsheet-value" style={{ color: '#94a3b8', fontSize: '0.6rem', textAlign: 'center' }} title="AV Real">{avReal.toFixed(1)}%</td>}
@@ -2129,75 +2152,139 @@ export default function BudgetGrid({
                 )}
 
                 {/* 3. Realized Justification Modal (Análise) */}
-                {justificationModal && (
-                    <div className="modal-overlay" style={{ zIndex: 1200 }}>
-                        <div className="modal-content" style={{ maxWidth: '600px', backgroundColor: '#fff', maxHeight: '90vh', display: 'flex', flexDirection: 'column' }}>
-                            <div style={{ padding: '1.5rem', borderBottom: '1px solid #f1f5f9' }}>
-                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                    <div>
-                                        <h3 style={{ margin: 0, fontSize: '1.2rem', fontWeight: 800, color: '#1e293b' }}>
-                                            📝 Análise Realizado: {justificationModal.categoryName}
-                                        </h3>
-                                        <div style={{ fontSize: '0.8rem', color: '#64748b', marginTop: '0.2rem' }}>
-                                            {MONTHS[justificationModal.month]} / {selectedYear}
+                {justificationModal && (() => {
+                    const isConsolidated = justificationModal.costCenterId === 'ALL';
+                    
+                    return (
+                        <div className="modal-overlay" style={{ zIndex: 1200 }}>
+                            <div className="modal-content" style={{ maxWidth: '800px', width: '90%', backgroundColor: '#fff', maxHeight: '90vh', display: 'flex', flexDirection: 'column', borderRadius: '16px', boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)' }}>
+                                <div style={{ padding: '1.5rem', borderBottom: '1px solid #f1f5f9' }}>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                        <div>
+                                            <h3 style={{ fontSize: '1.25rem', fontWeight: 800, color: '#1e293b', display: 'flex', alignItems: 'center', gap: '0.5rem', margin: 0 }}>
+                                                {isConsolidated ? '💬 Análises Consolidadas' : '📝 Análise Realizado'}: {justificationModal.categoryName}
+                                            </h3>
+                                            <p style={{ fontSize: '0.85rem', color: '#64748b', marginTop: '0.25rem', marginBottom: 0 }}>
+                                                {MONTHS[justificationModal.month]} / {selectedYear}
+                                                {isConsolidated ? ' • Visualizando todos os centros de custo' : ` • ${justificationModal.costCenterId || 'Geral'}`}
+                                            </p>
                                         </div>
-                                    </div>
-                                    <button onClick={() => setJustificationModal(null)} style={{ border: 'none', background: 'none', cursor: 'pointer', fontSize: '1.5rem', color: '#94a3b8' }}>✕</button>
-                                </div>
-                            </div>
-
-                            <div style={{ flex: 1, overflowY: 'auto', padding: '1.5rem' }}>
-                                {/* New Justification Input */}
-                                <div style={{ marginBottom: '2rem' }}>
-                                    <label style={{ display: 'block', fontSize: '0.7rem', fontWeight: 800, color: '#475569', marginBottom: '0.5rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Nova Justificativa / Análise</label>
-                                    <textarea
-                                        value={newJustification}
-                                        onChange={(e) => setNewJustification(e.target.value)}
-                                        placeholder="Descreva o motivo da variação ou observação sobre este valor real..."
-                                        style={{ 
-                                            width: '100%', minHeight: '100px', padding: '0.75rem', borderRadius: '12px', border: '1px solid #e2e8f0', 
-                                            fontSize: '0.9rem', outline: 'none', transition: 'border-color 0.2s', resize: 'vertical' 
-                                        }}
-                                        onFocus={(e) => (e.target.style.borderColor = '#2563eb')}
-                                        onBlur={(e) => (e.target.style.borderColor = '#e2e8f0')}
-                                    />
-                                    <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '0.75rem' }}>
-                                        <button 
-                                            disabled={isSavingJustification || !newJustification.trim()} 
-                                            onClick={saveJustification}
-                                            className="btn btn-primary"
-                                            style={{ padding: '0.5rem 1.5rem', fontSize: '0.85rem' }}
-                                        >
-                                            {isSavingJustification ? 'Salvando...' : 'Salvar Justificativa'}
-                                        </button>
+                                        <button onClick={() => setJustificationModal(null)} style={{ background: 'none', border: 'none', fontSize: '1.5rem', cursor: 'pointer', color: '#94a3b8' }}>×</button>
                                     </div>
                                 </div>
-
-                                {/* History */}
-                                <div style={{ borderTop: '1px solid #f1f5f9', paddingTop: '1.5rem' }}>
-                                    <h4 style={{ fontSize: '0.7rem', fontWeight: 800, color: '#475569', marginBottom: '1rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Histórico de Análises</h4>
-                                    {loadingJustification ? (
-                                        <div style={{ textAlign: 'center', padding: '1rem', color: '#94a3b8' }}>Carregando histórico...</div>
-                                    ) : justificationHistory.length === 0 ? (
-                                        <div style={{ textAlign: 'center', padding: '1rem', color: '#94a3b8', fontSize: '0.85rem', fontStyle: 'italic' }}>Nenhuma análise anterior registrada.</div>
+                                
+                                <div style={{ padding: '1.5rem', overflowY: 'auto', flex: 1 }}>
+                                    {isConsolidated ? (
+                                        <div style={{ minHeight: '200px' }}>
+                                            <table style={{ width: '100%', borderCollapse: 'separate', borderSpacing: '0 0.5rem' }}>
+                                                <thead>
+                                                    <tr style={{ textAlign: 'left' }}>
+                                                        <th style={{ padding: '0.75rem 1rem', fontSize: '0.7rem', textTransform: 'uppercase', color: '#64748b', fontWeight: 800 }}>Empresa / CC</th>
+                                                        <th style={{ padding: '0.75rem 1rem', fontSize: '0.7rem', textTransform: 'uppercase', color: '#64748b', fontWeight: 800 }}>Usuário</th>
+                                                        <th style={{ padding: '0.75rem 1rem', fontSize: '0.7rem', textTransform: 'uppercase', color: '#64748b', fontWeight: 800 }}>Data</th>
+                                                        <th style={{ padding: '0.75rem 1rem', fontSize: '0.7rem', textTransform: 'uppercase', color: '#64748b', fontWeight: 800 }}>Justificativa / Análise</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody>
+                                                    {justificationHistory.map((j, idx) => (
+                                                        <tr key={j.id || idx} style={{ backgroundColor: '#f8fafc', borderRadius: '8px' }}>
+                                                            <td style={{ padding: '1rem', borderTopLeftRadius: '8px', borderBottomLeftRadius: '8px' }}>
+                                                                <div style={{ fontWeight: 700, color: '#1e293b' }}>{j.costCenter?.name || 'Geral'}</div>
+                                                                <div style={{ fontSize: '0.65rem', color: '#64748b' }}>{j.tenant?.name}</div>
+                                                            </td>
+                                                            <td style={{ padding: '1rem', fontWeight: 600, color: '#475569' }}>{j.userName}</td>
+                                                            <td style={{ padding: '1rem', color: '#64748b', fontSize: '0.75rem' }}>
+                                                                {new Date(j.createdAt).toLocaleDateString('pt-BR')} 
+                                                                <br />
+                                                                {new Date(j.createdAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
+                                                            </td>
+                                                            <td style={{ padding: '1rem', borderTopRightRadius: '8px', borderBottomRightRadius: '8px', fontSize: '0.9rem', color: '#334155', fontStyle: 'italic', maxWidth: '300px', wordBreak: 'break-word' }}>
+                                                                "{j.content}"
+                                                            </td>
+                                                        </tr>
+                                                    ))}
+                                                    {justificationHistory.length === 0 && !loadingJustification && (
+                                                        <tr>
+                                                            <td colSpan={4} style={{ padding: '3rem', textAlign: 'center', color: '#94a3b8' }}>
+                                                                <div style={{ fontSize: '2rem', marginBottom: '1rem' }}>🔍</div>
+                                                                Nenhuma análise registrada para este período.
+                                                            </td>
+                                                        </tr>
+                                                    )}
+                                                    {loadingJustification && (
+                                                        <tr>
+                                                            <td colSpan={4} style={{ padding: '3rem', textAlign: 'center', color: '#94a3b8' }}>Carregando análises...</td>
+                                                        </tr>
+                                                    )}
+                                                </tbody>
+                                            </table>
+                                        </div>
                                     ) : (
-                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                                            {justificationHistory.map((j) => (
-                                                <div key={j.id} style={{ padding: '1rem', background: '#f8fafc', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
-                                                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
-                                                        <span style={{ fontSize: '0.75rem', fontWeight: 700, color: '#2563eb' }}>👤 {j.userName}</span>
-                                                        <span style={{ fontSize: '0.7rem', color: '#94a3b8' }}>{new Date(j.createdAt).toLocaleString('pt-BR')}</span>
-                                                    </div>
-                                                    <p style={{ margin: 0, fontSize: '0.85rem', color: '#1e293b', whiteSpace: 'pre-wrap', lineHeight: '1.5' }}>{j.content}</p>
+                                        <>
+                                            <div style={{ marginBottom: '1.5rem', backgroundColor: '#f0f9ff', padding: '1rem', borderRadius: '12px', border: '1px solid #bae6fd' }}>
+                                                <label style={{ display: 'block', fontSize: '0.7rem', fontWeight: 800, color: '#0369a1', marginBottom: '0.5rem', textTransform: 'uppercase' }}>Nova Justificativa / Análise</label>
+                                                <textarea
+                                                    value={newJustification}
+                                                    onChange={(e) => setNewJustification(e.target.value)}
+                                                    placeholder="Descreva o motivo da variação ou observação sobre este valor real..."
+                                                    style={{ 
+                                                        width: '100%', 
+                                                        minHeight: '100px', 
+                                                        border: '1px solid #bae6fd', 
+                                                        borderRadius: '8px', 
+                                                        padding: '0.75rem', 
+                                                        fontSize: '0.95rem',
+                                                        resize: 'vertical',
+                                                        outline: 'none'
+                                                    }}
+                                                />
+                                                <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '0.75rem' }}>
+                                                    <button 
+                                                        onClick={saveJustification}
+                                                        disabled={isSavingJustification || !newJustification.trim()}
+                                                        style={{ 
+                                                            padding: '0.6rem 1.5rem', 
+                                                            backgroundColor: '#0284c7', 
+                                                            color: '#fff', 
+                                                            border: 'none', 
+                                                            borderRadius: '8px', 
+                                                            fontWeight: 700, 
+                                                            cursor: (isSavingJustification || !newJustification.trim()) ? 'default' : 'pointer',
+                                                            opacity: (isSavingJustification || !newJustification.trim()) ? 0.6 : 1
+                                                        }}
+                                                    >
+                                                        {isSavingJustification ? 'Salvando...' : 'Salvar Justificativa'}
+                                                    </button>
                                                 </div>
-                                            ))}
-                                        </div>
+                                            </div>
+
+                                            <div style={{ borderTop: '1px solid #f1f5f9', paddingTop: '1.5rem' }}>
+                                                <h4 style={{ fontSize: '0.75rem', fontWeight: 800, color: '#64748b', marginBottom: '1rem', textTransform: 'uppercase' }}>Histórico de Análises</h4>
+                                                <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                                                    {justificationHistory.map((j, idx) => (
+                                                        <div key={j.id || idx} style={{ padding: '1rem', backgroundColor: '#f8fafc', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
+                                                            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
+                                                                <span style={{ fontWeight: 700, fontSize: '0.85rem', color: '#1e293b' }}>{j.userName}</span>
+                                                                <span style={{ fontSize: '0.75rem', color: '#94a3b8' }}>{new Date(j.createdAt).toLocaleString('pt-BR')}</span>
+                                                            </div>
+                                                            <p style={{ fontSize: '0.9rem', color: '#334155', lineHeight: 1.5, margin: 0 }}>{j.content}</p>
+                                                        </div>
+                                                    ))}
+                                                    {justificationHistory.length === 0 && !loadingJustification && (
+                                                        <p style={{ textAlign: 'center', color: '#94a3b8', fontSize: '0.85rem', padding: '2rem' }}>Nenhuma análise anterior registrada.</p>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        </>
                                     )}
+                                </div>
+                                <div style={{ padding: '1rem 1.5rem', borderTop: '1px solid #f1f5f9', display: 'flex', justifyContent: 'flex-end' }}>
+                                    <button onClick={() => setJustificationModal(null)} style={{ padding: '0.6rem 1.5rem', backgroundColor: '#f1f5f9', color: '#475569', border: 'none', borderRadius: '8px', fontWeight: 700, cursor: 'pointer' }}>Fechar</button>
                                 </div>
                             </div>
                         </div>
-                    </div>
-                )}
+                    );
+                })()}
 
             <ExcelPasteModal 
                 isOpen={isExcelModalOpen}

@@ -158,11 +158,12 @@ export function ExcelPasteModal({ isOpen, onClose, tenantId: initialTenantId, co
             const row = matrix[i];
             const indices = row.reduce((acc: any, cell, idx) => {
                 const s = String(cell || '').toLowerCase().trim();
-                const isValNet = s === 'valor (r$)' || s === 'valor' || s === 'líquido' || s === 'vlr. líquido' || s === 'recebido' || s === 'pago';
-                const isValGross = s.includes('valor na categoria') || s === 'valor bruto' || s === 'vlr. bruto' || s === 'total bruto';
-                const isCat = s === 'categoria' || s.includes('categoria 1') || s.includes('categoria 01') || s === 'conta contábil' || s === 'nº categoria 1';
+                // Lógica de Sinônimos Robusta (Prioridade para os nomes exatos do Conta Azul)
+                const isValNet = s === 'valor (r$)' || s === 'valor' || s === 'líquido' || s === 'recebido' || s === 'pago';
+                const isValGross = s === 'valor na categoria 1' || s === 'valor na categoria' || s === 'valor bruto' || s === 'total bruto';
+                const isCat = s === 'categoria 1' || s === 'categoria' || s.includes('categoria 01') || s === 'conta contábil' || s === 'nº categoria 1';
                 const isDesc = s === 'descrição' || s === 'histórico' || s === 'detalhe';
-                const isCustomer = s === 'nome do fornecedor/cliente' || s === 'cliente' || s === 'fornecedor' || s === 'contato' || s.includes('fornecedor/cliente');
+                const isCustomer = s === 'nome do fornecedor/cliente' || s === 'cliente' || s === 'fornecedor' || s === 'contato';
 
                 if (acc.valNet === -1 && isValNet) acc.valNet = idx;
                 if (acc.valGross === -1 && isValGross) acc.valGross = idx;

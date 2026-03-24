@@ -94,10 +94,10 @@ export async function GET(request: Request) {
 
         const transactions = entries.map(e => ({
             id: e.id,
-            date: `${year}-${String(month + 1).padStart(2, '0')}-01`,
+            date: e.date || `${year}-${String(month + 1).padStart(2, '0')}-01`,
             description: e.description || `Lançamento: ${e.category.name}`,
             value: e.amount,
-            customer: e.tenant.name,
+            customer: e.customer || e.tenant.name,
             status: 'REALIZADO',
             tenantName: e.tenant.name,
             costCenters: e.costCenter ? [{ nome: e.costCenter.name }] : []

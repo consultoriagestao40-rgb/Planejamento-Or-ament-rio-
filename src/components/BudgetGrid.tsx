@@ -2002,7 +2002,7 @@ export default function BudgetGrid({
                                             <tbody>
                                                 {finalTransactions.map((tx: any) => (
                                                     <tr key={tx.id} style={{ borderBottom: '1px solid #f1f5f9' }}>
-                                                        <td style={{ padding: '0.5rem' }}>{new Date(tx.date).toLocaleDateString('pt-BR')}</td>
+                                                        <td style={{ padding: '0.5rem' }}>{tx.date ? new Date(tx.date).toLocaleDateString('pt-BR', { timeZone: 'UTC' }) : '-'}</td>
                                                         <td style={{ padding: '0.5rem' }}>{tx.description}</td>
                                                         <td style={{ padding: '0.5rem' }}>{tx.customer || '-'}</td>
                                                         <td style={{ padding: '0.5rem', textAlign: 'right', fontWeight: 'bold' }}>{parseFloat(tx.value).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</td>

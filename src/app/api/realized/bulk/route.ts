@@ -25,62 +25,44 @@ export async function POST(request: Request) {
             });
         }
 
-        // 2. Agregar linhas por chave única (tenantId, categoryId, costCenterId, month, year, viewMode)
-        // Isso respeita a constraint única do banco e preserva 100% do valor total
-        const aggregated = new Map<string, {
-            tenantId: string;
-            categoryId: string;
-            costCenterId: string | null;
-            month: number;
-            year: number;
-            viewMode: string;
-            amount: number;
-            description: string;
-        }>();
-
-        const effectiveViewMode = viewMode || 'competencia';
-        const effectiveMonth = parseInt(month);
-        const effectiveYear = parseInt(year);
-
-        for (const row of rows) {
+        // 2. Prepare entries to save (Individually, no aggregation)
+        const entriesToSave = rows.map((row: any) => {
             const rowTenantId = row.tenantId || tenantId;
             const rowCategoryId = row.categoryId;
             const rowCostCenterId = row.costCenterId || null;
-            const rowMonth = row.month || effectiveMonth;
+            const rowMonth = row.month || parseInt(month);
+            const rowYear = row.year || parseInt(year);
             const rowAmount = parseFloat(row.amount) || 0;
             const rowDesc = row.description || "Upload via Excel";
-
-            const key = `${rowTenantId}||${rowCategoryId}||${rowCostCenterId}||${rowMonth}||${effectiveYear}||${effectiveViewMode}`;
+            const rowCustomer = row.customer || null;
+            const rowDateRaw = row.date || null;
             
-            if (aggregated.has(key)) {
-                const existing = aggregated.get(key)!;
-                existing.amount += rowAmount;
-                // Keep first description unless new one is more informative
-                if (rowDesc.length > existing.description.length) {
-                    existing.description = rowDesc;
+            let rowDate = null;
+            if (rowDateRaw) {
+                const parsedDate = new Date(rowDateRaw);
+                if (!isNaN(parsedDate.getTime())) {
+                    rowDate = parsedDate;
                 }
-            } else {
-                aggregated.set(key, {
-                    tenantId: rowTenantId,
-                    categoryId: rowCategoryId,
-                    costCenterId: rowCostCenterId,
-                    month: typeof rowMonth === 'number' ? rowMonth : parseInt(rowMonth),
-                    year: effectiveYear,
-                    viewMode: effectiveViewMode,
-                    amount: rowAmount,
-                    description: rowDesc,
-                });
             }
-        }
 
-        const entriesToSave = Array.from(aggregated.values()).map(entry => ({
-            ...entry,
-            externalId: crypto.randomUUID()
-        }));
+            return {
+                tenantId: rowTenantId,
+                categoryId: rowCategoryId,
+                costCenterId: rowCostCenterId,
+                month: typeof rowMonth === 'number' ? rowMonth : parseInt(rowMonth),
+                year: typeof rowYear === 'number' ? rowYear : parseInt(rowYear),
+                viewMode: viewMode || 'competencia',
+                amount: rowAmount,
+                description: rowDesc,
+                customer: rowCustomer,
+                date: rowDate,
+                externalId: crypto.randomUUID()
+            };
+        });
 
-        console.log(`[EXCEL-BULK] ${rows.length} linhas -> ${entriesToSave.length} entradas únicas agregadas`);
+        console.log(`[EXCEL-BULK] processando ${rows.length} linhas individuais.`);
 
-        // 3. Inserção em massa com valores agregados
+        // 3. Inserção em massa
         let createdCount = 0;
         if (entriesToSave.length > 0) {
             const result = await prisma.realizedEntry.createMany({
@@ -89,7 +71,7 @@ export async function POST(request: Request) {
             createdCount = result.count;
         }
 
-        return NextResponse.json({ success: true, count: createdCount, rawRows: rows.length, aggregatedRows: entriesToSave.length });
+        return NextResponse.json({ success: true, count: createdCount, rawRows: rows.length });
 
     } catch (error: any) {
         console.error("[EXCEL-BULK] Erro:", error);

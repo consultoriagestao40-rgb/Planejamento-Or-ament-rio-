@@ -81,6 +81,25 @@ export function ExcelPasteModal({ isOpen, onClose, tenantId: initialTenantId, co
         return parseFloat(s) || 0;
     };
 
+    const parseDateBR = (val: any): string | null => {
+        if (!val) return null;
+        if (val instanceof Date) return val.toISOString();
+        const s = String(val).trim();
+        // Match DD/MM/YYYY or DD/MM/YY
+        const match = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{2,4})$/);
+        if (match) {
+            let day = match[1].padStart(2, '0');
+            let month = match[2].padStart(2, '0');
+            let year = match[3];
+            if (year.length === 2) {
+                const yr = parseInt(year);
+                year = yr > 50 ? '19' + year : '20' + year;
+            }
+            return `${year}-${month}-${day}`;
+        }
+        return s; 
+    };
+
     const processMatrix = (matrix: any[][]) => {
         const rows: any[] = [];
         let revenueSumDetected = 0;
@@ -174,12 +193,12 @@ export function ExcelPasteModal({ isOpen, onClose, tenantId: initialTenantId, co
                     continue;
                 }
 
-                // Dados Fixos (A=0, E=4, G=6...)
-                const dataCompetencia = String(cols[0] || '').trim();
+                // --- LÓGICA ULTRA-RESILIENTE PARA CATEGORIA E VALOR ---
+                const dataCompetenciaRaw = cols[0];
+                const dataCompetencia = parseDateBR(dataCompetenciaRaw);
                 const descricao = String(cols[4] || '').trim();
                 const fornecedor = String(cols[6] || '').trim();
                 
-                // --- LÓGICA ULTRA-RESILIENTE PARA CATEGORIA E VALOR ---
                 let categoriaRaw = String(cols[colCat] || '').trim();
                 let valP = parseSaneNumber(cols[colVal]);
                 
@@ -315,6 +334,8 @@ export function ExcelPasteModal({ isOpen, onClose, tenantId: initialTenantId, co
                                     description: finalDesc || 'Importação Excel',
                                     amount: amtPrepared,
                                     month: rowMonth,
+                                    date: dataCompetencia, // Pass column A
+                                    customer: fornecedor, // Pass column G
                                     tenantId: effectiveCat!.tenantId
                                 });
                                 totalDistributed += amtPrepared;
@@ -333,6 +354,8 @@ export function ExcelPasteModal({ isOpen, onClose, tenantId: initialTenantId, co
                                 description: finalDesc || (remainder > 0 ? 'SALDO COLUNA P' : 'AJUSTE RATEIO > COL P'),
                                 amount: parseFloat(remainder.toFixed(2)), 
                                 month: rowMonth,
+                                date: dataCompetencia, // Pass column A
+                                customer: fornecedor, // Pass column G
                                 tenantId: effectiveCat!.tenantId
                             });
                         }
@@ -344,6 +367,8 @@ export function ExcelPasteModal({ isOpen, onClose, tenantId: initialTenantId, co
                             description: finalDesc || 'Importação Excel',
                             amount: finalAmountPrepared,
                             month: rowMonth,
+                            date: dataCompetencia,
+                            customer: fornecedor,
                             tenantId: effectiveCat!.tenantId
                         });
                     }

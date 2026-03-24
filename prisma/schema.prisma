@@ -129,6 +129,8 @@ model RealizedEntry {
   year         Int
   amount       Float
   description  String?
+  customer     String?  // New field for Customer/Supplier
+  date         DateTime? // New field for specific transaction date
   externalId   String?
   viewMode     String   @default("competencia") // "caixa" ou "competencia"
   createdAt    DateTime @default(now())

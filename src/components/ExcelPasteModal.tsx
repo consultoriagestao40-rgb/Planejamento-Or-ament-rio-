@@ -19,7 +19,7 @@ export function ExcelPasteModal({ isOpen, onClose, tenantId: initialTenantId, co
     const [loading, setLoading] = useState(false);
     const [status, setStatus] = useState<string | null>(null);
     const [localTenantId, setLocalTenantId] = useState(initialTenantId);
-    const [summary, setSummary] = useState<{ totalP: number, totalRows: number, revenueP: number, preparedSum: number, ignoredSum: number, ignoredRowsCount: number } | null>(null);
+    const [summary, setSummary] = useState<{ totalP: number, totalRows: number, revenueP: number, preparedSum: number, ignoredSum: number, ignoredRowsCount: number, retentionSum: number } | null>(null);
     const [processedRows, setProcessedRows] = useState<any[] | null>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -147,19 +147,29 @@ export function ExcelPasteModal({ isOpen, onClose, tenantId: initialTenantId, co
         const firstRow = matrix[0] || [];
         const headerIndices = firstRow.reduce((acc: any, cell, i) => {
             const s = String(cell || '').toLowerCase().trim();
-            if (acc.val === -1 && (s === 'valor' || s.includes('valor na categoria'))) acc.val = i;
+            // "Valor (R$)" is typically Column L (Net)
+            if (acc.valNet === -1 && (s === 'valor (r$)' || s === 'valor')) acc.valNet = i;
+            // "Valor na Categoria 1" is typically Column P (Gross)
+            if (acc.valGross === -1 && (s.includes('valor na categoria') || s === 'valor bruto')) acc.valGross = i;
+            
             if (acc.cat === -1 && (s === 'categoria' || s.includes('categoria 1') || s.includes('categoria 01'))) acc.cat = i;
             return acc;
-        }, { val: -1, cat: -1 });
+        }, { valNet: -1, valGross: -1, cat: -1 });
 
         if (headerIndices.cat !== -1) colCat = headerIndices.cat;
-        if (headerIndices.val !== -1) colVal = headerIndices.val;
         
-        // SE O AUTO-DETECT FALHAR, FORÇAMOS 14/15 E LIMPEZA
+        // Prefer Gross Value as main column if available, otherwise Net
+        let colValNet = headerIndices.valNet !== -1 ? headerIndices.valNet : 11;
+        let colValGross = headerIndices.valGross !== -1 ? headerIndices.valGross : 15;
+        
+        // colVal (the one used for main amount) should be colValGross for Revenue/Expense matching
+        colVal = colValGross; 
+
+        // SE O AUTO-DETECT FALHAR TOTALMENTE, FORÇAMOS 14/15
         if (colCat === 0 || colCat === -1) colCat = 14;
         if (colVal === 0 || colVal === -1) colVal = 15;
 
-        console.log(`🗳️ [V51.5] Categoria: Col ${colCat}, Valor: Col ${colVal}`); 
+        console.log(`🗳️ [RETER] Net: Col ${colValNet}, Gross: Col ${colValGross}, Cat: Col ${colCat}`);
         console.log("📝 [NUCLEAR DEBUG] Primeiras 3 linhas da Matrix:", JSON.stringify(matrix.slice(0, 3)));
         
         // 3. Detectar se a primeira linha é cabeçalho ou dados (usando indices detectados ou fallback)
@@ -200,9 +210,10 @@ export function ExcelPasteModal({ isOpen, onClose, tenantId: initialTenantId, co
                 const fornecedor = String(cols[6] || '').trim();
                 
                 let categoriaRaw = String(cols[colCat] || '').trim();
-                let valP = parseSaneNumber(cols[colVal]);
+                let valP = parseSaneNumber(cols[colValGross]); // Gross Value
+                let valNet = parseSaneNumber(cols[colValNet]); // Net Value
                 
-                if (valP === 0 && String(cols[colVal] || '').trim() === '') {
+                if (valP === 0 && String(cols[colValGross] || '').trim() === '') {
                     const altValStr = String(cols[colCat] || '').trim();
                     const altVal = parseSaneNumber(altValStr);
                     
@@ -213,6 +224,11 @@ export function ExcelPasteModal({ isOpen, onClose, tenantId: initialTenantId, co
                 }
 
                 const finalAmount = isNaN(valP) ? 0 : valP;
+                const netAmount = isNaN(valNet) ? 0 : valNet;
+                
+                // Calculate Retention: Gross - Net
+                // Using 0.01 tolerance for floating point
+                const retention = Math.max(0, parseFloat((finalAmount - netAmount).toFixed(2)));
 
                 if (!categoriaRaw && !dataCompetencia && Math.abs(finalAmount) === 0) continue;
 
@@ -371,6 +387,21 @@ export function ExcelPasteModal({ isOpen, onClose, tenantId: initialTenantId, co
                             customer: fornecedor,
                             tenantId: effectiveCat!.tenantId
                         });
+
+                        // --- INSERT RETENTION TRANSACTION ---
+                        if (retention > 0.01) {
+                            const retentionCatId = `${effectiveCat!.tenantId}:02.01.03`;
+                            rows.push({
+                                categoryId: retentionCatId,
+                                costCenterId: null,
+                                description: `Retenção - ${finalDesc || 'Lançamento'}`,
+                                amount: retention,
+                                month: rowMonth,
+                                date: dataCompetencia,
+                                customer: fornecedor,
+                                tenantId: effectiveCat!.tenantId
+                            });
+                        }
                     }
                 }
             } catch (err) {
@@ -397,6 +428,8 @@ export function ExcelPasteModal({ isOpen, onClose, tenantId: initialTenantId, co
             categorySummary[catId].total += r.amount;
         });
 
+        const totalRetention = rows.filter(r => r.categoryId.endsWith(':02.01.03')).reduce((acc, r) => acc + r.amount, 0);
+
         // Final summary for UI
         setSummary({
             totalP: rawSumPInFile,
@@ -404,7 +437,8 @@ export function ExcelPasteModal({ isOpen, onClose, tenantId: initialTenantId, co
             totalRows: rows.length,
             preparedSum: netSumRows,
             ignoredSum: ignoredSumTotal,
-            ignoredRowsCount: ignoredRowsCount
+            ignoredRowsCount: ignoredRowsCount,
+            retentionSum: totalRetention
         });
 
         console.log(`🚀 [AUDITORIA] Processamento Concluído!`);
@@ -648,6 +682,13 @@ export function ExcelPasteModal({ isOpen, onClose, tenantId: initialTenantId, co
                             <p style={{ margin: 0, fontSize: '0.7rem', color: '#166534', fontWeight: 600 }}>NET PREPARADO</p>
                             <p style={{ margin: 0, fontSize: '1rem', color: '#15803d', fontWeight: 800 }}>{summary.preparedSum.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</p>
                         </div>
+                        {summary.retentionSum > 0 && (
+                            <div style={{ backgroundColor: '#eff6ff', padding: '0.5rem', borderRadius: '8px', border: '1px solid #dbeafe', gridColumn: 'span 3' }}>
+                                <p style={{ margin: 0, fontSize: '0.75rem', color: '#1d4ed8', fontWeight: 700 }}>
+                                     💵 RETENÇÃO NA FONTE DETECTADA: {summary.retentionSum.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                                </p>
+                            </div>
+                        )}
                         {summary.ignoredSum > 0 && (
                             <div style={{ backgroundColor: '#fef2f2', padding: '0.5rem', borderRadius: '8px', border: '1px solid #fee2e2', gridColumn: 'span 3' }}>
                                 <p style={{ margin: 0, fontSize: '0.75rem', color: '#dc2626', fontWeight: 700 }}>

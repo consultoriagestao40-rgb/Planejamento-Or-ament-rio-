@@ -547,18 +547,26 @@ export default function BudgetSummaryPage() {
                             </div>
 
                             {/* Modal Content - Financial Summary */}
-                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '1rem', marginBottom: '2rem' }}>
-                                <div style={{ background: 'rgba(59, 130, 246, 0.05)', padding: '1rem', borderRadius: '12px', border: '1px solid rgba(59, 130, 246, 0.1)' }}>
-                                    <p style={{ fontSize: '0.65rem', fontWeight: 800, color: 'var(--accent-blue)', textTransform: 'uppercase', marginBottom: '0.4rem' }}>Receita</p>
-                                    <p style={{ fontSize: '1.1rem', fontWeight: 900 }}>{formatCurrency(selectedForAudit.totalRevenueBudget)}</p>
+                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '0.75rem', marginBottom: '2rem' }}>
+                                <div style={{ background: 'rgba(59, 130, 246, 0.05)', padding: '0.75rem', borderRadius: '12px', border: '1px solid rgba(59, 130, 246, 0.1)' }}>
+                                    <p style={{ fontSize: '0.6rem', fontWeight: 800, color: 'var(--accent-blue)', textTransform: 'uppercase', marginBottom: '0.3rem' }}>Receita</p>
+                                    <p style={{ fontSize: '0.95rem', fontWeight: 900 }}>{formatCurrency(selectedForAudit.totalRevenueBudget)}</p>
                                 </div>
-                                <div style={{ background: 'rgba(239, 68, 68, 0.05)', padding: '1rem', borderRadius: '12px', border: '1px solid rgba(239, 68, 68, 0.1)' }}>
-                                    <p style={{ fontSize: '0.65rem', fontWeight: 800, color: 'var(--accent-red)', textTransform: 'uppercase', marginBottom: '0.4rem' }}>Despesa</p>
-                                    <p style={{ fontSize: '1.1rem', fontWeight: 900 }}>{formatCurrency(selectedForAudit.totalExpenseBudget)}</p>
+                                <div style={{ background: 'rgba(239, 68, 68, 0.05)', padding: '0.75rem', borderRadius: '12px', border: '1px solid rgba(239, 68, 68, 0.1)' }}>
+                                    <p style={{ fontSize: '0.6rem', fontWeight: 800, color: 'var(--accent-red)', textTransform: 'uppercase', marginBottom: '0.3rem' }}>Despesa</p>
+                                    <p style={{ fontSize: '0.95rem', fontWeight: 900 }}>{formatCurrency(selectedForAudit.totalExpenseBudget)}</p>
                                 </div>
-                                <div style={{ background: 'rgba(16, 185, 129, 0.05)', padding: '1rem', borderRadius: '12px', border: '1px solid rgba(16, 185, 129, 0.1)' }}>
-                                    <p style={{ fontSize: '0.65rem', fontWeight: 800, color: 'var(--accent-green)', textTransform: 'uppercase', marginBottom: '0.4rem' }}>Resultado</p>
-                                    <p style={{ fontSize: '1.1rem', fontWeight: 900 }}>{formatCurrency(selectedForAudit.totalRevenueBudget - selectedForAudit.totalExpenseBudget)}</p>
+                                <div style={{ background: 'rgba(16, 185, 129, 0.05)', padding: '0.75rem', borderRadius: '12px', border: '1px solid rgba(16, 185, 129, 0.1)' }}>
+                                    <p style={{ fontSize: '0.6rem', fontWeight: 800, color: 'var(--accent-green)', textTransform: 'uppercase', marginBottom: '0.3rem' }}>Resultado</p>
+                                    <p style={{ fontSize: '0.95rem', fontWeight: 900 }}>{formatCurrency(selectedForAudit.totalRevenueBudget - selectedForAudit.totalExpenseBudget)}</p>
+                                </div>
+                                <div style={{ background: 'rgba(16, 185, 129, 0.08)', padding: '0.75rem', borderRadius: '12px', border: '1px solid rgba(16, 185, 129, 0.2)' }}>
+                                    <p style={{ fontSize: '0.6rem', fontWeight: 800, color: 'var(--accent-green)', textTransform: 'uppercase', marginBottom: '0.3rem' }}>Margem %</p>
+                                    <p style={{ fontSize: '0.95rem', fontWeight: 900 }}>
+                                        {selectedForAudit.totalRevenueBudget > 0 
+                                            ? `${((selectedForAudit.totalRevenueBudget - selectedForAudit.totalExpenseBudget) / selectedForAudit.totalRevenueBudget * 100).toFixed(1)}%` 
+                                            : '0%'}
+                                    </p>
                                 </div>
                             </div>
 

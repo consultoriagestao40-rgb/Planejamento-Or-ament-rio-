@@ -415,7 +415,12 @@ export function ExcelPasteModal({ isOpen, onClose, tenantId: initialTenantId, co
                             });
 
                             // --- PUSH REMAINDER RETENTION ---
-                            const currentRetentionSum = rows.filter(r => r.categoryId.endsWith(':02.01.03') && r.date === dataCompetencia && r.description.includes(finalDesc)).reduce((acc, r) => acc + r.amount, 0);
+                            const currentRetentionSum = rows
+                                .filter(r => r.categoryId.endsWith(':02.01.03') && 
+                                             String(r.date) === String(dataCompetencia) && 
+                                             r.description === `Retenção de Tributos na Fonte - ${finalDesc || 'Lançamento'}`)
+                                .reduce((acc, r) => acc + r.amount, 0);
+                            
                             const remainderRetention = parseFloat((retention - currentRetentionSum).toFixed(2));
                             if (remainderRetention > 0.01) {
                                 const retentionCatId = `${effectiveCat!.tenantId}:02.01.03`;

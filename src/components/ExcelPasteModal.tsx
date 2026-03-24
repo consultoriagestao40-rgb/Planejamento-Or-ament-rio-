@@ -376,13 +376,31 @@ export function ExcelPasteModal({ isOpen, onClose, tenantId: initialTenantId, co
                                     tenantId: effectiveCat!.tenantId
                                 });
                                 totalDistributed += amtPrepared;
+
+                                // --- PUSH PROPORTIONAL RETENTION ---
+                                if (retention > 0.01 && finalAmount > 0) {
+                                    const proportion = amt / finalAmount;
+                                    const itemRetention = parseFloat((retention * proportion).toFixed(2));
+                                    if (itemRetention > 0) {
+                                        const retentionCatId = `${effectiveCat!.tenantId}:02.01.03`;
+                                        rows.push({
+                                            categoryId: retentionCatId,
+                                            costCenterId: info.ccId,
+                                            description: `Retenção de Tributos na Fonte - ${finalDesc || 'Lançamento'}`,
+                                            amount: itemRetention,
+                                            month: rowMonth,
+                                            date: dataCompetencia,
+                                            customer: fornecedor,
+                                            tenantId: effectiveCat!.tenantId
+                                        });
+                                    }
+                                }
                             }
                         });
 
                         const remainder = finalAmountPrepared - totalDistributed;
                         if (Math.abs(remainder) > 0.01) { 
                             let targetCatId = effectiveCat!.id;
-
                             const ccIdToUse = rateiosInfo.length > 0 ? rateiosInfo[0].ccId : null;
 
                             rows.push({
@@ -395,6 +413,23 @@ export function ExcelPasteModal({ isOpen, onClose, tenantId: initialTenantId, co
                                 customer: fornecedor, // Pass column G
                                 tenantId: effectiveCat!.tenantId
                             });
+
+                            // --- PUSH REMAINDER RETENTION ---
+                            const currentRetentionSum = rows.filter(r => r.categoryId.endsWith(':02.01.03') && r.date === dataCompetencia && r.description.includes(finalDesc)).reduce((acc, r) => acc + r.amount, 0);
+                            const remainderRetention = parseFloat((retention - currentRetentionSum).toFixed(2));
+                            if (remainderRetention > 0.01) {
+                                const retentionCatId = `${effectiveCat!.tenantId}:02.01.03`;
+                                rows.push({
+                                    categoryId: retentionCatId,
+                                    costCenterId: ccIdToUse,
+                                    description: `Retenção de Tributos na Fonte - ${finalDesc || 'Lançamento'} (Ajuste)`,
+                                    amount: remainderRetention,
+                                    month: rowMonth,
+                                    date: dataCompetencia,
+                                    customer: fornecedor,
+                                    tenantId: effectiveCat!.tenantId
+                                });
+                            }
                         }
                     } else {
                         // Sem Colunas de Rateio -> Vai tudo para o Centro de Custo Geral (null)
@@ -409,12 +444,12 @@ export function ExcelPasteModal({ isOpen, onClose, tenantId: initialTenantId, co
                             tenantId: effectiveCat!.tenantId
                         });
 
-                        // --- INSERT RETENTION TRANSACTION ---
+                        // --- INSERT RETENTION TRANSACTION (FOR SINGLE CC) ---
                         if (retention > 0.01) {
                             const retentionCatId = `${effectiveCat!.tenantId}:02.01.03`;
                             rows.push({
                                 categoryId: retentionCatId,
-                                costCenterId: null,
+                                costCenterId: null, // No rateio columns means no specific CC found in the data after colVal
                                 description: `Retenção de Tributos na Fonte - ${finalDesc || 'Lançamento'}`,
                                 amount: retention,
                                 month: rowMonth,

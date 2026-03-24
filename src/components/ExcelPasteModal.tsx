@@ -141,36 +141,45 @@ export function ExcelPasteModal({ isOpen, onClose, tenantId: initialTenantId, co
         if (votesCat[14] > 0) votesCat[14] += 50;
 
         // 1.5. DETECÇÃO DINÂMICA DE CABEÇALHO
-        let colCat = 14; 
-        let colVal = 15; 
+        let colVal = 15; // Fallback for colVal loop control
 
         const firstRow = matrix[0] || [];
         const headerIndices = firstRow.reduce((acc: any, cell, i) => {
             const s = String(cell || '').toLowerCase().trim();
-            // "Valor (R$)" is typically Column L (Net)
-            if (acc.valNet === -1 && (s === 'valor (r$)' || s === 'valor')) acc.valNet = i;
-            // "Valor na Categoria 1" is typically Column P (Gross)
-            if (acc.valGross === -1 && (s.includes('valor na categoria') || s === 'valor bruto')) acc.valGross = i;
             
-            if (acc.cat === -1 && (s === 'categoria' || s.includes('categoria 1') || s.includes('categoria 01'))) acc.cat = i;
-            return acc;
-        }, { valNet: -1, valGross: -1, cat: -1 });
+            // Lógica de Sinônimos Robusta
+            const isValNet = s === 'valor (r$)' || s === 'valor' || s === 'líquido' || s === 'vlr. líquido' || s === 'recebido' || s === 'pago';
+            const isValGross = s.includes('valor na categoria') || s === 'valor bruto' || s === 'vlr. bruto' || s === 'total bruto';
+            const isCat = s === 'categoria' || s.includes('categoria 1') || s.includes('categoria 01') || s === 'conta contábil' || s === 'nº categoria 1';
+            const isDesc = s === 'descrição' || s === 'histórico' || s === 'detalhe';
+            const isCustomer = s === 'nome do fornecedor/cliente' || s === 'cliente' || s === 'fornecedor' || s === 'contato' || s.includes('fornecedor/cliente');
 
-        if (headerIndices.cat !== -1) colCat = headerIndices.cat;
-        
-        // Prefer Gross Value as main column if available, otherwise Net
+            if (acc.valNet === -1 && isValNet) acc.valNet = i;
+            if (acc.valGross === -1 && isValGross) acc.valGross = i;
+            if (acc.cat === -1 && isCat) acc.cat = i;
+            if (acc.desc === -1 && isDesc) acc.desc = i;
+            if (acc.cust === -1 && isCustomer) acc.cust = i;
+            
+            return acc;
+        }, { valNet: -1, valGross: -1, cat: -1, desc: -1, cust: -1 });
+
+        // FALLBACKS INTELIGENTES se o header falhar
+        let colCat = headerIndices.cat !== -1 ? headerIndices.cat : 14; 
         let colValNet = headerIndices.valNet !== -1 ? headerIndices.valNet : 11;
         let colValGross = headerIndices.valGross !== -1 ? headerIndices.valGross : 15;
-        
-        // colVal (the one used for main amount) should be colValGross for Revenue/Expense matching
+        let colDesc = headerIndices.desc !== -1 ? headerIndices.desc : 4;
+        let colCust = headerIndices.cust !== -1 ? headerIndices.cust : 6;
+
+        // Se detectou colunas explícitas no início (como no resumo do usuário), prevalece a detecção
+        if (headerIndices.valNet !== -1 && headerIndices.valNet < 10) colValNet = headerIndices.valNet;
+        if (headerIndices.valGross !== -1 && headerIndices.valGross < 10) colValGross = headerIndices.valGross;
+        if (headerIndices.cat !== -1 && headerIndices.cat < 10) colCat = headerIndices.cat;
+
+        // colVal (usado para decidir se pula a linha)
         colVal = colValGross; 
 
-        // SE O AUTO-DETECT FALHAR TOTALMENTE, FORÇAMOS 14/15
-        if (colCat === 0 || colCat === -1) colCat = 14;
-        if (colVal === 0 || colVal === -1) colVal = 15;
-
-        console.log(`🗳️ [RETER] Net: Col ${colValNet}, Gross: Col ${colValGross}, Cat: Col ${colCat}`);
-        console.log("📝 [NUCLEAR DEBUG] Primeiras 3 linhas da Matrix:", JSON.stringify(matrix.slice(0, 3)));
+        console.log(`🗳️ [RETER V2] Net: ${colValNet}, Gross: ${colValGross}, Cat: ${colCat}, Desc: ${colDesc}, Cust: ${colCust}`);
+        console.log("📝 [CABECALHO] ", JSON.stringify(firstRow));
         
         // 3. Detectar se a primeira linha é cabeçalho ou dados (usando indices detectados ou fallback)
         const isHeader = headerIndices.cat !== -1 || headerIndices.val !== -1 ||
@@ -206,8 +215,8 @@ export function ExcelPasteModal({ isOpen, onClose, tenantId: initialTenantId, co
                 // --- LÓGICA ULTRA-RESILIENTE PARA CATEGORIA E VALOR ---
                 const dataCompetenciaRaw = cols[0];
                 const dataCompetencia = parseDateBR(dataCompetenciaRaw);
-                const descricao = String(cols[4] || '').trim();
-                const fornecedor = String(cols[6] || '').trim();
+                const descricao = String(cols[colDesc] || '').trim();
+                const fornecedor = String(cols[colCust] || '').trim();
                 
                 let categoriaRaw = String(cols[colCat] || '').trim();
                 let valP = parseSaneNumber(cols[colValGross]); // Gross Value
@@ -226,9 +235,15 @@ export function ExcelPasteModal({ isOpen, onClose, tenantId: initialTenantId, co
                 const finalAmount = isNaN(valP) ? 0 : valP;
                 const netAmount = isNaN(valNet) ? 0 : valNet;
                 
+                // REVENUE DETECTION: Starts with 01 OR 1. OR contains 01.1.1 OR Type is "Receita"
+                const isRevenue = categoriaRaw.startsWith('01') || categoriaRaw.startsWith('1.') || categoriaRaw.includes('01.1.1') || String(cols[3] || '').trim().toLowerCase().includes('receita');
+                
                 // Calculate Retention: Gross - Net
-                // Using 0.01 tolerance for floating point
-                const retention = Math.max(0, parseFloat((finalAmount - netAmount).toFixed(2)));
+                // ONLY for Revenue categories
+                let retention = 0;
+                if (isRevenue) {
+                    retention = Math.max(0, parseFloat((finalAmount - netAmount).toFixed(2)));
+                }
 
                 if (!categoriaRaw && !dataCompetencia && Math.abs(finalAmount) === 0) continue;
 
@@ -282,8 +297,6 @@ export function ExcelPasteModal({ isOpen, onClose, tenantId: initialTenantId, co
 
                 const catId = (effectiveCat.id || '').toLowerCase();
                 const catName = (effectiveCat.name || '').toLowerCase();
-                // REVENUE DETECTION: Starts with 01 OR Name starts with 01 OR contains 01.1.1
-                const isRevenue = catId.includes(':01') || catId.startsWith('01') || catName.startsWith('01') || categoriaRaw.includes('01.1.1');
                 
                 // TRACK REVENUE SUM (FIX)
                 if (isRevenue) {
@@ -394,7 +407,7 @@ export function ExcelPasteModal({ isOpen, onClose, tenantId: initialTenantId, co
                             rows.push({
                                 categoryId: retentionCatId,
                                 costCenterId: null,
-                                description: `Retenção - ${finalDesc || 'Lançamento'}`,
+                                description: `Retenção de Tributos na Fonte - ${finalDesc || 'Lançamento'}`,
                                 amount: retention,
                                 month: rowMonth,
                                 date: dataCompetencia,

@@ -46,7 +46,41 @@ export async function GET() {
             if (isTarget) {
                 console.log(`🗑️ Removendo constraint detectada: ${c.name} (${c.definition})`);
                 await prisma.$executeRawUnsafe(`ALTER TABLE "${tableName}" DROP CONSTRAINT "${c.name}"`);
-                results.push(`${c.name}: ${c.definition}`);
+                results.push(`Constraint: ${c.name}`);
+            }
+        }
+
+        // 4. Procurar ÍNDICES ÚNICOS que não são constraints
+        const indexes = await prisma.$queryRawUnsafe(`
+            SELECT
+                i.relname AS index_name,
+                pg_get_indexdef(idx.indexrelid) as definition
+            FROM
+                pg_index AS idx
+            JOIN
+                pg_class AS t ON t.oid = idx.indrelid
+            JOIN
+                pg_class AS i ON i.oid = idx.indexrelid
+            WHERE
+                t.relname = $1
+                AND idx.indisunique = true
+                AND i.relname NOT LIKE '%_pkey';
+        `, tableName) as any[];
+
+        for (const idx of indexes) {
+            const def = idx.definition.toLowerCase();
+            const isTarget = (
+                def.includes('unique') && 
+                def.includes('tenantid') && 
+                def.includes('categoryid') && 
+                def.includes('month') && 
+                def.includes('year')
+            );
+
+            if (isTarget) {
+                console.log(`🗑️ Removendo índice detectado: ${idx.index_name}`);
+                await prisma.$executeRawUnsafe(`DROP INDEX "${idx.index_name}"`);
+                results.push(`Index: ${idx.index_name}`);
             }
         }
 
@@ -55,7 +89,8 @@ export async function GET() {
             tableName,
             removed: results,
             allConstraints: constraints.map(c => `${c.name}: ${c.definition}`),
-            message: results.length > 0 ? "Constante conflitante removida!" : "Nenhuma constraint encontrada com esse padrão, verifique a lista 'allConstraints'."
+            allUniqueIndexes: indexes.map(i => `${i.index_name}: ${i.definition}`),
+            message: results.length > 0 ? "Trava conflitante removida!" : "Nenhuma trava encontrada com esse padrão."
         });
 
     } catch (error: any) {

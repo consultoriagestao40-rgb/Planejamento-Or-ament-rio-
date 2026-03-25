@@ -339,15 +339,15 @@ export async function POST(request: Request) {
           continue;
         }
 
-        const rawCC = (costCenterId || "DEFAULT").split(',')[0];
-        let targetCCId: string | null = (rawCC === 'DEFAULT') ? null : rawCC;
+        // 1. Correctly parse Cost Center ID (handle raw, combined TENANT:CC, or comma-separated)
+        const rawCC = (costCenterId || "DEFAULT").toString();
+        const parts = rawCC.split(':');
+        const ccPart = parts.length > 1 ? parts[1] : parts[0];
+        const firstCC = ccPart.split(',')[0]; // Handle comma-separated synonymous IDs from grid
+        
+        let targetCCId: string | null = (firstCC === 'DEFAULT' || firstCC === 'null' || firstCC === currentTenantId) ? null : firstCC;
 
-        // CRITICAL FIX: If targetCCId is actually the TenantId, treat as General (null)
-        // This prevents foreign key constraint errors when saving from "Geral" views.
-        if (targetCCId === currentTenantId) {
-          targetCCId = null;
-        }
-
+        // 2. Safely parse values
         const dbMonth = parseInt(month.toString()) + 1;
         const dbYear = parseInt(year.toString());
 
@@ -357,6 +357,7 @@ export async function POST(request: Request) {
         if (entry.isLocked !== undefined) updateData.isLocked = !!entry.isLocked;
         if (entry.observation !== undefined) updateData.observation = entry.observation || null;
 
+        // 3. Perform the Upsert
         const budget = await prisma.budgetEntry.upsert({
           where: {
             tenantId_categoryId_costCenterId_month_year: {

@@ -556,7 +556,11 @@ export default function BudgetEntryGrid({ costCenterId, year, taxRate = 0 }: Bud
                         const isUnderTaxes = cCode.startsWith('02.') || cCode.startsWith('2.1');
                         const hasTaxKeyword = nName.includes('DAS') || nName.includes('SIMPLES NACIONAL') || nName.includes('TRIBUTO SOBRE');
                         
-                        if ((isUnderTaxes || hasTaxKeyword) && !cCode.startsWith('01') && !cCode.startsWith('1.')) {
+                        // NEW BLOCK: Even if it has a tax code or keyword, if it contains "VENDA", "PRODUTO" or "COMISSAO", 
+                        // it's likely a revenue account incorrectly coded or named. EXCLUDE IT from DAS calculations.
+                        const isRevenueKeyword = nName.includes('VENDA') || nName.includes('PRODUTO') || nName.includes('COMISSAO');
+
+                        if ((isUnderTaxes || hasTaxKeyword) && !cCode.startsWith('01') && !cCode.startsWith('1.') && !isRevenueKeyword) {
                             // Only add leaf nodes or specific DAS categories
                             if (!n.children || n.children.length === 0 || nName.includes('DAS') || nName.includes('SIMPLES')) {
                                 if (!dasNodes.find(d => d.id === n.id)) dasNodes.push(n);

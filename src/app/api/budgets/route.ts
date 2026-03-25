@@ -437,7 +437,6 @@ export async function POST(request: Request) {
         // This ensures NO DUPLICATES remain from previous imports or bugs.
         await prisma.budgetEntry.deleteMany({
           where: {
-            tenantId: currentTenantId,
             categoryId: finalCategoryId,
             costCenterId: targetCCId,
             month: dbMonth,

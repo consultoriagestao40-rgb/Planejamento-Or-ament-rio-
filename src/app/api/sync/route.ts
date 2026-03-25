@@ -51,8 +51,7 @@ export async function GET(request: Request) {
         // Apply cost center filter
         if (costCenterId === 'null') {
             whereClause.costCenterId = null;
-        } else if (costCenterId !== 'DEFAULT') {
-                // Find all IDs that share the same clean name as the selected costCenterIds
+        } else if (costCenterId && costCenterId !== 'DEFAULT' && costCenterId !== 'null') {
                 const requestedIds = costCenterId.split(',').map(id => id.trim()).filter(Boolean);
                 const selectedCCs = await prisma.costCenter.findMany({
                     where: { id: { in: requestedIds } },
@@ -62,29 +61,26 @@ export async function GET(request: Request) {
                 const normalizeName = (name: string) => 
                     (name || '')
                         .toLowerCase()
-                        .replace(/^\[inativo\]\s*/i, '')
-                        .replace(/^encerrado\s*/i, '')
+                        .replace(/^[0-9. ]+/, '') // Remove "271.225 "
                         .replace(/[^a-z0-9]/g, '')
+                        .replace(/merces/g, 'meces') // Handle the specific typo Mercês vs Mecês
                         .trim();
 
                 const allSynonymousIds = new Set<string>(requestedIds);
                 if (selectedCCs.length > 0) {
                     const targetNorms = selectedCCs.map(cc => normalizeName(cc.name));
-                    const firstPartNames = selectedCCs.map(cc => (cc.name || '').split('-')[0].trim());
                     
+                    // Search for synonyms in ALL variant tenants
                     const synonymousCCs = await prisma.costCenter.findMany({
                         where: {
-                            tenantId: { in: allVariantIds },
-                            OR: firstPartNames.map(name => ({
-                                name: { contains: name }
-                            }))
+                            tenantId: { in: allVariantIds }
                         },
                         select: { id: true, name: true }
                     });
                     
                     synonymousCCs.forEach(cc => {
                         const cn = normalizeName(cc.name);
-                        if (targetNorms.includes(cn)) {
+                        if (targetNorms.some(tn => cn.includes(tn) || tn.includes(cn))) {
                             allSynonymousIds.add(cc.id);
                         }
                     });

@@ -309,12 +309,33 @@ export async function POST(request: Request) {
     for (const entry of entries) {
       try {
         const { categoryId: rawCategoryId, month, year, costCenterId, tenantId: entryTenantId } = entry;
-        const categoryId = rawCategoryId ? rawCategoryId.toString().split(',')[0].trim() : null;
+        const incomingId = rawCategoryId ? rawCategoryId.toString().split(',')[0].trim() : null;
         const currentTenantId = entryTenantId || targetTenantId;
 
-        if (!currentTenantId || !categoryId) {
+        if (!currentTenantId || !incomingId) {
           console.error(`[API POST ERR] Skipping entry: missing tenantId or categoryId`, { entry });
           continue;
+        }
+
+        // --- CATEGORY ID RECOVERY LOGIC ---
+        let categoryId = incomingId;
+        const checkCategory = await prisma.category.findFirst({
+            where: { id: incomingId, tenantId: currentTenantId }
+        });
+
+        if (!checkCategory) {
+            console.warn(`[RECOVERY] Category ID ${incomingId} not found for Tenant ${currentTenantId}. Attempting name-based lookup...`);
+            // Attempt to find a category with the same name for THIS tenant
+            const sourceCategory = await prisma.category.findUnique({ where: { id: incomingId } });
+            if (sourceCategory) {
+                const recovery = await prisma.category.findFirst({
+                    where: { name: sourceCategory.name, tenantId: currentTenantId }
+                });
+                if (recovery) {
+                    console.log(`[RECOVERY] Found matching category ${recovery.id} by name "${sourceCategory.name}"`);
+                    categoryId = recovery.id;
+                }
+            }
         }
 
         // 1. Robustly parse Cost Center ID (handle raw, combined TENANT:CC, or null/empty)
@@ -388,7 +409,13 @@ export async function POST(request: Request) {
     return NextResponse.json({
       success: false,
       error: 'Falha ao salvar dados do orçamento',
-      details: error.message
+      details: error.message,
+      debug: {
+        lastAttempt: {
+           tenantId: error?._lastTenantId || 'unknown',
+           categoryId: error?._lastCategoryId || 'unknown'
+        }
+      }
     }, { status: 500 });
   }
 }

@@ -548,27 +548,29 @@ export default function BudgetEntryGrid({ costCenterId, year, taxRate = 0 }: Bud
                     nodes.forEach(n => {
                         const cCode = n.code || '';
                         const nName = (n.name || '').toUpperCase();
-                        const isTaxCode = cCode === '02.1' || cCode === '2.1' || cCode.startsWith('02.1.') || cCode.startsWith('2.1.');
-                        const isTaxName = nName.includes('DAS') || nName.includes('SIMPLES NACIONAL') || nName.includes('TRIBUTO') || nName.includes('IMPOSTO');
                         
-                        if (isTaxCode || isTaxName) {
-                            // Priority: Leaf nodes or nodes explicitly named DAS/SIMPLES
+                        // Strict Tax Detection:
+                        // 1. Must be under code 02.1 or 2.1
+                        // 2. OR Must explicitly contain DAS, SIMPLES, or TRIBUTO
+                        // 3. AND Must NOT be under code 01 (Revenue)
+                        const isUnderTaxes = cCode.startsWith('02.') || cCode.startsWith('2.1');
+                        const hasTaxKeyword = nName.includes('DAS') || nName.includes('SIMPLES NACIONAL') || nName.includes('TRIBUTO SOBRE');
+                        
+                        if ((isUnderTaxes || hasTaxKeyword) && !cCode.startsWith('01') && !cCode.startsWith('1.')) {
+                            // Only add leaf nodes or specific DAS categories
                             if (!n.children || n.children.length === 0 || nName.includes('DAS') || nName.includes('SIMPLES')) {
                                 if (!dasNodes.find(d => d.id === n.id)) dasNodes.push(n);
                             }
-                            // Always explore children even if parent matched (to find more specific leaf nodes)
                             if (n.children) fDN(n.children);
                         } else if (n.children) fDN(n.children);
                     });
                 };
                 fDN(treeRoots);
                 
-                // If we found specific DAS nodes, remove the generic parent if it was added
+                // Keep only the most specific DAS nodes if multiple found
                 if (dasNodes.length > 1) {
-                    const hasSpecific = dasNodes.some(d => d.name.toUpperCase().includes('DAS') || d.name.toUpperCase().includes('SIMPLES'));
-                    if (hasSpecific) {
-                        dasNodes = dasNodes.filter(d => d.name.toUpperCase().includes('DAS') || d.name.toUpperCase().includes('SIMPLES'));
-                    }
+                    const specific = dasNodes.filter(d => d.name.toUpperCase().includes('DAS') || d.name.toUpperCase().includes('SIMPLES'));
+                    if (specific.length > 0) dasNodes = specific;
                 }
             }
 

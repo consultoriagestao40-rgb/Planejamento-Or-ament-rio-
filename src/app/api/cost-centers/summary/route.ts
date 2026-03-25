@@ -232,12 +232,16 @@ export async function GET(request: Request) {
                 const current = summaryMap.get(key);
                 const hasPrefix = (cc.name || '').startsWith('[INATIVO]') || (cc.name || '').startsWith('ENCERRADO');
                 if (!hasPrefix) {
-                    // Update to active version for display and interactions
+                    // This is the active CC, it should dictate the lock state, status and name
                     const lock = locks.find((l: any) => l.costCenterId === cc.id);
                     current.costCenterName = (cc.name || '').trim();
                     current.costCenterId = cc.id;
-                    current.isLocked = lock?.isLocked || current.isLocked;
-                    current.status = lock?.status || current.status;
+                    current.isLocked = lock?.isLocked || false;
+                    current.status = lock?.status || 'PENDING';
+                    current.n1ApprovedBy = lock?.n1ApprovedBy || null;
+                    current.n1ApprovedAt = lock?.n1ApprovedAt || null;
+                    current.n2ApprovedBy = lock?.n2ApprovedBy || null;
+                    current.n2ApprovedAt = lock?.n2ApprovedAt || null;
                 }
             }
         });

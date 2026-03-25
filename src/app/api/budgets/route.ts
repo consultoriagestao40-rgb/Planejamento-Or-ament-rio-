@@ -453,12 +453,12 @@ export async function POST(request: Request) {
               categoryId: finalCategoryId,
               month: dbMonth,
               year: dbYear,
-              amount: parseFloat(entry.amount.toString() || "0"),
+              amount: entry.amount ? parseFloat(entry.amount.toString()) : 0,
               observation: entry.observation || null,
               costCenterId: targetCCId,
               tenantId: currentTenantId,
               isLocked: !!entry.isLocked,
-              radarAmount: entry.radarAmount === null ? null : parseFloat(entry.radarAmount.toString() || "0"),
+              radarAmount: (entry.radarAmount !== undefined && entry.radarAmount !== null) ? parseFloat(entry.radarAmount.toString()) : null,
             }
           });
         } else {

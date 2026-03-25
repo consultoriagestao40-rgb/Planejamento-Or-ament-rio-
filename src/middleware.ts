@@ -23,6 +23,7 @@ export function middleware(request: NextRequest) {
         pathname.startsWith('/api/cost-centers/summary') ||
         pathname.startsWith('/api/debug-summary-data') ||
         pathname.startsWith('/api/debug-env') ||
+        pathname.startsWith('/api/maintenance') ||
         pathname.startsWith('/api/version') ||
         pathname === '/login' ||
         pathname === '/favicon.ico'

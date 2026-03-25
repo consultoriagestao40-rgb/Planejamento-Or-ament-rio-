@@ -709,7 +709,21 @@ export default function BudgetEntryGrid({ costCenterId, year, taxRate = 0 }: Bud
                 }
             }
 
-            if (entries.length === 0) {
+            // 3. Deduplicate entries: Manual user edits (pushed first) must win over auto-calculations
+            const dedupedMap = new Map<string, any>();
+            entries.forEach(entry => {
+                const key = `${entry.categoryId}-${entry.month}`;
+                if (!dedupedMap.has(key)) {
+                    dedupedMap.set(key, entry);
+                } else {
+                    // If already exists, we only overwrite if the new entry is from the manual loop
+                    // But since we pushed manual entries first, we just keep the FIRST one.
+                }
+            });
+
+            const finalEntries = Array.from(dedupedMap.values());
+
+            if (finalEntries.length === 0) {
                 setBudgetModal(null);
                 return;
             }
@@ -717,7 +731,7 @@ export default function BudgetEntryGrid({ costCenterId, year, taxRate = 0 }: Bud
             const res = await fetch('/api/budgets', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ entries })
+                body: JSON.stringify({ entries: finalEntries })
             });
             if (!res.ok) { 
                 const e = await res.json(); 
@@ -1119,6 +1133,12 @@ export default function BudgetEntryGrid({ costCenterId, year, taxRate = 0 }: Bud
                             </div>
 
                             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '1rem', borderTop: '1px solid #f1f5f9', paddingTop: '1.5rem' }}>
+                                <button
+                                    onClick={() => setModalValues(new Array(12).fill('0'))}
+                                    style={{ padding: '0.75rem 1.5rem', backgroundColor: '#fef2f2', color: '#ef4444', border: 'none', borderRadius: '8px', fontWeight: 600, cursor: 'pointer', fontSize: '0.95rem' }}
+                                >
+                                    Limpar Tudo
+                                </button>
                                 <button onClick={() => setBudgetModal(null)} style={{ padding: '0.75rem 1.5rem', backgroundColor: 'transparent', color: '#64748b', border: 'none', borderRadius: '8px', fontWeight: 600, cursor: 'pointer', fontSize: '0.95rem' }}>Cancelar</button>
                                 <button
                                     disabled={isSavingBudget || (lockedMonths.every(l => l) && userRole !== 'MASTER')}

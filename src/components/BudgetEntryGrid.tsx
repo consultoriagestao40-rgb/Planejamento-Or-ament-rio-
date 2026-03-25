@@ -684,7 +684,10 @@ export default function BudgetEntryGrid({ costCenterId, year, taxRate = 0 }: Bud
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ entries })
             });
-            if (!res.ok) { const e = await res.json(); throw new Error(e.error || 'Erro ao salvar'); }
+            if (!res.ok) { 
+                const e = await res.json(); 
+                throw new Error(`${e.error || 'Erro ao salvar'}: ${e.details || ''} ${e.stack ? '\n[Stack]: ' + e.stack.slice(0, 50) + '...' : ''}`); 
+            }
 
             setBudgetModal(null);
 

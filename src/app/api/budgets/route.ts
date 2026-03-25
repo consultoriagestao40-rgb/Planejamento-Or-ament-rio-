@@ -6,27 +6,6 @@ import { cookies } from 'next/headers';
 export const dynamic = 'force-dynamic';
 export const maxDuration = 300;
 
-// Helper to ensure database schema is up-to-date in production without manual migration
-async function ensureSchema() {
-  try {
-    console.log("[SCHEMA] Checking for missing columns in BudgetEntry...");
-    // Check if columns exist using Raw SQL (Postgres specific)
-    await prisma.$executeRawUnsafe(`
-      DO $$ 
-      BEGIN 
-        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='BudgetEntry' AND column_name='radarAmount') THEN
-          ALTER TABLE "BudgetEntry" ADD COLUMN "radarAmount" DOUBLE PRECISION;
-        END IF;
-        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='BudgetEntry' AND column_name='isLocked') THEN
-          ALTER TABLE "BudgetEntry" ADD COLUMN "isLocked" BOOLEAN DEFAULT FALSE;
-        END IF;
-      END $$;
-    `);
-    console.log("[SCHEMA] Schema check complete.");
-  } catch (err) {
-    console.error("[SCHEMA] Error insuring schema:", err);
-  }
-}
 
 export async function GET(request: Request) {
   try {

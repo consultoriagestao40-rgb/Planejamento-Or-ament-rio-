@@ -29,7 +29,7 @@ export default function BudgetEntryPage() {
                     const searchList = data.fullCostCenters || data.costCenters || [];
                     const found = searchList.find((cc: any) => cc.id === costCenterId);
                     if (found) {
-                        setCcName(found.name || found.id);
+                        setCcName((found.name || found.id).replace('[INATIVO] ', ''));
                         setTenantName(found.tenantName || '');
                         setTaxRate(found.taxRate || 0);
                     }

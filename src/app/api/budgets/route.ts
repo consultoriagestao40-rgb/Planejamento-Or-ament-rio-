@@ -357,30 +357,39 @@ export async function POST(request: Request) {
         if (entry.isLocked !== undefined) updateData.isLocked = !!entry.isLocked;
         if (entry.observation !== undefined) updateData.observation = entry.observation || null;
 
-        // 3. Perform the Upsert
-        const budget = await prisma.budgetEntry.upsert({
+        // 3. Robust Save using findFirst + update/create (Avoids Prisma upsert null-key issues)
+        const existing = await prisma.budgetEntry.findFirst({
           where: {
-            tenantId_categoryId_costCenterId_month_year: {
-              tenantId: currentTenantId,
-              categoryId: categoryId,
-              costCenterId: targetCCId as any,
-              month: dbMonth,
-              year: dbYear
-            }
-          },
-          update: updateData,
-          create: {
             tenantId: currentTenantId,
             categoryId: categoryId,
             costCenterId: targetCCId,
             month: dbMonth,
-            year: dbYear,
-            amount: updateData.amount || 0,
-            radarAmount: updateData.radarAmount ?? null,
-            isLocked: !!entry.isLocked,
-            observation: entry.observation || null
+            year: dbYear
           }
         });
+
+        let budget;
+        if (existing) {
+          budget = await prisma.budgetEntry.update({
+            where: { id: existing.id },
+            data: updateData
+          });
+        } else {
+          budget = await prisma.budgetEntry.create({
+            data: {
+              ...updateData,
+              tenantId: currentTenantId,
+              categoryId: categoryId,
+              costCenterId: targetCCId,
+              month: dbMonth,
+              year: dbYear,
+              amount: updateData.amount || 0,
+              radarAmount: updateData.radarAmount ?? null,
+              isLocked: !!entry.isLocked,
+              observation: entry.observation || null
+            }
+          });
+        }
         results.push(budget);
       } catch (err: any) {
         console.error(`[API POST ERR] entry loop:`, err.message);

@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 
 export async function GET() {
     return NextResponse.json({ 
-        version: 'v63.9',
-        lastUpdate: "2026-03-24 22:30 (Correção Crítica de ID Composto no Servidor)"
+        version: 'v64.0',
+        lastUpdate: "2026-03-24 22:35 (Restauração Total da Estabilidade de Salvamento - Motor de Banco de Dados)"
     });
 }

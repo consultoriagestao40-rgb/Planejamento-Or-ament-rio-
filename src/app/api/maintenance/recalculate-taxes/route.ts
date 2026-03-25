@@ -52,14 +52,15 @@ export async function GET(req: Request) {
             if (tenant && tenant.taxRate > 0 && dasCatId && revAmount > 0) {
                 const taxAmount = revAmount * (tenant.taxRate / 100);
                 
-                // Upsert the tax entry
+                // Ensure dasCatId is string (not null/undefined) for type safety
+                const finalDasCatId: string = dasCatId!;
                 updates.push(
                     prisma.budgetEntry.upsert({
                         where: {
                             tenantId_categoryId_costCenterId_month_year: {
                                 tenantId,
-                                categoryId: dasCatId,
-                                costCenterId: costCenterId === 'null' ? null : costCenterId,
+                                categoryId: finalDasCatId,
+                                costCenterId: (costCenterId === 'null' || !costCenterId) ? undefined : costCenterId,
                                 month,
                                 year
                             }
@@ -67,8 +68,8 @@ export async function GET(req: Request) {
                         update: { amount: taxAmount },
                         create: {
                             tenantId,
-                            categoryId: dasCatId,
-                            costCenterId: costCenterId === 'null' ? null : costCenterId,
+                            categoryId: finalDasCatId,
+                            costCenterId: (costCenterId === 'null' || !costCenterId) ? null : costCenterId,
                             month,
                             year,
                             amount: taxAmount

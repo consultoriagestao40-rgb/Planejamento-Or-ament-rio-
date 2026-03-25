@@ -308,7 +308,8 @@ export async function POST(request: Request) {
     const results = [];
     for (const entry of entries) {
       try {
-        const { categoryId, month, year, costCenterId, tenantId: entryTenantId } = entry;
+        const { categoryId: rawCategoryId, month, year, costCenterId, tenantId: entryTenantId } = entry;
+        const categoryId = rawCategoryId ? rawCategoryId.toString().split(',')[0].trim() : null;
         const currentTenantId = entryTenantId || targetTenantId;
 
         if (!currentTenantId || !categoryId) {

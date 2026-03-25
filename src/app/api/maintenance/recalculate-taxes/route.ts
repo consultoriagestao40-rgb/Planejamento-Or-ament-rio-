@@ -98,21 +98,29 @@ export async function GET(req: Request) {
             }
         }
 
-        if (entriesToCreate.length > 0) {
-            await prisma.budgetEntry.createMany({
-                data: entriesToCreate as any
-            });
+        let count = 0;
+        for (const entry of entriesToCreate) {
+            try {
+                await prisma.budgetEntry.create({ data: entry as any });
+                count++;
+            } catch (err: any) {
+                console.error(`[MAINTENANCE ERR] Failed to create tax entry for ${entry.tenantId}:`, err.message);
+            }
         }
 
         return NextResponse.json({
             success: true,
             summary: logs.slice(0, 10),
-            totalAffected: entriesToCreate.length,
+            totalAffected: count,
             year
         });
 
     } catch (error: any) {
         console.error("Maintenance Error:", error);
-        return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+        return NextResponse.json({ 
+            success: false, 
+            error: error.message,
+            stack: error.stack
+        }, { status: 500 });
     }
 }

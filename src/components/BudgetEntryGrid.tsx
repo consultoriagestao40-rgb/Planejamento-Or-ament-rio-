@@ -367,9 +367,15 @@ export default function BudgetEntryGrid({ costCenterId, year, taxRate = 0 }: Bud
         const buckets = { rev: [] as CategoryNode[], taxes: [] as CategoryNode[], costs: [] as CategoryNode[], opExp: [] as CategoryNode[], adminExp: [] as CategoryNode[], fin: [] as CategoryNode[] };
         treeRoots.forEach(root => {
             const code = root.code || '';
-            if (code.startsWith('01') || code.startsWith('1')) buckets.rev.push(root);
-            else if (code.startsWith('02') || code.startsWith('2.1')) buckets.taxes.push(root);
-            else if (code.startsWith('3') || code.startsWith('03')) buckets.costs.push(root);
+            const nameNorm = (root.name || '').toUpperCase();
+            const isRevenueByMatch = nameNorm.includes('VENDA') || nameNorm.includes('PRODUTO') || nameNorm.includes('COMISSAO') || nameNorm.includes('REC. BRUTA') || nameNorm.includes('FATURAMENTO');
+            
+            if (code.startsWith('01') || code.startsWith('1') || isRevenueByMatch) {
+                buckets.rev.push(root);
+            } else if (code.startsWith('02') || code.startsWith('2.1')) {
+                // If it's a tax code but we just matched it as revenue above, skip adding to taxes
+                if (!isRevenueByMatch) buckets.taxes.push(root);
+            } else if (code.startsWith('3') || code.startsWith('03')) buckets.costs.push(root);
             else if (code.startsWith('4') || code.startsWith('04')) buckets.opExp.push(root);
             else if (code.startsWith('5') || code.startsWith('05')) buckets.adminExp.push(root);
             else if (code.startsWith('6') || code.startsWith('06')) buckets.fin.push(root);

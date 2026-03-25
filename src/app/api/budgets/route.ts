@@ -152,13 +152,23 @@ export async function GET(request: Request) {
 
     const selectedYear = parseInt(searchParams.get('year') || new Date().getFullYear().toString());
     
-    const budgets = await prisma.budgetEntry.findMany({
+    const budgetsRaw = await prisma.budgetEntry.findMany({
       where: {
         ...tenantFilter,
         ...ccFilter,
         year: selectedYear
+      },
+      include: {
+        category: {
+          select: { id: true, name: true, code: true }
+        }
       }
     });
+
+    const budgets = budgetsRaw.filter(b => b.category !== null);
+    if (budgetsRaw.length !== budgets.length) {
+      console.log(`[GET] Filtered out ${budgetsRaw.length - budgets.length} orphan budget entries`);
+    }
 
 
     let isCCLocked = false;
@@ -432,9 +442,30 @@ export async function POST(request: Request) {
         const updateData: any = {};
         // 1. CLEAR existing records for this specific Category, Month, Year, and CostCenter
         // This ensures NO DUPLICATES remain from previous imports or bugs.
+        // ─── NUCLEAR CLEANUP ──────────────────────────────────────────
+        // Descoberta: Registros fantasmas persistem porque estão vinculados a IDs que o Grid não conhece (órfãos de outros tenants).
+        // Solução: Buscar o nome da categoria alvo e limpar TODOS os registros com esse nome ou IDs sinônimos.
+        const targetCategory = await prisma.category.findUnique({ where: { id: finalCategoryId } });
+        let idsToClean = [finalCategoryId];
+        
+        if (targetCategory) {
+            const synonymousCategories = await prisma.category.findMany({
+                where: { 
+                    OR: [
+                        { name: targetCategory.name },
+                        { name: { contains: targetCategory.name.split('-').pop()?.trim() || 'XYZ_NEVER_MATCH' } }
+                    ]
+                },
+                select: { id: true }
+            });
+            idsToClean = Array.from(new Set([...idsToClean, ...synonymousCategories.map(c => c.id)]));
+        }
+
+        console.log(`[POST] Nuclear Cleaning IDs: ${idsToClean.join(', ')} for Month: ${dbMonth}, CC: ${targetCCId}`);
+
         await prisma.budgetEntry.deleteMany({
           where: {
-            categoryId: finalCategoryId,
+            categoryId: { in: idsToClean },
             costCenterId: targetCCId,
             month: dbMonth,
             year: dbYear

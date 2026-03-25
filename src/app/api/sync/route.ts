@@ -86,11 +86,10 @@ export async function GET(request: Request) {
             })
         ]);
 
-        const realizedEntries = realizedRaw.filter(e => e.category !== null);
-        const budgetEntries = budgetRaw.filter(e => e.category !== null);
+        const realizedEntries = realizedRaw;
+        const budgetEntries = budgetRaw;
 
         const categories = await prisma.category.findMany({
-            where: { tenantId: { in: allVariantIds } },
             select: { id: true, name: true }
         });
 

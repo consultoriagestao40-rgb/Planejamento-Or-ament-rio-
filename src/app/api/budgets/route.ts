@@ -166,12 +166,13 @@ export async function GET(request: Request) {
 
         if (targetCC) {
             // Find all CCs with similar names (synonyms)
-            const nName = (targetCC.name || '').toLowerCase().replace(/[^a-z0-9]/g, '').trim();
+            // IMPROVEMENT: Ignore numeric prefixes for better matching
+            const normalize = (s: string) => (s || '').toLowerCase().replace(/^[0-9.]+\s*-\s*/, '').replace(/[^a-z0-9]/g, '').trim();
+            const nTargetName = normalize(targetCC.name);
+            
             const allCCs = await prisma.costCenter.findMany();
-            const synonymousCCs = allCCs.filter(c => {
-                const cnName = (c.name || '').toLowerCase().replace(/[^a-z0-9]/g, '').trim();
-                return cnName === nName;
-            });
+            const synonymousCCs = allCCs.filter(c => normalize(c.name) === nTargetName);
+            
             allSynonymousCCIds = synonymousCCs.map(c => c.id);
             
             // Also ensure we have all synonymous tenant IDs
@@ -195,8 +196,8 @@ export async function GET(request: Request) {
       }
     });
 
-    // We don't filter orphans anymore because we want to see everything to fix it
-    const budgets = budgetsRaw; 
+    // REVERT: Mandatory inclusion of ALL entries to avoid data loss reported by user
+    const budgets = budgetsRaw;
 
 
     let isCCLocked = false;

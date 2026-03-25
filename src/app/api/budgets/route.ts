@@ -152,11 +152,35 @@ export async function GET(request: Request) {
 
     const selectedYear = parseInt(searchParams.get('year') || new Date().getFullYear().toString());
 
+    // --- RE-IMPLEMENTING SYNONYM LOGIC (Same as Sync API) ---
+    let allSynonymousCCIds: string[] = [];
+    let allVariantTenantIds: string[] = tenantIdParam !== 'ALL' ? tenantIds : [];
+
+    if (!isGeneralView && costCenterIds.length === 1) {
+        const targetCCId = costCenterIds[0];
+        const targetCC = await prisma.costCenter.findUnique({
+            where: { id: targetCCId },
+            include: { tenant: true }
+        });
+
+        if (targetCC) {
+            const normalize = (s: string) => (s || '').toLowerCase().replace(/^[0-9.]+\s*[-]\s*/, '').replace(/[^a-z0-9]/g, '').trim();
+            const nTargetName = normalize(targetCC.name);
+            const allCCs = await prisma.costCenter.findMany();
+            const synonymousCCs = allCCs.filter(c => normalize(c.name) === nTargetName);
+            allSynonymousCCIds = synonymousCCs.map(c => c.id);
+            if (targetCC.tenant?.cnpj) {
+                const tenants = await prisma.tenant.findMany({ where: { cnpj: targetCC.tenant.cnpj } });
+                allVariantTenantIds = tenants.map(t => t.id);
+            }
+        }
+    }
+
     const budgetsRaw = await prisma.budgetEntry.findMany({
       where: {
-        ...tenantFilter,
-        ...ccFilter,
-        year: selectedYear
+        year: selectedYear,
+        ...(allSynonymousCCIds.length > 0 ? { costCenterId: { in: allSynonymousCCIds } } : ccFilter),
+        ...(allSynonymousCCIds.length > 0 ? {} : (allVariantTenantIds.length > 0 ? { tenantId: { in: allVariantTenantIds } } : tenantFilter))
       },
       include: {
         category: {
@@ -165,8 +189,39 @@ export async function GET(request: Request) {
       }
     });
 
-    const budgets = budgetsRaw;
+    // --- ORPHAN RECOVERY LOGIC ---
+    // Load ALL categories manually to get names for IDs that might have been deleted/moved
+    const allCategories = await prisma.category.findMany({
+        select: { id: true, name: true }
+    });
+    const globalCatMap = new Map<string, string>();
+    allCategories.forEach(c => globalCatMap.set(c.id, c.name));
 
+    // Map names to the "primary" IDs used in the current Grid
+    // We already have budgetsRaw. Category relation might be null for some.
+    const primaryIdMap = new Map<string, string>(); // Name -> PrimaryId
+    budgetsRaw.forEach(b => {
+        if (b.category) {
+            const normName = b.category.name.toUpperCase().trim();
+            if (!primaryIdMap.has(normName)) primaryIdMap.set(normName, b.category.id);
+        }
+    });
+
+    const budgets = budgetsRaw.map(b => {
+        let entry = { ...b };
+        if (!entry.category) {
+            const lostName = globalCatMap.get(entry.categoryId);
+            if (lostName) {
+                const normLostName = lostName.toUpperCase().trim();
+                const primaryId = primaryIdMap.get(normLostName);
+                if (primaryId) {
+                    // Relink entry to a category that the Grid represents
+                    (entry as any).categoryId = primaryId;
+                }
+            }
+        }
+        return entry;
+    });
 
     let isCCLocked = false;
     if (!isGeneralView && costCenterIds.length === 1) {
@@ -200,34 +255,32 @@ export async function GET(request: Request) {
 
     const isDetailMode = searchParams.get('detail') === 'true';
 
-    // In detail mode, return raw entries with tenantId + costCenterId for the drill-down modal
     if (isDetailMode) {
       const rawEntries = budgets.map((b: any) => ({
         categoryId: b.categoryId,
         tenantId: b.tenantId,
         costCenterId: b.costCenterId,
-        month: b.month,
+        month: b.month - 1, // ALIGN WITH FRONTEND (0-11)
         year: b.year,
         amount: b.amount || 0,
         radarAmount: b.radarAmount,
-        isLocked: b.isLocked || isCCLocked, // Use global lock as fallback
+        isLocked: b.isLocked || isCCLocked,
         observation: b.observation || null
       }));
       return NextResponse.json({ success: true, data: rawEntries, isCCLocked, radarLocks });
     }
 
-
     const aggregatedBudgets = budgets.reduce((acc: any, curr: any) => {
-      const key = `${curr.categoryId}-${curr.month}`;
+      const monthIdx = curr.month - 1; // ALIGN WITH FRONTEND (0-11)
+      const key = `${curr.categoryId}-${monthIdx}`;
       if (!acc[key]) {
-        acc[key] = { ...curr };
+        acc[key] = { ...curr, month: monthIdx };
         if (isCCLocked) acc[key].isLocked = true;
       } else {
         acc[key].amount += curr.amount || 0;
         acc[key].radarAmount = (acc[key].radarAmount || 0) + (curr.radarAmount || 0);
         if (curr.isLocked || isCCLocked) acc[key].isLocked = true;
         
-        // IMPROVEMENT: Join observations/comments with newlines if they differ
         if (curr.observation && curr.observation.trim()) {
           if (!acc[key].observation) {
             acc[key].observation = curr.observation;

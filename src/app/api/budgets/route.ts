@@ -151,12 +151,42 @@ export async function GET(request: Request) {
     }
 
     const selectedYear = parseInt(searchParams.get('year') || new Date().getFullYear().toString());
-    
+
+    // --- SYNONYM LOGIC (Same as Sync API) ---
+    // If we're looking at a specific CC, we must include all its synonyms across all technical IDs
+    let allSynonymousCCIds: string[] = [];
+    let allVariantTenantIds: string[] = tenantIdParam !== 'ALL' ? tenantIds : [];
+
+    if (!isGeneralView && costCenterIds.length === 1) {
+        const targetCCId = costCenterIds[0];
+        const targetCC = await prisma.costCenter.findUnique({
+            where: { id: targetCCId },
+            include: { tenant: true }
+        });
+
+        if (targetCC) {
+            // Find all CCs with similar names (synonyms)
+            const nName = (targetCC.name || '').toLowerCase().replace(/[^a-z0-9]/g, '').trim();
+            const allCCs = await prisma.costCenter.findMany();
+            const synonymousCCs = allCCs.filter(c => {
+                const cnName = (c.name || '').toLowerCase().replace(/[^a-z0-9]/g, '').trim();
+                return cnName === nName;
+            });
+            allSynonymousCCIds = synonymousCCs.map(c => c.id);
+            
+            // Also ensure we have all synonymous tenant IDs
+            if (targetCC.tenant?.cnpj) {
+                const tenants = await prisma.tenant.findMany({ where: { cnpj: targetCC.tenant.cnpj } });
+                allVariantTenantIds = tenants.map(t => t.id);
+            }
+        }
+    }
+
     const budgetsRaw = await prisma.budgetEntry.findMany({
       where: {
-        ...tenantFilter,
-        ...ccFilter,
-        year: selectedYear
+        year: selectedYear,
+        ...(allSynonymousCCIds.length > 0 ? { costCenterId: { in: allSynonymousCCIds } } : ccFilter),
+        ...(allVariantTenantIds.length > 0 ? { tenantId: { in: allVariantTenantIds } } : tenantFilter)
       },
       include: {
         category: {
@@ -165,10 +195,8 @@ export async function GET(request: Request) {
       }
     });
 
-    const budgets = budgetsRaw.filter(b => b.category !== null);
-    if (budgetsRaw.length !== budgets.length) {
-      console.log(`[GET] Filtered out ${budgetsRaw.length - budgets.length} orphan budget entries`);
-    }
+    // We don't filter orphans anymore because we want to see everything to fix it
+    const budgets = budgetsRaw; 
 
 
     let isCCLocked = false;

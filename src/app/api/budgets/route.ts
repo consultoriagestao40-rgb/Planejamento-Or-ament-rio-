@@ -339,13 +339,20 @@ export async function POST(request: Request) {
           continue;
         }
 
-        // 1. Correctly parse Cost Center ID (handle raw, combined TENANT:CC, or comma-separated)
-        const rawCC = (costCenterId || "DEFAULT").toString();
+        // 1. Robustly parse Cost Center ID (handle raw, combined TENANT:CC, or null/empty)
+        const rawCC = (costCenterId || "").toString().trim();
         const parts = rawCC.split(':');
-        const ccPart = parts.length > 1 ? parts[1] : parts[0];
-        const firstCC = ccPart.split(',')[0]; // Handle comma-separated synonymous IDs from grid
-        
-        let targetCCId: string | null = (firstCC === 'DEFAULT' || firstCC === 'null' || firstCC === currentTenantId) ? null : firstCC;
+        // If combined "TENANT:CC", use CC. If plain CC, use CC. If empty, use null.
+        const ccCandidate = parts.length > 1 ? parts[1].trim() : parts[0].trim();
+        const firstCC = ccCandidate.split(',')[0].trim(); // Handle comma-synonyms
+
+        const targetCCId: string | null = (
+          !firstCC || 
+          firstCC === 'DEFAULT' || 
+          firstCC === 'null' || 
+          firstCC === 'undefined' || 
+          firstCC === currentTenantId
+        ) ? null : firstCC;
 
         // 2. Safely parse values
         const dbMonth = parseInt(month.toString()) + 1;

@@ -184,7 +184,7 @@ export async function GET(request: Request) {
       },
       include: {
         category: {
-          select: { id: true, name: true, code: true }
+          select: { id: true, name: true }
         }
       }
     });

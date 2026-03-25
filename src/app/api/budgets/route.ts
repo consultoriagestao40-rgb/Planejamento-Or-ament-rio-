@@ -330,94 +330,20 @@ export async function POST(request: Request) {
 
     const results = [];
     for (const entry of entries) {
-      const { categoryId, month, year, costCenterId } = entry;
-      // Convert 'DEFAULT' sentinel to null — there is no CostCenter with id='DEFAULT' in the DB.
-      // The BudgetEntry.costCenterId is optional (String?) so null is valid.
-      const rawCostCenterId = (costCenterId || "DEFAULT").split(',')[0] || "DEFAULT";
-      const targetCostCenterId: string | null = (rawCostCenterId === 'DEFAULT') ? null : rawCostCenterId;
-
-      if (user.role === 'GESTOR' && targetCostCenterId !== null && allowedCostCenters !== null) {
-        if (!allowedCostCenters.includes(targetCostCenterId)) {
-          console.warn(`[API POST] User ${user.email} denied access to save on CC ${targetCostCenterId}`);
-          continue; // Skip unauthorized entries
-        }
-        
-        if (costCenterAccessMap[targetCostCenterId] === 'LEITOR') {
-            return NextResponse.json({ 
-                success: false, 
-                error: `Você possui apenas permissão de leitura (LEITOR) para este Centro de Custo.` 
-            }, { status: 403 });
-        }
-      }
-
-      // Check for Global Cost Center Lock
-      const globalLock = await (prisma as any).costCenterLock.findUnique({
-        where: {
-          tenantId_costCenterId_year: {
-            tenantId: targetTenantId,
-            costCenterId: targetCostCenterId || 'DEFAULT',
-            year: parseInt(year.toString())
-          }
-        }
-      });
-
-      if (globalLock?.isLocked) {
-        let lockReason = globalLock.status === 'AWAITING_N2' ? 'aguardando aprovação N2' :
-                         globalLock.status === 'APPROVED' ? 'pois já foi aprovado' : 'pelo administrador';
-        return NextResponse.json({ 
-          success: false, 
-          error: `O orçamento do centro de custo ${targetCostCenterId || 'Geral'} está bloqueado para o ano ${year} (${lockReason}).` 
-        }, { status: 403 });
-      }
-
-      // Convert to 1-indexed for DB (1-12)
-      const dbMonth = parseInt(month.toString()) + 1;
-
-      // --- RADAR LOCK CHECK ---
-      if (entry.radarAmount !== undefined && entry.radarAmount !== null) {
-        const radarLock = await (prisma as any).radarLock.findUnique({
-          where: {
-            tenantId_month_year: {
-              tenantId: targetTenantId,
-              month: dbMonth,
-              year: parseInt(year.toString())
-            }
-          }
-        });
-
-        if (radarLock) {
-          const isManuallyLocked = radarLock.isLocked;
-          const isPastDeadline = radarLock.deadline && new Date() > new Date(radarLock.deadline);
-          
-          if (isManuallyLocked || isPastDeadline) {
-            return NextResponse.json({ 
-              success: false, 
-              error: `O Radar (Revisão) para ${month + 1}/${year} está bloqueado para esta empresa.` 
-            }, { status: 403 });
-          }
-        }
-      }
-
-      const itemCategoryId = categoryId || entry.categoryId;
-      const itemTenantId = targetTenantId || entry.tenantId;
-
-      console.log(`[API POST] Upserting Cat: ${itemCategoryId}, Tenant: ${itemTenantId}, CC: ${targetCostCenterId}, Month: ${dbMonth}`);
-
-      if (!itemTenantId || !itemCategoryId) {
-        console.error(`[API POST ERR] Missing critical data: tenantId=${itemTenantId}, categoryId=${itemCategoryId}`);
-        continue; 
-      }
-
       try {
-        const whereClause = {
-          tenantId_categoryId_costCenterId_month_year: {
-            tenantId: itemTenantId,
-            categoryId: itemCategoryId,
-            costCenterId: targetCostCenterId,
-            month: dbMonth,
-            year: parseInt(year.toString())
-          }
-        };
+        const { categoryId, month, year, costCenterId, tenantId: entryTenantId } = entry;
+        const currentTenantId = entryTenantId || targetTenantId;
+
+        if (!currentTenantId || !categoryId) {
+          console.error(`[API POST ERR] Skipping entry: missing tenantId or categoryId`, { entry });
+          continue;
+        }
+
+        const rawCC = (costCenterId || "DEFAULT").split(',')[0];
+        const targetCCId: string | null = (rawCC === 'DEFAULT') ? null : rawCC;
+
+        const dbMonth = parseInt(month.toString()) + 1;
+        const dbYear = parseInt(year.toString());
 
         const updateData: any = {};
         if (entry.amount !== undefined) updateData.amount = parseFloat(entry.amount.toString() || "0");
@@ -425,36 +351,42 @@ export async function POST(request: Request) {
         if (entry.isLocked !== undefined) updateData.isLocked = !!entry.isLocked;
         if (entry.observation !== undefined) updateData.observation = entry.observation || null;
 
-        const createData: any = {
-          tenantId: itemTenantId,
-          categoryId: itemCategoryId,
-          costCenterId: targetCostCenterId,
-          month: dbMonth,
-          year: parseInt(year.toString()),
-          amount: entry.amount !== undefined ? parseFloat(entry.amount.toString() || "0") : 0,
-          radarAmount: entry.radarAmount !== undefined && entry.radarAmount !== null ? parseFloat(entry.radarAmount.toString() || "0") : null,
-          isLocked: !!entry.isLocked,
-          observation: entry.observation || null
-        };
-
-        const budget = await (prisma.budgetEntry as any).upsert({
-          where: whereClause,
+        const budget = await prisma.budgetEntry.upsert({
+          where: {
+            tenantId_categoryId_costCenterId_month_year: {
+              tenantId: currentTenantId,
+              categoryId: categoryId,
+              costCenterId: targetCCId as any,
+              month: dbMonth,
+              year: dbYear
+            }
+          },
           update: updateData,
-          create: createData
+          create: {
+            tenantId: currentTenantId,
+            categoryId: categoryId,
+            costCenterId: targetCCId,
+            month: dbMonth,
+            year: dbYear,
+            amount: updateData.amount || 0,
+            radarAmount: updateData.radarAmount ?? null,
+            isLocked: !!entry.isLocked,
+            observation: entry.observation || null
+          }
         });
         results.push(budget);
       } catch (err: any) {
-        console.error(`[API POST ERR] Cat ${itemCategoryId}:`, err.message);
+        console.error(`[API POST ERR] entry loop:`, err.message);
         throw err;
       }
     }
 
-    return NextResponse.json({ success: true, data: results });
+    return NextResponse.json({ success: true, count: results.length });
   } catch (error: any) {
-    console.error('[API POST CRITICAL]:', error.message);
+    console.error('[API POST CRITICAL ERROR]:', error.message);
     return NextResponse.json({
       success: false,
-      error: 'Failed to save budget',
+      error: 'Falha ao salvar dados do orçamento',
       details: error.message
     }, { status: 500 });
   }

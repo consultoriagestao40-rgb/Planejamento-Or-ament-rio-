@@ -108,7 +108,7 @@ export default function BudgetEntryPage() {
                         fontSize: '0.8rem',
                         fontWeight: 700
                     }}>
-                        🏷️ Taxa: {taxRate}%
+                        🏷️ Taxa: {taxRate > 0 ? taxRate : 12.5}%
                     </div>
                     <div style={{
                         display: 'flex',
@@ -145,7 +145,7 @@ export default function BudgetEntryPage() {
             <BudgetEntryGrid
                 costCenterId={costCenterId}
                 year={year}
-                taxRate={taxRate}
+                taxRate={taxRate > 0 ? taxRate : 12.5}
             />
         </div>
     );

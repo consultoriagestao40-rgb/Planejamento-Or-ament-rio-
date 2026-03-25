@@ -499,8 +499,9 @@ export default function BudgetEntryGrid({ costCenterId, year, taxRate = 0 }: Bud
                     const chargeNodes: CategoryNode[] = [];
                     const fCN = (nodes: CategoryNode[]) => {
                         nodes.forEach(n => {
-                            if (norm(n.code || '') === norm(config.code)) chargeNodes.push(n);
-                            else if (n.children) fCN(n.children);
+                            if (norm(n.code || '') === norm(config.code)) {
+                                chargeNodes.push(n);
+                            } else if (n.children) fCN(n.children);
                         });
                     };
                     fCN(treeRoots);
@@ -509,7 +510,9 @@ export default function BudgetEntryGrid({ costCenterId, year, taxRate = 0 }: Bud
             }
 
             // 2. Hoist Tree Traversal for DAS out of 12-month loop
-            const targetCat = categories.find(c => allIds.includes(c.id));
+            // Fix: Find targetCat respecting current tenantId to avoid 403
+            const targetCat = categories.find(c => allIds.includes(c.id) && (tenantId ? c.tenantId === tenantId : true)) || categories.find(c => allIds.includes(c.id));
+            
             const targetCode = targetCat?.entradaDre || '';
             const targetNameNorm = (targetCat?.name || '').toUpperCase();
             const isRevenue = targetCode === 'RECEITA_BRUTA' || 
@@ -522,7 +525,10 @@ export default function BudgetEntryGrid({ costCenterId, year, taxRate = 0 }: Bud
             let revenueLeafNodes: CategoryNode[] = [];
             let dasNodes: CategoryNode[] = [];
 
-            if (taxRate > 0 && isRevenue) {
+            // Fix: Standard 12.5% tax if not specified
+            const effectiveTaxRate = taxRate > 0 ? taxRate : 12.5;
+
+            if (isRevenue) {
                 const findRevenueLeafs = (nodes: CategoryNode[]) => {
                     nodes.forEach(n => {
                         const cCode = n.code || '';
@@ -626,7 +632,14 @@ export default function BudgetEntryGrid({ costCenterId, year, taxRate = 0 }: Bud
                     chargeConfigs.forEach(config => {
                         const chargeNodes = chargeNodesPerConfig.get(config.code) || [];
                         chargeNodes.forEach(cN => {
-                            const mainId = cN.id.split(',')[0];
+                            // Fix: Select correct ID for current tenant
+                            const cN_Ids = cN.id.split(',');
+                            let mainId = cN_Ids[0];
+                            if (tenantId) {
+                                const match = categories.find(c => cN_Ids.includes(c.id) && c.tenantId === tenantId);
+                                if (match) mainId = match.id;
+                            }
+
                             const newAmount = salaryBaseForMonth * config.rate;
                             const saveTenantId = tenantId || cN.tenantId || (categories.find((c: any) => c.id === mainId)?.tenantId || '');
                             
@@ -641,7 +654,7 @@ export default function BudgetEntryGrid({ costCenterId, year, taxRate = 0 }: Bud
                     });
                 }
 
-                if (taxRate > 0 && isRevenue && dasNodes.length > 0) {
+                if (isRevenue && dasNodes.length > 0) {
                     let revenueBaseForMonth = 0;
                     revenueLeafNodes.forEach(leaf => {
                         const leafIds = leaf.id.split(',');
@@ -658,8 +671,15 @@ export default function BudgetEntryGrid({ costCenterId, year, taxRate = 0 }: Bud
 
                     if (revenueBaseForMonth > 0) {
                         dasNodes.forEach(dN => {
-                            const mainId = dN.id.split(',')[0];
-                            const taxAmount = revenueBaseForMonth * (taxRate / 100);
+                            // Fix: Select correct ID for current tenant
+                            const dN_Ids = dN.id.split(',');
+                            let mainId = dN_Ids[0];
+                            if (tenantId) {
+                                const match = categories.find(c => dN_Ids.includes(c.id) && c.tenantId === tenantId);
+                                if (match) mainId = match.id;
+                            }
+
+                            const taxAmount = revenueBaseForMonth * (effectiveTaxRate / 100);
                             const saveTenantId = tenantId || dN.tenantId || (categories.find((c: any) => c.id === mainId)?.tenantId || '');
                             
                             if (saveTenantId && mainId) {

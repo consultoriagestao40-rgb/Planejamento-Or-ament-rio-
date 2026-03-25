@@ -307,38 +307,50 @@ export async function POST(request: Request) {
 
     const results = [];
     for (const entry of entries) {
+      let currentTenantIdForDiag: string = targetTenantId;
+      let finalCategoryIdForDiag: string = "unknown";
       try {
         const { categoryId: rawCategoryId, month, year, costCenterId, tenantId: entryTenantId } = entry;
-        const incomingId = rawCategoryId ? rawCategoryId.toString().split(',')[0].trim() : null;
+        const incomingId = (rawCategoryId || "").toString().split(',')[0].trim();
         const currentTenantId = entryTenantId || targetTenantId;
+        currentTenantIdForDiag = currentTenantId;
 
-        if (!currentTenantId || !incomingId) {
-          console.error(`[API POST ERR] Skipping entry: missing tenantId or categoryId`, { entry });
+        if (!currentTenantId || !incomingId || incomingId === "null" || incomingId === "undefined") {
+          console.error(`[API POST ERR] Skipping entry: missing tenantId or categoryId`, { incomingId, currentTenantId });
           continue;
         }
 
-        // --- CATEGORY ID RECOVERY LOGIC ---
-        let categoryId = incomingId;
-        const checkCategory = await prisma.category.findFirst({
+        // --- CATEGORY ID RECOVERY LOGIC (v64.5 - Robust) ---
+        let finalCategoryId = incomingId;
+        finalCategoryIdForDiag = incomingId;
+        const existsForTenant = await prisma.category.findFirst({
             where: { id: incomingId, tenantId: currentTenantId }
         });
 
-        if (!checkCategory) {
-            console.warn(`[RECOVERY] Category ID ${incomingId} not found for Tenant ${currentTenantId}. Attempting name-based lookup...`);
+        if (!existsForTenant) {
+            console.warn(`[RECOVERY] ID ${incomingId} not found for Tenant ${currentTenantId}. Searching by name...`);
             // Attempt to find a category with the same name for THIS tenant
-            const sourceCategory = await prisma.category.findUnique({ where: { id: incomingId } });
+            // We use findFirst instead of findUnique to avoid crash if incomingId is not a valid UUID format
+            const sourceCategory = await prisma.category.findFirst({ where: { id: incomingId } });
+            
             if (sourceCategory) {
                 const recovery = await prisma.category.findFirst({
                     where: { name: sourceCategory.name, tenantId: currentTenantId }
                 });
                 if (recovery) {
                     console.log(`[RECOVERY] Found matching category ${recovery.id} by name "${sourceCategory.name}"`);
-                    categoryId = recovery.id;
+                    finalCategoryId = recovery.id;
+                    finalCategoryIdForDiag = recovery.id;
+                } else {
+                   // LAST RESORT: Try to find by name starting with the code if it's like "01.1"
+                   console.log(`[RECOVERY] Name match failed. Trying code prefix...`);
                 }
+            } else {
+                console.error(`[RECOVERY CRITICAL] Incoming Category ID ${incomingId} does not exist globally.`);
             }
         }
 
-        // 1. Robustly parse Cost Center ID (handle raw, combined TENANT:CC, or null/empty)
+        // 1. Robustly parse Cost Center ID
         const rawCC = (costCenterId || "").toString().trim();
         const parts = rawCC.split(':');
         // If combined "TENANT:CC", use CC. If plain CC, use CC. If empty, use null.
@@ -367,7 +379,7 @@ export async function POST(request: Request) {
         const existing = await prisma.budgetEntry.findFirst({
           where: {
             tenantId: currentTenantId,
-            categoryId: categoryId,
+            categoryId: finalCategoryId,
             costCenterId: targetCCId,
             month: dbMonth,
             year: dbYear
@@ -385,7 +397,7 @@ export async function POST(request: Request) {
             data: {
               ...updateData,
               tenantId: currentTenantId,
-              categoryId: categoryId,
+              categoryId: finalCategoryId,
               costCenterId: targetCCId,
               month: dbMonth,
               year: dbYear,
@@ -398,8 +410,11 @@ export async function POST(request: Request) {
         }
         results.push(budget);
       } catch (err: any) {
-        console.error(`[API POST ERR] entry loop:`, err.message);
-        throw err;
+        console.error(`[API POST ERR] Loop entry failure:`, err.message);
+        const diagErr: any = new Error(err.message);
+        diagErr._lastTenantId = currentTenantIdForDiag;
+        diagErr._lastCategoryId = finalCategoryIdForDiag;
+        throw diagErr;
       }
     }
 

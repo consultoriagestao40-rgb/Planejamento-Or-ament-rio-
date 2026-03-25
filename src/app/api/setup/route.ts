@@ -8,12 +8,10 @@ export async function GET() {
         const [categories, costCenters, tenants] = await Promise.all([
             prisma.category.findMany({ orderBy: { name: 'asc' } }),
             prisma.costCenter.findMany({ 
-                // Load ALL cost centers — INATIVO CCs have valid budget data stored against their IDs
-                // The [INATIVO] prefix filtering is handled on the frontend display level
-                include: { tenant: { select: { name: true } } },
+                include: { tenant: { select: { name: true, taxRate: true } } },
                 orderBy: { name: 'asc' } 
             }),
-            prisma.tenant.findMany({ select: { id: true, name: true, cnpj: true } })
+            prisma.tenant.findMany({ select: { id: true, name: true, cnpj: true, taxRate: true } })
         ]);
 
         console.log(`[RECOVERY] Loaded ${categories.length} categories and ${costCenters.length} cost centers`);
@@ -53,7 +51,8 @@ export async function GET() {
                             id: cc.id,
                             name: displayName,
                             tenantId: cc.tenantId,
-                            tenantName: cc.tenant?.name || 'Empresa Desconhecida'
+                            tenantName: cc.tenant?.name || 'Empresa Desconhecida',
+                            taxRate: cc.tenant?.taxRate || 0
                         });
                     }
                 });
@@ -62,7 +61,8 @@ export async function GET() {
             tenants: tenants.map((t: any) => ({
                 id: t.id,
                 name: t.name,
-                cnpj: t.cnpj || ''
+                cnpj: t.cnpj || '',
+                taxRate: t.taxRate || 0
             }))
         });
     } catch (error: any) {

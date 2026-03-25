@@ -16,8 +16,6 @@ export async function GET(req: Request) {
             }
         });
 
-        console.log(`Analyzing ${revenueBudgets.length} revenue budget entries for year ${year}`);
-
         const revenueMap: Record<string, number> = {};
         revenueBudgets.forEach(b => {
             const key = `${b.tenantId}|${b.costCenterId || 'null'}|${b.month}`;
@@ -25,12 +23,13 @@ export async function GET(req: Request) {
         });
 
         const tenants = await prisma.tenant.findMany({
-            include: { categories: { where: { name: { contains: 'DAS' } } } }
+            include: { categories: true }
         });
 
         const tenantDasMap: Record<string, string> = {};
         const tenantRateMap: Record<string, number> = {};
         const tenantNameMap: Record<string, string> = {};
+        const allTaxCatIds: string[] = [];
         
         tenants.forEach(t => {
             const dasCat = t.categories.find(c => 
@@ -42,11 +41,29 @@ export async function GET(req: Request) {
             if (dasCat) tenantDasMap[t.id] = dasCat.id;
             tenantRateMap[t.id] = t.taxRate || 0;
             tenantNameMap[t.id] = t.name;
+
+            // Collect ALL tax-like category IDs for deletion
+            t.categories.forEach(c => {
+               const n = c.name.toUpperCase();
+               if (n.includes('DAS') || n.includes('IMPOSTO') || n.includes('TRIBUTO') || c.name.startsWith('02.1')) {
+                   allTaxCatIds.push(c.id);
+               }
+            });
         });
 
-        const updates = [];
+        // --- DESTRUCTIVE CLEANUP ---
+        if (allTaxCatIds.length > 0) {
+            const del = await prisma.budgetEntry.deleteMany({
+                where: {
+                    year,
+                    categoryId: { in: allTaxCatIds }
+                }
+            });
+            console.log(`[CLEANUP] Deleted ${del.count} potentially duplicate tax entries.`);
+        }
+
+        const entriesToCreate = [];
         const logs: any[] = [];
-        let createdCount = 0;
 
         for (const [key, revAmount] of Object.entries(revenueMap)) {
             const [tenantId, costCenterId, monthStr] = key.split('|');
@@ -68,40 +85,29 @@ export async function GET(req: Request) {
                     tax: taxAmount
                 });
 
-                updates.push(
-                    prisma.budgetEntry.upsert({
-                        where: {
-                            tenantId_categoryId_costCenterId_month_year: {
-                                tenantId,
-                                categoryId: finalDasCatId,
-                                costCenterId: finalCCId as any,
-                                month,
-                                year
-                            }
-                        },
-                        update: { amount: taxAmount },
-                        create: {
-                            tenantId,
-                            categoryId: finalDasCatId,
-                            costCenterId: finalCCId,
-                            month,
-                            year,
-                            amount: taxAmount
-                        }
-                    })
-                );
-                createdCount++;
+                entriesToCreate.push({
+                    tenantId,
+                    categoryId: finalDasCatId,
+                    costCenterId: finalCCId,
+                    month,
+                    year,
+                    amount: taxAmount,
+                    isLocked: false,
+                    observation: 'Recalculado automaticamente (v64.0.1)'
+                });
             }
         }
 
-        if (updates.length > 0) {
-            await prisma.$transaction(updates);
+        if (entriesToCreate.length > 0) {
+            await prisma.budgetEntry.createMany({
+                data: entriesToCreate as any
+            });
         }
 
         return NextResponse.json({
             success: true,
-            summary: logs.slice(0, 10), // Return first 10 for debug
-            totalAffected: createdCount,
+            summary: logs.slice(0, 10),
+            totalAffected: entriesToCreate.length,
             year
         });
 

@@ -22,8 +22,9 @@ export default function BudgetEntryPage() {
             try {
                 const res = await fetch('/api/setup?t=' + Date.now(), { cache: 'no-store' });
                 const data = await res.json();
-                if (data.success && data.costCenters) {
-                    const found = data.costCenters.find((cc: any) => cc.id === costCenterId);
+                if (data.success) {
+                    const searchList = data.fullCostCenters || data.costCenters || [];
+                    const found = searchList.find((cc: any) => cc.id === costCenterId);
                     if (found) {
                         setCcName(found.name || found.id);
                         setTenantName(found.tenantName || '');

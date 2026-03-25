@@ -63,6 +63,14 @@ export async function GET() {
                 name: t.name,
                 cnpj: t.cnpj || '',
                 taxRate: t.taxRate || 0
+            })),
+            // Added fullCostCenters for direct ID lookup (BudgetEntryPage needs the exact ID)
+            fullCostCenters: costCenters.map((cc: any) => ({
+                id: cc.id,
+                name: cc.name,
+                tenantId: cc.tenantId,
+                tenantName: cc.tenant?.name || 'Empresa Desconhecida',
+                taxRate: cc.tenant?.taxRate || 0
             }))
         });
     } catch (error: any) {

@@ -794,7 +794,7 @@ export default function BudgetEntryGrid({ costCenterId, year, taxRate = 0 }: Bud
                                     </span>
                                     {bg !== 0 && (
                                         <span style={{ fontSize: '0.65rem', color: 'var(--text-muted)', fontWeight: 400, opacity: 0.7 }}>
-                                            {(dreMonthlyData[i].recLiq !== 0 ? (bg / dreMonthlyData[i].recLiq * 100).toFixed(1) : '0.0')}%
+                                            {(dreMonthlyData[i].rev !== 0 ? (bg / dreMonthlyData[i].rev * 100).toFixed(1) : '0.0')}%
                                         </span>
                                     )}
                                 </div>
@@ -809,8 +809,8 @@ export default function BudgetEntryGrid({ costCenterId, year, taxRate = 0 }: Bud
                             <span style={{ fontSize: '0.65rem', color: 'var(--text-muted)', fontWeight: 400, opacity: 0.7 }}>
                                 {(() => {
                                     const annualValue = (totals?.budget || new Array(12).fill(0)).reduce((a: number, b: number) => a + b, 0);
-                                    const annualRecLiq = MONTHS.reduce((acc, _, idx) => acc + dreMonthlyData[idx].recLiq, 0);
-                                    return (annualRecLiq !== 0 ? (annualValue / annualRecLiq * 100).toFixed(1) : '0.0');
+                                    const annualRev = MONTHS.reduce((acc, _, idx) => acc + dreMonthlyData[idx].rev, 0);
+                                    return (annualRev !== 0 ? (annualValue / annualRev * 100).toFixed(1) : '0.0');
                                 })()}%
                             </span>
                         </div>
@@ -842,7 +842,7 @@ export default function BudgetEntryGrid({ costCenterId, year, taxRate = 0 }: Bud
                             <span>{valuesB[i] === 0 ? '-' : fmt(valuesB[i])}</span>
                             {valuesB[i] !== 0 && (
                                 <span style={{ fontSize: '0.65rem', opacity: 0.7, fontWeight: 400 }}>
-                                    {(dreMonthlyData[i].recLiq !== 0 ? (valuesB[i] / dreMonthlyData[i].recLiq * 100).toFixed(1) : '0.0')}%
+                                    {(dreMonthlyData[i].rev !== 0 ? (valuesB[i] / dreMonthlyData[i].rev * 100).toFixed(1) : '0.0')}%
                                 </span>
                             )}
                         </div>
@@ -853,7 +853,10 @@ export default function BudgetEntryGrid({ costCenterId, year, taxRate = 0 }: Bud
                         <span>{annualB === 0 ? '-' : fmt(annualB)}</span>
                         {annualB !== 0 && (
                             <span style={{ fontSize: '0.65rem', opacity: 0.7, fontWeight: 400 }}>
-                                {(annualRecLiq !== 0 ? (annualB / annualRecLiq * 100).toFixed(1) : '0.0')}%
+                                {(() => {
+                                    const annualRev = MONTHS.reduce((acc, _, idx) => acc + dreMonthlyData[idx].rev, 0);
+                                    return (annualRev !== 0 ? (annualB / annualRev * 100).toFixed(1) : '0.0');
+                                })()}%
                             </span>
                         )}
                     </div>

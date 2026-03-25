@@ -8,9 +8,12 @@ import BudgetEntryGrid from '@/components/BudgetEntryGrid';
 export default function BudgetEntryPage() {
     const params = useParams();
     const searchParams = useSearchParams();
-    const costCenterId = params.costCenterId as string;
+    const rawId = params.costCenterId as string;
     const yearParam = searchParams.get('year');
     const year = yearParam ? parseInt(yearParam) : new Date().getFullYear();
+
+    // Fix: extract actual CC ID if combined (tenantId:ccId)
+    const costCenterId = rawId.includes('%3A') ? rawId.split('%3A')[1] : (rawId.includes(':') ? rawId.split(':')[1] : rawId);
 
     const [ccName, setCcName] = useState<string>('');
     const [tenantName, setTenantName] = useState<string>('');

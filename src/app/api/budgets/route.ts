@@ -189,35 +189,34 @@ export async function GET(request: Request) {
       }
     });
 
-    // --- ORPHAN RECOVERY LOGIC ---
-    // Load ALL categories manually to get names for IDs that might have been deleted/moved
-    const allCategories = await prisma.category.findMany({
-        select: { id: true, name: true }
-    });
-    const globalCatMap = new Map<string, string>();
-    allCategories.forEach(c => globalCatMap.set(c.id, c.name));
+    // --- ORPHAN RECOVERY LOGIC (Ultra Robust) ---
+    // Load ALL categories from DB once to have a name-to-id mapping
+    const allGlobalCategories = await prisma.category.findMany({ select: { id: true, name: true, tenantId: true } });
+    const globalIdToName = new Map<string, string>();
+    allGlobalCategories.forEach(c => globalIdToName.set(c.id, c.name));
 
-    // Map names to the "primary" IDs used in the current Grid
-    // We already have budgetsRaw. Category relation might be null for some.
-    const primaryIdMap = new Map<string, string>(); // Name -> PrimaryId
-    budgetsRaw.forEach(b => {
-        if (b.category) {
-            const normName = b.category.name.toUpperCase().trim();
-            if (!primaryIdMap.has(normName)) primaryIdMap.set(normName, b.category.id);
+    // Map names to "Preferred" IDs for the current view (those that belong to targetTenant or targetCC variants)
+    // We'll use the first ID we find for each name among the 'valid' categories
+    const nameToActiveId = new Map<string, string>();
+    allGlobalCategories.forEach(c => {
+        const normName = c.name.toUpperCase().trim();
+        // Priority: current tenant's ID
+        if (allVariantTenantIds.includes(c.tenantId)) {
+            nameToActiveId.set(normName, c.id);
+        } else if (!nameToActiveId.has(normName)) {
+            nameToActiveId.set(normName, c.id);
         }
     });
 
     const budgets = budgetsRaw.map(b => {
         let entry = { ...b };
-        if (!entry.category) {
-            const lostName = globalCatMap.get(entry.categoryId);
-            if (lostName) {
-                const normLostName = lostName.toUpperCase().trim();
-                const primaryId = primaryIdMap.get(normLostName);
-                if (primaryId) {
-                    // Relink entry to a category that the Grid represents
-                    (entry as any).categoryId = primaryId;
-                }
+        const myCatName = b.category?.name || globalIdToName.get(b.categoryId);
+        if (myCatName) {
+            const normName = myCatName.toUpperCase().trim();
+            const activeId = nameToActiveId.get(normName);
+            if (activeId && activeId !== entry.categoryId) {
+                // Remap to the primary ID representing this category name in the current view
+                (entry as any).categoryId = activeId;
             }
         }
         return entry;
@@ -260,7 +259,7 @@ export async function GET(request: Request) {
         categoryId: b.categoryId,
         tenantId: b.tenantId,
         costCenterId: b.costCenterId,
-        month: b.month - 1, // ALIGN WITH FRONTEND (0-11)
+        month: b.month, // RESTORE TO 1-12 (Frontend does -1)
         year: b.year,
         amount: b.amount || 0,
         radarAmount: b.radarAmount,
@@ -271,10 +270,10 @@ export async function GET(request: Request) {
     }
 
     const aggregatedBudgets = budgets.reduce((acc: any, curr: any) => {
-      const monthIdx = curr.month - 1; // ALIGN WITH FRONTEND (0-11)
-      const key = `${curr.categoryId}-${monthIdx}`;
+      // RESTORE TO 1-12 aggregation key (Frontend does -1)
+      const key = `${curr.categoryId}-${curr.month}`;
       if (!acc[key]) {
-        acc[key] = { ...curr, month: monthIdx };
+        acc[key] = { ...curr };
         if (isCCLocked) acc[key].isLocked = true;
       } else {
         acc[key].amount += curr.amount || 0;

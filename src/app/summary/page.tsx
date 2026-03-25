@@ -316,6 +316,26 @@ export default function BudgetSummaryPage() {
                             <Link href="/radar" className="btn btn-primary" style={{ padding: '0.75rem 1.25rem' }}>🎯 Gestão de Radar</Link>
                         )} */}
                         {userRole === 'MASTER' && (
+                            <button 
+                                onClick={async () => {
+                                    if (confirm('Deseja DESTRANCAR TODOS os orçamentos de ' + selectedYear + '? \nIsso permitirá a edição de todas as unidades.')) {
+                                        setLoading(true);
+                                        try {
+                                            const res = await fetch('/api/admin/unlock-all?year=' + selectedYear, { method: 'POST' });
+                                            const result = await res.json();
+                                            if (result.success) await fetchData();
+                                            else alert(result.error);
+                                        } catch (e) { alert('Erro ao destrancar'); }
+                                        finally { setLoading(false); }
+                                    }
+                                }} 
+                                className="btn" 
+                                style={{ padding: '0.75rem 1.25rem', background: 'rgba(239, 68, 68, 0.1)', color: 'var(--accent-red)', border: '1px solid var(--accent-red)' }}
+                            >
+                                🔓 Destrancar Todos
+                            </button>
+                        )}
+                        {userRole === 'MASTER' && (
                             <SyncButton year={selectedYear} onSyncStart={() => setLoading(true)} onSyncComplete={fetchData} />
                         )}
                         <Link href="/" className="btn btn-secondary" style={{ padding: '0.75rem 1.25rem' }}>⬅️ Dashboard</Link>

@@ -508,8 +508,16 @@ export default function BudgetEntryGrid({ costCenterId, year, taxRate = 0 }: Bud
             }
 
             // 2. Hoist Tree Traversal for DAS out of 12-month loop
-            const targetCode = categories.find(c => allIds.includes(c.id))?.entradaDre || '';
-            const isRevenue = targetCode === 'RECEITA_BRUTA' || (categories.find(c => allIds.includes(c.id))?.name || '').startsWith('01');
+            const targetCat = categories.find(c => allIds.includes(c.id));
+            const targetCode = targetCat?.entradaDre || '';
+            const targetNameNorm = (targetCat?.name || '').toUpperCase();
+            const isRevenue = targetCode === 'RECEITA_BRUTA' || 
+                             targetCode === '01. RECEITA BRUTA' || 
+                             targetNameNorm.startsWith('01') || 
+                             targetNameNorm.includes('RECEITA') || 
+                             targetNameNorm.includes('FATURAMENTO') || 
+                             targetNameNorm.includes('VENDA');
+
             let revenueLeafNodes: CategoryNode[] = [];
             let dasNodes: CategoryNode[] = [];
 
@@ -517,7 +525,8 @@ export default function BudgetEntryGrid({ costCenterId, year, taxRate = 0 }: Bud
                 const findRevenueLeafs = (nodes: CategoryNode[]) => {
                     nodes.forEach(n => {
                         const cCode = n.code || '';
-                        if (cCode.startsWith('01') || cCode.startsWith('1.')) {
+                        const nameNorm = (n.name || '').toUpperCase();
+                        if (cCode.startsWith('01') || cCode.startsWith('1.') || nameNorm.includes('RECEITA') || nameNorm.includes('FATURAMENTO') || nameNorm.includes('VENDA')) {
                             if (!n.children || n.children.length === 0) revenueLeafNodes.push(n);
                             else findRevenueLeafs(n.children);
                         } else if (n.children) findRevenueLeafs(n.children);
@@ -528,7 +537,8 @@ export default function BudgetEntryGrid({ costCenterId, year, taxRate = 0 }: Bud
                 const fDN = (nodes: CategoryNode[]) => {
                     nodes.forEach(n => {
                         const cCode = n.code || '';
-                        if (cCode === '02.1.1' || cCode === '2.1.1' || (n.name && n.name.includes('DAS'))) {
+                        const nName = (n.name || '').toUpperCase();
+                        if (cCode === '02.1.1' || cCode === '2.1.1' || nName.includes('DAS') || nName.includes('SIMPLES NACIONAL')) {
                             dasNodes.push(n);
                         } else if (n.children) fDN(n.children);
                     });

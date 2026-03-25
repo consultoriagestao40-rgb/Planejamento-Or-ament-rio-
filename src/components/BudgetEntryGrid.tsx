@@ -527,7 +527,10 @@ export default function BudgetEntryGrid({ costCenterId, year, taxRate = 0 }: Bud
                     nodes.forEach(n => {
                         const cCode = n.code || '';
                         const nameNorm = (n.name || '').toUpperCase();
-                        if (cCode.startsWith('01') || cCode.startsWith('1.') || nameNorm.includes('RECEITA') || nameNorm.includes('FATURAMENTO') || nameNorm.includes('VENDA')) {
+                        const isRevCode = cCode.startsWith('01') || cCode.startsWith('1.');
+                        const isRevName = nameNorm.includes('RECEITA') || nameNorm.includes('FATURAMENTO') || nameNorm.includes('VENDA') || nameNorm.includes('REC. BRUTA');
+                        
+                        if (isRevCode || isRevName) {
                             if (!n.children || n.children.length === 0) revenueLeafNodes.push(n);
                             else findRevenueLeafs(n.children);
                         } else if (n.children) findRevenueLeafs(n.children);
@@ -539,7 +542,10 @@ export default function BudgetEntryGrid({ costCenterId, year, taxRate = 0 }: Bud
                     nodes.forEach(n => {
                         const cCode = n.code || '';
                         const nName = (n.name || '').toUpperCase();
-                        if (cCode === '02.1.1' || cCode === '2.1.1' || nName.includes('DAS') || nName.includes('SIMPLES NACIONAL')) {
+                        const isTaxCode = cCode === '02.1' || cCode === '2.1' || cCode.startsWith('02.1.') || cCode.startsWith('2.1.');
+                        const isTaxName = nName.includes('DAS') || nName.includes('SIMPLES NACIONAL') || nName.includes('TRIBUTO') || nName.includes('IMPOSTO');
+                        
+                        if (isTaxCode || isTaxName) {
                             dasNodes.push(n);
                         } else if (n.children) fDN(n.children);
                     });

@@ -9,7 +9,6 @@ export const maxDuration = 300;
 
 export async function GET(request: Request) {
   try {
-    await ensureSchema();
     const cookieStore = await cookies();
     const token = cookieStore.get('auth_token')?.value;
     const user = token ? await verifyToken(token) : null;
@@ -249,7 +248,6 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   try {
-    await ensureSchema();
     const cookieStore = await cookies();
     const token = cookieStore.get('auth_token')?.value;
     const user = token ? await verifyToken(token) : null;

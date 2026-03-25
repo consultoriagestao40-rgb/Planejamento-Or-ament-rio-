@@ -340,7 +340,13 @@ export async function POST(request: Request) {
         }
 
         const rawCC = (costCenterId || "DEFAULT").split(',')[0];
-        const targetCCId: string | null = (rawCC === 'DEFAULT') ? null : rawCC;
+        let targetCCId: string | null = (rawCC === 'DEFAULT') ? null : rawCC;
+
+        // CRITICAL FIX: If targetCCId is actually the TenantId, treat as General (null)
+        // This prevents foreign key constraint errors when saving from "Geral" views.
+        if (targetCCId === currentTenantId) {
+          targetCCId = null;
+        }
 
         const dbMonth = parseInt(month.toString()) + 1;
         const dbYear = parseInt(year.toString());

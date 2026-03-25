@@ -320,18 +320,28 @@ export async function POST(request: Request) {
           continue;
         }
 
-        // --- CATEGORY ID RECOVERY LOGIC (v64.5 - Robust) ---
+        // --- CATEGORY ID RECOVERY LOGIC (v64.6 - Ultra Robust) ---
         let finalCategoryId = incomingId;
         finalCategoryIdForDiag = incomingId;
-        const existsForTenant = await prisma.category.findFirst({
-            where: { id: incomingId, tenantId: currentTenantId }
-        });
+        
+        let existsForTenant = false;
+        if (!incomingId.startsWith('synth-')) {
+          const check = await prisma.category.findFirst({
+              where: { id: incomingId, tenantId: currentTenantId }
+          });
+          if (check) {
+            existsForTenant = true;
+            finalCategoryId = check.id;
+          }
+        }
 
         if (!existsForTenant) {
-            console.warn(`[RECOVERY] ID ${incomingId} not found for Tenant ${currentTenantId}. Searching by name...`);
-            // Attempt to find a category with the same name for THIS tenant
-            // We use findFirst instead of findUnique to avoid crash if incomingId is not a valid UUID format
-            const sourceCategory = await prisma.category.findFirst({ where: { id: incomingId } });
+            console.warn(`[RECOVERY] ID ${incomingId} not found or synthetic for Tenant ${currentTenantId}. Searching by name/code...`);
+            
+            // 1. Try to recover by name/code if we can find the source category globally
+            const sourceCategory = !incomingId.startsWith('synth-') 
+              ? await prisma.category.findFirst({ where: { id: incomingId } })
+              : null;
             
             if (sourceCategory) {
                 const recovery = await prisma.category.findFirst({
@@ -340,15 +350,68 @@ export async function POST(request: Request) {
                 if (recovery) {
                     console.log(`[RECOVERY] Found matching category ${recovery.id} by name "${sourceCategory.name}"`);
                     finalCategoryId = recovery.id;
-                    finalCategoryIdForDiag = recovery.id;
-                } else {
-                   // LAST RESORT: Try to find by name starting with the code if it's like "01.1"
-                   console.log(`[RECOVERY] Name match failed. Trying code prefix...`);
                 }
-            } else {
-                console.error(`[RECOVERY CRITICAL] Incoming Category ID ${incomingId} does not exist globally.`);
+            }
+            
+            // 2. If still not found, try to match by code (e.g. from synth-02.1 or from source category)
+            if (finalCategoryId === incomingId || incomingId.startsWith('synth-')) {
+                let codeToMatch = "";
+                if (incomingId.startsWith('synth-')) {
+                    codeToMatch = incomingId.replace('synth-', '');
+                } else if (sourceCategory) {
+                    const match = sourceCategory.name.match(/^([\d.]+)/);
+                    if (match) codeToMatch = match[1];
+                }
+
+                if (codeToMatch) {
+                    // Normalize code (e.g. 02.1 -> 2.1)
+                    const norm = (c: string) => c.split('.').map(s => parseInt(s, 10).toString()).filter(s => s !== 'NaN').join('.');
+                    const targetCodeNorm = norm(codeToMatch);
+                    
+                    const allTenantCats = await prisma.category.findMany({ where: { tenantId: currentTenantId } });
+                    const matchByCode = allTenantCats.find(c => {
+                        const m = c.name.match(/^([\d.]+)/);
+                        return m && norm(m[1]) === targetCodeNorm;
+                    });
+
+                    if (matchByCode) {
+                        console.log(`[RECOVERY] Found matching category ${matchByCode.id} by code "${targetCodeNorm}"`);
+                        finalCategoryId = matchByCode.id;
+                    }
+                }
+            }
+
+            // 3. Last resort: If it's a DAS/Tax related thing, find ANY tax category
+            if (finalCategoryId === incomingId || incomingId.startsWith('synth-')) {
+                const isTaxRelated = incomingId.includes('02.1') || incomingId.includes('2.1') || 
+                                   (sourceCategory?.name || "").toUpperCase().includes('DAS') ||
+                                   (sourceCategory?.name || "").toUpperCase().includes('TRIBUTO');
+                
+                if (isTaxRelated) {
+                    const taxCat = await prisma.category.findFirst({
+                        where: {
+                            tenantId: currentTenantId,
+                            OR: [
+                                { name: { contains: 'DAS', mode: 'insensitive' } },
+                                { name: { contains: 'TRIBUTO', mode: 'insensitive' } },
+                                { name: { contains: 'IMPOSTO', mode: 'insensitive' } }
+                            ]
+                        }
+                    });
+                    if (taxCat) {
+                        console.log(`[RECOVERY] Found tax category ${taxCat.id} as last resort`);
+                        finalCategoryId = taxCat.id;
+                    }
+                }
+            }
+
+            // CRITICAL: If after all recovery we still have a synthetic ID, WE MUST NOT PROCEED with create
+            if (finalCategoryId.startsWith('synth-')) {
+                console.error(`[RECOVERY FAIL] Could not find any real category for synthetic ID ${incomingId}`);
+                continue;
             }
         }
+        finalCategoryIdForDiag = finalCategoryId;
 
         // 1. Robustly parse Cost Center ID
         const rawCC = (costCenterId || "").toString().trim();

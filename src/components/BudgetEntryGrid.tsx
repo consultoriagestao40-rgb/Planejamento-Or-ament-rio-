@@ -552,11 +552,24 @@ export default function BudgetEntryGrid({ costCenterId, year, taxRate = 0 }: Bud
                         const isTaxName = nName.includes('DAS') || nName.includes('SIMPLES NACIONAL') || nName.includes('TRIBUTO') || nName.includes('IMPOSTO');
                         
                         if (isTaxCode || isTaxName) {
-                            dasNodes.push(n);
+                            // Priority: Leaf nodes or nodes explicitly named DAS/SIMPLES
+                            if (!n.children || n.children.length === 0 || nName.includes('DAS') || nName.includes('SIMPLES')) {
+                                if (!dasNodes.find(d => d.id === n.id)) dasNodes.push(n);
+                            }
+                            // Always explore children even if parent matched (to find more specific leaf nodes)
+                            if (n.children) fDN(n.children);
                         } else if (n.children) fDN(n.children);
                     });
                 };
                 fDN(treeRoots);
+                
+                // If we found specific DAS nodes, remove the generic parent if it was added
+                if (dasNodes.length > 1) {
+                    const hasSpecific = dasNodes.some(d => d.name.toUpperCase().includes('DAS') || d.name.toUpperCase().includes('SIMPLES'));
+                    if (hasSpecific) {
+                        dasNodes = dasNodes.filter(d => d.name.toUpperCase().includes('DAS') || d.name.toUpperCase().includes('SIMPLES'));
+                    }
+                }
             }
 
             for (let i = 0; i < 12; i++) {

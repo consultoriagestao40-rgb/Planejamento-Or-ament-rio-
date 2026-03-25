@@ -142,10 +142,7 @@ export async function GET(request: Request) {
               });
           }
 
-      ccFilter = { OR: [
-        { costCenterId: { in: Array.from(allSynonymousIds) } },
-        { costCenterId: null }
-      ]};
+      ccFilter = { costCenterId: { in: Array.from(allSynonymousIds) } };
     } else {
       // GESTOR general view: restricted to their CCs (costCenterIds already populated above)
       ccFilter = costCenterIds.length > 0

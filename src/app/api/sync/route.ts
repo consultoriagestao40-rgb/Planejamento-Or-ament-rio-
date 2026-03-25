@@ -75,14 +75,19 @@ export async function GET(request: Request) {
                 whereClause.costCenterId = { in: Array.from(allSynonymousIds) };
         }
 
-        const [realizedEntries, budgetEntries] = await Promise.all([
+        const [realizedRaw, budgetRaw] = await Promise.all([
             prisma.realizedEntry.findMany({
-                where: { ...whereClause, viewMode }
+                where: { ...whereClause, viewMode },
+                include: { category: true }
             }),
             prisma.budgetEntry.findMany({
-                where: whereClause
+                where: whereClause,
+                include: { category: true }
             })
         ]);
+
+        const realizedEntries = realizedRaw.filter(e => e.category !== null);
+        const budgetEntries = budgetRaw.filter(e => e.category !== null);
 
         const categories = await prisma.category.findMany({
             where: { tenantId: { in: allVariantIds } },

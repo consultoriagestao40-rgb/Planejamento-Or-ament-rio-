@@ -788,14 +788,32 @@ export default function BudgetEntryGrid({ costCenterId, year, taxRate = 0 }: Bud
                                 title={rawData?.observation ? `Obs: ${rawData.observation}` : hasChildren ? 'Subtotal' : 'Clique para editar'}
                             >
                                 {locked && !hasChildren && <span style={{ marginRight: '0.2rem', fontSize: '0.6rem', opacity: 0.5 }}>🔒</span>}
-                                {bg === 0 ? (hasChildren ? '-' : <span style={{ opacity: 0.3 }}>—</span>) : fmt(bg)}
+                                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end' }}>
+                                    <span style={{ fontWeight: node.level === 0 ? 700 : 500 }}>
+                                        {bg === 0 ? (hasChildren ? '-' : <span style={{ opacity: 0.3 }}>—</span>) : fmt(bg)}
+                                    </span>
+                                    {bg !== 0 && (
+                                        <span style={{ fontSize: '0.65rem', color: 'var(--text-muted)', fontWeight: 400, opacity: 0.7 }}>
+                                            {(dreMonthlyData[i].recLiq !== 0 ? (bg / dreMonthlyData[i].recLiq * 100).toFixed(1) : '0.0')}%
+                                        </span>
+                                    )}
+                                </div>
                             </td>
                         );
                     })}
 
                     {/* Annual total */}
                     <td style={{ padding: '0.85rem 1rem', textAlign: 'right', fontSize: '0.8rem', fontWeight: 800, color: 'var(--text-primary)', whiteSpace: 'nowrap', borderLeft: '1px solid var(--border-default)', background: 'var(--bg-surface)', borderRight: '1px solid var(--border-subtle)' }}>
-                        {fmt((totals?.budget || new Array(12).fill(0)).reduce((a: number, b: number) => a + b, 0))}
+                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end' }}>
+                            <span>{fmt((totals?.budget || new Array(12).fill(0)).reduce((a: number, b: number) => a + b, 0))}</span>
+                            <span style={{ fontSize: '0.65rem', color: 'var(--text-muted)', fontWeight: 400, opacity: 0.7 }}>
+                                {(() => {
+                                    const annualValue = (totals?.budget || new Array(12).fill(0)).reduce((a: number, b: number) => a + b, 0);
+                                    const annualRecLiq = MONTHS.reduce((acc, _, idx) => acc + dreMonthlyData[idx].recLiq, 0);
+                                    return (annualRecLiq !== 0 ? (annualValue / annualRecLiq * 100).toFixed(1) : '0.0');
+                                })()}%
+                            </span>
+                        </div>
                     </td>
                 </tr>
                 {isExpanded && node.children.map(child => renderNode(child))}
@@ -807,6 +825,8 @@ export default function BudgetEntryGrid({ costCenterId, year, taxRate = 0 }: Bud
     const renderSummaryRow = (label: string, valuesB: number[], isBold = false, bgColor = 'var(--bg-elevated)', textColor = 'var(--text-primary)', groupId?: string) => {
         const isExpanded = groupId ? expandedGroups.has(groupId) : true;
         const annualB = valuesB.reduce((a, b) => a + b, 0);
+        const annualRecLiq = MONTHS.reduce((acc, _, idx) => acc + dreMonthlyData[idx].recLiq, 0);
+
         return (
             <tr onClick={() => groupId && toggleGroup(groupId)} style={{ background: bgColor, borderBottom: '1px solid var(--border-default)', fontWeight: isBold ? 800 : 600, cursor: groupId ? 'pointer' : 'default' }}>
                 <td style={{ padding: '0.85rem 1rem', position: 'sticky', left: 0, background: bgColor.includes('gradient') ? '#2563eb' : bgColor, zIndex: 10, color: textColor, fontSize: '0.85rem', minWidth: '380px', width: '380px', borderRight: '1px solid var(--border-default)', textTransform: 'uppercase', letterSpacing: '0.02em' }}>
@@ -817,12 +837,26 @@ export default function BudgetEntryGrid({ costCenterId, year, taxRate = 0 }: Bud
                     </div>
                 </td>
                 {MONTHS.map((_, i) => (
-                    <td key={i} style={{ padding: '0.85rem 1rem', textAlign: 'right', fontSize: '0.8rem', color: textColor, whiteSpace: 'nowrap', borderRight: '1px solid var(--border-subtle)', fontWeight: isBold ? 800 : 600 }}>
-                        {valuesB[i] === 0 ? '-' : fmt(valuesB[i])}
+                    <td key={i} style={{ padding: '0.6rem 1rem', textAlign: 'right', fontSize: '0.8rem', color: textColor, whiteSpace: 'nowrap', borderRight: '1px solid var(--border-subtle)', fontWeight: isBold ? 800 : 600 }}>
+                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end' }}>
+                            <span>{valuesB[i] === 0 ? '-' : fmt(valuesB[i])}</span>
+                            {valuesB[i] !== 0 && (
+                                <span style={{ fontSize: '0.65rem', opacity: 0.7, fontWeight: 400 }}>
+                                    {(dreMonthlyData[i].recLiq !== 0 ? (valuesB[i] / dreMonthlyData[i].recLiq * 100).toFixed(1) : '0.0')}%
+                                </span>
+                            )}
+                        </div>
                     </td>
                 ))}
-                <td style={{ padding: '0.85rem 1rem', textAlign: 'right', fontSize: '0.8rem', fontWeight: 800, color: textColor, whiteSpace: 'nowrap', borderLeft: '1px solid var(--border-default)', borderRight: '1px solid var(--border-subtle)' }}>
-                    {annualB === 0 ? '-' : fmt(annualB)}
+                <td style={{ padding: '0.6rem 1rem', textAlign: 'right', fontSize: '0.8rem', fontWeight: 800, color: textColor, whiteSpace: 'nowrap', borderLeft: '1px solid var(--border-default)', borderRight: '1px solid var(--border-subtle)' }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end' }}>
+                        <span>{annualB === 0 ? '-' : fmt(annualB)}</span>
+                        {annualB !== 0 && (
+                            <span style={{ fontSize: '0.65rem', opacity: 0.7, fontWeight: 400 }}>
+                                {(annualRecLiq !== 0 ? (annualB / annualRecLiq * 100).toFixed(1) : '0.0')}%
+                            </span>
+                        )}
+                    </div>
                 </td>
             </tr>
         );

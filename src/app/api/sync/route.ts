@@ -23,6 +23,23 @@ export async function GET(request: Request) {
             allVariantIds = Array.from(new Set(variantSets.flat()));
         }
 
+        // --- NEW: Expand variants based on selected Cost Center's Tenant CNPJ ---
+        if (costCenterId && costCenterId !== 'DEFAULT' && costCenterId !== 'null') {
+            const firstCCId = costCenterId.split(',')[0].trim();
+            const targetCC = await prisma.costCenter.findUnique({
+                where: { id: firstCCId },
+                include: { tenant: true }
+            });
+            if (targetCC?.tenant?.cnpj) {
+                const sameCnpjTenants = await prisma.tenant.findMany({
+                    where: { cnpj: targetCC.tenant.cnpj },
+                    select: { id: true }
+                });
+                const extraIds = sameCnpjTenants.map(t => t.id);
+                allVariantIds = Array.from(new Set([...allVariantIds, ...extraIds]));
+            }
+        }
+
         // Deduplicate
         allVariantIds = Array.from(new Set(allVariantIds));
 
@@ -57,7 +74,7 @@ export async function GET(request: Request) {
                     
                     const synonymousCCs = await prisma.costCenter.findMany({
                         where: {
-                            tenantId: { in: selectedCCs.map(cc => cc.tenantId) },
+                            tenantId: { in: allVariantIds },
                             OR: firstPartNames.map(name => ({
                                 name: { contains: name }
                             }))

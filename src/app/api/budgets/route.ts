@@ -149,35 +149,57 @@ export async function GET(request: Request) {
 
     const selectedYear = parseInt(searchParams.get('year') || new Date().getFullYear().toString());
 
-    // --- RE-IMPLEMENTING SYNONYM LOGIC (Same as Sync API) ---
-    let allSynonymousCCIds: string[] = [];
-    let allVariantTenantIds: string[] = tenantIdParam !== 'ALL' ? tenantIds : [];
+    // --- ULTRA ROBUST CC & TENANT EXPANSION (Matches Sync API) ---
+    let allSynonymousIdsArr: string[] = [];
+    let allVariantIdsArr: string[] = tenantIdParam !== 'ALL' ? tenantIds : [];
 
-    if (!isGeneralView && costCenterIds.length === 1) {
-        const targetCCId = costCenterIds[0];
-        const targetCC = await prisma.costCenter.findUnique({
-            where: { id: targetCCId },
+    if (!isGeneralView && costCenterIds.length > 0) {
+        // 1. Get the base CCs and their tenants
+        const baseCCs = await prisma.costCenter.findMany({
+            where: { id: { in: costCenterIds } },
             include: { tenant: true }
         });
 
-        if (targetCC) {
-            const normalize = (s: string) => (s || '').toLowerCase().replace(/^[0-9.]+\s*[-]\s*/, '').replace(/[^a-z0-9]/g, '').trim();
-            const nTargetName = normalize(targetCC.name);
-            const allCCs = await prisma.costCenter.findMany();
-            const synonymousCCs = allCCs.filter(c => normalize(c.name) === nTargetName);
-            allSynonymousCCIds = synonymousCCs.map(c => c.id);
-            if (targetCC.tenant?.cnpj) {
-                const tenants = await prisma.tenant.findMany({ where: { cnpj: targetCC.tenant.cnpj } });
-                allVariantTenantIds = tenants.map(t => t.id);
+        if (baseCCs.length > 0) {
+            // 2. Expand Tenant IDs by CNPJ
+            const cnpjs = Array.from(new Set(baseCCs.map(cc => cc.tenant?.cnpj).filter(Boolean)));
+            if (cnpjs.length > 0) {
+                const variantTenants = await prisma.tenant.findMany({
+                    where: { cnpj: { in: cnpjs as string[] } }
+                });
+                const variantIds = variantTenants.map(t => t.id);
+                allVariantIdsArr = Array.from(new Set([...allVariantIdsArr, ...variantIds]));
             }
+
+            // 3. Find ALL CCs in these variant tenants
+            const potentialCCs = await prisma.costCenter.findMany({
+                where: { tenantId: { in: allVariantIdsArr } }
+            });
+
+            // 4. Normalize and find synonyms
+            const normalize = (name: string) => (name || '')
+                .toLowerCase()
+                .replace(/^[0-9. ]+/, '')
+                .replace(/[^a-z0-9]/g, '')
+                .replace(/merces/g, 'meces')
+                .trim();
+
+            const targetNorms = baseCCs.map(cc => normalize(cc.name));
+            const synonyms = potentialCCs.filter(cc => {
+                const cn = normalize(cc.name);
+                return targetNorms.some(tn => cn.includes(tn) || tn.includes(cn));
+            });
+
+            allSynonymousIdsArr = synonyms.map(cc => cc.id);
         }
     }
 
+    // Final Query with expanded IDs
     const budgetsRaw = await prisma.budgetEntry.findMany({
       where: {
         year: selectedYear,
-        ...(allSynonymousCCIds.length > 0 ? { costCenterId: { in: allSynonymousCCIds } } : ccFilter),
-        ...(allSynonymousCCIds.length > 0 ? {} : (allVariantTenantIds.length > 0 ? { tenantId: { in: allVariantTenantIds } } : tenantFilter))
+        ...(allSynonymousIdsArr.length > 0 ? { costCenterId: { in: allSynonymousIdsArr } } : ccFilter),
+        tenantId: { in: allVariantIdsArr.length > 0 ? allVariantIdsArr : (tenantIdParam === 'ALL' ? undefined : tenantIds) }
       },
       include: {
         category: {
@@ -198,7 +220,7 @@ export async function GET(request: Request) {
     allGlobalCategories.forEach(c => {
         const normName = c.name.toUpperCase().trim();
         // Priority: current tenant's ID
-        if (allVariantTenantIds.includes(c.tenantId)) {
+        if (allVariantIdsArr.includes(c.tenantId)) {
             nameToActiveId.set(normName, c.id);
         } else if (!nameToActiveId.has(normName)) {
             nameToActiveId.set(normName, c.id);

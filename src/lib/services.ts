@@ -121,45 +121,68 @@ export async function syncRealizedEntries(tenantId: string, year: number, viewMo
 export async function syncMasterData(tenantId: string) {
     const { token } = await getValidAccessToken(tenantId);
     
-    // 1. Sync Categories
+    // 1. Sync Categories with Pagination
     try {
-        const catRes = await fetch(`https://api-v2.contaazul.com/v1/categorias?tamanho_pagina=100`, { 
-            headers: { 'Authorization': `Bearer ${token}` } 
-        });
-        if (catRes.ok) {
-            const data = await catRes.json();
-            const items = data.itens || [];
-            
-            for (const item of items) {
-                const catId = `${tenantId}:${item.id}`;
-                await (prisma.category as any).upsert({
-                    where: { id: catId },
-                    update: { name: item.name, parentId: item.categoria_pai ? `${tenantId}:${item.categoria_pai.id}` : null },
-                    create: { id: catId, name: item.name, tenantId, parentId: item.categoria_pai ? `${tenantId}:${item.categoria_pai.id}` : null, type: 'OTHER' }
-                });
-            }
+        let page = 1;
+        let hasMore = true;
+        while (hasMore) {
+            const catRes = await fetch(`https://api-v2.contaazul.com/v1/categorias?tamanho_pagina=100&pagina=${page}`, { 
+                headers: { 'Authorization': `Bearer ${token}` } 
+            });
+            if (catRes.ok) {
+                const data = await catRes.json();
+                const items = data.itens || [];
+                if (items.length === 0) { hasMore = false; break; }
+                
+                for (const item of items) {
+                    const catId = `${tenantId}:${item.id}`;
+                    await (prisma.category as any).upsert({
+                        where: { id: catId },
+                        update: { 
+                            name: item.name, 
+                            parentId: item.categoria_pai ? `${tenantId}:${item.categoria_pai.id}` : null 
+                        },
+                        create: { 
+                            id: catId, 
+                            name: item.name, 
+                            tenantId, 
+                            parentId: item.categoria_pai ? `${tenantId}:${item.categoria_pai.id}` : null, 
+                            type: 'OTHER' 
+                        }
+                    });
+                }
+                if (items.length < 100) hasMore = false; else page++;
+            } else { hasMore = false; }
         }
     } catch (e) {
         console.error(`[SYNC-MASTER] Categorias error for ${tenantId}:`, e);
     }
 
-    // 2. Sync Cost Centers
+    // 2. Sync Cost Centers with Pagination
     try {
-        const ccRes = await fetch(`https://api-v2.contaazul.com/v1/centro-de-custo?tamanho_pagina=100`, { 
-            headers: { 'Authorization': `Bearer ${token}` } 
-        });
-        if (ccRes.ok) {
-            const data = await ccRes.json();
-            const items = Array.isArray(data) ? data : (data.itens || []);
-            
-            for (const item of items) {
-                const ccId = `${tenantId}:${item.id}`;
-                await (prisma.costCenter as any).upsert({
-                    where: { id: ccId },
-                    update: { name: item.name },
-                    create: { id: ccId, name: item.name, tenantId }
-                });
-            }
+        let page = 1;
+        let hasMore = true;
+        while (hasMore) {
+            const ccRes = await fetch(`https://api-v2.contaazul.com/v1/centro-de-custo?tamanho_pagina=100&pagina=${page}`, { 
+                headers: { 'Authorization': `Bearer ${token}` } 
+            });
+            if (ccRes.ok) {
+                const data = await ccRes.json();
+                const items = Array.isArray(data) ? data : (data.itens || []);
+                if (items.length === 0) { hasMore = false; break; }
+                
+                for (const item of items) {
+                    const ccId = `${tenantId}:${item.id}`;
+                    await (prisma.costCenter as any).upsert({
+                        where: { id: ccId },
+                        update: { name: item.name },
+                        create: { id: ccId, name: item.name, tenantId }
+                    });
+                }
+                // V2 API for Cost Centers returns a flat array in some cases, or items
+                if (Array.isArray(data)) { hasMore = false; } 
+                else if (items.length < 100) hasMore = false; else page++;
+            } else { hasMore = false; }
         }
     } catch (e) {
         console.error(`[SYNC-MASTER] Cost Centers error for ${tenantId}:`, e);

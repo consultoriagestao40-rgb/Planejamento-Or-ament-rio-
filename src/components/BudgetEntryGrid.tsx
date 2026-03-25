@@ -617,13 +617,19 @@ export default function BudgetEntryGrid({ costCenterId, year, taxRate = 0 }: Bud
                         isLocked: userRole === 'MASTER' ? lockedMonths[i] : undefined
                     });
 
-                    // Zero-out other IDs in the same node only if they had a value (reduces payload)
+                    // NUCLEAR CLEAN: Zero-out ALL other technical IDs in this same node
+                    // This ensures no ghost records remain in the database for synonymous categories.
                     allIds.forEach((id: string) => {
-                        if (id !== targetId && budgetValues[`${id}-${i}`]?.amount) {
+                        if (id !== targetId) {
                             entries.push({
-                                categoryId: id, month: i, year, costCenterId,
-                                tenantId: categories.find((c: any) => c.id === id)?.tenantId || '',
-                                amount: 0, observation: null
+                                categoryId: id,
+                                month: i,
+                                year,
+                                costCenterId: costCenterId === 'Geral' ? null : costCenterId,
+                                tenantId: categories.find((c: any) => c.id === id)?.tenantId || tenantId || '',
+                                amount: 0,
+                                observation: null,
+                                isLocked: false
                             });
                         }
                     });
@@ -697,7 +703,11 @@ export default function BudgetEntryGrid({ costCenterId, year, taxRate = 0 }: Bud
                             const taxAmount = revenueBaseForMonth * (effectiveTaxRate / 100);
                             const saveTenantId = tenantId || dN.tenantId || (categories.find((c: any) => c.id === mainId)?.tenantId || '');
                             
-                            if (saveTenantId && mainId) {
+                            // HARD BLOCK: Never auto-calculate taxes for Revenue/Commission nodes
+                            const dNNameNorm = dN.name.toUpperCase();
+                            const isBlacklisted = dNNameNorm.includes('VENDA') || dNNameNorm.includes('COMISSAO') || dNNameNorm.includes('PRODUTO') || dN.code?.startsWith('01') || dN.code?.startsWith('1.');
+                            
+                            if (saveTenantId && mainId && !isBlacklisted) {
                                 entries.push({
                                     categoryId: mainId, month: i, year, costCenterId, 
                                     tenantId: saveTenantId,

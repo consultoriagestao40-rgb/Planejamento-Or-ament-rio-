@@ -433,13 +433,9 @@ export async function POST(request: Request) {
         const dbYear = parseInt(year.toString());
 
         const updateData: any = {};
-        if (entry.amount !== undefined) updateData.amount = parseFloat(entry.amount.toString() || "0");
-        if (entry.radarAmount !== undefined) updateData.radarAmount = entry.radarAmount === null ? null : parseFloat(entry.radarAmount.toString() || "0");
-        if (entry.isLocked !== undefined) updateData.isLocked = !!entry.isLocked;
-        if (entry.observation !== undefined) updateData.observation = entry.observation || null;
-
-        // 3. Robust Save using findFirst + update/create (Avoids Prisma upsert null-key issues)
-        const existing = await prisma.budgetEntry.findFirst({
+        // 1. CLEAR existing records for this specific Category, Month, Year, and CostCenter
+        // This ensures NO DUPLICATES remain from previous imports or bugs.
+        await prisma.budgetEntry.deleteMany({
           where: {
             tenantId: currentTenantId,
             categoryId: finalCategoryId,
@@ -449,29 +445,33 @@ export async function POST(request: Request) {
           }
         });
 
+        // 2. CREATE the new entry if amount is not null/empty (effectively a zero-aware upsert)
         let budget;
-        if (existing) {
-          budget = await prisma.budgetEntry.update({
-            where: { id: existing.id },
-            data: updateData
-          });
-        } else {
+        if (entry.amount !== undefined && entry.amount !== null) {
           budget = await prisma.budgetEntry.create({
             data: {
-              ...updateData,
-              tenantId: currentTenantId,
               categoryId: finalCategoryId,
-              costCenterId: targetCCId,
               month: dbMonth,
               year: dbYear,
-              amount: updateData.amount || 0,
-              radarAmount: updateData.radarAmount ?? null,
+              amount: parseFloat(entry.amount.toString() || "0"),
+              observation: entry.observation || null,
+              costCenterId: targetCCId,
+              tenantId: currentTenantId,
               isLocked: !!entry.isLocked,
-              observation: entry.observation || null
+              radarAmount: entry.radarAmount === null ? null : parseFloat(entry.radarAmount.toString() || "0"),
             }
           });
+        } else {
+          // If amount is null/undefined, it means we want to effectively "delete" the entry
+          // or set it to zero, which is handled by the deleteMany above.
+          // We don't create a new entry if the amount is not provided.
+          // For consistency, we can push a "null" or "deleted" status to results if needed,
+          // but for now, we just skip creating.
+          budget = null; 
         }
-        results.push(budget);
+        if (budget) {
+          results.push(budget);
+        }
       } catch (err: any) {
         console.error(`[API POST ERR] Loop entry failure:`, err.message);
         const diagErr: any = new Error(err.message);

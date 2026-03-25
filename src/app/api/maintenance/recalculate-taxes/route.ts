@@ -6,61 +6,75 @@ export async function GET(req: Request) {
     const year = parseInt(searchParams.get('year') || '2026');
 
     try {
-        // 1. Get all revenue budget entries for the year
-        // Revenue categories usually start with "01"
         const revenueBudgets = await prisma.budgetEntry.findMany({
             where: {
                 year,
-                category: {
-                    name: { startsWith: '01' }
-                }
+                category: { name: { startsWith: '01' } }
             },
             include: {
-                tenant: { select: { id: true, taxRate: true } }
+                tenant: { select: { id: true, name: true, taxRate: true } }
             }
         });
 
         console.log(`Analyzing ${revenueBudgets.length} revenue budget entries for year ${year}`);
 
-        // 2. Group by (tenant, costCenter, month) to calculate total revenue per unit/month
         const revenueMap: Record<string, number> = {};
         revenueBudgets.forEach(b => {
-            const key = `${b.tenantId}|${b.costCenterId}|${b.month}`;
+            const key = `${b.tenantId}|${b.costCenterId || 'null'}|${b.month}`;
             revenueMap[key] = (revenueMap[key] || 0) + b.amount;
         });
 
-        // 3. Find the DAS category ID for each tenant
         const tenants = await prisma.tenant.findMany({
             include: { categories: { where: { name: { contains: 'DAS' } } } }
         });
 
         const tenantDasMap: Record<string, string> = {};
+        const tenantRateMap: Record<string, number> = {};
+        const tenantNameMap: Record<string, string> = {};
+        
         tenants.forEach(t => {
-            const dasCat = t.categories.find(c => c.name.includes('.1.1') || c.name.includes('DAS'));
+            const dasCat = t.categories.find(c => 
+                c.name.includes('.1.1') || 
+                c.name.toUpperCase().includes('DAS') ||
+                c.name.toUpperCase().includes('SIMPLES NACIONAL') ||
+                c.name.startsWith('02.1')
+            );
             if (dasCat) tenantDasMap[t.id] = dasCat.id;
+            tenantRateMap[t.id] = t.taxRate || 0;
+            tenantNameMap[t.id] = t.name;
         });
 
         const updates = [];
+        const logs: any[] = [];
         let createdCount = 0;
 
         for (const [key, revAmount] of Object.entries(revenueMap)) {
             const [tenantId, costCenterId, monthStr] = key.split('|');
             const month = parseInt(monthStr);
-            const tenant = tenants.find(t => t.id === tenantId);
+            const rate = tenantRateMap[tenantId] || 0;
             const dasCatId = tenantDasMap[tenantId];
 
-            if (tenant && tenant.taxRate > 0 && dasCatId && revAmount > 0) {
-                const taxAmount = revAmount * (tenant.taxRate / 100);
-                
-                // Ensure dasCatId is string (not null/undefined) for type safety
+            if (dasCatId && revAmount > 0) {
+                const taxAmount = revAmount * (rate / 100);
                 const finalDasCatId: string = dasCatId!;
+                const finalCCId: string | null = (costCenterId === 'null' || !costCenterId) ? null : costCenterId;
+
+                logs.push({
+                    tenant: tenantNameMap[tenantId],
+                    ccId: finalCCId,
+                    month,
+                    rev: revAmount,
+                    rate: rate,
+                    tax: taxAmount
+                });
+
                 updates.push(
                     prisma.budgetEntry.upsert({
                         where: {
                             tenantId_categoryId_costCenterId_month_year: {
                                 tenantId,
                                 categoryId: finalDasCatId,
-                                costCenterId: (costCenterId === 'null' || !costCenterId) ? undefined : costCenterId,
+                                costCenterId: finalCCId as any,
                                 month,
                                 year
                             }
@@ -69,7 +83,7 @@ export async function GET(req: Request) {
                         create: {
                             tenantId,
                             categoryId: finalDasCatId,
-                            costCenterId: (costCenterId === 'null' || !costCenterId) ? null : costCenterId,
+                            costCenterId: finalCCId,
                             month,
                             year,
                             amount: taxAmount
@@ -86,7 +100,8 @@ export async function GET(req: Request) {
 
         return NextResponse.json({
             success: true,
-            message: `Recalculated taxes for ${createdCount} unit/month combinations.`,
+            summary: logs.slice(0, 10), // Return first 10 for debug
+            totalAffected: createdCount,
             year
         });
 

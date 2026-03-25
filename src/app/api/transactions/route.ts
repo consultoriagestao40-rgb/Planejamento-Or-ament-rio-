@@ -16,41 +16,25 @@ export async function GET(request: Request) {
             return NextResponse.json({ success: false, error: 'Category ID is required' }, { status: 400 });
         }
 
-        // 1. Determine Target Tenants (Primary IDs)
-        const allTenants = await prisma.tenant.findMany();
-        const companyGroups = new Map<string, string[]>();
-        allTenants.forEach((t: any) => {
-            const cleanCnpj = (t.cnpj || '').replace(/\D/g, '');
-            const cleanName = (t.name || '').trim().toUpperCase().replace(/[^A-Z0-9]/g, '');
-            const key = cleanCnpj !== '' ? cleanCnpj : cleanName;
-            if (!companyGroups.has(key)) companyGroups.set(key, []);
-            companyGroups.get(key)!.push(t.id);
-        });
-
+        // 1. Determine Target Tenants (Primary IDs) using unified tenant-utils
+        const { getAllVariantIds } = await import('@/lib/tenant-utils');
         let targetTenantIds: string[] = [];
-        if (tenantIdParam === 'ALL') {
-             targetTenantIds = Array.from(companyGroups.values()).map(ids => ids.sort()[0]);
+        
+        if (tenantIdParam === 'ALL' || tenantIdParam === 'DEFAULT') {
+            const allTenants = await prisma.tenant.findMany({ select: { id: true } });
+            targetTenantIds = allTenants.map(t => t.id);
         } else {
-            const inputIds = tenantIdParam.split(',').map(t => t.trim()).filter(Boolean);
-            for (const id of inputIds) {
-                const t = allTenants.find((ten: any) => ten.id === id);
-                if (t) {
-                    const cleanCnpj = (t.cnpj || '').replace(/\D/g, '');
-                    const cleanName = (t.name || '').trim().toUpperCase().replace(/[^A-Z0-9]/g, '');
-                    const key = cleanCnpj !== '' ? cleanCnpj : cleanName;
-                    const group = companyGroups.get(key) || [id];
-                    const primary = group.sort()[0];
-                    if (!targetTenantIds.includes(primary)) targetTenantIds.push(primary);
-                }
-            }
+            const requestedIds = tenantIdParam.split(',').map(id => id.trim()).filter(Boolean);
+            const variantSets = await Promise.all(requestedIds.map(id => getAllVariantIds(id)));
+            targetTenantIds = Array.from(new Set(variantSets.flat()));
         }
 
-        // 2. Expand Category IDs (Children)
+        // 2. Determine Category IDs (Strict matching to Grid row)
         const allCategoryIds = new Set<string>();
 
         if (categoryId.startsWith('synth-')) {
             const codePrefix = categoryId.replace('synth-', '');
-            // Find all categories that start with this code in their name (e.g. '01.1')
+            // For synthetic parents, we DO need to find all children that match the code
             const children = await prisma.category.findMany({
                 where: {
                     tenantId: { in: targetTenantIds },
@@ -60,15 +44,9 @@ export async function GET(request: Request) {
             });
             children.forEach(c => allCategoryIds.add(c.id));
         } else {
-            const initialIds = categoryId.split(',');
-            const queue = [...initialIds];
-            while (queue.length > 0) {
-                const current = queue.shift()!;
-                if (allCategoryIds.has(current)) continue;
-                allCategoryIds.add(current);
-                const children = await prisma.category.findMany({ where: { parentId: current }, select: { id: true } });
-                queue.push(...children.map(c => c.id));
-            }
+            // For leaf/merged categories from the Grid, we use the IDs EXACTLY as provided
+            // This prevents "hidden" children from appearing in the modal if they are not seen in the grid row.
+            categoryId.split(',').map(id => id.trim()).filter(Boolean).forEach(id => allCategoryIds.add(id));
         }
 
         // 3. Query DB for transactions (using realizedEntry)

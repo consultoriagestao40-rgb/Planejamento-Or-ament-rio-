@@ -398,14 +398,21 @@ export async function POST(request: Request) {
         }
       }
 
+      const itemCategoryId = categoryId || entry.categoryId;
+      const itemTenantId = targetTenantId || entry.tenantId;
 
-      console.log(`[API POST] Upserting Cat: ${categoryId}, Tenant: ${targetTenantId}, CC: ${targetCostCenterId}, Month: ${dbMonth}`);
+      console.log(`[API POST] Upserting Cat: ${itemCategoryId}, Tenant: ${itemTenantId}, CC: ${targetCostCenterId}, Month: ${dbMonth}`);
+
+      if (!itemTenantId || !itemCategoryId) {
+        console.error(`[API POST ERR] Missing critical data: tenantId=${itemTenantId}, categoryId=${itemCategoryId}`);
+        continue; 
+      }
 
       try {
         const whereClause = {
           tenantId_categoryId_costCenterId_month_year: {
-            tenantId: targetTenantId,
-            categoryId: categoryId,
+            tenantId: itemTenantId,
+            categoryId: itemCategoryId,
             costCenterId: targetCostCenterId,
             month: dbMonth,
             year: parseInt(year.toString())
@@ -419,8 +426,8 @@ export async function POST(request: Request) {
         if (entry.observation !== undefined) updateData.observation = entry.observation || null;
 
         const createData: any = {
-          tenantId: targetTenantId,
-          categoryId: categoryId,
+          tenantId: itemTenantId,
+          categoryId: itemCategoryId,
           costCenterId: targetCostCenterId,
           month: dbMonth,
           year: parseInt(year.toString()),
@@ -437,7 +444,7 @@ export async function POST(request: Request) {
         });
         results.push(budget);
       } catch (err: any) {
-        console.error(`[API POST ERR] Cat ${categoryId}:`, err.message);
+        console.error(`[API POST ERR] Cat ${itemCategoryId}:`, err.message);
         throw err;
       }
     }

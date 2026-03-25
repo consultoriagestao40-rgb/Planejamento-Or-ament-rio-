@@ -570,12 +570,19 @@ export default function BudgetEntryGrid({ costCenterId, year, taxRate = 0 }: Bud
                         if (match) targetId = match.id;
                     }
 
+                    const saveTenantId = tenantId || (categories.find((c: any) => c.id === targetId)?.tenantId || '');
+                    
+                    if (!saveTenantId || !targetId) {
+                        console.error("[SAVE] Missing tenantId or targetId", { saveTenantId, targetId });
+                        continue;
+                    }
+
                     entries.push({
                         categoryId: targetId,
                         month: i,
                         year,
                         costCenterId,
-                        tenantId: tenantId || (categories.find((c: any) => c.id === targetId)?.tenantId || ''),
+                        tenantId: saveTenantId,
                         amount: currentNum,
                         radarAmount: budgetValues[`${targetId}-${i}`]?.radarAmount ?? null,
                         observation: isObsMonth ? (modalObservation.trim() || null) : (budgetValues[`${targetId}-${i}`]?.observation || null),
@@ -598,11 +605,8 @@ export default function BudgetEntryGrid({ costCenterId, year, taxRate = 0 }: Bud
                     let salaryBaseForMonth = 0;
                     salaryLeafNodes.forEach(leaf => {
                         const leafIds = leaf.id.split(',');
-                        const isCurrentLeaf = leafIds.some(id => allIds.includes(id));
-                        
-                        if (isCurrentLeaf) {
-                            salaryBaseForMonth += currentNum;
-                        } else {
+                        if (leafIds.some(id => allIds.includes(id))) salaryBaseForMonth += currentNum;
+                        else {
                             let leafTotal = 0;
                             leafIds.forEach(id => {
                                 const stored = budgetValues[`${id}-${i}`];
@@ -615,14 +619,17 @@ export default function BudgetEntryGrid({ costCenterId, year, taxRate = 0 }: Bud
                     chargeConfigs.forEach(config => {
                         const chargeNodes = chargeNodesPerConfig.get(config.code) || [];
                         chargeNodes.forEach(cN => {
-                            const chargeIds = cN.id.split(',');
-                            const mainId = chargeIds[0];
+                            const mainId = cN.id.split(',')[0];
                             const newAmount = salaryBaseForMonth * config.rate;
+                            const saveTenantId = tenantId || cN.tenantId || (categories.find((c: any) => c.id === mainId)?.tenantId || '');
                             
-                            entries.push({ 
-                                categoryId: mainId, month: i, year, costCenterId, tenantId, 
-                                amount: newAmount 
-                            });
+                            if (saveTenantId && mainId) {
+                                entries.push({ 
+                                    categoryId: mainId, month: i, year, costCenterId, 
+                                    tenantId: saveTenantId, 
+                                    amount: newAmount 
+                                });
+                            }
                         });
                     });
                 }
@@ -631,11 +638,8 @@ export default function BudgetEntryGrid({ costCenterId, year, taxRate = 0 }: Bud
                     let revenueBaseForMonth = 0;
                     revenueLeafNodes.forEach(leaf => {
                         const leafIds = leaf.id.split(',');
-                        const isCurrentLeaf = leafIds.some(id => allIds.includes(id));
-                        
-                        if (isCurrentLeaf) {
-                            revenueBaseForMonth += currentNum;
-                        } else {
+                        if (leafIds.some(id => allIds.includes(id))) revenueBaseForMonth += currentNum;
+                        else {
                             let leafTotal = 0;
                             leafIds.forEach(id => {
                                 const stored = budgetValues[`${id}-${i}`];
@@ -645,16 +649,21 @@ export default function BudgetEntryGrid({ costCenterId, year, taxRate = 0 }: Bud
                         }
                     });
 
-                    dasNodes.forEach(dN => {
-                        const dasIds = dN.id.split(',');
-                        const mainId = dasIds[0];
-                        const newAmount = revenueBaseForMonth * (taxRate / 100);
-                        
-                        entries.push({ 
-                            categoryId: mainId, month: i, year, costCenterId, tenantId, 
-                            amount: newAmount
+                    if (revenueBaseForMonth > 0) {
+                        dasNodes.forEach(dN => {
+                            const mainId = dN.id.split(',')[0];
+                            const taxAmount = revenueBaseForMonth * (taxRate / 100);
+                            const saveTenantId = tenantId || dN.tenantId || (categories.find((c: any) => c.id === mainId)?.tenantId || '');
+                            
+                            if (saveTenantId && mainId) {
+                                entries.push({
+                                    categoryId: mainId, month: i, year, costCenterId, 
+                                    tenantId: saveTenantId,
+                                    amount: taxAmount
+                                });
+                            }
                         });
-                    });
+                    }
                 }
             }
 

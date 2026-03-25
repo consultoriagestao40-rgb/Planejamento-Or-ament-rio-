@@ -152,42 +152,11 @@ export async function GET(request: Request) {
 
     const selectedYear = parseInt(searchParams.get('year') || new Date().getFullYear().toString());
 
-    // --- SYNONYM LOGIC (Same as Sync API) ---
-    // If we're looking at a specific CC, we must include all its synonyms across all technical IDs
-    let allSynonymousCCIds: string[] = [];
-    let allVariantTenantIds: string[] = tenantIdParam !== 'ALL' ? tenantIds : [];
-
-    if (!isGeneralView && costCenterIds.length === 1) {
-        const targetCCId = costCenterIds[0];
-        const targetCC = await prisma.costCenter.findUnique({
-            where: { id: targetCCId },
-            include: { tenant: true }
-        });
-
-        if (targetCC) {
-            // Find all CCs with similar names (synonyms)
-            // IMPROVEMENT: Ignore numeric prefixes for better matching
-            const normalize = (s: string) => (s || '').toLowerCase().replace(/^[0-9.]+\s*-\s*/, '').replace(/[^a-z0-9]/g, '').trim();
-            const nTargetName = normalize(targetCC.name);
-            
-            const allCCs = await prisma.costCenter.findMany();
-            const synonymousCCs = allCCs.filter(c => normalize(c.name) === nTargetName);
-            
-            allSynonymousCCIds = synonymousCCs.map(c => c.id);
-            
-            // Also ensure we have all synonymous tenant IDs
-            if (targetCC.tenant?.cnpj) {
-                const tenants = await prisma.tenant.findMany({ where: { cnpj: targetCC.tenant.cnpj } });
-                allVariantTenantIds = tenants.map(t => t.id);
-            }
-        }
-    }
-
     const budgetsRaw = await prisma.budgetEntry.findMany({
       where: {
-        year: selectedYear,
-        ...(allSynonymousCCIds.length > 0 ? { costCenterId: { in: allSynonymousCCIds } } : ccFilter),
-        ...(allVariantTenantIds.length > 0 ? { tenantId: { in: allVariantTenantIds } } : tenantFilter)
+        ...tenantFilter,
+        ...ccFilter,
+        year: selectedYear
       },
       include: {
         category: {
@@ -196,7 +165,6 @@ export async function GET(request: Request) {
       }
     });
 
-    // REVERT: Mandatory inclusion of ALL entries to avoid data loss reported by user
     const budgets = budgetsRaw;
 
 

@@ -4,30 +4,40 @@ import { prisma } from '@/lib/prisma';
 export async function GET() {
     const results: any = {
         timestamp: new Date().toISOString(),
-        networkStatus: 'checking',
-        dbStatus: 'checking'
+        version: 'v65.3',
+        network: 'ONLINE',
+        variables: {
+            DATABASE_URL: !!process.env.DATABASE_URL,
+            POSTGRES_PRISMA_URL: !!process.env.POSTGRES_PRISMA_URL,
+            POSTGRES_URL_NON_POOLING: !!process.env.POSTGRES_URL_NON_POOLING,
+            DATABASE_URL_UNPOOLED: !!process.env.DATABASE_URL_UNPOOLED,
+        },
+        dbTest: 'checking'
     };
 
-    // 1. Test External Network
     try {
-        const fetchStart = Date.now();
-        const res = await fetch('https://www.google.com', { signal: AbortSignal.timeout(5000) });
-        results.networkStatus = res.ok ? 'ONLINE' : 'FETCH_FAILED';
-        results.networkLatency = `${Date.now() - fetchStart}ms`;
+        const fetchRes = await fetch('https://www.google.com', { signal: AbortSignal.timeout(3000) });
+        results.googlePing = fetchRes.ok ? 'SUCCESS' : 'FAILED';
     } catch (e: any) {
-        results.networkStatus = `ERROR: ${e.message}`;
+        results.googlePing = `ERROR: ${e.message}`;
     }
 
-    // 2. Test Prisma Connection
     try {
-        const dbStart = Date.now();
-        const tenantCount = await prisma.tenant.count();
-        results.dbStatus = 'CONNECTED';
-        results.tenantCount = tenantCount;
-        results.dbLatency = `${Date.now() - dbStart}ms`;
+        const start = Date.now();
+        // Trying a raw query to bypass any model-specific issues
+        const dbRes = await prisma.$queryRaw`SELECT 1 as result`;
+        results.dbTest = 'CONNECTED';
+        results.dbLatency = `${Date.now() - start}ms`;
+        results.dbResult = dbRes;
     } catch (e: any) {
-        results.dbStatus = `FAILED: ${e.message}`;
+        results.dbTest = 'FAILED';
+        results.dbError = e.message;
         results.dbErrorType = e.constructor.name;
+        
+        // Breakdown the connection string host for the user to verify
+        const url = process.env.POSTGRES_URL_NON_POOLING || '';
+        const hostMatch = url.match(/@([^/:]+)/);
+        results.attemptedHost = hostMatch ? hostMatch[1] : 'NOT_FOUND';
     }
 
     return NextResponse.json(results);

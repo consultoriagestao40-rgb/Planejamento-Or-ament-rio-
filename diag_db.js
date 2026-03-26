@@ -1,28 +1,31 @@
 const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
-async function run() {
-  const t = await prisma.tenant.findFirst({ where: { name: { contains: 'FACILITIES', mode: 'insensitive' } } });
-  if(!t) { console.log('Tenant not found'); return; }
-  console.log('--- DIAGNOSTIC JVS FACILITIES ---');
-  console.log('Tenant ID:', t.id);
-  
-  // Find budgets for ALL Revenue (01.*) to be sure
-  const budgets = await prisma.budgetEntry.findMany({
-    where: { tenantId: t.id, month: 1, year: 2026 },
-    include: { costCenter: true, category: true }
-  });
-  
-  console.log('\nBUDGETS for Jan 2026:');
-  budgets.forEach(b => {
-    if (b.category?.name?.includes('Serviços')) {
-      console.log(`- Cat: ${b.category?.name} (${b.categoryId}), CC: ${b.costCenter?.name || 'Geral'} (${b.costCenterId}), Amount: ${b.amount}`);
-    }
-  });
-  
-  const ccs = await prisma.costCenter.findMany({ where: { tenantId: t.id } });
-  console.log('\nALL COST CENTERS in DB for JVS FACILITIES:');
-  ccs.forEach(c => {
-    console.log(`- ID: ${c.id}, Name: ${c.name}`);
-  });
+
+async function main() {
+    console.log("--- JAN/2026 BUDGET DATA DUMP ---");
+    const janBudgets = await prisma.budgetEntry.findMany({
+        where: { year: 2026, month: 1 },
+        include: { category: true }
+    });
+
+    console.log(`Total records for Jan/2026: ${janBudgets.length}`);
+
+    // Filter by the category name prefix "01.1" or "1.1"
+    const targetBudgets = janBudgets.filter(b => 
+        (b.category?.name || "").includes("01.1") || 
+        (b.category?.name || "").includes("1.1") ||
+        (b.category?.name || "").toUpperCase().includes("SERVIÇOS")
+    );
+
+    console.log("MATCHING BUDGETS:");
+    targetBudgets.forEach(b => {
+        console.log(`- ID: ${b.id}, CatID: ${b.categoryId}, CatName: "${b.category?.name}", Amount: ${b.amount}, Tenant: ${b.tenantId}`);
+    });
+
+    // Check specific IDs passed from modal (01.1)
+    const exactIdMatch = janBudgets.filter(b => b.categoryId === "01.1");
+    console.log(`Exact Match for "01.1": ${exactIdMatch.length}`);
+
 }
-run().catch(console.error).finally(() => prisma.$disconnect());
+
+main().catch(console.error).finally(() => prisma.$disconnect());

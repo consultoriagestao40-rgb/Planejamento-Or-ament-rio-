@@ -166,13 +166,23 @@ export async function GET(request: Request) {
             return Array.from(new Set([...ids, ...subDesc]));
         };
         
-        // v66.14/15: Start with seeds that match ID OR Name prefix (e.g. 01.1)
+        // v66.14/15/16: Start with seeds that match ID OR Name prefix (e.g. 01.1)
+        const normalizeCode = (c: string) => c.split('.').map(s => parseInt(s, 10).toString()).filter(s => s !== 'NaN').join('.');
+
         const seedIds = allCats
             .filter(c => {
                 const isIdMatch = categoryIdsSelected.includes(c.id);
-                const isNameMatch = categoryIdsSelected.some(pid => 
-                    (c.name || '').startsWith(pid) || (c.name || '').includes(pid + ' ') || (c.name || '').includes(pid + '-')
-                );
+                // v66.16: Normalize both ID and Name to handle leading zeros (01.1 vs 1.1)
+                const isNameMatch = categoryIdsSelected.some(pid => {
+                    const normPid = normalizeCode(pid);
+                    const catName = (c.name || '');
+                    const matchPrefix = catName.match(/^([\d.]+)/);
+                    if (matchPrefix) {
+                        const normCat = normalizeCode(matchPrefix[1]);
+                        return normCat === normPid;
+                    }
+                    return catName.startsWith(pid);
+                });
                 return isIdMatch || isNameMatch;
             })
             .map(c => c.id);

@@ -19,57 +19,149 @@ export async function GET(request: Request) {
         const yearParam = searchParams.get('year');
         const currentYear = yearParam ? parseInt(yearParam) : new Date().getFullYear();
 
-        let costCenterAccessMap: Record<string, string> = {};
+        // 1. Fetch Basic Data
+        const [tenants, costCenters, categories, budgets, realizedEntries, locks] = await Promise.all([
+            prisma.tenant.findMany(),
+            prisma.costCenter.findMany({ include: { tenant: true } }),
+            prisma.category.findMany(),
+            prisma.budgetEntry.findMany({ 
+                where: { year: currentYear },
+                include: { category: true }
+            }),
+            prisma.realizedEntry.findMany({ 
+                where: { year: currentYear },
+                include: { category: true }
+            }),
+            prisma.costCenterLock.findMany({
+                where: { year: currentYear }
+            })
+        ]);
+
+        const tenantMap = new Map(tenants.map(t => [t.id, t]));
+        const categoryMap = new Map(categories.map(c => [c.id, c]));
+        
+        // 2. Initialize Summary Map
+        const summaryMap: Record<string, any> = {};
+
+        // Initialize with all Cost Centers
+        costCenters.forEach(cc => {
+            const key = `${cc.tenantId}-${cc.id}`;
+            summaryMap[key] = {
+                tenantId: cc.tenantId,
+                tenantName: cc.tenant.name,
+                costCenterId: cc.id,
+                costCenterName: cc.name,
+                totalRevenueBudget: 0,
+                totalExpenseBudget: 0,
+                totalRevenue: 0,
+                totalExpense: 0,
+                hasBudgetData: false,
+                hasRealizedData: false,
+                isLocked: false,
+                status: 'PENDING',
+                taxRate: cc.tenant.taxRate || 0,
+                n1ApprovedBy: null,
+                n1ApprovedAt: null,
+                n2ApprovedBy: null,
+                n2ApprovedAt: null,
+                currentUserAccessLevel: 'EDITAR' // Default for Master
+            };
+        });
+
+        // Initialize "GENERAL" items for each tenant
+        tenants.forEach(t => {
+            const key = `${t.id}-DEFAULT`;
+            summaryMap[key] = {
+                tenantId: t.id,
+                tenantName: t.name,
+                costCenterId: 'DEFAULT',
+                costCenterName: 'GERAL (Sem Centro de Custo)',
+                totalRevenueBudget: 0,
+                totalExpenseBudget: 0,
+                totalRevenue: 0,
+                totalExpense: 0,
+                hasBudgetData: false,
+                hasRealizedData: false,
+                isLocked: false, // General is not lockable usually
+                status: 'APPROVED',
+                taxRate: t.taxRate || 0,
+                n1ApprovedBy: null,
+                n1ApprovedAt: null,
+                n2ApprovedBy: null,
+                n2ApprovedAt: null,
+                currentUserAccessLevel: 'EDITAR'
+            };
+        });
+
+        // 3. Aggregate Budgets
+        budgets.forEach(b => {
+            const key = `${b.tenantId}-${b.costCenterId || 'DEFAULT'}`;
+            if (!summaryMap[key]) return;
+
+            const category = categoryMap.get(b.categoryId);
+            if (!category) return;
+
+            if (category.type === 'REVENUE') {
+                summaryMap[key].totalRevenueBudget += b.amount;
+            } else {
+                summaryMap[key].totalExpenseBudget += b.amount;
+            }
+            summaryMap[key].hasBudgetData = true;
+        });
+
+        // 4. Aggregate Realized
+        realizedEntries.forEach(r => {
+            const key = `${r.tenantId}-${r.costCenterId || 'DEFAULT'}`;
+            if (!summaryMap[key]) return;
+
+            const category = categoryMap.get(r.categoryId);
+            if (!category) return;
+
+            if (category.type === 'REVENUE') {
+                summaryMap[key].totalRevenue += r.amount;
+            } else {
+                summaryMap[key].totalExpense += r.amount;
+            }
+            summaryMap[key].hasRealizedData = true;
+        });
+
+        // 5. Apply Locks and Approval Status
+        locks.forEach(lock => {
+            const key = `${lock.tenantId}-${lock.costCenterId}`;
+            if (summaryMap[key]) {
+                summaryMap[key].isLocked = lock.isLocked;
+                summaryMap[key].status = lock.status;
+                summaryMap[key].n1ApprovedBy = lock.n1ApprovedBy;
+                summaryMap[key].n1ApprovedAt = lock.n1ApprovedAt;
+                summaryMap[key].n2ApprovedBy = lock.n2ApprovedBy;
+                summaryMap[key].n2ApprovedAt = lock.n2ApprovedAt;
+            }
+        });
+
+        // 6. Security Filter (If user is GESTOR, only show their items)
+        let finalData = Object.values(summaryMap);
         if (user.role === 'GESTOR') {
             const dbUser = await prisma.user.findUnique({
                 where: { id: user.userId as string },
                 include: { costCenterAccess: true }
             });
             if (dbUser) {
-                dbUser.costCenterAccess.forEach((c: any) => {
-                    costCenterAccessMap[c.costCenterId] = c.accessLevel;
+                const allowedIds = new Set(dbUser.costCenterAccess.map(a => a.costCenterId));
+                finalData = finalData.filter(item => 
+                    item.costCenterId === 'DEFAULT' || allowedIds.has(item.costCenterId)
+                ).map(item => {
+                    const access = dbUser.costCenterAccess.find(a => a.costCenterId === item.costCenterId);
+                    return {
+                        ...item,
+                        currentUserAccessLevel: access ? access.accessLevel : 'LEITOR'
+                    };
                 });
             }
         }
 
-        const anyTenant = await prisma.tenant.findFirst();
-
-        // 1. Fetch Categories and Budgets
-        const [categories, budgets, realizedEntries] = await Promise.all([
-            prisma.category.findMany({
-                include: { tenant: true }
-            }),
-            prisma.budgetEntry.findMany({
-                where: { year: currentYear }
-            }),
-            prisma.realizedEntry.findMany({
-                where: { year: currentYear }
-            })
-        ]);
-
-        // --- GROUPING LOGIC ---
-        const summary: any = {};
-
-        categories.forEach(cat => {
-            const catId = cat.id;
-            const categoryBudgets = budgets.filter(b => b.categoryId === catId);
-            const categoryRealized = realizedEntries.filter(r => r.categoryId === catId);
-
-            const totalBudget = categoryBudgets.reduce((sum, b) => sum + (b.amount || 0), 0);
-            const totalRealized = categoryRealized.reduce((sum, r) => sum + (r.amount || 0), 0);
-
-            summary[catId] = {
-                id: catId,
-                name: cat.name,
-                budget: totalBudget,
-                realized: totalRealized,
-                diff: totalBudget - totalRealized
-            };
-        });
-
         return NextResponse.json({ 
             success: true, 
-            data: Object.values(summary),
+            data: finalData,
             year: currentYear
         });
 

@@ -193,12 +193,12 @@ export async function GET(request: Request) {
             const isInactive = item.isCandidateInactive;
             const name = item.costCenterName.toUpperCase();
             
-            // Specific hide requests
-            if (name === 'CLEAN TECH' || name === 'CONDOR RIO NEGRINHO' || name.includes('REDE TONIN')) {
+            // Specific hide requests (partial matches for safety)
+            if (name.includes('CLEAN TECH') || name.includes('RIO NEGRINHO') || name.includes('REDE TONIN')) {
                 return false;
             }
 
-            // General rule: hide if it was marked as inactive in DB (even if it has data, per user request)
+            // General rule: hide if it was marked as inactive in DB
             if (isInactive) return false;
             
             return true;

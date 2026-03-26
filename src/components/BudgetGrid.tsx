@@ -174,8 +174,8 @@ export default function BudgetGrid({
                         const rawCCName = cc ? cc.name : (b.costCenterId ? 'Sem Identificação' : 'Geral');
                         const normCC = normalize(rawCCName);
 
-                        // Use normalized name in dedup key for v66.8 robustness
-                        const dedupKey = `${compName}-${normCC}-${b.categoryId}`;
+                        // Ultra-aggressive dedup for v66.9: Ignore internal category ID, focus only on Company + Unit
+                        const dedupKey = `${compName}-${normCC}`;
                         if (processedKeys.has(dedupKey)) return;
                         processedKeys.add(dedupKey);
 

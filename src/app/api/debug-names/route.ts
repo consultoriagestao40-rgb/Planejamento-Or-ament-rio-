@@ -24,10 +24,11 @@ export async function GET(request: Request) {
         return NextResponse.json({ 
             success: true, 
             budgets: budgets.filter(b => b.amount > 0).map(b => ({
+                id: b.id, // ID do registro no BudgetEntry
                 cat: b.category?.name,
                 cc: b.costCenter?.name || 'Geral',
                 amt: b.amount,
-                id: b.costCenterId
+                ccId: b.costCenterId
             })),
             ccs: ccs.map(c => ({ id: c.id, name: c.name }))
         });

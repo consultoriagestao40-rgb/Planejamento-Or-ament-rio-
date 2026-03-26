@@ -164,7 +164,12 @@ export async function GET(request: Request) {
             return Array.from(new Set([...ids, ...subDesc]));
         };
         
-        const expandedIds = getDescendants(categoryIdsSelected);
+        // v66.14: Start with seeds that match ID OR Name prefix (e.g. 01.1)
+        const seedIds = allCats
+            .filter(c => categoryIdsSelected.includes(c.id) || categoryIdsSelected.some(pid => c.name?.startsWith(pid)))
+            .map(c => c.id);
+
+        const expandedIds = getDescendants(seedIds.length > 0 ? seedIds : categoryIdsSelected);
         const expandedCats = allCats.filter(c => expandedIds.includes(c.id));
         
         // 3. Collect base names of all categories in the tree (target + children)

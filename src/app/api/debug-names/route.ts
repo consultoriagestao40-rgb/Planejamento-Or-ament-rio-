@@ -7,26 +7,30 @@ export async function GET(request: Request) {
     const month = parseInt(searchParams.get('month') || '1');
     const year = parseInt(searchParams.get('year') || '2026');
 
-    if (!categoryId) return NextResponse.json({ error: 'Missing categoryId' });
-
     try {
+        const t = await prisma.tenant.findFirst({ where: { name: { contains: 'FACILITIES', mode: 'insensitive' } } });
+        if (!t) return NextResponse.json({ error: 'Tenant not found' });
+
         const budgets = await prisma.budgetEntry.findMany({
-            where: { categoryId, month, year },
+            where: { tenantId: t.id, month: 1, year: 2026 },
             include: { 
                 costCenter: true,
-                tenant: true
+                category: true
             }
         });
 
-        const mapping = budgets.map(b => ({
-            amount: b.amount,
-            ccName: b.costCenter?.name || 'Geral',
-            ccId: b.costCenterId,
-            tenantName: b.tenant?.name,
-            tenantId: b.tenantId
-        }));
+        const ccs = await prisma.costCenter.findMany({ where: { tenantId: t.id } });
 
-        return NextResponse.json({ success: true, mapping });
+        return NextResponse.json({ 
+            success: true, 
+            budgets: budgets.filter(b => b.amount > 0).map(b => ({
+                cat: b.category?.name,
+                cc: b.costCenter?.name || 'Geral',
+                amt: b.amount,
+                id: b.costCenterId
+            })),
+            ccs: ccs.map(c => ({ id: c.id, name: c.name }))
+        });
     } catch (e: any) {
         return NextResponse.json({ success: false, error: e.message });
     }

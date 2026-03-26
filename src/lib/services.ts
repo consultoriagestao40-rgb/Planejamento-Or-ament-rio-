@@ -135,18 +135,18 @@ export async function syncMasterData(tenantId: string) {
                 if (items.length === 0) { hasMore = false; break; }
                 
                 for (const item of items) {
-                    const catId = `${tenantId}:${item.id}`;
+                    const catId = item.id;
                     await (prisma.category as any).upsert({
                         where: { id: catId },
                         update: { 
                             name: item.name, 
-                            parentId: item.categoria_pai ? `${tenantId}:${item.categoria_pai.id}` : null 
+                            parentId: item.categoria_pai ? item.categoria_pai.id : null 
                         },
                         create: { 
                             id: catId, 
                             name: item.name, 
                             tenantId, 
-                            parentId: item.categoria_pai ? `${tenantId}:${item.categoria_pai.id}` : null, 
+                            parentId: item.categoria_pai ? item.categoria_pai.id : null, 
                             type: 'OTHER' 
                         }
                     });
@@ -172,7 +172,7 @@ export async function syncMasterData(tenantId: string) {
                 if (items.length === 0) { hasMore = false; break; }
                 
                 for (const item of items) {
-                    const ccId = `${tenantId}:${item.id}`;
+                    const ccId = item.id;
                     await (prisma.costCenter as any).upsert({
                         where: { id: ccId },
                         update: { name: item.name },
@@ -219,7 +219,7 @@ async function aggregateTransactions(accessToken: string, url: string, targetVal
                     const catToUse = finalCats.length > 0 ? finalCats : [categories[0]];
 
                     for (const cat of catToUse) {
-                        const catId = `${tenantId}:${cat.id || cat.categoria_id}`;
+                        const catId = cat.id || cat.categoria_id;
                         const catValue = Math.abs(typeof cat.valor === 'number' ? cat.valor : (amount / catToUse.length));
 
                         if (ccs.length === 0) {
@@ -227,7 +227,7 @@ async function aggregateTransactions(accessToken: string, url: string, targetVal
                             targetValues[key] = (targetValues[key] || 0) + catValue;
                         } else {
                             ccs.forEach((c: any) => {
-                                const ccId = `${tenantId}:${c.id}`;
+                                const ccId = c.id;
                                 const percent = (c.percentual || (100 / ccs.length)) / 100;
                                 const key = `${catId}|${ccId}-${monthIdx}`;
                                 targetValues[key] = (targetValues[key] || 0) + (catValue * percent);

@@ -35,13 +35,29 @@ export async function GET() {
                         .replace(/[^a-z0-9]/g, '')
                         .trim();
 
+                const blacklist = ['CLEAN TECH', 'RIO NEGRINHO', 'REDE TONIN'];
                 const map = new Map<string, any>();
+                
                 costCenters.forEach((cc: any) => {
+                    const originalName = (cc.name || '').toUpperCase();
                     const nName = normalizeName(cc.name);
                     const key = `${cc.tenantId}-${nName}`;
-                    const hasPrefix = (cc.name || '').startsWith('[INATIVO]') || (cc.name || '').startsWith('ENCERRADO');
+                    
+                    // If it's CLEAN TECH PRO, it's explicitly Whitelisted as per user request
+                    const isWhiteListed = originalName.includes('CLEAN TECH PRO');
+                    
+                    const isBlacklisted = !isWhiteListed && (
+                        blacklist.some(b => originalName.includes(b)) || 
+                        originalName.includes('[INATIVO]') || 
+                        originalName.includes('ENCERRADO')
+                    );
 
-                    if (!map.has(key) || !hasPrefix) {
+                    if (isBlacklisted) {
+                        // Skip these if we want them totally hidden
+                        return;
+                    }
+
+                    if (!map.has(key)) {
                         const displayName = (cc.name || '')
                             .replace(/^\[INATIVO\]\s*/i, '')
                             .replace(/^ENCERRADO\s*/i, '')

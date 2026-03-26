@@ -2,7 +2,8 @@ import { NextResponse } from 'next/server';
 
 export async function GET() {
     return NextResponse.json({ 
-        version: 'v65.8',
-        lastUpdate: "2026-03-26 01:09 (Ocultando unidades inativas: Clean Tech, Rio Negrinho e Rede Tonin)"
+        version: 'v66.0',
+        lastUpdate: '2026-03-26 - Add Budget Comparison in Audit Modal & Global Inactive Unit Hiding',
+        status: 'stable'
     });
 }

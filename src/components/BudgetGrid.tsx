@@ -155,12 +155,15 @@ export default function BudgetGrid({
 
             if (budgetData.success) {
                 const bMap: Record<string, number> = {};
-                // Use names or normalized names for mapping to avoid ID mismatches in consolidated views
+                // Filter by the specific month to avoid accumulated values (API uses 1-12, frontend uses 0-11)
+                const targetMonth = month + 1;
+                
                 budgetData.data.forEach((b: any) => {
-                    // Try to find the name for this CC ID from our loaded costCenters
-                    const cc = costCenters.find(c => c.id === b.costCenterId);
-                    const ccName = cc ? cc.name.toUpperCase().trim() : 'DEFAULT';
-                    bMap[ccName] = (bMap[ccName] || 0) + (b.amount || 0);
+                    if (b.month === targetMonth) {
+                        const cc = costCenters.find(c => c.id === b.costCenterId);
+                        const ccName = cc ? cc.name.toUpperCase().trim() : 'DEFAULT';
+                        bMap[ccName] = (bMap[ccName] || 0) + (b.amount || 0);
+                    }
                 });
                 setTransactionBudgets(bMap);
             }

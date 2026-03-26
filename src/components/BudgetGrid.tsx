@@ -157,15 +157,15 @@ export default function BudgetGrid({
                 const bMap: Record<string, { total: number, costCenters: Record<string, number> }> = {};
                 const targetMonth = month + 1;
                 
-                // Enhanced normalization: Remove accents, then code prefix, then uppercase
+                // Final robust normalization: Accents, [INATIVO], Code prefixes
                 const normalize = (name: string) => 
                     (name || '').normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+                        .replace(/^\[INATIVO\]\s*/i, '')
                         .replace(/^[0-9.]+\s*-\s*/, '')
                         .toUpperCase().trim();
 
                 budgetData.data.forEach((b: any) => {
                     if (b.month === targetMonth) {
-                        // Find the company name by tenantId directly!
                         const company = companies.find(c => c.id === b.tenantId);
                         const compName = (company ? company.name : 'Geral').toUpperCase().trim();
                         
@@ -175,8 +175,8 @@ export default function BudgetGrid({
                         
                         bMap[compName].total += (b.amount || 0);
                         
-                        // Map to CC using normalized name
-                        const cc = costCenters.find(c => c.id === b.costCenterId);
+                        // Robust ID matching: handle both uuid and tenantId:uuid
+                        const cc = costCenters.find(c => c.id === b.costCenterId || (c.id && c.id.includes(':' + b.costCenterId)));
                         const normCC = normalize(cc ? cc.name : (b.costCenterId ? 'Sem Identificação' : 'Geral'));
                         
                         bMap[compName].costCenters[normCC] = (bMap[compName].costCenters[normCC] || 0) + (b.amount || 0);
@@ -2048,6 +2048,7 @@ export default function BudgetGrid({
                                                             {(() => {
                                                                  const normalize = (name: string) => 
                                                                      (name || '').normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+                                                                         .replace(/^\[INATIVO\]\s*/i, '')
                                                                          .replace(/^[0-9.]+\s*-\s*/, '')
                                                                          .toUpperCase().trim();
                                                                  

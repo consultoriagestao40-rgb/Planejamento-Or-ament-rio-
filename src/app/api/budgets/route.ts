@@ -151,7 +151,10 @@ export async function GET(request: Request) {
     const categoryIdParam = searchParams.get('categoryId');
     const monthParamStr = searchParams.get('month');
     const monthParam = monthParamStr ? parseInt(monthParamStr) : undefined;
-    let categoryIdsSelected: string[] = categoryIdParam ? categoryIdParam.split(',').filter(Boolean) : [];
+    // v66.17: Strip 'synth-' prefix sent by the grid modal to find the real categories
+    let categoryIdsSelected: string[] = categoryIdParam 
+        ? categoryIdParam.split(',').map(id => id.replace(/^synth-/, '')).filter(Boolean) 
+        : [];
     let allSynonymousCategoryIds: string[] = [];
     
     if (categoryIdsSelected.length > 0) {

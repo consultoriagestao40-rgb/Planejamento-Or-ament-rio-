@@ -147,33 +147,41 @@ export async function GET(request: Request) {
         : {};
     }
 
-    // --- CATEGORY EXPANSION (NEW v66.6: Fix Modal Duplication) ---
+    // --- CATEGORY EXPANSION (v66.11: FIX TOTAL CONSISTENCY - Hierarchy + Synonyms) ---
     const categoryIdParam = searchParams.get('categoryId');
     let categoryIdsSelected: string[] = categoryIdParam ? categoryIdParam.split(',').filter(Boolean) : [];
     let allSynonymousCategoryIds: string[] = [];
-
+    
     if (categoryIdsSelected.length > 0) {
-        const sourceCats = await prisma.category.findMany({
-            where: { id: { in: categoryIdsSelected } },
-            select: { name: true }
+        // 1. Get all categories for tree traversal
+        const allCats = await prisma.category.findMany({ select: { id: true, name: true, parentId: true } });
+        
+        // 2. Recursive expansion helper
+        const getDescendants = (ids: string[]): string[] => {
+            const children = allCats.filter(c => c.parentId && ids.includes(c.parentId)).map(c => c.id);
+            if (children.length === 0) return ids;
+            const subDesc = getDescendants(children);
+            return Array.from(new Set([...ids, ...subDesc]));
+        };
+        
+        const expandedIds = getDescendants(categoryIdsSelected);
+        const expandedCats = allCats.filter(c => expandedIds.includes(c.id));
+        
+        // 3. Collect base names of all categories in the tree (target + children)
+        const targetBaseNames = new Set(expandedCats.map(c => (c.name || '').split('-').pop()?.toUpperCase().trim()).filter(Boolean));
+        
+        // 4. Find all matching names across the DB (Synonyms for any category in the hierarchy)
+        allSynonymousCategoryIds = allCats
+            .filter(c => {
+                const bName = (c.name || '').split('-').pop()?.toUpperCase().trim();
+                return bName && targetBaseNames.has(bName);
+            })
+            .map(c => c.id);
+            
+        // Final fallback: ensure original expansion IDs are included
+        expandedIds.forEach(id => {
+            if (!allSynonymousCategoryIds.includes(id)) allSynonymousCategoryIds.push(id);
         });
-
-        if (sourceCats.length > 0) {
-            const targetCatNames = sourceCats.map(c => (c.name || '').split('-').pop()?.toUpperCase().trim()).filter(Boolean);
-            const allCats = await prisma.category.findMany({ select: { id: true, name: true } });
-            
-            allSynonymousCategoryIds = allCats
-                .filter(c => {
-                    const cName = (c.name || '').split('-').pop()?.toUpperCase().trim();
-                    return targetCatNames.includes(cName);
-                })
-                .map(c => c.id);
-            
-            // Ensure original IDs are also included
-            categoryIdsSelected.forEach(id => {
-               if (!allSynonymousCategoryIds.includes(id)) allSynonymousCategoryIds.push(id);
-            });
-        }
     }
 
     const selectedYear = parseInt(searchParams.get('year') || new Date().getFullYear().toString());

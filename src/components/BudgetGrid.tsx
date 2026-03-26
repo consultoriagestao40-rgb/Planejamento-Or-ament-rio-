@@ -155,14 +155,12 @@ export default function BudgetGrid({
 
             if (budgetData.success) {
                 const bMap: Record<string, number> = {};
-                // The API returns 'data' which is an array of entries with costCenterId and amount
+                // Use names or normalized names for mapping to avoid ID mismatches in consolidated views
                 budgetData.data.forEach((b: any) => {
-                    if (b.costCenterId) {
-                        bMap[b.costCenterId] = (bMap[b.costCenterId] || 0) + (b.amount || 0);
-                    } else {
-                        // General budget for the tenant
-                        bMap['DEFAULT'] = (bMap['DEFAULT'] || 0) + (b.amount || 0);
-                    }
+                    // Try to find the name for this CC ID from our loaded costCenters
+                    const cc = costCenters.find(c => c.id === b.costCenterId);
+                    const ccName = cc ? cc.name.toUpperCase().trim() : 'DEFAULT';
+                    bMap[ccName] = (bMap[ccName] || 0) + (b.amount || 0);
                 });
                 setTransactionBudgets(bMap);
             }
@@ -2021,11 +2019,9 @@ export default function BudgetGrid({
                                                         </td>
                                                         <td style={{ padding: '0.75rem 1rem', textAlign: 'right', color: '#64748b' }}>
                                                             {(() => {
-                                                                // Find the CC ID to match with transactionBudgets
-                                                                const ccObj = costCenters.find(c => c.name === group.name);
-                                                                const budget = transactionBudgets[ccObj?.id || 'DEFAULT'] || 0;
-                                                                return budget.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
-                                                            })()}
+                                                                 const budget = transactionBudgets[group.name.toUpperCase().trim()] || 0;
+                                                                 return budget.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+                                                             })()}
                                                         </td>
                                                         <td style={{ padding: '0.75rem 1rem', textAlign: 'right', fontWeight: 'bold' }}>{group.total.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</td>
                                                     </tr>

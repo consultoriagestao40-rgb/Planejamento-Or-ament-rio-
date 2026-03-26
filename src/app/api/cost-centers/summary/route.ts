@@ -40,32 +40,53 @@ export async function GET(request: Request) {
         const tenantMap = new Map(tenants.map(t => [t.id, t]));
         const categoryMap = new Map(categories.map(c => [c.id, c]));
         
+        // --- NORMALIZATION HELPER ---
+        const getCleanName = (name: string) => {
+            return (name || '')
+                .replace(/^\[INATIVO\]\s*/i, '')
+                .replace(/^ENCERRADO\s*/i, '')
+                .replace(/^\[inativo\]\s*/i, '')
+                .replace(/^encerrado\s*/i, '')
+                .trim();
+        };
+
+        const costCenterMap = new Map(costCenters.map(cc => [cc.id, cc]));
+
         // 2. Initialize Summary Map
         const summaryMap: Record<string, any> = {};
 
-        // Initialize with ALL Cost Centers (we will filter later)
+        // Initialize unique groups by (Tenant + Clean Name)
         costCenters.forEach(cc => {
-            const key = `${cc.tenantId}-${cc.id}`;
-            summaryMap[key] = {
-                tenantId: cc.tenantId,
-                tenantName: cc.tenant.name,
-                costCenterId: cc.id,
-                costCenterName: cc.name,
-                totalRevenueBudget: 0,
-                totalExpenseBudget: 0,
-                totalRevenue: 0,
-                totalExpense: 0,
-                hasBudgetData: false,
-                hasRealizedData: false,
-                isLocked: false,
-                status: 'PENDING',
-                taxRate: cc.tenant.taxRate || 0,
-                n1ApprovedBy: null,
-                n1ApprovedAt: null,
-                n2ApprovedBy: null,
-                n2ApprovedAt: null,
-                currentUserAccessLevel: 'EDITAR'
-            };
+            const cleanName = getCleanName(cc.name);
+            const key = `${cc.tenantId}-${cleanName}`;
+            
+            // If the group doesn't exist, Create it
+            // If it exists but the NEW CC name does NOT have [INATIVO], it's the primary CC for ID links
+            const isInactive = (cc.name || '').toUpperCase().includes('[INATIVO]');
+            
+            if (!summaryMap[key] || (!isInactive && summaryMap[key].isCandidateInactive)) {
+                summaryMap[key] = {
+                    tenantId: cc.tenantId,
+                    tenantName: cc.tenant.name,
+                    costCenterId: cc.id, // Primary ID for links
+                    costCenterName: cleanName,
+                    totalRevenueBudget: 0,
+                    totalExpenseBudget: 0,
+                    totalRevenue: 0,
+                    totalExpense: 0,
+                    hasBudgetData: false,
+                    hasRealizedData: false,
+                    isLocked: false,
+                    status: 'PENDING',
+                    taxRate: cc.tenant.taxRate || 0,
+                    n1ApprovedBy: null,
+                    n1ApprovedAt: null,
+                    n2ApprovedBy: null,
+                    n2ApprovedAt: null,
+                    currentUserAccessLevel: 'EDITAR',
+                    isCandidateInactive: isInactive
+                };
+            }
         });
 
         // Initialize "GENERAL" items for each tenant
@@ -89,13 +110,22 @@ export async function GET(request: Request) {
                 n1ApprovedAt: null,
                 n2ApprovedBy: null,
                 n2ApprovedAt: null,
-                currentUserAccessLevel: 'EDITAR'
+                currentUserAccessLevel: 'EDITAR',
+                isCandidateInactive: false
             };
         });
 
         // 3. Aggregate Budgets
         budgets.forEach(b => {
-            const key = `${b.tenantId}-${b.costCenterId || 'DEFAULT'}`;
+            let key;
+            if (!b.costCenterId) {
+                key = `${b.tenantId}-DEFAULT`;
+            } else {
+                const cc = costCenterMap.get(b.costCenterId);
+                const cleanName = getCleanName(cc?.name || '');
+                key = `${b.tenantId}-${cleanName}`;
+            }
+
             if (!summaryMap[key]) return;
 
             const category = categoryMap.get(b.categoryId);
@@ -112,7 +142,15 @@ export async function GET(request: Request) {
 
         // 4. Aggregate Realized
         realizedEntries.forEach(r => {
-            const key = `${r.tenantId}-${r.costCenterId || 'DEFAULT'}`;
+            let key;
+            if (!r.costCenterId) {
+                key = `${r.tenantId}-DEFAULT`;
+            } else {
+                const cc = costCenterMap.get(r.costCenterId);
+                const cleanName = getCleanName(cc?.name || '');
+                key = `${r.tenantId}-${cleanName}`;
+            }
+
             if (!summaryMap[key]) return;
 
             const category = categoryMap.get(r.categoryId);
@@ -127,47 +165,42 @@ export async function GET(request: Request) {
             summaryMap[key].hasRealizedData = true;
         });
 
-        // 5. Apply Locks and Approval Status
+        // 5. Apply Locks and Approval Status (based on ANY of the IDs in the name group? usually 1:1)
         locks.forEach(lock => {
-            const key = `${lock.tenantId}-${lock.costCenterId}`;
+            const cc = costCenterMap.get(lock.costCenterId);
+            const cleanName = getCleanName(cc?.name || '');
+            const key = `${lock.tenantId}-${cleanName}`;
+            
             if (summaryMap[key]) {
-                summaryMap[key].isLocked = lock.isLocked;
-                summaryMap[key].status = lock.status;
-                summaryMap[key].n1ApprovedBy = lock.n1ApprovedBy;
-                summaryMap[key].n1ApprovedAt = lock.n1ApprovedAt;
-                summaryMap[key].n2ApprovedBy = lock.n2ApprovedBy;
-                summaryMap[key].n2ApprovedAt = lock.n2ApprovedAt;
+                // If the lock belongs to the primary CC or the group hasn't been locked yet, show it
+                summaryMap[key].isLocked = summaryMap[key].isLocked || lock.isLocked;
+                if (lock.status === 'APPROVED' || summaryMap[key].status === 'PENDING') {
+                    summaryMap[key].status = lock.status;
+                    summaryMap[key].n1ApprovedBy = lock.n1ApprovedBy;
+                    summaryMap[key].n1ApprovedAt = lock.n1ApprovedAt;
+                    summaryMap[key].n2ApprovedBy = lock.n2ApprovedBy;
+                    summaryMap[key].n2ApprovedAt = lock.n2ApprovedAt;
+                }
             }
         });
 
-        // 6. Security & Data Filter
+        // 6. Security Filter
         let finalData = Object.values(summaryMap);
-
-        // Filter out Inactive entries ONLY if they have NO DATA
-        finalData = finalData.filter(item => {
-            const isInactive = item.costCenterName.includes('[INATIVO]');
-            const hasData = item.totalRevenueBudget !== 0 || item.totalExpenseBudget !== 0 || item.totalRevenue !== 0 || item.totalExpense !== 0;
-            
-            if (isInactive && !hasData) return false;
-            return true;
-        });
-
         if (user.role === 'GESTOR') {
             const dbUser = await prisma.user.findUnique({
                 where: { id: user.userId as string },
                 include: { costCenterAccess: true }
             });
             if (dbUser) {
-                const allowedIds = new Set(dbUser.costCenterAccess.map(a => a.costCenterId));
-                finalData = finalData.filter(item => 
-                    item.costCenterId === 'DEFAULT' || allowedIds.has(item.costCenterId)
-                ).map(item => {
-                    const access = dbUser.costCenterAccess.find(a => a.costCenterId === item.costCenterId);
-                    return {
-                        ...item,
-                        currentUserAccessLevel: access ? access.accessLevel : 'LEITOR'
-                    };
+                const allowedCleanNames = new Set();
+                dbUser.costCenterAccess.forEach(a => {
+                    const cc = costCenterMap.get(a.costCenterId);
+                    allowedCleanNames.add(getCleanName(cc?.name || ''));
                 });
+
+                finalData = finalData.filter(item => 
+                    item.costCenterId === 'DEFAULT' || allowedCleanNames.has(getCleanName(item.costCenterName))
+                );
             }
         }
 

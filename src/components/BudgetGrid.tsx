@@ -174,8 +174,11 @@ export default function BudgetGrid({
                         const rawCCName = cc ? cc.name : (b.costCenterId ? 'Sem Identificação' : 'Geral');
                         const normCC = normalize(rawCCName);
 
-                        // Ultra-aggressive dedup for v66.9: Ignore internal category ID, focus only on Company + Unit
-                        const dedupKey = `${compName}-${normCC}`;
+                        // v66.10 Refinement: Dedup by Company + Unit + Normalized Category Name
+                        // This allows different subcategories (01.1.1 + 01.1.2) to sum, but merges synonyms
+                        const normCatName = (b.category?.name || '').toUpperCase().trim();
+                        const dedupKey = `${compName}-${normCC}-${normCatName}`;
+                        
                         if (processedKeys.has(dedupKey)) return;
                         processedKeys.add(dedupKey);
 

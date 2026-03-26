@@ -169,22 +169,25 @@ export async function GET(request: Request) {
             return Array.from(new Set([...ids, ...subDesc]));
         };
         
-        // v66.14/15/16: Start with seeds that match ID OR Name prefix (e.g. 01.1)
+        // v66.14-19: Ultra-Resilient Category Search for Grouped/Synthetic IDs
         const normalizeCode = (c: string) => c.split('.').map(s => parseInt(s, 10).toString()).filter(s => s !== 'NaN').join('.');
 
         const seedIds = allCats
             .filter(c => {
-                const isIdMatch = categoryIdsSelected.includes(c.id);
-                // v66.16: Normalize both ID and Name to handle leading zeros (01.1 vs 1.1)
+                const isIdMatch = categoryIdsSelected.some(pid => c.id === pid || c.id === pid.replace(/^synth-/, ''));
+                
                 const isNameMatch = categoryIdsSelected.some(pid => {
-                    const normPid = normalizeCode(pid);
+                    const cleanPid = pid.replace(/^synth-/, '');
+                    const normPid = normalizeCode(cleanPid);
                     const catName = (c.name || '');
+                    
+                    // Match by code prefix in name (e.g. "01.1 - ...")
                     const matchPrefix = catName.match(/^([\d.]+)/);
                     if (matchPrefix) {
                         const normCat = normalizeCode(matchPrefix[1]);
                         return normCat === normPid;
                     }
-                    return catName.startsWith(pid);
+                    return catName.startsWith(cleanPid) || catName.includes(cleanPid);
                 });
                 return isIdMatch || isNameMatch;
             })

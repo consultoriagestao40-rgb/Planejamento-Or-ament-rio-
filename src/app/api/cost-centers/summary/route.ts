@@ -43,8 +43,8 @@ export async function GET(request: Request) {
         // 2. Initialize Summary Map
         const summaryMap: Record<string, any> = {};
 
-        // Initialize with all Cost Centers
-        costCenters.forEach(cc => {
+        // Initialize with all ACTIVE Cost Centers
+        costCenters.filter(cc => !cc.name.includes('[INATIVO]')).forEach(cc => {
             const key = `${cc.tenantId}-${cc.id}`;
             summaryMap[key] = {
                 tenantId: cc.tenantId,
@@ -64,7 +64,7 @@ export async function GET(request: Request) {
                 n1ApprovedAt: null,
                 n2ApprovedBy: null,
                 n2ApprovedAt: null,
-                currentUserAccessLevel: 'EDITAR' // Default for Master
+                currentUserAccessLevel: 'EDITAR'
             };
         });
 
@@ -82,7 +82,7 @@ export async function GET(request: Request) {
                 totalExpense: 0,
                 hasBudgetData: false,
                 hasRealizedData: false,
-                isLocked: false, // General is not lockable usually
+                isLocked: false,
                 status: 'APPROVED',
                 taxRate: t.taxRate || 0,
                 n1ApprovedBy: null,
@@ -101,7 +101,8 @@ export async function GET(request: Request) {
             const category = categoryMap.get(b.categoryId);
             if (!category) return;
 
-            if (category.type === 'REVENUE') {
+            const type = (category.type || '').toUpperCase();
+            if (type === 'REVENUE' || type === 'RECEITA') {
                 summaryMap[key].totalRevenueBudget += b.amount;
             } else {
                 summaryMap[key].totalExpenseBudget += b.amount;
@@ -117,7 +118,8 @@ export async function GET(request: Request) {
             const category = categoryMap.get(r.categoryId);
             if (!category) return;
 
-            if (category.type === 'REVENUE') {
+            const type = (category.type || '').toUpperCase();
+            if (type === 'REVENUE' || type === 'RECEITA') {
                 summaryMap[key].totalRevenue += r.amount;
             } else {
                 summaryMap[key].totalExpense += r.amount;

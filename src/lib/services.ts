@@ -121,11 +121,11 @@ export async function syncRealizedEntries(tenantId: string, year: number, viewMo
 export async function syncMasterData(tenantId: string) {
     const { token } = await getValidAccessToken(tenantId);
     
-    // 1. Sync Categories with Pagination
+    // 1. Sync Categories with Pagination (Safety Limit: Max 10 Pages)
     try {
         let page = 1;
         let hasMore = true;
-        while (hasMore) {
+        while (hasMore && page <= 10) {
             const catRes = await fetch(`https://api-v2.contaazul.com/v1/categorias?tamanho_pagina=100&pagina=${page}`, { 
                 headers: { 'Authorization': `Bearer ${token}` } 
             });
@@ -158,11 +158,11 @@ export async function syncMasterData(tenantId: string) {
         console.error(`[SYNC-MASTER] Categorias error for ${tenantId}:`, e);
     }
 
-    // 2. Sync Cost Centers with Pagination
+    // 2. Sync Cost Centers with Pagination (Safety Limit: Max 10 Pages)
     try {
         let page = 1;
         let hasMore = true;
-        while (hasMore) {
+        while (hasMore && page <= 10) {
             const ccRes = await fetch(`https://api-v2.contaazul.com/v1/centro-de-custo?tamanho_pagina=100&pagina=${page}`, { 
                 headers: { 'Authorization': `Bearer ${token}` } 
             });
@@ -179,7 +179,6 @@ export async function syncMasterData(tenantId: string) {
                         create: { id: ccId, name: item.name, tenantId }
                     });
                 }
-                // V2 API for Cost Centers returns a flat array in some cases, or items
                 if (Array.isArray(data)) { hasMore = false; } 
                 else if (items.length < 100) hasMore = false; else page++;
             } else { hasMore = false; }

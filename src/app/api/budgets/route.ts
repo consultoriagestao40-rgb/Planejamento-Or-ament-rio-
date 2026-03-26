@@ -232,11 +232,17 @@ export async function GET(request: Request) {
         tenantId: { in: allVariantIdsArr.length > 0 ? allVariantIdsArr : (tenantIdParam === 'ALL' ? undefined : tenantIds) }
       },
       include: {
-        category: {
-          select: { id: true, name: true }
-        }
+        category: { select: { id: true, name: true } },
+        costCenter: { select: { id: true, name: true } }
       }
     });
+
+    // Helper for cost center normalization (mirroring frontend)
+    const normalizeCC = (name: string) => (name || '')
+        .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+        .replace(/^\[INATIVO\]\s*/i, '')
+        .replace(/^[0-9.]+\s*-\s*/, '')
+        .toUpperCase().trim();
 
     // --- ORPHAN RECOVERY LOGIC (Ultra Robust) ---
     // Load ALL categories from DB once to have a name-to-id mapping
@@ -271,21 +277,27 @@ export async function GET(request: Request) {
         return entry;
     });
 
-    // --- v66.7: LOGICAL DEDUPLICATION ---
-    // If we have multiple entries for the same Logical Category, CC, Month and Tenant, we pick only one.
-    // This prevents doubling values when synonyms exist in the DB.
+    // --- v66.8: LOGICAL DEDUPLICATION BY NORMALIZED NAME ---
+    // If we have multiple entries for the same Logical Category, Normalized CC Name, Month and Tenant, we pick only one.
+    // This prevents doubling values when synonyms exist in the DB (active vs [INATIVO] ID).
     const dedupMap = new Map<string, any>();
     mappedBudgets.forEach(b => {
-        const normCCId = b.costCenterId ? b.costCenterId.split(':').pop() : 'Geral';
-        const key = `${b.categoryId}-${normCCId}-${b.month}-${b.tenantId}`;
+        const ccName = b.costCenter?.name || 'Geral';
+        const normCCName = normalizeCC(ccName);
+        const key = `${b.categoryId}-${normCCName}-${b.month}-${b.tenantId}`;
         
         if (!dedupMap.has(key)) {
             dedupMap.set(key, b);
         } else {
-            // If they differ, keep the one with larger amount or strictly prioritize? 
-            // In case of exact duplication (user report 1.1M vs 587k), just keeping first is enough.
             const existing = dedupMap.get(key);
-            if ((b.amount || 0) > (existing.amount || 0)) {
+            const isExistingInativo = (existing.costCenter?.name || '').toUpperCase().includes('[INATIVO]');
+            const isCurrentInativo = (ccName).toUpperCase().includes('[INATIVO]');
+            
+            // Prioritize [ATIVO] over [INATIVO] if they exist for the same logical unit
+            if (isExistingInativo && !isCurrentInativo) {
+                dedupMap.set(key, b);
+            } else if ((b.amount || 0) > (existing.amount || 0) && (isExistingInativo === isCurrentInativo)) {
+                // Otherwise prioritize the one with larger amount
                 dedupMap.set(key, b);
             }
         }

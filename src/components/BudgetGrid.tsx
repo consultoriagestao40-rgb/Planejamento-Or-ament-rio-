@@ -170,10 +170,11 @@ export default function BudgetGrid({
                         const company = companies.find(c => c.id === b.tenantId);
                         const compName = (company ? company.name : 'Geral').toUpperCase().trim();
                         
-                        // Robust ID matching: handle both uuid and tenantId:uuid
                         const cc = costCenters.find(c => c.id === b.costCenterId || (c.id && c.id.includes(':' + b.costCenterId)));
-                        const normCC = normalize(cc ? cc.name : (b.costCenterId ? 'Sem Identificação' : 'Geral'));
+                        const rawCCName = cc ? cc.name : (b.costCenterId ? 'Sem Identificação' : 'Geral');
+                        const normCC = normalize(rawCCName);
 
+                        // Use normalized name in dedup key for v66.8 robustness
                         const dedupKey = `${compName}-${normCC}-${b.categoryId}`;
                         if (processedKeys.has(dedupKey)) return;
                         processedKeys.add(dedupKey);
@@ -1840,7 +1841,8 @@ export default function BudgetGrid({
                     companyEntries.forEach((e: any) => {
                         const key = e.costCenterId || '__null__';
                         if (!byCC[key]) {
-                            const cc = costCenters.find(c => c.id === e.costCenterId);
+                            // Support both raw UUID and tenant:UUID in lookup (v66.8 fix)
+                            const cc = costCenters.find(c => c.id === e.costCenterId || (c.id && c.id.includes(':' + e.costCenterId)));
                             byCC[key] = { name: cc?.name || (e.costCenterId ? e.costCenterId : 'Geral'), total: 0, entries: [] };
                         }
                         byCC[key].total += e.amount || 0;

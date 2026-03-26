@@ -377,20 +377,22 @@ export async function GET(request: Request) {
 
     const isDetailMode = searchParams.get('detail') === 'true';
 
-    if (isDetailMode) {
-      const rawEntries = budgets.map((b: any) => ({
-        categoryId: b.categoryId,
-        tenantId: b.tenantId,
-        costCenterId: b.costCenterId,
-        month: b.month, // RESTORE TO 1-12 (Frontend does -1)
-        year: b.year,
-        amount: b.amount || 0,
-        radarAmount: b.radarAmount,
-        isLocked: b.isLocked || isCCLocked,
-        observation: b.observation || null
-      }));
-      return NextResponse.json({ success: true, data: rawEntries, isCCLocked, radarLocks });
-    }
+      if (isDetailMode) {
+        const rawEntries = budgets.map((b: any) => ({
+          categoryId: (categoryIdParam && categoryIdsSelected.length > 0)
+            ? categoryIdsSelected[0] // v66.21: Use the requested ID (even if synthetic) to ensure modal aggregation
+            : b.categoryId,
+          tenantId: b.tenantId,
+          costCenterId: b.costCenterId,
+          month: b.month,
+          year: b.year,
+          amount: b.amount || 0,
+          radarAmount: b.radarAmount,
+          isLocked: b.isLocked || isCCLocked,
+          observation: b.observation || null
+        }));
+        return NextResponse.json({ success: true, data: rawEntries, isCCLocked, radarLocks });
+      }
 
     const aggregatedBudgets = budgets.reduce((acc: any, curr: any) => {
       // RESTORE TO 1-12 aggregation key (Frontend does -1)

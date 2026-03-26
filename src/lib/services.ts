@@ -44,7 +44,7 @@ export async function getValidAccessToken(tenantId?: string) {
     return { token: tenant.accessToken, tenant };
 }
 
-// Lógica de Sincronização V47.10.7 (Com Sales Fallback)
+// Lógica de Sincronização Simplificada (Versão de Estabilização)
 export async function fetchRealizedValues(accessToken: string, targetYear: number, costCenterId: string, viewMode: 'caixa' | 'competencia' = 'competencia', tenantId: string): Promise<Record<string, number>> {
     const values: Record<string, number> = {};
     const isCaixa = viewMode === 'caixa';
@@ -54,27 +54,13 @@ export async function fetchRealizedValues(accessToken: string, targetYear: numbe
     const dateParam = isCaixa ? 'data_pagamento' : 'data_competencia';
     
     const urls = [
-        // Eventos Financeiros (V2 e V1)
         `https://api-v2.contaazul.com/v1/financeiro/eventos-financeiros/contas-a-receber/buscar?${dateParam}_de=${startStr}&${dateParam}_ate=${endStr}&tamanho_pagina=100`,
         `https://api-v2.contaazul.com/v1/financeiro/eventos-financeiros/contas-a-pagar/buscar?${dateParam}_de=${startStr}&${dateParam}_ate=${endStr}&tamanho_pagina=100`,
-        // Vendas (Fundamental para Receita se o Financeiro estiver vazio)
-        `https://api-v2.contaazul.com/v1/vendas?data_emissao_de=${startStr}&data_emissao_ate=${endStr}&tamanho_pagina=100`,
-        `https://api.contaazul.com/v1/vendas?data_emissao_de=${startStr}&data_emissao_ate=${endStr}&tamanho_pagina=100`
+        `https://api-v2.contaazul.com/v1/vendas?data_emissao_de=${startStr}&data_emissao_ate=${endStr}&tamanho_pagina=100`
     ];
 
     for (const url of urls) {
-        await aggregateTransactions(accessToken, url, values, url.includes('pagar') || url.includes('buy'), costCenterId, targetYear, viewMode, tenantId);
-    }
-
-    // Brute Force Fallback (Sem filtros de data)
-    if (Object.keys(values).length === 0) {
-        const bruteUrls = [
-            `https://api-v2.contaazul.com/v1/financeiro/eventos-financeiros/contas-a-receber/buscar?tamanho_pagina=100`,
-            `https://api-v2.contaazul.com/v1/vendas?tamanho_pagina=100`
-        ];
-        for (const url of bruteUrls) {
-            await aggregateTransactions(accessToken, url, values, false, costCenterId, targetYear, viewMode, tenantId);
-        }
+        await aggregateTransactions(accessToken, url, values, url.includes('pagar'), costCenterId, targetYear, viewMode, tenantId);
     }
 
     return values;
@@ -121,123 +107,80 @@ export async function syncRealizedEntries(tenantId: string, year: number, viewMo
 export async function syncMasterData(tenantId: string) {
     const { token } = await getValidAccessToken(tenantId);
     
-    // 1. Sync Categories with Pagination (Safety Limit: Max 10 Pages)
+    // Sync Categories
     try {
-        let page = 1;
-        let hasMore = true;
-        while (hasMore && page <= 10) {
-            const catRes = await fetch(`https://api-v2.contaazul.com/v1/categorias?tamanho_pagina=100&pagina=${page}`, { 
-                headers: { 'Authorization': `Bearer ${token}` } 
-            });
-            if (catRes.ok) {
-                const data = await catRes.json();
-                const items = data.itens || [];
-                if (items.length === 0) { hasMore = false; break; }
-                
-                for (const item of items) {
-                    const catId = item.id;
-                    await (prisma.category as any).upsert({
-                        where: { id: catId },
-                        update: { 
-                            name: item.name, 
-                            parentId: item.categoria_pai ? item.categoria_pai.id : null 
-                        },
-                        create: { 
-                            id: catId, 
-                            name: item.name, 
-                            tenantId, 
-                            parentId: item.categoria_pai ? item.categoria_pai.id : null, 
-                            type: 'OTHER' 
-                        }
-                    });
-                }
-                if (items.length < 100) hasMore = false; else page++;
-            } else { hasMore = false; }
+        const catRes = await fetch(`https://api-v2.contaazul.com/v1/categorias?tamanho_pagina=100`, { 
+            headers: { 'Authorization': `Bearer ${token}` } 
+        });
+        if (catRes.ok) {
+            const data = await catRes.json();
+            const items = data.itens || [];
+            for (const item of items) {
+                await (prisma.category as any).upsert({
+                    where: { id: item.id },
+                    update: { name: item.name, parentId: item.categoria_pai?.id },
+                    create: { id: item.id, name: item.name, tenantId, parentId: item.categoria_pai?.id, type: 'OTHER' }
+                });
+            }
         }
-    } catch (e) {
-        console.error(`[SYNC-MASTER] Categorias error for ${tenantId}:`, e);
-    }
+    } catch (e) {}
 
-    // 2. Sync Cost Centers with Pagination (Safety Limit: Max 10 Pages)
+    // Sync Cost Centers
     try {
-        let page = 1;
-        let hasMore = true;
-        while (hasMore && page <= 10) {
-            const ccRes = await fetch(`https://api-v2.contaazul.com/v1/centro-de-custo?tamanho_pagina=100&pagina=${page}`, { 
-                headers: { 'Authorization': `Bearer ${token}` } 
-            });
-            if (ccRes.ok) {
-                const data = await ccRes.json();
-                const items = Array.isArray(data) ? data : (data.itens || []);
-                if (items.length === 0) { hasMore = false; break; }
-                
-                for (const item of items) {
-                    const ccId = item.id;
-                    await (prisma.costCenter as any).upsert({
-                        where: { id: ccId },
-                        update: { name: item.name },
-                        create: { id: ccId, name: item.name, tenantId }
-                    });
-                }
-                if (Array.isArray(data)) { hasMore = false; } 
-                else if (items.length < 100) hasMore = false; else page++;
-            } else { hasMore = false; }
+        const ccRes = await fetch(`https://api-v2.contaazul.com/v1/centro-de-custo`, { 
+            headers: { 'Authorization': `Bearer ${token}` } 
+        });
+        if (ccRes.ok) {
+            const data = await ccRes.json();
+            const items = Array.isArray(data) ? data : (data.itens || []);
+            for (const item of items) {
+                await (prisma.costCenter as any).upsert({
+                    where: { id: item.id },
+                    update: { name: item.name },
+                    create: { id: item.id, name: item.name, tenantId }
+                });
+            }
         }
-    } catch (e) {
-        console.error(`[SYNC-MASTER] Cost Centers error for ${tenantId}:`, e);
-    }
+    } catch (e) {}
 
     return { success: true };
 }
 
 async function aggregateTransactions(accessToken: string, url: string, targetValues: Record<string, number>, isExpense: boolean, costCenterIdString: string, targetYear: number, viewMode: string, tenantId: string) {
-    let page = 1;
-    let hasMore = true;
-    while (hasMore && page <= 10) {
-        try {
-            const res = await fetch(`${url}&pagina=${page}`, { headers: { 'Authorization': `Bearer ${accessToken}` } });
-            if (!res.ok) { hasMore = false; break; }
-            const data = await res.json();
-            const items = Array.isArray(data) ? data : (data.itens || data.items || data.eventos || data.vendas || []);
-            if (items.length === 0) { hasMore = false; break; }
+    try {
+        const res = await fetch(url, { headers: { 'Authorization': `Bearer ${accessToken}` } });
+        if (!res.ok) return;
+        const data = await res.json();
+        const items = Array.isArray(data) ? data : (data.itens || data.vendas || []);
 
-            for (const item of items) {
-                // Mapeamento Flexível V1/V2/Vendas
-                const amount = item.valor_total || item.total || item.valor || item.pago || item.valor_original || 0;
-                const dateStr = item.data_competencia || item.data_emissao || item.venda_em || item.data_vencimento || item.vencimento || item.data_pagamento;
-                
-                if (!dateStr) continue;
-                const dateObj = new Date(dateStr);
-                if (dateObj.getFullYear() !== targetYear) continue;
+        for (const item of items) {
+            const amount = item.valor_total || item.total || item.valor || item.pago || 0;
+            const dateStr = item.data_competencia || item.data_emissao || item.venda_em || item.data_pagamento;
+            if (!dateStr) continue;
+            const dateObj = new Date(dateStr);
+            if (dateObj.getFullYear() !== targetYear) continue;
 
-                const monthIdx = dateObj.getMonth();
-                const ccs = item.centros_de_custo || [];
-                const categories = item.categorias || (item.categoria ? [item.categoria] : []);
-                
-                if (categories.length > 0) {
-                    const finalCats = categories.filter((c: any) => !categories.some((other: any) => other.parent_id === c.id));
-                    const catToUse = finalCats.length > 0 ? finalCats : [categories[0]];
+            const monthIdx = dateObj.getMonth();
+            const ccs = item.centros_de_custo || [];
+            const categories = item.categorias || (item.categoria ? [item.categoria] : []);
+            
+            if (categories.length > 0) {
+                const catToUse = categories[0];
+                const catId = catToUse.id || catToUse.categoria_id;
+                const catValue = amount;
 
-                    for (const cat of catToUse) {
-                        const catId = cat.id || cat.categoria_id;
-                        const catValue = Math.abs(typeof cat.valor === 'number' ? cat.valor : (amount / catToUse.length));
-
-                        if (ccs.length === 0) {
-                            const key = `${catId}|NONE-${monthIdx}`;
-                            targetValues[key] = (targetValues[key] || 0) + catValue;
-                        } else {
-                            ccs.forEach((c: any) => {
-                                const ccId = c.id;
-                                const percent = (c.percentual || (100 / ccs.length)) / 100;
-                                const key = `${catId}|${ccId}-${monthIdx}`;
-                                targetValues[key] = (targetValues[key] || 0) + (catValue * percent);
-                            });
-                        }
-                    }
+                if (ccs.length === 0) {
+                    const key = `${catId}|NONE-${monthIdx}`;
+                    targetValues[key] = (targetValues[key] || 0) + catValue;
+                } else {
+                    ccs.forEach((c: any) => {
+                        const ccId = c.id;
+                        const percent = (c.percentual || (100 / ccs.length)) / 100;
+                        const key = `${catId}|${ccId}-${monthIdx}`;
+                        targetValues[key] = (targetValues[key] || 0) + (catValue * percent);
+                    });
                 }
             }
-            if (items.length < 100) hasMore = false; else page++;
-        } catch (e) { hasMore = false; break; }
-    }
+        }
+    } catch (e) {}
 }
-

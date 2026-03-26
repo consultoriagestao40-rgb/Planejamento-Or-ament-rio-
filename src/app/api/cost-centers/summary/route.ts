@@ -184,8 +184,26 @@ export async function GET(request: Request) {
             }
         });
 
-        // 6. Security Filter
+        // 6. Security & Data Filter
         let finalData = Object.values(summaryMap);
+
+        // Filter out groups that are PURELY Inactive (all original members have [INATIVO] or ENCERRADO)
+        // AND handle specific user requests for Clean Tech, Rio Negrinho and REDE TONIN
+        finalData = finalData.filter(item => {
+            const isInactive = item.isCandidateInactive;
+            const name = item.costCenterName.toUpperCase();
+            
+            // Specific hide requests
+            if (name === 'CLEAN TECH' || name === 'CONDOR RIO NEGRINHO' || name.includes('REDE TONIN')) {
+                return false;
+            }
+
+            // General rule: hide if it was marked as inactive in DB (even if it has data, per user request)
+            if (isInactive) return false;
+            
+            return true;
+        });
+
         if (user.role === 'GESTOR') {
             const dbUser = await prisma.user.findUnique({
                 where: { id: user.userId as string },

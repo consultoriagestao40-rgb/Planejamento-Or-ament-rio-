@@ -43,8 +43,8 @@ export async function GET(request: Request) {
         // 2. Initialize Summary Map
         const summaryMap: Record<string, any> = {};
 
-        // Initialize with all ACTIVE Cost Centers
-        costCenters.filter(cc => !cc.name.includes('[INATIVO]')).forEach(cc => {
+        // Initialize with ALL Cost Centers (we will filter later)
+        costCenters.forEach(cc => {
             const key = `${cc.tenantId}-${cc.id}`;
             summaryMap[key] = {
                 tenantId: cc.tenantId,
@@ -140,8 +140,18 @@ export async function GET(request: Request) {
             }
         });
 
-        // 6. Security Filter (If user is GESTOR, only show their items)
+        // 6. Security & Data Filter
         let finalData = Object.values(summaryMap);
+
+        // Filter out Inactive entries ONLY if they have NO DATA
+        finalData = finalData.filter(item => {
+            const isInactive = item.costCenterName.includes('[INATIVO]');
+            const hasData = item.totalRevenueBudget !== 0 || item.totalExpenseBudget !== 0 || item.totalRevenue !== 0 || item.totalExpense !== 0;
+            
+            if (isInactive && !hasData) return false;
+            return true;
+        });
+
         if (user.role === 'GESTOR') {
             const dbUser = await prisma.user.findUnique({
                 where: { id: user.userId as string },

@@ -108,7 +108,7 @@ export default function BudgetGrid({
     const [newJustification, setNewJustification] = useState('');
     const [isSavingJustification, setIsSavingJustification] = useState(false);
     const [hasJustificationMap, setHasJustificationMap] = useState<Record<string, boolean>>({});
-    const [transactionBudgets, setTransactionBudgets] = useState<Record<string, number>>({});
+    const [transactionBudgets, setTransactionBudgets] = useState<Record<string, { total: number, costCenters: Record<string, number> }>>({});
 
     const evaluateFormula = (formula: string): number => {
         if (!formula.startsWith('=')) {
@@ -154,15 +154,29 @@ export default function BudgetGrid({
             }
 
             if (budgetData.success) {
-                const bMap: Record<string, number> = {};
-                // Filter by the specific month to avoid accumulated values (API uses 1-12, frontend uses 0-11)
+                const bMap: Record<string, { total: number, costCenters: Record<string, number> }> = {};
                 const targetMonth = month + 1;
                 
+                const normalize = (name: string) => name.replace(/^[0-9.]+\s*-\s*/, '').toUpperCase().trim();
+
                 budgetData.data.forEach((b: any) => {
                     if (b.month === targetMonth) {
                         const cc = costCenters.find(c => c.id === b.costCenterId);
-                        const ccName = cc ? cc.name.toUpperCase().trim() : 'DEFAULT';
-                        bMap[ccName] = (bMap[ccName] || 0) + (b.amount || 0);
+                        if (!cc) return;
+
+                        // Identify the company (Tenant)
+                        const company = companies.find(c => c.id === cc.tenantId);
+                        const compName = (company ? company.name : (cc.tenantName || 'Geral')).toUpperCase().trim();
+                        
+                        // Normalize CC name (remove prefix)
+                        const normCC = normalize(cc.name);
+                        
+                        if (!bMap[compName]) {
+                            bMap[compName] = { total: 0, costCenters: {} };
+                        }
+                        
+                        bMap[compName].total += (b.amount || 0);
+                        bMap[compName].costCenters[normCC] = (bMap[compName].costCenters[normCC] || 0) + (b.amount || 0);
                     }
                 });
                 setTransactionBudgets(bMap);
@@ -1971,7 +1985,8 @@ export default function BudgetGrid({
                                             <thead>
                                                 <tr style={{ background: '#f8fafc', textAlign: 'left' }}>
                                                     <th style={{ padding: '0.75rem 1rem', borderBottom: '1px solid #e2e8f0', color: '#475569' }}>Empresas Contribuintes</th>
-                                                    <th style={{ padding: '0.75rem 1rem', borderBottom: '1px solid #e2e8f0', textAlign: 'right', color: '#475569' }}>Sub-Total</th>
+                                                    <th style={{ padding: '0.75rem 1rem', borderBottom: '1px solid #e2e8f0', textAlign: 'right', color: '#475569' }}>Orçado</th>
+                                                    <th style={{ padding: '0.75rem 1rem', borderBottom: '1px solid #e2e8f0', textAlign: 'right', color: '#475569' }}>Realizado</th>
                                                 </tr>
                                             </thead>
                                             <tbody>
@@ -1985,6 +2000,9 @@ export default function BudgetGrid({
                                                         <td style={{ padding: '0.75rem 1rem', fontWeight: 600, color: '#3b82f6', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                                                             🏢 {group.name}
                                                         </td>
+                                                        <td style={{ padding: '0.75rem 1rem', textAlign: 'right', color: '#64748b' }}>
+                                                            {(transactionBudgets[group.name.toUpperCase().trim()]?.total || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                                                        </td>
                                                         <td style={{ padding: '0.75rem 1rem', textAlign: 'right', fontWeight: 'bold' }}>{group.total.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</td>
                                                     </tr>
                                                 ))}
@@ -1992,6 +2010,9 @@ export default function BudgetGrid({
                                             <tfoot>
                                                 <tr style={{ background: '#f1f5f9', fontWeight: 'bold' }}>
                                                     <td style={{ padding: '0.75rem 1rem', textAlign: 'right', borderTop: '2px solid #cbd5e1', fontSize: '0.85rem' }}>Total Geral do Mês:</td>
+                                                    <td style={{ padding: '0.75rem 1rem', textAlign: 'right', borderTop: '2px solid #cbd5e1', color: '#64748b', fontSize: '0.85rem' }}>
+                                                        {Object.values(transactionBudgets).reduce((acc: number, curr: any) => acc + curr.total, 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                                                    </td>
                                                     <td style={{ padding: '0.75rem 1rem', textAlign: 'right', borderTop: '2px solid #cbd5e1', color: '#0f172a', fontSize: '0.95rem' }}>
                                                         {groupedByCompany.reduce((acc, g) => acc + g.total, 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
                                                     </td>
@@ -2022,7 +2043,9 @@ export default function BudgetGrid({
                                                         </td>
                                                         <td style={{ padding: '0.75rem 1rem', textAlign: 'right', color: '#64748b' }}>
                                                             {(() => {
-                                                                 const budget = transactionBudgets[group.name.toUpperCase().trim()] || 0;
+                                                                 const normalize = (name: string) => name.replace(/^[0-9.]+\s*-\s*/, '').toUpperCase().trim();
+                                                                 const companyBudgets = transactionBudgets[transactionSelectedCompany?.toUpperCase().trim() || ''] || { costCenters: {} };
+                                                                 const budget = companyBudgets.costCenters[normalize(group.name)] || 0;
                                                                  return budget.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
                                                              })()}
                                                         </td>
@@ -2034,7 +2057,7 @@ export default function BudgetGrid({
                                                 <tr style={{ background: '#f1f5f9', fontWeight: 'bold' }}>
                                                     <td style={{ padding: '0.75rem 1rem', textAlign: 'right', borderTop: '2px solid #cbd5e1', fontSize: '0.85rem' }}>Total na Empresa:</td>
                                                     <td style={{ padding: '0.75rem 1rem', textAlign: 'right', borderTop: '2px solid #cbd5e1', color: '#64748b', fontSize: '0.85rem' }}>
-                                                        {Object.values(transactionBudgets).reduce((acc, curr) => acc + curr, 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                                                        {(transactionBudgets[transactionSelectedCompany?.toUpperCase().trim() || '']?.total || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
                                                     </td>
                                                     <td style={{ padding: '0.75rem 1rem', textAlign: 'right', borderTop: '2px solid #cbd5e1', color: '#0f172a', fontSize: '0.95rem' }}>
                                                         {groupedByCostCenter.reduce((acc, g) => acc + g.total, 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}

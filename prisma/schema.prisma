@@ -4,8 +4,8 @@ generator client {
 
 datasource db {
   provider  = "postgresql"
-  url       = env("DATABASE_URL_UNPOOLED")
-  directUrl = env("DATABASE_URL_UNPOOLED")
+  url       = env("POSTGRES_URL_NON_POOLING")
+  directUrl = env("POSTGRES_URL_NON_POOLING")
 }
 
 model Tenant {

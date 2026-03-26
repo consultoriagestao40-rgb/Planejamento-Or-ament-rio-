@@ -185,7 +185,8 @@ export async function GET(request: Request) {
                     const matchPrefix = catName.match(/^([\d.]+)/);
                     if (matchPrefix) {
                         const normCat = normalizeCode(matchPrefix[1]);
-                        return normCat === normPid;
+                        // v66.20: Fixed - Use startsWith to catch children (e.g. 1.1.1) when clicking a parent (1.1)
+                        return normCat === normPid || normCat.startsWith(normPid + '.');
                     }
                     return catName.startsWith(cleanPid) || catName.includes(cleanPid);
                 });

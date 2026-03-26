@@ -157,25 +157,28 @@ export default function BudgetGrid({
                 const bMap: Record<string, { total: number, costCenters: Record<string, number> }> = {};
                 const targetMonth = month + 1;
                 
-                const normalize = (name: string) => name.replace(/^[0-9.]+\s*-\s*/, '').toUpperCase().trim();
+                // Enhanced normalization: Remove accents, then code prefix, then uppercase
+                const normalize = (name: string) => 
+                    (name || '').normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+                        .replace(/^[0-9.]+\s*-\s*/, '')
+                        .toUpperCase().trim();
 
                 budgetData.data.forEach((b: any) => {
                     if (b.month === targetMonth) {
-                        const cc = costCenters.find(c => c.id === b.costCenterId);
-                        if (!cc) return;
-
-                        // Identify the company (Tenant)
-                        const company = companies.find(c => c.id === cc.tenantId);
-                        const compName = (company ? company.name : (cc.tenantName || 'Geral')).toUpperCase().trim();
-                        
-                        // Normalize CC name (remove prefix)
-                        const normCC = normalize(cc.name);
+                        // Find the company name by tenantId directly!
+                        const company = companies.find(c => c.id === b.tenantId);
+                        const compName = (company ? company.name : 'Geral').toUpperCase().trim();
                         
                         if (!bMap[compName]) {
                             bMap[compName] = { total: 0, costCenters: {} };
                         }
                         
                         bMap[compName].total += (b.amount || 0);
+                        
+                        // Map to CC using normalized name
+                        const cc = costCenters.find(c => c.id === b.costCenterId);
+                        const normCC = normalize(cc ? cc.name : (b.costCenterId ? 'Sem Identificação' : 'Geral'));
+                        
                         bMap[compName].costCenters[normCC] = (bMap[compName].costCenters[normCC] || 0) + (b.amount || 0);
                     }
                 });
@@ -2043,7 +2046,11 @@ export default function BudgetGrid({
                                                         </td>
                                                         <td style={{ padding: '0.75rem 1rem', textAlign: 'right', color: '#64748b' }}>
                                                             {(() => {
-                                                                 const normalize = (name: string) => name.replace(/^[0-9.]+\s*-\s*/, '').toUpperCase().trim();
+                                                                 const normalize = (name: string) => 
+                                                                     (name || '').normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+                                                                         .replace(/^[0-9.]+\s*-\s*/, '')
+                                                                         .toUpperCase().trim();
+                                                                 
                                                                  const companyBudgets = transactionBudgets[transactionSelectedCompany?.toUpperCase().trim() || ''] || { costCenters: {} };
                                                                  const budget = companyBudgets.costCenters[normalize(group.name)] || 0;
                                                                  return budget.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });

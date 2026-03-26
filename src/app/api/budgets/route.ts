@@ -149,6 +149,8 @@ export async function GET(request: Request) {
 
     // --- CATEGORY EXPANSION (v66.11: FIX TOTAL CONSISTENCY - Hierarchy + Synonyms) ---
     const categoryIdParam = searchParams.get('categoryId');
+    const monthParamStr = searchParams.get('month');
+    const monthParam = monthParamStr ? parseInt(monthParamStr) : undefined;
     let categoryIdsSelected: string[] = categoryIdParam ? categoryIdParam.split(',').filter(Boolean) : [];
     let allSynonymousCategoryIds: string[] = [];
     
@@ -164,9 +166,15 @@ export async function GET(request: Request) {
             return Array.from(new Set([...ids, ...subDesc]));
         };
         
-        // v66.14: Start with seeds that match ID OR Name prefix (e.g. 01.1)
+        // v66.14/15: Start with seeds that match ID OR Name prefix (e.g. 01.1)
         const seedIds = allCats
-            .filter(c => categoryIdsSelected.includes(c.id) || categoryIdsSelected.some(pid => c.name?.startsWith(pid)))
+            .filter(c => {
+                const isIdMatch = categoryIdsSelected.includes(c.id);
+                const isNameMatch = categoryIdsSelected.some(pid => 
+                    (c.name || '').startsWith(pid) || (c.name || '').includes(pid + ' ') || (c.name || '').includes(pid + '-')
+                );
+                return isIdMatch || isNameMatch;
+            })
             .map(c => c.id);
 
         const expandedIds = getDescendants(seedIds.length > 0 ? seedIds : categoryIdsSelected);
@@ -240,6 +248,7 @@ export async function GET(request: Request) {
     const budgetsRaw = await prisma.budgetEntry.findMany({
       where: {
         year: selectedYear,
+        month: monthParam !== undefined ? monthParam : undefined,
         ...(allSynonymousCategoryIds.length > 0 ? { categoryId: { in: allSynonymousCategoryIds } } : {}),
         ...(allSynonymousIdsArr.length > 0 ? { costCenterId: { in: allSynonymousIdsArr } } : ccFilter),
         tenantId: { in: allVariantIdsArr.length > 0 ? allVariantIdsArr : (tenantIdParam === 'ALL' ? undefined : tenantIds) }

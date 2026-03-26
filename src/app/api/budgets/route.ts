@@ -147,6 +147,35 @@ export async function GET(request: Request) {
         : {};
     }
 
+    // --- CATEGORY EXPANSION (NEW v66.6: Fix Modal Duplication) ---
+    const categoryIdParam = searchParams.get('categoryId');
+    let categoryIdsSelected: string[] = categoryIdParam ? categoryIdParam.split(',').filter(Boolean) : [];
+    let allSynonymousCategoryIds: string[] = [];
+
+    if (categoryIdsSelected.length > 0) {
+        const sourceCats = await prisma.category.findMany({
+            where: { id: { in: categoryIdsSelected } },
+            select: { name: true }
+        });
+
+        if (sourceCats.length > 0) {
+            const targetCatNames = sourceCats.map(c => (c.name || '').split('-').pop()?.toUpperCase().trim()).filter(Boolean);
+            const allCats = await prisma.category.findMany({ select: { id: true, name: true } });
+            
+            allSynonymousCategoryIds = allCats
+                .filter(c => {
+                    const cName = (c.name || '').split('-').pop()?.toUpperCase().trim();
+                    return targetCatNames.includes(cName);
+                })
+                .map(c => c.id);
+            
+            // Ensure original IDs are also included
+            categoryIdsSelected.forEach(id => {
+               if (!allSynonymousCategoryIds.includes(id)) allSynonymousCategoryIds.push(id);
+            });
+        }
+    }
+
     const selectedYear = parseInt(searchParams.get('year') || new Date().getFullYear().toString());
 
     // --- ULTRA ROBUST CC & TENANT EXPANSION (Matches Sync API) ---
@@ -198,6 +227,7 @@ export async function GET(request: Request) {
     const budgetsRaw = await prisma.budgetEntry.findMany({
       where: {
         year: selectedYear,
+        ...(allSynonymousCategoryIds.length > 0 ? { categoryId: { in: allSynonymousCategoryIds } } : {}),
         ...(allSynonymousIdsArr.length > 0 ? { costCenterId: { in: allSynonymousIdsArr } } : ccFilter),
         tenantId: { in: allVariantIdsArr.length > 0 ? allVariantIdsArr : (tenantIdParam === 'ALL' ? undefined : tenantIds) }
       },

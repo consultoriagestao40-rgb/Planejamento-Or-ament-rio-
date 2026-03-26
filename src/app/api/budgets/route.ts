@@ -241,7 +241,8 @@ export async function GET(request: Request) {
       },
       include: {
         category: { select: { id: true, name: true } },
-        costCenter: { select: { id: true, name: true } }
+        costCenter: { select: { id: true, name: true } },
+        tenant: { select: { id: true, name: true } }
       }
     });
 

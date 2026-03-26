@@ -166,9 +166,8 @@ export default function BudgetGrid({
 
                 const processedKeys = new Set<string>();
                 budgetData.data.forEach((b: any) => {
-                    if (b.month === targetMonth) {
-                        const company = companies.find(c => c.id === b.tenantId);
-                        const compName = (company ? company.name : 'Geral').toUpperCase().trim();
+                    if (b.month === (targetMonth + 1)) {
+                        const compName = (b.tenant?.name || 'Geral').toUpperCase().trim();
                         
                         const cc = costCenters.find(c => c.id === b.costCenterId || (c.id && c.id.includes(':' + b.costCenterId)));
                         const rawCCName = cc ? cc.name : (b.costCenterId ? 'Sem Identificação' : 'Geral');

@@ -257,7 +257,7 @@ export async function GET(request: Request) {
         }
     });
 
-    const budgets = budgetsRaw.map(b => {
+    const mappedBudgets = budgetsRaw.map(b => {
         let entry = { ...b };
         const myCatName = b.category?.name || globalIdToName.get(b.categoryId);
         if (myCatName) {
@@ -270,6 +270,28 @@ export async function GET(request: Request) {
         }
         return entry;
     });
+
+    // --- v66.7: LOGICAL DEDUPLICATION ---
+    // If we have multiple entries for the same Logical Category, CC, Month and Tenant, we pick only one.
+    // This prevents doubling values when synonyms exist in the DB.
+    const dedupMap = new Map<string, any>();
+    mappedBudgets.forEach(b => {
+        const normCCId = b.costCenterId ? b.costCenterId.split(':').pop() : 'Geral';
+        const key = `${b.categoryId}-${normCCId}-${b.month}-${b.tenantId}`;
+        
+        if (!dedupMap.has(key)) {
+            dedupMap.set(key, b);
+        } else {
+            // If they differ, keep the one with larger amount or strictly prioritize? 
+            // In case of exact duplication (user report 1.1M vs 587k), just keeping first is enough.
+            const existing = dedupMap.get(key);
+            if ((b.amount || 0) > (existing.amount || 0)) {
+                dedupMap.set(key, b);
+            }
+        }
+    });
+
+    const budgets = Array.from(dedupMap.values());
 
     let isCCLocked = false;
     if (!isGeneralView && costCenterIds.length === 1) {

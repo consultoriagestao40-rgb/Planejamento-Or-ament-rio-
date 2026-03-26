@@ -164,21 +164,25 @@ export default function BudgetGrid({
                         .replace(/^[0-9.]+\s*-\s*/, '')
                         .toUpperCase().trim();
 
+                const processedKeys = new Set<string>();
                 budgetData.data.forEach((b: any) => {
                     if (b.month === targetMonth) {
                         const company = companies.find(c => c.id === b.tenantId);
                         const compName = (company ? company.name : 'Geral').toUpperCase().trim();
                         
+                        // Robust ID matching: handle both uuid and tenantId:uuid
+                        const cc = costCenters.find(c => c.id === b.costCenterId || (c.id && c.id.includes(':' + b.costCenterId)));
+                        const normCC = normalize(cc ? cc.name : (b.costCenterId ? 'Sem Identificação' : 'Geral'));
+
+                        const dedupKey = `${compName}-${normCC}-${b.categoryId}`;
+                        if (processedKeys.has(dedupKey)) return;
+                        processedKeys.add(dedupKey);
+
                         if (!bMap[compName]) {
                             bMap[compName] = { total: 0, costCenters: {} };
                         }
                         
                         bMap[compName].total += (b.amount || 0);
-                        
-                        // Robust ID matching: handle both uuid and tenantId:uuid
-                        const cc = costCenters.find(c => c.id === b.costCenterId || (c.id && c.id.includes(':' + b.costCenterId)));
-                        const normCC = normalize(cc ? cc.name : (b.costCenterId ? 'Sem Identificação' : 'Geral'));
-                        
                         bMap[compName].costCenters[normCC] = (bMap[compName].costCenters[normCC] || 0) + (b.amount || 0);
                     }
                 });

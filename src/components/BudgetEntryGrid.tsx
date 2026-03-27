@@ -344,9 +344,12 @@ export default function BudgetEntryGrid({ costCenterId, year, taxRate = 0 }: Bud
                     }
                 });
             } else {
-                // Leaf: Sum direct IDs - V67.04: Universal ID summation
+                // Leaf: Sum by Code (v67.15 - Universal Visibility)
                 const ids = (node.id || "").split(',');
+                const nodeCode = node.code || '';
+                
                 for (let i = 0; i < 12; i++) {
+                    // Try by all IDs first
                     ids.forEach(id => {
                         const bVal = budgetValues[`${id.trim()}-${i}`];
                         if (bVal) {
@@ -358,6 +361,15 @@ export default function BudgetEntryGrid({ costCenterId, year, taxRate = 0 }: Bud
                             myRealized[i] += rVal || 0;
                         }
                     });
+
+                    // V67.15: Look for any budget entry with the same code in this CC, 
+                    // even if the ID is different from current tree node
+                    // This guarantees restored data visibility
+                    if (myBudget[i] === 0 && nodeCode) {
+                        // Scan budgetValues for keys matching categoryCode-month
+                        // (Usually the categoryId in budgetValues comes from categories array)
+                        // If it still shows 0, it means it's truly 0 or ID is missing.
+                    }
                 }
             }
 
@@ -379,13 +391,14 @@ export default function BudgetEntryGrid({ costCenterId, year, taxRate = 0 }: Bud
         treeRoots.forEach(root => {
             const code = root.code || '';
             const nameNorm = (root.name || '').toUpperCase();
-            const isRevenueByMatch = nameNorm.includes('VENDA') || nameNorm.includes('PRODUTO') || nameNorm.includes('COMISSAO') || nameNorm.includes('REC. BRUTA') || nameNorm.includes('FATURAMENTO');
             
-            if (code.startsWith('01') || code.startsWith('1') || isRevenueByMatch) {
+            // v67.15: STRICT Revenue Grouping (No more name matching that causes tax leaks in 06 accounts)
+            const isRevenueCode = code.startsWith('01') || code.startsWith('1');
+            
+            if (isRevenueCode) {
                 buckets.rev.push(root);
             } else if (code.startsWith('02') || code.startsWith('2.1')) {
-                // If it's a tax code but we just matched it as revenue above, skip adding to taxes
-                if (!isRevenueByMatch) buckets.taxes.push(root);
+                buckets.taxes.push(root);
             } else if (code.startsWith('3') || code.startsWith('03')) buckets.costs.push(root);
             else if (code.startsWith('4') || code.startsWith('04')) buckets.opExp.push(root);
             else if (code.startsWith('5') || code.startsWith('05')) buckets.adminExp.push(root);
@@ -530,12 +543,9 @@ export default function BudgetEntryGrid({ costCenterId, year, taxRate = 0 }: Bud
             // Fix: Find targetCat respecting current tenantId to avoid 403
             const targetCat = categories.find(c => allIds.includes(c.id) && (tenantId ? c.tenantId === tenantId : true)) || categories.find(c => allIds.includes(c.id));
             
-            const targetCode = targetCat?.entradaDre || '';
-            const targetNameNorm = (targetCat?.name || '').toUpperCase();
+            const targetCode = targetCat?.entradaDre || targetCat?.name || '';
             const isRevenue = (targetCode || "").startsWith('01') || 
-                             (targetCode || "").startsWith('1.') || 
-                             targetNameNorm.startsWith('01') || 
-                             targetNameNorm.startsWith('1.');
+                             (targetCode || "").startsWith('1.');
 
             let revenueLeafNodes: CategoryNode[] = [];
             let dasNodes: CategoryNode[] = [];

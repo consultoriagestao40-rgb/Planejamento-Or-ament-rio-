@@ -1888,9 +1888,6 @@ export default function BudgetGrid({
                                     <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem' }}>
                                         <thead>
                                             <tr style={{ background: '#f8fafc' }}>
-                                                {drillStep === 'company' && <><th style={{ padding: '0.6rem 0.75rem', textAlign: 'left', borderBottom: '2px solid #e2e8f0', color: '#475569', fontWeight: 600 }}>Empresa</th><th style={{ padding: '0.6rem 0.75rem', textAlign: 'right', borderBottom: '2px solid #e2e8f0', color: '#475569', fontWeight: 600 }}>Orçado</th></>}
-                                                {drillStep === 'costcenter' && <><th style={{ padding: '0.6rem 0.75rem', textAlign: 'left', borderBottom: '2px solid #e2e8f0', color: '#475569', fontWeight: 600 }}>Centro de Custo</th><th style={{ padding: '0.6rem 0.75rem', textAlign: 'right', borderBottom: '2px solid #e2e8f0', color: '#475569', fontWeight: 600 }}>Orçado</th></>}
-                                                {drillStep === 'detail' && <><th style={{ padding: '0.6rem 0.75rem', textAlign: 'left', borderBottom: '2px solid #e2e8f0', color: '#475569', fontWeight: 600 }}>Empresa</th><th style={{ padding: '0.6rem 0.75rem', textAlign: 'left', borderBottom: '2px solid #e2e8f0', color: '#475569', fontWeight: 600 }}>Centro de Custo</th><th style={{ padding: '0.6rem 0.75rem', textAlign: 'right', borderBottom: '2px solid #e2e8f0', color: '#475569', fontWeight: 600 }}>Orçado</th></>}
                                             </tr>
                                         </thead>
                                         <tbody>
@@ -2001,7 +1998,6 @@ export default function BudgetGrid({
                                             <thead>
                                                 <tr style={{ background: '#f8fafc', textAlign: 'left' }}>
                                                     <th style={{ padding: '0.75rem 1rem', borderBottom: '1px solid #e2e8f0', color: '#475569' }}>Empresas Contribuintes</th>
-                                                    <th style={{ padding: '0.75rem 1rem', borderBottom: '1px solid #e2e8f0', textAlign: 'right', color: '#475569' }}>Orçado</th>
                                                     <th style={{ padding: '0.75rem 1rem', borderBottom: '1px solid #e2e8f0', textAlign: 'right', color: '#475569' }}>Realizado</th>
                                                 </tr>
                                             </thead>
@@ -2016,9 +2012,6 @@ export default function BudgetGrid({
                                                         <td style={{ padding: '0.75rem 1rem', fontWeight: 600, color: '#3b82f6', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                                                             🏢 {group.name}
                                                         </td>
-                                                        <td style={{ padding: '0.75rem 1rem', textAlign: 'right', color: '#64748b' }}>
-                                                            {(transactionBudgets[group.tenantId]?.total || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
-                                                        </td>
                                                         <td style={{ padding: '0.75rem 1rem', textAlign: 'right', fontWeight: 'bold' }}>{group.total.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</td>
                                                     </tr>
                                                 ))}
@@ -2026,9 +2019,6 @@ export default function BudgetGrid({
                                             <tfoot>
                                                 <tr style={{ background: '#f1f5f9', fontWeight: 'bold' }}>
                                                     <td style={{ padding: '0.75rem 1rem', textAlign: 'right', borderTop: '2px solid #cbd5e1', fontSize: '0.85rem' }}>Total Geral do Mês:</td>
-                                                    <td style={{ padding: '0.75rem 1rem', textAlign: 'right', borderTop: '2px solid #cbd5e1', color: '#64748b', fontSize: '0.85rem' }}>
-                                                        {Object.values(transactionBudgets).reduce((acc: number, curr: any) => acc + curr.total, 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
-                                                    </td>
                                                     <td style={{ padding: '0.75rem 1rem', textAlign: 'right', borderTop: '2px solid #cbd5e1', color: '#0f172a', fontSize: '0.95rem' }}>
                                                         {groupedByCompany.reduce((acc, g) => acc + g.total, 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
                                                     </td>
@@ -2042,7 +2032,6 @@ export default function BudgetGrid({
                                             <thead>
                                                 <tr style={{ background: '#f8fafc', textAlign: 'left' }}>
                                                     <th style={{ padding: '0.75rem 1rem', borderBottom: '1px solid #e2e8f0', color: '#475569' }}>Centros de Custo (em {transactionSelectedCompany})</th>
-                                                    <th style={{ padding: '0.75rem 1rem', borderBottom: '1px solid #e2e8f0', textAlign: 'right', color: '#475569' }}>Orçado</th>
                                                     <th style={{ padding: '0.75rem 1rem', borderBottom: '1px solid #e2e8f0', textAlign: 'right', color: '#475569' }}>Realizado</th>
                                                 </tr>
                                             </thead>
@@ -2057,9 +2046,6 @@ export default function BudgetGrid({
                                                         <td style={{ padding: '0.75rem 1rem', fontWeight: 600, color: '#3b82f6', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                                                             📍 {group.name}
                                                         </td>
-                                                        <td style={{ padding: '0.75rem 1rem', textAlign: 'right', color: '#64748b' }}>
-                                                            {(transactionBudgets[transactions.find(tx => tx.tenantName === transactionSelectedCompany)?.tenantId || '']?.costCenters[group.costCenterId] || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
-                                                        </td>
                                                         <td style={{ padding: '0.75rem 1rem', textAlign: 'right', fontWeight: 'bold' }}>{group.total.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</td>
                                                     </tr>
                                                 ))}
@@ -2067,9 +2053,6 @@ export default function BudgetGrid({
                                             <tfoot>
                                                 <tr style={{ background: '#f1f5f9', fontWeight: 'bold' }}>
                                                     <td style={{ padding: '0.75rem 1rem', textAlign: 'right', borderTop: '2px solid #cbd5e1', fontSize: '0.85rem' }}>Total na Empresa:</td>
-                                                    <td style={{ padding: '0.75rem 1rem', textAlign: 'right', borderTop: '2px solid #cbd5e1', color: '#64748b', fontSize: '0.85rem' }}>
-                                                        {(transactionBudgets[transactions.find(tx => tx.tenantName === transactionSelectedCompany)?.tenantId || '']?.total || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
-                                                    </td>
                                                     <td style={{ padding: '0.75rem 1rem', textAlign: 'right', borderTop: '2px solid #cbd5e1', color: '#0f172a', fontSize: '0.95rem' }}>
                                                         {groupedByCostCenter.reduce((acc, g) => acc + g.total, 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
                                                     </td>

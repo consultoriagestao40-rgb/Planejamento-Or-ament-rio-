@@ -84,6 +84,7 @@ export default function BudgetEntryGrid({ costCenterId, year, taxRate = 0 }: Bud
     // Load data
     useEffect(() => {
         const loadData = async () => {
+            console.log('v67.05: Correção de Dados e Unificação de IDs Ativa');
             setLoading(true);
             try {
                 const [setupRes, budgetRes, syncRes, authRes] = await Promise.all([

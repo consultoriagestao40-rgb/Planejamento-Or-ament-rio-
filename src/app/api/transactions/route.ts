@@ -77,7 +77,9 @@ export async function GET(request: Request) {
             value: e.amount,
             customer: e.customer || e.tenant.name,
             status: 'REALIZADO',
+            tenantId: e.tenantId, // v66.25: ID for bulletproof reconciliation
             tenantName: e.tenant.name,
+            costCenterId: e.costCenterId, // v66.25: ID for drill-down reconciliation
             costCenters: e.costCenter ? [{ nome: e.costCenter.name }] : []
         }));
 

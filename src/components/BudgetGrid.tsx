@@ -167,24 +167,24 @@ export default function BudgetGrid({
                 const processedKeys = new Set<string>();
                 budgetData.data.forEach((b: any) => {
                     if (b.month === targetMonth) {
-                        const compName = normalizeName(b.tenant?.name || 'Geral');
+                        // v66.25: Key by tenantId for bulletproof match
+                        const tId = b.tenantId || 'Geral';
                         
                         const cc = costCenters.find((c: any) => c.id === b.costCenterId || (c.id && c.id.includes(':' + b.costCenterId)));
-                        const rawCCName = cc ? cc.name : (b.costCenterId ? 'Sem Identificação' : 'Geral');
-                        const normCC = normalizeName(rawCCName);
+                        const rawCCId = cc ? cc.id : (b.costCenterId || 'Geral');
 
                         const normCatName = normalizeName(b.category?.name || '');
-                        const dedupKey = `${compName}-${normCC}-${normCatName}`;
+                        const dedupKey = `${tId}-${rawCCId}-${normCatName}`;
                         
                         if (processedKeys.has(dedupKey)) return;
                         processedKeys.add(dedupKey);
 
-                        if (!bMap[compName]) {
-                            bMap[compName] = { total: 0, costCenters: {} };
+                        if (!bMap[tId]) {
+                            bMap[tId] = { total: 0, costCenters: {} };
                         }
                         
-                        bMap[compName].total += (b.amount || 0);
-                        bMap[compName].costCenters[normCC] = (bMap[compName].costCenters[normCC] || 0) + (b.amount || 0);
+                        bMap[tId].total += (b.amount || 0);
+                        bMap[tId].costCenters[rawCCId] = (bMap[tId].costCenters[rawCCId] || 0) + (b.amount || 0);
                     }
                 });
                 setTransactionBudgets(bMap);
@@ -266,23 +266,30 @@ export default function BudgetGrid({
     // --- Aggregation logic for drill-down ---
     const groupedByCompany = useMemo(() => {
         if (!transactions || transactions.length === 0) return [];
-        const map = new Map<string, number>();
+        // Map by tenantId to avoid name mismatches
+        const records = new Map<string, { name: string, total: number, tenantId: string }>();
         transactions.forEach((tx: any) => {
-            const comp = tx.tenantName || 'Geral';
-            map.set(comp, (map.get(comp) || 0) + (parseFloat(tx.value) || 0));
+            const tId = tx.tenantId || 'Geral';
+            const tName = tx.tenantName || 'Geral';
+            const current = records.get(tId) || { name: tName, total: 0, tenantId: tId };
+            current.total += (parseFloat(tx.value) || 0);
+            records.set(tId, current);
         });
-        return Array.from(map.entries()).map(([name, total]) => ({ name, total })).sort((a, b) => b.total - a.total);
+        return Array.from(records.values()).sort((a, b) => b.total - a.total);
     }, [transactions]);
 
     const groupedByCostCenter = useMemo(() => {
         if (!transactions || transactions.length === 0 || !transactionSelectedCompany) return [];
         const filtered = transactions.filter((tx: any) => (tx.tenantName || 'Geral') === transactionSelectedCompany);
-        const map = new Map<string, number>();
+        const records = new Map<string, { name: string, total: number, costCenterId: string }>();
         filtered.forEach((tx: any) => {
-            const ccStr = (tx.costCenters && tx.costCenters.length > 0) ? tx.costCenters[0].nome : 'Geral';
-            map.set(ccStr, (map.get(ccStr) || 0) + (parseFloat(tx.value) || 0));
+            const ccId = tx.costCenterId || 'Geral';
+            const ccName = (tx.costCenters && tx.costCenters.length > 0) ? tx.costCenters[0].nome : 'Geral';
+            const current = records.get(ccId) || { name: ccName, total: 0, costCenterId: ccId };
+            current.total += (parseFloat(tx.value) || 0);
+            records.set(ccId, current);
         });
-        return Array.from(map.entries()).map(([name, total]) => ({ name, total })).sort((a, b) => b.total - a.total);
+        return Array.from(records.values()).sort((a, b) => b.total - a.total);
     }, [transactions, transactionSelectedCompany]);
 
     const finalTransactions = useMemo(() => {
@@ -2010,7 +2017,7 @@ export default function BudgetGrid({
                                                             🏢 {group.name}
                                                         </td>
                                                         <td style={{ padding: '0.75rem 1rem', textAlign: 'right', color: '#64748b' }}>
-                                                            {(transactionBudgets[normalizeName(group.name)]?.total || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                                                            {(transactionBudgets[group.tenantId]?.total || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
                                                         </td>
                                                         <td style={{ padding: '0.75rem 1rem', textAlign: 'right', fontWeight: 'bold' }}>{group.total.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</td>
                                                     </tr>
@@ -2051,7 +2058,7 @@ export default function BudgetGrid({
                                                             📍 {group.name}
                                                         </td>
                                                         <td style={{ padding: '0.75rem 1rem', textAlign: 'right', color: '#64748b' }}>
-                                                            {(transactionBudgets[normalizeName(transactionSelectedCompany || '')]?.costCenters[normalizeName(group.name)] || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                                                            {(transactionBudgets[transactions.find(tx => tx.tenantName === transactionSelectedCompany)?.tenantId || '']?.costCenters[group.costCenterId] || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
                                                         </td>
                                                         <td style={{ padding: '0.75rem 1rem', textAlign: 'right', fontWeight: 'bold' }}>{group.total.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</td>
                                                     </tr>
@@ -2061,7 +2068,7 @@ export default function BudgetGrid({
                                                 <tr style={{ background: '#f1f5f9', fontWeight: 'bold' }}>
                                                     <td style={{ padding: '0.75rem 1rem', textAlign: 'right', borderTop: '2px solid #cbd5e1', fontSize: '0.85rem' }}>Total na Empresa:</td>
                                                     <td style={{ padding: '0.75rem 1rem', textAlign: 'right', borderTop: '2px solid #cbd5e1', color: '#64748b', fontSize: '0.85rem' }}>
-                                                        {(transactionBudgets[normalizeName(transactionSelectedCompany || '')]?.total || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                                                        {(transactionBudgets[transactions.find(tx => tx.tenantName === transactionSelectedCompany)?.tenantId || '']?.total || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
                                                     </td>
                                                     <td style={{ padding: '0.75rem 1rem', textAlign: 'right', borderTop: '2px solid #cbd5e1', color: '#0f172a', fontSize: '0.95rem' }}>
                                                         {groupedByCostCenter.reduce((acc, g) => acc + g.total, 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}

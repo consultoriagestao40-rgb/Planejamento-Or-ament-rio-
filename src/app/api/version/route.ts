@@ -3,8 +3,8 @@ import { NextResponse } from 'next/server';
 
 export async function GET() {
     return NextResponse.json({ 
-        version: 'v66.24',
-        lastUpdate: '2026-03-27 - FINAL SUCCESS: Robust Name Reconciliation Applied',
+        version: 'v66.25',
+        lastUpdate: '2026-03-27 - FINAL SUCCESS: Bulletproof ID Reconciliation Applied',
         status: 'stable'
     });
 }

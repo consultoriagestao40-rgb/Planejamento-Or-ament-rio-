@@ -208,11 +208,15 @@ export default function BudgetEntryGrid({ costCenterId, year, taxRate = 0 }: Bud
                 else if (rawCode === '06.8') effectiveName = '06.8 PDD';
             }
 
-            const uniqueKey = effectiveCode ? effectiveCode : effectiveName;
+            const nameNorm = effectiveName.toUpperCase().trim();
+            const uniqueKey = effectiveCode ? `${effectiveCode}-${nameNorm}` : nameNorm;
 
             if (nameMap.has(uniqueKey)) {
                 const existingNode = nameMap.get(uniqueKey)!;
-                if (!existingNode.id.split(',').includes(cat.id)) existingNode.id += ',' + cat.id;
+                const existingIds = existingNode.id.split(',');
+                if (!existingIds.includes(cat.id)) {
+                    existingNode.id += ',' + cat.id;
+                }
                 map.set(cat.id, existingNode);
                 return;
             }
@@ -349,16 +353,19 @@ export default function BudgetEntryGrid({ costCenterId, year, taxRate = 0 }: Bud
                     }
                 });
             } else {
-                // Leaf: Sum direct IDs
+                // Leaf: Sum direct IDs - V67.02: Forced multi-ID summation
                 const ids = node.id.split(',');
                 for (let i = 0; i < 12; i++) {
                     ids.forEach(id => {
                         const bVal = budgetValues[`${id}-${i}`];
                         if (bVal) {
                             myBudget[i] += bVal.amount || 0;
-                            myRadar[i] += bVal.radarAmount || 0;
+                            myRadar[i] += (bVal.radarAmount || 0);
                         }
-                        myRealized[i] += realizedValues[`${id}-${i}`] || 0;
+                        const rVal = realizedValues[`${id}-${i}`];
+                        if (rVal) {
+                            myRealized[i] += rVal || 0;
+                        }
                     });
                 }
             }

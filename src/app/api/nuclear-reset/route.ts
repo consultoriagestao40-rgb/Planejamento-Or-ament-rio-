@@ -3,13 +3,10 @@ import { prisma } from '@/lib/prisma';
 
 export async function GET() {
     try {
-        const targetNames = ['CLEAN TECH', 'CLEANTECH', 'CLEAN TECH - ADMINISTRATIVO'];
-        const ccs = await prisma.costCenter.findMany({
-            where: {
-                OR: targetNames.map(name => ({ name: { contains: name, mode: 'insensitive' } }))
-            }
-        });
-        const ccIds = ccs.map(cc => cc.id);
+        const ccIds = [
+            '1fa165e3-178f-4d8f-aa7c-434c720c82dd', // O ID da sua URL atual
+            '1fa165e3-178f-4d8f-ae7c-434c720c82dd'  // O ID oficial da Clean Tech
+        ];
         
         const deleted = await prisma.budgetEntry.deleteMany({
             where: {
@@ -20,7 +17,7 @@ export async function GET() {
 
         return NextResponse.json({ 
             success: true, 
-            message: `Limpeza concluída! ${deleted.count} registros fantasmas foram apagados para a Clean Tech.`,
+            message: `SUCESSO ATÔMICO! ${deleted.count} registros fantasmas foram varridos do mapa para a Clean Tech.`,
             clearedIds: ccIds
         });
     } catch (error: any) {

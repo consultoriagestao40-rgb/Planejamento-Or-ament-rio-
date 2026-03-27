@@ -458,7 +458,8 @@ export default function BudgetSummaryPage() {
                                                         <span title="Clique no número para editar" style={{ cursor: 'help', fontSize: '0.8rem', opacity: 0.6 }}>✏️</span>
                                                     </div>
                                                 </td>
-                                                                                                     <div style={{ display: 'flex', justifyContent: 'center', gap: '0.5rem' }}>
+                                                 <td style={{ ...td, textAlign: 'center' }}>
+                                                     <div style={{ display: 'flex', justifyContent: 'center', gap: '0.5rem' }}>
                                                         {userRole === 'MASTER' && (
                                                             <button 
                                                                 onClick={(e) => { e.stopPropagation(); setExcelTenantId(group.tenantId); setIsExcelModalOpen(true); }}

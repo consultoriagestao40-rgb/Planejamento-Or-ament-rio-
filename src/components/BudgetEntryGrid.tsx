@@ -336,16 +336,19 @@ export default function BudgetEntryGrid({ costCenterId, year, taxRate = 0 }: Bud
                     }
                 });
             } else {
-                // Leaf: Sum direct IDs
-                const ids = node.id.split(',');
+                // Leaf: Sum direct IDs - V67.04: Universal ID summation
+                const ids = (node.id || "").split(',');
                 for (let i = 0; i < 12; i++) {
                     ids.forEach(id => {
-                        const bVal = budgetValues[`${id}-${i}`];
+                        const bVal = budgetValues[`${id.trim()}-${i}`];
                         if (bVal) {
                             myBudget[i] += bVal.amount || 0;
-                            myRadar[i] += bVal.radarAmount || 0;
+                            myRadar[i] += (bVal.radarAmount || 0);
                         }
-                        myRealized[i] += realizedValues[`${id}-${i}`] || 0;
+                        const rVal = realizedValues[`${id.trim()}-${i}`];
+                        if (rVal) {
+                            myRealized[i] += rVal || 0;
+                        }
                     });
                 }
             }

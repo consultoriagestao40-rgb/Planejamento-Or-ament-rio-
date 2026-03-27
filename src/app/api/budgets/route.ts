@@ -378,7 +378,6 @@ export async function GET(request: Request) {
     const isDetailMode = searchParams.get('detail') === 'true';
 
       if (isDetailMode) {
-      if (isDetailMode) {
         const rawEntries = budgets.map((b: any) => ({
           categoryId: categoryIdParam || b.categoryId, // v66.22: Use literal requested ID (e.g. synth-01.1) to match frontend context
           tenantId: b.tenantId,
@@ -390,8 +389,6 @@ export async function GET(request: Request) {
           isLocked: b.isLocked || isCCLocked,
           observation: b.observation || null
         }));
-        return NextResponse.json({ success: true, data: rawEntries, isCCLocked, radarLocks });
-      }
         return NextResponse.json({ success: true, data: rawEntries, isCCLocked, radarLocks });
       }
 

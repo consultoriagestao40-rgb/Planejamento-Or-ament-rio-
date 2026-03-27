@@ -1,11 +1,10 @@
 'use client';
 // BudgetEntryGrid - Tela exclusiva de lançamento de orçamento por CC
-// Versão limpa: apenas coluna ORÇADO, sem Radar, sem Realizado, sem filtros AH/AV
+// v67.22 - VISIBILIDADE UNIVERSAL POR CÓDIGO (Fim do Sumiço de Dados)
 
 import React, { useState, useMemo, useEffect } from 'react';
 import { MONTHS } from '@/lib/mock-data';
 
-// Constante de módulo — fora do componente para evitar redeclaração
 const CODE_NAMES: Record<string, string> = {
     '03.1': '03.1 Salarios e Remuneração', '03.2': '03.2 Encargos Sociais', '03.3': '03.3 Beneficios',
     '03.4': '03.4 Diárias', '03.5': '03.5 SSMA', '03.6': '03.6 Materiais',
@@ -54,7 +53,6 @@ export default function BudgetEntryGrid({ costCenterId, year, taxRate = 0 }: Bud
     const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
     const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
 
-    // Budget Modal
     const [budgetModal, setBudgetModal] = useState<{ categoryId: string; fullNodeId: string; categoryName: string; startMonth: number } | null>(null);
     const [modalValues, setModalValues] = useState<string[]>(new Array(12).fill(''));
     const [lockedMonths, setLockedMonths] = useState<boolean[]>(new Array(12).fill(false));
@@ -62,42 +60,32 @@ export default function BudgetEntryGrid({ costCenterId, year, taxRate = 0 }: Bud
     const [isSavingBudget, setIsSavingBudget] = useState(false);
     const [modalObservation, setModalObservation] = useState<string>('');
 
-    // Approval state
     const [approvalStatus, setApprovalStatus] = useState<string>('PENDING');
     const [isSubmitting, setIsSubmitting] = useState(false);
 
+    const fmt = (val: number) => val.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+
     const evaluateFormula = (formula: string): number => {
         if (!formula.startsWith('=')) {
-            const clean = formula.replace(/\.(?=\d{3}(,|$))/g, '').replace(',', '.');
+            const clean = formula.replace(/\\.(?=\\d{3}(,|$))/g, '').replace(',', '.');
             const val = parseFloat(clean);
             return isNaN(val) ? 0 : val;
         }
         try {
             const expression = formula.substring(1).replace(/,/g, '.').replace(/[^-+*/().0-9]/g, '');
-            const result = new Function(`return ${expression}`)();
+            const result = new Function(\`return \${expression}\`)();
             return typeof result === 'number' && isFinite(result) ? result : 0;
-        } catch {
-            return 0;
-        }
+        } catch { return 0; }
     };
 
-    // Load data
     useEffect(() => {
         const loadData = async () => {
-            if (costCenterId === '1fa165e3-178f-4d8f-aa7c-434c720c82dd') {
-                const correctId = '1fa165e3-178f-4d8f-ae7c-434c720c82dd';
-                console.warn('v67.07: Link Fantasma Detectado. Redirecionando para o ID Oficial da Clean Tech...');
-                window.location.replace(window.location.href.replace(costCenterId, correctId));
-                return;
-            }
-
-            console.log('v67.07: Regra Estrita de Impostos (01) e Redirecionamento Ativo');
             setLoading(true);
             try {
                 const [setupRes, budgetRes, syncRes, authRes] = await Promise.all([
-                    fetch('/api/setup?t=' + Date.now(), { cache: 'no-store' }),
-                    fetch(`/api/budgets?costCenterId=${costCenterId}&tenantId=ALL&year=${year}&t=${Date.now()}`, { cache: 'no-store' }),
-                    fetch(`/api/sync?costCenterId=${costCenterId}&tenantId=ALL&year=${year}&t=${Date.now()}`, { cache: 'no-store' }),
+                    fetch('/api/setup?t=' + Date.now()),
+                    fetch(\`/api/budgets?costCenterId=\${costCenterId}&year=\${year}&t=\` + Date.now()),
+                    fetch(\`/api/sync?costCenterId=\${costCenterId}&year=\${year}&t=\` + Date.now()),
                     fetch('/api/auth/me')
                 ]);
 
@@ -107,1026 +95,410 @@ export default function BudgetEntryGrid({ costCenterId, year, taxRate = 0 }: Bud
 
                 if (setupData.success) {
                     setCategories(setupData.categories || []);
-                    const searchList = setupData.fullCostCenters || setupData.costCenters || [];
-                    const foundCC = searchList.find((cc: any) => cc.id === costCenterId);
+                    const foundCC = (setupData.fullCostCenters || []).find((cc: any) => cc.id === costCenterId);
                     if (foundCC?.tenantId) setTenantId(foundCC.tenantId);
-                }
 
-                if (budgetData.success) {
-                    setIsCCLocked(budgetData.isCCLocked || false);
-                    setApprovalStatus(budgetData.status || 'PENDING');
+                    // Map for code-based visibility
                     const idToCodeMap = new Map<string, string>();
                     setupData.categories.forEach((c: any) => {
-                        const codeMatch = c.name.match(/^([\d.]+)/);
+                        const codeMatch = c.name.match(/^([\\d.]+)/);
                         if (codeMatch) idToCodeMap.set(c.id, codeMatch[1].split('.').map((s: string) => parseInt(s, 10).toString()).join('.'));
                     });
 
-                    const values: Record<string, any> = {};
-                    (budgetData.data || []).forEach((item: any) => { const cat = categories.find(cat => cat.id === item.categoryId); const cCode = cat ? cat.name.match(/^([d.]+)/)?.[1]?.split(".").map(s => parseInt(s, 10).toString()).join(".") : null; if (cCode) { values[`${cCode}-${item.month - 1}`] = { amount: item.amount || 0, radarAmount: (item.radarAmount !== undefined && item.radarAmount !== null) ? item.radarAmount : null, isLocked: item.isLocked || false, observation: item.observation || null }; } });
-                    setBudgetValues(values);
+                    if (budgetData.success) {
+                        setIsCCLocked(budgetData.isCCLocked || false);
+                        setApprovalStatus(budgetData.status || 'PENDING');
+                        const values: Record<string, any> = {};
+                        (budgetData.data || []).forEach((item: any) => {
+                            const cCode = idToCodeMap.get(item.categoryId);
+                            if (cCode) {
+                                values[\`\${cCode}-\${item.month - 1}\`] = {
+                                    amount: item.amount || 0,
+                                    radarAmount: item.radarAmount ?? null,
+                                    isLocked: item.isLocked || false,
+                                    observation: item.observation || null
+                                };
+                            }
+                        });
+                        setBudgetValues(values);
+                    }
                 }
 
-                if (syncData.success && syncData.realizedValues) {
-                    setRealizedValues(syncData.realizedValues);
-                }
-
-                if (authData.success) {
-                    setUserRole(authData.user.role);
-                }
-            } catch (err) {
-                console.error('BudgetEntryGrid load error:', err);
-            } finally {
-                setLoading(false);
-            }
+                if (syncData.success && syncData.realizedValues) setRealizedValues(syncData.realizedValues);
+                if (authData.success) setUserRole(authData.user.role);
+            } catch (err) { console.error('Load error:', err); } finally { setLoading(false); }
         };
         loadData();
     }, [costCenterId, year]);
 
-    // ─── HIERARCHY BUILDER (Unified from BudgetGrid) ─────────────────
     const treeRoots = useMemo(() => {
         const map = new Map<string, CategoryNode>();
         const codeMap = new Map<string, CategoryNode>();
         const nameMap = new Map<string, CategoryNode>();
 
-        // 1. Initial Mapping
         categories.forEach((cat: any) => {
-            const codeMatch = cat.name.match(/^([\d.]+)/);
+            const codeMatch = cat.name.match(/^([\\d.]+)/);
             const rawCode = codeMatch ? codeMatch[1] : '';
             if (rawCode.startsWith('2.3') || rawCode.startsWith('2.4')) return;
 
             let effectiveName = cat.name;
             let effectiveCode = rawCode;
 
-            if (rawCode.startsWith('02') || (rawCode.startsWith('2') && !cat.name.toLowerCase().includes('tributo') && !rawCode.startsWith('2.1'))) {
-                if (rawCode.startsWith('02')) {
-                    let suffix = rawCode.replace(/^0?2/, '');
-                    if (suffix.startsWith('.')) suffix = suffix.substring(1);
-                    effectiveCode = suffix ? `01.2.${suffix}` : '01.2';
-                    effectiveName = cat.name.replace(rawCode, effectiveCode).replace('01.2. ', '01.2 - ');
-                    if (effectiveCode === '01.2') effectiveName = '01.2 - Receitas de Vendas';
-                }
-            }
-
-            // Force naming for prefixes (Standardized with BudgetGrid)
-            if (rawCode.match(/^03\.[1-9]$/)) {
-                if (rawCode === '03.1') effectiveName = '03.1 Salarios e Remuneração';
-                else if (rawCode === '03.2') effectiveName = '03.2 Encargos Sociais';
-                else if (rawCode === '03.3') effectiveName = '03.3 Beneficios';
-                else if (rawCode === '03.4') effectiveName = '03.4 Diárias';
-                else if (rawCode === '03.5') effectiveName = '03.5 SSMA';
-                else if (rawCode === '03.6') effectiveName = '03.6 Materiais';
-                else if (rawCode === '03.7') effectiveName = '03.7 Equipamentos';
-                else if (rawCode === '03.8') effectiveName = '03.8 Comunicação/Sistema/Licenças';
-                else if (rawCode === '03.9') effectiveName = '03.9 Custo com Veiculo';
-            }
-            if (rawCode.match(/^04\.[1-8]$/)) {
-                if (rawCode === '04.1') effectiveName = '04.1 Salarios e Remuneração';
-                else if (rawCode === '04.2') effectiveName = '04.2 Encargos Sociais';
-                else if (rawCode === '04.3') effectiveName = '04.3 Beneficios';
-                else if (rawCode === '04.4') effectiveName = '04.4 SSMA';
-                else if (rawCode === '04.5') effectiveName = '04.5 Viagens';
-                else if (rawCode === '04.6') effectiveName = '04.6 Custo com Veículos';
-                else if (rawCode === '04.7') effectiveName = '04.7 Cartão Corporativo';
-                else if (rawCode === '04.8') effectiveName = '04.8 Serviços Terceirizados';
-            }
-            if (rawCode.match(/^05\.([1-9]|1[0-3])$/)) {
-                if (rawCode === '05.1') effectiveName = '05.1 Salario e Remuneração';
-                else if (rawCode === '05.2') effectiveName = '05.2 Encargos Sociais';
-                else if (rawCode === '05.3') effectiveName = '05.3 Beneficios';
-                else if (rawCode === '05.4') effectiveName = '05.4 SSMA';
-                else if (rawCode === '05.5') effectiveName = '05.5 Viagens';
-                else if (rawCode === '05.6') effectiveName = '05.6 Despesa com Socios';
-                else if (rawCode === '05.7') effectiveName = '05.7 Serviços Contratados';
-                else if (rawCode === '05.8') effectiveName = '05.8 Despesa Comercial/Marketing';
-                else if (rawCode === '05.9') effectiveName = '05.9 Despesa com Estrutura';
-                else if (rawCode === '05.10') effectiveName = '05.10 Despesa Copa e Cozinha';
-                else if (rawCode === '05.11') effectiveName = '05.11 Despesa com Veículos';
-                else if (rawCode === '05.12') effectiveName = '05.12 Despesa de Informatica';
-                else if (rawCode === '05.13') effectiveName = '05.13 Taxas e Despesas Legais';
-            }
-            if (rawCode.match(/^06\.[1-8]$/)) {
-                if (rawCode === '06.1') effectiveName = '06.1 Entradas Financeiras';
-                else if (rawCode === '06.2') effectiveName = '06.2 Saidas Financeiras';
-                else if (rawCode === '06.3') effectiveName = '06.3 Financiamento';
-                else if (rawCode === '06.4') effectiveName = '06.4 Juros/Multas';
-                else if (rawCode === '06.5') effectiveName = '06.5 Passivo Trabalhista';
-                else if (rawCode === '06.6') effectiveName = '06.6 Depreciação';
-                else if (rawCode === '06.7') effectiveName = '06.7 Cartão de Credito';
-                else if (rawCode === '06.8') effectiveName = '06.8 PDD';
-            }
-
-            const uniqueKey = effectiveCode ? effectiveCode : effectiveName;
-
-            if (nameMap.has(uniqueKey)) {
-                const existingNode = nameMap.get(uniqueKey)!;
-                if (!existingNode.id.split(',').includes(cat.id)) existingNode.id += ',' + cat.id;
-                map.set(cat.id, existingNode);
+            const uKey = effectiveCode || effectiveName;
+            if (nameMap.has(uKey)) {
+                const existing = nameMap.get(uKey)!;
+                if (!existing.id.includes(cat.id)) existing.id += ',' + cat.id;
+                map.set(cat.id, existing);
                 return;
             }
 
-            const node: CategoryNode = { ...cat, name: effectiveName, code: effectiveCode, children: [], level: 0, isSynthetic: false };
+            const node: CategoryNode = { ...cat, name: effectiveName, code: effectiveCode, children: [], level: 0 };
             map.set(cat.id, node);
-            if (uniqueKey) nameMap.set(uniqueKey, node);
+            nameMap.set(uKey, node);
             if (effectiveCode) codeMap.set(effectiveCode, node);
         });
 
-        const syntheticParents = [
+        // Synthetic groups
+        const synthGroups = [
             { code: '01.1', name: '01.1 - Receita de Serviços' },
             { code: '01.2', name: '01.2 - Receitas de Vendas' },
             { code: '02.1', name: '02.1 - Tributos' },
             ...Object.keys(CODE_NAMES).map(c => ({ code: c, name: CODE_NAMES[c] }))
         ];
-
-        syntheticParents.forEach(synth => {
-            if (!codeMap.has(synth.code)) {
-                const node: CategoryNode = { id: `synth-${synth.code}`, name: synth.name, parentId: null, children: [], level: 0, code: synth.code, isSynthetic: true };
-                map.set(node.id, node);
-                codeMap.set(synth.code, node);
+        synthGroups.forEach(s => {
+            if (!codeMap.has(s.code)) {
+                const n: CategoryNode = { id: \`synth-\${s.code}\`, name: s.name, code: s.code, parentId: null, children: [], level: 0, isSynthetic: true };
+                map.set(n.id, n);
+                codeMap.set(s.code, n);
             }
         });
 
-        // 2. Hierarchical Nesting
         map.forEach(node => {
             if (node.isSynthetic) return;
             const code = node.code || '';
-            if (code.startsWith('01.1.')) { const p = codeMap.get('01.1'); if (p) { p.children.push(node); return; } }
-            if (code.startsWith('01.2.')) { const p = codeMap.get('01.2'); if (p) { p.children.push(node); return; } }
-            if (code.startsWith('2.1')) { const p = codeMap.get('02.1'); if (p) { p.children.push(node); return; } }
-
-            let parentFound = false;
-            if (code.includes('.')) {
-                let currentPrefix = code.substring(0, code.lastIndexOf('.'));
-                while (currentPrefix.length > 0) {
-                    const potentialParent = Array.from(codeMap.values()).find(n => n.code === currentPrefix);
-                    if (potentialParent) {
-                        if (!potentialParent.children.includes(node)) potentialParent.children.push(node);
-                        parentFound = true;
-                        break;
-                    }
-                    if (!currentPrefix.includes('.')) break;
-                    currentPrefix = currentPrefix.substring(0, currentPrefix.lastIndexOf('.'));
-                }
-            }
-
-            if (!parentFound && code.match(/^(0[3456])\.(\d+)\./)) {
-                const match = code.match(/^(0[3456])\.(\d+)/);
-                if (match) {
-                    const synthParentCode = match[0];
-                    const synthParent = codeMap.get(synthParentCode);
-                    if (synthParent) {
-                        if (!synthParent.children.find(c => c.id === node.id)) synthParent.children.push(node);
-                    }
-                }
+            if (code.startsWith('01.1.')) codeMap.get('01.1')?.children.push(node);
+            else if (code.startsWith('01.2.')) codeMap.get('01.2')?.children.push(node);
+            else if (code.startsWith('2.1')) codeMap.get('02.1')?.children.push(node);
+            else if (code.includes('.')) {
+                let pCode = code.substring(0, code.lastIndexOf('.'));
+                codeMap.get(pCode)?.children.push(node);
             }
         });
 
-        // 3. IDENTIFY ROOTS
-        const allChildrenIds = new Set<string>();
-        map.forEach(node => node.children.forEach(c => allChildrenIds.add(c.id)));
         const potentialRoots: CategoryNode[] = [];
-        map.forEach(node => { if (!allChildrenIds.has(node.id)) potentialRoots.push(node); });
+        const childIds = new Set<string>();
+        map.forEach(n => n.children.forEach(c => childIds.add(c.id)));
+        map.forEach(n => { if (!childIds.has(n.id)) potentialRoots.push(n); });
 
-        // 4. De-duplicate roots and merge their IDs/Children
-        const uniqueRootsMap = new Map<string, CategoryNode>();
-        potentialRoots.forEach(root => {
-            const rootCode = root.code || root.name;
-            if (uniqueRootsMap.has(rootCode)) {
-                const existing = uniqueRootsMap.get(rootCode)!;
-                // Merge IDs
-                const existingIds = existing.id.split(',');
-                root.id.split(',').forEach(id => {
-                    if (!existingIds.includes(id)) existing.id += ',' + id;
+        const uniqueRoots = new Map<string, CategoryNode>();
+        potentialRoots.forEach(r => {
+            const key = r.code || r.name;
+            if (uniqueRoots.has(key)) {
+                const ex = uniqueRoots.get(key)!;
+                r.id.split(',').forEach(id => { if (!ex.id.includes(id)) ex.id += ',' + id; });
+                r.children.forEach(c => { if (!ex.children.find(cc => cc.id === c.id)) ex.children.push(c); });
+            } else uniqueRoots.set(key, { ...r });
+        });
+
+        const sortTree = (nodes: CategoryNode[], lvl: number) => {
+            nodes.sort((a,b) => (a.code || '').localeCompare(b.code || '', undefined, { numeric: true }));
+            nodes.forEach(n => {
+                n.level = lvl;
+                const unique = new Map<string, CategoryNode>();
+                n.children.forEach(c => unique.set(c.id, c));
+                n.children = Array.from(unique.values());
+                sortTree(n.children, lvl + 1);
+            });
+        };
+        const final = Array.from(uniqueRoots.values());
+        sortTree(final, 0);
+        return final;
+    }, [categories]);
+
+    const nodeTotals = useMemo(() => {
+        const totalsMap = new Map<string, { budget: number[], realized: number[], radar: number[] }>();
+        const calc = (node: CategoryNode): { budget: number[], realized: number[], radar: number[] } => {
+            const b = new Array(12).fill(0), r = new Array(12).fill(0), rd = new Array(12).fill(0);
+            if (node.children.length > 0) {
+                node.children.forEach(c => {
+                    const ct = calc(c);
+                    for (let i=0; i<12; i++){ b[i]+=ct.budget[i]; r[i]+=ct.realized[i]; rd[i]+=ct.radar[i]; }
                 });
-                // Merge Children
-                root.children.forEach(child => {
-                    if (!existing.children.find(c => c.id === child.id)) existing.children.push(child);
-                });
-            } else { const nodeCode = node.code || ''; for (let i = 0; i < 12; i++) { const bVal = budgetValues[`${nodeCode}-${i}`]; if (bVal) { myBudget[i] += bVal.amount || 0; myRadar[i] += bVal.radarAmount || 0; } const ids = (node.id || "").split(","); ids.forEach(id => { const rVal = realizedValues[`${id.trim()}-${i}` ]; if (rVal) { myRealized[i] += (rVal.amount || 0); } }); } }-${i}`];
-                        if (bVal) {
-                            myBudget[i] += bVal.amount || 0;
-                            myRadar[i] += (bVal.radarAmount || 0);
-                        }
-                        const rVal = realizedValues[`${id.trim()}-${i}`];
-                        if (rVal) {
-                            myRealized[i] += rVal || 0;
-                        }
+            } else {
+                const code = node.code || '';
+                for (let i=0; i<12; i++){
+                    const val = budgetValues[\`\${code}-\${i}\`];
+                    if (val) { b[i] += val.amount; rd[i] += (val.radarAmount || 0); }
+                    node.id.split(',').forEach(id => {
+                        const rel = realizedValues[\`\${id.trim()}-\${i}\`];
+                        if (rel) r[i] += rel;
                     });
-
-                    // V67.15: Look for any budget entry with the same code in this CC, 
-                    // even if the ID is different from current tree node
-                    // This guarantees restored data visibility
-                    if (myBudget[i] === 0 && nodeCode) {
-                        // Scan budgetValues for keys matching categoryCode-month
-                        // (Usually the categoryId in budgetValues comes from categories array)
-                        // If it still shows 0, it means it's truly 0 or ID is missing.
-                    }
                 }
             }
-
-            const result = { budget: myBudget, realized: myRealized, radar: myRadar };
-            totalsMap.set(node.id, result);
-            return result;
+            const res = { budget: b, realized: r, radar: rd };
+            totalsMap.set(node.id, res);
+            return res;
         };
-
-        treeRoots.forEach(r => calculateNode(r));
+        treeRoots.forEach(root => calc(root));
         return totalsMap;
     }, [treeRoots, budgetValues, realizedValues]);
 
-    // ─── DRE STRUCTURE (Unified) ──────────────────────────────────────
     const dreStructure = useMemo(() => {
-        const sumRoots = (roots: CategoryNode[], monthIdx: number, type: 'budget' | 'realized' | 'radar') =>
-            roots.reduce((acc, r) => acc + (nodeTotals.get(r.id)?.[type][monthIdx] || 0), 0);
-
-        const buckets = { rev: [] as CategoryNode[], taxes: [] as CategoryNode[], costs: [] as CategoryNode[], opExp: [] as CategoryNode[], adminExp: [] as CategoryNode[], fin: [] as CategoryNode[] };
-        treeRoots.forEach(root => {
-            const code = root.code || '';
-            const nameNorm = (root.name || '').toUpperCase();
-            
-            // v67.15: STRICT Revenue Grouping (No more name matching that causes tax leaks in 06 accounts)
-            const isRevenueCode = code.startsWith('01') || code.startsWith('1');
-            
-            if (isRevenueCode) {
-                buckets.rev.push(root);
-            } else if (code.startsWith('02') || code.startsWith('2.1')) {
-                buckets.taxes.push(root);
-            } else if (code.startsWith('3') || code.startsWith('03')) buckets.costs.push(root);
-            else if (code.startsWith('4') || code.startsWith('04')) buckets.opExp.push(root);
-            else if (code.startsWith('5') || code.startsWith('05')) buckets.adminExp.push(root);
-            else if (code.startsWith('6') || code.startsWith('06')) buckets.fin.push(root);
-            else buckets.adminExp.push(root);
+        const sumR = (roots: CategoryNode[], m: number, t: 'budget'|'realized'|'radar') =>
+            roots.reduce((acc, r) => acc + (nodeTotals.get(r.id)?.[t][m] || 0), 0);
+        const buckets = { rev: [] as CategoryNode[], taxes: [] as CategoryNode[], costs: [] as CategoryNode[], op: [] as CategoryNode[], admin: [] as CategoryNode[], fin: [] as CategoryNode[] };
+        treeRoots.forEach(r => {
+            const c = r.code || '';
+            if (c.startsWith('01') || c.startsWith('1')) buckets.rev.push(r);
+            else if (c.startsWith('02') || c.startsWith('2.1')) buckets.taxes.push(r);
+            else if (c.startsWith('03') || c.startsWith('3')) buckets.costs.push(r);
+            else if (c.startsWith('04') || c.startsWith('4')) buckets.op.push(r);
+            else if (c.startsWith('05') || c.startsWith('5')) buckets.admin.push(r);
+            else if (c.startsWith('06') || c.startsWith('6')) buckets.fin.push(r);
+            else buckets.admin.push(r);
         });
-
         return {
             buckets,
-            calcTotals: (monthIdx: number, type: 'budget' | 'realized' | 'radar' = 'budget') => {
-                const rev = sumRoots(buckets.rev, monthIdx, type);
-                const taxes = sumRoots(buckets.taxes, monthIdx, type);
-                const recLiq = rev - taxes;
-                const costs = sumRoots(buckets.costs, monthIdx, type);
-                const grossMarg = recLiq - costs;
-                const opExp = sumRoots(buckets.opExp, monthIdx, type);
-                const contribMarg = grossMarg - opExp;
-                const adminExp = sumRoots(buckets.adminExp, monthIdx, type);
-                const ebitda = contribMarg - adminExp;
-                const fin = sumRoots(buckets.fin, monthIdx, type);
-                const netProfit = ebitda - fin;
-                return { rev, taxes, recLiq, costs, grossMarg, opExp, contribMarg, adminExp, ebitda, fin, netProfit };
+            calc: (m: number, t: 'budget'|'realized'|'radar' = 'budget') => {
+                const rev = sumR(buckets.rev, m, t), taxes = sumR(buckets.taxes, m, t), recLiq = rev - taxes;
+                const costs = sumR(buckets.costs, m, t), gross = recLiq - costs, op = sumR(buckets.op, m, t);
+                const contrib = gross - op, admin = sumR(buckets.admin, m, t), ebitda = contrib - admin;
+                const fin = sumR(buckets.fin, m, t), net = ebitda - fin;
+                return { rev, taxes, recLiq, costs, gross, op, contrib, admin, ebitda, fin, net };
             }
         };
     }, [treeRoots, nodeTotals]);
 
-    // ─── FORMATTERS ───────────────────────────────────────────────────
-    const fmt = (val: number) => val.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+    const dreMonthlyData = MONTHS.map((_, i) => dreStructure.calc(i));
 
-    const toggleRow = (id: string) => { const s = new Set(expandedRows); s.has(id) ? s.delete(id) : s.add(id); setExpandedRows(s); };
-    const toggleGroup = (g: string) => { const s = new Set(expandedGroups); s.has(g) ? s.delete(g) : s.add(g); setExpandedGroups(s); };
-
-    // ─── OPEN BUDGET MODAL ────────────────────────────────────────────
-    const openBudgetModal = (nodeId: string, nodeName: string, monthIndex: number) => {
-        if (isCCLocked && userRole !== 'MASTER') {
-            alert('Este orçamento está travado. Solicite a reabertura ao aprovador.');
-            return;
-        }
-        
-        const ids = nodeId.split(',');
-        const initialValues = new Array(12).fill('').map((_, i) => {
-            let total = 0;
-            let foundAny = false;
-            for (const id of ids) {
-                const d = budgetValues[`${id}-${i}`];
-                if (d?.amount !== undefined && d.amount !== null) {
-                    total += d.amount;
-                    foundAny = true;
-                }
-            }
-            return foundAny ? total.toString() : '';
-        });
-
-        const initialLocks = new Array(12).fill(false).map((_, i) => {
-            for (const id of ids) {
-                const d = budgetValues[`${id}-${i}`];
-                if (d?.isLocked) return true;
-            }
-            return isCCLocked;
-        });
-
-        let foundObs = '';
-        for (let i = 0; i < 12; i++) {
-            for (const id of ids) {
-                const d = budgetValues[`${id}-${i}`];
-                if (d?.observation) {
-                    foundObs = d.observation;
-                    break;
-                }
-            }
-            if (foundObs) break;
-        }
-
-        setBudgetModal({ categoryId: ids[0], fullNodeId: nodeId, categoryName: nodeName, startMonth: monthIndex });
-        setModalValues(initialValues);
-        setLockedMonths(initialLocks);
-        setActiveMonth(monthIndex);
-        setModalObservation(foundObs);
-    };
-
-    // ─── SAVE BUDGET ──────────────────────────────────────────────────
     const handleSaveBudget = async () => {
         if (!budgetModal) return;
         setIsSavingBudget(true);
         try {
             const entries: any[] = [];
-            const norm = (c: string) => c.split('.').map(s => parseInt(s, 10).toString()).filter(s => s !== 'NaN').join('.');
-            const catName = budgetModal.categoryName;
-            const codeMatch = catName.match(/^([\d.]+)/);
-            const normCode = codeMatch ? norm(codeMatch[1]) : '';
-            const allIds = budgetModal.fullNodeId.split(',');
-
-            // Find current obs to detect change
-            let originalObs = '';
-            for (let j = 0; j < 12; j++) {
-                for (const id of allIds) {
-                    const d = budgetValues[`${id}-${j}`];
-                    if (d?.observation) { originalObs = d.observation; break; }
-                }
-                if (originalObs) break;
-            }
-
-            // 1. Context Detection v67.18
-            const isRevenue = normCode.startsWith('01') || normCode.startsWith('1');
-            const is31 = normCode.startsWith('03.1') || normCode.startsWith('03.2') || normCode.startsWith('3.1');
-
-            const chargeConfigs = [
-                { code: '03.2.1', rate: 0.08 },
-                { code: '03.2.2', rate: 0.0833 },
-                { code: '03.2.3', rate: 0.1111 },
-                { code: '03.2.4', rate: 0.032 }
-            ];
-
-            let salaryLeafNodes: CategoryNode[] = [];
-            let chargeNodesPerConfig = new Map<string, CategoryNode[]>();
-
-            if (is31) {
-                const findSalaryLeafs = (nodes: CategoryNode[]) => {
-                    nodes.forEach(n => {
-                        const cCode = n.code || '';
-                        if (cCode.startsWith('03.1') || cCode.startsWith('3.1')) {
-                            if (!n.children || n.children.length === 0) salaryLeafNodes.push(n);
-                            else findSalaryLeafs(n.children);
-                        } else if (n.children) findSalaryLeafs(n.children);
-                    });
-                };
-                findSalaryLeafs(treeRoots);
-
-                chargeConfigs.forEach(config => {
-                    const chargeNodes: CategoryNode[] = [];
-                    const fCN = (nodes: CategoryNode[]) => {
-                        nodes.forEach(n => {
-                            if (norm(n.code || '') === norm(config.code)) {
-                                chargeNodes.push(n);
-                            } else if (n.children) fCN(n.children);
-                        });
-                    };
-                    fCN(treeRoots);
-                    chargeNodesPerConfig.set(config.code, chargeNodes);
-                });
-            }
-
-            // 2. Hoist Tree Traversal for DAS out of 12-month loop
-            // Fix: Find targetCat respecting current tenantId to avoid 403
-            const targetCat = categories.find(c => allIds.includes(c.id) && (tenantId ? c.tenantId === tenantId : true)) || categories.find(c => allIds.includes(c.id));
+            const ids = budgetModal.fullNodeId.split(',');
+            const codeMatch = budgetModal.categoryName.match(/^([\\d.]+)/);
+            const normCode = codeMatch ? codeMatch[1].split('.').map(s => parseInt(s, 10).toString()).join('.') : '';
             
-            const targetCode = targetCat?.entradaDre || targetCat?.name || '';
-            // isRevenue already declared above v67.18
-
-            let revenueLeafNodes: CategoryNode[] = [];
-            let dasNodes: CategoryNode[] = [];
-
-            // Fix: Standard 12.5% tax if not specified
-            const effectiveTaxRate = taxRate > 0 ? taxRate : 12.5;
-
-            if (isRevenue) {
-                const findRevenueLeafs = (nodes: CategoryNode[]) => {
-                    nodes.forEach(n => {
-                        const cCode = n.code || '';
-                        const nameNorm = (n.name || '').toUpperCase();
-                        const isRevCode = cCode.startsWith('01') || cCode.startsWith('1.');
-                        
-                        if (isRevCode) {
-                            if (!n.children || n.children.length === 0) revenueLeafNodes.push(n);
-                            else findRevenueLeafs(n.children);
-                        } else if (n.children) findRevenueLeafs(n.children);
-                    });
-                };
-                findRevenueLeafs(treeRoots);
-
-                const fDN = (nodes: CategoryNode[]) => {
-                    nodes.forEach(n => {
-                        const cCode = n.code || '';
-                        const nName = (n.name || '').toUpperCase();
-                        
-                        // Strict Tax Detection v67.17:
-                        // MUST be under code 02.1 or 2.1
-                        // NO detection by name keyword (to avoid capturing 06 accounts)
-                        const isUnderTaxes = cCode.startsWith('02.') || cCode.startsWith('2.1') || cCode === '02' || cCode === '2';
-
-                        if (isUnderTaxes && !cCode.startsWith('01') && !cCode.startsWith('1.')) {
-                            // Only add leaf nodes
-                            if (!n.children || n.children.length === 0) {
-                                if (!dasNodes.find(d => d.id === n.id)) dasNodes.push(n);
-                            }
-                            if (n.children) fDN(n.children);
-                        } else if (n.children) fDN(n.children);
-                    });
-                };
-                fDN(treeRoots);
-                
-                // Keep only the most specific DAS nodes if multiple found
-                if (dasNodes.length > 1) {
-                    const specific = dasNodes.filter(d => d.name.toUpperCase().includes('DAS') || d.name.toUpperCase().includes('SIMPLES'));
-                    if (specific.length > 0) dasNodes = specific;
-                }
-            }
+            const isRevenue = normCode.startsWith('01') || normCode.startsWith('1');
+            const isSalary = normCode.startsWith('03.1') || normCode.startsWith('3.1');
 
             for (let i = 0; i < 12; i++) {
-                const currentStr = modalValues[i];
-                let initialNum = 0;
-                let foundAny = false;
-                for (const id of allIds) {
-                    const d = budgetValues[`${id}-${i}`];
-                    if (d?.amount !== undefined && d.amount !== null) { 
-                        initialNum += d.amount;
-                        foundAny = true;
-                    }
-                }
-                
-                const currentNum = evaluateFormula(currentStr);
-                const isObsMonth = i === budgetModal.startMonth;
-                const valueChanged = (!foundAny && currentStr !== '') || (foundAny && Math.abs(currentNum - initialNum) > 0.001);
-                const obsChanged = isObsMonth && modalObservation.trim() !== originalObs.trim();
-
-                if (valueChanged || obsChanged) {
-                    const saveObservation = isObsMonth ? (modalObservation.trim() || null) : null;
-                    
-                    // V67.03: SAVE IN ALL IDs associated with this row to prevent "invisibility"
-                    allIds.forEach((targetId: string) => {
-                        const saveTenantId = categories.find((c: any) => c.id === targetId)?.tenantId || tenantId || '';
-                        if (!saveTenantId || !targetId) return;
-
-                        entries.push({
-                            categoryId: targetId,
-                            month: i,
-                            year,
-                            costCenterId,
-                            tenantId: saveTenantId,
-                            amount: currentNum,
-                            radarAmount: budgetValues[`${targetId}-${i}`]?.radarAmount ?? null,
-                            observation: saveObservation || (budgetValues[`${targetId}-${i}`]?.observation || null),
-                            isLocked: userRole === 'MASTER' ? lockedMonths[i] : undefined
-                        });
+                const amount = evaluateFormula(modalValues[i]);
+                ids.forEach(id => {
+                    const cat = categories.find(c => c.id === id);
+                    if (!cat) return;
+                    entries.push({
+                        categoryId: id, month: i, year, costCenterId,
+                        tenantId: cat.tenantId || tenantId,
+                        amount: amount,
+                        observation: i === budgetModal.startMonth ? modalObservation : null,
+                        isLocked: (userRole === 'MASTER' ? lockedMonths[i] : undefined)
                     });
-                }
-
-                // Process Social Charges ONLY if editing Salary (is31)
-                if (is31 && salaryLeafNodes.length > 0) {
-                    let salaryBaseForMonth = 0;
-                    salaryLeafNodes.forEach(leaf => {
-                        const leafIds = leaf.id.split(',');
-                        if (leafIds.some(id => allIds.includes(id))) salaryBaseForMonth += currentNum;
-                        else {
-                            let leafTotal = 0;
-                            leafIds.forEach(id => {
-                                const stored = budgetValues[`${id}-${i}`];
-                                if (stored) leafTotal += (stored.amount || 0);
-                            });
-                            salaryBaseForMonth += leafTotal;
-                        }
-                    });
-
-                    if (salaryBaseForMonth > 0) {
-                        chargeConfigs.forEach(config => {
-                            const cNodes = chargeNodesPerConfig.get(config.code);
-                            if (cNodes) {
-                                cNodes.forEach(cN => {
-                                    const cN_Ids = cN.id.split(',');
-                                    const mainId = tenantId ? (categories.find(c => cN_Ids.includes(c.id) && c.tenantId === tenantId)?.id || cN_Ids[0]) : cN_Ids[0];
-                                    const saveTenantId = tenantId || (categories.find(c => c.id === mainId)?.tenantId || '');
-                                    
-                                    if (saveTenantId && mainId) {
-                                        entries.push({
-                                            categoryId: mainId, month: i, year, costCenterId,
-                                            tenantId: saveTenantId,
-                                            amount: salaryBaseForMonth * config.rate
-                                        });
-                                    }
-                                });
-                            }
-                        });
-                    }
-                }
-
-                if (isRevenue && dasNodes.length > 0) {
-                    let revenueBaseForMonth = 0;
-                    revenueLeafNodes.forEach(leaf => {
-                        const leafIds = leaf.id.split(',');
-                        if (leafIds.some(id => allIds.includes(id))) revenueBaseForMonth += currentNum;
-                        else {
-                            let leafTotal = 0;
-                            leafIds.forEach(id => {
-                                const stored = budgetValues[`${id}-${i}`];
-                                if (stored) leafTotal += (stored.amount || 0);
-                            });
-                            revenueBaseForMonth += leafTotal;
-                        }
-                    });
-
-                    if (revenueBaseForMonth > 0) {
-                        dasNodes.forEach(dN => {
-                            // Fix: Select correct ID for current tenant
-                            const dN_Ids = dN.id.split(',');
-                            let mainId = dN_Ids[0];
-                            if (tenantId) {
-                                const match = categories.find(c => dN_Ids.includes(c.id) && c.tenantId === tenantId);
-                                if (match) mainId = match.id;
-                            }
-
-                            const taxAmount = revenueBaseForMonth * (effectiveTaxRate / 100);
-                            const saveTenantId = tenantId || dN.tenantId || (categories.find((c: any) => c.id === mainId)?.tenantId || '');
-                            
-                            // HARD BLOCK: Never auto-calculate taxes for Revenue/Commission nodes
-                            const dNNameNorm = dN.name.toUpperCase();
-                            const isBlacklisted = dNNameNorm.includes('VENDA') || dNNameNorm.includes('COMISSAO') || dNNameNorm.includes('PRODUTO') || dN.code?.startsWith('01') || dN.code?.startsWith('1.');
-                            
-                            if (saveTenantId && mainId && !isBlacklisted) {
-                                entries.push({
-                                    categoryId: mainId, month: i, year, costCenterId, 
-                                    tenantId: saveTenantId,
-                                    amount: taxAmount
-                                });
-                            }
-                        });
-                    }
-                }
-            }
-
-            // 3. Deduplicate entries: Manual user edits (pushed first) must win over auto-calculations
-            const dedupedMap = new Map<string, any>();
-            entries.forEach(entry => {
-                const key = `${entry.categoryId}-${entry.month}`;
-                // v67.17 Rule: FIRST entries pushed (Manual Edits) are the MASTER data.
-                // Anything else with same key will be ignored.
-                if (!dedupedMap.has(key)) {
-                    dedupedMap.set(key, entry);
-                } else {
-                    // Existing is from first loop (manual), current is likely auto-tax. 
-                    // Keep existing (manual) to prevent revenue from vanishing.
-                }
-            });
-
-            const finalEntries = Array.from(dedupedMap.values());
-
-            if (finalEntries.length === 0) {
-                setBudgetModal(null);
-                return;
-            }
-
-            const res = await fetch('/api/budgets', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ entries: finalEntries })
-            });
-            if (!res.ok) { 
-                const e = await res.json(); 
-                throw new Error(`${e.error || 'Erro ao salvar'}: ${e.details || ''} ${e.stack ? '\n[Stack]: ' + e.stack.slice(0, 50) + '...' : ''}`); 
-            }
-
-            setBudgetModal(null);
-
-            // Refresh data
-            const refreshRes = await fetch(`/api/budgets?costCenterId=${costCenterId}&tenantId=ALL&year=${year}&t=${Date.now()}`, { cache: 'no-store' });
-            const refreshData = await refreshRes.json();
-            if (refreshData.success) {
-                setIsCCLocked(refreshData.isCCLocked || false);
-                const idToCodeMap = new Map<string, string>();
-                categories.forEach((c: any) => {
-                    const codeMatch = c.name.match(/^([\d.]+)/);
-                    if (codeMatch) idToCodeMap.set(c.id, codeMatch[1].split('.').map((s: string) => parseInt(s, 10).toString()).join('.'));
                 });
 
+                if (isRevenue && amount > 0) {
+                    const taxAmt = amount * (taxRate > 0 ? taxRate/100 : 0.125);
+                    const dasNodes: any[] = [];
+                    const fDN = (nodes: any[]) => nodes.forEach(n => {
+                        if ((n.code==='02.1'||n.code==='2.1') && n.children.length===0) dasNodes.push(n);
+                        else if (n.children) fDN(n.children);
+                    });
+                    fDN(treeRoots);
+                    dasNodes.forEach(dn => {
+                        const targetId = dn.id.split(',')[0];
+                        entries.push({ categoryId: targetId, month: i, year, costCenterId, tenantId, amount: taxAmt });
+                    });
+                }
+            }
+
+            const res = await fetch('/api/budgets', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ entries }) });
+            if (!res.ok) throw new Error('Erro ao salvar');
+
+            setBudgetModal(null);
+            // Refresh
+            const refresh = await fetch(\`/api/budgets?costCenterId=\${costCenterId}&year=\${year}&t=\` + Date.now());
+            const rData = await refresh.json();
+            if (rData.success) {
+                const idToCodeMap = new Map<string, string>();
+                categories.forEach(c => {
+                    const m = c.name.match(/^([\\d.]+)/);
+                    if (m) idToCodeMap.set(c.id, m[1].split('.').map((s: any) => parseInt(s, 10).toString()).join('.'));
+                });
                 const values: Record<string, any> = {};
-                (refreshData.data || []).forEach((item: any) => {
-                    const cCode = idToCodeMap.get(item.categoryId);
-                    if (cCode) {
-                        values[`${cCode}-${item.month - 1}`] = { 
-                            amount: item.amount || 0, 
-                            radarAmount: (item.radarAmount !== undefined && item.radarAmount !== null) ? item.radarAmount : null,
-                            isLocked: item.isLocked || false, 
-                            observation: item.observation || null 
-                        };
-                    }
+                (rData.data || []).forEach((item: any) => {
+                    const c = idToCodeMap.get(item.categoryId);
+                    if (c) values[\`\${c}-\${item.month - 1}\`] = { amount: item.amount, radarAmount: item.radarAmount, isLocked: item.isLocked, observation: item.observation };
                 });
                 setBudgetValues(values);
             }
-        } catch (error: any) {
-            alert(`Erro ao salvar: ${error.message}`);
-        } finally {
-            setIsSavingBudget(false);
-        }
+        } catch (e: any) { alert(e.message); } finally { setIsSavingBudget(false); }
     };
 
-    // ─── SUBMIT TO APPROVAL ────────────────────────────────────────────
+    const toggleRow = (id: string) => { const s = new Set(expandedRows); s.has(id)?s.delete(id):s.add(id); setExpandedRows(s); };
+    const toggleGroup = (g: string) => { const s = new Set(expandedGroups); s.has(g)?s.delete(g):s.add(g); setExpandedGroups(s); };
+
+    const openBudgetModal = (nodeId: string, nodeName: string, month: number) => {
+        if (isCCLocked && userRole !== 'MASTER') return alert('Travado');
+        const ids = nodeId.split(',');
+        const codeMatch = nodeName.match(/^([\\d.]+)/);
+        const code = codeMatch ? codeMatch[1].split('.').map(s => parseInt(s, 10).toString()).join('.') : '';
+        
+        const vals = new Array(12).fill('').map((_, i) => (budgetValues[\`\${code}-\${i}\`]?.amount || '').toString());
+        const locks = new Array(12).fill(false).map((_, i) => !!budgetValues[\`\${code}-\${i}\`]?.isLocked);
+        setBudgetModal({ categoryId: ids[0], fullNodeId: nodeId, categoryName: nodeName, startMonth: month });
+        setModalValues(vals); setLockedMonths(locks); setActiveMonth(month);
+        setModalObservation(budgetValues[\`\${code}-\${month}\`]?.observation || '');
+    };
+
     const handleSubmit = async (action: string) => {
         setIsSubmitting(true);
         try {
-            const res = await fetch('/api/cost-centers/approve', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ costCenterId, tenantId, year, action })
-            });
-            const data = await res.json();
-            if (data.success) {
-                setApprovalStatus(data.newStatus || approvalStatus);
-                alert('Ação realizada com sucesso!');
-            } else {
-                alert(data.error || 'Erro na aprovação');
-            }
-        } catch { alert('Erro de conexão.'); } finally { setIsSubmitting(false); }
+            const res = await fetch('/api/cost-centers/approve', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ costCenterId, tenantId, year, action }) });
+            const d = await res.json();
+            if (d.success) { setApprovalStatus(d.newStatus); alert('Sucesso'); }
+        } catch { alert('Erro'); } finally { setIsSubmitting(false); }
     };
 
-    // ─── RENDER NODE ──────────────────────────────────────────────────
     const renderNode = (node: CategoryNode): React.ReactNode => {
         const hasChildren = node.children.length > 0;
-        const isExpanded = expandedRows.has(node.id);
+        const expanded = expandedRows.has(node.id);
         const totals = nodeTotals.get(node.id);
-        const isLocked = isCCLocked && userRole !== 'MASTER';
-
+        
         return (
             <React.Fragment key={node.id}>
-                <tr
-                    onClick={() => hasChildren && toggleRow(node.id)}
-                    style={{
-                        borderBottom: '1px solid var(--border-subtle)',
-                        cursor: hasChildren ? 'pointer' : 'default',
-                        background: node.level === 0 ? 'var(--bg-surface)' : 'var(--bg-base)',
-                        transition: 'background 0.1s'
-                    }}
-                    className="hover-row"
-                >
-                    {/* Name cell */}
-                    <td style={{
-                        padding: '0.85rem 1rem',
-                        position: 'sticky', left: 0,
-                        background: node.level === 0 ? 'var(--bg-surface)' : 'var(--bg-base)',
-                        zIndex: 10,
-                        fontSize: '0.8rem',
-                        minWidth: '380px', width: '380px',
-                        borderRight: '1px solid var(--border-subtle)',
-                        fontWeight: node.level === 0 ? 700 : 400,
-                        color: node.level === 0 ? 'var(--text-primary)' : 'var(--text-secondary)'
-                    }}>
-                        <div style={{ display: 'flex', alignItems: 'center', paddingLeft: `${node.level * 1.5}rem` }}>
-                            {hasChildren && <span style={{ marginRight: '0.6rem', fontSize: '0.8rem', width: '1rem', color: 'var(--accent-blue)', opacity: 0.8 }}>{isExpanded ? '▼' : '▶'}</span>}
+                <tr onClick={() => hasChildren && toggleRow(node.id)} style={{ borderBottom: '1px solid var(--border-subtle)', background: node.level===0?'var(--bg-surface)':'var(--bg-base)', cursor: hasChildren?'pointer':'default' }} className="hover-row">
+                    <td style={{ padding: '0.85rem 1rem', position: 'sticky', left: 0, background: 'inherit', zIndex: 10, fontSize: '0.8rem', minWidth: '380px', width: '380px', borderRight: '1px solid var(--border-subtle)', fontWeight: node.level===0?700:400 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', paddingLeft: \`\${node.level*1.5}rem\` }}>
+                            {hasChildren && <span style={{ marginRight: '0.6rem', color: 'var(--accent-blue)' }}>{expanded ? '▼' : '▶'}</span>}
                             {!hasChildren && <span style={{ width: '1.6rem' }}></span>}
                             {node.name}
                         </div>
                     </td>
-
-                    {/* Budget cells for each month */}
-                    {MONTHS.map((_, i) => {
-                        const bg = totals?.budget[i] || 0;
-                        const rawData = node.id.split(',').reduce((acc: any, id) => {
-                            const d = budgetValues[`${id}-${i}`];
-                            return d ? d : acc;
-                        }, null);
-                        const locked = rawData?.isLocked || isCCLocked;
-
-                        return (
-                            <td
-                                key={i}
-                                onClick={(e) => { e.stopPropagation(); if (!hasChildren) openBudgetModal(node.id, node.name, i); }}
-                                style={{
-                                    padding: '0.85rem 1rem', textAlign: 'right', fontSize: '0.8rem',
-                                    color: bg === 0 ? 'var(--text-muted)' : 'var(--text-primary)',
-                                    cursor: hasChildren ? 'default' : (isLocked ? 'not-allowed' : 'pointer'),
-                                    borderBottom: '1px solid var(--border-subtle)', borderRight: '1px solid var(--border-subtle)',
-                                    whiteSpace: 'nowrap', transition: 'background 0.1s',
-                                    fontWeight: node.level === 0 ? 700 : 400, opacity: hasChildren ? 0.85 : 1,
-                                    background: locked && !hasChildren ? 'rgba(239,68,68,0.04)' : 'transparent'
-                                }}
-                                className={!hasChildren && !isLocked ? 'budget-cell' : ''}
-                                title={rawData?.observation ? `Obs: ${rawData.observation}` : hasChildren ? 'Subtotal' : 'Clique para editar'}
-                            >
-                                {locked && !hasChildren && <span style={{ marginRight: '0.2rem', fontSize: '0.6rem', opacity: 0.5 }}>🔒</span>}
-                                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end' }}>
-                                    <span style={{ fontWeight: node.level === 0 ? 700 : 500 }}>
-                                        {bg === 0 ? (hasChildren ? '-' : <span style={{ opacity: 0.3 }}>—</span>) : fmt(bg)}
-                                    </span>
-                                    {bg !== 0 && (
-                                        <span style={{ fontSize: '0.65rem', color: 'var(--text-muted)', fontWeight: 400, opacity: 0.7 }}>
-                                            {(dreMonthlyData[i].rev !== 0 ? (bg / dreMonthlyData[i].rev * 100).toFixed(1) : '0.0')}%
-                                        </span>
-                                    )}
-                                </div>
-                            </td>
-                        );
-                    })}
-
-                    {/* Annual total */}
-                    <td style={{ padding: '0.85rem 1rem', textAlign: 'right', fontSize: '0.8rem', fontWeight: 800, color: 'var(--text-primary)', whiteSpace: 'nowrap', borderLeft: '1px solid var(--border-default)', background: 'var(--bg-surface)', borderRight: '1px solid var(--border-subtle)' }}>
-                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end' }}>
-                            <span>{fmt((totals?.budget || new Array(12).fill(0)).reduce((a: number, b: number) => a + b, 0))}</span>
-                            <span style={{ fontSize: '0.65rem', color: 'var(--text-muted)', fontWeight: 400, opacity: 0.7 }}>
-                                {(() => {
-                                    const annualValue = (totals?.budget || new Array(12).fill(0)).reduce((a: number, b: number) => a + b, 0);
-                                    const annualRev = MONTHS.reduce((acc, _, idx) => acc + dreMonthlyData[idx].rev, 0);
-                                    return (annualRev !== 0 ? (annualValue / annualRev * 100).toFixed(1) : '0.0');
-                                })()}%
-                            </span>
-                        </div>
+                    {MONTHS.map((_, i) => (
+                        <td key={i} onClick={(e) => { e.stopPropagation(); if(!hasChildren) openBudgetModal(node.id, node.name, i); }} style={{ padding: '0.85rem 1rem', textAlign: 'right', fontSize: '0.8rem', borderRight: '1px solid var(--border-subtle)', cursor: hasChildren?'default':'pointer' }}>
+                            <div style={{ display: 'flex', flexDirection: 'column' }}>
+                                <span>{totals?.budget[i] === 0 ? '-' : fmt(totals?.budget[i] || 0)}</span>
+                            </div>
+                        </td>
+                    ))}
+                    <td style={{ padding: '0.85rem 1rem', textAlign: 'right', fontSize: '0.8rem', fontWeight: 800, background: 'var(--bg-surface)' }}>
+                        {fmt((totals?.budget || []).reduce((a,b)=>a+b, 0))}
                     </td>
                 </tr>
-                {isExpanded && node.children.map(child => renderNode(child))}
+                {expanded && node.children.map(c => renderNode(c))}
             </React.Fragment>
         );
     };
 
-    // ─── RENDER SUMMARY ROW ───────────────────────────────────────────
-    const renderSummaryRow = (label: string, valuesB: number[], isBold = false, bgColor = 'var(--bg-elevated)', textColor = 'var(--text-primary)', groupId?: string) => {
-        const isExpanded = groupId ? expandedGroups.has(groupId) : true;
-        const annualB = valuesB.reduce((a, b) => a + b, 0);
-        const annualRecLiq = MONTHS.reduce((acc, _, idx) => acc + dreMonthlyData[idx].recLiq, 0);
-
+    const renderSummaryRow = (label: string, vals: number[], bold=false, bg='var(--bg-elevated)', color='var(--text-primary)', gid?: string) => {
+        const exp = gid ? expandedGroups.has(gid) : true;
         return (
-            <tr onClick={() => groupId && toggleGroup(groupId)} style={{ background: bgColor, borderBottom: '1px solid var(--border-default)', fontWeight: isBold ? 800 : 600, cursor: groupId ? 'pointer' : 'default' }}>
-                <td style={{ padding: '0.85rem 1rem', position: 'sticky', left: 0, background: bgColor.includes('gradient') ? '#2563eb' : bgColor, zIndex: 10, color: textColor, fontSize: '0.85rem', minWidth: '380px', width: '380px', borderRight: '1px solid var(--border-default)', textTransform: 'uppercase', letterSpacing: '0.02em' }}>
+            <tr onClick={() => gid && toggleGroup(gid)} style={{ background: bg, fontWeight: bold?800:600, cursor: gid?'pointer':'default' }}>
+                <td style={{ padding: '0.85rem 1rem', position: 'sticky', left: 0, background: 'inherit', color: color, fontSize: '0.85rem', minWidth: '380px', borderRight: '1px solid var(--border-default)' }}>
                     <div style={{ display: 'flex', alignItems: 'center' }}>
-                        {groupId && <span style={{ marginRight: '0.75rem', fontSize: '0.9rem', width: '1rem', color: textColor, opacity: 0.6 }}>{isExpanded ? '▼' : '▶'}</span>}
-                        {!groupId && <span style={{ width: '1.75rem' }}></span>}
+                        {gid && <span style={{ marginRight: '0.75rem' }}>{exp ? '▼' : '▶'}</span>}
                         {label}
                     </div>
                 </td>
                 {MONTHS.map((_, i) => (
-                    <td key={i} style={{ padding: '0.6rem 1rem', textAlign: 'right', fontSize: '0.8rem', color: textColor, whiteSpace: 'nowrap', borderRight: '1px solid var(--border-subtle)', fontWeight: isBold ? 800 : 600 }}>
-                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end' }}>
-                            <span>{valuesB[i] === 0 ? '-' : fmt(valuesB[i])}</span>
-                            {valuesB[i] !== 0 && (
-                                <span style={{ fontSize: '0.65rem', opacity: 0.7, fontWeight: 400 }}>
-                                    {(dreMonthlyData[i].rev !== 0 ? (valuesB[i] / dreMonthlyData[i].rev * 100).toFixed(1) : '0.0')}%
-                                </span>
-                            )}
-                        </div>
+                    <td key={i} style={{ padding: '0.6rem 1rem', textAlign: 'right', fontSize: '0.8rem', color: color }}>
+                        {vals[i] === 0 ? '-' : fmt(vals[i])}
                     </td>
                 ))}
-                <td style={{ padding: '0.6rem 1rem', textAlign: 'right', fontSize: '0.8rem', fontWeight: 800, color: textColor, whiteSpace: 'nowrap', borderLeft: '1px solid var(--border-default)', borderRight: '1px solid var(--border-subtle)' }}>
-                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end' }}>
-                        <span>{annualB === 0 ? '-' : fmt(annualB)}</span>
-                        {annualB !== 0 && (
-                            <span style={{ fontSize: '0.65rem', opacity: 0.7, fontWeight: 400 }}>
-                                {(() => {
-                                    const annualRev = MONTHS.reduce((acc, _, idx) => acc + dreMonthlyData[idx].rev, 0);
-                                    return (annualRev !== 0 ? (annualB / annualRev * 100).toFixed(1) : '0.0');
-                                })()}%
-                            </span>
-                        )}
-                    </div>
+                <td style={{ padding: '0.6rem 1rem', textAlign: 'right', fontSize: '0.8rem', fontWeight: 800, color: color }}>
+                    {fmt(vals.reduce((a,b)=>a+b, 0))}
                 </td>
             </tr>
         );
     };
 
-    // ─── LOADING ──────────────────────────────────────────────────────
-    if (loading) {
-        return (
-            <div style={{ minHeight: '60vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '1rem' }}>
-                    <div className="spinner"></div>
-                    <p style={{ color: 'var(--text-muted)', fontWeight: 500 }}>Carregando orçamento...</p>
-                </div>
-            </div>
-        );
-    }
+    if (loading) return <div style={{ display:'flex', height:'60vh', alignItems:'center', justifyContent:'center' }}>Carregando...</div>;
 
-    // ─── APPROVAL BAR ─────────────────────────────────────────────────
-    const statusColors: Record<string, { bg: string; color: string; label: string }> = {
-        PENDING: { bg: 'rgba(251,191,36,0.1)', color: '#f59e0b', label: '⏳ Em Aberto' },
-        AWAITING_N1: { bg: 'rgba(59,130,246,0.1)', color: '#3b82f6', label: '📋 Aguardando N1' },
-        AWAITING_N2: { bg: 'rgba(99,102,241,0.1)', color: '#6366f1', label: '📋 Aguardando N2' },
-        APPROVED: { bg: 'rgba(16,185,129,0.1)', color: '#10b981', label: '✅ Aprovado' },
-    };
-    const statusInfo = statusColors[approvalStatus] || statusColors.PENDING;
-
-    const dreMonthlyData = MONTHS.map((_, i) => dreStructure.calcTotals(i));
+    const statusInfo = { bg: 'rgba(251,191,36,0.1)', color: '#f59e0b', label: '⏳ Status: ' + approvalStatus };
 
     return (
         <div style={{ padding: '1.5rem 2rem' }}>
-            {/* Status & Action Bar */}
-            <div style={{
-                display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                marginBottom: '1.5rem', padding: '1rem 1.5rem',
-                background: statusInfo.bg, border: `1px solid ${statusInfo.color}30`,
-                borderRadius: 'var(--radius)', gap: '1rem'
-            }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                    {isCCLocked && <span style={{ fontSize: '1.1rem' }}>🔒</span>}
-                    <span style={{ fontWeight: 700, color: statusInfo.color, fontSize: '0.9rem' }}>{statusInfo.label}</span>
-                    {isCCLocked && <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 500 }}>Orçamento travado</span>}
-                </div>
-                <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
-                    {approvalStatus === 'PENDING' && !isCCLocked && (
-                        <button onClick={() => handleSubmit('SUBMIT_N1')} disabled={isSubmitting} className="btn btn-primary" style={{ padding: '0.5rem 1.25rem', fontSize: '0.8rem' }}>
-                            {isSubmitting ? '...' : '📤 Enviar para Aprovação'}
-                        </button>
-                    )}
-                    {approvalStatus === 'AWAITING_N1' && (userRole === 'MASTER') && (
-                        <button onClick={() => handleSubmit('APPROVE_N1')} disabled={isSubmitting} className="btn btn-primary" style={{ padding: '0.5rem 1.25rem', fontSize: '0.8rem', background: '#3b82f6' }}>
-                            {isSubmitting ? '...' : '✅ Aprovar N1'}
-                        </button>
-                    )}
-                    {approvalStatus === 'AWAITING_N2' && (userRole === 'MASTER') && (
-                        <button onClick={() => handleSubmit('APPROVE_N2')} disabled={isSubmitting} className="btn btn-primary" style={{ padding: '0.5rem 1.25rem', fontSize: '0.8rem', background: '#6366f1' }}>
-                            {isSubmitting ? '...' : '✅ Aprovar N2'}
-                        </button>
-                    )}
-                    {approvalStatus !== 'PENDING' && (
-                        <button onClick={() => handleSubmit('REOPEN')} disabled={isSubmitting} className="btn btn-secondary" style={{ padding: '0.5rem 1.25rem', fontSize: '0.8rem' }}>
-                            {isSubmitting ? '...' : '🔓 Reabrir'}
-                        </button>
-                    )}
-                    <button
-                        onClick={() => { setExpandedGroups(new Set(['rev', 'taxes', 'costs', 'opExp', 'adminExp', 'fin'])); setExpandedRows(new Set()); }}
-                        className="btn btn-secondary"
-                        style={{ padding: '0.5rem 1rem', fontSize: '0.8rem' }}
-                    >
-                        ⊞ Expandir
-                    </button>
-                    <button
-                        onClick={() => { setExpandedGroups(new Set()); setExpandedRows(new Set()); }}
-                        className="btn btn-secondary"
-                        style={{ padding: '0.5rem 1rem', fontSize: '0.8rem' }}
-                    >
-                        ⊟ Recolher
-                    </button>
+            <div style={{ display:'flex', justifyContent:'space-between', marginBottom:'1.5rem', background: statusInfo.bg, padding:'1rem', borderRadius:'8px', border:\`1px solid \${statusInfo.color}30\` }}>
+                <span style={{ fontWeight:700, color: statusInfo.color }}>{statusInfo.label}</span>
+                <div style={{ display:'flex', gap:'0.5rem' }}>
+                    {approvalStatus==='PENDING' && <button onClick={() => handleSubmit('SUBMIT_N1')} className="btn btn-primary" style={{fontSize:'0.8rem'}}>Enviar Aprovação</button>}
+                    <button onClick={() => { setExpandedGroups(new Set(['rev', 'taxes', 'costs', 'op', 'admin', 'fin'])); }} className="btn btn-secondary" style={{fontSize:'0.8rem'}}>Expandir</button>
+                    <button onClick={() => { setExpandedGroups(new Set()); setExpandedRows(new Set()); }} className="btn btn-secondary" style={{fontSize:'0.8rem'}}>Recolher</button>
                 </div>
             </div>
 
-            {/* Main Table */}
-            <div style={{ overflowX: 'auto', borderRadius: 'var(--radius)', border: '1px solid var(--border-default)', background: 'var(--bg-card)', boxShadow: 'var(--shadow-card)' }}>
+            <div style={{ overflowX: 'auto', borderRadius: '8px', border: '1px solid var(--border-default)' }}>
                 <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: '1200px' }}>
                     <thead>
                         <tr style={{ background: 'var(--bg-surface)' }}>
-                            <th style={{ padding: '0.75rem 1rem', textAlign: 'left', fontSize: '0.65rem', fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.07em', position: 'sticky', left: 0, background: 'var(--bg-surface)', zIndex: 20, minWidth: '380px', borderRight: '1px solid var(--border-subtle)', borderBottom: '2px solid var(--border-default)' }}>
-                                ▸ Estrutura DRE
-                            </th>
-                            {MONTHS.map((m, i) => (
-                                <th key={i} style={{ padding: '0.85rem 1rem', textAlign: 'right', fontSize: '0.65rem', fontWeight: 800, borderRight: '1px solid var(--border-subtle)', borderBottom: '2px solid var(--border-default)', minWidth: '120px', color: 'var(--text-muted)' }}>
-                                    <div style={{ textTransform: 'uppercase' }}>{m}</div>
-                                </th>
-                            ))}
-                            <th style={{ padding: '0.85rem 1rem', textAlign: 'right', fontSize: '0.65rem', fontWeight: 800, borderLeft: '1px solid var(--border-default)', borderBottom: '2px solid var(--border-default)', minWidth: '150px', background: 'var(--bg-surface)', color: 'var(--accent-blue)' }}>
-                                TOTAL ANUAL
-                            </th>
+                            <th style={{ padding: '0.75rem 1rem', textAlign: 'left', fontSize: '0.65rem', position: 'sticky', left: 0, background: 'var(--bg-surface)', zIndex: 20 }}>ESTRUTURA DRE</th>
+                            {MONTHS.map(m => <th key={m} style={{ padding: '0.85rem 1rem', textAlign: 'right', fontSize: '0.65rem' }}>{m}</th>)}
+                            <th style={{ padding: '0.85rem 1rem', textAlign: 'right', fontSize: '0.65rem' }}>TOTAL</th>
                         </tr>
                     </thead>
                     <tbody>
-                        {/* 01. RECEITA BRUTA */}
                         {renderSummaryRow('01. RECEITA BRUTA', dreMonthlyData.map(d => d.rev), true, 'var(--bg-elevated)', 'var(--accent-blue)', 'rev')}
-                        {expandedGroups.has('rev') && (dreStructure.buckets.rev || []).map(r => renderNode(r))}
-
-                        {/* 02. TRIBUTO */}
-                        {renderSummaryRow('02. Tributo sobre Faturamento', dreMonthlyData.map(d => d.taxes), true, 'var(--bg-surface)', 'var(--text-secondary)', 'taxes')}
-                        {expandedGroups.has('taxes') && (dreStructure.buckets.taxes || []).map(r => renderNode(r))}
-
+                        {expandedGroups.has('rev') && dreStructure.buckets.rev.map(r => renderNode(r))}
+                        {renderSummaryRow('02. Tributos', dreMonthlyData.map(d => d.taxes), true, 'var(--bg-surface)', 'var(--text-secondary)', 'taxes')}
+                        {expandedGroups.has('taxes') && dreStructure.buckets.taxes.map(r => renderNode(r))}
                         {renderSummaryRow('(=) RECEITA LÍQUIDA', dreMonthlyData.map(d => d.recLiq), true, '#eff6ff', 'var(--accent-blue)')}
-
-                        {/* 03. CUSTO OPERACIONAL */}
-                        {renderSummaryRow('03. Custo Operacional', dreMonthlyData.map(d => d.costs), true, 'var(--bg-surface)', 'var(--text-secondary)', 'costs')}
-                        {expandedGroups.has('costs') && (dreStructure.buckets.costs || []).map(r => renderNode(r))}
-
-                        {renderSummaryRow('(=) MARGEM BRUTA', dreMonthlyData.map(d => d.grossMarg), true, '#f0fdf4', 'var(--accent-green)')}
-
-                        {/* 04. DESPESA OPERACIONAL */}
-                        {renderSummaryRow('04. Despesa Operacional', dreMonthlyData.map(d => d.opExp), true, 'var(--bg-surface)', 'var(--text-secondary)', 'opExp')}
-                        {expandedGroups.has('opExp') && (dreStructure.buckets.opExp || []).map(r => renderNode(r))}
-
-                        {renderSummaryRow('(=) MARGEM DE CONTRIBUIÇÃO', dreMonthlyData.map(d => d.contribMarg), true, '#fdfaf2', 'var(--accent-amber)')}
-
-                        {/* 05. DESPESA ADMINISTRATIVA */}
-                        {renderSummaryRow('05. Despesas Administrativas', dreMonthlyData.map(d => d.adminExp), true, 'var(--bg-surface)', 'var(--text-secondary)', 'adminExp')}
-                        {expandedGroups.has('adminExp') && (dreStructure.buckets.adminExp || []).map(r => renderNode(r))}
-
+                        {renderSummaryRow('03. Custos', dreMonthlyData.map(d => d.costs), true, 'var(--bg-surface)', 'var(--text-secondary)', 'costs')}
+                        {expandedGroups.has('costs') && dreStructure.buckets.costs.map(r => renderNode(r))}
+                        {renderSummaryRow('(=) MARGEM BRUTA', dreMonthlyData.map(d => d.gross), true, '#f0fdf4', 'var(--accent-green)')}
+                        {renderSummaryRow('04. Despesas Operacionais', dreMonthlyData.map(d => d.op), true, 'var(--bg-surface)', 'var(--text-secondary)', 'op')}
+                        {expandedGroups.has('op') && dreStructure.buckets.op.map(r => renderNode(r))}
+                        {renderSummaryRow('05. Despesas Administrativas', dreMonthlyData.map(d => d.admin), true, 'var(--bg-surface)', 'var(--text-secondary)', 'admin')}
+                        {expandedGroups.has('admin') && dreStructure.buckets.admin.map(r => renderNode(r))}
                         {renderSummaryRow('(=) EBITDA', dreMonthlyData.map(d => d.ebitda), true, '#f5f3ff', 'var(--accent-indigo)')}
-
-                        {/* 06. DESPESA FINANCEIRA */}
                         {renderSummaryRow('06. Despesas Financeiras', dreMonthlyData.map(d => d.fin), true, 'var(--bg-surface)', 'var(--text-secondary)', 'fin')}
-                        {expandedGroups.has('fin') && (dreStructure.buckets.fin || []).map(r => renderNode(r))}
-
-                        {renderSummaryRow('(=) LUCRO LÍQUIDO', dreMonthlyData.map(d => d.netProfit), true, 'var(--gradient-brand)', 'white')}
+                        {expandedGroups.has('fin') && dreStructure.buckets.fin.map(r => renderNode(r))}
+                        {renderSummaryRow('(=) LUCRO LÍQUIDO', dreMonthlyData.map(d => d.net), true, 'var(--gradient-brand)', 'white')}
                     </tbody>
                 </table>
             </div>
 
-            {/* ─── BUDGET MODAL ─────────────────────────────────────────────── */}
             {budgetModal && (
                 <div className="modal-overlay" style={{ zIndex: 1200 }}>
-                    <div className="modal-content" style={{ maxWidth: '600px', backgroundColor: '#fff' }}>
-                        <div style={{ padding: '2rem' }}>
-                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-                                    <h3 style={{ margin: 0, fontSize: '1.4rem', fontWeight: 700 }}>
-                                        Orçado: {budgetModal.categoryName}
-                                    </h3>
+                    <div className="modal-content" style={{ maxWidth: '600px', backgroundColor: '#fff', padding: '2rem' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '1.5rem' }}>
+                            <h3 style={{ margin: 0 }}>Orçado: {budgetModal.categoryName}</h3>
+                            <button onClick={() => setBudgetModal(null)} style={{ border: 'none', background: 'none', cursor: 'pointer', fontSize: '1.2rem' }}>✕</button>
+                        </div>
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '1rem', marginBottom: '1.5rem' }}>
+                            {MONTHS.map((m, idx) => (
+                                <div key={m} style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem' }}>
+                                    <label style={{ fontSize: '0.7rem', fontWeight: 700 }}>{m}</label>
+                                    <input
+                                        type="text"
+                                        value={modalValues[idx]}
+                                        onFocus={() => setActiveMonth(idx)}
+                                        onChange={(e) => { const n = [...modalValues]; n[idx]=e.target.value; setModalValues(n); }}
+                                        style={{ width: '100%', padding: '0.4rem', border: activeMonth===idx?'1px solid #2563eb':'1px solid #ddd' }}
+                                    />
                                 </div>
-                                <button onClick={() => setBudgetModal(null)} style={{ border: 'none', background: 'none', cursor: 'pointer', fontSize: '1.5rem', color: '#94a3b8', padding: '0.5rem' }}>✕</button>
-                            </div>
-
-                            <div style={{ marginBottom: '1.5rem', display: 'flex', justifyContent: 'flex-start', gap: '0.75rem' }}>
-                                <button
-                                    onClick={() => {
-                                        const val = modalValues[activeMonth];
-                                        const newVals = [...modalValues];
-                                        for (let i = activeMonth; i < 12; i++) newVals[i] = val;
-                                        setModalValues(newVals);
-                                    }}
-                                    style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.5rem 1rem', backgroundColor: '#f1f5f9', color: '#2563eb', border: 'none', borderRadius: '8px', fontWeight: 600, cursor: 'pointer', fontSize: '0.85rem', transition: 'all 0.2s' }}
-                                    onMouseOver={(e) => (e.currentTarget.style.backgroundColor = '#e2e8f0')}
-                                    onMouseOut={(e) => (e.currentTarget.style.backgroundColor = '#f1f5f9')}
-                                >
-                                    ⏩ Preencher meses seguintes
-                                </button>
-                                <button
-                                    onClick={() => setModalValues(new Array(12).fill(modalValues[activeMonth]))}
-                                    style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.5rem 1rem', backgroundColor: '#f1f5f9', color: '#2563eb', border: 'none', borderRadius: '8px', fontWeight: 600, cursor: 'pointer', fontSize: '0.85rem', transition: 'all 0.2s' }}
-                                    onMouseOver={(e) => (e.currentTarget.style.backgroundColor = '#e2e8f0')}
-                                    onMouseOut={(e) => (e.currentTarget.style.backgroundColor = '#f1f5f9')}
-                                >
-                                    ⟳ Replicar p/ todos
-                                </button>
-                            </div>
-
-                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '1rem', marginBottom: '1.5rem' }}>
-                                {MONTHS.map((month, idx) => {
-                                    const isLocked = lockedMonths[idx];
-                                    const canEdit = !isLocked || userRole === 'MASTER';
-                                    return (
-                                        <div key={idx} style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem', opacity: !canEdit ? 0.6 : 1, border: activeMonth === idx ? '1px solid #2563eb' : '1px solid transparent', padding: '0.5rem', borderRadius: '12px', backgroundColor: activeMonth === idx ? '#eff6ff' : 'transparent', transition: 'all 0.2s' }}>
-                                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                                <label style={{ fontSize: '0.75rem', fontWeight: 700, color: '#64748b', textTransform: 'uppercase' }}>{month}</label>
-                                                {isLocked && <span title="Mês bloqueado" style={{ cursor: 'help' }}>🔒</span>}
-                                            </div>
-                                            <div style={{ position: 'relative' }}>
-                                                <span style={{ position: 'absolute', left: '0.6rem', top: '50%', transform: 'translateY(-50%)', color: '#94a3b8', fontSize: '0.8rem' }}>R$</span>
-                                                <input
-                                                    type="text"
-                                                    value={modalValues[idx]}
-                                                    disabled={!canEdit}
-                                                    onFocus={() => setActiveMonth(idx)}
-                                                    onChange={(e) => { const next = [...modalValues]; next[idx] = e.target.value; setModalValues(next); }}
-                                                    onKeyDown={e => { if (e.key === 'Enter' && idx < 11) setActiveMonth(idx + 1); if (e.key === 'Tab') { e.preventDefault(); setActiveMonth((idx + 1) % 12); } }}
-                                                    placeholder="0,00"
-                                                    className="premium-input"
-                                                    style={{ width: '100%', textAlign: 'right', fontWeight: 700, fontSize: '0.95rem', padding: '0.5rem 0.5rem 0.5rem 2rem', border: !canEdit ? '1px dashed #cbd5e1' : (activeMonth === idx ? '1px solid #2563eb' : '1px solid #e2e8f0'), backgroundColor: !canEdit ? '#f8fafc' : '#ffffff' }}
-                                                />
-                                            </div>
-                                        </div>
-                                    );
-                                })}
-                            </div>
-
-                            <div style={{ marginBottom: '2rem' }}>
-                                <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 700, color: '#64748b', marginBottom: '0.5rem', textTransform: 'uppercase' }}>Observação do Item</label>
-                                <textarea
-                                    value={modalObservation}
-                                    onChange={(e) => setModalObservation(e.target.value)}
-                                    placeholder="Adicione detalhes sobre este lançamento..."
-                                    className="premium-input"
-                                    style={{ width: '100%', minHeight: '80px', resize: 'vertical', fontSize: '0.9rem' }}
-                                />
-                            </div>
-
-                            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '1rem', borderTop: '1px solid #f1f5f9', paddingTop: '1.5rem' }}>
-                                <button
-                                    onClick={() => setModalValues(new Array(12).fill('0'))}
-                                    style={{ padding: '0.75rem 1.5rem', backgroundColor: '#fef2f2', color: '#ef4444', border: 'none', borderRadius: '8px', fontWeight: 600, cursor: 'pointer', fontSize: '0.95rem' }}
-                                >
-                                    Limpar Tudo
-                                </button>
-                                <button onClick={() => setBudgetModal(null)} style={{ padding: '0.75rem 1.5rem', backgroundColor: 'transparent', color: '#64748b', border: 'none', borderRadius: '8px', fontWeight: 600, cursor: 'pointer', fontSize: '0.95rem' }}>Cancelar</button>
-                                <button
-                                    disabled={isSavingBudget || (lockedMonths.every(l => l) && userRole !== 'MASTER')}
-                                    onClick={handleSaveBudget}
-                                    style={{ padding: '0.75rem 2rem', backgroundColor: (lockedMonths.every(l => l) && userRole !== 'MASTER') ? '#94a3b8' : '#2563eb', color: '#fff', border: 'none', borderRadius: '8px', fontWeight: 700, cursor: (isSavingBudget || (lockedMonths.every(l => l) && userRole !== 'MASTER')) ? 'default' : 'pointer', fontSize: '0.95rem', minWidth: '120px', opacity: isSavingBudget ? 0.7 : 1 }}
-                                >
-                                    {isSavingBudget ? 'Salvando...' : 'Salvar'}
-                                </button>
-                            </div>
+                            ))}
+                        </div>
+                        <textarea
+                            value={modalObservation}
+                            onChange={(e) => setModalObservation(e.target.value)}
+                            placeholder="Observação..."
+                            style={{ width: '100%', minHeight: '60px', marginBottom: '1.5rem', padding: '0.5rem' }}
+                        />
+                        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem' }}>
+                            <button onClick={() => setBudgetModal(null)} className="btn btn-secondary">Cancelar</button>
+                            <button onClick={handleSaveBudget} disabled={isSavingBudget} className="btn btn-primary">{isSavingBudget ? 'Salvando...' : 'Salvar'}</button>
                         </div>
                     </div>
                 </div>
             )}
 
-            <style>{`
-                .budget-cell:hover { background: rgba(59,130,246,0.08) !important; }
-                @keyframes spin { to { transform: rotate(360deg); } }
-            `}</style>
+            <style>{\`
+                .btn { padding: 0.5rem 1rem; border-radius: 6px; font-weight: 600; cursor: pointer; border: none; transition: 0.2s; }
+                .btn-primary { background: #2563eb; color: #fff; }
+                .btn-secondary { background: #f1f5f9; color: #475569; }
+                .hover-row:hover { background: rgba(0,0,0,0.02) !important; }
+            \`}</style>
         </div>
     );
 }

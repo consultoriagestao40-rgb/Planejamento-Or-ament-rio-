@@ -5,6 +5,13 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { MONTHS, MOCK_COST_CENTERS } from '@/lib/mock-data';
 import { ExcelPasteModal } from '@/components/ExcelPasteModal';
 
+// Robust normalization for names (Accents, [INATIVO], Code prefixes)
+const normalizeName = (name: string) => 
+    (name || '').normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+        .replace(/^\[INATIVO\]\s*/i, '')
+        .replace(/^[0-9.]+\s*-\s*/, '')
+        .toUpperCase().trim();
+
 interface BudgetGridProps {
     refreshKey?: number;
     isExternalLoading?: boolean;
@@ -157,25 +164,16 @@ export default function BudgetGrid({
                 const bMap: Record<string, { total: number, costCenters: Record<string, number> }> = {};
                 const targetMonth = month + 1;
                 
-                // Final robust normalization: Accents, [INATIVO], Code prefixes
-                const normalize = (name: string) => 
-                    (name || '').normalize("NFD").replace(/[\u0300-\u036f]/g, "")
-                        .replace(/^\[INATIVO\]\s*/i, '')
-                        .replace(/^[0-9.]+\s*-\s*/, '')
-                        .toUpperCase().trim();
-
                 const processedKeys = new Set<string>();
                 budgetData.data.forEach((b: any) => {
                     if (b.month === targetMonth) {
-                        const compName = (b.tenant?.name || 'Geral').toUpperCase().trim();
+                        const compName = normalizeName(b.tenant?.name || 'Geral');
                         
-                        const cc = costCenters.find(c => c.id === b.costCenterId || (c.id && c.id.includes(':' + b.costCenterId)));
+                        const cc = costCenters.find((c: any) => c.id === b.costCenterId || (c.id && c.id.includes(':' + b.costCenterId)));
                         const rawCCName = cc ? cc.name : (b.costCenterId ? 'Sem Identificação' : 'Geral');
-                        const normCC = normalize(rawCCName);
+                        const normCC = normalizeName(rawCCName);
 
-                        // v66.10 Refinement: Dedup by Company + Unit + Normalized Category Name
-                        // This allows different subcategories (01.1.1 + 01.1.2) to sum, but merges synonyms
-                        const normCatName = (b.category?.name || '').toUpperCase().trim();
+                        const normCatName = normalizeName(b.category?.name || '');
                         const dedupKey = `${compName}-${normCC}-${normCatName}`;
                         
                         if (processedKeys.has(dedupKey)) return;
@@ -2012,7 +2010,7 @@ export default function BudgetGrid({
                                                             🏢 {group.name}
                                                         </td>
                                                         <td style={{ padding: '0.75rem 1rem', textAlign: 'right', color: '#64748b' }}>
-                                                            {(transactionBudgets[group.name.toUpperCase().trim()]?.total || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                                                            {(transactionBudgets[normalizeName(group.name)]?.total || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
                                                         </td>
                                                         <td style={{ padding: '0.75rem 1rem', textAlign: 'right', fontWeight: 'bold' }}>{group.total.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</td>
                                                     </tr>
@@ -2053,17 +2051,7 @@ export default function BudgetGrid({
                                                             📍 {group.name}
                                                         </td>
                                                         <td style={{ padding: '0.75rem 1rem', textAlign: 'right', color: '#64748b' }}>
-                                                            {(() => {
-                                                                 const normalize = (name: string) => 
-                                                                     (name || '').normalize("NFD").replace(/[\u0300-\u036f]/g, "")
-                                                                         .replace(/^\[INATIVO\]\s*/i, '')
-                                                                         .replace(/^[0-9.]+\s*-\s*/, '')
-                                                                         .toUpperCase().trim();
-                                                                 
-                                                                 const companyBudgets = transactionBudgets[transactionSelectedCompany?.toUpperCase().trim() || ''] || { costCenters: {} };
-                                                                 const budget = companyBudgets.costCenters[normalize(group.name)] || 0;
-                                                                 return budget.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
-                                                             })()}
+                                                            {(transactionBudgets[normalizeName(transactionSelectedCompany || '')]?.costCenters[normalizeName(group.name)] || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
                                                         </td>
                                                         <td style={{ padding: '0.75rem 1rem', textAlign: 'right', fontWeight: 'bold' }}>{group.total.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</td>
                                                     </tr>
@@ -2073,7 +2061,7 @@ export default function BudgetGrid({
                                                 <tr style={{ background: '#f1f5f9', fontWeight: 'bold' }}>
                                                     <td style={{ padding: '0.75rem 1rem', textAlign: 'right', borderTop: '2px solid #cbd5e1', fontSize: '0.85rem' }}>Total na Empresa:</td>
                                                     <td style={{ padding: '0.75rem 1rem', textAlign: 'right', borderTop: '2px solid #cbd5e1', color: '#64748b', fontSize: '0.85rem' }}>
-                                                        {(transactionBudgets[transactionSelectedCompany?.toUpperCase().trim() || '']?.total || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                                                        {(transactionBudgets[normalizeName(transactionSelectedCompany || '')]?.total || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
                                                     </td>
                                                     <td style={{ padding: '0.75rem 1rem', textAlign: 'right', borderTop: '2px solid #cbd5e1', color: '#0f172a', fontSize: '0.95rem' }}>
                                                         {groupedByCostCenter.reduce((acc, g) => acc + g.total, 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}

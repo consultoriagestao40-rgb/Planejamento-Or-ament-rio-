@@ -208,15 +208,11 @@ export default function BudgetEntryGrid({ costCenterId, year, taxRate = 0 }: Bud
                 else if (rawCode === '06.8') effectiveName = '06.8 PDD';
             }
 
-            const nameNorm = effectiveName.toUpperCase().trim();
-            const uniqueKey = effectiveCode ? `${effectiveCode}-${nameNorm}` : nameNorm;
+            const uniqueKey = effectiveCode ? effectiveCode : effectiveName;
 
             if (nameMap.has(uniqueKey)) {
                 const existingNode = nameMap.get(uniqueKey)!;
-                const existingIds = existingNode.id.split(',');
-                if (!existingIds.includes(cat.id)) {
-                    existingNode.id += ',' + cat.id;
-                }
+                if (!existingNode.id.split(',').includes(cat.id)) existingNode.id += ',' + cat.id;
                 map.set(cat.id, existingNode);
                 return;
             }
@@ -246,22 +242,9 @@ export default function BudgetEntryGrid({ costCenterId, year, taxRate = 0 }: Bud
         map.forEach(node => {
             if (node.isSynthetic) return;
             const code = node.code || '';
-            const normalizedCode = code.replace(/^0/, ''); // Remove leading zero for comparison
-            
-            // Especial mapping for Revenues and Taxes (Tolerant to 01, 1, 02, 2)
-            if (normalizedCode.startsWith('1.1.')) { const p = codeMap.get('01.1'); if (p) { p.children.push(node); return; } }
-            if (normalizedCode.startsWith('1.2.')) { const p = codeMap.get('01.2'); if (p) { p.children.push(node); return; } }
-            if (normalizedCode.startsWith('2.1')) { const p = codeMap.get('02.1'); if (p) { p.children.push(node); return; } }
-            
-            // Standard Rev/Tax group catch-all for anything starting with 1 or 2
-            if (normalizedCode.startsWith('1')) {
-                const p = codeMap.get('01.1') || codeMap.get('01.2');
-                if (p && p.id !== node.id) { if (!p.children.includes(node)) p.children.push(node); return; }
-            }
-            if (normalizedCode.startsWith('2')) {
-                const p = codeMap.get('02.1');
-                if (p && p.id !== node.id) { if (!p.children.includes(node)) p.children.push(node); return; }
-            }
+            if (code.startsWith('01.1.')) { const p = codeMap.get('01.1'); if (p) { p.children.push(node); return; } }
+            if (code.startsWith('01.2.')) { const p = codeMap.get('01.2'); if (p) { p.children.push(node); return; } }
+            if (code.startsWith('2.1')) { const p = codeMap.get('02.1'); if (p) { p.children.push(node); return; } }
 
             let parentFound = false;
             if (code.includes('.')) {
@@ -353,19 +336,16 @@ export default function BudgetEntryGrid({ costCenterId, year, taxRate = 0 }: Bud
                     }
                 });
             } else {
-                // Leaf: Sum direct IDs - V67.02: Forced multi-ID summation
+                // Leaf: Sum direct IDs
                 const ids = node.id.split(',');
                 for (let i = 0; i < 12; i++) {
                     ids.forEach(id => {
                         const bVal = budgetValues[`${id}-${i}`];
                         if (bVal) {
                             myBudget[i] += bVal.amount || 0;
-                            myRadar[i] += (bVal.radarAmount || 0);
+                            myRadar[i] += bVal.radarAmount || 0;
                         }
-                        const rVal = realizedValues[`${id}-${i}`];
-                        if (rVal) {
-                            myRealized[i] += rVal || 0;
-                        }
+                        myRealized[i] += realizedValues[`${id}-${i}`] || 0;
                     });
                 }
             }
@@ -622,88 +602,29 @@ export default function BudgetEntryGrid({ costCenterId, year, taxRate = 0 }: Bud
                 const obsChanged = isObsMonth && modalObservation.trim() !== originalObs.trim();
 
                 if (valueChanged || obsChanged) {
-                    let targetId = allIds[0];
-                    if (tenantId) {
-                        const match = categories.find((c: any) => allIds.includes(c.id) && c.tenantId === tenantId);
-                        if (match) targetId = match.id;
-                    }
-
-                    const saveTenantId = tenantId || (categories.find((c: any) => c.id === targetId)?.tenantId || '');
+                    const saveObservation = isObsMonth ? (modalObservation.trim() || null) : null;
                     
-                    if (!saveTenantId || !targetId) {
-                        console.error("[SAVE] Missing tenantId or targetId", { saveTenantId, targetId });
-                        continue;
-                    }
+                    // V67.03: SAVE IN ALL IDs associated with this row to prevent "invisibility"
+                    allIds.forEach((targetId: string) => {
+                        const saveTenantId = categories.find((c: any) => c.id === targetId)?.tenantId || tenantId || '';
+                        if (!saveTenantId || !targetId) return;
 
-                    entries.push({
-                        categoryId: targetId,
-                        month: i,
-                        year,
-                        costCenterId,
-                        tenantId: saveTenantId,
-                        amount: currentNum,
-                        radarAmount: budgetValues[`${targetId}-${i}`]?.radarAmount ?? null,
-                        observation: isObsMonth ? (modalObservation.trim() || null) : (budgetValues[`${targetId}-${i}`]?.observation || null),
-                        isLocked: userRole === 'MASTER' ? lockedMonths[i] : undefined
-                    });
-
-                    // NUCLEAR CLEAN: Zero-out ALL other technical IDs in this same node
-                    // This ensures no ghost records remain in the database for synonymous categories.
-                    allIds.forEach((id: string) => {
-                        if (id !== targetId) {
-                            entries.push({
-                                categoryId: id,
-                                month: i,
-                                year,
-                                costCenterId: costCenterId === 'Geral' ? null : costCenterId,
-                                tenantId: categories.find((c: any) => c.id === id)?.tenantId || tenantId || '',
-                                amount: 0,
-                                observation: null,
-                                isLocked: false
-                            });
-                        }
-                    });
-                }
-
-                if (is31) {
-                    let salaryBaseForMonth = 0;
-                    salaryLeafNodes.forEach(leaf => {
-                        const leafIds = leaf.id.split(',');
-                        if (leafIds.some(id => allIds.includes(id))) salaryBaseForMonth += currentNum;
-                        else {
-                            let leafTotal = 0;
-                            leafIds.forEach(id => {
-                                const stored = budgetValues[`${id}-${i}`];
-                                if (stored) leafTotal += (stored.amount || 0);
-                            });
-                            salaryBaseForMonth += leafTotal;
-                        }
-                    });
-
-                    chargeConfigs.forEach(config => {
-                        const chargeNodes = chargeNodesPerConfig.get(config.code) || [];
-                        chargeNodes.forEach(cN => {
-                            // Fix: Select correct ID for current tenant
-                            const cN_Ids = cN.id.split(',');
-                            let mainId = cN_Ids[0];
-                            if (tenantId) {
-                                const match = categories.find(c => cN_Ids.includes(c.id) && c.tenantId === tenantId);
-                                if (match) mainId = match.id;
-                            }
-
-                            const newAmount = salaryBaseForMonth * config.rate;
-                            const saveTenantId = tenantId || cN.tenantId || (categories.find((c: any) => c.id === mainId)?.tenantId || '');
-                            
-                            if (saveTenantId && mainId) {
-                                entries.push({ 
-                                    categoryId: mainId, month: i, year, costCenterId, 
-                                    tenantId: saveTenantId, 
-                                    amount: newAmount 
-                                });
-                            }
+                        entries.push({
+                            categoryId: targetId,
+                            month: i,
+                            year,
+                            costCenterId,
+                            tenantId: saveTenantId,
+                            amount: currentNum,
+                            radarAmount: budgetValues[`${targetId}-${i}`]?.radarAmount ?? null,
+                            observation: saveObservation || (budgetValues[`${targetId}-${i}`]?.observation || null),
+                            isLocked: userRole === 'MASTER' ? lockedMonths[i] : undefined
                         });
                     });
                 }
+
+                // V67.03: Removed automatic Social Charges (Encargos Internos) calculation 
+                // to prevent "ghost" values (like R$ 20,00) in Finance/Salaries rows.
 
                 if (isRevenue && dasNodes.length > 0) {
                     let revenueBaseForMonth = 0;

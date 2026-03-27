@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { v4 as uuidv4 } from 'uuid';
+import crypto from 'crypto';
 
 export async function GET(request: Request) {
     try {
@@ -29,10 +29,10 @@ export async function POST(request: Request) {
             return NextResponse.json({ success: false, error: 'Nome e Empresa são obrigatórios.' }, { status: 400 });
         }
 
-        // v66.95: Inserção Manual de Centro de Custo com ID customizado ou gerado
+        // v66.96: Inserção Manual de Centro de Custo com ID customizado ou gerado via crypto nativo
         const newCC = await prisma.costCenter.create({
             data: {
-                id: customId || uuidv4(),
+                id: customId || crypto.randomUUID(),
                 name: name.trim(),
                 tenantId: tenantId
             }

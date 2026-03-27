@@ -84,7 +84,7 @@ export default function BudgetEntryGrid({ costCenterId, year, taxRate = 0 }: Bud
     // Load data
     useEffect(() => {
         const loadData = async () => {
-            console.log('v67.05: Correção de Dados e Unificação de IDs Ativa');
+            console.log('v67.06: Regra Estrita de Impostos (01) Ativa');
             setLoading(true);
             try {
                 const [setupRes, budgetRes, syncRes, authRes] = await Promise.all([
@@ -525,12 +525,10 @@ export default function BudgetEntryGrid({ costCenterId, year, taxRate = 0 }: Bud
             
             const targetCode = targetCat?.entradaDre || '';
             const targetNameNorm = (targetCat?.name || '').toUpperCase();
-            const isRevenue = targetCode === 'RECEITA_BRUTA' || 
-                             targetCode === '01. RECEITA BRUTA' || 
+            const isRevenue = (targetCode || "").startsWith('01') || 
+                             (targetCode || "").startsWith('1.') || 
                              targetNameNorm.startsWith('01') || 
-                             targetNameNorm.includes('RECEITA') || 
-                             targetNameNorm.includes('FATURAMENTO') || 
-                             targetNameNorm.includes('VENDA');
+                             targetNameNorm.startsWith('1.');
 
             let revenueLeafNodes: CategoryNode[] = [];
             let dasNodes: CategoryNode[] = [];
@@ -544,9 +542,8 @@ export default function BudgetEntryGrid({ costCenterId, year, taxRate = 0 }: Bud
                         const cCode = n.code || '';
                         const nameNorm = (n.name || '').toUpperCase();
                         const isRevCode = cCode.startsWith('01') || cCode.startsWith('1.');
-                        const isRevName = nameNorm.includes('RECEITA') || nameNorm.includes('FATURAMENTO') || nameNorm.includes('VENDA') || nameNorm.includes('REC. BRUTA');
                         
-                        if (isRevCode || isRevName) {
+                        if (isRevCode) {
                             if (!n.children || n.children.length === 0) revenueLeafNodes.push(n);
                             else findRevenueLeafs(n.children);
                         } else if (n.children) findRevenueLeafs(n.children);

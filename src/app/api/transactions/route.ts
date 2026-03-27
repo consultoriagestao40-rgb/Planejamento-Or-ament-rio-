@@ -49,19 +49,22 @@ export async function GET(request: Request) {
             categoryId.split(',').map(id => id.trim()).filter(Boolean).forEach(id => allCategoryIds.add(id));
         }
 
+        const costCenterIdParam = searchParams.get('costCenterId') || 'ALL';
+        let targetCostCenterIds: string[] = [];
+
+        if (costCenterIdParam !== 'ALL' && costCenterIdParam !== 'DEFAULT') {
+            targetCostCenterIds = costCenterIdParam.split(',').map(id => id.trim()).filter(Boolean);
+        }
+
         // 3. Query DB for transactions (using realizedEntry)
-        // Note: realizedEntry currently aggregates by month.
-        // If we want raw transactions, we would need a Transaction table.
-        // For now, we return the aggregated monthly entry as a single "transaction" per category/CC
-        // to at least popluate the modal.
-        
         const entries = await prisma.realizedEntry.findMany({
             where: {
                 tenantId: { in: targetTenantIds },
                 categoryId: { in: Array.from(allCategoryIds) },
                 month: month + 1, // 0-indexed from UI to 1-indexed in DB
                 year,
-                viewMode
+                viewMode,
+                ...(targetCostCenterIds.length > 0 ? { costCenterId: { in: targetCostCenterIds } } : {})
             },
             include: {
                 category: true,

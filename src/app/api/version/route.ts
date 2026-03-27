@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+// Trigger v66.24 build retry
 
 export async function GET() {
     return NextResponse.json({ 

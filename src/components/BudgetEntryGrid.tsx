@@ -501,6 +501,10 @@ export default function BudgetEntryGrid({ costCenterId, year, taxRate = 0 }: Bud
                 if (originalObs) break;
             }
 
+            // 1. Context Detection v67.18
+            const isRevenue = normCode.startsWith('01') || normCode.startsWith('1');
+            const is31 = normCode.startsWith('03.1') || normCode.startsWith('03.2') || normCode.startsWith('3.1');
+
             const chargeConfigs = [
                 { code: '03.2.1', rate: 0.08 },
                 { code: '03.2.2', rate: 0.0833 },
@@ -508,8 +512,6 @@ export default function BudgetEntryGrid({ costCenterId, year, taxRate = 0 }: Bud
                 { code: '03.2.4', rate: 0.032 }
             ];
 
-            // 1. Hoist Tree Traversal for Social Charges out of 12-month loop
-            let is31 = normCode.startsWith('3.1');
             let salaryLeafNodes: CategoryNode[] = [];
             let chargeNodesPerConfig = new Map<string, CategoryNode[]>();
 
@@ -544,8 +546,7 @@ export default function BudgetEntryGrid({ costCenterId, year, taxRate = 0 }: Bud
             const targetCat = categories.find(c => allIds.includes(c.id) && (tenantId ? c.tenantId === tenantId : true)) || categories.find(c => allIds.includes(c.id));
             
             const targetCode = targetCat?.entradaDre || targetCat?.name || '';
-            const isRevenue = (targetCode || "").startsWith('01') || 
-                             (targetCode || "").startsWith('1.');
+            // isRevenue already declared above v67.18
 
             let revenueLeafNodes: CategoryNode[] = [];
             let dasNodes: CategoryNode[] = [];
@@ -573,20 +574,14 @@ export default function BudgetEntryGrid({ costCenterId, year, taxRate = 0 }: Bud
                         const cCode = n.code || '';
                         const nName = (n.name || '').toUpperCase();
                         
-                        // Strict Tax Detection:
-                        // 1. Must be under code 02.1 or 2.1
-                        // 2. OR Must explicitly contain DAS, SIMPLES, or TRIBUTO
-                        // 3. AND Must NOT be under code 01 (Revenue)
-                        const isUnderTaxes = cCode.startsWith('02.') || cCode.startsWith('2.1');
-                        const hasTaxKeyword = nName.includes('DAS') || nName.includes('SIMPLES NACIONAL') || nName.includes('TRIBUTO SOBRE');
-                        
-                        // NEW BLOCK: Even if it has a tax code or keyword, if it contains "VENDA", "PRODUTO" or "COMISSAO", 
-                        // it's likely a revenue account incorrectly coded or named. EXCLUDE IT from DAS calculations.
-                        const isRevenueKeyword = nName.includes('VENDA') || nName.includes('PRODUTO') || nName.includes('COMISSAO');
+                        // Strict Tax Detection v67.17:
+                        // MUST be under code 02.1 or 2.1
+                        // NO detection by name keyword (to avoid capturing 06 accounts)
+                        const isUnderTaxes = cCode.startsWith('02.') || cCode.startsWith('2.1') || cCode === '02' || cCode === '2';
 
-                        if ((isUnderTaxes || hasTaxKeyword) && !cCode.startsWith('01') && !cCode.startsWith('1.') && !isRevenueKeyword) {
-                            // Only add leaf nodes or specific DAS categories
-                            if (!n.children || n.children.length === 0 || nName.includes('DAS') || nName.includes('SIMPLES')) {
+                        if (isUnderTaxes && !cCode.startsWith('01') && !cCode.startsWith('1.')) {
+                            // Only add leaf nodes
+                            if (!n.children || n.children.length === 0) {
                                 if (!dasNodes.find(d => d.id === n.id)) dasNodes.push(n);
                             }
                             if (n.children) fDN(n.children);
@@ -641,8 +636,43 @@ export default function BudgetEntryGrid({ costCenterId, year, taxRate = 0 }: Bud
                     });
                 }
 
-                // V67.03: Removed automatic Social Charges (Encargos Internos) calculation 
-                // to prevent "ghost" values (like R$ 20,00) in Finance/Salaries rows.
+                // Process Social Charges ONLY if editing Salary (is31)
+                if (is31 && salaryLeafNodes.length > 0) {
+                    let salaryBaseForMonth = 0;
+                    salaryLeafNodes.forEach(leaf => {
+                        const leafIds = leaf.id.split(',');
+                        if (leafIds.some(id => allIds.includes(id))) salaryBaseForMonth += currentNum;
+                        else {
+                            let leafTotal = 0;
+                            leafIds.forEach(id => {
+                                const stored = budgetValues[`${id}-${i}`];
+                                if (stored) leafTotal += (stored.amount || 0);
+                            });
+                            salaryBaseForMonth += leafTotal;
+                        }
+                    });
+
+                    if (salaryBaseForMonth > 0) {
+                        chargeConfigs.forEach(config => {
+                            const cNodes = chargeNodesPerConfig.get(config.code);
+                            if (cNodes) {
+                                cNodes.forEach(cN => {
+                                    const cN_Ids = cN.id.split(',');
+                                    const mainId = tenantId ? (categories.find(c => cN_Ids.includes(c.id) && c.tenantId === tenantId)?.id || cN_Ids[0]) : cN_Ids[0];
+                                    const saveTenantId = tenantId || (categories.find(c => c.id === mainId)?.tenantId || '');
+                                    
+                                    if (saveTenantId && mainId) {
+                                        entries.push({
+                                            categoryId: mainId, month: i, year, costCenterId,
+                                            tenantId: saveTenantId,
+                                            amount: salaryBaseForMonth * config.rate
+                                        });
+                                    }
+                                });
+                            }
+                        });
+                    }
+                }
 
                 if (isRevenue && dasNodes.length > 0) {
                     let revenueBaseForMonth = 0;
@@ -692,11 +722,13 @@ export default function BudgetEntryGrid({ costCenterId, year, taxRate = 0 }: Bud
             const dedupedMap = new Map<string, any>();
             entries.forEach(entry => {
                 const key = `${entry.categoryId}-${entry.month}`;
+                // v67.17 Rule: FIRST entries pushed (Manual Edits) are the MASTER data.
+                // Anything else with same key will be ignored.
                 if (!dedupedMap.has(key)) {
                     dedupedMap.set(key, entry);
                 } else {
-                    // If already exists, we only overwrite if the new entry is from the manual loop
-                    // But since we pushed manual entries first, we just keep the FIRST one.
+                    // Existing is from first loop (manual), current is likely auto-tax. 
+                    // Keep existing (manual) to prevent revenue from vanishing.
                 }
             });
 

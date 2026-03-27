@@ -242,9 +242,22 @@ export default function BudgetEntryGrid({ costCenterId, year, taxRate = 0 }: Bud
         map.forEach(node => {
             if (node.isSynthetic) return;
             const code = node.code || '';
-            if (code.startsWith('01.1.')) { const p = codeMap.get('01.1'); if (p) { p.children.push(node); return; } }
-            if (code.startsWith('01.2.')) { const p = codeMap.get('01.2'); if (p) { p.children.push(node); return; } }
-            if (code.startsWith('2.1')) { const p = codeMap.get('02.1'); if (p) { p.children.push(node); return; } }
+            const normalizedCode = code.replace(/^0/, ''); // Remove leading zero for comparison
+            
+            // Especial mapping for Revenues and Taxes (Tolerant to 01, 1, 02, 2)
+            if (normalizedCode.startsWith('1.1.')) { const p = codeMap.get('01.1'); if (p) { p.children.push(node); return; } }
+            if (normalizedCode.startsWith('1.2.')) { const p = codeMap.get('01.2'); if (p) { p.children.push(node); return; } }
+            if (normalizedCode.startsWith('2.1')) { const p = codeMap.get('02.1'); if (p) { p.children.push(node); return; } }
+            
+            // Standard Rev/Tax group catch-all for anything starting with 1 or 2
+            if (normalizedCode.startsWith('1')) {
+                const p = codeMap.get('01.1') || codeMap.get('01.2');
+                if (p && p.id !== node.id) { if (!p.children.includes(node)) p.children.push(node); return; }
+            }
+            if (normalizedCode.startsWith('2')) {
+                const p = codeMap.get('02.1');
+                if (p && p.id !== node.id) { if (!p.children.includes(node)) p.children.push(node); return; }
+            }
 
             let parentFound = false;
             if (code.includes('.')) {

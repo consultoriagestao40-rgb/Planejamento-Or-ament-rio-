@@ -115,15 +115,14 @@ export default function BudgetEntryGrid({ costCenterId, year, taxRate = 0 }: Bud
                 if (budgetData.success) {
                     setIsCCLocked(budgetData.isCCLocked || false);
                     setApprovalStatus(budgetData.status || 'PENDING');
-                    const values: Record<string, any> = {};
-                    (budgetData.data || []).forEach((item: any) => {
-                        values[`${item.categoryId}-${item.month - 1}`] = {
-                            amount: item.amount || 0,
-                            radarAmount: (item.radarAmount !== undefined && item.radarAmount !== null) ? item.radarAmount : null,
-                            isLocked: item.isLocked || false,
-                            observation: item.observation || null
-                        };
+                    const idToCodeMap = new Map<string, string>();
+                    setupData.categories.forEach((c: any) => {
+                        const codeMatch = c.name.match(/^([\d.]+)/);
+                        if (codeMatch) idToCodeMap.set(c.id, codeMatch[1].split('.').map((s: string) => parseInt(s, 10).toString()).join('.'));
                     });
+
+                    const values: Record<string, any> = {};
+                    (budgetData.data || []).forEach((item: any) => { const cat = categories.find(cat => cat.id === item.categoryId); const cCode = cat ? cat.name.match(/^([d.]+)/)?.[1]?.split(".").map(s => parseInt(s, 10).toString()).join(".") : null; if (cCode) { values[`${cCode}-${item.month - 1}`] = { amount: item.amount || 0, radarAmount: (item.radarAmount !== undefined && item.radarAmount !== null) ? item.radarAmount : null, isLocked: item.isLocked || false, observation: item.observation || null }; } });
                     setBudgetValues(values);
                 }
 
@@ -302,56 +301,7 @@ export default function BudgetEntryGrid({ costCenterId, year, taxRate = 0 }: Bud
                 root.children.forEach(child => {
                     if (!existing.children.find(c => c.id === child.id)) existing.children.push(child);
                 });
-            } else {
-                uniqueRootsMap.set(rootCode, { ...root });
-            }
-        });
-
-        const finalRoots = Array.from(uniqueRootsMap.values());
-
-        const recalculateLevels = (nodes: CategoryNode[], lvl: number) => {
-            nodes.sort((a, b) => (a.code || a.name).localeCompare(b.code || b.name, undefined, { numeric: true }));
-            nodes.forEach(n => {
-                n.level = lvl;
-                // Clear duplicate children
-                const uniqueChildren = new Map<string, CategoryNode>();
-                n.children.forEach(c => uniqueChildren.set(c.id, c));
-                n.children = Array.from(uniqueChildren.values());
-                recalculateLevels(n.children, lvl + 1);
-            });
-        };
-        recalculateLevels(finalRoots, 0);
-        return finalRoots;
-    }, [categories]);
-
-    // ─── NODE TOTALS (Unified 3-way) ──────────────────────────────────
-    const nodeTotals = useMemo(() => {
-        const totalsMap = new Map<string, { budget: number[], realized: number[], radar: number[] }>();
-
-        const calculateNode = (node: CategoryNode): { budget: number[], realized: number[], radar: number[] } => {
-            const myBudget = new Array(12).fill(0);
-            const myRealized = new Array(12).fill(0);
-            const myRadar = new Array(12).fill(0);
-
-            if (node.children && node.children.length > 0) {
-                // Parent: Sum children results only
-                node.children.forEach(c => {
-                    const ct = calculateNode(c);
-                    for (let i = 0; i < 12; i++) {
-                        myBudget[i] += ct.budget[i];
-                        myRealized[i] += ct.realized[i];
-                        myRadar[i] += ct.radar[i];
-                    }
-                });
-            } else {
-                // Leaf: Sum by Code (v67.15 - Universal Visibility)
-                const ids = (node.id || "").split(',');
-                const nodeCode = node.code || '';
-                
-                for (let i = 0; i < 12; i++) {
-                    // Try by all IDs first
-                    ids.forEach(id => {
-                        const bVal = budgetValues[`${id.trim()}-${i}`];
+            } else { const nodeCode = node.code || ''; for (let i = 0; i < 12; i++) { const bVal = budgetValues[`${nodeCode}-${i}`]; if (bVal) { myBudget[i] += bVal.amount || 0; myRadar[i] += bVal.radarAmount || 0; } const ids = (node.id || "").split(","); ids.forEach(id => { const rVal = realizedValues[`${id.trim()}-${i}` ]; if (rVal) { myRealized[i] += (rVal.amount || 0); } }); } }-${i}`];
                         if (bVal) {
                             myBudget[i] += bVal.amount || 0;
                             myRadar[i] += (bVal.radarAmount || 0);
@@ -756,14 +706,23 @@ export default function BudgetEntryGrid({ costCenterId, year, taxRate = 0 }: Bud
             const refreshData = await refreshRes.json();
             if (refreshData.success) {
                 setIsCCLocked(refreshData.isCCLocked || false);
+                const idToCodeMap = new Map<string, string>();
+                categories.forEach((c: any) => {
+                    const codeMatch = c.name.match(/^([\d.]+)/);
+                    if (codeMatch) idToCodeMap.set(c.id, codeMatch[1].split('.').map((s: string) => parseInt(s, 10).toString()).join('.'));
+                });
+
                 const values: Record<string, any> = {};
                 (refreshData.data || []).forEach((item: any) => {
-                    values[`${item.categoryId}-${item.month - 1}`] = { 
-                        amount: item.amount || 0, 
-                        radarAmount: (item.radarAmount !== undefined && item.radarAmount !== null) ? item.radarAmount : null,
-                        isLocked: item.isLocked || false, 
-                        observation: item.observation || null 
-                    };
+                    const cCode = idToCodeMap.get(item.categoryId);
+                    if (cCode) {
+                        values[`${cCode}-${item.month - 1}`] = { 
+                            amount: item.amount || 0, 
+                            radarAmount: (item.radarAmount !== undefined && item.radarAmount !== null) ? item.radarAmount : null,
+                            isLocked: item.isLocked || false, 
+                            observation: item.observation || null 
+                        };
+                    }
                 });
                 setBudgetValues(values);
             }

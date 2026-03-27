@@ -224,10 +224,8 @@ export default function BudgetEntryGrid({ costCenterId, year, taxRate = 0 }: Bud
         });
 
         const syntheticParents = [
-            { code: '01', name: '01. RECEITA BRUTA' },
             { code: '01.1', name: '01.1 - Receita de Serviços' },
             { code: '01.2', name: '01.2 - Receitas de Vendas' },
-            { code: '02', name: '02. TRIBUTO SOBRE FATURAMENTO' },
             { code: '02.1', name: '02.1 - Tributos' },
             ...Object.keys(CODE_NAMES).map(c => ({ code: c, name: CODE_NAMES[c] }))
         ];
@@ -244,15 +242,9 @@ export default function BudgetEntryGrid({ costCenterId, year, taxRate = 0 }: Bud
         map.forEach(node => {
             if (node.isSynthetic) return;
             const code = node.code || '';
-            
-            // Especial mapping for Revenues and Taxes
-            if (code.startsWith('01.1.') || code.startsWith('1.1.')) { const p = codeMap.get('01.1'); if (p) { p.children.push(node); return; } }
-            if (code.startsWith('01.2.') || code.startsWith('1.2.')) { const p = codeMap.get('01.2'); if (p) { p.children.push(node); return; } }
-            if (code.startsWith('02.1.') || code.startsWith('2.1')) { const p = codeMap.get('02.1'); if (p) { p.children.push(node); return; } }
-            
-            // Standard Rev/Tax group catch-all
-            if (code.startsWith('01') || code.startsWith('1')) { const p = codeMap.get('01'); if (p && p.id !== node.id) { if (!p.children.includes(node)) p.children.push(node); return; } }
-            if (code.startsWith('02') || code.startsWith('2')) { const p = codeMap.get('02'); if (p && p.id !== node.id) { if (!p.children.includes(node)) p.children.push(node); return; } }
+            if (code.startsWith('01.1.')) { const p = codeMap.get('01.1'); if (p) { p.children.push(node); return; } }
+            if (code.startsWith('01.2.')) { const p = codeMap.get('01.2'); if (p) { p.children.push(node); return; } }
+            if (code.startsWith('2.1')) { const p = codeMap.get('02.1'); if (p) { p.children.push(node); return; } }
 
             let parentFound = false;
             if (code.includes('.')) {

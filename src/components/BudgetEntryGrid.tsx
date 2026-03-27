@@ -84,7 +84,14 @@ export default function BudgetEntryGrid({ costCenterId, year, taxRate = 0 }: Bud
     // Load data
     useEffect(() => {
         const loadData = async () => {
-            console.log('v67.06: Regra Estrita de Impostos (01) Ativa');
+            if (costCenterId === '1fa165e3-178f-4d8f-aa7c-434c720c82dd') {
+                const correctId = '1fa165e3-178f-4d8f-ae7c-434c720c82dd';
+                console.warn('v67.07: Link Fantasma Detectado. Redirecionando para o ID Oficial da Clean Tech...');
+                window.location.replace(window.location.href.replace(costCenterId, correctId));
+                return;
+            }
+
+            console.log('v67.07: Regra Estrita de Impostos (01) e Redirecionamento Ativo');
             setLoading(true);
             try {
                 const [setupRes, budgetRes, syncRes, authRes] = await Promise.all([

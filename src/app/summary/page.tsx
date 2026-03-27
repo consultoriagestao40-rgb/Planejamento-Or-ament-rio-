@@ -4,6 +4,7 @@ import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import Link from 'next/link';
 import { SyncButton } from '@/components/SyncButton';
 import { ExcelPasteModal } from '@/components/ExcelPasteModal';
+import ManualCostCenterModal from '@/components/ManualCostCenterModal';
 
 interface SummaryItem {
     tenantId: string;
@@ -53,6 +54,8 @@ export default function BudgetSummaryPage() {
     const [updatingTaxId, setUpdatingTaxId] = useState<string | null>(null);
     const [isExcelModalOpen, setIsExcelModalOpen] = useState(false);
     const [excelTenantId, setExcelTenantId] = useState('DEFAULT');
+    const [isManualCCModalOpen, setIsManualCCModalOpen] = useState(false);
+    const [manualCCTenant, setManualCCTenant] = useState({ id: '', name: '' });
     const [setupData, setSetupData] = useState<{ categories: any[], costCenters: any[], companies: any[] }>({ categories: [], costCenters: [], companies: [] });
     const [appVersion, setAppVersion] = useState('...');
 
@@ -455,31 +458,20 @@ export default function BudgetSummaryPage() {
                                                         <span title="Clique no número para editar" style={{ cursor: 'help', fontSize: '0.8rem', opacity: 0.6 }}>✏️</span>
                                                     </div>
                                                 </td>
-                                                <td style={{ ...td, textAlign: 'center' }}>
-                                                    {userRole === 'MASTER' && (
-                                                        <button 
-                                                            onClick={(e) => { e.stopPropagation(); setExcelTenantId(group.tenantId); setIsExcelModalOpen(true); }}
-                                                            style={{ 
-                                                                padding: '0.6rem 1rem', 
-                                                                fontSize: '0.75rem', 
-                                                                background: '#16a34a', 
-                                                                color: 'white',
-                                                                border: 'none',
-                                                                borderRadius: '8px',
-                                                                fontWeight: 800,
-                                                                cursor: 'pointer',
-                                                                boxShadow: '0 4px 6px -1px rgba(22, 163, 74, 0.4)',
-                                                                display: 'flex',
-                                                                alignItems: 'center',
-                                                                gap: '0.5rem',
-                                                                margin: '0 auto'
-                                                            }}
-                                                        >
-                                                            <span>📊</span> IMPORTAR EXCEL
-                                                        </button>
-                                                    )}
-                                                </td>
-                                            </tr>
+                                                                                                     <div style={{ display: 'flex', justifyContent: 'center', gap: '0.5rem' }}>
+                                                        {userRole === 'MASTER' && (
+                                                            <button 
+                                                                onClick={(e) => { e.stopPropagation(); setExcelTenantId(group.tenantId); setIsExcelModalOpen(true); }}
+                                                                style={{ padding: '0.6rem 1rem', fontSize: '0.75rem', background: '#16a34a', color: 'white', border: 'none', borderRadius: '8px', fontWeight: 800, cursor: 'pointer', boxShadow: '0 4px 6px -1px rgba(22, 163, 74, 0.4)', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                                                <span>📊</span> IMPORTAR
+                                                            </button>
+                                                        )}
+                                                        {userRole === 'MASTER' && (
+                                                            <button onClick={(e) => { e.stopPropagation(); setManualCCTenant({ id: group.tenantId, name: group.tenantName }); setIsManualCCModalOpen(true); }} style={{ padding: '0.6rem 0.8rem', fontSize: '0.75rem', background: 'white', color: '#2563eb', border: '1px solid #2563eb', borderRadius: '8px', fontWeight: 800, cursor: 'pointer' }}><span>➕</span> NOVO CC</button>
+                                                        )}
+                                                     </div>
+                                                 </td>
+                                             </tr>
 
                                             {isExpanded && group.costCenters.map((cc) => (
                                                 <tr key={cc.costCenterId} className="cc-row" style={{ background: 'var(--bg-surface)' }}>
@@ -686,6 +678,17 @@ export default function BudgetSummaryPage() {
                     costCenters={setupData.costCenters}
                     year={selectedYear}
                     viewMode="competencia"
+                />
+
+                <ManualCostCenterModal
+                    isOpen={isManualCCModalOpen}
+                    onClose={() => setIsManualCCModalOpen(false)}
+                    onSuccess={() => {
+                        fetchData();
+                        alert('Centro de Custo criado com sucesso!');
+                    }}
+                    tenantId={manualCCTenant.id}
+                    tenantName={manualCCTenant.name}
                 />
 
                 {/* Version Footer */}

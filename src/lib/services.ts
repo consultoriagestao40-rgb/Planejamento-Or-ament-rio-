@@ -113,7 +113,8 @@ export async function syncMasterData(tenantId: string) {
         let hasMore = true;
         while (hasMore) {
             const catRes = await fetch(`https://api-v2.contaazul.com/v1/categorias?tamanho_pagina=100&pagina=${pagina}`, { 
-                headers: { 'Authorization': `Bearer ${token}` } 
+                headers: { 'Authorization': `Bearer ${token}` },
+                cache: 'no-store'
             });
             if (catRes.ok) {
                 const data = await catRes.json();
@@ -152,7 +153,8 @@ export async function syncMasterData(tenantId: string) {
         let hasMore = true;
         while (hasMore) {
             const ccRes = await fetch(`https://api-v2.contaazul.com/v1/centros-de-custo?tamanho_pagina=100&pagina=${pagina}`, { 
-                headers: { 'Authorization': `Bearer ${token}` } 
+                headers: { 'Authorization': `Bearer ${token}` },
+                cache: 'no-store'
             });
             if (ccRes.ok) {
                 const data = await ccRes.json();
@@ -195,7 +197,10 @@ async function aggregateTransactions(accessToken: string, url: string, targetVal
         
         while (hasMore) {
             const pagedUrl = `${url}&pagina=${pagina}`;
-            const res = await fetch(pagedUrl, { headers: { 'Authorization': `Bearer ${accessToken}` } });
+            const res = await fetch(pagedUrl, { 
+                headers: { 'Authorization': `Bearer ${accessToken}` },
+                cache: 'no-store'
+            });
             
             if (!res.ok) break;
             

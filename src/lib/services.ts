@@ -151,7 +151,7 @@ export async function syncMasterData(tenantId: string) {
         let pagina = 1;
         let hasMore = true;
         while (hasMore) {
-            const ccRes = await fetch(`https://api-v2.contaazul.com/v1/centro-de-custo?tamanho_pagina=100&pagina=${pagina}`, { 
+            const ccRes = await fetch(`https://api-v2.contaazul.com/v1/centros-de-custo?tamanho_pagina=100&pagina=${pagina}`, { 
                 headers: { 'Authorization': `Bearer ${token}` } 
             });
             if (ccRes.ok) {

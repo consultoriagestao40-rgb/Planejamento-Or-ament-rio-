@@ -19,7 +19,7 @@ export async function GET(request: Request) {
 
         // Encontrar a JVS original
         const jvsTenant = await prisma.tenant.findFirst({
-            where: { name: { contains: 'JVS TRATAMENTOS', mode: 'insensitive' } }
+            where: { name: { contains: 'JVS TRATMENTOS', mode: 'insensitive' } }
         });
 
         if (!jvsTenant) {

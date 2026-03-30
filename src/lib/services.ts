@@ -109,36 +109,78 @@ export async function syncMasterData(tenantId: string) {
     
     // Sync Categories
     try {
-        const catRes = await fetch(`https://api-v2.contaazul.com/v1/categorias?tamanho_pagina=100`, { 
-            headers: { 'Authorization': `Bearer ${token}` } 
-        });
-        if (catRes.ok) {
-            const data = await catRes.json();
-            const items = data.itens || [];
-            for (const item of items) {
-                await (prisma.category as any).upsert({
-                    where: { id: item.id },
-                    update: { name: item.name, parentId: item.categoria_pai?.id },
-                    create: { id: item.id, name: item.name, tenantId, parentId: item.categoria_pai?.id, type: 'OTHER' }
-                });
+        let pagina = 1;
+        let hasMore = true;
+        while (hasMore) {
+            const catRes = await fetch(`https://api-v2.contaazul.com/v1/categorias?tamanho_pagina=100&pagina=${pagina}`, { 
+                headers: { 'Authorization': `Bearer ${token}` } 
+            });
+            if (catRes.ok) {
+                const data = await catRes.json();
+                const items = data.itens || [];
+                if (items.length === 0) break;
+                
+                for (const item of items) {
+                    const existing = await prisma.category.findUnique({ where: { id: item.id } });
+                    let finalName = item.name;
+                    if (existing) {
+                        const isLocalInactive = existing.name.toUpperCase().includes('[INATIVO]');
+                        const isRemoteInactive = item.name.toUpperCase().includes('[INATIVO]');
+                        if (isLocalInactive && !isRemoteInactive) {
+                            finalName = `[INATIVO] ${item.name}`;
+                        }
+                    }
+
+                    await (prisma.category as any).upsert({
+                        where: { id: item.id },
+                        update: { name: finalName, parentId: item.categoria_pai?.id },
+                        create: { id: item.id, name: finalName, tenantId, parentId: item.categoria_pai?.id, type: 'OTHER' }
+                    });
+                }
+                
+                if (items.length < 100) hasMore = false;
+                pagina++;
+            } else {
+                hasMore = false;
             }
         }
     } catch (e) {}
 
     // Sync Cost Centers
     try {
-        const ccRes = await fetch(`https://api-v2.contaazul.com/v1/centro-de-custo`, { 
-            headers: { 'Authorization': `Bearer ${token}` } 
-        });
-        if (ccRes.ok) {
-            const data = await ccRes.json();
-            const items = Array.isArray(data) ? data : (data.itens || []);
-            for (const item of items) {
-                await (prisma.costCenter as any).upsert({
-                    where: { id: item.id },
-                    update: { name: item.name },
-                    create: { id: item.id, name: item.name, tenantId }
-                });
+        let pagina = 1;
+        let hasMore = true;
+        while (hasMore) {
+            const ccRes = await fetch(`https://api-v2.contaazul.com/v1/centro-de-custo?tamanho_pagina=100&pagina=${pagina}`, { 
+                headers: { 'Authorization': `Bearer ${token}` } 
+            });
+            if (ccRes.ok) {
+                const data = await ccRes.json();
+                const items = Array.isArray(data) ? data : (data.itens || []);
+                if (items.length === 0) break;
+
+                for (const item of items) {
+                    const existing = await prisma.costCenter.findUnique({ where: { id: item.id } });
+                    let finalName = item.name;
+                    if (existing) {
+                        const isLocalInactive = existing.name.toUpperCase().includes('[INATIVO]');
+                        const isRemoteInactive = item.name.toUpperCase().includes('[INATIVO]');
+                        if (isLocalInactive && !isRemoteInactive) {
+                            finalName = `[INATIVO] ${item.name}`;
+                        }
+                    }
+
+                    await (prisma.costCenter as any).upsert({
+                        where: { id: item.id },
+                        update: { name: finalName },
+                        create: { id: item.id, name: finalName, tenantId }
+                    });
+                }
+
+                if (items.length < 100) hasMore = false;
+                pagina++;
+            } else {
+                hasMore = false;
             }
         }
     } catch (e) {}
@@ -148,39 +190,53 @@ export async function syncMasterData(tenantId: string) {
 
 async function aggregateTransactions(accessToken: string, url: string, targetValues: Record<string, number>, isExpense: boolean, costCenterIdString: string, targetYear: number, viewMode: string, tenantId: string) {
     try {
-        const res = await fetch(url, { headers: { 'Authorization': `Bearer ${accessToken}` } });
-        if (!res.ok) return;
-        const data = await res.json();
-        const items = Array.isArray(data) ? data : (data.itens || data.vendas || []);
-
-        for (const item of items) {
-            const amount = item.valor_total || item.total || item.valor || item.pago || 0;
-            const dateStr = item.data_competencia || item.data_emissao || item.venda_em || item.data_pagamento;
-            if (!dateStr) continue;
-            const dateObj = new Date(dateStr);
-            if (dateObj.getFullYear() !== targetYear) continue;
-
-            const monthIdx = dateObj.getMonth();
-            const ccs = item.centros_de_custo || [];
-            const categories = item.categorias || (item.categoria ? [item.categoria] : []);
+        let pagina = 1;
+        let hasMore = true;
+        
+        while (hasMore) {
+            const pagedUrl = `${url}&pagina=${pagina}`;
+            const res = await fetch(pagedUrl, { headers: { 'Authorization': `Bearer ${accessToken}` } });
             
-            if (categories.length > 0) {
-                const catToUse = categories[0];
-                const catId = catToUse.id || catToUse.categoria_id;
-                const catValue = amount;
+            if (!res.ok) break;
+            
+            const data = await res.json();
+            const items = Array.isArray(data) ? data : (data.itens || data.vendas || []);
+            if (items.length === 0) break;
 
-                if (ccs.length === 0) {
-                    const key = `${catId}|NONE-${monthIdx}`;
-                    targetValues[key] = (targetValues[key] || 0) + catValue;
-                } else {
-                    ccs.forEach((c: any) => {
-                        const ccId = c.id;
-                        const percent = (c.percentual || (100 / ccs.length)) / 100;
-                        const key = `${catId}|${ccId}-${monthIdx}`;
-                        targetValues[key] = (targetValues[key] || 0) + (catValue * percent);
-                    });
+            for (const item of items) {
+                const amount = item.valor_total || item.total || item.valor || item.pago || 0;
+                const dateStr = item.data_competencia || item.data_emissao || item.venda_em || item.data_pagamento;
+                if (!dateStr) continue;
+                const dateObj = new Date(dateStr);
+                if (dateObj.getFullYear() !== targetYear) continue;
+
+                const monthIdx = dateObj.getMonth();
+                const ccs = item.centros_de_custo || [];
+                const categories = item.categorias || (item.categoria ? [item.categoria] : []);
+                
+                if (categories.length > 0) {
+                    const catToUse = categories[0];
+                    const catId = catToUse.id || catToUse.categoria_id;
+                    const catValue = amount;
+
+                    if (ccs.length === 0) {
+                        const key = `${catId}|NONE-${monthIdx}`;
+                        targetValues[key] = (targetValues[key] || 0) + catValue;
+                    } else {
+                        ccs.forEach((c: any) => {
+                            const ccId = c.id;
+                            const percent = (c.percentual || (100 / ccs.length)) / 100;
+                            const key = `${catId}|${ccId}-${monthIdx}`;
+                            targetValues[key] = (targetValues[key] || 0) + (catValue * percent);
+                        });
+                    }
                 }
             }
+            
+            if (items.length < 100) hasMore = false;
+            pagina++;
         }
-    } catch (e) {}
+    } catch (e) {
+        console.error("Transation Pagination Error:", e);
+    }
 }

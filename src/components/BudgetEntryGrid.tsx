@@ -158,8 +158,8 @@ export default function BudgetEntryGrid({ costCenterId, year, taxRate = 0 }: Bud
             let effectiveName = cat.name;
             let effectiveCode = rawCode;
 
-            if (rawCode.startsWith('02') || (rawCode.startsWith('2') && !cat.name.toLowerCase().includes('tributo') && !rawCode.startsWith('2.1'))) {
-                if (rawCode.startsWith('02')) {
+            if ((rawCode.startsWith('02') && !rawCode.startsWith('02.1')) || (rawCode.startsWith('2') && !cat.name.toLowerCase().includes('tributo') && !rawCode.startsWith('2.1'))) {
+                if (rawCode.startsWith('02') && !rawCode.startsWith('02.1')) {
                     let suffix = rawCode.replace(/^0?2/, '');
                     if (suffix.startsWith('.')) suffix = suffix.substring(1);
                     effectiveCode = suffix ? `01.2.${suffix}` : '01.2';
@@ -252,7 +252,7 @@ export default function BudgetEntryGrid({ costCenterId, year, taxRate = 0 }: Bud
             const code = node.code || '';
             if (code.startsWith('01.1.')) { const p = codeMap.get('01.1'); if (p) { p.children.push(node); return; } }
             if (code.startsWith('01.2.')) { const p = codeMap.get('01.2'); if (p) { p.children.push(node); return; } }
-            if (code.startsWith('2.1')) { const p = codeMap.get('02.1'); if (p) { p.children.push(node); return; } }
+            if (code.startsWith('2.1') || code.startsWith('02.1')) { const p = codeMap.get('02.1'); if (p) { p.children.push(node); return; } }
 
             let parentFound = false;
             if (code.includes('.')) {

@@ -7,6 +7,9 @@ const inter = Inter({ subsets: ['latin'], variable: '--font-inter' })
 export const metadata: Metadata = {
   title: 'Financial Budget Dashboard',
   description: 'Consolidated view for Multi-Tenant Finance',
+  icons: {
+    icon: '/favicon.png',
+  },
 }
 
 export default function RootLayout({

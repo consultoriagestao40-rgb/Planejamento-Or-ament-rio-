@@ -57,6 +57,7 @@ export default function BudgetSummaryPage() {
     const [isManualCCModalOpen, setIsManualCCModalOpen] = useState(false);
     const [manualCCTenant, setManualCCTenant] = useState({ id: '', name: '' });
     const [editingCC, setEditingCC] = useState<{ id: string, name: string } | null>(null);
+    const [filterMode, setFilterMode] = useState<'active' | 'all' | 'inactive'>('active');
     const [setupData, setSetupData] = useState<{ categories: any[], costCenters: any[], companies: any[] }>({ categories: [], costCenters: [], companies: [] });
     const [appVersion, setAppVersion] = useState('...');
 
@@ -64,7 +65,7 @@ export default function BudgetSummaryPage() {
         setLoading(true);
         try {
             const [summaryRes, authRes, setupRes, versionRes] = await Promise.all([
-                fetch(`/api/cost-centers/summary?year=${selectedYear}`),
+                fetch(`/api/cost-centers/summary?year=${selectedYear}&filterMode=${filterMode}`),
                 fetch('/api/auth/me'),
                 fetch(`/api/setup?year=${selectedYear}`),
                 fetch('/api/version')
@@ -102,7 +103,7 @@ export default function BudgetSummaryPage() {
         } finally {
             setLoading(false);
         }
-    }, [selectedYear]);
+    }, [selectedYear, filterMode]);
 
     useEffect(() => {
         fetchData();
@@ -432,10 +433,29 @@ export default function BudgetSummaryPage() {
                     </div>
                 </div>
 
-                {/* Search */}
-                <div style={{ backgroundColor: 'var(--bg-card)', padding: '1rem 1.5rem', borderRadius: 'var(--radius)', border: '1px solid var(--border-default)', marginBottom: '2rem', display: 'flex', gap: '1rem', alignItems: 'center' }}>
-                    <span>🔍</span>
-                    <input type="text" placeholder="Pesquisar..." className="premium-input" style={{ border: 'none', background: 'transparent', width: '100%', outline: 'none' }} value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
+                {/* Search & Filters */}
+                <div style={{ backgroundColor: 'var(--bg-card)', padding: '1rem 1.5rem', borderRadius: 'var(--radius)', border: '1px solid var(--border-default)', marginBottom: '2rem', display: 'flex', gap: '1rem', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <div style={{ display: 'flex', gap: '1rem', alignItems: 'center', flex: 1 }}>
+                        <span>🔍</span>
+                        <input type="text" placeholder="Pesquisar Centro de Custo..." className="premium-input" style={{ border: 'none', background: 'transparent', width: '100%', outline: 'none' }} value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
+                    </div>
+                    
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', borderLeft: '1px solid var(--border-subtle)', paddingLeft: '1.5rem' }}>
+                        <span style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-muted)' }}>Status:</span>
+                        <select 
+                            value={filterMode} 
+                            onChange={(e) => setFilterMode(e.target.value as any)}
+                            style={{ 
+                                padding: '0.5rem 1rem', borderRadius: '8px', border: '1px solid var(--border-subtle)', 
+                                background: 'var(--bg-elevated)', color: 'var(--text-primary)', fontSize: '0.85rem', fontWeight: 600, 
+                                cursor: 'pointer', outline: 'none' 
+                            }}
+                        >
+                            <option value="active">✅ Somente Ativos (DRE Oficial)</option>
+                            <option value="all">⚠️ Incluir Inativos (DRE Expandida)</option>
+                            <option value="inactive">🚫 Somente Inativos</option>
+                        </select>
+                    </div>
                 </div>
 
                 {/* Table */}

@@ -18,6 +18,7 @@ export async function GET(request: Request) {
         const { searchParams } = new URL(request.url);
         const yearParam = searchParams.get('year');
         const currentYear = yearParam ? parseInt(yearParam) : new Date().getFullYear();
+        const filterMode = searchParams.get('filterMode') || 'active'; // active, inactive, all
 
         // 1. Fetch Basic Data
         const [tenants, costCenters, categories, budgets, realizedEntries, locks] = await Promise.all([
@@ -187,7 +188,7 @@ export async function GET(request: Request) {
         // 6. Security & Data Filter
         let finalData = Object.values(summaryMap);
 
-        // Filter out groups that are PURELY Inactive (all original members have [INATIVO] or ENCERRADO)
+        // Filter out groups that are PURELY Inactive (all original members have [INATIVO] ou ENCERRADO)
         // AND handle specific user requests for Clean Tech, Rio Negrinho and REDE TONIN
         finalData = finalData.filter(item => {
             const isInactive = item.isCandidateInactive;
@@ -198,8 +199,10 @@ export async function GET(request: Request) {
                 return false;
             }
 
-            // General rule: hide if it was marked as inactive in DB
-            if (isInactive) return false;
+            // General rules via Dashboard Filter Mode:
+            if (filterMode === 'active' && isInactive) return false;
+            if (filterMode === 'inactive' && !isInactive) return false;
+            // if 'all', we let everything through
             
             return true;
         });

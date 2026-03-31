@@ -61,7 +61,7 @@ export async function GET(request: Request) {
                 const normalizeName = (name: string) => 
                     (name || '')
                         .toLowerCase()
-                        .replace(/^[0-9. ]+/, '') // Remove "271.225 "
+                        .replace(/^[\d. ]+-?\s*/, '') // Remove leading codes like "271.225 - " or "271.225 "
                         .replace(/[^a-z0-9]/g, '')
                         .replace(/merces/g, 'meces') // Handle the specific typo Mercês vs Mecês
                         .trim();

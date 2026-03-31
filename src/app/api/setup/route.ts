@@ -32,6 +32,7 @@ export async function GET() {
                         .toLowerCase()
                         .replace(/^\[inativo\]\s*/i, '')
                         .replace(/^encerrado\s*/i, '')
+                        .replace(/^[\d. ]+-?\s*/, '') // Remove leading codes like "271.225 - " or "271.225 "
                         .replace(/[^a-z0-9]/g, '')
                         .trim();
 

@@ -56,6 +56,7 @@ export default function BudgetSummaryPage() {
     const [excelTenantId, setExcelTenantId] = useState('DEFAULT');
     const [isManualCCModalOpen, setIsManualCCModalOpen] = useState(false);
     const [manualCCTenant, setManualCCTenant] = useState({ id: '', name: '' });
+    const [editingCC, setEditingCC] = useState<{ id: string, name: string } | null>(null);
     const [setupData, setSetupData] = useState<{ categories: any[], costCenters: any[], companies: any[] }>({ categories: [], costCenters: [], companies: [] });
     const [appVersion, setAppVersion] = useState('...');
 
@@ -257,6 +258,48 @@ export default function BudgetSummaryPage() {
             alert('Erro de conexão ao alterar bloqueio.');
         } finally {
             setIsTogglingLock(null);
+        }
+    };
+
+    const handleDeleteCC = async (cc: SummaryItem) => {
+        if (!confirm(`🚨 ATENÇÃO: Deseja EXCLUIR DEFINITIVAMENTE o centro de custo "${cc.costCenterName}"?\n\nIsso apagará TODO O HISTÓRICO DE ORÇAMENTOS E REALIZADOS atrelados a ele no nosso sistema.\nSe quiser apenas esconder, use a função Invisibilizar.`)) return;
+        
+        try {
+            const res = await fetch('/api/cost-centers', {
+                method: 'DELETE',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ id: cc.costCenterId, tenantId: cc.tenantId })
+            });
+            const result = await res.json();
+            if (result.success) {
+                alert('Centro de custo excluído com sucesso.');
+                fetchData();
+            } else {
+                alert(result.error || 'Erro ao excluir');
+            }
+        } catch (e) {
+            alert('Falha de conexão.');
+        }
+    };
+
+    const handleToggleInactiveCC = async (cc: SummaryItem) => {
+        const isInactive = cc.costCenterName.toUpperCase().includes('[INATIVO]');
+        if (!confirm(`Deseja ${isInactive ? 'REATIVAR' : 'INATIVAR (Ocultar)'} o centro de custo "${cc.costCenterName}"?`)) return;
+        
+        try {
+            const res = await fetch('/api/cost-centers', {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ id: cc.costCenterId, tenantId: cc.tenantId, inativar: true })
+            });
+            const result = await res.json();
+            if (result.success) {
+                fetchData();
+            } else {
+                alert(result.error || 'Erro ao inativar');
+            }
+        } catch (e) {
+            alert('Falha de conexão.');
         }
     };
 
@@ -468,7 +511,7 @@ export default function BudgetSummaryPage() {
                                                             </button>
                                                         )}
                                                         {userRole === 'MASTER' && (
-                                                            <button onClick={(e) => { e.stopPropagation(); setManualCCTenant({ id: group.tenantId, name: group.tenantName }); setIsManualCCModalOpen(true); }} style={{ padding: '0.6rem 0.8rem', fontSize: '0.75rem', background: 'white', color: '#2563eb', border: '1px solid #2563eb', borderRadius: '8px', fontWeight: 800, cursor: 'pointer' }}><span>➕</span> NOVO CC</button>
+                                                            <button onClick={(e) => { e.stopPropagation(); setEditingCC(null); setManualCCTenant({ id: group.tenantId, name: group.tenantName }); setIsManualCCModalOpen(true); }} style={{ padding: '0.6rem 0.8rem', fontSize: '0.75rem', background: 'white', color: '#2563eb', border: '1px solid #2563eb', borderRadius: '8px', fontWeight: 800, cursor: 'pointer' }}><span>➕</span> NOVO CC</button>
                                                         )}
                                                      </div>
                                                  </td>
@@ -513,24 +556,51 @@ export default function BudgetSummaryPage() {
                                                         </div>
                                                     </td>
                                                     <td style={{ ...td, textAlign: 'center' }}>
-                                                        <button 
-                                                            onClick={(e) => { e.stopPropagation(); setSelectedForAudit(cc); }} 
-                                                            style={{ 
-                                                                background: cc.status === 'AWAITING_N2' ? 'var(--accent-blue)' : 'var(--bg-elevated)',
-                                                                color: cc.status === 'AWAITING_N2' ? 'white' : 'var(--text-primary)',
-                                                                border: '1px solid var(--border-subtle)',
-                                                                borderRadius: '8px',
-                                                                padding: '0.4rem 0.8rem',
-                                                                fontSize: '0.7rem',
-                                                                fontWeight: 800,
-                                                                cursor: 'pointer',
-                                                                transition: 'all 0.2s',
-                                                                boxShadow: cc.status === 'AWAITING_N2' ? '0 4px 6px -1px rgba(59, 130, 246, 0.3)' : 'none'
-                                                            }}
-                                                            className="hover-opacity"
-                                                        >
-                                                            {cc.status === 'AWAITING_N2' ? '🔍 AUDITAR' : '📄 DETALHES'}
-                                                        </button>
+                                                        <div style={{ display: 'flex', justifyContent: 'center', gap: '0.5rem' }}>
+                                                            {userRole === 'MASTER' && (
+                                                                <>
+                                                                    <button 
+                                                                        onClick={(e) => { e.stopPropagation(); setEditingCC({ id: cc.costCenterId, name: cc.costCenterName }); setManualCCTenant({ id: cc.tenantId, name: cc.tenantName }); setIsManualCCModalOpen(true); }} 
+                                                                        style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border-subtle)', borderRadius: '6px', padding: '0.3rem', cursor: 'pointer' }}
+                                                                        title="Editar Nome do C.C"
+                                                                    >
+                                                                        ✏️
+                                                                    </button>
+                                                                    <button 
+                                                                        onClick={(e) => { e.stopPropagation(); handleToggleInactiveCC(cc); }} 
+                                                                        style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border-subtle)', borderRadius: '6px', padding: '0.3rem', cursor: 'pointer', filter: cc.costCenterName.toUpperCase().includes('[INATIVO]') ? 'grayscale(1)' : 'none' }}
+                                                                        title={cc.costCenterName.toUpperCase().includes('[INATIVO]') ? "Reativar" : "Inativar (Ocultar)"}
+                                                                    >
+                                                                        {cc.costCenterName.toUpperCase().includes('[INATIVO]') ? "👁️‍🗨️" : "🚫"}
+                                                                    </button>
+                                                                    <button 
+                                                                        onClick={(e) => { e.stopPropagation(); handleDeleteCC(cc); }} 
+                                                                        style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border-subtle)', borderRadius: '6px', padding: '0.3rem', cursor: 'pointer' }}
+                                                                        title="Excluir C.C Histórico"
+                                                                    >
+                                                                        🗑️
+                                                                    </button>
+                                                                </>
+                                                            )}
+                                                            <button 
+                                                                onClick={(e) => { e.stopPropagation(); setSelectedForAudit(cc); }} 
+                                                                style={{ 
+                                                                    background: cc.status === 'AWAITING_N2' ? 'var(--accent-blue)' : 'var(--bg-elevated)',
+                                                                    color: cc.status === 'AWAITING_N2' ? 'white' : 'var(--text-primary)',
+                                                                    border: '1px solid var(--border-subtle)',
+                                                                    borderRadius: '8px',
+                                                                    padding: '0.4rem 0.8rem',
+                                                                    fontSize: '0.7rem',
+                                                                    fontWeight: 800,
+                                                                    cursor: 'pointer',
+                                                                    transition: 'all 0.2s',
+                                                                    boxShadow: cc.status === 'AWAITING_N2' ? '0 4px 6px -1px rgba(59, 130, 246, 0.3)' : 'none'
+                                                                }}
+                                                                className="hover-opacity"
+                                                            >
+                                                                {cc.status === 'AWAITING_N2' ? '🔍 AUDITAR' : '📄 DETALHES'}
+                                                            </button>
+                                                        </div>
                                                     </td>
                                                     <td style={{ ...td }}></td>
                                                 </tr>
@@ -683,10 +753,11 @@ export default function BudgetSummaryPage() {
 
                 <ManualCostCenterModal
                     isOpen={isManualCCModalOpen}
-                    onClose={() => setIsManualCCModalOpen(false)}
+                    initialData={editingCC}
+                    onClose={() => { setIsManualCCModalOpen(false); setEditingCC(null); }}
                     onSuccess={() => {
                         fetchData();
-                        alert('Centro de Custo criado com sucesso!');
+                        alert(`Centro de Custo ${editingCC ? 'atualizado' : 'criado'} com sucesso!`);
                     }}
                     tenantId={manualCCTenant.id}
                     tenantName={manualCCTenant.name}

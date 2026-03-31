@@ -1218,7 +1218,7 @@ export default function BudgetGrid({
                         const getMoMPercent = () => {
                             if (i === 0) return 0;
                             const prevR = totals.realized[i - 1];
-                            if (prevR === 0) return 0;
+                            if (Math.abs(prevR) < 0.01) return 0;
                             return ((rVal / prevR) - 1) * 100;
                         };
 
@@ -1226,12 +1226,12 @@ export default function BudgetGrid({
                         const totalRevRadar = (nodeTotals.get(dreStructure.buckets.rev[0]?.id)?.radar[i]) || 0;
                         const totalRevBudget = (nodeTotals.get(dreStructure.buckets.rev[0]?.id)?.budget[i]) || 0;
                         
-                        const avReal = totalRevReal !== 0 ? (rVal / totalRevReal) * 100 : 0;
-                        const avRadar = totalRevRadar !== 0 ? (rdVal / totalRevRadar) * 100 : 0;
-                        const avBudget = totalRevBudget !== 0 ? (bVal / totalRevBudget) * 100 : 0;
+                        const avReal = Math.abs(totalRevReal) > 0.01 ? (rVal / totalRevReal) * 100 : 0;
+                        const avRadar = Math.abs(totalRevRadar) > 0.01 ? (rdVal / totalRevRadar) * 100 : 0;
+                        const avBudget = Math.abs(totalRevBudget) > 0.01 ? (bVal / totalRevBudget) * 100 : 0;
 
                         const getAH = (val: number, base: number) => {
-                            if (base === 0) return 0;
+                            if (Math.abs(base) < 0.01) return 0;
                             return ((val / base) - 1) * 100;
                         };
 
@@ -1248,7 +1248,10 @@ export default function BudgetGrid({
                                     style={{ 
                                         borderLeft: '2px solid #cbd5e1', 
                                         cursor: viewPeriod === 'month' ? 'pointer' : 'default',
-                                        color: bVal < 0 ? '#dc2626' : '#475569'
+                                        color: bVal < 0 ? '#dc2626' : '#475569',
+                                        minWidth: '100px',
+                                        maxWidth: '100px',
+                                        padding: '0.5rem 0.25rem'
                                     }}
                                 >
                                     <div style={{ display: 'flex', alignItems: 'center', gap: '2px', justifyContent: 'flex-end' }}>
@@ -1256,7 +1259,7 @@ export default function BudgetGrid({
                                         {formatCurrency(bVal)}
                                     </div>
                                 </td>
-                                {showAV && <td className="spreadsheet-value" style={{ color: '#94a3b8', fontSize: '0.6rem', textAlign: 'center' }} title="AV Orçado">{avBudget.toFixed(1)}%</td>}
+                                {showAV && <td className="spreadsheet-value" style={{ color: '#94a3b8', fontSize: '0.6rem', textAlign: 'center', minWidth: '60px', maxWidth: '60px', padding: '0.5rem 0.25rem' }} title="AV Orçado">{avBudget.toFixed(1)}%</td>}
                                 {/* RADAR CELL HIDDEN - preserved for future use */}
                                 {/* <td
                                     className="spreadsheet-value"
@@ -1280,7 +1283,10 @@ export default function BudgetGrid({
                                         color: rVal < 0 ? '#dc2626' : 'var(--accent-blue)',
                                         fontWeight: 700,
                                         position: 'relative',
-                                        background: (hasJustificationMap[`${node.id}-${i}`] && node.children.length === 0) ? '#eff6ff' : undefined
+                                        background: (hasJustificationMap[`${node.id}-${i}`] && node.children.length === 0) ? '#eff6ff' : undefined,
+                                        minWidth: '110px',
+                                        maxWidth: '110px',
+                                        padding: '0.5rem 0.25rem'
                                     }}
                                 >
                                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '0.25rem' }}>
@@ -1325,7 +1331,7 @@ export default function BudgetGrid({
                                         })()}
                                     </div>
                                 </td>
-                                {showAV && <td className="spreadsheet-value" style={{ color: '#94a3b8', fontSize: '0.6rem', textAlign: 'center' }} title="AV Real">{avReal.toFixed(1)}%</td>}
+                                {showAV && <td className="spreadsheet-value" style={{ color: '#94a3b8', fontSize: '0.6rem', textAlign: 'center', minWidth: '60px', maxWidth: '60px', padding: '0.5rem 0.25rem' }} title="AV Real">{avReal.toFixed(1)}%</td>}
                                 {showAH && (
                                     <td className="spreadsheet-value" style={{ 
                                         color: (() => {
@@ -1337,7 +1343,10 @@ export default function BudgetGrid({
                                             return val > 0 ? '#ef4444' : '#10b981';
                                         })(), 
                                         fontSize: '0.6rem', 
-                                        textAlign: 'center' 
+                                        textAlign: 'center',
+                                        minWidth: '65px',
+                                        maxWidth: '65px',
+                                        padding: '0.5rem 0.25rem'
                                     }}>
                                         {getAH(rVal, bVal).toFixed(1)}%
                                     </td>
@@ -1353,7 +1362,10 @@ export default function BudgetGrid({
                                             return val > 0 ? '#ef4444' : '#10b981';
                                         })(), 
                                         fontSize: '0.6rem', 
-                                        textAlign: 'center' 
+                                        textAlign: 'center',
+                                        minWidth: '65px',
+                                        maxWidth: '65px',
+                                        padding: '0.5rem 0.25rem'
                                     }}>
                                         {i === 0 ? '-' : `${getMoMPercent().toFixed(1)}%`}
                                     </td>
@@ -1432,7 +1444,7 @@ export default function BudgetGrid({
                         if (i === 0) return 0;
                         const prevSums = precomputedDreTotals[i - 1];
                         const prevVal = (prevSums[validx] as any)?.r || 0;
-                        if (prevVal === 0) return 0;
+                        if (Math.abs(prevVal) < 0.01) return 0;
                         return ((realizedVal / prevVal) - 1) * 100;
                     };
 
@@ -1440,37 +1452,30 @@ export default function BudgetGrid({
                     const totalRevRadar = sums.vRev.rd || 0;
                     const totalRevBudget = sums.vRev.b || 0;
                     
-                    const avReal = totalRevReal !== 0 ? (realizedVal / totalRevReal) * 100 : 0;
-                    const avRadar = totalRevRadar !== 0 ? (radarVal / totalRevRadar) * 100 : 0;
-                    const avBudget = totalRevBudget !== 0 ? (budgetVal / totalRevBudget) * 100 : 0;
+                    const avReal = Math.abs(totalRevReal) > 0.01 ? (realizedVal / totalRevReal) * 100 : 0;
+                    const avRadar = Math.abs(totalRevRadar) > 0.01 ? (radarVal / totalRevRadar) * 100 : 0;
+                    const avBudget = Math.abs(totalRevBudget) > 0.01 ? (budgetVal / totalRevBudget) * 100 : 0;
 
                     const getAH = (val: number, base: number) => {
-                        if (base === 0) return 0;
+                        if (Math.abs(base) < 0.01) return 0;
                         return ((val / base) - 1) * 100;
                     };
 
                     return (
                         <React.Fragment key={i}>
-                            <td className="spreadsheet-value" style={{ borderLeft: '2px solid #cbd5e1', color: bColor, fontWeight: 700, background: isLucroLiquido ? '#2563eb' : undefined }}>{formatCurrency(budgetVal)}</td>
+                            <td className="spreadsheet-value" style={{ borderLeft: '2px solid #cbd5e1', color: bColor, fontWeight: 700, background: isLucroLiquido ? '#2563eb' : undefined, minWidth: '100px', maxWidth: '100px', padding: '0.5rem 0.25rem' }}>{formatCurrency(budgetVal)}</td>
                             {showAV && (
-                                <td className="spreadsheet-value" style={{ color: isLucroLiquido ? '#fff' : '#94a3b8', fontSize: '0.65rem', textAlign: 'center' }}>
+                                <td className="spreadsheet-value" style={{ color: isLucroLiquido ? '#fff' : '#94a3b8', fontSize: '0.6rem', textAlign: 'center', minWidth: '60px', maxWidth: '60px', padding: '0.5rem 0.25rem' }}>
                                     {avBudget.toFixed(1)}%
                                 </td>
                             )}
-                            {/* RADAR SUMMARY CELL HIDDEN */}
-                            {/* <td className="spreadsheet-value" style={{ color: rdColor, fontWeight: 700, background: isLucroLiquido ? '#2563eb' : undefined }}>{formatCurrency(radarVal)}</td>
-                            {showAV && (
-                                <td className="spreadsheet-value" style={{ color: isLucroLiquido ? '#fff' : '#94a3b8', fontSize: '0.65rem', textAlign: 'center' }}>
-                                    {avRadar.toFixed(1)}%
-                                </td>
-                            )} */}
-                            <td className="spreadsheet-value" style={{ color: rColor, fontWeight: 800, background: isLucroLiquido ? '#2563eb' : undefined, position: 'relative' }}>
+                            <td className="spreadsheet-value" style={{ color: rColor, fontWeight: 800, background: isLucroLiquido ? '#2563eb' : undefined, position: 'relative', minWidth: '110px', maxWidth: '110px', padding: '0.5rem 0.25rem' }}>
                                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '0.25rem' }}>
                                     {formatCurrency(realizedVal)}
                                 </div>
                             </td>
                             {showAV && (
-                                <td className="spreadsheet-value" style={{ color: isLucroLiquido ? '#fff' : '#94a3b8', fontSize: '0.65rem', textAlign: 'center' }}>
+                                <td className="spreadsheet-value" style={{ color: isLucroLiquido ? '#fff' : '#94a3b8', fontSize: '0.6rem', textAlign: 'center', minWidth: '60px', maxWidth: '60px', padding: '0.5rem 0.25rem' }}>
                                     {avReal.toFixed(1)}%
                                 </td>
                             )}
@@ -1481,11 +1486,13 @@ export default function BudgetGrid({
                                         const isProfitRow = ['vRev', 'vRecLiq', 'vGrossMarg', 'vContribMarg', 'vEbitda', 'vNetProfit'].includes(validx as string);
                                         if (val === 0) return isLucroLiquido ? '#fff' : '#64748b';
                                         if (isProfitRow) return val < 0 ? '#ef4444' : (isLucroLiquido ? '#fff' : '#10b981');
-                                        // Expense rows: higher is Red
                                         return val > 0 ? '#ef4444' : (isLucroLiquido ? '#fff' : '#10b981');
                                     })(),
-                                    fontSize: '0.65rem', 
-                                    textAlign: 'center' 
+                                    fontSize: '0.6rem', 
+                                    textAlign: 'center',
+                                    minWidth: '65px',
+                                    maxWidth: '65px',
+                                    padding: '0.5rem 0.25rem'
                                 }}>
                                     {getAH(realizedVal, budgetVal).toFixed(1)}%
                                 </td>
@@ -1496,7 +1503,7 @@ export default function BudgetGrid({
                                     {getAH(realizedVal, radarVal).toFixed(1)}%
                                 </td>
                             )} */}
-                            {showAH_MoM && (
+                             {showAH_MoM && (
                                 <td className="spreadsheet-value" style={{ 
                                     color: (() => {
                                         const val = getMoMPercent();
@@ -1505,8 +1512,11 @@ export default function BudgetGrid({
                                         if (isProfitRow) return val < 0 ? '#ef4444' : (isLucroLiquido ? '#fff' : '#10b981');
                                         return val > 0 ? '#ef4444' : (isLucroLiquido ? '#fff' : '#10b981');
                                     })(),
-                                    fontSize: '0.65rem', 
-                                    textAlign: 'center' 
+                                    fontSize: '0.6rem', 
+                                    textAlign: 'center',
+                                    minWidth: '65px',
+                                    maxWidth: '65px',
+                                    padding: '0.5rem 0.25rem'
                                 }}>
                                     {i === 0 ? '-' : `${getMoMPercent().toFixed(1)}%`}
                                 </td>
@@ -1792,16 +1802,12 @@ export default function BudgetGrid({
                             <th className="sticky-col"></th>
                             {(viewPeriod === 'month' ? MONTHS : [1, 2, 3, 4]).map((_, i) => (
                                 <React.Fragment key={i}>
-                                    <th style={{ fontSize: '0.6rem', color: '#64748b', borderLeft: '2px solid #cbd5e1', textAlign: 'center', padding: '0.2rem' }}>ORÇ</th>
-                                    {showAV && <th style={{ fontSize: '0.55rem', color: '#94a3b8', textAlign: 'center', padding: '0.2rem' }}>AV OR</th>}
-                                    {/* RADAR COLUMN HIDDEN - preserved for future use */}
-                                    {/* <th style={{ fontSize: '0.6rem', color: '#64748b', textAlign: 'center', padding: '0.2rem' }}>RADAR</th> */}
-                                    {/* {showAV && <th style={{ fontSize: '0.55rem', color: '#94a3b8', textAlign: 'center', padding: '0.2rem' }}>AV RD</th>} */}
-                                    <th style={{ fontSize: '0.6rem', color: '#64748b', textAlign: 'center', padding: '0.2rem' }}>REAL</th>
-                                    {showAV && <th style={{ fontSize: '0.55rem', color: '#94a3b8', textAlign: 'center', padding: '0.2rem' }}>AV RL</th>}
-                                    {showAH && <th style={{ fontSize: '0.55rem', color: '#94a3b8', textAlign: 'center', padding: '0.2rem' }}>AH %</th>}
-                                    {/* {showAR && <th style={{ fontSize: '0.55rem', color: '#94a3b8', textAlign: 'center', padding: '0.2rem' }}>AR %</th>} */}
-                                    {showAH_MoM && <th style={{ fontSize: '0.55rem', color: '#94a3b8', textAlign: 'center', padding: '0.2rem' }}>MoM</th>}
+                                    <th style={{ fontSize: '0.6rem', color: '#64748b', borderLeft: '2px solid #cbd5e1', textAlign: 'center', padding: '0.2rem', minWidth: '100px', maxWidth: '100px' }}>ORÇ</th>
+                                    {showAV && <th style={{ fontSize: '0.55rem', color: '#94a3b8', textAlign: 'center', padding: '0.2rem', minWidth: '60px', maxWidth: '60px' }}>AV OR</th>}
+                                    <th style={{ fontSize: '0.6rem', color: '#64748b', textAlign: 'center', padding: '0.2rem', minWidth: '110px', maxWidth: '110px' }}>REAL</th>
+                                    {showAV && <th style={{ fontSize: '0.55rem', color: '#94a3b8', textAlign: 'center', padding: '0.2rem', minWidth: '60px', maxWidth: '60px' }}>AV RL</th>}
+                                    {showAH && <th style={{ fontSize: '0.55rem', color: '#94a3b8', textAlign: 'center', padding: '0.2rem', minWidth: '65px', maxWidth: '65px' }}>AH %</th>}
+                                    {showAH_MoM && <th style={{ fontSize: '0.55rem', color: '#94a3b8', textAlign: 'center', padding: '0.2rem', minWidth: '65px', maxWidth: '65px' }}>MoM</th>}
                                 </React.Fragment>
                             ))}
                         </tr>

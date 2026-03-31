@@ -246,7 +246,7 @@ export async function GET(request: Request) {
             // 4. Normalize and find synonyms
             const normalize = (name: string) => (name || '')
                 .toLowerCase()
-                .replace(/^[0-9. ]+/, '')
+                .replace(/^[\d. ]+-?\s*/, '') // Remove leading codes like "271.225 - " or "271.225 "
                 .replace(/[^a-z0-9]/g, '')
                 .replace(/merces/g, 'meces')
                 .trim();

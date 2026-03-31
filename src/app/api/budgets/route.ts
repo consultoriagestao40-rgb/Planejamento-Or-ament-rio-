@@ -139,7 +139,13 @@ export async function GET(request: Request) {
                });
            }
 
-      ccFilter = { costCenterId: { in: Array.from(allSynonymousIds) } };
+            const finalIds = new Set<string>();
+            allSynonymousIds.forEach(id => {
+                finalIds.add(id);
+                if (id && id.includes(':')) finalIds.add(id.split(':').pop()!);
+            });
+
+      ccFilter = { costCenterId: { in: Array.from(finalIds) } };
     } else {
       // GESTOR general view: restricted to their CCs (costCenterIds already populated above)
       ccFilter = costCenterIds.length > 0
@@ -257,7 +263,13 @@ export async function GET(request: Request) {
                 return targetNorms.some(tn => cn.includes(tn) || tn.includes(cn));
             });
 
-            allSynonymousIdsArr = synonyms.map(cc => cc.id);
+            allSynonymousIdsArr = [];
+            synonyms.forEach(cc => {
+                allSynonymousIdsArr.push(cc.id);
+                if (cc.id.includes(':')) {
+                    allSynonymousIdsArr.push(cc.id.split(':').pop()!);
+                }
+            });
         }
     }
 

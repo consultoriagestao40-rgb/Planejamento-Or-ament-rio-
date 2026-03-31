@@ -51,6 +51,12 @@ export async function GET(request: Request) {
         };
 
         const costCenterMap = new Map(costCenters.map(cc => [cc.id, cc]));
+        const shortIdMap = new Map();
+        costCenters.forEach(cc => {
+            if (cc.id.includes(':')) {
+                shortIdMap.set(cc.id.split(':').pop()!, cc);
+            }
+        });
 
         // 2. Initialize Summary Map
         const summaryMap: Record<string, any> = {};
@@ -121,7 +127,7 @@ export async function GET(request: Request) {
             if (!b.costCenterId) {
                 key = `${b.tenantId}-DEFAULT`;
             } else {
-                const cc = costCenterMap.get(b.costCenterId);
+                const cc = costCenterMap.get(b.costCenterId) || shortIdMap.get(b.costCenterId);
                 const cleanName = getCleanName(cc?.name || '');
                 key = `${b.tenantId}-${cleanName}`;
             }
@@ -146,7 +152,7 @@ export async function GET(request: Request) {
             if (!r.costCenterId) {
                 key = `${r.tenantId}-DEFAULT`;
             } else {
-                const cc = costCenterMap.get(r.costCenterId);
+                const cc = costCenterMap.get(r.costCenterId) || shortIdMap.get(r.costCenterId);
                 const cleanName = getCleanName(cc?.name || '');
                 key = `${r.tenantId}-${cleanName}`;
             }
@@ -167,7 +173,7 @@ export async function GET(request: Request) {
 
         // 5. Apply Locks and Approval Status (based on ANY of the IDs in the name group? usually 1:1)
         locks.forEach(lock => {
-            const cc = costCenterMap.get(lock.costCenterId);
+            const cc = costCenterMap.get(lock.costCenterId) || shortIdMap.get(lock.costCenterId);
             const cleanName = getCleanName(cc?.name || '');
             const key = `${lock.tenantId}-${cleanName}`;
             

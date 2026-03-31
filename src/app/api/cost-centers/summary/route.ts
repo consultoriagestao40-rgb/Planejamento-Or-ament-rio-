@@ -124,12 +124,13 @@ export async function GET(request: Request) {
         // 3. Aggregate Budgets
         budgets.forEach(b => {
             let key;
-            if (!b.costCenterId) {
+            const cc = b.costCenterId ? (costCenterMap.get(b.costCenterId) || shortIdMap.get(b.costCenterId)) : null;
+
+            if (!cc) {
                 key = `${b.tenantId}-DEFAULT`;
             } else {
-                const cc = costCenterMap.get(b.costCenterId) || shortIdMap.get(b.costCenterId);
-                const cleanName = getCleanName(cc?.name || '');
-                key = `${b.tenantId}-${cleanName}`;
+                const cleanName = getCleanName(cc.name);
+                key = `${cc.tenantId}-${cleanName}`;
             }
 
             if (!summaryMap[key]) return;
@@ -149,12 +150,13 @@ export async function GET(request: Request) {
         // 4. Aggregate Realized
         realizedEntries.forEach(r => {
             let key;
-            if (!r.costCenterId) {
+            const cc = r.costCenterId ? (costCenterMap.get(r.costCenterId) || shortIdMap.get(r.costCenterId)) : null;
+
+            if (!cc) {
                 key = `${r.tenantId}-DEFAULT`;
             } else {
-                const cc = costCenterMap.get(r.costCenterId) || shortIdMap.get(r.costCenterId);
-                const cleanName = getCleanName(cc?.name || '');
-                key = `${r.tenantId}-${cleanName}`;
+                const cleanName = getCleanName(cc.name);
+                key = `${cc.tenantId}-${cleanName}`;
             }
 
             if (!summaryMap[key]) return;

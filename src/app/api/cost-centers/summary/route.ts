@@ -47,6 +47,8 @@ export async function GET(request: Request) {
                 .replace(/^\[INATIVO\]\s*/i, '')
                 .replace(/^ENCERRADO\s*/i, '')
                 .replace(/^[\d. ]+-?\s*/, '') // Remove prefixos numéricos "271.204 - "
+                .replace(/\s*\(NOTURNO\)\s*/i, '') // Remove sufixos de turno para agrupamento
+                .replace(/\s*\(DIURNO\)\s*/i, '')
                 .trim();
         };
 

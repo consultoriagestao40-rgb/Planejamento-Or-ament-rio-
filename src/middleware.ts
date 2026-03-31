@@ -26,7 +26,7 @@ export function middleware(request: NextRequest) {
         pathname.startsWith('/api/maintenance') ||
         pathname.startsWith('/api/diag-taxes') ||
         pathname.startsWith('/api/diag-id') ||
-        pathname.startsWith('/api/version') ||
+        pathname.startsWith('/api/debug-cc') ||
         pathname === '/login' ||
         pathname === '/favicon.ico'
     ) {

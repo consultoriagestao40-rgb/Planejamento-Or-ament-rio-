@@ -46,8 +46,7 @@ export async function GET(request: Request) {
             return (name || '')
                 .replace(/^\[INATIVO\]\s*/i, '')
                 .replace(/^ENCERRADO\s*/i, '')
-                .replace(/^\[inativo\]\s*/i, '')
-                .replace(/^encerrado\s*/i, '')
+                .replace(/^[\d. ]+-?\s*/, '') // Remove prefixos numéricos "271.204 - "
                 .trim();
         };
 

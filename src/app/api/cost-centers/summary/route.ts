@@ -77,7 +77,7 @@ export async function GET(request: Request) {
                     tenantId: cc.tenantId,
                     tenantName: cc.tenant.name,
                     costCenterId: cc.id, // Primary ID for links
-                    costCenterName: cleanName,
+                    costCenterName: cc.name,
                     totalRevenueBudget: 0,
                     totalExpenseBudget: 0,
                     totalRevenue: 0,

@@ -1217,14 +1217,34 @@ export default function BudgetGrid({
 
                         const getMoMPercent = () => {
                             if (i === 0) return 0;
-                            const prevR = totals.realized[i - 1];
-                            if (Math.abs(prevR) < 0.01) return 0;
-                            return ((rVal / prevR) - 1) * 100;
+                            let prevVal = 0;
+                            if (viewPeriod === 'month') {
+                                prevVal = totals.realized[i - 1];
+                            } else {
+                                // Sum previous quarter
+                                for (let m = (i - 1) * 3; m < (i - 1) * 3 + 3; m++) {
+                                    prevVal += totals.realized[m];
+                                }
+                            }
+                            if (Math.abs(prevVal) < 0.01) return 0;
+                            return ((rVal / prevVal) - 1) * 100;
                         };
 
-                        const totalRevReal = (nodeTotals.get(dreStructure.buckets.rev[0]?.id)?.realized[i]) || 0;
-                        const totalRevRadar = (nodeTotals.get(dreStructure.buckets.rev[0]?.id)?.radar[i]) || 0;
-                        const totalRevBudget = (nodeTotals.get(dreStructure.buckets.rev[0]?.id)?.budget[i]) || 0;
+                        let totalRevReal = 0, totalRevRadar = 0, totalRevBudget = 0;
+                        const revNodeTotals = nodeTotals.get(dreStructure.buckets.rev[0]?.id);
+                        if (revNodeTotals) {
+                            if (viewPeriod === 'month') {
+                                totalRevReal = revNodeTotals.realized[i] || 0;
+                                totalRevRadar = revNodeTotals.radar[i] || 0;
+                                totalRevBudget = revNodeTotals.budget[i] || 0;
+                            } else {
+                                for (let m = i * 3; m < i * 3 + 3; m++) {
+                                    totalRevReal += revNodeTotals.realized[m] || 0;
+                                    totalRevRadar += revNodeTotals.radar[m] || 0;
+                                    totalRevBudget += revNodeTotals.budget[m] || 0;
+                                }
+                            }
+                        }
                         
                         const avReal = Math.abs(totalRevReal) > 0.01 ? (rVal / totalRevReal) * 100 : 0;
                         const avRadar = Math.abs(totalRevRadar) > 0.01 ? (rdVal / totalRevRadar) * 100 : 0;
@@ -1442,15 +1462,34 @@ export default function BudgetGrid({
 
                     const getMoMPercent = () => {
                         if (i === 0) return 0;
-                        const prevSums = precomputedDreTotals[i - 1];
-                        const prevVal = (prevSums[validx] as any)?.r || 0;
+                        let prevVal = 0;
+                        if (viewPeriod === 'month') {
+                            const prevSums = precomputedDreTotals[i - 1];
+                            prevVal = (prevSums[validx] as any)?.r || 0;
+                        } else {
+                            // Sum previous quarter totals
+                            for (let m = (i - 1) * 3; m < (i - 1) * 3 + 3; m++) {
+                                const qSums = precomputedDreTotals[m];
+                                prevVal += (qSums[validx] as any)?.r || 0;
+                            }
+                        }
                         if (Math.abs(prevVal) < 0.01) return 0;
                         return ((realizedVal / prevVal) - 1) * 100;
                     };
 
-                    const totalRevReal = sums.vRev.r || 0;
-                    const totalRevRadar = sums.vRev.rd || 0;
-                    const totalRevBudget = sums.vRev.b || 0;
+                    let totalRevReal = 0, totalRevRadar = 0, totalRevBudget = 0;
+                    if (viewPeriod === 'month') {
+                        totalRevReal = sums.vRev.r || 0;
+                        totalRevRadar = sums.vRev.rd || 0;
+                        totalRevBudget = sums.vRev.b || 0;
+                    } else {
+                        for (let m = i * 3; m < i * 3 + 3; m++) {
+                            const qSums = precomputedDreTotals[m];
+                            totalRevReal += qSums.vRev.r || 0;
+                            totalRevRadar += qSums.vRev.rd || 0;
+                            totalRevBudget += qSums.vRev.b || 0;
+                        }
+                    }
                     
                     const avReal = Math.abs(totalRevReal) > 0.01 ? (realizedVal / totalRevReal) * 100 : 0;
                     const avRadar = Math.abs(totalRevRadar) > 0.01 ? (radarVal / totalRevRadar) * 100 : 0;
@@ -1807,7 +1846,11 @@ export default function BudgetGrid({
                                     <th style={{ fontSize: '0.6rem', color: '#64748b', textAlign: 'center', padding: '0.2rem', minWidth: '110px', maxWidth: '110px' }}>REAL</th>
                                     {showAV && <th style={{ fontSize: '0.55rem', color: '#94a3b8', textAlign: 'center', padding: '0.2rem', minWidth: '60px', maxWidth: '60px' }}>AV RL</th>}
                                     {showAH && <th style={{ fontSize: '0.55rem', color: '#94a3b8', textAlign: 'center', padding: '0.2rem', minWidth: '65px', maxWidth: '65px' }}>AH %</th>}
-                                    {showAH_MoM && <th style={{ fontSize: '0.55rem', color: '#94a3b8', textAlign: 'center', padding: '0.2rem', minWidth: '65px', maxWidth: '65px' }}>MoM</th>}
+                                    {showAH_MoM && (
+                                        <th style={{ fontSize: '0.55rem', color: '#94a3b8', textAlign: 'center', padding: '0.2rem', minWidth: '65px', maxWidth: '65px' }}>
+                                            {viewPeriod === 'month' ? 'MoM' : 'QoQ'}
+                                        </th>
+                                    )}
                                 </React.Fragment>
                             ))}
                         </tr>

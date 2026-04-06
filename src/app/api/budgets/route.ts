@@ -279,14 +279,13 @@ export async function GET(request: Request) {
         year: selectedYear,
         month: monthParam !== undefined ? monthParam : undefined,
         ...(allSynonymousCategoryIds.length > 0 ? { categoryId: { in: allSynonymousCategoryIds } } : {}),
-        ...(allSynonymousIdsArr.length > 0 ? { costCenterId: { in: allSynonymousIdsArr } } : ccFilter),
-        tenantId: { in: allVariantIdsArr.length > 0 ? allVariantIdsArr : (tenantIdParam === 'ALL' ? undefined : tenantIds) }
+        ...(allSynonymousIdsArr.length > 0 ? { costCenterId: { in: allSynonymousIdsArr } } : (ccFilter || {})),
+        tenantId: { in: allVariantIdsArr.length > 0 ? allVariantIdsArr : (tenantIdParam === 'ALL' ? undefined : (tenantIds || [])) }
       },
       include: {
         category: { select: { id: true, name: true } },
         costCenter: { select: { id: true, name: true } },
-        tenant: { select: { id: true, name: true } },
-        compositionItems: true as any
+        tenant: { select: { id: true, name: true } }
       }
     });
 
@@ -401,7 +400,7 @@ export async function GET(request: Request) {
           radarAmount: b.radarAmount,
           isLocked: b.isLocked || isCCLocked,
           observation: b.observation || null,
-          compositionItems: b.compositionItems || []
+          compositionItems: (b as any).compositionItems || []
         }));
         return NextResponse.json({ success: true, data: rawEntries, isCCLocked, radarLocks });
       }

@@ -680,12 +680,14 @@ export async function POST(request: Request) {
               tenantId: currentTenantId,
               isLocked: !!entry.isLocked,
               radarAmount: (entry.radarAmount !== undefined && entry.radarAmount !== null) ? parseFloat(entry.radarAmount.toString()) : null,
+              /*
               compositionItems: {
                   create: (entry.items || []).map((it: any) => ({
                       description: it.description,
                       amount: parseFloat(it.amount) || 0
                   }))
               } as any
+              */
             }
           });
         } else {

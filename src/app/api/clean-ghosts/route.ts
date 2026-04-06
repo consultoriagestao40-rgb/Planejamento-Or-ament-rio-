@@ -5,8 +5,10 @@ export async function GET() {
   try {
     const deleted = await prisma.budgetEntry.deleteMany({
       where: {
-        amount: 1, // Limpa exatamente os valores R$ 1 enraizados
-        year: 2026 // Apenas para 2026
+        OR: [
+          { amount: 1 },
+          { amount: 0.1 }
+        ]
       }
     });
     return NextResponse.json({ success: true, count: deleted.count, message: 'Fantasmas de R$ 1 removidos' });

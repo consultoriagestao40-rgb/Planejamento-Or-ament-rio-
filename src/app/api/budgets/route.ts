@@ -285,7 +285,8 @@ export async function GET(request: Request) {
       include: {
         category: { select: { id: true, name: true } },
         costCenter: { select: { id: true, name: true } },
-        tenant: { select: { id: true, name: true } }
+        tenant: { select: { id: true, name: true } },
+        compositionItems: true as any
       }
     });
 
@@ -317,7 +318,7 @@ export async function GET(request: Request) {
 
     const mappedBudgets = budgetsRaw.map(b => {
         let entry = { ...b };
-        const myCatName = b.category?.name || globalIdToName.get(b.categoryId);
+        const myCatName = (b as any).category?.name || globalIdToName.get(b.categoryId);
         if (myCatName) {
             const normName = myCatName.toUpperCase().trim();
             const activeId = nameToActiveId.get(normName);
@@ -334,7 +335,7 @@ export async function GET(request: Request) {
     // This prevents doubling values when synonyms exist in the DB (active vs [INATIVO] ID).
     const dedupMap = new Map<string, any>();
     mappedBudgets.forEach(b => {
-        const ccName = b.costCenter?.name || 'Geral';
+        const ccName = (b as any).costCenter?.name || 'Geral';
         const normCCName = normalizeCC(ccName);
         const key = `${b.categoryId}-${normCCName}-${b.month}-${b.tenantId}`;
         
@@ -399,7 +400,8 @@ export async function GET(request: Request) {
           amount: b.amount || 0,
           radarAmount: b.radarAmount,
           isLocked: b.isLocked || isCCLocked,
-          observation: b.observation || null
+          observation: b.observation || null,
+          compositionItems: b.compositionItems || []
         }));
         return NextResponse.json({ success: true, data: rawEntries, isCCLocked, radarLocks });
       }
@@ -409,7 +411,7 @@ export async function GET(request: Request) {
       const key = `${curr.categoryId}-${curr.month}`;
       if (!acc[key]) {
         acc[key] = { ...curr };
-        if (isCCLocked) acc[key].isLocked = true;
+            if (isCCLocked) acc[key].isLocked = true;
       } else {
         acc[key].amount += curr.amount || 0;
         acc[key].radarAmount = (acc[key].radarAmount || 0) + (curr.radarAmount || 0);
@@ -421,6 +423,11 @@ export async function GET(request: Request) {
           } else if (!acc[key].observation.includes(curr.observation)) {
             acc[key].observation = `${acc[key].observation}\n${curr.observation}`;
           }
+        }
+
+        if (curr.compositionItems && curr.compositionItems.length > 0) {
+          if (!acc[key].compositionItems) acc[key].compositionItems = [];
+          acc[key].compositionItems = [...acc[key].compositionItems, ...curr.compositionItems];
         }
       }
       return acc;
@@ -558,7 +565,6 @@ export async function POST(request: Request) {
                     // Normalize code (e.g. 02.1 -> 2.1)
                     const norm = (c: string) => c.split('.').map(s => parseInt(s, 10).toString()).filter(s => s !== 'NaN').join('.');
                     const targetCodeNorm = norm(codeToMatch);
-                    
                     const allTenantCats = await prisma.category.findMany({ where: { tenantId: currentTenantId } });
                     const matchByCode = allTenantCats.find(c => {
                         const m = c.name.match(/^([\d.]+)/);
@@ -659,25 +665,30 @@ export async function POST(request: Request) {
         // 2. CREATE the new entry if amount is not null/empty (effectively a zero-aware upsert)
         let budget;
         if (entry.amount !== undefined && entry.amount !== null) {
+          const finalAmount = entry.items && entry.items.length > 0 
+            ? entry.items.reduce((sum: number, it: any) => sum + (parseFloat(it.amount) || 0), 0)
+            : parseFloat(entry.amount.toString());
+
           budget = await prisma.budgetEntry.create({
             data: {
               categoryId: finalCategoryId,
               month: dbMonth,
               year: dbYear,
-              amount: entry.amount ? parseFloat(entry.amount.toString()) : 0,
+              amount: finalAmount || 0,
               observation: entry.observation || null,
               costCenterId: targetCCId,
               tenantId: currentTenantId,
               isLocked: !!entry.isLocked,
               radarAmount: (entry.radarAmount !== undefined && entry.radarAmount !== null) ? parseFloat(entry.radarAmount.toString()) : null,
+              compositionItems: {
+                  create: (entry.items || []).map((it: any) => ({
+                      description: it.description,
+                      amount: parseFloat(it.amount) || 0
+                  }))
+              } as any
             }
           });
         } else {
-          // If amount is null/undefined, it means we want to effectively "delete" the entry
-          // or set it to zero, which is handled by the deleteMany above.
-          // We don't create a new entry if the amount is not provided.
-          // For consistency, we can push a "null" or "deleted" status to results if needed,
-          // but for now, we just skip creating.
           budget = null; 
         }
         if (budget) {

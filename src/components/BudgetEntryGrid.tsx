@@ -43,7 +43,7 @@ interface CategoryNode {
 }
 
 export default function BudgetEntryGrid({ costCenterId, year, taxRate = 0 }: BudgetEntryGridProps) {
-    const [budgetValues, setBudgetValues] = useState<Record<string, { amount: number; radarAmount: number | null; isLocked: boolean; observation?: string | null }>>({});
+    const [budgetValues, setBudgetValues] = useState<Record<string, { amount: number; radarAmount: number | null; isLocked: boolean; observation?: string | null; compositionItems?: any[] }>>({});
     const [realizedValues, setRealizedValues] = useState<Record<string, number>>({});
     const [isCCLocked, setIsCCLocked] = useState(false);
     const [categories, setCategories] = useState<any[]>([]);
@@ -61,6 +61,7 @@ export default function BudgetEntryGrid({ costCenterId, year, taxRate = 0 }: Bud
     const [activeMonth, setActiveMonth] = useState<number>(0);
     const [isSavingBudget, setIsSavingBudget] = useState(false);
     const [modalObservation, setModalObservation] = useState<string>('');
+    const [modalCompositionItems, setModalCompositionItems] = useState<Record<number, { description: string; amount: string }[]>>({});
 
     // Approval state
     const [approvalStatus, setApprovalStatus] = useState<string>('PENDING');
@@ -471,11 +472,30 @@ export default function BudgetEntryGrid({ costCenterId, year, taxRate = 0 }: Bud
             }
             if (foundObs) break;
         }
-
+        // Load existing composition items
+        const initialComposition: Record<number, { description: string; amount: string }[]> = {};
+        for (let i = 0; i < 12; i++) {
+            let foundItems: any[] = [];
+            for (const id of nodeId.split(',')) {
+                const stored = budgetValues[`${id}-${i}`];
+                if (stored && (stored as any).compositionItems) {
+                    foundItems = (stored as any).compositionItems;
+                    break;
+                }
+            }
+            if (foundItems.length > 0) {
+                initialComposition[i] = foundItems.map(it => ({
+                    description: it.description,
+                    amount: it.amount.toString().replace('.', ',')
+                }));
+            }
+        }
         setBudgetModal({ categoryId: ids[0], fullNodeId: nodeId, categoryName: nodeName, startMonth: monthIndex });
         setModalValues(initialValues);
+        setModalCompositionItems(initialComposition);
         setLockedMonths(initialLocks);
         setActiveMonth(monthIndex);
+
         setModalObservation(foundObs);
     };
 
@@ -623,6 +643,7 @@ export default function BudgetEntryGrid({ costCenterId, year, taxRate = 0 }: Bud
                     const saveTenantId = tenantId || categories.find((c: any) => c.id === mainTargetId)?.tenantId || '';
                     
                     if (saveTenantId && mainTargetId) {
+                        const items = modalCompositionItems[i] ? modalCompositionItems[i].filter(it => it.description.trim() !== '' || it.amount.trim() !== '') : [];
                         entries.push({
                             categoryId: mainTargetId,
                             month: i,
@@ -632,7 +653,11 @@ export default function BudgetEntryGrid({ costCenterId, year, taxRate = 0 }: Bud
                             amount: currentNum,
                             radarAmount: budgetValues[`${mainTargetId}-${i}`]?.radarAmount ?? null,
                             observation: saveObservation || (budgetValues[`${mainTargetId}-${i}`]?.observation || null),
-                            isLocked: userRole === 'MASTER' ? lockedMonths[i] : undefined
+                            isLocked: userRole === 'MASTER' ? lockedMonths[i] : undefined,
+                            items: items.map(it => ({
+                                description: it.description || 'Sem Descrição',
+                                amount: evaluateFormula(it.amount)
+                            }))
                         });
                     }
                 } // Fim do if (valueChanged || obsChanged)
@@ -1131,6 +1156,76 @@ export default function BudgetEntryGrid({ costCenterId, year, taxRate = 0 }: Bud
                                         </div>
                                     );
                                 })}
+                            </div>
+
+                            <div style={{ marginBottom: '2rem', padding: '1rem', backgroundColor: '#f8fafc', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
+                                <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 700, color: '#2563eb', marginBottom: '1rem', textTransform: 'uppercase' }}>
+                                    Composição do Valor ({MONTHS[activeMonth]})
+                                </label>
+                                
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                                    {(modalCompositionItems[activeMonth] || []).map((item, itIdx) => (
+                                        <div key={itIdx} style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                                            <input
+                                                type="text"
+                                                placeholder="Descrição (ex: Nome do Colaborador)"
+                                                value={item.description}
+                                                onChange={(e) => {
+                                                    const nextComp = { ...modalCompositionItems };
+                                                    nextComp[activeMonth][itIdx].description = e.target.value;
+                                                    setModalCompositionItems(nextComp);
+                                                }}
+                                                className="premium-input"
+                                                style={{ flex: 1, fontSize: '0.85rem', padding: '0.4rem 0.75rem' }}
+                                            />
+                                            <div style={{ position: 'relative', width: '120px' }}>
+                                                <span style={{ position: 'absolute', left: '0.5rem', top: '50%', transform: 'translateY(-50%)', color: '#94a3b8', fontSize: '0.75rem' }}>R$</span>
+                                                <input
+                                                    type="text"
+                                                    placeholder="0,00"
+                                                    value={item.amount}
+                                                    onChange={(e) => {
+                                                        const nextComp = { ...modalCompositionItems };
+                                                        nextComp[activeMonth][itIdx].amount = e.target.value;
+                                                        setModalCompositionItems(nextComp);
+                                                        
+                                                        // Sync sum to modalValues
+                                                        const total = nextComp[activeMonth].reduce((sum, it) => sum + evaluateFormula(it.amount), 0);
+                                                        const nextVals = [...modalValues];
+                                                        nextVals[activeMonth] = total.toFixed(2).replace('.', ',');
+                                                        setModalValues(nextVals);
+                                                    }}
+                                                    className="premium-input"
+                                                    style={{ width: '100%', textAlign: 'right', fontSize: '0.85rem', padding: '0.4rem 0.5rem 0.4rem 1.5rem' }}
+                                                />
+                                            </div>
+                                            <button 
+                                                onClick={() => {
+                                                    const nextComp = { ...modalCompositionItems };
+                                                    nextComp[activeMonth].splice(itIdx, 1);
+                                                    setModalCompositionItems(nextComp);
+                                                    const total = nextComp[activeMonth].reduce((sum, it) => sum + evaluateFormula(it.amount), 0);
+                                                    const nextVals = [...modalValues];
+                                                    nextVals[activeMonth] = total.toFixed(2).replace('.', ',');
+                                                    setModalValues(nextVals);
+                                                }}
+                                                style={{ border: 'none', background: '#fee2e2', color: '#ef4444', borderRadius: '6px', cursor: 'pointer', padding: '0.4rem 0.6rem' }}
+                                            >✕</button>
+                                        </div>
+                                    ))}
+                                    
+                                    <button
+                                        onClick={() => {
+                                            const nextComp = { ...modalCompositionItems };
+                                            if (!nextComp[activeMonth]) nextComp[activeMonth] = [];
+                                            nextComp[activeMonth].push({ description: '', amount: '' });
+                                            setModalCompositionItems(nextComp);
+                                        }}
+                                        style={{ alignSelf: 'flex-start', background: '#eff6ff', color: '#2563eb', border: '1px dashed #2563eb', borderRadius: '8px', padding: '0.5rem 1rem', fontSize: '0.8rem', fontWeight: 600, cursor: 'pointer' }}
+                                    >
+                                        + Adicionar Item de Composição
+                                    </button>
+                                </div>
                             </div>
 
                             <div style={{ marginBottom: '2rem' }}>

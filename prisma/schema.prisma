@@ -114,11 +114,26 @@ model BudgetEntry {
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
+  compositionItems BudgetCompositionItem[]
+
   tenant       Tenant      @relation(fields: [tenantId], references: [id])
   category     Category    @relation(fields: [categoryId], references: [id])
   costCenter   CostCenter? @relation(fields: [costCenterId], references: [id])
 
   @@unique([tenantId, categoryId, costCenterId, month, year])
+}
+
+model BudgetCompositionItem {
+  id           String   @id @default(uuid())
+  budgetId     String
+  description  String
+  amount       Float
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  budget       BudgetEntry @relation(fields: [budgetId], references: [id], onDelete: Cascade)
+
+  @@index([budgetId])
 }
 
 model RealizedEntry {

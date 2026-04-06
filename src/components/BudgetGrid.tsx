@@ -61,7 +61,7 @@ export default function BudgetGrid({
     const [internalRefresh, setInternalRefresh] = useState(0);
     const triggerRefresh = () => setInternalRefresh((prev: number) => prev + 1);
 
-    const [budgetValues, setBudgetValues] = useState<Record<string, { amount: number, radarAmount: number | null, isLocked: boolean, observation?: string | null }>>({});
+    const [budgetValues, setBudgetValues] = useState<Record<string, { amount: number, radarAmount: number | null, isLocked: boolean, observation?: string | null, compositionItems?: any[] }>>({});
     const [isCCLocked, setIsCCLocked] = useState(false);
     const [radarLocks, setRadarLocks] = useState<any[]>([]);
     const [realizedValues, setRealizedValues] = useState<Record<string, number>>({});
@@ -353,13 +353,14 @@ export default function BudgetGrid({
                     if (budgetData.success) {
                         setIsCCLocked(budgetData.isCCLocked || false);
                         setRadarLocks(budgetData.radarLocks || []);
-                        const values: Record<string, { amount: number, radarAmount: number | null, isLocked: boolean, observation: string | null }> = {};
+                        const values: Record<string, { amount: number, radarAmount: number | null, isLocked: boolean, observation: string | null, compositionItems?: any[] }> = {};
                         budgetData.data.forEach((item: any) => {
                             values[`${item.categoryId}-${item.month - 1}`] = {
                                 amount: item.amount || 0,
                                 radarAmount: (item.radarAmount !== undefined && item.radarAmount !== null) ? item.radarAmount : null,
                                 isLocked: item.isLocked || false,
-                                observation: item.observation || null
+                                observation: item.observation || null,
+                                compositionItems: item.compositionItems || []
                             };
                         });
                         setBudgetValues(values);
@@ -1395,6 +1396,78 @@ export default function BudgetGrid({
                     })}
                 </tr>
                 {isExpanded && node.children.map(child => renderNode(child))}
+                    
+                    {/* Render Composition Items if Leaf and Expanded */}
+                    {isExpanded && node.children.length === 0 && (() => {
+                        // Gather unique composition item names across all visible months
+                        const itemsMap = new Map<string, Record<number, number>>();
+                        const allItemNames = new Set<string>();
+
+                        const months = (viewPeriod === 'month' ? MONTHS : [0, 1, 2, 3]);
+                        months.forEach((_, i) => {
+                            let monthItems: any[] = [];
+                            if (viewPeriod === 'month') {
+                                node.id.split(',').forEach(id => {
+                                    const d = budgetValues[`${id}-${i}`];
+                                    if (d?.compositionItems) monthItems.push(...d.compositionItems);
+                                });
+                            } else {
+                                for (let m = i * 3; m < i * 3 + 3; m++) {
+                                    node.id.split(',').forEach(id => {
+                                        const d = budgetValues[`${id}-${m}`];
+                                        if (d?.compositionItems) monthItems.push(...d.compositionItems);
+                                    });
+                                }
+                            }
+
+                            monthItems.forEach(it => {
+                                const name = it.description || 'Sem Descrição';
+                                allItemNames.add(name);
+                                if (!itemsMap.has(name)) itemsMap.set(name, {});
+                                const val = itemsMap.get(name)!;
+                                val[i] = (val[i] || 0) + (it.amount || 0);
+                            });
+                        });
+
+                        if (allItemNames.size === 0) return null;
+
+                        return Array.from(allItemNames).sort().map(itemName => (
+                            <tr key={`${node.id}-${itemName}`} style={{ background: 'rgba(241, 245, 249, 0.4)' }}>
+                                <td 
+                                    className="sticky-col"
+                                    style={{ 
+                                        paddingLeft: `${2.5 + (node.level * 1.75)}rem`,
+                                        fontSize: '0.75rem',
+                                        fontStyle: 'italic',
+                                        color: '#64748b',
+                                        borderBottom: '1px solid #f1f5f9'
+                                    }}
+                                >
+                                    <div style={{ display: 'flex', alignItems: 'center' }}>
+                                        <span style={{ marginRight: '0.5rem', color: '#cbd5e1' }}>└</span>
+                                        {itemName}
+                                    </div>
+                                </td>
+                                {months.map((_, i) => {
+                                    const val = itemsMap.get(itemName)?.[i] || 0;
+                                    return (
+                                        <React.Fragment key={i}>
+                                            <td className="spreadsheet-value" style={{ fontSize: '0.75rem', color: '#64748b', borderLeft: '2px solid #e2e8f0', borderBottom: '1px solid #f1f5f9' }}>
+                                                {val === 0 ? '-' : formatCurrency(val)}
+                                            </td>
+                                            {showAV && <td className="spreadsheet-value" style={{ color: 'transparent', fontSize: '0.6rem' }}>-</td>}
+                                            <td className="spreadsheet-value" style={{ fontSize: '0.75rem', color: 'transparent' }}>-</td>
+                                            {showAH && <td className="spreadsheet-value" style={{ color: 'transparent' }}>-</td>}
+                                            {showAH_MoM && <td className="spreadsheet-value" style={{ color: 'transparent' }}>-</td>}
+                                        </React.Fragment>
+                                    );
+                                })}
+                                <td className="spreadsheet-value" style={{ background: 'rgba(241, 245, 249, 0.6)', fontSize: '0.75rem', fontWeight: 600, color: '#475569' }}>
+                                    {formatCurrency(Array.from(Object.values(itemsMap.get(itemName) || {})).reduce((a, b) => a + b, 0))}
+                                </td>
+                            </tr>
+                        ));
+                    })()}
             </React.Fragment>
         );
     };

@@ -28,6 +28,8 @@ export function middleware(request: NextRequest) {
         pathname.startsWith('/api/diag-id') ||
         pathname.startsWith('/api/debug-cc-271') ||
         pathname.startsWith('/api/version') ||
+        pathname.startsWith('/api/run-push') ||
+        pathname.startsWith('/api/clean-ghosts') ||
         pathname === '/login' ||
         pathname === '/favicon.ico'
     ) {

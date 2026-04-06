@@ -653,12 +653,17 @@ export async function POST(request: Request) {
 
         console.log(`[POST] Nuclear Cleaning IDs: ${idsToClean.join(', ')} for Month: ${dbMonth}, CC: ${targetCCId}`);
 
+        const ccUuidRaw = targetCCId ? targetCCId.split(':').pop() : '';
+        const ccDeleteCondition = targetCCId 
+            ? { OR: [{ costCenterId: targetCCId }, { costCenterId: { contains: ccUuidRaw } }] }
+            : { OR: [{ costCenterId: null }, { costCenterId: '' }] };
+
         await prisma.budgetEntry.deleteMany({
           where: {
             categoryId: { in: idsToClean },
-            costCenterId: targetCCId,
             month: dbMonth,
-            year: dbYear
+            year: dbYear,
+            ...ccDeleteCondition
           }
         });
 

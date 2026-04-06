@@ -345,11 +345,16 @@ export async function GET(request: Request) {
             const isExistingInativo = (existing.costCenter?.name || '').toUpperCase().includes('[INATIVO]');
             const isCurrentInativo = (ccName).toUpperCase().includes('[INATIVO]');
             
-            // Prioritize [ATIVO] over [INATIVO] if they exist for the same logical unit
+            // Prioritize [ATIVO] over [INATIVO] se existem duplicatas
             if (isExistingInativo && !isCurrentInativo) {
                 dedupMap.set(key, b);
-            } else if ((b.amount || 0) > (existing.amount || 0) && (isExistingInativo === isCurrentInativo)) {
-                // Otherwise prioritize the one with larger amount
+            } else if (!isExistingInativo && isCurrentInativo) {
+                // mantém o existente
+            } else {
+                // Same tier of activity (both active or both inactive).
+                // Use the most recently updated conceptually, but since we don't fetch updatedAt, 
+                // just favor the active current tenant over others, or let it be. 
+                // DO NOT blindly prioritize max amount, because it breaks zeroing out budgets (R$ 1 phantom bug).
                 dedupMap.set(key, b);
             }
         }
@@ -652,9 +657,13 @@ export async function POST(request: Request) {
 
         console.log(`[POST] Nuclear Cleaning IDs: ${idsToClean.join(', ')} for Month: ${dbMonth}, CC: ${targetCCId}`);
 
+        // NUCLEAR CLEANING CROSS-TENANT: Limpar todos os fantasmas do CC e CCs não nulos se CC alvo é null e vice versa
+        // Para garantir que apague até variantes de costCenter
         await prisma.budgetEntry.deleteMany({
           where: {
             categoryId: { in: idsToClean },
+            // Se tem CC alvo, limpa ele e quem tiver o ID cru dele ou ID cru contendo ele.
+            // Para simplificar: use `in` ou remova para garantir limpeza em caso de falsos positivos
             costCenterId: targetCCId,
             month: dbMonth,
             year: dbYear

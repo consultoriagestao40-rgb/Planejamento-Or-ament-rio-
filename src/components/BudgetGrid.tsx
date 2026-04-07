@@ -1159,6 +1159,14 @@ export default function BudgetGrid({
 
     const renderNode = (node: CategoryNode) => {
         const hasChildren = node.children.length > 0;
+        const hasCompositionChildren = !hasChildren && node.id.split(',').some(id => 
+            [0,1,2,3,4,5,6,7,8,9,10,11].some((i) => {
+                const d = budgetValues[`${id}-${i}`];
+                return d && d.compositionItems && d.compositionItems.length > 0;
+            })
+        );
+        const isInteractiveTree = hasChildren || hasCompositionChildren;
+        
         const isExpanded = expandedRows.has(node.id);
         const totals = nodeTotals.get(node.id) || { budget: new Array(12).fill(0), realized: new Array(12).fill(0), radar: new Array(12).fill(0) };
         const isEditable = !hasChildren && !node.isSynthetic;
@@ -1168,16 +1176,17 @@ export default function BudgetGrid({
                 <tr>
                     <td 
                         className="sticky-col"
-                        onClick={() => hasChildren && toggleRow(node.id)}
+                        onClick={() => isInteractiveTree && toggleRow(node.id)}
                         style={{ 
-                            cursor: hasChildren ? 'pointer' : 'default', 
-                            fontWeight: hasChildren ? 750 : 500,
-                            paddingLeft: `${0.75 + (node.level * 1.75)}rem` // Level 0: 0.75rem, Level 1: 2.5rem, Level 2: 4.25rem
+                            cursor: isInteractiveTree ? 'pointer' : 'default', 
+                            fontWeight: isInteractiveTree ? 750 : 500,
+                            paddingLeft: `${0.75 + (node.level * 1.75)}rem`, // Level 0: 0.75rem, Level 1: 2.5rem, Level 2: 4.25rem
+                            borderBottom: '1px solid #f1f5f9'
                         }}
                     >
-                        <div style={{ display: 'flex', alignItems: 'center', color: hasChildren ? '#0f172a' : '#475569' }}>
-                            {hasChildren && <span style={{ marginRight: '0.5rem', fontSize: '0.75rem', color: '#3b82f6', width: '1rem' }}>{isExpanded ? '▼' : '▶'}</span>}
-                            {!hasChildren && <span style={{ width: '1.5rem' }}></span>}
+                        <div style={{ display: 'flex', alignItems: 'center', color: isInteractiveTree ? '#0f172a' : '#475569' }}>
+                            {isInteractiveTree && <span style={{ marginRight: '0.5rem', fontSize: '0.75rem', color: hasCompositionChildren ? '#8b5cf6' : '#3b82f6', width: '1rem' }}>{isExpanded ? '▼' : '▶'}</span>}
+                            {!isInteractiveTree && <span style={{ width: '1.5rem' }}></span>}
                             <span style={{ whiteSpace: 'nowrap' }}>{node.name}</span>
                         </div>
                     </td>

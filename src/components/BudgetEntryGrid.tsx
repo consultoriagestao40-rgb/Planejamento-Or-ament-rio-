@@ -123,7 +123,8 @@ export default function BudgetEntryGrid({ costCenterId, year, taxRate = 0 }: Bud
                             amount: item.amount || 0,
                             radarAmount: (item.radarAmount !== undefined && item.radarAmount !== null) ? item.radarAmount : null,
                             isLocked: item.isLocked || false,
-                            observation: item.observation || null
+                            observation: item.observation || null,
+                            compositionItems: item.compositionItems || []
                         };
                     });
                     setBudgetValues(values);

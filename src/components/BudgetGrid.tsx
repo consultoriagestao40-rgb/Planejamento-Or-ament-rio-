@@ -2037,12 +2037,26 @@ export default function BudgetGrid({
                                             {detailEntries.map((e: any, iVal: number) => {
                                                 const compItem = companies.find(c => c.id === e.tenantId);
                                                 const ccItem = costCenters.find(c => c.id === e.costCenterId || (c.id && c.id.includes(':' + e.costCenterId)) || (e.costCenterId && e.costCenterId.includes(':' + c.id)));
+                                                const hasComps = e.compositionItems && e.compositionItems.length > 0;
                                                 return (
-                                                    <tr key={iVal} style={{ borderBottom: '1px solid #f1f5f9', background: iVal % 2 === 0 ? '#fff' : '#fafafa' }}>
-                                                        <td style={{ padding: '0.65rem 0.75rem', color: '#334155' }}>{compItem?.name || e.tenantId}</td>
-                                                        <td style={{ padding: '0.65rem 0.75rem', color: '#64748b' }}>{ccItem?.name || (e.costCenterId ? e.costCenterId : 'Geral')}</td>
-                                                        <td style={{ padding: '0.65rem 0.75rem', textAlign: 'right', color: '#1e293b', fontWeight: 600 }}>{formatCurrency(e.amount)}</td>
-                                                    </tr>
+                                                    <React.Fragment key={iVal}>
+                                                        <tr style={{ borderBottom: hasComps ? 'none' : '1px solid #f1f5f9', background: iVal % 2 === 0 ? '#fff' : '#fafafa' }}>
+                                                            <td style={{ padding: '0.65rem 0.75rem', color: '#334155' }}>{compItem?.name || e.tenantId}</td>
+                                                            <td style={{ padding: '0.65rem 0.75rem', color: '#64748b' }}>{ccItem?.name || (e.costCenterId ? e.costCenterId : 'Geral')}</td>
+                                                            <td style={{ padding: '0.65rem 0.75rem', textAlign: 'right', color: '#1e293b', fontWeight: 600 }}>{formatCurrency(e.amount)}</td>
+                                                        </tr>
+                                                        {hasComps && e.compositionItems.map((comp: any, cIdx: number) => (
+                                                            <tr key={`comp-${iVal}-${cIdx}`} style={{ borderBottom: cIdx === e.compositionItems.length - 1 ? '1px solid #f1f5f9' : 'none', background: iVal % 2 === 0 ? '#fff' : '#fafafa' }}>
+                                                                <td colSpan={2} style={{ padding: '0.4rem 0.75rem 0.4rem 2.5rem', color: '#64748b', fontSize: '0.8rem' }}>
+                                                                    <span style={{ color: '#cbd5e1', marginRight: '0.5rem' }}>└</span> 
+                                                                    {comp.description || 'Sem Descrição'}
+                                                                </td>
+                                                                <td style={{ padding: '0.4rem 0.75rem', textAlign: 'right', color: '#475569', fontSize: '0.8rem' }}>
+                                                                    {formatCurrency(comp.amount)}
+                                                                </td>
+                                                            </tr>
+                                                        ))}
+                                                    </React.Fragment>
                                                 );
                                             })}
                                         </tbody>

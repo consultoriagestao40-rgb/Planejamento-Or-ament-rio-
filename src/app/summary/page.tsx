@@ -490,7 +490,7 @@ export default function BudgetSummaryPage() {
                                                 <td style={{ ...td, textAlign: 'right', fontWeight: 900, color: 'var(--accent-red)', background: 'rgba(239, 68, 68, 0.03)' }}>{formatCurrency(group.totalExpenseBudget)}</td>
                                                 <td style={{ ...td, textAlign: 'right', fontWeight: 900, color: 'var(--accent-green)', background: 'rgba(16, 185, 129, 0.03)' }}>{formatCurrency(group.totalRevenueBudget - group.totalExpenseBudget)}</td>
                                                 <td style={{ ...td, textAlign: 'center' }}>
-                                                    <span style={{ background: isComplete ? 'var(--accent-green-glow)' : 'var(--accent-red-glow)', color: isComplete ? 'var(--accent-green)' : 'var(--accent-red)', padding: '0.2rem 0.6rem', borderRadius: '12px', fontSize: '0.7rem', fontWeight: 800 }}>
+                                                    <span style={{ background: isComplete ? '#05966915' : '#e11d4815', color: isComplete ? '#059669' : '#e11d48', padding: '0.2rem 0.6rem', borderRadius: '12px', fontSize: '0.75rem', fontWeight: 900 }}>
                                                         {group.totalRevenueBudget > 0 ? ((group.totalRevenueBudget - group.totalExpenseBudget) / group.totalRevenueBudget * 100).toFixed(1) : '0'}%
                                                     </span>
                                                 </td>
@@ -545,10 +545,10 @@ export default function BudgetSummaryPage() {
                                                             <Link href={`/orcamento/${cc.costCenterId}?year=${selectedYear}`} className="btn" style={{ padding: '0.2rem 0.4rem', fontSize: '0.65rem', background: 'rgba(59,130,246,0.1)', color: 'var(--accent-blue)' }}>✏️ Orçar</Link>
                                                         </div>
                                                     </td>
-                                                    <td style={{ ...td, textAlign: 'right', fontWeight: 700, color: 'var(--accent-blue)', background: 'rgba(59, 130, 246, 0.02)' }}>{formatCurrency(cc.totalRevenueBudget)}</td>
-                                                    <td style={{ ...td, textAlign: 'right', fontWeight: 700, color: 'var(--accent-red)', background: 'rgba(239, 68, 68, 0.02)' }}>{formatCurrency(cc.totalExpenseBudget)}</td>
-                                                    <td style={{ ...td, textAlign: 'right', fontWeight: 700, color: 'var(--accent-green)', background: 'rgba(16, 185, 129, 0.02)' }}>{formatCurrency(cc.totalRevenueBudget - cc.totalExpenseBudget)}</td>
-                                                    <td style={{ ...td, textAlign: 'center', fontSize: '0.75rem', fontWeight: 600 }}>
+                                                    <td style={{ ...td, textAlign: 'right', fontWeight: 900, color: 'var(--accent-blue)', background: 'rgba(59, 130, 246, 0.02)' }}>{formatCurrency(cc.totalRevenueBudget)}</td>
+                                                    <td style={{ ...td, textAlign: 'right', fontWeight: 900, color: '#e11d48', background: 'rgba(239, 68, 68, 0.02)' }}>{formatCurrency(cc.totalExpenseBudget)}</td>
+                                                    <td style={{ ...td, textAlign: 'right', fontWeight: 900, color: '#059669', background: 'rgba(16, 185, 129, 0.02)' }}>{formatCurrency(cc.totalRevenueBudget - cc.totalExpenseBudget)}</td>
+                                                    <td style={{ ...td, textAlign: 'center', fontSize: '0.8rem', fontWeight: 900, color: (cc.totalRevenueBudget - cc.totalExpenseBudget) < 0 ? '#e11d48' : '#059669' }}>
                                                         {cc.totalRevenueBudget > 0 ? ((cc.totalRevenueBudget - cc.totalExpenseBudget) / cc.totalRevenueBudget * 100).toFixed(1) : '0'}%
                                                     </td>
                                                     <td style={{ ...td, textAlign: 'center' }}>

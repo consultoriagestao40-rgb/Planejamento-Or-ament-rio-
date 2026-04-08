@@ -128,8 +128,10 @@ export async function GET(request: Request) {
         budgets.forEach(b => {
             const cc = b.costCenterId ? (costCenterMap.get(b.costCenterId) || shortIdMap.get(b.costCenterId)) : null;
             const cleanName = cc ? getCleanName(cc.name) : 'DEFAULT';
-            // Unique key: Logic matches the Grid (Category + Normalized Name + Month + Tenant)
-            const dedupKey = `${b.categoryId}-${cleanName.toUpperCase().replace(/[^A-Z0-9]/g, '')}-${b.month}-${b.tenantId}`;
+            // Unique key: Logic matches the Grid (Category Code + Normalized CC Name + Month + Tenant)
+            const catName = b.category?.name || "";
+            const catCode = (catName.match(/^([\d.]+)/) || [])[1] || catName;
+            const dedupKey = `${catCode}-${cleanName.toUpperCase().replace(/[^A-Z0-9]/g, '')}-${b.month}-${b.tenantId}`;
             
             if (!budgetDedupMap.has(dedupKey)) {
                 budgetDedupMap.set(dedupKey, b);
@@ -179,7 +181,10 @@ export async function GET(request: Request) {
         realizedEntries.forEach(r => {
             const cc = r.costCenterId ? (costCenterMap.get(r.costCenterId) || shortIdMap.get(r.costCenterId)) : null;
             const cleanName = cc ? getCleanName(cc.name) : 'DEFAULT';
-            const dedupKey = `${r.categoryId}-${cleanName.toUpperCase().replace(/[^A-Z0-9]/g, '')}-${r.month}-${r.tenantId}`;
+            const category = categoryMap.get(r.categoryId);
+            const catName = category?.name || "";
+            const catCode = (catName.match(/^([\d.]+)/) || [])[1] || catName;
+            const dedupKey = `${catCode}-${cleanName.toUpperCase().replace(/[^A-Z0-9]/g, '')}-${r.month}-${r.tenantId}`;
             
             if (!realizedDedupMap.has(dedupKey)) {
                 realizedDedupMap.set(dedupKey, r);

@@ -1355,8 +1355,8 @@ export default function BudgetGrid({
                                             const val = getAH(rVal, bVal);
                                             const isRevenue = node.code?.startsWith('01') || node.code?.startsWith('1');
                                             if (val === 0) return '#64748b';
-                                            if (isRevenue) return val < 0 ? '#ef4444' : '#10b981';
-                                            return val > 0 ? '#ef4444' : '#10b981';
+                                            if (isRevenue) return val < 0 ? '#e11d48' : '#059669';
+                                            return val > 0 ? '#e11d48' : '#059669';
                                         })(), 
                                         fontSize: '0.78rem', 
                                         fontWeight: 900,
@@ -1373,8 +1373,8 @@ export default function BudgetGrid({
                                             const val = getMoMPercent();
                                             const isRevenue = node.code?.startsWith('01') || node.code?.startsWith('1');
                                             if (val === 0) return '#64748b';
-                                            if (isRevenue) return val < 0 ? '#ef4444' : '#10b981';
-                                            return val > 0 ? '#ef4444' : '#10b981';
+                                            if (isRevenue) return val < 0 ? '#e11d48' : '#059669';
+                                            return val > 0 ? '#e11d48' : '#059669';
                                         })(), 
                                         fontSize: '0.78rem', 
                                         fontWeight: 900,
@@ -1545,17 +1545,17 @@ export default function BudgetGrid({
                         <React.Fragment key={i}>
                             <td className="spreadsheet-value" style={{ borderLeft: '2px solid #cbd5e1', color: bColor, fontWeight: 700, background: isLucroLiquido ? '#2563eb' : undefined, minWidth: '100px', maxWidth: '100px', padding: '0.5rem 0.25rem' }}>{formatCurrency(budgetVal)}</td>
                             {showAV && (
-                                <td className="spreadsheet-value" style={{ color: isLucroLiquido ? '#fff' : '#64748b', fontSize: '0.75rem', fontWeight: 800, textAlign: 'center', minWidth: '60px', maxWidth: '60px', padding: '0.5rem 0.25rem' }}>
+                                <td className="spreadsheet-value" style={{ color: isLucroLiquido ? '#fff' : '#64748b', fontSize: '0.75rem', fontWeight: 900, textAlign: 'center', minWidth: '60px', maxWidth: '60px', padding: '0.5rem 0.25rem' }}>
                                     {avBudget.toFixed(1)}%
                                 </td>
                             )}
-                            <td className="spreadsheet-value" style={{ color: rColor, fontWeight: 800, background: isLucroLiquido ? '#2563eb' : undefined, position: 'relative', minWidth: '110px', maxWidth: '110px', padding: '0.5rem 0.25rem' }}>
+                            <td className="spreadsheet-value" style={{ color: rColor, fontWeight: 900, background: isLucroLiquido ? '#2563eb' : undefined, position: 'relative', minWidth: '110px', maxWidth: '110px', padding: '0.5rem 0.25rem' }}>
                                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end' }}>
                                     {formatCurrency(realizedVal)}
                                 </div>
                             </td>
                             {showAV && (
-                                <td className="spreadsheet-value" style={{ color: isLucroLiquido ? '#fff' : '#475569', fontSize: '0.75rem', fontWeight: 800, textAlign: 'center', minWidth: '60px', maxWidth: '60px', padding: '0.5rem 0.25rem' }}>
+                                <td className="spreadsheet-value" style={{ color: isLucroLiquido ? '#fff' : '#475569', fontSize: '0.75rem', fontWeight: 900, textAlign: 'center', minWidth: '60px', maxWidth: '60px', padding: '0.5rem 0.25rem' }}>
                                     {avReal.toFixed(1)}%
                                 </td>
                             )}
@@ -1565,8 +1565,8 @@ export default function BudgetGrid({
                                         const val = getAH(realizedVal, budgetVal);
                                         const isProfitRow = ['vRev', 'vRecLiq', 'vGrossMarg', 'vContribMarg', 'vEbitda', 'vNetProfit'].includes(validx as string);
                                         if (val === 0) return isLucroLiquido ? '#fff' : '#64748b';
-                                        if (isProfitRow) return val < 0 ? '#ef4444' : (isLucroLiquido ? '#fff' : '#10b981');
-                                        return val > 0 ? '#ef4444' : (isLucroLiquido ? '#fff' : '#10b981');
+                                        if (isProfitRow) return val < 0 ? '#e11d48' : (isLucroLiquido ? '#fff' : '#059669');
+                                        return val > 0 ? '#e11d48' : (isLucroLiquido ? '#fff' : '#059669');
                                     })(),
                                     fontSize: '0.78rem', 
                                     fontWeight: 900,
@@ -1584,8 +1584,8 @@ export default function BudgetGrid({
                                         const val = getMoMPercent();
                                         const isProfitRow = ['vRev', 'vRecLiq', 'vGrossMarg', 'vContribMarg', 'vEbitda', 'vNetProfit'].includes(validx as string);
                                         if (val === 0) return isLucroLiquido ? '#fff' : '#64748b';
-                                        if (isProfitRow) return val < 0 ? '#ef4444' : (isLucroLiquido ? '#fff' : '#10b981');
-                                        return val > 0 ? '#ef4444' : (isLucroLiquido ? '#fff' : '#10b981');
+                                        if (isProfitRow) return val < 0 ? '#e11d48' : (isLucroLiquido ? '#fff' : '#059669');
+                                        return val > 0 ? '#e11d48' : (isLucroLiquido ? '#fff' : '#059669');
                                     })(),
                                     fontSize: '0.78rem', 
                                     fontWeight: 900,

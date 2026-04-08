@@ -123,8 +123,33 @@ export async function GET(request: Request) {
             };
         });
 
-        // 3. Aggregate Budgets
+        // 3. Aggregate Budgets with Logical Deduplication (Mirroring /api/budgets/route.ts)
+        const budgetDedupMap = new Map<string, any>();
         budgets.forEach(b => {
+            const cc = b.costCenterId ? (costCenterMap.get(b.costCenterId) || shortIdMap.get(b.costCenterId)) : null;
+            const cleanName = cc ? getCleanName(cc.name) : 'DEFAULT';
+            // Unique key: Logic matches the Grid (Category + Normalized Name + Month + Tenant)
+            const dedupKey = `${b.categoryId}-${cleanName.toUpperCase().replace(/[^A-Z0-9]/g, '')}-${b.month}-${b.tenantId}`;
+            
+            if (!budgetDedupMap.has(dedupKey)) {
+                budgetDedupMap.set(dedupKey, b);
+            } else {
+                const existing = budgetDedupMap.get(dedupKey);
+                // Priority: Keep [ATIVO] over [INATIVO] if they clash for the same logical month
+                const isExistingInativo = (costCenterMap.get(existing.costCenterId)?.name || '').toUpperCase().includes('[INATIVO]');
+                const isCurrentInativo = (cc?.name || '').toUpperCase().includes('[INATIVO]');
+                if (isExistingInativo && !isCurrentInativo) {
+                    budgetDedupMap.set(dedupKey, b);
+                } else if (!isExistingInativo && isCurrentInativo) {
+                    // Stay with existing
+                } else if ((b.amount || 0) > (existing.amount || 0)) {
+                    // Tie-breaker: keep larger amount
+                    budgetDedupMap.set(dedupKey, b);
+                }
+            }
+        });
+
+        Array.from(budgetDedupMap.values()).forEach(b => {
             let key;
             const cc = b.costCenterId ? (costCenterMap.get(b.costCenterId) || shortIdMap.get(b.costCenterId)) : null;
 
@@ -149,8 +174,28 @@ export async function GET(request: Request) {
             summaryMap[key].hasBudgetData = true;
         });
 
-        // 4. Aggregate Realized
+        // 4. Aggregate Realized with similar Deduplication for consistency
+        const realizedDedupMap = new Map<string, any>();
         realizedEntries.forEach(r => {
+            const cc = r.costCenterId ? (costCenterMap.get(r.costCenterId) || shortIdMap.get(r.costCenterId)) : null;
+            const cleanName = cc ? getCleanName(cc.name) : 'DEFAULT';
+            const dedupKey = `${r.categoryId}-${cleanName.toUpperCase().replace(/[^A-Z0-9]/g, '')}-${r.month}-${r.tenantId}`;
+            
+            if (!realizedDedupMap.has(dedupKey)) {
+                realizedDedupMap.set(dedupKey, r);
+            } else {
+                const existing = realizedDedupMap.get(dedupKey);
+                const isExistingInativo = (costCenterMap.get(existing.costCenterId)?.name || '').toUpperCase().includes('[INATIVO]');
+                const isCurrentInativo = (cc?.name || '').toUpperCase().includes('[INATIVO]');
+                if (isExistingInativo && !isCurrentInativo) {
+                    realizedDedupMap.set(dedupKey, r);
+                } else if ((r.amount || 0) > (existing.amount || 0)) {
+                    realizedDedupMap.set(dedupKey, r);
+                }
+            }
+        });
+
+        Array.from(realizedDedupMap.values()).forEach(r => {
             let key;
             const cc = r.costCenterId ? (costCenterMap.get(r.costCenterId) || shortIdMap.get(r.costCenterId)) : null;
 

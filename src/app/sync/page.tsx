@@ -30,18 +30,12 @@ export default function SyncPage() {
     const [logs, setLogs] = useState<string[]>([]);
     const [report, setReport] = useState<any[]>([]);
     const [status, setStatus] = useState<'idle' | 'running' | 'success' | 'error'>('idle');
-    const [authUrl, setAuthUrl] = useState<string>('');
-
     useEffect(() => {
         fetch('/api/companies')
             .then(r => r.json())
             .then(d => {
                 if (d.success) setTenants(d.companies || []);
             });
-        fetch('/api/auth/url')
-            .then(r => r.json())
-            .then(d => { if (d.url) setAuthUrl(d.url); })
-            .catch(() => {});
     }, []);
 
     const handleSync = async () => {
@@ -123,8 +117,8 @@ export default function SyncPage() {
                                         <span style={{ fontSize: '0.8rem', fontWeight: 600, color: expired ? '#ef4444' : '#22c55e', background: expired ? '#ef444415' : '#22c55e15', padding: '0.25rem 0.75rem', borderRadius: '99px' }}>
                                             {expired ? '🔴 Token Expirado' : '🟢 Conectado'}
                                         </span>
-                                        {expired && authUrl && (
-                                            <a href={authUrl} className="btn btn-primary" style={{ padding: '0.4rem 1rem', fontSize: '0.8rem' }}>
+                                        {expired && (
+                                            <a href={`/api/auth/url?tenantId=${t.id}`} className="btn btn-primary" style={{ padding: '0.4rem 1rem', fontSize: '0.8rem' }}>
                                                 Reconectar
                                             </a>
                                         )}

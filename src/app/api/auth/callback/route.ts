@@ -37,7 +37,7 @@ async function fetchCompanyInfo(accessToken: string): Promise<{ name: string; cn
 
 export async function GET(request: NextRequest) {
     const searchParams = Object.fromEntries(request.nextUrl.searchParams);
-    const { code, error } = searchParams;
+    const { code, error, state } = searchParams;
 
     if (error) {
         return NextResponse.redirect(new URL(`/?error=${error}`, request.url));
@@ -51,14 +51,29 @@ export async function GET(request: NextRequest) {
         const tokenResponse = await exchangeCodeForToken(code as string);
         const { name, cnpj } = await fetchCompanyInfo(tokenResponse.access_token);
 
-        // Upsert: if CNPJ already connected, refresh token; otherwise create new tenant
-        const existing = await prisma.tenant.findFirst({ where: { cnpj } });
+        // Extract tenantId from state if present (formatted as rand___tenantId)
+        const parts = (state as string || '').split('___');
+        const tenantId = parts.length > 1 ? parts[1] : null;
+
+        let existing = null;
+        if (tenantId) {
+            existing = await prisma.tenant.findUnique({ where: { id: tenantId } });
+        }
+
+        if (!existing) {
+            existing = await prisma.tenant.findFirst({ where: { cnpj } });
+        }
 
         if (existing) {
+            // If API fetch returned "Empresa Desconhecida", preserve the original tenant name and CNPJ
+            const updatedName = name === 'Empresa Desconhecida' ? existing.name : name;
+            const updatedCnpj = cnpj.startsWith('unknown-') ? existing.cnpj : cnpj;
+
             await prisma.tenant.update({
                 where: { id: existing.id },
                 data: {
-                    name,
+                    name: updatedName,
+                    cnpj: updatedCnpj,
                     accessToken: tokenResponse.access_token,
                     refreshToken: tokenResponse.refresh_token,
                     tokenExpiresAt: new Date(Date.now() + tokenResponse.expires_in * 1000)

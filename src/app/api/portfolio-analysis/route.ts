@@ -82,7 +82,21 @@ export async function GET(request: Request) {
             return codeMatch ? codeMatch[1] : '';
         };
 
-        const classifyCategory = (cat: { name: string; type: string }) => {
+        const classifyCategory = (cat: { name: string; type: string; entradaDre?: string | null }) => {
+            const entradaDre = cat.entradaDre || '';
+            if (entradaDre) {
+                const entradaUpper = entradaDre.toUpperCase();
+                if (entradaUpper.includes('RECEITA') || entradaUpper.startsWith('01')) {
+                    return 'REVENUE';
+                }
+                if (entradaUpper.includes('TRIBUTO') || entradaUpper.includes('IMPOSTO') || entradaUpper.startsWith('02')) {
+                    return 'TAXES';
+                }
+                if (entradaUpper.includes('CUSTO') || entradaUpper.startsWith('03')) {
+                    return 'COSTS';
+                }
+            }
+
             const catName = cat.name || '';
             const nameUpper = catName.toUpperCase();
 
@@ -92,14 +106,13 @@ export async function GET(request: Request) {
                 // Se tem código, classifica estritamente pelo código
                 let effectiveCode = rawCode;
                 
-                // Remapear 02 para 01.2 se não for 02.1 (Receita vs Tributos)
+                // Remapear 02 ou 2 para 01.2 se não for tributo (Receita vs Tributos)
                 if ((rawCode.startsWith('02') && !rawCode.startsWith('02.1')) || 
                     (rawCode.startsWith('2') && !nameUpper.includes('TRIBUTO') && !rawCode.startsWith('2.1'))) {
-                    if (rawCode.startsWith('02') && !rawCode.startsWith('02.1')) {
-                        let suffix = rawCode.replace(/^0?2/, '');
-                        if (suffix.startsWith('.')) suffix = suffix.substring(1);
-                        effectiveCode = suffix ? `01.2.${suffix}` : '01.2';
-                    }
+                    const isZeroTwo = rawCode.startsWith('02');
+                    let suffix = rawCode.replace(isZeroTwo ? /^0?2/ : /^2/, '');
+                    if (suffix.startsWith('.')) suffix = suffix.substring(1);
+                    effectiveCode = suffix ? `01.2.${suffix}` : '01.2';
                 }
 
                 if (effectiveCode.startsWith('01') || effectiveCode.startsWith('1')) {
@@ -194,7 +207,12 @@ export async function GET(request: Request) {
             const cleanName = cc ? getCleanName(cc.name) : 'DEFAULT';
             
             const pTenantId = getPrimaryId(entry.tenantId);
-            const key = `${pTenantId}-${cleanName}`;
+            let key = `${pTenantId}-${cleanName}`;
+
+            // Se o Centro de Custo estiver inativo/na blacklist (não mapeado no groupsMap), agrupa no Geral para não perder o valor
+            if (!groupsMap[key]) {
+                key = `${pTenantId}-DEFAULT`;
+            }
 
             if (!groupsMap[key]) return;
 

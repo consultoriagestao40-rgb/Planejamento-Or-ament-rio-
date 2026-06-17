@@ -65,13 +65,19 @@ export async function GET(request: Request) {
             return codeMatch ? codeMatch[1] : '';
         };
 
-        const classifyCategory = (catName: string) => {
+        const classifyCategory = (cat: { name: string; type: string }) => {
+            const catName = cat.name;
             const nameUpper = catName.toUpperCase();
-            const rawCode = getCategoryCode(catName);
 
+            // Verificar o campo tipo explicitamente no banco
+            if ((cat.type || '').toUpperCase() === 'REVENUE' || (cat.type || '').toUpperCase() === 'RECEITA') {
+                return 'REVENUE';
+            }
+
+            const rawCode = getCategoryCode(catName);
             let effectiveCode = rawCode;
             
-            // Remap 02 to 01.2 if not 02.1 (Revenue vs Taxes)
+            // Remapear 02 para 01.2 se não for 02.1 (Receita vs Tributos)
             if ((rawCode.startsWith('02') && !rawCode.startsWith('02.1')) || 
                 (rawCode.startsWith('2') && !nameUpper.includes('TRIBUTO') && !rawCode.startsWith('2.1'))) {
                 if (rawCode.startsWith('02') && !rawCode.startsWith('02.1')) {
@@ -109,12 +115,11 @@ export async function GET(request: Request) {
 
         const groupsMap: Record<string, GroupData> = {};
 
-        // Initialize unique groups by (Tenant + Clean Name)
+        // Inicializar grupos únicos por (Tenant + Nome Limpo)
         costCenters.forEach(cc => {
             const cleanName = getCleanName(cc.name);
             const key = `${cc.tenantId}-${cleanName}`;
             
-            // Apply blacklist filtering (mirrors summary API)
             const originalName = (cc.name || '').toUpperCase();
             const blacklist = ['CLEAN TECH', 'RIO NEGRINHO', 'REDE TONIN'];
             const isWhiteListed = originalName.includes('CLEAN TECH PRO');
@@ -141,7 +146,7 @@ export async function GET(request: Request) {
             }
         });
 
-        // Initialize "GERAL" group for each tenant
+        // Inicializar grupo "GERAL" para cada empresa
         tenants.forEach(t => {
             const key = `${t.id}-DEFAULT`;
             groupsMap[key] = {
@@ -156,35 +161,10 @@ export async function GET(request: Request) {
             }
         });
 
-        // 2. Aggregate Data with Deduplication
-        const entryDedupMap = new Map<string, any>();
+        // 2. Agregação direta de dados (Sem deduplicação de transações para evitar perda de valores)
         const entriesToProcess = sourceParam === 'budget' ? budgets : realizedEntries;
 
         entriesToProcess.forEach(entry => {
-            const cc = entry.costCenterId ? (costCenterMap.get(entry.costCenterId) || shortIdMap.get(entry.costCenterId)) : null;
-            const cleanName = cc ? getCleanName(cc.name) : 'DEFAULT';
-            const cat = categoryMap.get(entry.categoryId);
-            const catName = cat?.name || "";
-            const catCode = (catName.match(/^([\d.]+)/) || [])[1] || catName;
-            
-            const dedupKey = `${catCode}-${cleanName.toUpperCase().replace(/[^A-Z0-9]/g, '')}-${entry.month}-${entry.tenantId}`;
-            
-            if (!entryDedupMap.has(dedupKey)) {
-                entryDedupMap.set(dedupKey, entry);
-            } else {
-                const existing = entryDedupMap.get(dedupKey);
-                const isExistingInativo = (costCenterMap.get(existing.costCenterId)?.name || '').toUpperCase().includes('[INATIVO]');
-                const isCurrentInativo = (cc?.name || '').toUpperCase().includes('[INATIVO]');
-                if (isExistingInativo && !isCurrentInativo) {
-                    entryDedupMap.set(dedupKey, entry);
-                } else if ((entry.amount || 0) > (existing.amount || 0)) {
-                    entryDedupMap.set(dedupKey, entry);
-                }
-            }
-        });
-
-        // Populate groups with values
-        Array.from(entryDedupMap.values()).forEach(entry => {
             const cc = entry.costCenterId ? (costCenterMap.get(entry.costCenterId) || shortIdMap.get(entry.costCenterId)) : null;
             const cleanName = cc ? getCleanName(cc.name) : 'DEFAULT';
             const key = `${entry.tenantId}-${cleanName}`;
@@ -194,7 +174,7 @@ export async function GET(request: Request) {
             const cat = categoryMap.get(entry.categoryId);
             if (!cat) return;
 
-            const classification = classifyCategory(cat.name);
+            const classification = classifyCategory(cat);
             if (classification === 'REVENUE') {
                 groupsMap[key].monthlyData[entry.month].revenue += entry.amount || 0;
             } else if (classification === 'TAXES') {

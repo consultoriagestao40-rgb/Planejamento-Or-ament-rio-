@@ -66,43 +66,76 @@ export async function fetchRealizedValues(accessToken: string, targetYear: numbe
     return values;
 }
 
-export async function syncRealizedEntries(tenantId: string, year: number, viewMode: 'caixa' | 'competencia' = 'competencia') {
+export async function syncRealizedEntries(
+    tenantId: string,
+    year: number,
+    viewMode: 'caixa' | 'competencia' = 'competencia',
+    startMonth: number = 1,
+    endMonth: number = 12
+) {
     const { token } = await getValidAccessToken(tenantId);
-    const realizedMap = await fetchRealizedValues(token, year, 'DEFAULT', viewMode, tenantId);
 
     const entriesToSave: any[] = [];
-    for (const [key, amount] of Object.entries(realizedMap)) {
-        const [idsPart, monthIdxStr] = key.split('-');
-        const [catId, ccId] = idsPart.split('|');
-        const monthIdx = parseInt(monthIdxStr, 10);
-        if (isNaN(monthIdx)) continue;
 
-        entriesToSave.push({
-            tenantId,
-            categoryId: catId,
-            costCenterId: (ccId === 'NONE' || !ccId) ? null : ccId,
-            month: monthIdx + 1,
-            year,
-            amount: Math.abs(amount),
-            viewMode,
-            externalId: `sync-${tenantId}-${catId}-${ccId || 'NONE'}-${year}-${monthIdx}-${viewMode}`,
-            description: `Sincronização ${viewMode}`
-        });
+    // Busca mês a mês para maior precisão e controle
+    for (let month = startMonth; month <= endMonth; month++) {
+        const paddedMonth = month.toString().padStart(2, '0');
+        const startStr = `${year}-${paddedMonth}-01`;
+        // Último dia do mês
+        const lastDay = new Date(year, month, 0).getDate();
+        const endStr = `${year}-${paddedMonth}-${lastDay}`;
+        const dateParam = viewMode === 'caixa' ? 'data_pagamento' : 'data_competencia';
+
+        const urls = [
+            `https://api-v2.contaazul.com/v1/financeiro/eventos-financeiros/contas-a-receber/buscar?${dateParam}_de=${startStr}&${dateParam}_ate=${endStr}&tamanho_pagina=100`,
+            `https://api-v2.contaazul.com/v1/financeiro/eventos-financeiros/contas-a-pagar/buscar?${dateParam}_de=${startStr}&${dateParam}_ate=${endStr}&tamanho_pagina=100`,
+            `https://api-v2.contaazul.com/v1/vendas?data_emissao_de=${startStr}&data_emissao_ate=${endStr}&tamanho_pagina=100`
+        ];
+
+        const monthValues: Record<string, number> = {};
+        for (const url of urls) {
+            await aggregateTransactions(token, url, monthValues, url.includes('pagar'), 'DEFAULT', year, viewMode, tenantId);
+        }
+
+        for (const [key, amount] of Object.entries(monthValues)) {
+            const [idsPart, monthIdxStr] = key.split('-');
+            const [catId, ccId] = idsPart.split('|');
+            const monthIdx = parseInt(monthIdxStr, 10);
+            if (isNaN(monthIdx)) continue;
+
+            entriesToSave.push({
+                tenantId,
+                categoryId: catId,
+                costCenterId: (ccId === 'NONE' || !ccId) ? null : ccId,
+                month: monthIdx + 1,
+                year,
+                amount: Math.abs(amount),
+                viewMode,
+                externalId: `sync-${tenantId}-${catId}-${ccId || 'NONE'}-${year}-${monthIdx}-${viewMode}`,
+                description: `Sincronização ${viewMode}`
+            });
+        }
     }
 
-    await prisma.realizedEntry.deleteMany({ 
-        where: { 
-            tenantId, 
-            year, 
+    // ⚠️ PROTEÇÃO CRÍTICA: Apaga SOMENTE registros que vieram da API (externalId LIKE 'sync-%')
+    // dentro do intervalo de meses solicitado. Dados do Excel (externalId = NULL) NUNCA são tocados.
+    await prisma.realizedEntry.deleteMany({
+        where: {
+            tenantId,
+            year,
             viewMode,
+            month: { gte: startMonth, lte: endMonth },
             externalId: { startsWith: 'sync-' }
-        } 
+        }
     });
+
     if (entriesToSave.length > 0) {
         await prisma.realizedEntry.createMany({ data: entriesToSave, skipDuplicates: true });
     }
-    return { success: true, count: entriesToSave.length };
+
+    return { success: true, count: entriesToSave.length, months: `${startMonth}-${endMonth}` };
 }
+
 
 export async function syncMasterData(tenantId: string) {
     const { token } = await getValidAccessToken(tenantId);

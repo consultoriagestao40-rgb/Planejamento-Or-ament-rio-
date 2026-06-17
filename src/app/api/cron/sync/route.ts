@@ -10,8 +10,10 @@ export async function GET(request: Request) {
         const paramYear = searchParams.get('year');
         const reqYear = paramYear ? parseInt(paramYear, 10) : new Date().getFullYear();
         const tenantId = searchParams.get('tenantId') || undefined;
+        const startMonth = parseInt(searchParams.get('startMonth') || '1', 10);
+        const endMonth = parseInt(searchParams.get('endMonth') || '12', 10);
 
-        const result = await runCronSync(reqYear, tenantId);
+        const result = await runCronSync(reqYear, tenantId, startMonth, endMonth);
         return NextResponse.json(result);
 
     } catch (e: any) {

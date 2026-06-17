@@ -8,7 +8,7 @@ export async function GET() {
     try {
 
         const allTenants = await prisma.tenant.findMany({
-            select: { id: true, name: true, cnpj: true },
+            select: { id: true, name: true, cnpj: true, accessToken: true, tokenExpiresAt: true },
             orderBy: { name: 'asc' }
         });
 
@@ -20,7 +20,13 @@ export async function GET() {
             
             if (!entityMap.has(key)) {
                 entityMap.set(key, t.id);
-                deduplicatedTenants.push({ id: t.id, name: t.name });
+                deduplicatedTenants.push({
+                    id: t.id,
+                    name: t.name,
+                    cnpj: t.cnpj,
+                    accessToken: t.accessToken,
+                    tokenExpiresAt: t.tokenExpiresAt
+                });
             }
         }
 

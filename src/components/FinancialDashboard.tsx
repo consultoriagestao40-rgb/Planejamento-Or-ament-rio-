@@ -146,7 +146,9 @@ export default function FinancialDashboard({
                                     </div>
 
                                     {userRole === 'MASTER' && (
-                                        <SyncButton year={selectedYear} onSyncStart={() => setIsSyncing(true)} onSyncComplete={() => { setIsSyncing(false); setRefreshKey(prev => prev + 1); }} />
+                                        <Link href="/sync" className="btn btn-secondary" style={{ padding: '0.75rem 1.25rem', display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}>
+                                            🔄 Sincronização
+                                        </Link>
                                     )}
                                     <Link href="/summary" className="btn btn-secondary" style={{ padding: '0.75rem 1.25rem' }}>📊 Resumo por CC</Link>
                                     <Link href="/carteira" className="btn btn-secondary" style={{ padding: '0.75rem 1.25rem' }}>💼 Análise de Carteira</Link>

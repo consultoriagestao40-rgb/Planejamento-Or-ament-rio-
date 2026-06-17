@@ -54,8 +54,8 @@ export async function fetchRealizedValues(accessToken: string, targetYear: numbe
     const dateParam = isCaixa ? 'data_pagamento' : 'data_competencia';
     
     const urls = [
-        `https://api-v2.contaazul.com/v1/financeiro/eventos-financeiros/contas-a-receber/buscar?${dateParam}_de=${startStr}&${dateParam}_ate=${endStr}&tamanho_pagina=100`,
-        `https://api-v2.contaazul.com/v1/financeiro/eventos-financeiros/contas-a-pagar/buscar?${dateParam}_de=${startStr}&${dateParam}_ate=${endStr}&tamanho_pagina=100`,
+        `https://api-v2.contaazul.com/v1/financeiro/eventos-financeiros/contas-a-receber/buscar?data_vencimento_de=${targetYear}-01-01&data_vencimento_ate=${targetYear}-12-31&${dateParam}_de=${startStr}&${dateParam}_ate=${endStr}&tamanho_pagina=100`,
+        `https://api-v2.contaazul.com/v1/financeiro/eventos-financeiros/contas-a-pagar/buscar?data_vencimento_de=${targetYear}-01-01&data_vencimento_ate=${targetYear}-12-31&${dateParam}_de=${startStr}&${dateParam}_ate=${endStr}&tamanho_pagina=100`,
         `https://api-v2.contaazul.com/v1/vendas?data_emissao_de=${startStr}&data_emissao_ate=${endStr}&tamanho_pagina=100`
     ];
 
@@ -87,8 +87,8 @@ export async function syncRealizedEntries(
         const dateParam = viewMode === 'caixa' ? 'data_pagamento' : 'data_competencia';
 
         const urls = [
-            `https://api-v2.contaazul.com/v1/financeiro/eventos-financeiros/contas-a-receber/buscar?${dateParam}_de=${startStr}&${dateParam}_ate=${endStr}&tamanho_pagina=100`,
-            `https://api-v2.contaazul.com/v1/financeiro/eventos-financeiros/contas-a-pagar/buscar?${dateParam}_de=${startStr}&${dateParam}_ate=${endStr}&tamanho_pagina=100`,
+            `https://api-v2.contaazul.com/v1/financeiro/eventos-financeiros/contas-a-receber/buscar?data_vencimento_de=${year}-01-01&data_vencimento_ate=${year}-12-31&${dateParam}_de=${startStr}&${dateParam}_ate=${endStr}&tamanho_pagina=100`,
+            `https://api-v2.contaazul.com/v1/financeiro/eventos-financeiros/contas-a-pagar/buscar?data_vencimento_de=${year}-01-01&data_vencimento_ate=${year}-12-31&${dateParam}_de=${startStr}&${dateParam}_ate=${endStr}&tamanho_pagina=100`,
             `https://api-v2.contaazul.com/v1/vendas?data_emissao_de=${startStr}&data_emissao_ate=${endStr}&tamanho_pagina=100`
         ];
 

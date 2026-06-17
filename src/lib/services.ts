@@ -98,7 +98,10 @@ export async function syncRealizedEntries(
         }
 
         for (const [key, amount] of Object.entries(monthValues)) {
-            const [idsPart, monthIdxStr] = key.split('-');
+            const lastHyphen = key.lastIndexOf('-');
+            if (lastHyphen === -1) continue;
+            const idsPart = key.substring(0, lastHyphen);
+            const monthIdxStr = key.substring(lastHyphen + 1);
             const [catId, ccId] = idsPart.split('|');
             const monthIdx = parseInt(monthIdxStr, 10);
             if (isNaN(monthIdx)) continue;
@@ -249,7 +252,7 @@ async function aggregateTransactions(accessToken: string, url: string, targetVal
 
         for (const item of items) {
             const amount = item.valor_total || item.total || item.valor || item.pago || 0;
-            const dateStr = item.data_competencia || item.data_emissao || item.venda_em || item.data_pagamento;
+            const dateStr = item.data_competencia || item.data_emissao || item.venda_em || item.data_pagamento || item.data;
             if (!dateStr) continue;
             const dateObj = new Date(dateStr);
             if (dateObj.getFullYear() !== targetYear) continue;

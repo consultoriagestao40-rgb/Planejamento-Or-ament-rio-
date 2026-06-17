@@ -224,57 +224,57 @@ export async function syncMasterData(tenantId: string) {
 }
 
 async function aggregateTransactions(accessToken: string, url: string, targetValues: Record<string, number>, isExpense: boolean, costCenterIdString: string, targetYear: number, viewMode: string, tenantId: string) {
-    try {
-        let pagina = 1;
-        let hasMore = true;
+    let pagina = 1;
+    let hasMore = true;
+    
+    while (hasMore) {
+        const pagedUrl = `${url}&pagina=${pagina}`;
+        const res = await fetch(pagedUrl, { 
+            headers: { 'Authorization': `Bearer ${accessToken}` },
+            cache: 'no-store'
+        });
         
-        while (hasMore) {
-            const pagedUrl = `${url}&pagina=${pagina}`;
-            const res = await fetch(pagedUrl, { 
-                headers: { 'Authorization': `Bearer ${accessToken}` },
-                cache: 'no-store'
-            });
+        if (!res.ok) {
+            const errBody = await res.text().catch(() => '');
+            const endpointName = url.split('/v1/')[1]?.split('?')[0] || 'api';
+            throw new Error(`[Conta Azul API] ${endpointName} retornou status ${res.status}: ${errBody}`);
+        }
+        
+        const data = await res.json();
+        const items = Array.isArray(data) ? data : (data.itens || data.vendas || []);
+        if (items.length === 0) break;
+
+        for (const item of items) {
+            const amount = item.valor_total || item.total || item.valor || item.pago || 0;
+            const dateStr = item.data_competencia || item.data_emissao || item.venda_em || item.data_pagamento;
+            if (!dateStr) continue;
+            const dateObj = new Date(dateStr);
+            if (dateObj.getFullYear() !== targetYear) continue;
+
+            const monthIdx = dateObj.getMonth();
+            const ccs = item.centros_de_custo || [];
+            const categories = item.categorias || (item.categoria ? [item.categoria] : []);
             
-            if (!res.ok) break;
-            
-            const data = await res.json();
-            const items = Array.isArray(data) ? data : (data.itens || data.vendas || []);
-            if (items.length === 0) break;
+            if (categories.length > 0) {
+                const catToUse = categories[0];
+                const catId = catToUse.id || catToUse.categoria_id;
+                const catValue = amount;
 
-            for (const item of items) {
-                const amount = item.valor_total || item.total || item.valor || item.pago || 0;
-                const dateStr = item.data_competencia || item.data_emissao || item.venda_em || item.data_pagamento;
-                if (!dateStr) continue;
-                const dateObj = new Date(dateStr);
-                if (dateObj.getFullYear() !== targetYear) continue;
-
-                const monthIdx = dateObj.getMonth();
-                const ccs = item.centros_de_custo || [];
-                const categories = item.categorias || (item.categoria ? [item.categoria] : []);
-                
-                if (categories.length > 0) {
-                    const catToUse = categories[0];
-                    const catId = catToUse.id || catToUse.categoria_id;
-                    const catValue = amount;
-
-                    if (ccs.length === 0) {
-                        const key = `${catId}|NONE-${monthIdx}`;
-                        targetValues[key] = (targetValues[key] || 0) + catValue;
-                    } else {
-                        ccs.forEach((c: any) => {
-                            const ccId = c.id;
-                            const percent = (c.percentual || (100 / ccs.length)) / 100;
-                            const key = `${catId}|${ccId}-${monthIdx}`;
-                            targetValues[key] = (targetValues[key] || 0) + (catValue * percent);
-                        });
-                    }
+                if (ccs.length === 0) {
+                    const key = `${catId}|NONE-${monthIdx}`;
+                    targetValues[key] = (targetValues[key] || 0) + catValue;
+                } else {
+                    ccs.forEach((c: any) => {
+                        const ccId = c.id;
+                        const percent = (c.percentual || (100 / ccs.length)) / 100;
+                        const key = `${catId}|${ccId}-${monthIdx}`;
+                        targetValues[key] = (targetValues[key] || 0) + (catValue * percent);
+                    });
                 }
             }
-            
-            if (items.length < 100) hasMore = false;
-            pagina++;
         }
-    } catch (e) {
-        console.error("Transation Pagination Error:", e);
+        
+        if (items.length < 100) hasMore = false;
+        pagina++;
     }
 }

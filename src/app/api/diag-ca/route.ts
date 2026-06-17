@@ -136,7 +136,13 @@ export async function GET(request: Request) {
         const filterSteps: any[] = [];
 
         for (const [key, amount] of Object.entries(monthValues)) {
-            const [idsPart, monthIdxStr] = key.split('-');
+            const lastHyphen = key.lastIndexOf('-');
+            if (lastHyphen === -1) {
+                filterSteps.push({ key, amount, error: "Sem hífen" });
+                continue;
+            }
+            const idsPart = key.substring(0, lastHyphen);
+            const monthIdxStr = key.substring(lastHyphen + 1);
             const [catId, ccId] = idsPart.split('|');
             const monthIdx = parseInt(monthIdxStr, 10);
             

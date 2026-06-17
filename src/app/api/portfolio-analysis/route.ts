@@ -85,11 +85,32 @@ export async function GET(request: Request) {
         const classifyCategory = (cat: { name: string; type: string; entradaDre?: string | null }) => {
             const catName = cat.name || '';
             const nameUpper = catName.toUpperCase();
+            const typeUpper = (cat.type || '').toUpperCase();
+            const entradaDre = cat.entradaDre || '';
+            const entradaUpper = entradaDre.toUpperCase();
 
+            // 1. Classificação por entradaDre (mais confiável — configurado manualmente)
+            if (entradaDre) {
+                if (entradaUpper.includes('RECEITA') || entradaUpper.startsWith('01')) {
+                    return 'REVENUE';
+                }
+                if (entradaUpper.includes('TRIBUTO') || entradaUpper.includes('IMPOSTO') || entradaUpper.startsWith('02')) {
+                    return 'TAXES';
+                }
+                if (entradaUpper.includes('CUSTO') || entradaUpper.startsWith('03')) {
+                    return 'COSTS';
+                }
+            }
+
+            // 2. Classificação pelo campo type do banco (REVENUE / EXPENSE)
+            if (typeUpper === 'REVENUE' || typeUpper === 'RECEITA') {
+                return 'REVENUE';
+            }
+
+            // 3. Fallback por código numérico no nome da categoria
             const rawCode = getCategoryCode(catName);
             
             if (rawCode) {
-                // Se tem código, classifica estritamente pelo código
                 let effectiveCode = rawCode;
                 
                 // Remapear 02 ou 2 para 01.2 se não for tributo (Receita vs Tributos)
@@ -110,29 +131,20 @@ export async function GET(request: Request) {
                 if (effectiveCode.startsWith('03') || effectiveCode.startsWith('3')) {
                     return 'COSTS';
                 }
-                return 'OTHER';
-            } else {
-                // Se NÃO tem código na descrição, usa o campo entradaDre ou o tipo do banco como fallback
-                const entradaDre = cat.entradaDre || '';
-                if (entradaDre) {
-                    const entradaUpper = entradaDre.toUpperCase();
-                    if (entradaUpper.includes('RECEITA') || entradaUpper.startsWith('01')) {
-                        return 'REVENUE';
-                    }
-                    if (entradaUpper.includes('TRIBUTO') || entradaUpper.includes('IMPOSTO') || entradaUpper.startsWith('02')) {
-                        return 'TAXES';
-                    }
-                    if (entradaUpper.includes('CUSTO') || entradaUpper.startsWith('03')) {
-                        return 'COSTS';
-                    }
-                }
-
-                const typeUpper = (cat.type || '').toUpperCase();
-                if (typeUpper === 'REVENUE' || typeUpper === 'RECEITA') {
-                    return 'REVENUE';
-                }
-                return 'OTHER';
             }
+
+            // 4. Fallback por palavras-chave no nome
+            if (nameUpper.includes('RECEITA') || nameUpper.includes('FATURAMENTO') || nameUpper.includes('SERVIC') || nameUpper.includes('SERVIÇ')) {
+                return 'REVENUE';
+            }
+            if (nameUpper.includes('TRIBUTO') || nameUpper.includes('IMPOSTO') || nameUpper.includes('ISS') || nameUpper.includes('PIS') || nameUpper.includes('COFINS')) {
+                return 'TAXES';
+            }
+            if (nameUpper.includes('CUSTO') || nameUpper.includes('INSUMO') || nameUpper.includes('MATERIAL')) {
+                return 'COSTS';
+            }
+
+            return 'OTHER';
         };
 
         interface GroupData {
@@ -216,16 +228,21 @@ export async function GET(request: Request) {
 
             if (!groupsMap[key]) return;
 
-            const cat = categoryMap.get(entry.categoryId);
+            // Usa entry.category direto (já incluso via Prisma join) — evita falha de lookup por ID cruzado entre tenants
+            const cat = (entry as any).category || categoryMap.get(entry.categoryId);
             if (!cat) return;
+
+            // Garante que o mês está no range válido (1-12)
+            const entryMonth = entry.month;
+            if (!groupsMap[key].monthlyData[entryMonth]) return;
 
             const classification = classifyCategory(cat);
             if (classification === 'REVENUE') {
-                groupsMap[key].monthlyData[entry.month].revenue += entry.amount || 0;
+                groupsMap[key].monthlyData[entryMonth].revenue += entry.amount || 0;
             } else if (classification === 'TAXES') {
-                groupsMap[key].monthlyData[entry.month].taxes += entry.amount || 0;
+                groupsMap[key].monthlyData[entryMonth].taxes += entry.amount || 0;
             } else if (classification === 'COSTS') {
-                groupsMap[key].monthlyData[entry.month].costs += entry.amount || 0;
+                groupsMap[key].monthlyData[entryMonth].costs += entry.amount || 0;
             }
         });
 

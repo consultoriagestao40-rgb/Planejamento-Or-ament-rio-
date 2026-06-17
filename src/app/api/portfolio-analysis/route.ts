@@ -83,32 +83,43 @@ export async function GET(request: Request) {
         };
 
         const classifyCategory = (cat: { name: string; type: string }) => {
-            const catName = cat.name;
+            const catName = cat.name || '';
             const nameUpper = catName.toUpperCase();
 
             const rawCode = getCategoryCode(catName);
-            let effectiveCode = rawCode;
             
-            // Remapear 02 para 01.2 se não for 02.1 (Receita vs Tributos)
-            if ((rawCode.startsWith('02') && !rawCode.startsWith('02.1')) || 
-                (rawCode.startsWith('2') && !nameUpper.includes('TRIBUTO') && !rawCode.startsWith('2.1'))) {
-                if (rawCode.startsWith('02') && !rawCode.startsWith('02.1')) {
-                    let suffix = rawCode.replace(/^0?2/, '');
-                    if (suffix.startsWith('.')) suffix = suffix.substring(1);
-                    effectiveCode = suffix ? `01.2.${suffix}` : '01.2';
+            if (rawCode) {
+                // Se tem código, classifica estritamente pelo código
+                let effectiveCode = rawCode;
+                
+                // Remapear 02 para 01.2 se não for 02.1 (Receita vs Tributos)
+                if ((rawCode.startsWith('02') && !rawCode.startsWith('02.1')) || 
+                    (rawCode.startsWith('2') && !nameUpper.includes('TRIBUTO') && !rawCode.startsWith('2.1'))) {
+                    if (rawCode.startsWith('02') && !rawCode.startsWith('02.1')) {
+                        let suffix = rawCode.replace(/^0?2/, '');
+                        if (suffix.startsWith('.')) suffix = suffix.substring(1);
+                        effectiveCode = suffix ? `01.2.${suffix}` : '01.2';
+                    }
                 }
-            }
 
-            if (effectiveCode.startsWith('01') || effectiveCode.startsWith('1')) {
-                return 'REVENUE';
+                if (effectiveCode.startsWith('01') || effectiveCode.startsWith('1')) {
+                    return 'REVENUE';
+                }
+                if (effectiveCode.startsWith('02') || effectiveCode.startsWith('2.1') || nameUpper.includes('TRIBUTO') || nameUpper.includes('IMPOSTO')) {
+                    return 'TAXES';
+                }
+                if (effectiveCode.startsWith('03') || effectiveCode.startsWith('3')) {
+                    return 'COSTS';
+                }
+                return 'OTHER';
+            } else {
+                // Se NÃO tem código na descrição, usa o campo tipo do banco como fallback
+                const typeUpper = (cat.type || '').toUpperCase();
+                if (typeUpper === 'REVENUE' || typeUpper === 'RECEITA') {
+                    return 'REVENUE';
+                }
+                return 'OTHER';
             }
-            if (effectiveCode.startsWith('02') || effectiveCode.startsWith('2.1') || nameUpper.includes('TRIBUTO') || nameUpper.includes('IMPOSTO')) {
-                return 'TAXES';
-            }
-            if (effectiveCode.startsWith('03') || effectiveCode.startsWith('3')) {
-                return 'COSTS';
-            }
-            return 'OTHER';
         };
 
         interface GroupData {

@@ -86,11 +86,6 @@ export async function GET(request: Request) {
             const catName = cat.name;
             const nameUpper = catName.toUpperCase();
 
-            // Verificar o campo tipo explicitamente no banco
-            if ((cat.type || '').toUpperCase() === 'REVENUE' || (cat.type || '').toUpperCase() === 'RECEITA') {
-                return 'REVENUE';
-            }
-
             const rawCode = getCategoryCode(catName);
             let effectiveCode = rawCode;
             

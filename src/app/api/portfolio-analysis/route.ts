@@ -48,6 +48,23 @@ export async function GET(request: Request) {
             }
         });
 
+        // Consolidar variantes de tenant (CNPJs duplicados / múltiplos tokens)
+        const { getTenantGroups } = await import('@/lib/tenant-utils');
+        const tenantGroups = await getTenantGroups();
+        
+        const getPrimaryId = (id: string) => {
+            const group = tenantGroups.find(g => g.includes(id));
+            return group ? group[0] : id;
+        };
+
+        const primaryTenantNames = new Map<string, string>();
+        tenants.forEach(t => {
+            const pId = getPrimaryId(t.id);
+            if (!primaryTenantNames.has(pId)) {
+                primaryTenantNames.set(pId, t.name);
+            }
+        });
+
         // Helper to normalize cost center names
         const getCleanName = (name: string) => {
             return (name || '')
@@ -115,10 +132,11 @@ export async function GET(request: Request) {
 
         const groupsMap: Record<string, GroupData> = {};
 
-        // Inicializar grupos únicos por (Tenant + Nome Limpo)
+        // Inicializar grupos únicos por (Tenant Primário + Nome Limpo de CC)
         costCenters.forEach(cc => {
             const cleanName = getCleanName(cc.name);
-            const key = `${cc.tenantId}-${cleanName}`;
+            const pTenantId = getPrimaryId(cc.tenantId);
+            const key = `${pTenantId}-${cleanName}`;
             
             const originalName = (cc.name || '').toUpperCase();
             const blacklist = ['CLEAN TECH', 'RIO NEGRINHO', 'REDE TONIN'];
@@ -134,8 +152,8 @@ export async function GET(request: Request) {
 
             if (!groupsMap[key]) {
                 groupsMap[key] = {
-                    tenantId: cc.tenantId,
-                    tenantName: cc.tenant.name,
+                    tenantId: pTenantId,
+                    tenantName: primaryTenantNames.get(pTenantId) || cc.tenant.name,
                     costCenterId: cc.id,
                     costCenterName: cleanName,
                     monthlyData: {}
@@ -146,12 +164,13 @@ export async function GET(request: Request) {
             }
         });
 
-        // Inicializar grupo "GERAL" para cada empresa
-        tenants.forEach(t => {
-            const key = `${t.id}-DEFAULT`;
+        // Inicializar grupo "GERAL" para cada tenant primário
+        const uniquePrimaryTenantIds = Array.from(new Set(tenants.map(t => getPrimaryId(t.id))));
+        uniquePrimaryTenantIds.forEach(pId => {
+            const key = `${pId}-DEFAULT`;
             groupsMap[key] = {
-                tenantId: t.id,
-                tenantName: t.name,
+                tenantId: pId,
+                tenantName: primaryTenantNames.get(pId) || 'Empresa',
                 costCenterId: 'DEFAULT',
                 costCenterName: 'GERAL (Sem Centro de Custo)',
                 monthlyData: {}
@@ -161,13 +180,15 @@ export async function GET(request: Request) {
             }
         });
 
-        // 2. Agregação direta de dados (Sem deduplicação de transações para evitar perda de valores)
+        // 2. Agregação direta de dados (Sem deduplicação e associando ao tenant primário)
         const entriesToProcess = sourceParam === 'budget' ? budgets : realizedEntries;
 
         entriesToProcess.forEach(entry => {
             const cc = entry.costCenterId ? (costCenterMap.get(entry.costCenterId) || shortIdMap.get(entry.costCenterId)) : null;
             const cleanName = cc ? getCleanName(cc.name) : 'DEFAULT';
-            const key = `${entry.tenantId}-${cleanName}`;
+            
+            const pTenantId = getPrimaryId(entry.tenantId);
+            const key = `${pTenantId}-${cleanName}`;
 
             if (!groupsMap[key]) return;
 

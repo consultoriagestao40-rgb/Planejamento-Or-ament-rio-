@@ -23,6 +23,7 @@ export function middleware(request: NextRequest) {
         pathname.startsWith('/api/cost-centers/summary') ||
         pathname.startsWith('/api/debug-summary-data') ||
         pathname.startsWith('/api/debug-env') ||
+        pathname.startsWith('/api/diag-ca') ||
         pathname.startsWith('/api/maintenance') ||
         pathname.startsWith('/api/diag-taxes') ||
         pathname.startsWith('/api/diag-id') ||

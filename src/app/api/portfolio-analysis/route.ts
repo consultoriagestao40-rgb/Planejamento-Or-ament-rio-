@@ -83,20 +83,6 @@ export async function GET(request: Request) {
         };
 
         const classifyCategory = (cat: { name: string; type: string; entradaDre?: string | null }) => {
-            const entradaDre = cat.entradaDre || '';
-            if (entradaDre) {
-                const entradaUpper = entradaDre.toUpperCase();
-                if (entradaUpper.includes('RECEITA') || entradaUpper.startsWith('01')) {
-                    return 'REVENUE';
-                }
-                if (entradaUpper.includes('TRIBUTO') || entradaUpper.includes('IMPOSTO') || entradaUpper.startsWith('02')) {
-                    return 'TAXES';
-                }
-                if (entradaUpper.includes('CUSTO') || entradaUpper.startsWith('03')) {
-                    return 'COSTS';
-                }
-            }
-
             const catName = cat.name || '';
             const nameUpper = catName.toUpperCase();
 
@@ -126,7 +112,21 @@ export async function GET(request: Request) {
                 }
                 return 'OTHER';
             } else {
-                // Se NÃO tem código na descrição, usa o campo tipo do banco como fallback
+                // Se NÃO tem código na descrição, usa o campo entradaDre ou o tipo do banco como fallback
+                const entradaDre = cat.entradaDre || '';
+                if (entradaDre) {
+                    const entradaUpper = entradaDre.toUpperCase();
+                    if (entradaUpper.includes('RECEITA') || entradaUpper.startsWith('01')) {
+                        return 'REVENUE';
+                    }
+                    if (entradaUpper.includes('TRIBUTO') || entradaUpper.includes('IMPOSTO') || entradaUpper.startsWith('02')) {
+                        return 'TAXES';
+                    }
+                    if (entradaUpper.includes('CUSTO') || entradaUpper.startsWith('03')) {
+                        return 'COSTS';
+                    }
+                }
+
                 const typeUpper = (cat.type || '').toUpperCase();
                 if (typeUpper === 'REVENUE' || typeUpper === 'RECEITA') {
                     return 'REVENUE';

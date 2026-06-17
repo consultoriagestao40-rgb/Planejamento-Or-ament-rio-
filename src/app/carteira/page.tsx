@@ -24,6 +24,7 @@ export default function PortfolioAnalysisPage() {
     const [selectedMonth, setSelectedMonth] = useState<string>('average'); // 'average', 'total', 1-12
     const [selectedSource, setSelectedSource] = useState<'realized' | 'budget'>('realized');
     const [selectedViewMode, setSelectedViewMode] = useState<'competencia' | 'caixa'>('competencia');
+    const [expandedTenants, setExpandedTenants] = useState<Set<string>>(new Set());
 
     const fetchData = useCallback(async () => {
         setLoading(true);
@@ -57,6 +58,78 @@ export default function PortfolioAnalysisPage() {
                 item.costCenterName.toLowerCase().includes(term)
         );
     }, [data, searchTerm]);
+
+    // Agrupar dados por Tenant (Empresa) para colapso/expansão
+    const groupedData = useMemo(() => {
+        const groups: Record<string, {
+            tenantId: string;
+            tenantName: string;
+            revenue: number;
+            taxes: number;
+            netRevenue: number;
+            costs: number;
+            grossMargin: number;
+            grossMarginPercent: number;
+            items: PortfolioItem[];
+        }> = {};
+
+        filteredData.forEach(item => {
+            const tId = item.tenantId;
+            if (!groups[tId]) {
+                groups[tId] = {
+                    tenantId: tId,
+                    tenantName: item.tenantName,
+                    revenue: 0,
+                    taxes: 0,
+                    netRevenue: 0,
+                    costs: 0,
+                    grossMargin: 0,
+                    grossMarginPercent: 0,
+                    items: []
+                };
+            }
+            
+            groups[tId].items.push(item);
+            groups[tId].revenue += item.revenue;
+            groups[tId].taxes += item.taxes;
+            groups[tId].netRevenue += item.netRevenue;
+            groups[tId].costs += item.costs;
+            groups[tId].grossMargin += item.grossMargin;
+        });
+
+        // Calcular percentuais ponderados para cada grupo consolidado de empresa
+        Object.values(groups).forEach(g => {
+            g.grossMarginPercent = g.revenue > 0 ? (g.grossMargin / g.revenue) * 100 : 0;
+            // Ordenar centros de custo
+            g.items.sort((a, b) => a.costCenterName.localeCompare(b.costCenterName));
+        });
+
+        return Object.values(groups).sort((a, b) => a.tenantName.localeCompare(b.tenantName));
+    }, [filteredData]);
+
+    const toggleTenant = useCallback((tenantId: string) => {
+        setExpandedTenants(prev => {
+            const next = new Set(prev);
+            if (next.has(tenantId)) {
+                next.delete(tenantId);
+            } else {
+                next.add(tenantId);
+            }
+            return next;
+        });
+    }, []);
+
+    const isAllExpanded = useMemo(() => {
+        return groupedData.length > 0 && expandedTenants.size === groupedData.length;
+    }, [groupedData, expandedTenants]);
+
+    const toggleAllTenants = useCallback(() => {
+        if (isAllExpanded) {
+            setExpandedTenants(new Set());
+        } else {
+            setExpandedTenants(new Set(groupedData.map(g => g.tenantId)));
+        }
+    }, [isAllExpanded, groupedData]);
 
     const totals = useMemo(() => {
         let totalRevenue = 0;
@@ -290,6 +363,29 @@ export default function PortfolioAnalysisPage() {
                             </div>
                         )}
 
+                        {/* Botão de Expandir/Recolher Tudo */}
+                        <button
+                            onClick={toggleAllTenants}
+                            style={{
+                                padding: '0.55rem 1.1rem',
+                                borderRadius: '8px',
+                                border: '1px solid var(--border-default)',
+                                background: 'var(--bg-elevated)',
+                                color: 'var(--text-primary)',
+                                fontSize: '0.85rem',
+                                fontWeight: 600,
+                                cursor: 'pointer',
+                                outline: 'none',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '0.5rem',
+                                transition: 'all 0.2s'
+                            }}
+                        >
+                            <span>{isAllExpanded ? '📂' : '📁'}</span>
+                            {isAllExpanded ? 'Recolher Empresas' : 'Expandir Empresas'}
+                        </button>
+
                     </div>
                 </div>
 
@@ -324,49 +420,112 @@ export default function PortfolioAnalysisPage() {
                                 </tr>
                             </thead>
                             <tbody>
-                                {filteredData.map((item, idx) => {
-                                    const isNegativeMB = item.grossMargin < 0;
-                                    const isGeral = item.costCenterName === 'GERAL (Sem Centro de Custo)';
-                                    
+                                {groupedData.map((group) => {
+                                    const isExpanded = expandedTenants.has(group.tenantId);
+                                    const isNegativeGroupMB = group.grossMargin < 0;
+
                                     return (
-                                        <tr 
-                                            key={`${item.tenantId}-${item.costCenterId}-${idx}`}
-                                            style={{ 
-                                                background: isGeral ? 'rgba(15, 23, 42, 0.01)' : 'transparent',
-                                                transition: 'background 0.2s'
-                                            }}
-                                            className="hover-row"
-                                        >
-                                            <td style={{ ...tdLeft, fontWeight: 700, color: 'var(--text-primary)' }}>{item.tenantName}</td>
-                                            <td style={{ ...tdLeft, color: isGeral ? 'var(--text-muted)' : 'var(--text-secondary)', fontStyle: isGeral ? 'italic' : 'normal' }}>
-                                                {item.costCenterName}
-                                            </td>
-                                            <td style={{ ...td, fontWeight: 600 }}>{formatCurrency(item.revenue)}</td>
-                                            <td style={{ ...td, color: item.taxes > 0 ? 'var(--accent-red)' : 'var(--text-secondary)' }}>
-                                                {item.taxes > 0 ? `(${formatCurrency(item.taxes)})` : formatCurrency(item.taxes)}
-                                            </td>
-                                            <td style={{ ...td, fontWeight: 600, color: 'var(--accent-blue)' }}>{formatCurrency(item.netRevenue)}</td>
-                                            <td style={{ ...td, color: item.costs > 0 ? 'var(--text-secondary)' : 'var(--text-secondary)' }}>
-                                                {item.costs > 0 ? `(${formatCurrency(item.costs)})` : formatCurrency(item.costs)}
-                                            </td>
-                                            <td style={{ 
-                                                ...td, 
-                                                fontWeight: 700, 
-                                                color: isNegativeMB ? 'var(--accent-red)' : 'var(--accent-green)',
-                                                background: isNegativeMB ? 'rgba(220, 38, 38, 0.02)' : 'rgba(5, 150, 105, 0.02)'
-                                            }}>
-                                                {formatCurrency(item.grossMargin)}
-                                            </td>
-                                            <td style={{ 
-                                                ...td, 
-                                                textAlign: 'center', 
-                                                fontWeight: 800,
-                                                color: isNegativeMB ? 'var(--accent-red)' : 'var(--accent-green)',
-                                                background: isNegativeMB ? 'rgba(220, 38, 38, 0.03)' : 'rgba(5, 150, 105, 0.03)'
-                                            }}>
-                                                {item.grossMarginPercent.toFixed(1)}%
-                                            </td>
-                                        </tr>
+                                        <React.Fragment key={group.tenantId}>
+                                            {/* Linha Pai (Empresa consolidada) */}
+                                            <tr 
+                                                style={{ 
+                                                    background: 'var(--bg-elevated)', 
+                                                    borderLeft: '4px solid var(--accent-blue)',
+                                                    fontWeight: 700,
+                                                    cursor: 'pointer'
+                                                }}
+                                                onClick={() => toggleTenant(group.tenantId)}
+                                                className="company-row hover-row"
+                                            >
+                                                <td style={{ ...tdLeft, fontWeight: 700, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                                    <span style={{ 
+                                                        display: 'inline-block', 
+                                                        transition: 'transform 0.2s', 
+                                                        transform: isExpanded ? 'rotate(90deg)' : 'rotate(0deg)',
+                                                        fontSize: '0.65rem',
+                                                        color: 'var(--text-muted)'
+                                                    }}>
+                                                        ▶
+                                                    </span>
+                                                    {group.tenantName}
+                                                </td>
+                                                <td style={{ ...tdLeft, color: 'var(--text-muted)', fontStyle: 'italic', fontSize: '0.8rem' }}>
+                                                    Consolidado ({group.items.length} CCs)
+                                                </td>
+                                                <td style={{ ...td, fontWeight: 700 }}>{formatCurrency(group.revenue)}</td>
+                                                <td style={{ ...td, color: group.taxes > 0 ? 'var(--accent-red)' : 'var(--text-secondary)', fontWeight: 700 }}>
+                                                    {group.taxes > 0 ? `(${formatCurrency(group.taxes)})` : formatCurrency(group.taxes)}
+                                                </td>
+                                                <td style={{ ...td, fontWeight: 700, color: 'var(--accent-blue)' }}>{formatCurrency(group.netRevenue)}</td>
+                                                <td style={{ ...td, color: group.costs > 0 ? 'var(--accent-red)' : 'var(--text-secondary)', fontWeight: 700 }}>
+                                                    {group.costs > 0 ? `(${formatCurrency(group.costs)})` : formatCurrency(group.costs)}
+                                                </td>
+                                                <td style={{ 
+                                                    ...td, 
+                                                    fontWeight: 700, 
+                                                    color: isNegativeGroupMB ? 'var(--accent-red)' : 'var(--accent-green)',
+                                                    background: isNegativeGroupMB ? 'rgba(220, 38, 38, 0.02)' : 'rgba(5, 150, 105, 0.02)'
+                                                }}>
+                                                    {formatCurrency(group.grossMargin)}
+                                                </td>
+                                                <td style={{ 
+                                                    ...td, 
+                                                    textAlign: 'center', 
+                                                    fontWeight: 800,
+                                                    color: isNegativeGroupMB ? 'var(--accent-red)' : 'var(--accent-green)',
+                                                    background: isNegativeGroupMB ? 'rgba(220, 38, 38, 0.03)' : 'rgba(5, 150, 105, 0.03)'
+                                                }}>
+                                                    {group.grossMarginPercent.toFixed(1)}%
+                                                </td>
+                                            </tr>
+
+                                            {/* Linhas filhas (Centros de Custo) */}
+                                            {isExpanded && group.items.map((item, idx) => {
+                                                const isNegativeMB = item.grossMargin < 0;
+                                                const isGeral = item.costCenterName === 'GERAL (Sem Centro de Custo)';
+
+                                                return (
+                                                    <tr 
+                                                        key={`${item.tenantId}-${item.costCenterId}-${idx}`}
+                                                        style={{ 
+                                                            background: isGeral ? 'rgba(15, 23, 42, 0.005)' : 'transparent',
+                                                            transition: 'background 0.2s'
+                                                        }}
+                                                        className="hover-row"
+                                                    >
+                                                        <td style={{ ...tdLeft, paddingLeft: '2.5rem', color: 'var(--text-muted)', fontSize: '0.8rem' }}>
+                                                            └─ {item.tenantName}
+                                                        </td>
+                                                        <td style={{ ...tdLeft, color: isGeral ? 'var(--text-muted)' : 'var(--text-secondary)', fontStyle: isGeral ? 'italic' : 'normal', fontWeight: isGeral ? 500 : 600 }}>
+                                                            {item.costCenterName}
+                                                        </td>
+                                                        <td style={{ ...td }}>{formatCurrency(item.revenue)}</td>
+                                                        <td style={{ ...td, color: item.taxes > 0 ? 'var(--accent-red)' : 'var(--text-secondary)' }}>
+                                                            {item.taxes > 0 ? `(${formatCurrency(item.taxes)})` : formatCurrency(item.taxes)}
+                                                        </td>
+                                                        <td style={{ ...td, color: 'var(--accent-blue)' }}>{formatCurrency(item.netRevenue)}</td>
+                                                        <td style={{ ...td }}>
+                                                            {item.costs > 0 ? `(${formatCurrency(item.costs)})` : formatCurrency(item.costs)}
+                                                        </td>
+                                                        <td style={{ 
+                                                            ...td, 
+                                                            fontWeight: 600, 
+                                                            color: isNegativeMB ? 'var(--accent-red)' : 'var(--accent-green)'
+                                                        }}>
+                                                            {formatCurrency(item.grossMargin)}
+                                                        </td>
+                                                        <td style={{ 
+                                                            ...td, 
+                                                            textAlign: 'center', 
+                                                            fontWeight: 700,
+                                                            color: isNegativeMB ? 'var(--accent-red)' : 'var(--accent-green)'
+                                                        }}>
+                                                            {item.grossMarginPercent.toFixed(1)}%
+                                                        </td>
+                                                    </tr>
+                                                );
+                                            })}
+                                        </React.Fragment>
                                     );
                                 })}
                             </tbody>

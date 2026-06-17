@@ -38,6 +38,21 @@ export default function SyncPage() {
             });
     }, []);
 
+    const handleDisconnect = async (id: string, name: string) => {
+        if (!confirm(`Excluir a empresa "${name}" e todos os dados associados a ela? Isso não afetará sua conta no Conta Azul.`)) return;
+        try {
+            const res = await fetch(`/api/companies/${id}`, { method: 'DELETE' });
+            const data = await res.json();
+            if (data.success) {
+                setTenants(prev => prev.filter(t => t.id !== id));
+            } else {
+                alert(`Erro ao desconectar: ${data.error}`);
+            }
+        } catch (e: any) {
+            alert(`Erro na requisição: ${e.message}`);
+        }
+    };
+
     const handleSync = async () => {
         if (startMonth > endMonth) {
             alert('Mês inicial não pode ser maior que o mês final.');
@@ -122,6 +137,13 @@ export default function SyncPage() {
                                                 Reconectar
                                             </a>
                                         )}
+                                        <button 
+                                            onClick={() => handleDisconnect(t.id, t.name)}
+                                            className="btn btn-secondary"
+                                            style={{ padding: '0.4rem 0.8rem', fontSize: '0.8rem', color: '#ef4444', borderColor: '#ef444430', display: 'inline-flex', alignItems: 'center', cursor: 'pointer' }}
+                                        >
+                                            🗑️ Desconectar
+                                        </button>
                                     </div>
                                 </div>
                             );

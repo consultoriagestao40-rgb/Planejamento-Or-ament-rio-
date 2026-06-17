@@ -385,6 +385,7 @@ export default function BudgetSummaryPage() {
                         {userRole === 'MASTER' && (
                             <SyncButton year={selectedYear} onSyncStart={() => setLoading(true)} onSyncComplete={fetchData} />
                         )}
+                        <Link href="/carteira" className="btn btn-secondary" style={{ padding: '0.75rem 1.25rem' }}>💼 Análise de Carteira</Link>
                         <Link href="/" className="btn btn-secondary" style={{ padding: '0.75rem 1.25rem' }}>⬅️ Dashboard</Link>
                     </div>
                 </div>

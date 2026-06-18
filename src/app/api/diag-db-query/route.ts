@@ -46,7 +46,6 @@ export async function GET() {
 
         return NextResponse.json({
             success: true,
-            tenants,
             cleanTechId: cleanTech.id,
             totalEntries: entries.length,
             categories: Object.values(categoryGroups).map(cg => ({
@@ -54,7 +53,7 @@ export async function GET() {
                 name: cg.name,
                 amount: cg.amount,
                 count: cg.count,
-                sampleEntries: cg.entries.slice(0, 5)
+                allEntries: cg.entries
             }))
         });
     } catch (e: any) {

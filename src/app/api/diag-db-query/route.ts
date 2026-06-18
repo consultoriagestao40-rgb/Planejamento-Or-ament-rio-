@@ -5,60 +5,51 @@ export const dynamic = 'force-dynamic';
 
 export async function GET() {
     try {
-        const costCenters = await prisma.costCenter.findMany({ 
-            include: { tenant: { select: { name: true, taxRate: true } } },
-            orderBy: { name: 'asc' } 
-        });
+        const jvsTenantId = 'dc2b6eed-a38a-43c3-9465-ce854bfda90f';
 
-        const normalizeName = (name: string) => 
-            (name || '')
-                .toLowerCase()
-                .replace(/^\[inativo\]\s*/i, '')
-                .replace(/^encerrado\s*/i, '')
-                .replace(/^[\d. ]+-?\s*/, '')
-                .replace(/[^a-z0-9]/g, '')
-                .trim();
-
-        const blacklist = ['CLEAN TECH', 'RIO NEGRINHO', 'REDE TONIN'];
-        const map = new Map<string, any>();
-        
-        costCenters.forEach((cc: any) => {
-            const originalName = (cc.name || '').toUpperCase();
-            const nName = normalizeName(cc.name);
-            const key = `${cc.tenantId}-${nName}`;
-            
-            const isWhiteListed = originalName.includes('CLEAN TECH PRO');
-            const isBlacklisted = !isWhiteListed && (
-                blacklist.some(b => originalName.includes(b)) || 
-                originalName.includes('[INATIVO]') || 
-                originalName.includes('ENCERRADO')
-            );
-
-            if (isBlacklisted) {
-                return;
-            }
-
-            if (!map.has(key)) {
-                const displayName = (cc.name || '')
-                    .replace(/^\[INATIVO\]\s*/i, '')
-                    .replace(/^ENCERRADO\s*/i, '')
-                    .trim();
-
-                map.set(key, {
-                    id: cc.id,
-                    name: displayName,
-                    tenantId: cc.tenantId,
-                    tenantName: cc.tenant?.name || 'Empresa Desconhecida',
-                    taxRate: cc.tenant?.taxRate || 0
-                });
+        // Get count of JVS realized entries for May 2026 by costCenterId format
+        const entries = await prisma.realizedEntry.findMany({
+            where: {
+                tenantId: jvsTenantId,
+                year: 2026,
+                month: 5,
+                viewMode: 'competencia'
+            },
+            include: {
+                costCenter: true
             }
         });
 
-        const resultCCs = Array.from(map.values()).filter(cc => cc.tenantId === 'dc2b6eed-a38a-43c3-9465-ce854bfda90f');
+        const summary = entries.map(e => ({
+            id: e.id,
+            amount: e.amount,
+            costCenterId: e.costCenterId,
+            costCenterName: e.costCenter ? e.costCenter.name : null
+        }));
+
+        const unprefixedCount = entries.filter(e => e.costCenterId && !e.costCenterId.includes(':')).length;
+        const prefixedCount = entries.filter(e => e.costCenterId && e.costCenterId.includes(':')).length;
+        const nullCount = entries.filter(e => !e.costCenterId).length;
+
+        // Also query the cost centers in the DB that contain Penha
+        const penhaCCs = await prisma.costCenter.findMany({
+            where: {
+                tenantId: jvsTenantId,
+                name: {
+                    contains: 'Penha',
+                    mode: 'insensitive'
+                }
+            }
+        });
 
         return NextResponse.json({
             success: true,
-            costCenters: resultCCs
+            totalEntries: entries.length,
+            unprefixedCount,
+            prefixedCount,
+            nullCount,
+            penhaCCs,
+            sample: summary.slice(0, 10)
         });
     } catch (e: any) {
         return NextResponse.json({ success: false, error: e.message });

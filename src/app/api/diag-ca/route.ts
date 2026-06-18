@@ -73,23 +73,14 @@ export async function GET(request: Request) {
         const vData = vRes.ok ? await vRes.json() : { vendas: [] };
         const vendas = Array.isArray(vData) ? vData : (vData.itens || vData.vendas || vData.data || []);
 
-        const salesSummaries = Array.isArray(vendas) ? vendas.map((v: any) => ({
-            id: v.id,
-            numero: v.numero || v.number,
-            valor_total: v.valor_total || v.total,
-            status: v.status,
-            keys: Object.keys(v),
-            ret: v.retencoes || v.valor_retencao || v.total_retencao,
-            imp: v.impostos || v.imposto,
-            itens_keys: v.itens?.[0] ? Object.keys(v.itens[0]) : null
-        })) : [];
-
+                const sampleSales = Array.isArray(vendas) ? vendas.slice(0, 2) : [];
+        
         return NextResponse.json({
             success: true,
             tenant: { id: tenant.id, name: tenant.name },
             contasAPagarCount: capItems.length,
             vendasCount: vendas.length,
-            salesSummaries,
+            sampleSales,
             contasAPagar: capItems.map((p: any) => ({
                 id: p.id,
                 descricao: p.descricao || p.description,

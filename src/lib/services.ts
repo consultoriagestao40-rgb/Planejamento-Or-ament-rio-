@@ -513,41 +513,50 @@ async function addRetentionsFromSales(accessToken: string, tenantId: string, yea
         for (const item of items) {
             if ((item.status || '').toUpperCase().includes('CANCEL')) continue;
             
-            const ret = item.retencoes || {};
-            const totalRet = (ret.iss || 0) + (ret.irrf || 0) + (ret.csll || 0) + (ret.pis || 0) + (ret.cofins || 0);
+            // Fetch detailed sale info to get the composicao_valor and exact taxes/retentions
+            const detailUrl = `https://api-v2.contaazul.com/v1/venda/${item.id}`;
+            const detailRes = await fetch(detailUrl, {
+                headers: { 'Authorization': `Bearer ${accessToken}` },
+                cache: 'no-store'
+            });
+
+            if (!detailRes.ok) {
+                console.warn(`[Conta Azul API] Falha ao buscar detalhes da venda ${item.id}: status ${detailRes.status}`);
+                continue;
+            }
+
+            const detailData = await detailRes.json();
+            const sale = detailData.venda || detailData;
+            if (!sale) continue;
+
+            const compVal = sale.composicao_valor || {};
+            const totalRet = compVal.impostos || 0;
             
             if (totalRet > 0) {
-                // Find category of first item in sale
-                const saleCatId = item.itens?.[0]?.categoria_id || item.itens?.[0]?.id_categoria || item.categoria_id || 'a5e9a3c0-464b-4ee8-97c2-41589c16cb39';
+                const saleCatId = sale.id_categoria || 'a5e9a3c0-464b-4ee8-97c2-41589c16cb39';
                 let mappedRevenueCatId = saleCatId;
                 
                 // Mapear se for JVS Facilities
                 if (tenantId === 'dc2b6eed-a38a-43c3-9465-ce854bfda90f') {
                     const mapping: Record<string, string> = {
-                        'a5e9a3c0-464b-4ee8-97c2-41589c16cb39': 'dc2b6eed-a38a-43c3-9465-ce854bfda90f:ff1133d9-438c-418f-9fbd-7aaea606c089', // 01.1.1 - Serviços Vendidos
-                        'df8e2be4-bc1a-43e6-abcf-e11bdc2166f6': 'dc2b6eed-a38a-43c3-9465-ce854bfda90f:cb3d9d47-39e8-4121-ae9b-85a2de798f0f', // 01.1.2 - Serviços Extras
-                        'c3c491af-26f8-4260-9958-64222c73dffd': 'dc2b6eed-a38a-43c3-9465-ce854bfda90f:2093bcb6-0696-4eb3-81ba-54b4bf32d6df', // 01.2.1 - Receitas de Vendas
+                        'a5e9a3c0-464b-4ee8-97c2-41589c16cb39': 'ff1133d9-438c-418f-9fbd-7aaea606c089', // 01.1.1 - Serviços Vendidos
+                        'df8e2be4-bc1a-43e6-abcf-e11bdc2166f6': 'cb3d9d47-39e8-4121-ae9b-85a2de798f0f', // 01.1.2 - Serviços Extras
+                        'c3c491af-26f8-4260-9958-64222c73dffd': '2093bcb6-0696-4eb3-81ba-54b4bf32d6df', // 01.2.1 - Receitas de Vendas
                     };
                     if (mapping[mappedRevenueCatId]) mappedRevenueCatId = mapping[mappedRevenueCatId];
                 }
 
-                const ccs = item.centros_de_custo || [];
-
-                if (ccs.length === 0) {
-                    const revKey = `${mappedRevenueCatId}|NONE-${monthIdx}`;
-                    const taxKey = `${taxCatId}|NONE-${monthIdx}`;
-                    monthValues[revKey] = (monthValues[revKey] || 0) + totalRet;
-                    monthValues[taxKey] = (monthValues[taxKey] || 0) + totalRet;
-                } else {
-                    ccs.forEach((c: any) => {
-                        const ccId = c.id;
-                        const percent = (c.percentual || (100 / ccs.length)) / 100;
-                        const revKey = `${mappedRevenueCatId}|${ccId}-${monthIdx}`;
-                        const taxKey = `${taxCatId}|${ccId}-${monthIdx}`;
-                        monthValues[revKey] = (monthValues[revKey] || 0) + (totalRet * percent);
-                        monthValues[taxKey] = (monthValues[taxKey] || 0) + (totalRet * percent);
-                    });
+                if (mappedRevenueCatId && !mappedRevenueCatId.startsWith(tenantId)) {
+                    mappedRevenueCatId = `${tenantId}:${mappedRevenueCatId}`;
                 }
+
+                const ccId = sale.id_centro_custo || 'NONE';
+
+                const revKey = `${mappedRevenueCatId}|${ccId}-${monthIdx}`;
+                const taxKey = `${taxCatId}|${ccId}-${monthIdx}`;
+                
+                monthValues[revKey] = (monthValues[revKey] || 0) + totalRet;
+                monthValues[taxKey] = (monthValues[taxKey] || 0) + totalRet;
             }
         }
 

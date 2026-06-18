@@ -1,7 +1,6 @@
 'use client';
 
 import { useState } from 'react';
-import { syncFinancialData } from '@/actions/sync';
 
 export function SyncButton({ onSyncComplete, onSyncStart, year }: { onSyncComplete?: () => void; onSyncStart?: () => void; year?: number }) {
     const [loading, setLoading] = useState(false);
@@ -29,14 +28,6 @@ export function SyncButton({ onSyncComplete, onSyncStart, year }: { onSyncComple
                 const company = companies[i];
                 setProgress(`Sincronizando ${company.name} (${i + 1}/${companies.length})...`);
                 
-                // 1.1 Sincronizar Metadados (Server Action)
-                // Nota: syncFinancialData precisaria ser atualizado para aceitar tenantId se quisermos ser 100% granulares aqui também.
-                // Mas geralmente metadados são rápidos. Vamos manter assim por enquanto ou passar o target.
-                const metaResult = await syncFinancialData(); 
-                if (!metaResult.success) {
-                    console.warn(`Aviso: Sincronização de metadados para ${company.name} retornou erro.`);
-                }
-
                 // 1.2 Sincronizar Valores (API Route com timeout controlado)
                 const cronRes = await fetch(`/api/cron/sync?year=${targetYear}&tenantId=${company.id}`);
                 const cronData = await cronRes.json();

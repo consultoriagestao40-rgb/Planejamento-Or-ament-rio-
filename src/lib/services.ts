@@ -184,6 +184,61 @@ export async function syncRealizedEntries(
     });
 
     if (entriesToSave.length > 0) {
+        // --- PREVENT FOREIGN KEY CONSTRAINTS (CostCenter) ---
+        const ccIdsToVerify = Array.from(new Set(
+            entriesToSave
+                .map(e => e.costCenterId)
+                .filter((id): id is string => !!id)
+        ));
+        if (ccIdsToVerify.length > 0) {
+            const existingCCs = await prisma.costCenter.findMany({
+                where: { id: { in: ccIdsToVerify } },
+                select: { id: true }
+            });
+            const existingCCIds = new Set(existingCCs.map(cc => cc.id));
+            const missingCCIds = ccIdsToVerify.filter(id => !existingCCIds.has(id));
+
+            if (missingCCIds.length > 0) {
+                const ccsToCreate = missingCCIds.map(id => ({
+                    id,
+                    name: `Não Identificado (${id.substring(0, 8)})`,
+                    tenantId
+                }));
+                await prisma.costCenter.createMany({
+                    data: ccsToCreate,
+                    skipDuplicates: true
+                });
+            }
+        }
+
+        // --- PREVENT FOREIGN KEY CONSTRAINTS (Category) ---
+        const catIdsToVerify = Array.from(new Set(
+            entriesToSave
+                .map(e => e.categoryId)
+                .filter((id): id is string => !!id)
+        ));
+        if (catIdsToVerify.length > 0) {
+            const existingCats = await prisma.category.findMany({
+                where: { id: { in: catIdsToVerify } },
+                select: { id: true }
+            });
+            const existingCatIds = new Set(existingCats.map(cat => cat.id));
+            const missingCatIds = catIdsToVerify.filter(id => !existingCatIds.has(id));
+
+            if (missingCatIds.length > 0) {
+                const catsToCreate = missingCatIds.map(id => ({
+                    id,
+                    name: `Outras Despesas (${id.substring(0, 8)})`,
+                    tenantId,
+                    type: 'OTHER'
+                }));
+                await prisma.category.createMany({
+                    data: catsToCreate,
+                    skipDuplicates: true
+                });
+            }
+        }
+
         await prisma.realizedEntry.createMany({ data: entriesToSave, skipDuplicates: true });
     }
 

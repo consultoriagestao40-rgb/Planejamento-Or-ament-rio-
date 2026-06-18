@@ -7,7 +7,7 @@ export async function GET() {
     try {
         const jvsEntries = await prisma.realizedEntry.findMany({
             where: {
-                tenantId: 'dc2b6eed-a38a-43c3-9465-ce854bfda90f',
+                tenantId: '413f88a7-ce4a-4620-b044-43ef909b7b26',
                 year: 2026,
                 month: 5,
                 viewMode: 'competencia'

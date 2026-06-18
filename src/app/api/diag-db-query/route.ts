@@ -7,15 +7,19 @@ export async function GET() {
     try {
         const entries = await prisma.realizedEntry.findMany({
             where: {
-                amount: 1760.16
+                OR: [
+                    { description: { contains: 'sefaz', mode: 'insensitive' } },
+                    { categoryId: { contains: '514d81fe-c366-4714-8243-39bbb4bc9e55' } },
+                    { categoryId: { contains: '5405d46e-a1f0-45cf-a30c-634d13d7a28b' } }
+                ]
             },
             include: { category: true, tenant: true }
         });
         
         return NextResponse.json({
             success: true,
-            totalJvsEntries: entries.length,
-            jvsEntries: entries.map(e => ({
+            count: entries.length,
+            entries: entries.map(e => ({
                 id: e.id,
                 amount: e.amount,
                 description: e.description,

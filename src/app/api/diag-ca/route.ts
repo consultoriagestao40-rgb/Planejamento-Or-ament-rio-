@@ -54,6 +54,7 @@ export async function GET(request: Request) {
 
         const startStr = '2026-05-01';
         const endStr = '2026-05-31';
+        const year = 2026;
 
         // Buscar Vendas
         const salesRes = await fetch(`https://api-v2.contaazul.com/v1/venda/busca?data_inicio=${startStr}&data_fim=${endStr}&tamanho_pagina=100`, {
@@ -71,19 +72,19 @@ export async function GET(request: Request) {
         const recData = recRes.ok ? await recRes.json() : {};
         const recItens = recData.itens || [];
 
-        // Detalhe de uma venda (Herbarium) e sua conta a receber correspondente
-        const herbariumSale = salesItens.find((s: any) => s.cliente?.nome?.includes('HERBARIUM'));
-        const herbariumRec = recItens.find((r: any) => r.cliente?.nome?.includes('HERBARIUM') || r.descricao?.includes('428') || r.venda_id === herbariumSale?.id);
+        // Buscar Contas a Pagar
+        const pagRes = await fetch(`https://api-v2.contaazul.com/v1/financeiro/eventos-financeiros/contas-a-pagar/buscar?data_vencimento_de=2026-01-01&data_vencimento_ate=2026-12-31&data_competencia_de=${startStr}&data_competencia_ate=${endStr}&tamanho_pagina=100`, {
+            headers: { 'Authorization': `Bearer ${activeToken}` },
+            cache: 'no-store'
+        });
+        const pagData = pagRes.ok ? await pagRes.json() : {};
+        const pagItens = pagData.itens || [];
 
         return NextResponse.json({
             sucesso: true,
-            vendasCount: salesItens.length,
-            vendasSum: salesItens.reduce((acc: number, curr: any) => acc + (curr.total || 0), 0),
-            herbariumSaleRaw: herbariumSale || null,
-            herbariumRecRaw: herbariumRec || null,
-            // Retornar as chaves de 1 item de conta a receber para ver o que existe nele
-            sampleRecKeys: recItens.length > 0 ? Object.keys(recItens[0]) : [],
-            sampleRecFull: recItens.length > 0 ? recItens[0] : null
+            vendas: salesItens,
+            contas_a_receber: recItens,
+            contas_a_pagar: pagItens
         });
 
     } catch (e: any) {

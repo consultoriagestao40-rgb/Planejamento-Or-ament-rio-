@@ -7,26 +7,24 @@ export async function GET() {
     try {
         const jvsEntries = await prisma.realizedEntry.findMany({
             where: {
-                tenantId: '413f88a7-ce4a-4620-b044-43ef909b7b26',
+                tenantId: 'dc2b6eed-a38a-43c3-9465-ce854bfda90f',
                 year: 2026,
                 month: 5,
                 viewMode: 'competencia'
             },
-            include: { category: true }
+            include: { category: true },
+            orderBy: { amount: 'desc' }
         });
-        
-        // Find if any entry contains amount 1760.16
-        const sefazEntries = jvsEntries.filter(e => Math.abs(e.amount - 1760.16) < 0.01 || e.description?.toLowerCase().includes('sefaz') || e.category.name.toLowerCase().includes('sefaz'));
         
         return NextResponse.json({
             success: true,
             totalJvsEntries: jvsEntries.length,
-            sefazEntries,
             jvsEntries: jvsEntries.map(e => ({
                 id: e.id,
                 amount: e.amount,
                 description: e.description,
                 categoryName: e.category.name,
+                categoryId: e.categoryId,
                 costCenterId: e.costCenterId
             }))
         });

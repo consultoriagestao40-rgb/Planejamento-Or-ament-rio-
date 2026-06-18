@@ -482,7 +482,7 @@ export default function BudgetGrid({
         const syntheticParents = [
             { code: '01.1', name: '01.1 - Receita de Serviços', parentCode: '01' },
             { code: '01.2', name: '01.2 - Receitas de Vendas', parentCode: '01' },
-            { code: '02.1', name: '02.1 - Tributos', parentCode: null },
+            { code: '02.1', name: '02.1 - Tributos', parentCode: '02' },
             // CUSTOS OPERACIONAIS (03.1 to 03.9)
             { code: '03.1', name: '03.1 Salarios e Remuneração', parentCode: '03' },
             { code: '03.2', name: '03.2 Encargos Sociais', parentCode: '03' },
@@ -545,8 +545,21 @@ export default function BudgetGrid({
 
         // 3. Linking
         map.forEach(node => {
-            if (node.isSynthetic) return;
             const code = node.code || '';
+
+            if (node.isSynthetic) {
+                const synthDef = syntheticParents.find(s => s.code === code);
+                if (synthDef && synthDef.parentCode) {
+                    const parent = codeMap.get(synthDef.parentCode);
+                    if (parent) {
+                        const alreadyHas = parent.children.some(c => c.id === node.id);
+                        if (!alreadyHas) {
+                            parent.children.push(node);
+                        }
+                    }
+                }
+                return;
+            }
 
             if (code.startsWith('01.1.')) {
                 const parent = codeMap.get('01.1');
@@ -667,7 +680,7 @@ export default function BudgetGrid({
 
             for (let i = 0; i < 12; i++) {
                 // RULE: Allow all categories
-                const isDataPoint = !node.isSynthetic;
+                const isDataPoint = !node.isSynthetic && node.children.length === 0;
 
                 if (!node.isSynthetic && isDataPoint) {
                     const sign = negated ? -1 : 1;

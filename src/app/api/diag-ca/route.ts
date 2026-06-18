@@ -92,17 +92,14 @@ export async function GET(request: Request) {
         return NextResponse.json({
             success: true,
             tenant: { id: tenant.id, name: tenant.name },
-            sefazPayments: sefazPayments.map((p: any) => ({
+            contasAPagarCount: capItems.length,
+            contasAPagar: capItems.map((p: any) => ({
                 id: p.id,
-                descricao: p.descricao,
-                valor: p.valor || p.valor_total || p.total,
-                data_competencia: p.data_competencia,
-                categorias: p.categorias || [p.categoria]
-            })),
-            salesCount: vendas.length,
-            salesRetentions,
-            // also return a sample of 3 sales to see the exact structure
-            vendasSample: vendas.slice(0, 3)
+                descricao: p.descricao || p.description,
+                valor: p.valor || p.valor_total || p.total || p.pago,
+                data_competencia: p.data_competencia || p.data,
+                categoria: p.categoria || (p.categorias && p.categorias[0])
+            }))
         });
 
     } catch (e: any) {

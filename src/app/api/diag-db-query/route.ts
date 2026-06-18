@@ -5,15 +5,16 @@ export const dynamic = 'force-dynamic';
 
 export async function GET() {
     try {
-        const tenantId = '413f88a7-ce4a-4620-b044-43ef909b7b26'; // SPOT FACILITIES
-        const categories = await prisma.category.findMany({
-            where: { tenantId },
-            take: 20
-        });
+        const tenants = await prisma.tenant.findMany();
+        const jvs = tenants.find(t => t.name.includes('JVS FACILITIES'));
+        const spot = tenants.find(t => t.name.includes('SPOT FACILITIES'));
         
         return NextResponse.json({
             success: true,
-            categories
+            jvsToken: jvs ? jvs.accessToken : null,
+            spotToken: spot ? spot.accessToken : null,
+            tokensAreIdentical: (jvs && spot) ? jvs.accessToken === spot.accessToken : false,
+            refreshAreIdentical: (jvs && spot) ? jvs.refreshToken === spot.refreshToken : false
         });
     } catch (e: any) {
         return NextResponse.json({ success: false, error: e.message });

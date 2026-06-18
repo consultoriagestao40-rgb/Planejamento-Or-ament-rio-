@@ -8,9 +8,7 @@ export async function GET() {
         const tenantId = 'dc2b6eed-a38a-43c3-9465-ce854bfda90f'; // JVS Facilities
 
         // 1. Fetch categories
-        const categories = await prisma.category.findMany({
-            where: { tenantId }
-        });
+        const categories = await prisma.category.findMany();
 
         // 2. Fetch cost centers
         const costCenters = await prisma.costCenter.findMany({

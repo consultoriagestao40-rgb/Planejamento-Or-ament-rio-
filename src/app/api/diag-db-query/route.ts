@@ -48,8 +48,8 @@ export async function GET() {
         return NextResponse.json({
             success: true,
             entriesCount: entries.length,
-            groupSums,
-            catSums
+            realizedEntries: entries,
+            categories: categories.map(c => ({ id: c.id, name: c.name, type: c.type, entradaDre: c.entradaDre }))
         });
     } catch (e: any) {
         return NextResponse.json({ success: false, error: e.message });

@@ -5,7 +5,8 @@ export const dynamic = 'force-dynamic';
 
 export async function GET(request: Request) {
     try {
-        const tenantId = 'dc2b6eed-a38a-43c3-9465-ce854bfda90f'; // JVS Facilities
+        const { searchParams } = new URL(request.url);
+        const tenantId = searchParams.get('tenantId') || 'dc2b6eed-a38a-43c3-9465-ce854bfda90f';
         
         const tenant = await prisma.tenant.findUnique({
             where: { id: tenantId }

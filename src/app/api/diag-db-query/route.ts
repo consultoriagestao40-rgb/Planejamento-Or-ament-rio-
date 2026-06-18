@@ -5,7 +5,7 @@ export const dynamic = 'force-dynamic';
 
 export async function GET() {
     try {
-        const tenantId = 'dc2b6eed-a38a-43c3-9465-ce854bfda90f'; // JVS Facilities
+        const tenantId = '0013c839-93bb-472d-ba64-092c89e1cacf'; // JVS Tratamentos
 
         // 1. Fetch categories
         const categories = await prisma.category.findMany();

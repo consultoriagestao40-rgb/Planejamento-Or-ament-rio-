@@ -399,16 +399,36 @@ async function aggregateTransactions(accessToken: string, url: string, targetVal
                 // Mapear IDs de produção para IDs do banco (com prefixo de tenant) para a JVS Facilities
                 if (tenantId === 'dc2b6eed-a38a-43c3-9465-ce854bfda90f') {
                     const mapping: Record<string, string> = {
-                        'a5e9a3c0-464b-4ee8-97c2-41589c16cb39': 'dc2b6eed-a38a-43c3-9465-ce854bfda90f:ff1133d9-438c-418f-9fbd-7aaea606c089', // Serviços Vendidos
-                        'df8e2be4-bc1a-43e6-abcf-e11bdc2166f6': 'dc2b6eed-a38a-43c3-9465-ce854bfda90f:cb3d9d47-39e8-4121-ae9b-85a2de798f0f', // Serviços Extras
-                        '23b9c662-feca-4284-a11d-39bce5c233fc': 'dc2b6eed-a38a-43c3-9465-ce854bfda90f:0f74ee3e-ed1e-4df8-9672-270873dc22b9', // Salários
-                        'c5e21dd4-2c92-4ca5-a180-0fdd138166a7': 'dc2b6eed-a38a-43c3-9465-ce854bfda90f:094007e9-2b81-4b65-b7c5-468e356f73ea', // Vale Transporte
-                        '184e5b87-77df-4eae-942c-840a58a15f05': 'dc2b6eed-a38a-43c3-9465-ce854bfda90f:0523cd73-ac23-4b3e-827c-d60c8ef3377c', // Diária Serviço Vendido
-                        'c7a31d42-bd04-4f76-9dfa-d561b7c0cebf': 'dc2b6eed-a38a-43c3-9465-ce854bfda90f:36b7a96b-6cac-4c9f-a7ac-9de8774f5b95', // Diária Coberturas
-                        '4f3e8d55-a7f2-4361-9af9-1b2dbf8f0c78': 'dc2b6eed-a38a-43c3-9465-ce854bfda90f:72c69d1c-db65-4ae0-a6d9-8fc3c83ccd5b', // Tarifas/Juros/Multas (06.4.1)
-                        'd22c9581-ec57-4141-b66f-08632dae7749': 'dc2b6eed-a38a-43c3-9465-ce854bfda90f:909681ce-2877-4240-9694-2ef6e8d38472', // Mensalidades de Terceiros (04.8.1)
-                        '3f61dfba-0dbf-44b6-8d17-864ad3b719cd': 'dc2b6eed-a38a-43c3-9465-ce854bfda90f:4dbc02ba-db1e-47ce-9ba8-c3cc07d01659',  // Software / Licença de Uso (05.12.1)
-                        '1452e2b7-3968-4370-9173-412736e4d1df': 'dc2b6eed-a38a-43c3-9465-ce854bfda90f:1452e2b7-3968-4370-9173-412736e4d1df'   // DAS
+                        // Receitas
+                        'a5e9a3c0-464b-4ee8-97c2-41589c16cb39': 'dc2b6eed-a38a-43c3-9465-ce854bfda90f:ff1133d9-438c-418f-9fbd-7aaea606c089', // 01.1.1 - Serviços Vendidos
+                        'df8e2be4-bc1a-43e6-abcf-e11bdc2166f6': 'dc2b6eed-a38a-43c3-9465-ce854bfda90f:cb3d9d47-39e8-4121-ae9b-85a2de798f0f', // 01.1.2 - Serviços Extras
+                        'c3c491af-26f8-4260-9958-64222c73dffd': 'dc2b6eed-a38a-43c3-9465-ce854bfda90f:2093bcb6-0696-4eb3-81ba-54b4bf32d6df', // 01.2.1 - Receitas de Vendas
+
+                        // Custos Operacionais (03)
+                        '23b9c662-feca-4284-a11d-39bce5c233fc': 'dc2b6eed-a38a-43c3-9465-ce854bfda90f:0f74ee3e-ed1e-4df8-9672-270873dc22b9', // 03.1.1 - Salários
+                        'dc7a9e89-0965-4252-9f50-78d3e3affb5f': 'dc2b6eed-a38a-43c3-9465-ce854bfda90f:757c1323-acb2-49b8-bc92-e23673f228dd', // 03.2.1 - Recolhimento FGTS
+                        'c5e21dd4-2c92-4ca5-a180-0fdd138166a7': 'dc2b6eed-a38a-43c3-9465-ce854bfda90f:094007e9-2b81-4b65-b7c5-468e356f73ea', // 03.3.1 - Vale Transporte
+                        'd5c2b0a7-72cf-4770-bb7a-b1a56a24e0af': 'dc2b6eed-a38a-43c3-9465-ce854bfda90f:a0c0556d-0326-4209-9ee6-794d6850214c', // 03.3.2 - Vale Alimentação
+                        '184e5b87-77df-4eae-942c-840a58a15f05': 'dc2b6eed-a38a-43c3-9465-ce854bfda90f:0523cd73-ac23-4b3e-827c-d60c8ef3377c', // 03.4.1 - Diária Serviço Vendido
+                        'c7a31d42-bd04-4f76-9dfa-d561b7c0cebf': 'dc2b6eed-a38a-43c3-9465-ce854bfda90f:36b7a96b-6cac-4c9f-a7ac-9de8774f5b95', // 03.4.2 - Diária Coberturas
+
+                        // Despesas Operacionais (04)
+                        'd22c9581-ec57-4141-b66f-08632dae7749': 'dc2b6eed-a38a-43c3-9465-ce854bfda90f:909681ce-2877-4240-9694-2ef6e8d38472', // 04.8.1 - Pagamento de Mensalidade de Terceiros
+
+                        // Despesas Administrativas (05)
+                        '1d018eed-24a5-42d3-986b-3b77726da7d4': 'dc2b6eed-a38a-43c3-9465-ce854bfda90f:9403a15f-6e38-4e66-bd7f-f45504c9aad7', // 05.6.1 - Pró-labore
+                        '3f61dfba-0dbf-44b6-8d17-864ad3b719cd': 'dc2b6eed-a38a-43c3-9465-ce854bfda90f:4dbc02ba-db1e-47ce-9ba8-c3cc07d01659', // 05.12.1 - Software / Licença de Uso
+
+                        // Despesas/Entradas Financeiras (06)
+                        'ef8ee1b0-f0d0-446a-8a28-dbd8df16b852': 'dc2b6eed-a38a-43c3-9465-ce854bfda90f:58736492-9937-4b52-b10f-247fdbbc49ad', // 06.1.1 - Transferência entre CNPJ
+                        '24108198-ba94-4e14-bef6-1d4c63255a7d': 'dc2b6eed-a38a-43c3-9465-ce854bfda90f:8ff72ab7-c678-4170-a7dd-c2b328079fc7', // 06.1.2 - Transferencia entre Contas
+                        'ebcecc1e-c840-4ef0-b31c-0eb150d4fde1': 'dc2b6eed-a38a-43c3-9465-ce854bfda90f:edc92b2c-cdb0-44d5-bc69-2055b9365860', // 06.2.1 - Transferencia entre CNPJ (Saída)
+                        '3e51d9eb-ea68-4624-9ea7-ac5af12f452c': 'dc2b6eed-a38a-43c3-9465-ce854bfda90f:e88cba21-a650-4796-9b6c-574968222933', // 06.2.2 - Transferencia entre conta (Saída)
+                        '4f3e8d55-a7f2-4361-9af9-1b2dbf8f0c78': 'dc2b6eed-a38a-43c3-9465-ce854bfda90f:72c69d1c-db65-4ae0-a6d9-8fc3c83ccd5b', // 06.4.1 - Tarifas/Juros/Multas
+
+                        // Tributos (02)
+                        '1452e2b7-3968-4370-9173-412736e4d1df': 'dc2b6eed-a38a-43c3-9465-ce854bfda90f:1452e2b7-3968-4370-9173-412736e4d1df', // 2.1.1 - Simples Nacional - DAS
+                        '514d81fe-c366-4714-8243-39bbb4bc9e55': 'dc2b6eed-a38a-43c3-9465-ce854bfda90f:5405d46e-a1f0-45cf-a30c-634d13d7a28b'  // 2.1.2 - Sefaz
                     };
                     if (mapping[catId]) catId = mapping[catId];
                 }

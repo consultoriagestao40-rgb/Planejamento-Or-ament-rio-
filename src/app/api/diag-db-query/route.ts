@@ -17,59 +17,39 @@ function decodeJwt(token: string | null) {
 
 export async function GET() {
     try {
-        const jvsId = 'dc2b6eed-a38a-43c3-9465-ce854bfda90f';
-        const spotId = '413f88a7-ce4a-4620-b044-43ef909b7b26';
+        const tenantId = '413f88a7-ce4a-4620-b044-43ef909b7b26'; // SPOT FACILITIES
+        const entries = await prisma.realizedEntry.findMany({
+            where: { tenantId, year: 2026, month: 5, viewMode: 'competencia' }
+        });
         
-        const jvs = await prisma.tenant.findUnique({ where: { id: jvsId } });
-        const spot = await prisma.tenant.findUnique({ where: { id: spotId } });
+        const categories = await prisma.category.findMany();
+        const catMap = new Map(categories.map(c => [c.id, c]));
         
-        if (!jvs || !spot) {
-            return NextResponse.json({ success: false, error: "JVS or Spot tenant not found" });
+        const groupSums: Record<string, number> = {};
+        const catSums: Record<string, number> = {};
+        
+        for (const r of entries) {
+            const cat = catMap.get(r.categoryId) || (r.categoryId.includes(':') ? catMap.get(r.categoryId.split(':')[1]) : null);
+            const name = cat ? cat.name : 'Unknown';
+            const match = name.match(/^([\d.]+)/);
+            const code = match ? match[1] : '';
+            let group = 'other';
+            if (code.startsWith('01') || code === '1') group = '01';
+            else if (code.startsWith('02') || code.startsWith('2')) group = '02';
+            else if (code.startsWith('03') || code.startsWith('3')) group = '03';
+            else if (code.startsWith('04') || code.startsWith('4')) group = '04';
+            else if (code.startsWith('05') || code.startsWith('5')) group = '05';
+            else if (code.startsWith('06') || code.startsWith('6')) group = '06';
+            
+            groupSums[group] = (groupSums[group] || 0) + r.amount;
+            catSums[name] = (catSums[name] || 0) + r.amount;
         }
-        
-        // Swap tokens
-        await prisma.tenant.update({
-            where: { id: jvsId },
-            data: {
-                accessToken: spot.accessToken,
-                refreshToken: spot.refreshToken,
-                tokenExpiresAt: spot.tokenExpiresAt
-            }
-        });
-        
-        await prisma.tenant.update({
-            where: { id: spotId },
-            data: {
-                accessToken: jvs.accessToken,
-                refreshToken: jvs.refreshToken,
-                tokenExpiresAt: jvs.tokenExpiresAt
-            }
-        });
-        
-        // Delete all sync- realized entries for both for May 2026 to force clean sync
-        const delJvs = await prisma.realizedEntry.deleteMany({
-            where: {
-                tenantId: jvsId,
-                year: 2026,
-                month: 5,
-                externalId: { startsWith: 'sync-' }
-            }
-        });
-        
-        const delSpot = await prisma.realizedEntry.deleteMany({
-            where: {
-                tenantId: spotId,
-                year: 2026,
-                month: 5,
-                externalId: { startsWith: 'sync-' }
-            }
-        });
         
         return NextResponse.json({
             success: true,
-            swapped: true,
-            delJvsCount: delJvs.count,
-            delSpotCount: delSpot.count
+            entriesCount: entries.length,
+            groupSums,
+            catSums
         });
     } catch (e: any) {
         return NextResponse.json({ success: false, error: e.message });

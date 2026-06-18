@@ -54,31 +54,31 @@ export async function GET(request: Request) {
 
         const startStr = '2026-05-01';
         const endStr = '2026-05-31';
-        const year = 2026;
 
-        // Buscar Vendas
-        const salesRes = await fetch(`https://api-v2.contaazul.com/v1/venda/busca?data_inicio=${startStr}&data_fim=${endStr}&tamanho_pagina=100`, {
-            headers: { 'Authorization': `Bearer ${activeToken}` },
-            cache: 'no-store'
-        });
-        const salesData = salesRes.ok ? await salesRes.json() : {};
-        const salesItens = salesData.itens || [];
-
-        // Buscar Contas a Receber
-        const recRes = await fetch(`https://api-v2.contaazul.com/v1/financeiro/eventos-financeiros/contas-a-receber/buscar?data_vencimento_de=2026-01-01&data_vencimento_ate=2026-12-31&data_competencia_de=${startStr}&data_competencia_ate=${endStr}&tamanho_pagina=100`, {
+        // 2. Fazer requisições usando o token com intervalo de vencimento ampliado (2024 a 2028)
+        const recUrl = `https://api-v2.contaazul.com/v1/financeiro/eventos-financeiros/contas-a-receber/buscar?data_vencimento_de=2024-01-01&data_vencimento_ate=2028-12-31&data_competencia_de=${startStr}&data_competencia_ate=${endStr}&tamanho_pagina=100`;
+        const recRes = await fetch(recUrl, {
             headers: { 'Authorization': `Bearer ${activeToken}` },
             cache: 'no-store'
         });
         const recData = recRes.ok ? await recRes.json() : {};
         const recItens = recData.itens || [];
 
-        // Buscar Contas a Pagar
-        const pagRes = await fetch(`https://api-v2.contaazul.com/v1/financeiro/eventos-financeiros/contas-a-pagar/buscar?data_vencimento_de=2026-01-01&data_vencimento_ate=2026-12-31&data_competencia_de=${startStr}&data_competencia_ate=${endStr}&tamanho_pagina=100`, {
+        const pagUrl = `https://api-v2.contaazul.com/v1/financeiro/eventos-financeiros/contas-a-pagar/buscar?data_vencimento_de=2024-01-01&data_vencimento_ate=2028-12-31&data_competencia_de=${startStr}&data_competencia_ate=${endStr}&tamanho_pagina=100`;
+        const pagRes = await fetch(pagUrl, {
             headers: { 'Authorization': `Bearer ${activeToken}` },
             cache: 'no-store'
         });
         const pagData = pagRes.ok ? await pagRes.json() : {};
         const pagItens = pagData.itens || [];
+
+        const salesUrl = `https://api-v2.contaazul.com/v1/venda/busca?data_inicio=${startStr}&data_fim=${endStr}&tamanho_pagina=100`;
+        const salesRes = await fetch(salesUrl, {
+            headers: { 'Authorization': `Bearer ${activeToken}` },
+            cache: 'no-store'
+        });
+        const salesData = salesRes.ok ? await salesRes.json() : {};
+        const salesItens = salesData.itens || [];
 
         return NextResponse.json({
             sucesso: true,

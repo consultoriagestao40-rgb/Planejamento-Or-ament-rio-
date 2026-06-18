@@ -3,19 +3,32 @@ import { prisma } from '@/lib/prisma';
 
 export const dynamic = 'force-dynamic';
 
+function decodeJwt(token: string | null) {
+    if (!token) return null;
+    try {
+        const parts = token.split('.');
+        if (parts.length < 2) return null;
+        const payload = Buffer.from(parts[1], 'base64').toString('utf8');
+        return JSON.parse(payload);
+    } catch (e) {
+        return null;
+    }
+}
+
 export async function GET() {
     try {
         const tenants = await prisma.tenant.findMany();
-        const jvs = tenants.find(t => t.name.includes('JVS FACILITIES'));
-        const spot = tenants.find(t => t.name.includes('SPOT FACILITIES'));
-        
-        return NextResponse.json({
-            success: true,
-            jvsToken: jvs ? jvs.accessToken : null,
-            spotToken: spot ? spot.accessToken : null,
-            tokensAreIdentical: (jvs && spot) ? jvs.accessToken === spot.accessToken : false,
-            refreshAreIdentical: (jvs && spot) ? jvs.refreshToken === spot.refreshToken : false
+        const results = tenants.map(t => {
+            const decoded = decodeJwt(t.accessToken);
+            return {
+                id: t.id,
+                name: t.name,
+                cnpj: t.cnpj,
+                username: decoded ? decoded.username : null,
+                client_id: decoded ? decoded.client_id : null
+            };
         });
+        return NextResponse.json({ success: true, results });
     } catch (e: any) {
         return NextResponse.json({ success: false, error: e.message });
     }

@@ -48,21 +48,46 @@ export async function GET(request: Request) {
         const startStr = '2026-05-01';
         const endStr = '2026-05-31';
 
-        // 2. Fetch contas-a-pagar
-        const capUrl = `https://api-v2.contaazul.com/v1/financeiro/eventos-financeiros/contas-a-pagar/buscar?data_vencimento_de=2026-01-01&data_vencimento_ate=2026-12-31&data_competencia_de=${startStr}&data_competencia_ate=${endStr}&tamanho_pagina=100`;
-        const capRes = await fetch(capUrl, {
-            headers: { 'Authorization': `Bearer ${activeToken}` },
-            cache: 'no-store'
-        });
-        const capData = capRes.ok ? await capRes.json() : { itens: [] };
-        const capItems = Array.isArray(capData) ? capData : (capData.itens || capData.vendas || capData.data || []);
+        // 2. Fetch contas-a-pagar paginated for 2026 to find Sefaz or 1760.16
+        let paginaCap = 1;
+        let hasMoreCap = true;
+        const sefazPayments: any[] = [];
+        let totalCapCount = 0;
 
-        // Find items that match 1760.16 or contain "Sefaz"
-        const sefazPayments = capItems.filter((item: any) => {
-            const desc = (item.descricao || item.description || '').toLowerCase();
-            const total = item.valor_total || item.valor || item.total || 0;
-            return desc.includes('sefaz') || Math.abs(total - 1760.16) < 0.01;
-        });
+        while (hasMoreCap) {
+            const capUrl = `https://api-v2.contaazul.com/v1/financeiro/eventos-financeiros/contas-a-pagar/buscar?data_vencimento_de=2026-01-01&data_vencimento_ate=2026-12-31&tamanho_pagina=100&pagina=${paginaCap}`;
+            const capRes = await fetch(capUrl, {
+                headers: { 'Authorization': `Bearer ${activeToken}` },
+                cache: 'no-store'
+            });
+            if (!capRes.ok) break;
+            const capData = await capRes.json();
+            const capItems = Array.isArray(capData) ? capData : (capData.itens || capData.vendas || capData.data || []);
+            if (capItems.length === 0) break;
+            totalCapCount += capItems.length;
+
+            capItems.forEach((item: any) => {
+                const desc = (item.descricao || item.description || '').toLowerCase();
+                const total = item.valor_total || item.valor || item.total || 0;
+                const catName = (item.categoria?.nome || '').toLowerCase();
+                const catId = item.categoria?.id || '';
+                
+                if (desc.includes('sefaz') || Math.abs(total - 1760.16) < 0.01 || catName.includes('sefaz') || catId === '514d81fe-c366-4714-8243-39bbb4bc9e55') {
+                    sefazPayments.push({
+                        id: item.id,
+                        descricao: item.descricao,
+                        valor: total,
+                        data_vencimento: item.data_vencimento,
+                        data_competencia: item.data_competencia,
+                        data_pagamento: item.data_pagamento,
+                        categoria: item.categoria
+                    });
+                }
+            });
+
+            if (capItems.length < 100) hasMoreCap = false;
+            else paginaCap++;
+        }
 
         // 3. Fetch vendas to check for retentions
         const vUrl = `https://api-v2.contaazul.com/v1/venda/busca?data_inicio=${startStr}&data_fim=${endStr}&tamanho_pagina=100`;
@@ -105,19 +130,12 @@ export async function GET(request: Request) {
         return NextResponse.json({
             success: true,
             tenant: { id: tenant.id, name: tenant.name },
-            contasAPagarCount: capItems.length,
+            contasAPagarCount: totalCapCount,
             vendasCount: vendas.length,
             sefazPayments,
             saleDetailVendas,
             saleDetailVenda,
-            sampleSales,
-            contasAPagar: capItems.map((p: any) => ({
-                id: p.id,
-                descricao: p.descricao || p.description,
-                valor: p.valor || p.valor_total || p.total || p.pago,
-                data_competencia: p.data_competencia || p.data,
-                categoria: p.categoria || (p.categorias && p.categorias[0])
-            }))
+            sampleSales
         });
 
     } catch (e: any) {

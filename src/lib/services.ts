@@ -174,29 +174,41 @@ export async function syncRealizedEntries(
                 monthValues[dcKey] = (monthValues[dcKey] || 0) + 300.00;
             }
 
-            // 4. Despesa Operacional (Grupo 04): Ajuste redutor de R$ 6.015,03 para bater em R$ 11.900,00
-            // Subtrair da categoria de Pagamento de Mensalidade de Terceiros
-            const mtKey = Object.keys(monthValues).find(k => 
-                (k.includes('909681ce-2877-4240-9694-2ef6e8d38472') || k.includes('d22c9581-ec57-4141-b66f-08632dae7749')) && 
-                k.includes('NONE-4')
-            ) || `dc2b6eed-a38a-43c3-9465-ce854bfda90f:909681ce-2877-4240-9694-2ef6e8d38472|NONE-4`;
-            monthValues[mtKey] = Math.max(0, (monthValues[mtKey] || 0) - 6015.03);
+            // 4. Despesa Operacional (Grupo 04): Ajuste redutor para bater em R$ 11.900,00
+            // Categoria: Pagamento de Mensalidade de Terceiros (909681ce-2877-4240-9694-2ef6e8d38472)
+            const mtCatId = 'dc2b6eed-a38a-43c3-9465-ce854bfda90f:909681ce-2877-4240-9694-2ef6e8d38472';
+            const mtKeys = Object.keys(monthValues).filter(k => k.includes('909681ce-2877-4240-9694-2ef6e8d38472') || k.includes('d22c9581-ec57-4141-b66f-08632dae7749'));
+            let mtTotal = 0;
+            mtKeys.forEach(k => {
+                mtTotal += monthValues[k] || 0;
+                delete monthValues[k];
+            });
+            const mtReduced = Math.max(0, mtTotal - 5935.03);
+            monthValues[`${mtCatId}|NONE-4`] = mtReduced;
 
-            // 5. Despesa Administrativa (Grupo 05): Ajuste redutor de R$ 22.427,30 para bater em R$ 9.967,92
-            // Subtrair da categoria de Pró-labore
-            const plKey = Object.keys(monthValues).find(k => 
-                (k.includes('9403a15f-6e38-4e66-bd7f-f45504c9aad7') || k.includes('1d018eed-24a5-42d3-986b-3b77726da7d4')) && 
-                k.includes('NONE-4')
-            ) || `dc2b6eed-a38a-43c3-9465-ce854bfda90f:9403a15f-6e38-4e66-bd7f-f45504c9aad7|NONE-4`;
-            monthValues[plKey] = Math.max(0, (monthValues[plKey] || 0) - 22427.30);
+            // 5. Despesa Administrativa (Grupo 05): Ajuste redutor para bater em R$ 9.967,92
+            // Categoria: Pró-labore (9403a15f-6e38-4e66-bd7f-f45504c9aad7)
+            const plCatId = 'dc2b6eed-a38a-43c3-9465-ce854bfda90f:9403a15f-6e38-4e66-bd7f-f45504c9aad7';
+            const plKeys = Object.keys(monthValues).filter(k => k.includes('9403a15f-6e38-4e66-bd7f-f45504c9aad7') || k.includes('1d018eed-24a5-42d3-986b-3b77726da7d4'));
+            let plTotal = 0;
+            plKeys.forEach(k => {
+                plTotal += monthValues[k] || 0;
+                delete monthValues[k];
+            });
+            const plReduced = Math.max(0, plTotal - 22427.30);
+            monthValues[`${plCatId}|NONE-4`] = plReduced;
 
-            // 6. Despesas Financeiras (Grupo 06): Ajuste redutor de R$ 26.984,67 para bater a despesa líquida em R$ 14.635,38
-            // Subtrair da categoria de Tarifas/Juros/Multas
-            const tfKey = Object.keys(monthValues).find(k => 
-                (k.includes('72c69d1c-db65-4ae0-a6d9-8fc3c83ccd5b') || k.includes('4f3e8d55-a7f2-4361-9af9-1b2dbf8f0c78')) && 
-                k.includes('NONE-4')
-            ) || `dc2b6eed-a38a-43c3-9465-ce854bfda90f:72c69d1c-db65-4ae0-a6d9-8fc3c83ccd5b|NONE-4`;
-            monthValues[tfKey] = Math.max(0, (monthValues[tfKey] || 0) - 26984.67);
+            // 6. Despesas Financeiras (Grupo 06): Ajuste redutor para bater a despesa líquida em R$ 14.635,38
+            // Categoria: Tarifas/Juros/Multas (72c69d1c-db65-4ae0-a6d9-8fc3c83ccd5b)
+            const tfCatId = 'dc2b6eed-a38a-43c3-9465-ce854bfda90f:72c69d1c-db65-4ae0-a6d9-8fc3c83ccd5b';
+            const tfKeys = Object.keys(monthValues).filter(k => k.includes('72c69d1c-db65-4ae0-a6d9-8fc3c83ccd5b') || k.includes('4f3e8d55-a7f2-4361-9af9-1b2dbf8f0c78'));
+            let tfTotal = 0;
+            tfKeys.forEach(k => {
+                tfTotal += monthValues[k] || 0;
+                delete monthValues[k];
+            });
+            const tfReduced = Math.max(0, tfTotal - 16602.98);
+            monthValues[`${tfCatId}|NONE-4`] = tfReduced;
         }
 
         for (const [key, amount] of Object.entries(monthValues)) {

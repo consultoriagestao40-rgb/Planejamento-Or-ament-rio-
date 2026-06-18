@@ -122,9 +122,6 @@ export async function syncRealizedEntries(
             const salKey = `dc2b6eed-a38a-43c3-9465-ce854bfda90f:0f74ee3e-ed1e-4df8-9672-270873dc22b9|NONE-4`;
             monthValues[salKey] = (monthValues[salKey] || 0) - 340.00 - 1760.16;
 
-            const sefazKey = `dc2b6eed-a38a-43c3-9465-ce854bfda90f:5405d46e-a1f0-45cf-a30c-634d13d7a28b|NONE-4`;
-            monthValues[sefazKey] = (monthValues[sefazKey] || 0) + 1760.16;
-
             // Salários vs Vale Transporte (reclassificar R$ 2.686,00 no CC da Penha)
             const penhaCC = '1600fc40-e936-11ef-bfb8-c373efbeeae7';
             const salPenhaKey = Object.keys(monthValues).find(k => 

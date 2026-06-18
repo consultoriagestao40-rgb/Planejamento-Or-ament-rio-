@@ -15,41 +15,48 @@ function decodeJwt(token: string | null) {
     }
 }
 
+import { getValidAccessToken } from '@/lib/services';
+
 export async function GET() {
     try {
         const tenantId = '413f88a7-ce4a-4620-b044-43ef909b7b26'; // SPOT FACILITIES
-        const entries = await prisma.realizedEntry.findMany({
-            where: { tenantId, year: 2026, month: 5, viewMode: 'competencia' }
+        const { token } = await getValidAccessToken(tenantId);
+        
+        const startStr = '2026-05-01';
+        const endStr = '2026-05-31';
+        
+        // 1. Fetch contas-a-receber (competência)
+        const crUrl = `https://api-v2.contaazul.com/v1/financeiro/eventos-financeiros/contas-a-receber/buscar?data_vencimento_de=2026-01-01&data_vencimento_ate=2026-12-31&data_competencia_de=${startStr}&data_competencia_ate=${endStr}&tamanho_pagina=100`;
+        const crRes = await fetch(crUrl, {
+            headers: { 'Authorization': `Bearer ${token}` },
+            cache: 'no-store'
         });
+        const crData = crRes.ok ? await crRes.json() : { error: true, status: crRes.status, body: await crRes.text() };
         
-        const categories = await prisma.category.findMany();
-        const catMap = new Map(categories.map(c => [c.id, c]));
-        
-        const groupSums: Record<string, number> = {};
-        const catSums: Record<string, number> = {};
-        
-        for (const r of entries) {
-            const cat = catMap.get(r.categoryId) || (r.categoryId.includes(':') ? catMap.get(r.categoryId.split(':')[1]) : null);
-            const name = cat ? cat.name : 'Unknown';
-            const match = name.match(/^([\d.]+)/);
-            const code = match ? match[1] : '';
-            let group = 'other';
-            if (code.startsWith('01') || code === '1') group = '01';
-            else if (code.startsWith('02') || code.startsWith('2')) group = '02';
-            else if (code.startsWith('03') || code.startsWith('3')) group = '03';
-            else if (code.startsWith('04') || code.startsWith('4')) group = '04';
-            else if (code.startsWith('05') || code.startsWith('5')) group = '05';
-            else if (code.startsWith('06') || code.startsWith('6')) group = '06';
-            
-            groupSums[group] = (groupSums[group] || 0) + r.amount;
-            catSums[name] = (catSums[name] || 0) + r.amount;
-        }
+        // 2. Fetch vendas
+        const vUrl = `https://api-v2.contaazul.com/v1/venda/busca?data_inicio=${startStr}&data_fim=${endStr}&tamanho_pagina=100`;
+        const vRes = await fetch(vUrl, {
+            headers: { 'Authorization': `Bearer ${token}` },
+            cache: 'no-store'
+        });
+        const vData = vRes.ok ? await vRes.json() : { error: true, status: vRes.status, body: await vRes.text() };
         
         return NextResponse.json({
             success: true,
-            entriesCount: entries.length,
-            realizedEntries: entries,
-            categories: categories.map(c => ({ id: c.id, name: c.name, type: c.type, entradaDre: c.entradaDre }))
+            crUrl,
+            vUrl,
+            contasAReceber: crRes.ok ? {
+                count: (crData.itens || crData || []).length,
+                total_sum: (crData.itens || crData || []).reduce((acc: number, curr: any) => acc + (curr.valor_total || curr.valor || curr.total || 0), 0),
+                valor_sum: (crData.itens || crData || []).reduce((acc: number, curr: any) => acc + (curr.valor || 0), 0),
+                valor_total_sum: (crData.itens || crData || []).reduce((acc: number, curr: any) => acc + (curr.valor_total || 0), 0),
+                sample: (crData.itens || crData || []).slice(0, 5)
+            } : crData,
+            vendas: vRes.ok ? {
+                count: (vData.itens || vData.vendas || vData || []).length,
+                total_sum: (vData.itens || vData.vendas || vData || []).reduce((acc: number, curr: any) => acc + (curr.valor_total || curr.total || curr.valor || 0), 0),
+                sample: (vData.itens || vData.vendas || vData || []).slice(0, 5)
+            } : vData
         });
     } catch (e: any) {
         return NextResponse.json({ success: false, error: e.message });

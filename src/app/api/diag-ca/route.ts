@@ -5,18 +5,17 @@ export const dynamic = 'force-dynamic';
 
 export async function GET(request: Request) {
     try {
-        const { searchParams } = new URL(request.url);
-        const nameParam = searchParams.get('name') || 'JVS FACILITIES';
+        const tenantId = 'dc2b6eed-a38a-43c3-9465-ce854bfda90f'; // JVS Facilities
         
-        const tenant = await prisma.tenant.findFirst({
-            where: { name: { contains: nameParam, mode: 'insensitive' } }
+        const tenant = await prisma.tenant.findUnique({
+            where: { id: tenantId }
         });
 
         if (!tenant) {
-            return NextResponse.json({ error: `Tenant ${nameParam} não encontrado.` });
+            return NextResponse.json({ error: `Tenant JVS Facilities não encontrado.` });
         }
 
-        // 1. Refresh do Token
+        // 1. Refresh token if needed
         const clientId = process.env.CONTA_AZUL_CLIENT_ID;
         const clientSecret = process.env.CONTA_AZUL_CLIENT_SECRET;
         if (!clientId || !clientSecret) {
@@ -48,24 +47,60 @@ export async function GET(request: Request) {
         const startStr = '2026-05-01';
         const endStr = '2026-05-31';
 
-        // 2. Buscar Notas Fiscais de Serviço (NFS-e) do período
-        const nfsUrl = `https://api-v2.contaazul.com/v1/fiscal/servicos/notas-fiscais?data_emissao_de=${startStr}&data_emissao_ate=${endStr}&tamanho_pagina=100`;
-        const nfsRes = await fetch(nfsUrl, {
+        // 2. Fetch contas-a-pagar
+        const capUrl = `https://api-v2.contaazul.com/v1/financeiro/eventos-financeiros/contas-a-pagar/buscar?data_vencimento_de=2026-01-01&data_vencimento_ate=2026-12-31&data_competencia_de=${startStr}&data_competencia_ate=${endStr}&tamanho_pagina=100`;
+        const capRes = await fetch(capUrl, {
             headers: { 'Authorization': `Bearer ${activeToken}` },
             cache: 'no-store'
         });
-        const nfsData = nfsRes.ok ? await nfsRes.json() : { error: true, status: nfsRes.status, body: await nfsRes.text() };
-        const nfsItems = nfsData.itens || nfsData || [];
+        const capData = capRes.ok ? await capRes.json() : { itens: [] };
+        const capItems = capData.itens || [];
+
+        // Find items that match 1760.16 or contain "Sefaz"
+        const sefazPayments = capItems.filter((item: any) => {
+            const desc = (item.descricao || item.description || '').toLowerCase();
+            const total = item.valor_total || item.valor || item.total || 0;
+            return desc.includes('sefaz') || Math.abs(total - 1760.16) < 0.01;
+        });
+
+        // 3. Fetch vendas to check for retentions
+        const vUrl = `https://api-v2.contaazul.com/v1/venda/busca?data_inicio=${startStr}&data_fim=${endStr}&tamanho_pagina=100`;
+        const vRes = await fetch(vUrl, {
+            headers: { 'Authorization': `Bearer ${activeToken}` },
+            cache: 'no-store'
+        });
+        const vData = vRes.ok ? await vRes.json() : { vendas: [] };
+        const vendas = vData.vendas || vData || [];
+
+        const salesRetentions: any[] = [];
+        vendas.forEach((v: any) => {
+            // Check if there are taxes or retentions in the sale metadata
+            if (v.retencoes || v.valor_retencao || v.total_retencao || v.impostos) {
+                salesRetentions.push({
+                    id: v.id,
+                    numero: v.numero || v.number,
+                    cliente: v.cliente?.nome,
+                    valor_total: v.valor_total || v.total,
+                    retencoes: v.retencoes || v.valor_retencao || v.total_retencao,
+                    impostos: v.impostos
+                });
+            }
+        });
 
         return NextResponse.json({
-            sucesso: true,
+            success: true,
             tenant: { id: tenant.id, name: tenant.name },
-            nfsUrl,
-            nfsResponse: nfsRes.ok ? {
-                count: nfsItems.length,
-                total_sum: nfsItems.reduce((acc: number, curr: any) => acc + (curr.valor_total || curr.valor || curr.total || 0), 0),
-                sample: nfsItems.slice(0, 3)
-            } : nfsData
+            sefazPayments: sefazPayments.map((p: any) => ({
+                id: p.id,
+                descricao: p.descricao,
+                valor: p.valor || p.valor_total || p.total,
+                data_competencia: p.data_competencia,
+                categorias: p.categorias || [p.categoria]
+            })),
+            salesCount: vendas.length,
+            salesRetentions,
+            // also return a sample of 3 sales to see the exact structure
+            vendasSample: vendas.slice(0, 3)
         });
 
     } catch (e: any) {

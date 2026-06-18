@@ -32,7 +32,6 @@ export async function GET(request: Request) {
         }
 
         const auth = Buffer.from(`${clientId}:${clientSecret}`).toString('base64');
-        console.log(`[DIAG-CA] Tentando forçar refresh para ${tenant.name}...`);
         
         const tokenRes = await fetch('https://auth.contaazul.com/oauth2/token', {
             method: 'POST',
@@ -58,7 +57,6 @@ export async function GET(request: Request) {
             };
             activeToken = tokenData.access_token;
             
-            // Salvar no banco para não perder
             await prisma.tenant.update({
                 where: { id: tenant.id },
                 data: {
@@ -67,7 +65,6 @@ export async function GET(request: Request) {
                     tokenExpiresAt: new Date(Date.now() + tokenData.expires_in * 1000)
                 }
             });
-            console.log(`[DIAG-CA] Token renovado com sucesso para ${tenant.name}`);
         } else {
             const errText = await tokenRes.text();
             refreshResult = {
@@ -79,16 +76,17 @@ export async function GET(request: Request) {
 
         const startStr = '2026-05-01';
         const endStr = '2026-05-31';
+        const year = 2026;
 
-        // 2. Fazer requisições usando o token (seja o renovado ou o atual se o refresh falhou)
-        const recUrl = `https://api-v2.contaazul.com/v1/financeiro/eventos-financeiros/contas-a-receber/buscar?data_competencia_de=${startStr}&data_competencia_ate=${endStr}&tamanho_pagina=100`;
+        // 2. Fazer requisições usando o token com parâmetros corrigidos
+        const recUrl = `https://api-v2.contaazul.com/v1/financeiro/eventos-financeiros/contas-a-receber/buscar?data_vencimento_de=${year}-01-01&data_vencimento_ate=${year}-12-31&data_competencia_de=${startStr}&data_competencia_ate=${endStr}&tamanho_pagina=100`;
         const recRes = await fetch(recUrl, {
             headers: { 'Authorization': `Bearer ${activeToken}` },
             cache: 'no-store'
         });
         const recData = recRes.ok ? await recRes.json() : { error: true, status: recRes.status, body: await recRes.text() };
 
-        const pagUrl = `https://api-v2.contaazul.com/v1/financeiro/eventos-financeiros/contas-a-pagar/buscar?data_competencia_de=${startStr}&data_competencia_ate=${endStr}&tamanho_pagina=100`;
+        const pagUrl = `https://api-v2.contaazul.com/v1/financeiro/eventos-financeiros/contas-a-pagar/buscar?data_vencimento_de=${year}-01-01&data_vencimento_ate=${year}-12-31&data_competencia_de=${startStr}&data_competencia_ate=${endStr}&tamanho_pagina=100`;
         const pagRes = await fetch(pagUrl, {
             headers: { 'Authorization': `Bearer ${activeToken}` },
             cache: 'no-store'
@@ -102,14 +100,55 @@ export async function GET(request: Request) {
         });
         const salesData = salesRes.ok ? await salesRes.json() : { error: true, status: salesRes.status, body: await salesRes.text() };
 
+        // Processar itens detalhadamente
+        const recItens = recData.itens || [];
+        const pagItens = pagData.itens || [];
+        const salesItens = salesData.itens || salesData.vendas || [];
+
         return NextResponse.json({
             sucesso: true,
             tenant: { id: tenant.id, name: tenant.name },
             refreshResult,
+            apiUrls: { recUrl, pagUrl, salesUrl },
             apiResponses: {
-                contas_a_receber: recRes.ok ? { count: (recData.itens || []).length, total_sum: (recData.itens || []).reduce((acc: number, curr: any) => acc + (curr.total || 0), 0), sample: (recData.itens || []).slice(0, 5) } : recData,
-                contas_a_pagar: pagRes.ok ? { count: (pagData.itens || []).length, total_sum: (pagData.itens || []).reduce((acc: number, curr: any) => acc + (curr.total || 0), 0), sample: (pagData.itens || []).slice(0, 5) } : pagData,
-                vendas: salesRes.ok ? { count: (salesData.itens || salesData.vendas || []).length, total_sum: (salesData.itens || salesData.vendas || []).reduce((acc: number, curr: any) => acc + (curr.total || curr.valor_total || 0), 0), sample: (salesData.itens || salesData.vendas || []).slice(0, 5) } : salesData
+                contas_a_receber: {
+                    count: recItens.length,
+                    total_sum: recItens.reduce((acc: number, curr: any) => acc + (curr.total || 0), 0),
+                    original_sum: recItens.reduce((acc: number, curr: any) => acc + (curr.valor_original || 0), 0),
+                    liquido_sum: recItens.reduce((acc: number, curr: any) => acc + (curr.valor_liquido || 0), 0),
+                    items: recItens.map((item: any) => ({
+                        id: item.id,
+                        descricao: item.descricao,
+                        total: item.total,
+                        valor_original: item.valor_original,
+                        valor_liquido: item.valor_liquido,
+                        categoria: item.categorias?.[0]?.nome,
+                        venda_id: item.venda_id,
+                        retencoes: item.retencoes
+                    }))
+                },
+                contas_a_pagar: {
+                    count: pagItens.length,
+                    total_sum: pagItens.reduce((acc: number, curr: any) => acc + (curr.total || 0), 0),
+                    items: pagItens.map((item: any) => ({
+                        id: item.id,
+                        descricao: item.descricao,
+                        total: item.total,
+                        categoria: item.categorias?.[0]?.nome,
+                        fornecedor: item.fornecedor?.nome
+                    }))
+                },
+                vendas: {
+                    count: salesItens.length,
+                    total_sum: salesItens.reduce((acc: number, curr: any) => acc + (curr.total || curr.valor_total || 0), 0),
+                    items: salesItens.map((item: any) => ({
+                        id: item.id,
+                        numero: item.numero,
+                        total: item.total,
+                        situacao: item.situacao?.nome,
+                        cliente: item.cliente?.nome
+                    }))
+                }
             }
         });
 

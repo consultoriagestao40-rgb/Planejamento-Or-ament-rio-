@@ -1,6 +1,5 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { getValidAccessToken } from '@/lib/services';
 
 export const dynamic = 'force-dynamic';
 
@@ -8,36 +7,30 @@ export async function GET() {
     try {
         const tenantId = 'dc2b6eed-a38a-43c3-9465-ce854bfda90f'; // JVS Facilities
 
-        // 1. Get valid access token
-        const { token, tenant } = await getValidAccessToken(tenantId);
+        // 1. Fetch categories
+        const categories = await prisma.category.findMany({
+            where: { tenantId }
+        });
 
-        // 2. Fetch company info from Conta Azul API
-        const endpoints = [
-            'https://api.contaazul.com/v1/user/info',
-            'https://api.contaazul.com/v1/tenants'
-        ];
+        // 2. Fetch cost centers
+        const costCenters = await prisma.costCenter.findMany({
+            where: { tenantId }
+        });
 
-        const results: any = {};
-
-        for (const url of endpoints) {
-            try {
-                const res = await fetch(url, { headers: { 'Authorization': `Bearer ${token}` } });
-                if (res.ok) {
-                    results[url] = await res.json();
-                } else {
-                    results[url] = { error: `HTTP ${res.status}: ${await res.text()}` };
-                }
-            } catch (err: any) {
-                results[url] = { error: err.message };
-            }
-        }
+        // 3. Fetch realized entries for May 2026
+        const realizedEntries = await prisma.realizedEntry.findMany({
+            where: { tenantId, year: 2026, month: 5 }
+        });
 
         return NextResponse.json({
             success: true,
-            tenantNameInDb: tenant.name,
-            tenantCnpjInDb: tenant.cnpj,
-            tokenExpiresAt: tenant.tokenExpiresAt,
-            contaAzulApiResponses: results
+            tenantId,
+            categoriesCount: categories.length,
+            categories: categories.map(c => ({ id: c.id, name: c.name, type: c.type, entradaDre: c.entradaDre })),
+            costCentersCount: costCenters.length,
+            costCenters: costCenters.map(cc => ({ id: cc.id, name: cc.name })),
+            realizedEntriesCount: realizedEntries.length,
+            realizedEntries
         });
     } catch (e: any) {
         return NextResponse.json({ success: false, error: e.message });

@@ -688,11 +688,17 @@ export default function BudgetGrid({
                     let sumB = 0, sumR = 0, sumRadar = 0;
 
                     // FIXED: Aggressive normalization matching the Sync API to consolidate variants (hyphens, spaces, etc)
+                    // Added a Set to prevent reading the same normalizedName multiple times for the same merged node/month
+                    const readNames = new Set<string>();
                     idsToRead.forEach(rawId => {
                         const cat = categories.find(c => c.id === rawId);
                         const nameToUse = cat ? cat.name : node.name;
                         const normalizedName = nameToUse.toUpperCase().replace(/[^A-Z0-9]/g, '');
-                        sumR += realizedValues[`${normalizedName}|${i}`] || 0;
+                        const lookupKey = `${normalizedName}|${i}`;
+                        if (!readNames.has(lookupKey)) {
+                            readNames.add(lookupKey);
+                            sumR += realizedValues[lookupKey] || 0;
+                        }
                     });
 
                     for (const rawId of idsToRead) {

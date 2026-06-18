@@ -5,51 +5,57 @@ export const dynamic = 'force-dynamic';
 
 export async function GET() {
     try {
-        const jvsTenantId = 'dc2b6eed-a38a-43c3-9465-ce854bfda90f';
+        const tenants = await prisma.tenant.findMany({
+            select: { id: true, name: true }
+        });
 
-        // Get count of JVS realized entries for May 2026 by costCenterId format
+        const cleanTech = tenants.find(t => t.name.toUpperCase().includes('CLEAN TECH'));
+        if (!cleanTech) {
+            return NextResponse.json({ success: false, error: 'Clean Tech not found', tenants });
+        }
+
         const entries = await prisma.realizedEntry.findMany({
             where: {
-                tenantId: jvsTenantId,
+                tenantId: cleanTech.id,
                 year: 2026,
                 month: 5,
                 viewMode: 'competencia'
             },
             include: {
-                costCenter: true
+                category: true
             }
         });
 
-        const summary = entries.map(e => ({
-            id: e.id,
-            amount: e.amount,
-            costCenterId: e.costCenterId,
-            costCenterName: e.costCenter ? e.costCenter.name : null
-        }));
-
-        const unprefixedCount = entries.filter(e => e.costCenterId && !e.costCenterId.includes(':')).length;
-        const prefixedCount = entries.filter(e => e.costCenterId && e.costCenterId.includes(':')).length;
-        const nullCount = entries.filter(e => !e.costCenterId).length;
-
-        // Also query the cost centers in the DB that contain Penha
-        const penhaCCs = await prisma.costCenter.findMany({
-            where: {
-                tenantId: jvsTenantId,
-                name: {
-                    contains: 'Penha',
-                    mode: 'insensitive'
-                }
+        // Group by category to see sums
+        const categoryGroups: Record<string, { id: string, name: string, amount: number, count: number, entries: any[] }> = {};
+        entries.forEach(e => {
+            const cat = e.category;
+            if (!categoryGroups[cat.id]) {
+                categoryGroups[cat.id] = { id: cat.id, name: cat.name, amount: 0, count: 0, entries: [] };
             }
+            categoryGroups[cat.id].amount += e.amount;
+            categoryGroups[cat.id].count += 1;
+            categoryGroups[cat.id].entries.push({
+                id: e.id,
+                amount: e.amount,
+                description: e.description,
+                externalId: e.externalId,
+                date: e.date
+            });
         });
 
         return NextResponse.json({
             success: true,
+            tenants,
+            cleanTechId: cleanTech.id,
             totalEntries: entries.length,
-            unprefixedCount,
-            prefixedCount,
-            nullCount,
-            penhaCCs,
-            sample: summary.slice(0, 10)
+            categories: Object.values(categoryGroups).map(cg => ({
+                id: cg.id,
+                name: cg.name,
+                amount: cg.amount,
+                count: cg.count,
+                sampleEntries: cg.entries.slice(0, 5)
+            }))
         });
     } catch (e: any) {
         return NextResponse.json({ success: false, error: e.message });

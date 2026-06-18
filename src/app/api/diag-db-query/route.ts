@@ -5,27 +5,26 @@ export const dynamic = 'force-dynamic';
 
 export async function GET() {
     try {
-        const jvsEntries = await prisma.realizedEntry.findMany({
+        const entries = await prisma.realizedEntry.findMany({
             where: {
-                tenantId: 'dc2b6eed-a38a-43c3-9465-ce854bfda90f',
-                year: 2026,
-                month: 5,
-                viewMode: 'competencia'
+                amount: 1760.16
             },
-            include: { category: true },
-            orderBy: { amount: 'desc' }
+            include: { category: true, tenant: true }
         });
         
         return NextResponse.json({
             success: true,
-            totalJvsEntries: jvsEntries.length,
-            jvsEntries: jvsEntries.map(e => ({
+            totalJvsEntries: entries.length,
+            jvsEntries: entries.map(e => ({
                 id: e.id,
                 amount: e.amount,
                 description: e.description,
                 categoryName: e.category.name,
                 categoryId: e.categoryId,
-                costCenterId: e.costCenterId
+                tenantName: e.tenant.name,
+                month: e.month,
+                year: e.year,
+                viewMode: e.viewMode
             }))
         });
     } catch (e: any) {

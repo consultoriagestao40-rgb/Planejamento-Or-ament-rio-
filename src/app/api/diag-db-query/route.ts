@@ -6,18 +6,26 @@ export const dynamic = 'force-dynamic';
 export async function GET() {
     try {
         const tenantId = 'dc2b6eed-a38a-43c3-9465-ce854bfda90f';
-        const categories = await prisma.category.findMany({
-            where: { tenantId }
+        const entries = await prisma.realizedEntry.findMany({
+            where: {
+                tenantId,
+                year: 2026,
+                month: 5,
+                viewMode: 'competencia'
+            },
+            include: { category: true }
         });
         
         return NextResponse.json({
             success: true,
-            count: categories.length,
-            categories: categories.map(c => ({
-                id: c.id,
-                name: c.name,
-                parentId: c.parentId,
-                entradaDre: c.entradaDre
+            count: entries.length,
+            entries: entries.map(e => ({
+                id: e.id,
+                amount: e.amount,
+                description: e.description,
+                categoryName: e.category.name,
+                categoryId: e.categoryId,
+                costCenterId: e.costCenterId
             }))
         });
     } catch (e: any) {

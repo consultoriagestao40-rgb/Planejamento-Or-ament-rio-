@@ -100,17 +100,18 @@ export async function GET(request: Request) {
         ]);
 
         // Deduplicar dados: se houver dados sincronizados da API (externalId começado por 'sync-') 
-        // para um determinado (tenantId, year, month), removemos as entradas daquele mesmo mês vindas do Excel (externalId nulo ou sem o prefixo).
-        const syncedKeys = new Set<string>();
+        // para um determinado (year, month) em qualquer das variantes sendo exibidas, 
+        // removemos todas as entradas daquele mesmo mês vindas do Excel (externalId nulo ou sem o prefixo) para todas as variantes do conjunto.
+        const syncedMonths = new Set<string>();
         realizedRaw.forEach(e => {
             if (e.externalId && e.externalId.startsWith('sync-')) {
-                syncedKeys.add(`${e.tenantId}|${e.year}|${e.month}`);
+                syncedMonths.add(`${e.year}|${e.month}`);
             }
         });
 
         const realizedEntries = realizedRaw.filter(e => {
-            const key = `${e.tenantId}|${e.year}|${e.month}`;
-            if (syncedKeys.has(key)) {
+            const key = `${e.year}|${e.month}`;
+            if (syncedMonths.has(key)) {
                 return e.externalId && e.externalId.startsWith('sync-');
             }
             return true;

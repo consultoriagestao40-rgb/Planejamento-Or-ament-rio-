@@ -5,42 +5,32 @@ export const dynamic = 'force-dynamic';
 
 export async function GET() {
     try {
-        const tenantId = '0013c839-93bb-472d-ba64-092c89e1cacf'; // JVS Tratamentos
+        const tenantId = 'dc2b6eed-a38a-43c3-9465-ce854bfda90f'; // JVS Facilities
 
-        // Fetch realized entries for May 2026 in competency mode
-        const realizedEntries = await prisma.realizedEntry.findMany({
-            where: { tenantId, year: 2026, month: 5, viewMode: 'competencia' },
-            include: {
-                category: {
-                    select: {
-                        name: true,
-                        entradaDre: true
-                    }
-                }
-            }
+        // 1. Fetch categories
+        const categories = await prisma.category.findMany();
+
+        // 2. Fetch cost centers
+        const costCenters = await prisma.costCenter.findMany({
+            where: { tenantId }
         });
 
-        let totalG3 = 0;
-        let totalG5 = 0;
-        for (const e of realizedEntries) {
-            const catName = e.category?.name || '';
-            if (catName.startsWith('03.')) {
-                totalG3 += e.amount;
-            } else if (catName.startsWith('05.')) {
-                totalG5 += e.amount;
-            }
-        }
+        // 3. Fetch realized entries for May 2026
+        const realizedEntries = await prisma.realizedEntry.findMany({
+            where: { tenantId, year: 2026, month: 5 }
+        });
 
         return NextResponse.json({
             success: true,
             tenantId,
+            categoriesCount: categories.length,
+            categories: categories.map(c => ({ id: c.id, name: c.name, type: c.type, entradaDre: c.entradaDre })),
+            costCentersCount: costCenters.length,
+            costCenters: costCenters.map(cc => ({ id: cc.id, name: cc.name })),
             realizedEntriesCount: realizedEntries.length,
-            totalG3,
-            totalG5
+            realizedEntries
         });
     } catch (e: any) {
         return NextResponse.json({ success: false, error: e.message });
     }
 }
-
-

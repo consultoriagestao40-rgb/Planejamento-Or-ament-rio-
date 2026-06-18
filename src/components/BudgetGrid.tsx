@@ -675,8 +675,12 @@ export default function BudgetGrid({
                     let sumB = 0, sumR = 0, sumRadar = 0;
 
                     // FIXED: Aggressive normalization matching the Sync API to consolidate variants (hyphens, spaces, etc)
-                    const normalizedNodeName = node.name.toUpperCase().replace(/[^A-Z0-9]/g, '');
-                    sumR = realizedValues[`${normalizedNodeName}|${i}`] || 0;
+                    idsToRead.forEach(rawId => {
+                        const cat = categories.find(c => c.id === rawId);
+                        const nameToUse = cat ? cat.name : node.name;
+                        const normalizedName = nameToUse.toUpperCase().replace(/[^A-Z0-9]/g, '');
+                        sumR += realizedValues[`${normalizedName}|${i}`] || 0;
+                    });
 
                     for (const rawId of idsToRead) {
                         const bData = budgetValues[`${rawId}-${i}`] || { amount: 0, radarAmount: 0, isLocked: false };
@@ -698,7 +702,7 @@ export default function BudgetGrid({
 
         treeRoots.forEach(root => calculateNode(root));
         return totalsMap;
-    }, [treeRoots, budgetValues, realizedValues, viewMode]);
+    }, [treeRoots, budgetValues, realizedValues, viewMode, categories]);
 
     // --- DRE STRUCTURE ---
     const dreStructure = useMemo(() => {

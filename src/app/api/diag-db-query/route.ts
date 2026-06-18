@@ -5,51 +5,29 @@ export const dynamic = 'force-dynamic';
 
 export async function GET() {
     try {
-        const tenantId = 'dc2b6eed-a38a-43c3-9465-ce854bfda90f';
+        const tenants = await prisma.tenant.findMany();
         const costCenters = await prisma.costCenter.findMany({
-            where: { tenantId }
+            include: { tenant: true }
         });
 
-        const getCleanName = (name: string) => {
-            return (name || '')
-                .replace(/^\[INATIVO\]\s*/i, '')
-                .replace(/^ENCERRADO\s*/i, '')
-                .replace(/^[\d. ]+-?\s*/, '')
-                .replace(/\s*\(NOTURNO\)\s*/i, '')
-                .replace(/\s*\(DIURNO\)\s*/i, '')
-                .trim();
-        };
-
-        const summaryMap: Record<string, any> = {};
-
-        costCenters.forEach(cc => {
-            const cleanName = getCleanName(cc.name);
-            const key = `${cc.tenantId}-${cleanName}`;
-            const isInactive = (cc.name || '').toUpperCase().includes('[INATIVO]');
-            
-            const existing = summaryMap[key];
-            const shouldReplace = !existing || (!isInactive && existing.isCandidateInactive);
-
-            if (shouldReplace) {
-                summaryMap[key] = {
-                    key,
-                    cleanName,
-                    costCenterId: cc.id,
-                    costCenterName: cc.name,
-                    isCandidateInactive: isInactive,
-                    replacedCount: (existing ? existing.replacedCount + 1 : 1),
-                    matches: (existing ? [...existing.matches, { id: cc.id, name: cc.name }] : [{ id: cc.id, name: cc.name }])
-                };
-            } else {
-                existing.replacedCount++;
-                existing.matches.push({ id: cc.id, name: cc.name });
-            }
+        const tenantData = tenants.map(t => {
+            const tCCs = costCenters.filter(cc => cc.tenantId === t.id);
+            const activeCCs = tCCs.filter(cc => !cc.name.toUpperCase().includes('[INATIVO]'));
+            const inactiveCCs = tCCs.filter(cc => cc.name.toUpperCase().includes('[INATIVO]'));
+            return {
+                tenantId: t.id,
+                tenantName: t.name,
+                totalCCs: tCCs.length,
+                activeCount: activeCCs.length,
+                inactiveCount: inactiveCCs.length,
+                sampleActive: activeCCs.slice(0, 5).map(cc => ({ id: cc.id, name: cc.name })),
+                sampleInactive: inactiveCCs.slice(0, 5).map(cc => ({ id: cc.id, name: cc.name }))
+            };
         });
 
         return NextResponse.json({
             success: true,
-            totalCostCenters: costCenters.length,
-            groups: Object.values(summaryMap)
+            tenants: tenantData
         });
     } catch (e: any) {
         return NextResponse.json({ success: false, error: e.message });

@@ -12,114 +12,101 @@ export async function GET(request: Request) {
             where: { name: { contains: nameParam, mode: 'insensitive' } }
         });
 
-        if (!tenant || !tenant.accessToken) {
-            return NextResponse.json({ error: `Tenant ${nameParam} não possui Token válido salvo.` });
+        if (!tenant) {
+            return NextResponse.json({ error: `Tenant ${nameParam} não encontrado.` });
+        }
+
+        // 1. Consultar banco de dados BudgetHub para este Tenant em 2026
+        const dbEntries = await prisma.realizedEntry.findMany({
+            where: {
+                tenantId: tenant.id,
+                year: 2026
+            },
+            include: {
+                category: true,
+                costCenter: true
+            }
+        });
+
+        const dbSummary = dbEntries.reduce((acc: any, curr) => {
+            const mode = curr.viewMode;
+            const month = curr.month;
+            const key = `${mode}-m${month}`;
+            if (!acc[key]) {
+                acc[key] = { count: 0, amount: 0, categories: {} };
+            }
+            acc[key].count += 1;
+            acc[key].amount += curr.amount;
+            
+            const catName = curr.category?.name || 'Sem Categoria';
+            acc[key].categories[catName] = (acc[key].categories[catName] || 0) + curr.amount;
+            return acc;
+        }, {});
+
+        // Filtrar lançamentos de Maio/2026 específicos para detalhamento
+        const dbMayEntries = dbEntries.filter(e => e.month === 5).map(e => ({
+            id: e.id,
+            category: e.category?.name,
+            cc: e.costCenter?.name || 'Sem CC',
+            amount: e.amount,
+            viewMode: e.viewMode,
+            description: e.description,
+            externalId: e.externalId
+        }));
+
+        if (!tenant.accessToken) {
+            return NextResponse.json({
+                sucesso: true,
+                aviso: "Tenant não possui accessToken para API",
+                dbSummary,
+                dbMayEntriesCount: dbMayEntries.length,
+                dbMayEntries
+            });
         }
 
         const startStr = '2026-05-01';
         const endStr = '2026-05-31';
 
-        // 1. Fetch Contas a Receber
-        const recRes = await fetch(`https://api-v2.contaazul.com/v1/financeiro/eventos-financeiros/contas-a-receber/buscar?data_vencimento_de=2026-01-01&data_vencimento_ate=2026-12-31&data_competencia_de=${startStr}&data_competencia_ate=${endStr}&tamanho_pagina=100`, {
+        // 2. Tentar chamadas na API do Conta Azul sem filtro de vencimento
+        // A: Contas a Receber por competencia de Maio/2026
+        const recUrl = `https://api-v2.contaazul.com/v1/financeiro/eventos-financeiros/contas-a-receber/buscar?data_competencia_de=${startStr}&data_competencia_ate=${endStr}&tamanho_pagina=100`;
+        const recRes = await fetch(recUrl, {
             headers: { 'Authorization': `Bearer ${tenant.accessToken}` },
             cache: 'no-store'
         });
-        if (!recRes.ok) {
-            const err = await recRes.text();
-            return NextResponse.json({ error: "Erro ao buscar contas a receber", status: recRes.status, detail: err });
-        }
-        const recData = await recRes.json();
-        const recItems = recData ? (recData.itens || []) : [];
+        const recData = recRes.ok ? await recRes.json() : { error: true, status: recRes.status, body: await recRes.text() };
 
-        // 2. Fetch Contas a Pagar
-        const pagRes = await fetch(`https://api-v2.contaazul.com/v1/financeiro/eventos-financeiros/contas-a-pagar/buscar?data_vencimento_de=2026-01-01&data_vencimento_ate=2026-12-31&data_competencia_de=${startStr}&data_competencia_ate=${endStr}&tamanho_pagina=100`, {
+        // B: Contas a Pagar por competencia de Maio/2026
+        const pagUrl = `https://api-v2.contaazul.com/v1/financeiro/eventos-financeiros/contas-a-pagar/buscar?data_competencia_de=${startStr}&data_competencia_ate=${endStr}&tamanho_pagina=100`;
+        const pagRes = await fetch(pagUrl, {
             headers: { 'Authorization': `Bearer ${tenant.accessToken}` },
             cache: 'no-store'
         });
-        if (!pagRes.ok) {
-            const err = await pagRes.text();
-            return NextResponse.json({ error: "Erro ao buscar contas a pagar", status: pagRes.status, detail: err });
-        }
-        const pagData = await pagRes.json();
-        const pagItems = pagData ? (pagData.itens || []) : [];
+        const pagData = pagRes.ok ? await pagRes.json() : { error: true, status: pagRes.status, body: await pagRes.text() };
 
-        // 3. Fetch Vendas
-        const salesRes = await fetch(`https://api-v2.contaazul.com/v1/venda/busca?data_inicio=${startStr}&data_fim=${endStr}&tamanho_pagina=100`, {
+        // C: Vendas com data de Maio/2026
+        const salesUrl = `https://api-v2.contaazul.com/v1/venda/busca?data_inicio=${startStr}&data_fim=${endStr}&tamanho_pagina=100`;
+        const salesRes = await fetch(salesUrl, {
             headers: { 'Authorization': `Bearer ${tenant.accessToken}` },
             cache: 'no-store'
         });
-        if (!salesRes.ok) {
-            const err = await salesRes.text();
-            return NextResponse.json({ error: "Erro ao buscar vendas", status: salesRes.status, detail: err });
-        }
-        const salesData = await salesRes.json();
-        const salesItems = salesData ? (salesData.itens || []) : [];
-
-        // Audit lists
-        const auditedReceivables = recItems.map((item: any) => {
-            const cat = item.categorias?.[0] || {};
-            const cc = item.centros_de_custo?.[0] || {};
-            return {
-                id: item.id,
-                descricao: item.descricao,
-                cliente: item.cliente?.nome,
-                valor_total: item.total,
-                valor_pago: item.pago,
-                data_competencia: item.data_competencia,
-                data_vencimento: item.data_vencimento,
-                categoria: cat.nome,
-                categoria_id: cat.id,
-                cc: cc.nome,
-                renegociacao: item.renegociacao,
-                item_completo_para_inspecao: {
-                    retencoes: item.retencoes,
-                    valor_original: item.valor_original,
-                    valor_liquido: item.valor_liquido
-                }
-            };
-        });
-
-        const auditedPayables = pagItems.map((item: any) => {
-            const cat = item.categorias?.[0] || {};
-            const cc = item.centros_de_custo?.[0] || {};
-            return {
-                id: item.id,
-                descricao: item.descricao,
-                fornecedor: item.fornecedor?.nome,
-                valor_total: item.total,
-                valor_pago: item.pago,
-                data_competencia: item.data_competencia,
-                categoria: cat.nome,
-                cc: cc.nome
-            };
-        });
-
-        // Filtrar contas a pagar de Salários e Férias para análise
-        const auditedSalaries = auditedPayables.filter((p: any) => 
-            p.categoria?.includes('Salário') || p.categoria?.includes('Férias') || p.categoria?.includes('03.1') || p.categoria?.includes('03.2')
-        );
+        const salesData = salesRes.ok ? await salesRes.json() : { error: true, status: salesRes.status, body: await salesRes.text() };
 
         return NextResponse.json({
             sucesso: true,
             tenant: { id: tenant.id, name: tenant.name },
-            resumo: {
-                total_contas_a_receber: recItems.length,
-                total_contas_a_pagar: pagItems.length,
-                total_vendas: salesItems.length
-            },
-            auditedReceivables: auditedReceivables.filter((r: any) => r.categoria?.includes('01.1') || r.categoria?.includes('Serviço')),
-            auditedSalaries,
-            salesBreakdown: salesItems.map((s: any) => ({
-                id: s.id,
-                numero: s.numero,
-                data: s.data,
-                total: s.total,
-                cliente: s.cliente?.nome,
-                situacao: s.situacao?.nome
-            }))
+            dbSummary,
+            dbMayEntriesCount: dbMayEntries.length,
+            dbMayEntries,
+            apiUrls: { recUrl, pagUrl, salesUrl },
+            apiResponses: {
+                contas_a_receber: recRes.ok ? { count: (recData.itens || []).length, sample: (recData.itens || []).slice(0, 3) } : recData,
+                contas_a_pagar: pagRes.ok ? { count: (pagData.itens || []).length, sample: (pagData.itens || []).slice(0, 3) } : pagData,
+                vendas: salesRes.ok ? { count: (salesData.itens || salesData.vendas || []).length, sample: (salesData.itens || salesData.vendas || []).slice(0, 3) } : salesData
+            }
         });
 
     } catch (e: any) {
-        return NextResponse.json({ error: "Erro interno", detail: e.message });
+        return NextResponse.json({ error: "Erro interno", detail: e.message, stack: e.stack });
     }
 }

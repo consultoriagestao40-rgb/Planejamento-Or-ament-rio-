@@ -209,8 +209,10 @@ export async function syncRealizedEntries(
                 '96d31802-6b66-4283-9a68-076b60f73325',
                 'ad0705b3-011e-4595-8ea0-fe859df1c05e',
                 '77e12806-357b-4db8-848d-09dc41e3b9ba',
-                '00330965-a95b-4a8b-8de7-8919e01820ca',
-                '983440d7-00ef-4743-bbbf-3d8d388a9418'
+                '8bdde778-0d0d-4211-9ae7-1b68d3a80452', // 06.4.4 produção
+                'dc2b6eed-a38a-43c3-9465-ce854bfda90f:00330965-a95b-4a8b-8de7-8919e01820ca', // 06.4.4 mapeado
+                '5fc63a0f-b810-473f-be2e-0a38ceab3c32', // 06.7.1 produção
+                'dc2b6eed-a38a-43c3-9465-ce854bfda90f:983440d7-00ef-4743-bbbf-3d8d388a9418'  // 06.7.1 mapeado
             ];
             const finKeys = Object.keys(monthValues).filter(k => {
                 const catId = k.split('|')[0];

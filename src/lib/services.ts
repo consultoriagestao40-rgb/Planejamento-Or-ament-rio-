@@ -217,7 +217,7 @@ export async function syncRealizedEntries(
             entriesToSave.push({
                 tenantId,
                 categoryId: catId,
-                costCenterId: (ccId === 'NONE' || !ccId) ? null : ccId,
+                costCenterId: (ccId === 'NONE' || !ccId) ? null : (ccId.includes(':') ? ccId : `${tenantId}:${ccId}`),
                 month: monthIdx + 1,
                 year,
                 amount: amount,
@@ -371,10 +371,11 @@ export async function syncMasterData(tenantId: string) {
                         }
                     }
 
+                    const prefixedId = item.id.includes(':') ? item.id : `${tenantId}:${item.id}`;
                     await (prisma.costCenter as any).upsert({
-                        where: { id: item.id },
+                        where: { id: prefixedId },
                         update: { name: finalName },
-                        create: { id: item.id, name: finalName, tenantId }
+                        create: { id: prefixedId, name: finalName, tenantId }
                     });
                 }
 

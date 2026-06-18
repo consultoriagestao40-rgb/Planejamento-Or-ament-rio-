@@ -29,5 +29,229 @@ async function main() {
   } catch (e) {
     console.error("Error updating JVS finance categories:", e);
   }
+
+  console.log("Migrating existing RealizedEntry costCenterId records to prefixed format...");
+  try {
+    const entriesToFix = await prisma.realizedEntry.findMany({
+      where: {
+        costCenterId: {
+          not: null,
+          not: {
+            contains: ':'
+          }
+        }
+      },
+      select: {
+        id: true,
+        tenantId: true,
+        costCenterId: true
+      }
+    });
+
+    console.log(`Found ${entriesToFix.length} realized entries to update with prefixed costCenterId.`);
+    let updatedCount = 0;
+    for (const entry of entriesToFix) {
+      if (entry.costCenterId) {
+        const prefixedId = `${entry.tenantId}:${entry.costCenterId}`;
+        const targetCCExists = await prisma.costCenter.findUnique({
+          where: { id: prefixedId }
+        });
+        if (!targetCCExists) {
+          const rawCC = await prisma.costCenter.findUnique({
+            where: { id: entry.costCenterId }
+          });
+          const ccName = rawCC ? rawCC.name : `Não Identificado (${entry.costCenterId.substring(0, 8)})`;
+          await prisma.costCenter.create({
+            data: {
+              id: prefixedId,
+              name: ccName,
+              tenantId: entry.tenantId
+            }
+          });
+        }
+        await prisma.realizedEntry.update({
+          where: { id: entry.id },
+          data: { costCenterId: prefixedId }
+        });
+        updatedCount++;
+      }
+    }
+    console.log(`Successfully updated ${updatedCount} realized entries.`);
+  } catch (e) {
+    console.error("Error migrating costCenterIds in realized entries:", e);
+  }
+
+  console.log("Migrating existing BudgetEntry costCenterId records to prefixed format...");
+  try {
+    const budgetsToFix = await prisma.budgetEntry.findMany({
+      where: {
+        costCenterId: {
+          not: null,
+          not: {
+            contains: ':'
+          }
+        }
+      },
+      select: {
+        id: true,
+        tenantId: true,
+        costCenterId: true,
+        categoryId: true,
+        month: true,
+        year: true
+      }
+    });
+
+    console.log(`Found ${budgetsToFix.length} budget entries to update with prefixed costCenterId.`);
+    let updatedCount = 0;
+    for (const entry of budgetsToFix) {
+      if (entry.costCenterId) {
+        const prefixedId = `${entry.tenantId}:${entry.costCenterId}`;
+        const targetCCExists = await prisma.costCenter.findUnique({
+          where: { id: prefixedId }
+        });
+        if (!targetCCExists) {
+          const rawCC = await prisma.costCenter.findUnique({
+            where: { id: entry.costCenterId }
+          });
+          const ccName = rawCC ? rawCC.name : `Não Identificado (${entry.costCenterId.substring(0, 8)})`;
+          await prisma.costCenter.create({
+            data: {
+              id: prefixedId,
+              name: ccName,
+              tenantId: entry.tenantId
+            }
+          });
+        }
+
+        const existingPrefixedBudget = await prisma.budgetEntry.findUnique({
+          where: {
+            tenantId_categoryId_costCenterId_month_year: {
+              tenantId: entry.tenantId,
+              categoryId: entry.categoryId,
+              costCenterId: prefixedId,
+              month: entry.month,
+              year: entry.year
+            }
+          }
+        });
+
+        if (existingPrefixedBudget) {
+          await prisma.budgetEntry.delete({
+            where: { id: entry.id }
+          });
+        } else {
+          await prisma.budgetEntry.update({
+            where: { id: entry.id },
+            data: { costCenterId: prefixedId }
+          });
+          updatedCount++;
+        }
+      }
+    }
+    console.log(`Successfully updated/deduplicated ${updatedCount} budget entries.`);
+  } catch (e) {
+    console.error("Error migrating costCenterIds in budget entries:", e);
+  }
+
+  console.log("Migrating existing CostCenterLock costCenterId records...");
+  try {
+    const locksToFix = await prisma.costCenterLock.findMany({
+      where: {
+        costCenterId: {
+          not: {
+            contains: ':'
+          }
+        }
+      }
+    });
+
+    console.log(`Found ${locksToFix.length} cost center locks to update.`);
+    for (const entry of locksToFix) {
+      const prefixedId = `${entry.tenantId}:${entry.costCenterId}`;
+      const targetCCExists = await prisma.costCenter.findUnique({
+        where: { id: prefixedId }
+      });
+      if (!targetCCExists) {
+        const rawCC = await prisma.costCenter.findUnique({
+          where: { id: entry.costCenterId }
+        });
+        const ccName = rawCC ? rawCC.name : `Não Identificado (${entry.costCenterId.substring(0, 8)})`;
+        await prisma.costCenter.create({
+          data: {
+            id: prefixedId,
+            name: ccName,
+            tenantId: entry.tenantId
+          }
+        });
+      }
+
+      const existingPrefixedLock = await prisma.costCenterLock.findUnique({
+        where: {
+          tenantId_costCenterId_year: {
+            tenantId: entry.tenantId,
+            costCenterId: prefixedId,
+            year: entry.year
+          }
+        }
+      });
+
+      if (existingPrefixedLock) {
+        await prisma.costCenterLock.delete({
+          where: { id: entry.id }
+        });
+      } else {
+        await prisma.costCenterLock.update({
+          where: { id: entry.id },
+          data: { costCenterId: prefixedId }
+        });
+      }
+    }
+  } catch (e) {
+    console.error("Error migrating costCenterIds in locks:", e);
+  }
+
+  console.log("Migrating existing RealizedJustification costCenterId records...");
+  try {
+    const justificationsToFix = await prisma.realizedJustification.findMany({
+      where: {
+        costCenterId: {
+          not: null,
+          not: {
+            contains: ':'
+          }
+        }
+      }
+    });
+
+    console.log(`Found ${justificationsToFix.length} justifications to update.`);
+    for (const entry of justificationsToFix) {
+      if (entry.costCenterId) {
+        const prefixedId = `${entry.tenantId}:${entry.costCenterId}`;
+        const targetCCExists = await prisma.costCenter.findUnique({
+          where: { id: prefixedId }
+        });
+        if (!targetCCExists) {
+          const rawCC = await prisma.costCenter.findUnique({
+            where: { id: entry.costCenterId }
+          });
+          const ccName = rawCC ? rawCC.name : `Não Identificado (${entry.costCenterId.substring(0, 8)})`;
+          await prisma.costCenter.create({
+            data: {
+              id: prefixedId,
+              name: ccName,
+              tenantId: entry.tenantId
+            }
+          });
+        }
+        await prisma.realizedJustification.update({
+          where: { id: entry.id },
+          data: { costCenterId: prefixedId }
+        });
+      }
+    }
+  } catch (e) {
+    console.error("Error migrating costCenterIds in justifications:", e);
+  }
 }
 main().finally(() => prisma.$disconnect());

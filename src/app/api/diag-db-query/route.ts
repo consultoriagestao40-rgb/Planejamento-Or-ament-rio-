@@ -11,7 +11,10 @@ export async function GET() {
         const viewMode = 'competencia';
 
         const targetCategory = await prisma.category.findUnique({
-            where: { id: 'b067a990-b968-4883-a71f-0e511858ffcb' }
+            where: { id: '7889b96b-3799-4962-964e-0c818ca50d51' }
+        });
+        const targetCategory2 = await prisma.category.findUnique({
+            where: { id: '2cd8cdc9-ee2c-4630-bb4d-51cacf08ae9a' }
         });
 
         // 1. Busca os lançamentos realizados
@@ -60,6 +63,7 @@ export async function GET() {
             success: true,
             totalEntries: realizedEntries.length,
             targetCategory,
+            targetCategory2,
             dreGroups,
             rawItems
         });

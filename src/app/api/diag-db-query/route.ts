@@ -10,6 +10,10 @@ export async function GET() {
         const month = 5;
         const viewMode = 'competencia';
 
+        const targetCategory = await prisma.category.findUnique({
+            where: { id: 'b067a990-b968-4883-a71f-0e511858ffcb' }
+        });
+
         // 1. Busca os lançamentos realizados
         const realizedEntries = await prisma.realizedEntry.findMany({
             where: {
@@ -55,6 +59,7 @@ export async function GET() {
         return NextResponse.json({
             success: true,
             totalEntries: realizedEntries.length,
+            targetCategory,
             dreGroups,
             rawItems
         });

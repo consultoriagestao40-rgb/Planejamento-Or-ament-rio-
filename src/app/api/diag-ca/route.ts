@@ -24,7 +24,11 @@ export async function GET(request: Request) {
             headers: { 'Authorization': `Bearer ${tenant.accessToken}` },
             cache: 'no-store'
         });
-        const recData = recRes.ok ? await recRes.json() : null;
+        if (!recRes.ok) {
+            const err = await recRes.text();
+            return NextResponse.json({ error: "Erro ao buscar contas a receber", status: recRes.status, detail: err });
+        }
+        const recData = await recRes.json();
         const recItems = recData ? (recData.itens || []) : [];
 
         // 2. Fetch Contas a Pagar
@@ -32,7 +36,11 @@ export async function GET(request: Request) {
             headers: { 'Authorization': `Bearer ${tenant.accessToken}` },
             cache: 'no-store'
         });
-        const pagData = pagRes.ok ? await pagRes.json() : null;
+        if (!pagRes.ok) {
+            const err = await pagRes.text();
+            return NextResponse.json({ error: "Erro ao buscar contas a pagar", status: pagRes.status, detail: err });
+        }
+        const pagData = await pagRes.json();
         const pagItems = pagData ? (pagData.itens || []) : [];
 
         // 3. Fetch Vendas
@@ -40,7 +48,11 @@ export async function GET(request: Request) {
             headers: { 'Authorization': `Bearer ${tenant.accessToken}` },
             cache: 'no-store'
         });
-        const salesData = salesRes.ok ? await salesRes.json() : null;
+        if (!salesRes.ok) {
+            const err = await salesRes.text();
+            return NextResponse.json({ error: "Erro ao buscar vendas", status: salesRes.status, detail: err });
+        }
+        const salesData = await salesRes.json();
         const salesItems = salesData ? (salesData.itens || []) : [];
 
         // Audit lists

@@ -13,8 +13,8 @@ export async function GET() {
 
         // 2. Fetch company info from Conta Azul API
         const endpoints = [
-            'https://api-v2.contaazul.com/v1/user/info',
-            'https://api-v2.contaazul.com/v1/tenants'
+            'https://api.contaazul.com/v1/user/info',
+            'https://api.contaazul.com/v1/tenants'
         ];
 
         const results: any = {};

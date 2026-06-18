@@ -3,8 +3,8 @@ import { NextResponse } from 'next/server';
 
 export async function GET() {
     return NextResponse.json({ 
-        version: 'v66.26',
-        lastUpdate: '2026-03-27 - FINAL SUCCESS: Cost Center Filtering Applied to Modal',
+        version: 'v66.27',
+        lastUpdate: '2026-06-18 - Diagnostic update validation',
         status: 'stable'
     });
 }

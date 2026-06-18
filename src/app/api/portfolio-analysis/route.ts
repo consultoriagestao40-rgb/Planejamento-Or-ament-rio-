@@ -91,6 +91,9 @@ export async function GET(request: Request) {
 
             // 1. Classificação por entradaDre (mais confiável — configurado manualmente)
             if (entradaDre) {
+                if (entradaUpper.startsWith('06') || entradaUpper.startsWith('6') || entradaUpper.includes('FINANCEIR')) {
+                    return 'OTHER';
+                }
                 if (entradaUpper.includes('RECEITA') || entradaUpper.startsWith('01')) {
                     return 'REVENUE';
                 }
@@ -104,6 +107,9 @@ export async function GET(request: Request) {
 
             // 2. Classificação pelo campo type do banco (REVENUE / EXPENSE)
             if (typeUpper === 'REVENUE' || typeUpper === 'RECEITA') {
+                if (nameUpper.startsWith('06') || nameUpper.startsWith('6') || nameUpper.includes('FINANCEIR')) {
+                    return 'OTHER';
+                }
                 return 'REVENUE';
             }
 
@@ -135,6 +141,9 @@ export async function GET(request: Request) {
 
             // 4. Fallback por palavras-chave no nome
             if (nameUpper.includes('RECEITA') || nameUpper.includes('FATURAMENTO') || nameUpper.includes('SERVIC') || nameUpper.includes('SERVIÇ')) {
+                if (nameUpper.startsWith('06') || nameUpper.startsWith('6') || nameUpper.includes('FINANCEIR')) {
+                    return 'OTHER';
+                }
                 return 'REVENUE';
             }
             if (nameUpper.includes('TRIBUTO') || nameUpper.includes('IMPOSTO') || nameUpper.includes('ISS') || nameUpper.includes('PIS') || nameUpper.includes('COFINS')) {

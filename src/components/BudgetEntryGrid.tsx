@@ -331,15 +331,19 @@ export default function BudgetEntryGrid({ costCenterId, year, taxRate = 0 }: Bud
     const nodeTotals = useMemo(() => {
         const totalsMap = new Map<string, { budget: number[], realized: number[], radar: number[] }>();
 
-        const calculateNode = (node: CategoryNode): { budget: number[], realized: number[], radar: number[] } => {
+        const isNegatedCode = (code: string) => code.startsWith('06.1');
+
+        const calculateNode = (node: CategoryNode, parentNegated = false): { budget: number[], realized: number[], radar: number[] } => {
             const myBudget = new Array(12).fill(0);
             const myRealized = new Array(12).fill(0);
             const myRadar = new Array(12).fill(0);
 
+            const negated = parentNegated || isNegatedCode(node.code || '');
+
             if (node.children && node.children.length > 0) {
                 // Parent: Sum children results only
                 node.children.forEach(c => {
-                    const ct = calculateNode(c);
+                    const ct = calculateNode(c, negated);
                     for (let i = 0; i < 12; i++) {
                         myBudget[i] += ct.budget[i];
                         myRealized[i] += ct.realized[i];
@@ -350,18 +354,19 @@ export default function BudgetEntryGrid({ costCenterId, year, taxRate = 0 }: Bud
                 // Leaf: Sum by Code (v67.15 - Universal Visibility)
                 const ids = (node.id || "").split(',');
                 const nodeCode = node.code || '';
+                const sign = negated ? -1 : 1;
                 
                 for (let i = 0; i < 12; i++) {
                     // Try by all IDs first
                     ids.forEach(id => {
                         const bVal = budgetValues[`${id.trim()}-${i}`];
                         if (bVal) {
-                            myBudget[i] += bVal.amount || 0;
-                            myRadar[i] += (bVal.radarAmount || 0);
+                            myBudget[i] += sign * (bVal.amount || 0);
+                            myRadar[i] += sign * (bVal.radarAmount || 0);
                         }
                         const rVal = realizedValues[`${id.trim()}-${i}`];
                         if (rVal) {
-                            myRealized[i] += rVal || 0;
+                            myRealized[i] += sign * (rVal || 0);
                         }
                     });
 

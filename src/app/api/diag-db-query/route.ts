@@ -5,28 +5,15 @@ export const dynamic = 'force-dynamic';
 
 export async function GET() {
     try {
-        const tenants = await prisma.tenant.findMany();
-        const results = [];
-        
-        for (const t of tenants) {
-            const categoriesCount = await prisma.category.count({
-                where: { tenantId: t.id }
-            });
-            const realizedCount = await prisma.realizedEntry.count({
-                where: { tenantId: t.id, year: 2026, month: 5, viewMode: 'competencia' }
-            });
-            
-            results.push({
-                tenantId: t.id,
-                tenantName: t.name,
-                categoriesCount,
-                realizedCount
-            });
-        }
+        const tenantId = '413f88a7-ce4a-4620-b044-43ef909b7b26'; // SPOT FACILITIES
+        const categories = await prisma.category.findMany({
+            where: { tenantId },
+            take: 20
+        });
         
         return NextResponse.json({
             success: true,
-            results
+            categories
         });
     } catch (e: any) {
         return NextResponse.json({ success: false, error: e.message });

@@ -93,6 +93,9 @@ export async function GET(request: Request) {
             success: true,
             tenant: { id: tenant.id, name: tenant.name },
             contasAPagarCount: capItems.length,
+            vendasCount: vendas.length,
+            salesRetentions,
+            vData,
             contasAPagar: capItems.map((p: any) => ({
                 id: p.id,
                 descricao: p.descricao || p.description,

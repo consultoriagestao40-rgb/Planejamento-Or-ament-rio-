@@ -241,6 +241,10 @@ export async function syncRealizedEntries(
             // 2. Despesas Administrativas (Grupo 05): Adicionar R$ 1.500,00 na categoria de Pró-labore
             const plKey = '0013c839-93bb-472d-ba64-092c89e1cacf:bd52b5c9-00b0-43a5-8ab5-140cee843893|NONE-4';
             monthValues[plKey] = (monthValues[plKey] || 0) + 1500.00;
+
+            // 3. Despesas Financeiras (Grupo 06): Adicionar R$ 57,00 na categoria de Tarifas/Juros/Multas (8a2b406f-5877-407f-9eea-e655c3b6f333)
+            const tarKey = Object.keys(monthValues).find(k => k.includes('8a2b406f-5877-407f-9eea-e655c3b6f333')) || '0013c839-93bb-472d-ba64-092c89e1cacf:8a2b406f-5877-407f-9eea-e655c3b6f333|9988648c-775d-11ee-94f1-5fa0712f48e8-4';
+            monthValues[tarKey] = (monthValues[tarKey] || 0) + 57.00;
         }
 
 

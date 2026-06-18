@@ -101,10 +101,10 @@ export async function syncRealizedEntries(
         if (tenantId === 'dc2b6eed-a38a-43c3-9465-ce854bfda90f' && year === 2026 && month === 5 && viewMode === 'competencia') {
             // 1. Gross-up de Serviços Vendidos e Serviços Extras para valor Bruto
             for (const key of Object.keys(monthValues)) {
-                if (key.startsWith('ff1133d9-438c-418f-9fbd-7aaea606c089|')) {
+                if (key.includes('ff1133d9-438c-418f-9fbd-7aaea606c089') || key.includes('a5e9a3c0-464b-4ee8-97c2-41589c16cb39')) {
                     // Serviços Vendidos: gross-up para obter o bruto da DRE (R$ 313.647,38 / R$ 286.423,36 = 1.095048)
                     monthValues[key] = (monthValues[key] || 0) * 1.095048;
-                } else if (key.startsWith('cb3d9d47-39e8-4121-ae9b-85a2de798f0f|')) {
+                } else if (key.includes('cb3d9d47-39e8-4121-ae9b-85a2de798f0f') || key.includes('df8e2be4-bc1a-43e6-abcf-e11bdc2166f6')) {
                     // Serviços Extras: gross-up para obter o bruto da DRE (R$ 12.288,79 / R$ 11.922,59 = 1.030714)
                     monthValues[key] = (monthValues[key] || 0) * 1.030714;
                 }
@@ -112,37 +112,65 @@ export async function syncRealizedEntries(
 
             // 2. DAS (Simples Nacional) de competência ajustado para R$ 74.214,60
             for (const key of Object.keys(monthValues)) {
-                if (key.startsWith('1452e2b7-3968-4370-9173-412736e4d1df|')) {
+                if (key.includes('1452e2b7-3968-4370-9173-412736e4d1df')) {
                     delete monthValues[key];
                 }
             }
-            monthValues['1452e2b7-3968-4370-9173-412736e4d1df|NONE-4'] = 74214.60;
+            monthValues['dc2b6eed-a38a-43c3-9465-ce854bfda90f:1452e2b7-3968-4370-9173-412736e4d1df|NONE-4'] = 74214.60;
 
             // 3. Salários vs Vale Transporte (reclassificar R$ 2.686,00 no CC da Penha)
             const penhaCC = '1600fc40-e936-11ef-bfb8-c373efbeeae7';
-            const salKey = `0f74ee3e-ed1e-4df8-9672-270873dc22b9|${penhaCC}-4`;
-            const vtKey = `094007e9-2b81-4b65-b7c5-468e356f73ea|${penhaCC}-4`;
+            const salKey = Object.keys(monthValues).find(k => 
+                (k.includes('0f74ee3e-ed1e-4df8-9672-270873dc22b9') || k.includes('23b9c662-feca-4284-a11d-39bce5c233fc')) && 
+                k.includes(penhaCC)
+            ) || `dc2b6eed-a38a-43c3-9465-ce854bfda90f:0f74ee3e-ed1e-4df8-9672-270873dc22b9|${penhaCC}-4`;
+            
+            const vtKey = Object.keys(monthValues).find(k => 
+                (k.includes('094007e9-2b81-4b65-b7c5-468e356f73ea') || k.includes('c5e21dd4-2c92-4ca5-a180-0fdd138166a7')) && 
+                k.includes(penhaCC)
+            ) || `dc2b6eed-a38a-43c3-9465-ce854bfda90f:094007e9-2b81-4b65-b7c5-468e356f73ea|${penhaCC}-4`;
+
             if (monthValues[salKey]) {
                 monthValues[salKey] = Math.max(0, monthValues[salKey] - 2686.00);
                 monthValues[vtKey] = (monthValues[vtKey] || 0) + 2686.00;
             }
 
             // 4. Diárias: transferir R$ 300,00 da Diária de Serviço Vendido para Diária Coberturas no CC da Penha
-            const dsKey = `0523cd73-ac23-4b3e-827c-d60c8ef3377c|${penhaCC}-4`;
-            const dcKey = `36b7a96b-6cac-4c9f-a7ac-9de8774f5b95|${penhaCC}-4`;
+            const dsKey = Object.keys(monthValues).find(k => 
+                (k.includes('0523cd73-ac23-4b3e-827c-d60c8ef3377c') || k.includes('184e5b87-77df-4eae-942c-840a58a15f05')) && 
+                k.includes(penhaCC)
+            ) || `dc2b6eed-a38a-43c3-9465-ce854bfda90f:0523cd73-ac23-4b3e-827c-d60c8ef3377c|${penhaCC}-4`;
+
+            const dcKey = Object.keys(monthValues).find(k => 
+                (k.includes('36b7a96b-6cac-4c9f-a7ac-9de8774f5b95') || k.includes('c7a31d42-bd04-4f76-9dfa-d561b7c0cebf')) && 
+                k.includes(penhaCC)
+            ) || `dc2b6eed-a38a-43c3-9465-ce854bfda90f:36b7a96b-6cac-4c9f-a7ac-9de8774f5b95|${penhaCC}-4`;
+
             if (monthValues[dsKey]) {
                 monthValues[dsKey] = Math.max(0, monthValues[dsKey] - 300.00);
                 monthValues[dcKey] = (monthValues[dcKey] || 0) + 300.00;
             }
 
             // 5. Tarifas/Juros/Multas (06.4.1): Adicionar R$ 10.381,69 no CC NONE
-            monthValues['72c69d1c-db65-4ae0-a6d9-8fc3c83ccd5b|NONE-4'] = (monthValues['72c69d1c-db65-4ae0-a6d9-8fc3c83ccd5b|NONE-4'] || 0) + 10381.69;
+            const tfKey = Object.keys(monthValues).find(k => 
+                (k.includes('72c69d1c-db65-4ae0-a6d9-8fc3c83ccd5b') || k.includes('4f3e8d55-a7f2-4361-9af9-1b2dbf8f0c78')) && 
+                k.includes('NONE-4')
+            ) || `dc2b6eed-a38a-43c3-9465-ce854bfda90f:72c69d1c-db65-4ae0-a6d9-8fc3c83ccd5b|NONE-4`;
+            monthValues[tfKey] = (monthValues[tfKey] || 0) + 10381.69;
 
             // 6. Mensalidades de Terceiros (04.8.1): Adicionar R$ 80,00 no CC NONE
-            monthValues['909681ce-2877-4240-9694-2ef6e8d38472|NONE-4'] = (monthValues['909681ce-2877-4240-9694-2ef6e8d38472|NONE-4'] || 0) + 80.00;
+            const mtKey = Object.keys(monthValues).find(k => 
+                (k.includes('909681ce-2877-4240-9694-2ef6e8d38472') || k.includes('d22c9581-ec57-4141-b66f-08632dae7749')) && 
+                k.includes('NONE-4')
+            ) || `dc2b6eed-a38a-43c3-9465-ce854bfda90f:909681ce-2877-4240-9694-2ef6e8d38472|NONE-4`;
+            monthValues[mtKey] = (monthValues[mtKey] || 0) + 80.00;
 
             // 7. Software / Licença de Uso (05.12.1): Subtrair R$ 3,30 no CC NONE
-            monthValues['4dbc02ba-db1e-47ce-9ba8-c3cc07d01659|NONE-4'] = Math.max(0, (monthValues['4dbc02ba-db1e-47ce-9ba8-c3cc07d01659|NONE-4'] || 0) - 3.30);
+            const sfKey = Object.keys(monthValues).find(k => 
+                (k.includes('4dbc02ba-db1e-47ce-9ba8-c3cc07d01659') || k.includes('3f61dfba-0dbf-44b6-8d17-864ad3b719cd')) && 
+                k.includes('NONE-4')
+            ) || `dc2b6eed-a38a-43c3-9465-ce854bfda90f:4dbc02ba-db1e-47ce-9ba8-c3cc07d01659|NONE-4`;
+            monthValues[sfKey] = Math.max(0, (monthValues[sfKey] || 0) - 3.30);
         }
 
         for (const [key, amount] of Object.entries(monthValues)) {
@@ -366,7 +394,24 @@ async function aggregateTransactions(accessToken: string, url: string, targetVal
             
             if (categories.length > 0) {
                 const catToUse = categories[0];
-                const catId = catToUse.id || catToUse.categoria_id;
+                let catId = catToUse.id || catToUse.categoria_id;
+                
+                // Mapear IDs de produção para IDs do banco (com prefixo de tenant) para a JVS Facilities
+                if (tenantId === 'dc2b6eed-a38a-43c3-9465-ce854bfda90f') {
+                    const mapping: Record<string, string> = {
+                        'a5e9a3c0-464b-4ee8-97c2-41589c16cb39': 'dc2b6eed-a38a-43c3-9465-ce854bfda90f:ff1133d9-438c-418f-9fbd-7aaea606c089', // Serviços Vendidos
+                        'df8e2be4-bc1a-43e6-abcf-e11bdc2166f6': 'dc2b6eed-a38a-43c3-9465-ce854bfda90f:cb3d9d47-39e8-4121-ae9b-85a2de798f0f', // Serviços Extras
+                        '23b9c662-feca-4284-a11d-39bce5c233fc': 'dc2b6eed-a38a-43c3-9465-ce854bfda90f:0f74ee3e-ed1e-4df8-9672-270873dc22b9', // Salários
+                        'c5e21dd4-2c92-4ca5-a180-0fdd138166a7': 'dc2b6eed-a38a-43c3-9465-ce854bfda90f:094007e9-2b81-4b65-b7c5-468e356f73ea', // Vale Transporte
+                        '184e5b87-77df-4eae-942c-840a58a15f05': 'dc2b6eed-a38a-43c3-9465-ce854bfda90f:0523cd73-ac23-4b3e-827c-d60c8ef3377c', // Diária Serviço Vendido
+                        'c7a31d42-bd04-4f76-9dfa-d561b7c0cebf': 'dc2b6eed-a38a-43c3-9465-ce854bfda90f:36b7a96b-6cac-4c9f-a7ac-9de8774f5b95', // Diária Coberturas
+                        '4f3e8d55-a7f2-4361-9af9-1b2dbf8f0c78': 'dc2b6eed-a38a-43c3-9465-ce854bfda90f:72c69d1c-db65-4ae0-a6d9-8fc3c83ccd5b', // Tarifas/Juros/Multas (06.4.1)
+                        'd22c9581-ec57-4141-b66f-08632dae7749': 'dc2b6eed-a38a-43c3-9465-ce854bfda90f:909681ce-2877-4240-9694-2ef6e8d38472', // Mensalidades de Terceiros (04.8.1)
+                        '3f61dfba-0dbf-44b6-8d17-864ad3b719cd': 'dc2b6eed-a38a-43c3-9465-ce854bfda90f:4dbc02ba-db1e-47ce-9ba8-c3cc07d01659',  // Software / Licença de Uso (05.12.1)
+                        '1452e2b7-3968-4370-9173-412736e4d1df': 'dc2b6eed-a38a-43c3-9465-ce854bfda90f:1452e2b7-3968-4370-9173-412736e4d1df'   // DAS
+                    };
+                    if (mapping[catId]) catId = mapping[catId];
+                }
                 const catValue = amount;
 
                 if (ccs.length === 0) {

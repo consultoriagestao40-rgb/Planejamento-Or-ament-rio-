@@ -5,30 +5,19 @@ export const dynamic = 'force-dynamic';
 
 export async function GET() {
     try {
-        const entries = await prisma.realizedEntry.findMany({
-            where: {
-                OR: [
-                    { description: { contains: 'sefaz', mode: 'insensitive' } },
-                    { categoryId: { contains: '514d81fe-c366-4714-8243-39bbb4bc9e55' } },
-                    { categoryId: { contains: '5405d46e-a1f0-45cf-a30c-634d13d7a28b' } }
-                ]
-            },
-            include: { category: true, tenant: true }
+        const tenantId = 'dc2b6eed-a38a-43c3-9465-ce854bfda90f';
+        const categories = await prisma.category.findMany({
+            where: { tenantId }
         });
         
         return NextResponse.json({
             success: true,
-            count: entries.length,
-            entries: entries.map(e => ({
-                id: e.id,
-                amount: e.amount,
-                description: e.description,
-                categoryName: e.category.name,
-                categoryId: e.categoryId,
-                tenantName: e.tenant.name,
-                month: e.month,
-                year: e.year,
-                viewMode: e.viewMode
+            count: categories.length,
+            categories: categories.map(c => ({
+                id: c.id,
+                name: c.name,
+                parentId: c.parentId,
+                entradaDre: c.entradaDre
             }))
         });
     } catch (e: any) {

@@ -29,7 +29,7 @@ export async function GET(request: Request) {
             targetTenantIds = Array.from(new Set(variantSets.flat()));
         }
 
-        // 2. Determine Category IDs (Strict matching to Grid row)
+        // 2. Determine Category IDs (Strict matching to Grid row, supporting prefixed and unprefixed variants)
         const allCategoryIds = new Set<string>();
 
         if (categoryId.startsWith('synth-')) {
@@ -44,9 +44,18 @@ export async function GET(request: Request) {
             });
             children.forEach(c => allCategoryIds.add(c.id));
         } else {
-            // For leaf/merged categories from the Grid, we use the IDs EXACTLY as provided
-            // This prevents "hidden" children from appearing in the modal if they are not seen in the grid row.
-            categoryId.split(',').map(id => id.trim()).filter(Boolean).forEach(id => allCategoryIds.add(id));
+            // For leaf/merged categories from the Grid, we expand the IDs to include all prefix combinations
+            categoryId.split(',').map(id => id.trim()).filter(Boolean).forEach(id => {
+                allCategoryIds.add(id);
+                // Expand to include prefixed variant for each target tenant
+                targetTenantIds.forEach(tId => {
+                    allCategoryIds.add(`${tId}:${id}`);
+                });
+                // Expand to include unprefixed variant if id itself has a prefix
+                if (id.includes(':')) {
+                    allCategoryIds.add(id.split(':')[1]);
+                }
+            });
         }
 
         const costCenterIdParam = searchParams.get('costCenterId') || 'ALL';

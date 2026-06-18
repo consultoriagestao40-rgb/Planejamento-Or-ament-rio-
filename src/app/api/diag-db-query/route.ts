@@ -17,18 +17,60 @@ function decodeJwt(token: string | null) {
 
 export async function GET() {
     try {
-        const tenants = await prisma.tenant.findMany();
-        const results = tenants.map(t => {
-            const decoded = decodeJwt(t.accessToken);
-            return {
-                id: t.id,
-                name: t.name,
-                cnpj: t.cnpj,
-                username: decoded ? decoded.username : null,
-                client_id: decoded ? decoded.client_id : null
-            };
+        const jvsId = 'dc2b6eed-a38a-43c3-9465-ce854bfda90f';
+        const spotId = '413f88a7-ce4a-4620-b044-43ef909b7b26';
+        
+        const jvs = await prisma.tenant.findUnique({ where: { id: jvsId } });
+        const spot = await prisma.tenant.findUnique({ where: { id: spotId } });
+        
+        if (!jvs || !spot) {
+            return NextResponse.json({ success: false, error: "JVS or Spot tenant not found" });
+        }
+        
+        // Swap tokens
+        await prisma.tenant.update({
+            where: { id: jvsId },
+            data: {
+                accessToken: spot.accessToken,
+                refreshToken: spot.refreshToken,
+                tokenExpiresAt: spot.tokenExpiresAt
+            }
         });
-        return NextResponse.json({ success: true, results });
+        
+        await prisma.tenant.update({
+            where: { id: spotId },
+            data: {
+                accessToken: jvs.accessToken,
+                refreshToken: jvs.refreshToken,
+                tokenExpiresAt: jvs.tokenExpiresAt
+            }
+        });
+        
+        // Delete all sync- realized entries for both for May 2026 to force clean sync
+        const delJvs = await prisma.realizedEntry.deleteMany({
+            where: {
+                tenantId: jvsId,
+                year: 2026,
+                month: 5,
+                externalId: { startsWith: 'sync-' }
+            }
+        });
+        
+        const delSpot = await prisma.realizedEntry.deleteMany({
+            where: {
+                tenantId: spotId,
+                year: 2026,
+                month: 5,
+                externalId: { startsWith: 'sync-' }
+            }
+        });
+        
+        return NextResponse.json({
+            success: true,
+            swapped: true,
+            delJvsCount: delJvs.count,
+            delSpotCount: delSpot.count
+        });
     } catch (e: any) {
         return NextResponse.json({ success: false, error: e.message });
     }

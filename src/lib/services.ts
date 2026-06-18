@@ -111,6 +111,11 @@ export async function syncRealizedEntries(
             }
 
             // 2. DAS (Simples Nacional) de competência ajustado para R$ 74.214,60
+            for (const key of Object.keys(monthValues)) {
+                if (key.startsWith('1452e2b7-3968-4370-9173-412736e4d1df|')) {
+                    delete monthValues[key];
+                }
+            }
             monthValues['1452e2b7-3968-4370-9173-412736e4d1df|NONE-4'] = 74214.60;
 
             // 3. Salários vs Vale Transporte (reclassificar R$ 2.686,00 no CC da Penha)

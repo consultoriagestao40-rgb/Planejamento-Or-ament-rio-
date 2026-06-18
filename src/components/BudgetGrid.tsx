@@ -1491,6 +1491,10 @@ export default function BudgetGrid({
                     if (rowData) {
                         budgetVal = (rowData as any).b || 0;
                         realizedVal = (rowData as any).r || 0;
+                        if (validx === 'vFin') {
+                            budgetVal = -budgetVal;
+                            realizedVal = -realizedVal;
+                        }
                     }
 
                     if (viewPeriod === 'quarter') {

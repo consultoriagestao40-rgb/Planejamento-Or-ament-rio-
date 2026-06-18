@@ -107,6 +107,7 @@ export async function GET(request: Request) {
             tenant: { id: tenant.id, name: tenant.name },
             contasAPagarCount: capItems.length,
             vendasCount: vendas.length,
+            sefazPayments,
             saleDetailVendas,
             saleDetailVenda,
             sampleSales,

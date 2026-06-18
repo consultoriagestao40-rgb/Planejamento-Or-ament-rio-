@@ -97,6 +97,11 @@ export async function syncRealizedEntries(
             await aggregateTransactions(token, url, monthValues, url.includes('pagar'), 'DEFAULT', year, viewMode, tenantId);
         }
 
+        // --- NEW LOGIC: Dynamic tax retentions from Vendas module ---
+        if (viewMode === 'competencia' && (tenantId === 'dc2b6eed-a38a-43c3-9465-ce854bfda90f' || tenantId === '413f88a7-ce4a-4620-b044-43ef909b7b26')) {
+            await addRetentionsFromSales(token, tenantId, year, month, monthValues);
+        }
+
         // --- AJUSTES ESPECÍFICOS PARA COMPETÊNCIA DE MAIO/2026 DA JVS FACILITIES ---
         if (tenantId === 'dc2b6eed-a38a-43c3-9465-ce854bfda90f' && year === 2026 && month === 5 && viewMode === 'competencia') {
             // 1. Receitas: Reclassificar Vendas (01.2.1) para Serviços Vendidos (01.1.1)
@@ -110,17 +115,6 @@ export async function syncRealizedEntries(
             // Somar as vendas na categoria de Serviços Vendidos
             const sKey = `dc2b6eed-a38a-43c3-9465-ce854bfda90f:ff1133d9-438c-418f-9fbd-7aaea606c089|NONE-4`;
             monthValues[sKey] = (monthValues[sKey] || 0) + totalSales;
-
-            // Gross-up de Serviços Vendidos e Extras para bater exatamente com a DRE do Conta Azul
-            for (const key of Object.keys(monthValues)) {
-                if (key.includes('ff1133d9-438c-418f-9fbd-7aaea606c089') || key.includes('a5e9a3c0-464b-4ee8-97c2-41589c16cb39')) {
-                    // Serviços Vendidos: gross-up para R$ 313.647,38 usando os valores reais da API (313.647,38 / 286.423,36)
-                    monthValues[key] = (monthValues[key] || 0) * (313647.38 / 286423.36);
-                } else if (key.includes('cb3d9d47-39e8-4121-ae9b-85a2de798f0f') || key.includes('df8e2be4-bc1a-43e6-abcf-e11bdc2166f6')) {
-                    // Serviços Extras: gross-up para R$ 12.288,79 usando os valores reais da API (12.288,79 / 11.922,59)
-                    monthValues[key] = (monthValues[key] || 0) * (12288.79 / 11922.59);
-                }
-            }
 
             // 2. Custos Operacionais (Grupo 03): Ajustar o total de custos operacionais para R$ 210.452,98
             // Custo original vindo da API é R$ 210.792,98. Deduzimos R$ 340,00 nos Salários.
@@ -184,21 +178,7 @@ export async function syncRealizedEntries(
 
         // --- AJUSTES ESPECÍFICOS PARA COMPETÊNCIA DE MAIO/2026 DA SPOT FACILITIES ---
         if (tenantId === '413f88a7-ce4a-4620-b044-43ef909b7b26' && year === 2026 && month === 5 && viewMode === 'competencia') {
-            // 1. Receitas: Gross-up para bater os valores brutos exatos da DRE do Conta Azul
-            // Serviços Vendidos: R$ 82.326,55 / R$ 68.953,94
-            // Serviços Extras: R$ 1.064,92 / R$ 1.026,99
-            // Receitas de Vendas: R$ 142.298,96 / R$ 138.427,25
-            for (const key of Object.keys(monthValues)) {
-                if (key.includes('a5e9a3c0-464b-4ee8-97c2-41589c16cb39')) {
-                    monthValues[key] = (monthValues[key] || 0) * (82326.55 / 68953.94);
-                } else if (key.includes('df8e2be4-bc1a-43e6-abcf-e11bdc2166f6')) {
-                    monthValues[key] = (monthValues[key] || 0) * (1064.92 / 1026.99);
-                } else if (key.includes('c3c491af-26f8-4260-9958-64222c73dffd')) {
-                    monthValues[key] = (monthValues[key] || 0) * (142298.96 / 138427.25);
-                }
-            }
-
-            // 2. Despesas Financeiras (Grupo 06): Adicionar R$ 3.643,58 na categoria de Tarifas/Juros/Multas (4f3e8d55-a7f2-4361-9af9-1b2dbf8f0c78)
+            // Despesas Financeiras (Grupo 06): Adicionar R$ 3.643,58 na categoria de Tarifas/Juros/Multas (4f3e8d55-a7f2-4361-9af9-1b2dbf8f0c78)
             const tarKey = Object.keys(monthValues).find(k => k.includes('4f3e8d55-a7f2-4361-9af9-1b2dbf8f0c78')) || '4f3e8d55-a7f2-4361-9af9-1b2dbf8f0c78|NONE-4';
             monthValues[tarKey] = (monthValues[tarKey] || 0) + 3643.58;
         }
@@ -499,5 +479,79 @@ async function aggregateTransactions(accessToken: string, url: string, targetVal
         
         if (items.length < 100) hasMore = false;
         pagina++;
+    }
+}
+
+async function addRetentionsFromSales(accessToken: string, tenantId: string, year: number, month: number, monthValues: Record<string, number>) {
+    const paddedMonth = month.toString().padStart(2, '0');
+    const startStr = `${year}-${paddedMonth}-01`;
+    const lastDay = new Date(year, month, 0).getDate();
+    const endStr = `${year}-${paddedMonth}-${lastDay}`;
+    
+    let pagina = 1;
+    let hasMore = true;
+    
+    const taxCatId = `${tenantId}:02.01.03`;
+    const monthIdx = month - 1;
+
+    while (hasMore) {
+        const url = `https://api-v2.contaazul.com/v1/venda/busca?data_inicio=${startStr}&data_fim=${endStr}&tamanho_pagina=100&pagina=${pagina}`;
+        const res = await fetch(url, {
+            headers: { 'Authorization': `Bearer ${accessToken}` },
+            cache: 'no-store'
+        });
+
+        if (!res.ok) {
+            const errBody = await res.text().catch(() => '');
+            throw new Error(`[Conta Azul API] venda/busca retornou status ${res.status}: ${errBody}`);
+        }
+
+        const data = await res.json();
+        const items = data.vendas || data.itens || data || [];
+        if (items.length === 0) break;
+
+        for (const item of items) {
+            if ((item.status || '').toUpperCase().includes('CANCEL')) continue;
+            
+            const ret = item.retencoes || {};
+            const totalRet = (ret.iss || 0) + (ret.irrf || 0) + (ret.csll || 0) + (ret.pis || 0) + (ret.cofins || 0);
+            
+            if (totalRet > 0) {
+                // Find category of first item in sale
+                const saleCatId = item.itens?.[0]?.categoria_id || item.itens?.[0]?.id_categoria || item.categoria_id || 'a5e9a3c0-464b-4ee8-97c2-41589c16cb39';
+                let mappedRevenueCatId = saleCatId;
+                
+                // Mapear se for JVS Facilities
+                if (tenantId === 'dc2b6eed-a38a-43c3-9465-ce854bfda90f') {
+                    const mapping: Record<string, string> = {
+                        'a5e9a3c0-464b-4ee8-97c2-41589c16cb39': 'dc2b6eed-a38a-43c3-9465-ce854bfda90f:ff1133d9-438c-418f-9fbd-7aaea606c089', // 01.1.1 - Serviços Vendidos
+                        'df8e2be4-bc1a-43e6-abcf-e11bdc2166f6': 'dc2b6eed-a38a-43c3-9465-ce854bfda90f:cb3d9d47-39e8-4121-ae9b-85a2de798f0f', // 01.1.2 - Serviços Extras
+                        'c3c491af-26f8-4260-9958-64222c73dffd': 'dc2b6eed-a38a-43c3-9465-ce854bfda90f:2093bcb6-0696-4eb3-81ba-54b4bf32d6df', // 01.2.1 - Receitas de Vendas
+                    };
+                    if (mapping[mappedRevenueCatId]) mappedRevenueCatId = mapping[mappedRevenueCatId];
+                }
+
+                const ccs = item.centros_de_custo || [];
+
+                if (ccs.length === 0) {
+                    const revKey = `${mappedRevenueCatId}|NONE-${monthIdx}`;
+                    const taxKey = `${taxCatId}|NONE-${monthIdx}`;
+                    monthValues[revKey] = (monthValues[revKey] || 0) + totalRet;
+                    monthValues[taxKey] = (monthValues[taxKey] || 0) + totalRet;
+                } else {
+                    ccs.forEach((c: any) => {
+                        const ccId = c.id;
+                        const percent = (c.percentual || (100 / ccs.length)) / 100;
+                        const revKey = `${mappedRevenueCatId}|${ccId}-${monthIdx}`;
+                        const taxKey = `${taxCatId}|${ccId}-${monthIdx}`;
+                        monthValues[revKey] = (monthValues[revKey] || 0) + (totalRet * percent);
+                        monthValues[taxKey] = (monthValues[taxKey] || 0) + (totalRet * percent);
+                    });
+                }
+            }
+        }
+
+        if (items.length < 100) hasMore = false;
+        else pagina++;
     }
 }

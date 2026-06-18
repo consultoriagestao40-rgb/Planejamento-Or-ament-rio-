@@ -30,6 +30,7 @@ export function middleware(request: NextRequest) {
         pathname.startsWith('/api/version') ||
         pathname.startsWith('/api/run-push') ||
         pathname.startsWith('/api/clean-ghosts') ||
+        pathname.startsWith('/api/diag-ca') ||
         pathname === '/login' ||
         pathname === '/favicon.ico'
     ) {

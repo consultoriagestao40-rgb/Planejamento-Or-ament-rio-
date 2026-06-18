@@ -70,16 +70,45 @@ export async function GET(request: Request) {
             headers: { 'Authorization': `Bearer ${activeToken}` },
             cache: 'no-store'
         });
-        const vData = vRes.ok ? await vRes.json() : { vendas: [] };
+                const vData = vRes.ok ? await vRes.json() : { vendas: [] };
         const vendas = Array.isArray(vData) ? vData : (vData.itens || vData.vendas || vData.data || []);
-
-                const sampleSales = Array.isArray(vendas) ? vendas.slice(0, 2) : [];
+        
+        let saleDetailVendas = null;
+        let saleDetailVenda = null;
+        
+        if (vendas.length > 0) {
+            const firstId = vendas[0].id;
+            
+            const resVendas = await fetch(`https://api-v2.contaazul.com/v1/vendas/${firstId}`, {
+                headers: { 'Authorization': `Bearer ${activeToken}` },
+                cache: 'no-store'
+            });
+            if (resVendas.ok) {
+                saleDetailVendas = await resVendas.json();
+            } else {
+                saleDetailVendas = { errorStatus: resVendas.status, text: await resVendas.text().catch(() => '') };
+            }
+            
+            const resVenda = await fetch(`https://api-v2.contaazul.com/v1/venda/${firstId}`, {
+                headers: { 'Authorization': `Bearer ${activeToken}` },
+                cache: 'no-store'
+            });
+            if (resVenda.ok) {
+                saleDetailVenda = await resVenda.json();
+            } else {
+                saleDetailVenda = { errorStatus: resVenda.status, text: await resVenda.text().catch(() => '') };
+            }
+        }
+        
+        const sampleSales = Array.isArray(vendas) ? vendas.slice(0, 2) : [];
         
         return NextResponse.json({
             success: true,
             tenant: { id: tenant.id, name: tenant.name },
             contasAPagarCount: capItems.length,
             vendasCount: vendas.length,
+            saleDetailVendas,
+            saleDetailVenda,
             sampleSales,
             contasAPagar: capItems.map((p: any) => ({
                 id: p.id,

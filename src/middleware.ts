@@ -27,6 +27,7 @@ export function middleware(request: NextRequest) {
         pathname.startsWith('/api/diag-taxes') ||
         pathname.startsWith('/api/diag-id') ||
         pathname.startsWith('/api/debug-cc-271') ||
+        pathname.startsWith('/api/diag-ca') ||
         pathname.startsWith('/api/version') ||
         pathname.startsWith('/api/run-push') ||
         pathname.startsWith('/api/clean-ghosts') ||

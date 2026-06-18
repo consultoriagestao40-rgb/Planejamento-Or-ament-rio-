@@ -54,7 +54,7 @@ export async function GET(request: Request) {
             cache: 'no-store'
         });
         const capData = capRes.ok ? await capRes.json() : { itens: [] };
-        const capItems = capData.itens || [];
+        const capItems = Array.isArray(capData) ? capData : (capData.itens || capData.vendas || capData.data || []);
 
         // Find items that match 1760.16 or contain "Sefaz"
         const sefazPayments = capItems.filter((item: any) => {
@@ -70,22 +70,24 @@ export async function GET(request: Request) {
             cache: 'no-store'
         });
         const vData = vRes.ok ? await vRes.json() : { vendas: [] };
-        const vendas = vData.vendas || vData || [];
+        const vendas = Array.isArray(vData) ? vData : (vData.itens || vData.vendas || vData.data || []);
 
         const salesRetentions: any[] = [];
-        vendas.forEach((v: any) => {
-            // Check if there are taxes or retentions in the sale metadata
-            if (v.retencoes || v.valor_retencao || v.total_retencao || v.impostos) {
-                salesRetentions.push({
-                    id: v.id,
-                    numero: v.numero || v.number,
-                    cliente: v.cliente?.nome,
-                    valor_total: v.valor_total || v.total,
-                    retencoes: v.retencoes || v.valor_retencao || v.total_retencao,
-                    impostos: v.impostos
-                });
-            }
-        });
+        if (Array.isArray(vendas)) {
+            vendas.forEach((v: any) => {
+                // Check if there are taxes or retentions in the sale metadata
+                if (v.retencoes || v.valor_retencao || v.total_retencao || v.impostos) {
+                    salesRetentions.push({
+                        id: v.id,
+                        numero: v.numero || v.number,
+                        cliente: v.cliente?.nome,
+                        valor_total: v.valor_total || v.total,
+                        retencoes: v.retencoes || v.valor_retencao || v.total_retencao,
+                        impostos: v.impostos
+                    });
+                }
+            });
+        }
 
         return NextResponse.json({
             success: true,

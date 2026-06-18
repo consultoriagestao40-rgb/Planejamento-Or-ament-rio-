@@ -21,18 +21,10 @@ export async function GET(request: Request) {
         const clientSecret = process.env.CONTA_AZUL_CLIENT_SECRET;
         
         if (!clientId || !clientSecret) {
-            return NextResponse.json({ 
-                error: "CONTA_AZUL_CLIENT_ID ou SECRET ausentes nas variáveis de ambiente do Vercel.",
-                envKeys: Object.keys(process.env).filter(k => k.includes('CONTA_AZUL') || k.includes('PORT'))
-            });
-        }
-
-        if (!tenant.refreshToken) {
-            return NextResponse.json({ error: "Tenant não possui refreshToken no banco." });
+            return NextResponse.json({ error: "CONTA_AZUL_CLIENT_ID ou SECRET ausentes." });
         }
 
         const auth = Buffer.from(`${clientId}:${clientSecret}`).toString('base64');
-        
         const tokenRes = await fetch('https://auth.contaazul.com/oauth2/token', {
             method: 'POST',
             headers: { 
@@ -41,22 +33,15 @@ export async function GET(request: Request) {
             },
             body: new URLSearchParams({ 
                 grant_type: 'refresh_token', 
-                refresh_token: tenant.refreshToken 
+                refresh_token: tenant.refreshToken || '' 
             }),
             cache: 'no-store'
         });
 
-        let refreshResult: any = null;
         let activeToken = tenant.accessToken || '';
-
         if (tokenRes.ok) {
             const tokenData = await tokenRes.json();
-            refreshResult = {
-                success: true,
-                expires_in: tokenData.expires_in
-            };
             activeToken = tokenData.access_token;
-            
             await prisma.tenant.update({
                 where: { id: tenant.id },
                 data: {
@@ -65,94 +50,43 @@ export async function GET(request: Request) {
                     tokenExpiresAt: new Date(Date.now() + tokenData.expires_in * 1000)
                 }
             });
-        } else {
-            const errText = await tokenRes.text();
-            refreshResult = {
-                success: false,
-                status: tokenRes.status,
-                body: errText
-            };
         }
 
         const startStr = '2026-05-01';
         const endStr = '2026-05-31';
-        const year = 2026;
 
-        // 2. Fazer requisições usando o token com parâmetros corrigidos
-        const recUrl = `https://api-v2.contaazul.com/v1/financeiro/eventos-financeiros/contas-a-receber/buscar?data_vencimento_de=${year}-01-01&data_vencimento_ate=${year}-12-31&data_competencia_de=${startStr}&data_competencia_ate=${endStr}&tamanho_pagina=100`;
-        const recRes = await fetch(recUrl, {
+        // Buscar Vendas
+        const salesRes = await fetch(`https://api-v2.contaazul.com/v1/venda/busca?data_inicio=${startStr}&data_fim=${endStr}&tamanho_pagina=100`, {
             headers: { 'Authorization': `Bearer ${activeToken}` },
             cache: 'no-store'
         });
-        const recData = recRes.ok ? await recRes.json() : { error: true, status: recRes.status, body: await recRes.text() };
+        const salesData = salesRes.ok ? await salesRes.json() : {};
+        const salesItens = salesData.itens || [];
 
-        const pagUrl = `https://api-v2.contaazul.com/v1/financeiro/eventos-financeiros/contas-a-pagar/buscar?data_vencimento_de=${year}-01-01&data_vencimento_ate=${year}-12-31&data_competencia_de=${startStr}&data_competencia_ate=${endStr}&tamanho_pagina=100`;
-        const pagRes = await fetch(pagUrl, {
+        // Buscar Contas a Receber
+        const recRes = await fetch(`https://api-v2.contaazul.com/v1/financeiro/eventos-financeiros/contas-a-receber/buscar?data_vencimento_de=2026-01-01&data_vencimento_ate=2026-12-31&data_competencia_de=${startStr}&data_competencia_ate=${endStr}&tamanho_pagina=100`, {
             headers: { 'Authorization': `Bearer ${activeToken}` },
             cache: 'no-store'
         });
-        const pagData = pagRes.ok ? await pagRes.json() : { error: true, status: pagRes.status, body: await pagRes.text() };
-
-        const salesUrl = `https://api-v2.contaazul.com/v1/venda/busca?data_inicio=${startStr}&data_fim=${endStr}&tamanho_pagina=100`;
-        const salesRes = await fetch(salesUrl, {
-            headers: { 'Authorization': `Bearer ${activeToken}` },
-            cache: 'no-store'
-        });
-        const salesData = salesRes.ok ? await salesRes.json() : { error: true, status: salesRes.status, body: await salesRes.text() };
-
-        // Processar itens detalhadamente
+        const recData = recRes.ok ? await recRes.json() : {};
         const recItens = recData.itens || [];
-        const pagItens = pagData.itens || [];
-        const salesItens = salesData.itens || salesData.vendas || [];
+
+        // Detalhe de uma venda (Herbarium) e sua conta a receber correspondente
+        const herbariumSale = salesItens.find((s: any) => s.cliente?.nome?.includes('HERBARIUM'));
+        const herbariumRec = recItens.find((r: any) => r.cliente?.nome?.includes('HERBARIUM') || r.descricao?.includes('428') || r.venda_id === herbariumSale?.id);
 
         return NextResponse.json({
             sucesso: true,
-            tenant: { id: tenant.id, name: tenant.name },
-            refreshResult,
-            apiUrls: { recUrl, pagUrl, salesUrl },
-            apiResponses: {
-                contas_a_receber: {
-                    count: recItens.length,
-                    total_sum: recItens.reduce((acc: number, curr: any) => acc + (curr.total || 0), 0),
-                    original_sum: recItens.reduce((acc: number, curr: any) => acc + (curr.valor_original || 0), 0),
-                    liquido_sum: recItens.reduce((acc: number, curr: any) => acc + (curr.valor_liquido || 0), 0),
-                    items: recItens.map((item: any) => ({
-                        id: item.id,
-                        descricao: item.descricao,
-                        total: item.total,
-                        valor_original: item.valor_original,
-                        valor_liquido: item.valor_liquido,
-                        categoria: item.categorias?.[0]?.nome,
-                        venda_id: item.venda_id,
-                        retencoes: item.retencoes
-                    }))
-                },
-                contas_a_pagar: {
-                    count: pagItens.length,
-                    total_sum: pagItens.reduce((acc: number, curr: any) => acc + (curr.total || 0), 0),
-                    items: pagItens.map((item: any) => ({
-                        id: item.id,
-                        descricao: item.descricao,
-                        total: item.total,
-                        categoria: item.categorias?.[0]?.nome,
-                        fornecedor: item.fornecedor?.nome
-                    }))
-                },
-                vendas: {
-                    count: salesItens.length,
-                    total_sum: salesItens.reduce((acc: number, curr: any) => acc + (curr.total || curr.valor_total || 0), 0),
-                    items: salesItens.map((item: any) => ({
-                        id: item.id,
-                        numero: item.numero,
-                        total: item.total,
-                        situacao: item.situacao?.nome,
-                        cliente: item.cliente?.nome
-                    }))
-                }
-            }
+            vendasCount: salesItens.length,
+            vendasSum: salesItens.reduce((acc: number, curr: any) => acc + (curr.total || 0), 0),
+            herbariumSaleRaw: herbariumSale || null,
+            herbariumRecRaw: herbariumRec || null,
+            // Retornar as chaves de 1 item de conta a receber para ver o que existe nele
+            sampleRecKeys: recItens.length > 0 ? Object.keys(recItens[0]) : [],
+            sampleRecFull: recItens.length > 0 ? recItens[0] : null
         });
 
     } catch (e: any) {
-        return NextResponse.json({ error: "Erro interno", detail: e.message, stack: e.stack });
+        return NextResponse.json({ error: "Erro interno", detail: e.message });
     }
 }

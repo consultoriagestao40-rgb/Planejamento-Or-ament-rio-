@@ -472,11 +472,29 @@ async function collectDetailedTransactions(
                 if (!processedSplits) {
                     const catToUse = categories[0];
                     const catName = catToUse.nome || catToUse.name || '';
-                    if (viewMode === 'competencia' && isNonDRECategory(catName, tenantId)) {
-                        continue;
-                    }
-
                     let catId = catToUse.id || catToUse.categoria_id;
+                    
+                    if (viewMode === 'competencia') {
+                        if (isNonDRECategory(catName, tenantId)) {
+                            continue;
+                        }
+                        
+                        const isFinancialOrFine = catName.startsWith('06.') || catId === '769ce5a9-1d15-4d5f-aad8-3795e0902364';
+                        if (isFinancialOrFine) {
+                            const descUpper = (item.descricao || item.description || '').toUpperCase();
+                            const isCardPayment = catName.startsWith('06.7') && (descUpper.includes('FATURA') || descUpper.includes('PAG.FATURA'));
+                            const isPatrimonialTax = descUpper.includes('INTEGR.CAPITAL') || descUpper.includes('IOF BASICO CH PJ') || descUpper.includes('IOF S/ UTILIZACAO') || descUpper.includes('CESTA DE RELACIONAMENTO') || descUpper.includes('TARIFA COM R LIQUIDACAO') || descUpper.includes('TARIFA BAIXA');
+                            
+                            if (isCardPayment || isPatrimonialTax) {
+                                continue;
+                            }
+                            
+                            const isPaid = item.status === 'ACQUITTED' || (item.pago !== undefined && item.pago !== null && item.pago > 0) || (item.valor_pago !== undefined && item.valor_pago !== null && item.valor_pago > 0);
+                            if (!isPaid) {
+                                continue;
+                            }
+                        }
+                    }
                     
                     // Mapear IDs de produção para IDs do banco (com prefixo de tenant) para a JVS Facilities
                     if (tenantId === 'dc2b6eed-a38a-43c3-9465-ce854bfda90f') {
@@ -927,11 +945,29 @@ async function aggregateTransactions(accessToken: string, url: string, targetVal
                 if (!processedSplits) {
                     const catToUse = categories[0];
                     const catName = catToUse.nome || catToUse.name || '';
-                    if (viewMode === 'competencia' && isNonDRECategory(catName, tenantId)) {
-                        continue;
-                    }
-
                     let catId = catToUse.id || catToUse.categoria_id;
+                    
+                    if (viewMode === 'competencia') {
+                        if (isNonDRECategory(catName, tenantId)) {
+                            continue;
+                        }
+                        
+                        const isFinancialOrFine = catName.startsWith('06.') || catId === '769ce5a9-1d15-4d5f-aad8-3795e0902364';
+                        if (isFinancialOrFine) {
+                            const descUpper = (item.descricao || item.description || '').toUpperCase();
+                            const isCardPayment = catName.startsWith('06.7') && (descUpper.includes('FATURA') || descUpper.includes('PAG.FATURA'));
+                            const isPatrimonialTax = descUpper.includes('INTEGR.CAPITAL') || descUpper.includes('IOF BASICO CH PJ') || descUpper.includes('IOF S/ UTILIZACAO') || descUpper.includes('CESTA DE RELACIONAMENTO') || descUpper.includes('TARIFA COM R LIQUIDACAO') || descUpper.includes('TARIFA BAIXA');
+                            
+                            if (isCardPayment || isPatrimonialTax) {
+                                continue;
+                            }
+                            
+                            const isPaid = item.status === 'ACQUITTED' || (item.pago !== undefined && item.pago !== null && item.pago > 0) || (item.valor_pago !== undefined && item.valor_pago !== null && item.valor_pago > 0);
+                            if (!isPaid) {
+                                continue;
+                            }
+                        }
+                    }
                     
                     // Mapear IDs de produção para IDs do banco (com prefixo de tenant) para a JVS Facilities
                     if (tenantId === 'dc2b6eed-a38a-43c3-9465-ce854bfda90f') {

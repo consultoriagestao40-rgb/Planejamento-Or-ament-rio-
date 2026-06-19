@@ -227,6 +227,13 @@ async function collectDetailedTransactions(
             // Identificar se a transação possui status de perda (LOST ou PERDIDO)
             const isLossItem = item.status === 'LOST' || item.status === 'PERDIDO';
 
+            // Identificar se a transação possui categoria correspondente a PDD/Perda (Grupo 06.8)
+            const hasPDD = categories.some((c: any) => {
+                const name = (c.nome || c.name || '').toLowerCase();
+                const id = (c.id || c.categoria_id || '').toLowerCase();
+                return name.includes('pdd') || name.includes('perda') || name.startsWith('06.8') || id.includes('06.8');
+            });
+
             // Se for a busca complementar de perdas, processamos APENAS os itens que de fato viraram perda (LOST/PERDIDO)
             const isLossQuery = viewMode === 'competencia' && url.includes('status=LOST') && !isExpense;
             if (isLossQuery && !isLossItem) {

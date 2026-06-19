@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { getValidAccessToken } from '@/lib/services';
 
 export const dynamic = 'force-dynamic';
 
@@ -13,43 +14,27 @@ export async function GET() {
             return NextResponse.json({ success: false, error: 'Clean Tech Tenant not found' });
         }
 
-        const costCenters = await prisma.costCenter.findMany({
-            where: { tenantId: tenant.id }
-        });
+        const { token } = await getValidAccessToken(tenant.id);
 
-        const realizedEntries = await prisma.realizedEntry.findMany({
-            where: {
-                tenantId: tenant.id,
-                year: 2026,
-                month: 5,
-                viewMode: 'competencia'
-            }
-        });
+        const p1Id = '9bbfc293-6f41-4913-b12f-76465c3a13a1'; // Fatura 117
+        const p2Id = '9297cc52-342c-470a-8fe1-8e48a3fedf38'; // Fatura 113
 
-        // Group realized entries by costCenterId
-        const ccSummary: Record<string, { name: string, total: number, count: number }> = {};
-        
-        // Add "None/null" group
-        ccSummary['null'] = { name: 'Sem Centro de Custo', total: 0, count: 0 };
-        
-        costCenters.forEach(cc => {
-            ccSummary[cc.id] = { name: cc.name, total: 0, count: 0 };
+        const p1Res = await fetch(`https://api-v2.contaazul.com/v1/financeiro/eventos-financeiros/parcelas/${p1Id}`, {
+            headers: { 'Authorization': `Bearer ${token}` },
+            cache: 'no-store'
         });
+        const p1 = p1Res.ok ? await p1Res.json() : { error: `Status ${p1Res.status}` };
 
-        realizedEntries.forEach(e => {
-            const ccId = e.costCenterId || 'null';
-            if (!ccSummary[ccId]) {
-                ccSummary[ccId] = { name: `Unknown (${ccId})`, total: 0, count: 0 };
-            }
-            ccSummary[ccId].total += e.amount;
-            ccSummary[ccId].count += 1;
+        const p2Res = await fetch(`https://api-v2.contaazul.com/v1/financeiro/eventos-financeiros/parcelas/${p2Id}`, {
+            headers: { 'Authorization': `Bearer ${token}` },
+            cache: 'no-store'
         });
+        const p2 = p2Res.ok ? await p2Res.json() : { error: `Status ${p2Res.status}` };
 
         return NextResponse.json({
             success: true,
-            tenant: { id: tenant.id, name: tenant.name },
-            costCenters,
-            ccSummary
+            p1,
+            p2
         });
     } catch (e: any) {
         return NextResponse.json({ success: false, error: e.message });

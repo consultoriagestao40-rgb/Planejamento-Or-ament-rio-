@@ -5,60 +5,33 @@ export const dynamic = 'force-dynamic';
 
 export async function GET() {
     try {
-        const costCenters = await prisma.costCenter.findMany({ 
-            include: { tenant: { select: { name: true, taxRate: true } } },
-            orderBy: { name: 'asc' } 
+        const tenant = await prisma.tenant.findFirst({
+            where: { name: { contains: 'CLEAN TECH', mode: 'insensitive' } }
         });
 
-        const normalizeName = (name: string) => 
-            (name || '')
-                .toLowerCase()
-                .replace(/^\[inativo\]\s*/i, '')
-                .replace(/^encerrado\s*/i, '')
-                .replace(/^[\d. ]+-?\s*/, '')
-                .replace(/[^a-z0-9]/g, '')
-                .trim();
+        if (!tenant || !tenant.accessToken) {
+            return NextResponse.json({ success: false, error: 'Tenant or token not found' });
+        }
 
-        const blacklist = ['CLEAN TECH', 'RIO NEGRINHO', 'REDE TONIN'];
-        const map = new Map<string, any>();
+        const parcelId = 'f5540d13-505a-4dd7-a7cd-1c542cc01b9f';
+        const url = `https://api-v2.contaazul.com/v1/financeiro/eventos-financeiros/parcelas/${parcelId}`;
         
-        costCenters.forEach((cc: any) => {
-            const originalName = (cc.name || '').toUpperCase();
-            const nName = normalizeName(cc.name);
-            const key = `${cc.tenantId}-${nName}`;
-            
-            const isWhiteListed = originalName.includes('CLEAN TECH PRO');
-            const isBlacklisted = !isWhiteListed && (
-                blacklist.some(b => originalName.includes(b)) || 
-                originalName.includes('[INATIVO]') || 
-                originalName.includes('ENCERRADO')
-            );
-
-            if (isBlacklisted) {
-                return;
-            }
-
-            if (!map.has(key)) {
-                const displayName = (cc.name || '')
-                    .replace(/^\[INATIVO\]\s*/i, '')
-                    .replace(/^ENCERRADO\s*/i, '')
-                    .trim();
-
-                map.set(key, {
-                    id: cc.id,
-                    name: displayName,
-                    tenantId: cc.tenantId,
-                    tenantName: cc.tenant?.name || 'Empresa Desconhecida',
-                    taxRate: cc.tenant?.taxRate || 0
-                });
-            }
+        const res = await fetch(url, {
+            headers: { 'Authorization': `Bearer ${tenant.accessToken}` },
+            cache: 'no-store'
         });
 
-        const resultCCs = Array.from(map.values()).filter(cc => cc.tenantId === 'dc2b6eed-a38a-43c3-9465-ce854bfda90f');
+        if (!res.ok) {
+            const text = await res.text();
+            return NextResponse.json({ success: false, status: res.status, error: text });
+        }
+
+        const data = await res.json();
 
         return NextResponse.json({
             success: true,
-            costCenters: resultCCs
+            tenant: { id: tenant.id, name: tenant.name },
+            parcelDetails: data
         });
     } catch (e: any) {
         return NextResponse.json({ success: false, error: e.message });

@@ -826,8 +826,6 @@ async function aggregateTransactions(accessToken: string, url: string, targetVal
                                     }
 
                                     const ratCcs = rat.rateio_centro_custo || [];
-                                    if (ratCcs.length === 0) {
-                                        const key = `${catId}|NONE-${monthIdx}`;
                                     const isFineToReclassify = tenantId === '1fa165e3-178f-4d8f-ae7c-434c720c82dd' && (catName.includes('06.1.9') || catId === '769ce5a9-1d15-4d5f-aad8-3795e0902364');
 
                                     if (!isFineToReclassify) {

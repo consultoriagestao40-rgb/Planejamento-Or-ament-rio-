@@ -92,44 +92,17 @@ export async function syncRealizedEntries(
             `https://api-v2.contaazul.com/v1/venda/busca?data_inicio=${startStr}&data_fim=${endStr}&tamanho_pagina=100`
         ];
 
-        const monthValues: Record<string, number> = {};
+        const monthEntries: any[] = [];
         for (const url of urls) {
-            await aggregateTransactions(token, url, monthValues, url.includes('pagar'), 'DEFAULT', year, viewMode, tenantId);
+            await collectDetailedTransactions(token, url, monthEntries, url.includes('pagar'), year, viewMode, tenantId, month);
         }
 
         // --- NEW LOGIC: Dynamic tax retentions from Vendas module ---
         if (viewMode === 'competencia' && (tenantId === 'dc2b6eed-a38a-43c3-9465-ce854bfda90f' || tenantId === '413f88a7-ce4a-4620-b044-43ef909b7b26')) {
-            await addRetentionsFromSales(token, tenantId, year, month, monthValues);
+            await collectRetentionsFromSales(token, tenantId, year, month, monthEntries, viewMode);
         }
 
-
-
-
-
-        for (const [key, amount] of Object.entries(monthValues)) {
-            const lastHyphen = key.lastIndexOf('-');
-            if (lastHyphen === -1) continue;
-            const idsPart = key.substring(0, lastHyphen);
-            const monthIdxStr = key.substring(lastHyphen + 1);
-            const [catId, ccId] = idsPart.split('|');
-            const monthIdx = parseInt(monthIdxStr, 10);
-            if (isNaN(monthIdx)) continue;
-            
-            // Garante que só salvamos registros do mês que está sendo processado
-            if (monthIdx + 1 !== month) continue;
-
-            entriesToSave.push({
-                tenantId,
-                categoryId: catId,
-                costCenterId: (ccId === 'NONE' || !ccId) ? null : (ccId.includes(':') ? ccId : `${tenantId}:${ccId}`),
-                month: monthIdx + 1,
-                year,
-                amount: amount,
-                viewMode,
-                externalId: `sync-${tenantId}-${catId}-${ccId || 'NONE'}-${year}-${monthIdx}-${viewMode}`,
-                description: `Sincronização ${viewMode}`
-            });
-        }
+        entriesToSave.push(...monthEntries);
     }
 
     // ⚠️ PROTEÇÃO CRÍTICA: Apaga SOMENTE registros que vieram da API (externalId LIKE 'sync-%')
@@ -204,6 +177,363 @@ export async function syncRealizedEntries(
     }
 
     return { success: true, count: entriesToSave.length, months: `${startMonth}-${endMonth}` };
+}
+
+async function collectDetailedTransactions(
+    accessToken: string,
+    url: string,
+    entries: any[],
+    isExpense: boolean,
+    targetYear: number,
+    viewMode: string,
+    tenantId: string,
+    targetMonth: number
+) {
+    let pagina = 1;
+    let hasMore = true;
+    
+    while (hasMore) {
+        const pagedUrl = `${url}&pagina=${pagina}`;
+        const res = await fetch(pagedUrl, { 
+            headers: { 'Authorization': `Bearer ${accessToken}` },
+            cache: 'no-store'
+        });
+        
+        if (!res.ok) {
+            const errBody = await res.text().catch(() => '');
+            const endpointName = url.split('/v1/')[1]?.split('?')[0] || 'api';
+            throw new Error(`[Conta Azul API] ${endpointName} retornou status ${res.status}: ${errBody}`);
+        }
+        
+        const data = await res.json();
+        const items = Array.isArray(data) ? data : (data.itens || data.vendas || []);
+        if (items.length === 0) break;
+
+        for (const item of items) {
+            const amount = item.valor_total || item.total || item.valor || item.pago || 0;
+            const dateStr = item.data_competencia || item.data_emissao || item.venda_em || item.data_pagamento || item.data;
+            if (!dateStr) continue;
+            const dateObj = new Date(dateStr);
+            if (dateObj.getFullYear() !== targetYear) continue;
+            if (dateObj.getMonth() + 1 !== targetMonth) continue;
+
+            const ccs = item.centros_de_custo || [];
+            const categories = item.categorias || (item.categoria ? [item.categoria] : []);
+            
+            if (categories.length > 0) {
+                let processedSplits = false;
+                if (categories.length > 1 && item.id) {
+                    try {
+                        const detailUrl = `https://api-v2.contaazul.com/v1/financeiro/eventos-financeiros/parcelas/${item.id}`;
+                        const detailRes = await fetch(detailUrl, {
+                            headers: { 'Authorization': `Bearer ${accessToken}` },
+                            cache: 'no-store'
+                        });
+                        if (detailRes.ok) {
+                            const detailData = await detailRes.json();
+                            const rateios = detailData.evento?.rateio || detailData.rateio || [];
+                            if (rateios.length > 0) {
+                                let ratIdx = 0;
+                                for (const rat of rateios) {
+                                    const catName = rat.nome_categoria || '';
+                                    if (viewMode === 'competencia' && isNonDRECategory(catName, tenantId)) {
+                                        continue;
+                                    }
+
+                                    let catId = rat.id_categoria;
+                                    if (!catId) continue;
+                                    
+                                    const catValue = (rat.valor_bruto !== undefined && rat.valor_bruto !== null) ? rat.valor_bruto : (rat.valor || 0);
+
+                                    // Mapear IDs de produção para IDs do banco (com prefixo de tenant) para a JVS Facilities
+                                    if (tenantId === 'dc2b6eed-a38a-43c3-9465-ce854bfda90f') {
+                                        const mapping: Record<string, string> = {
+                                            'a5e9a3c0-464b-4ee8-97c2-41589c16cb39': 'dc2b6eed-a38a-43c3-9465-ce854bfda90f:ff1133d9-438c-418f-9fbd-7aaea606c089',
+                                            'df8e2be4-bc1a-43e6-abcf-e11bdc2166f6': 'dc2b6eed-a38a-43c3-9465-ce854bfda90f:cb3d9d47-39e8-4121-ae9b-85a2de798f0f',
+                                            'c3c491af-26f8-4260-9958-64222c73dffd': 'dc2b6eed-a38a-43c3-9465-ce854bfda90f:2093bcb6-0696-4eb3-81ba-54b4bf32d6df',
+                                            '23b9c662-feca-4284-a11d-39bce5c233fc': 'dc2b6eed-a38a-43c3-9465-ce854bfda90f:0f74ee3e-ed1e-4df8-9672-270873dc22b9',
+                                            'dc7a9e89-0965-4252-9f50-78d3e3affb5f': 'dc2b6eed-a38a-43c3-9465-ce854bfda90f:757c1323-acb2-49b8-bc92-e23673f228dd',
+                                            'c5e21dd4-2c92-4ca5-a180-0fdd138166a7': 'dc2b6eed-a38a-43c3-9465-ce854bfda90f:094007e9-2b81-4b65-b7c5-468e356f73ea',
+                                            'd5c2b0a7-72cf-4770-bb7a-b1a56a24e0af': 'dc2b6eed-a38a-43c3-9465-ce854bfda90f:a0c0556d-0326-4209-9ee6-794d6850214c',
+                                            '184e5b87-77df-4eae-942c-840a58a15f05': 'dc2b6eed-a38a-43c3-9465-ce854bfda90f:0523cd73-ac23-4b3e-827c-d60c8ef3377c',
+                                            'c7a31d42-bd04-4f76-9dfa-d561b7c0cebf': 'dc2b6eed-a38a-43c3-9465-ce854bfda90f:36b7a96b-6cac-4c9f-a7ac-9de8774f5b95',
+                                            'd22c9581-ec57-4141-b66f-08632dae7749': 'dc2b6eed-a38a-43c3-9465-ce854bfda90f:909681ce-2877-4240-9694-2ef6e8d38472',
+                                            '1d018eed-24a5-42d3-986b-3b77726da7d4': 'dc2b6eed-a38a-43c3-9465-ce854bfda90f:9403a15f-6e38-4e66-bd7f-f45504c9aad7',
+                                            '3f61dfba-0dbf-44b6-8d17-864ad3b719cd': 'dc2b6eed-a38a-43c3-9465-ce854bfda90f:4dbc02ba-db1e-47ce-9ba8-c3cc07d01659',
+                                            'ef8ee1b0-f0d0-446a-8a28-dbd8df16b852': 'dc2b6eed-a38a-43c3-9465-ce854bfda90f:58736492-9937-4b52-b10f-247fdbbc49ad',
+                                            '24108198-ba94-4e14-bef6-1d4c63255a7d': 'dc2b6eed-a38a-43c3-9465-ce854bfda90f:8ff72ab7-c678-4170-a7dd-c2b328079fc7',
+                                            'ebcecc1e-c840-4ef0-b31c-0eb150d4fde1': 'dc2b6eed-a38a-43c3-9465-ce854bfda90f:edc92b2c-cdb0-44d5-bc69-2055b9365860',
+                                            '3e51d9eb-ea68-4624-9ea7-ac5af12f452c': 'dc2b6eed-a38a-43c3-9465-ce854bfda90f:e88cba21-a650-4796-9b6c-574968222933',
+                                            '4f3e8d55-a7f2-4361-9af9-1b2dbf8f0c78': 'dc2b6eed-a38a-43c3-9465-ce854bfda90f:72c69d1c-db65-4ae0-a6d9-8fc3c83ccd5b',
+                                            '1452e2b7-3968-4370-9173-412736e4d1df': 'dc2b6eed-a38a-43c3-9465-ce854bfda90f:1452e2b7-3968-4370-9173-412736e4d1df',
+                                            '514d81fe-c366-4714-8243-39bbb4bc9e55': 'dc2b6eed-a38a-43c3-9465-ce854bfda90f:5405d46e-a1f0-45cf-a30c-634d13d7a28b'
+                                        };
+                                        if (mapping[catId]) catId = mapping[catId];
+                                    }
+
+                                    const ratCcs = rat.rateio_centro_custo || [];
+                                    const clientName = (item.cliente?.nome || item.fornecedor?.nome || '').trim();
+                                    const description = (item.descricao || item.description || rat.nome_categoria || '').trim();
+
+                                    const addDetailedEntry = (ccId: string | null, val: number, suffix: string) => {
+                                        entries.push({
+                                            tenantId,
+                                            categoryId: catId,
+                                            costCenterId: (ccId === 'NONE' || !ccId) ? null : (ccId.includes(':') ? ccId : `${tenantId}:${ccId}`),
+                                            month: targetMonth,
+                                            year: targetYear,
+                                            amount: val,
+                                            viewMode,
+                                            externalId: `sync-${tenantId}-${item.id}-split-${ratIdx}-${suffix}-${viewMode}`,
+                                            description: description || `Split: ${catName}`,
+                                            customer: clientName || null,
+                                            date: dateObj
+                                        });
+                                    };
+
+                                    if (ratCcs.length === 0) {
+                                        addDetailedEntry(null, catValue, 'NONE');
+                                    } else {
+                                        ratCcs.forEach((rc: any) => {
+                                            const ccId = rc.id_centro_custo;
+                                            const percent = (rc.percentual || (100 / ratCcs.length)) / 100;
+                                            const ccValue = (rc.valor !== undefined && rc.valor !== null) ? rc.valor : (catValue * percent);
+                                            addDetailedEntry(ccId, ccValue, ccId || 'NONE');
+                                        });
+                                    }
+
+                                    // --- DUPLICAÇÃO DE MULTAS NO CUSTO (CLEAN TECH) ---
+                                    if (tenantId === '1fa165e3-178f-4d8f-ae7c-434c720c82dd' && (catName.includes('06.1.9') || catId === '769ce5a9-1d15-4d5f-aad8-3795e0902364')) {
+                                        const mainCatToUse = categories[0];
+                                        const mainCatId = mainCatToUse.id || mainCatToUse.categoria_id;
+                                        if (mainCatId) {
+                                            const addDuplicatedDetailedEntry = (ccId: string | null, val: number, suffix: string) => {
+                                                entries.push({
+                                                    tenantId,
+                                                    categoryId: mainCatId,
+                                                    costCenterId: (ccId === 'NONE' || !ccId) ? null : (ccId.includes(':') ? ccId : `${tenantId}:${ccId}`),
+                                                    month: targetMonth,
+                                                    year: targetYear,
+                                                    amount: val,
+                                                    viewMode,
+                                                    externalId: `sync-${tenantId}-${item.id}-split-dup-${ratIdx}-${suffix}-${viewMode}`,
+                                                    description: `${description || 'Multa'} (Reclassificado Custo)`,
+                                                    customer: clientName || null,
+                                                    date: dateObj
+                                                });
+                                            };
+
+                                            if (ratCcs.length === 0) {
+                                                addDuplicatedDetailedEntry(null, catValue, 'NONE');
+                                            } else {
+                                                ratCcs.forEach((rc: any) => {
+                                                    const ccId = rc.id_centro_custo;
+                                                    const percent = (rc.percentual || (100 / ratCcs.length)) / 100;
+                                                    const ccValue = (rc.valor !== undefined && rc.valor !== null) ? rc.valor : (catValue * percent);
+                                                    addDuplicatedDetailedEntry(ccId, ccValue, ccId || 'NONE');
+                                                });
+                                            }
+                                        }
+                                    }
+
+                                    ratIdx++;
+                                }
+                                processedSplits = true;
+                            }
+                        }
+                    } catch (e) {
+                        console.warn(`[Conta Azul API] Error fetching details for split parcel ${item.id}:`, e);
+                    }
+                }
+
+                if (!processedSplits) {
+                    const catToUse = categories[0];
+                    const catName = catToUse.nome || catToUse.name || '';
+                    if (viewMode === 'competencia' && isNonDRECategory(catName, tenantId)) {
+                        continue;
+                    }
+
+                    let catId = catToUse.id || catToUse.categoria_id;
+                    
+                    // Mapear IDs de produção para IDs do banco (com prefixo de tenant) para a JVS Facilities
+                    if (tenantId === 'dc2b6eed-a38a-43c3-9465-ce854bfda90f') {
+                        const mapping: Record<string, string> = {
+                            'a5e9a3c0-464b-4ee8-97c2-41589c16cb39': 'dc2b6eed-a38a-43c3-9465-ce854bfda90f:ff1133d9-438c-418f-9fbd-7aaea606c089',
+                            'df8e2be4-bc1a-43e6-abcf-e11bdc2166f6': 'dc2b6eed-a38a-43c3-9465-ce854bfda90f:cb3d9d47-39e8-4121-ae9b-85a2de798f0f',
+                            'c3c491af-26f8-4260-9958-64222c73dffd': 'dc2b6eed-a38a-43c3-9465-ce854bfda90f:2093bcb6-0696-4eb3-81ba-54b4bf32d6df',
+                            '23b9c662-feca-4284-a11d-39bce5c233fc': 'dc2b6eed-a38a-43c3-9465-ce854bfda90f:0f74ee3e-ed1e-4df8-9672-270873dc22b9',
+                            'dc7a9e89-0965-4252-9f50-78d3e3affb5f': 'dc2b6eed-a38a-43c3-9465-ce854bfda90f:757c1323-acb2-49b8-bc92-e23673f228dd',
+                            'c5e21dd4-2c92-4ca5-a180-0fdd138166a7': 'dc2b6eed-a38a-43c3-9465-ce854bfda90f:094007e9-2b81-4b65-b7c5-468e356f73ea',
+                            'd5c2b0a7-72cf-4770-bb7a-b1a56a24e0af': 'dc2b6eed-a38a-43c3-9465-ce854bfda90f:a0c0556d-0326-4209-9ee6-794d6850214c',
+                            '184e5b87-77df-4eae-942c-840a58a15f05': 'dc2b6eed-a38a-43c3-9465-ce854bfda90f:0523cd73-ac23-4b3e-827c-d60c8ef3377c',
+                            'c7a31d42-bd04-4f76-9dfa-d561b7c0cebf': 'dc2b6eed-a38a-43c3-9465-ce854bfda90f:36b7a96b-6cac-4c9f-a7ac-9de8774f5b95',
+                            'd22c9581-ec57-4141-b66f-08632dae7749': 'dc2b6eed-a38a-43c3-9465-ce854bfda90f:909681ce-2877-4240-9694-2ef6e8d38472',
+                            '1d018eed-24a5-42d3-986b-3b77726da7d4': 'dc2b6eed-a38a-43c3-9465-ce854bfda90f:9403a15f-6e38-4e66-bd7f-f45504c9aad7',
+                            '3f61dfba-0dbf-44b6-8d17-864ad3b719cd': 'dc2b6eed-a38a-43c3-9465-ce854bfda90f:4dbc02ba-db1e-47ce-9ba8-c3cc07d01659',
+                            'ef8ee1b0-f0d0-446a-8a28-dbd8df16b852': 'dc2b6eed-a38a-43c3-9465-ce854bfda90f:58736492-9937-4b52-b10f-247fdbbc49ad',
+                            '24108198-ba94-4e14-bef6-1d4c63255a7d': 'dc2b6eed-a38a-43c3-9465-ce854bfda90f:8ff72ab7-c678-4170-a7dd-c2b328079fc7',
+                            'ebcecc1e-c840-4ef0-b31c-0eb150d4fde1': 'dc2b6eed-a38a-43c3-9465-ce854bfda90f:edc92b2c-cdb0-44d5-bc69-2055b9365860',
+                            '3e51d9eb-ea68-4624-9ea7-ac5af12f452c': 'dc2b6eed-a38a-43c3-9465-ce854bfda90f:e88cba21-a650-4796-9b6c-574968222933',
+                            '4f3e8d55-a7f2-4361-9af9-1b2dbf8f0c78': 'dc2b6eed-a38a-43c3-9465-ce854bfda90f:72c69d1c-db65-4ae0-a6d9-8fc3c83ccd5b',
+                            '1452e2b7-3968-4370-9173-412736e4d1df': 'dc2b6eed-a38a-43c3-9465-ce854bfda90f:1452e2b7-3968-4370-9173-412736e4d1df',
+                            '514d81fe-c366-4714-8243-39bbb4bc9e55': 'dc2b6eed-a38a-43c3-9465-ce854bfda90f:5405d46e-a1f0-45cf-a30c-634d13d7a28b'
+                        };
+                        if (mapping[catId]) catId = mapping[catId];
+                    }
+                    const catValue = amount;
+                    const clientName = (item.cliente?.nome || item.fornecedor?.nome || '').trim();
+                    const description = (item.descricao || item.description || '').trim();
+
+                    const addDetailedEntry = (ccId: string | null, val: number, suffix: string) => {
+                        entries.push({
+                            tenantId,
+                            categoryId: catId,
+                            costCenterId: (ccId === 'NONE' || !ccId) ? null : (ccId.includes(':') ? ccId : `${tenantId}:${ccId}`),
+                            month: targetMonth,
+                            year: targetYear,
+                            amount: val,
+                            viewMode,
+                            externalId: `sync-${tenantId}-${item.id}-${catId}-${suffix}-${viewMode}`,
+                            description: description || `Lançamento: ${catName}`,
+                            customer: clientName || null,
+                            date: dateObj
+                        });
+                    };
+
+                    if (ccs.length === 0) {
+                        addDetailedEntry(null, catValue, 'NONE');
+                    } else {
+                        ccs.forEach((c: any) => {
+                            const ccId = c.id;
+                            const percent = (c.percentual || (100 / ccs.length)) / 100;
+                            addDetailedEntry(ccId, catValue * percent, ccId || 'NONE');
+                        });
+                    }
+                }
+            }
+        }
+        
+        if (items.length < 100) hasMore = false;
+        pagina++;
+    }
+}
+
+async function collectRetentionsFromSales(
+    accessToken: string,
+    tenantId: string,
+    year: number,
+    month: number,
+    entries: any[],
+    viewMode: string
+) {
+    const paddedMonth = month.toString().padStart(2, '0');
+    const startStr = `${year}-${paddedMonth}-01`;
+    const lastDay = new Date(year, month, 0).getDate();
+    const endStr = `${year}-${paddedMonth}-${lastDay}`;
+    
+    let pagina = 1;
+    let hasMore = true;
+    
+    const taxCatId = `${tenantId}:02.01.03`;
+
+    while (hasMore) {
+        const url = `https://api-v2.contaazul.com/v1/venda/busca?data_inicio=${startStr}&data_fim=${endStr}&tamanho_pagina=100&pagina=${pagina}`;
+        const res = await fetch(url, {
+            headers: { 'Authorization': `Bearer ${accessToken}` },
+            cache: 'no-store'
+        });
+
+        if (!res.ok) {
+            const errBody = await res.text().catch(() => '');
+            throw new Error(`[Conta Azul API] venda/busca retornou status ${res.status}: ${errBody}`);
+        }
+
+        const data = await res.json();
+        const items = data.vendas || data.itens || data || [];
+        if (items.length === 0) break;
+
+        for (const item of items) {
+            if ((item.status || '').toUpperCase().includes('CANCEL')) continue;
+            
+            // Fetch detailed sale info to get the composicao_valor and exact taxes/retentions
+            const detailUrl = `https://api-v2.contaazul.com/v1/venda/${item.id}`;
+            const detailRes = await fetch(detailUrl, {
+                headers: { 'Authorization': `Bearer ${accessToken}` },
+                cache: 'no-store'
+            });
+
+            if (!detailRes.ok) {
+                console.warn(`[Conta Azul API] Falha ao buscar detalhes da venda ${item.id}: status ${detailRes.status}`);
+                continue;
+            }
+
+            const detailData = await detailRes.json();
+            const sale = detailData.venda || detailData;
+            if (!sale) continue;
+
+            const compVal = sale.composicao_valor || {};
+            const totalRet = compVal.impostos || 0;
+            
+            if (totalRet > 0) {
+                const saleCatId = sale.id_categoria || 'a5e9a3c0-464b-4ee8-97c2-41589c16cb39';
+                let mappedRevenueCatId = saleCatId;
+                
+                // Mapear se for JVS Facilities
+                if (tenantId === 'dc2b6eed-a38a-43c3-9465-ce854bfda90f') {
+                    const mapping: Record<string, string> = {
+                        'a5e9a3c0-464b-4ee8-97c2-41589c16cb39': 'ff1133d9-438c-418f-9fbd-7aaea606c089', // 01.1.1 - Serviços Vendidos
+                        'df8e2be4-bc1a-43e6-abcf-e11bdc2166f6': 'cb3d9d47-39e8-4121-ae9b-85a2de798f0f', // 01.1.2 - Serviços Extras
+                        'c3c491af-26f8-4260-9958-64222c73dffd': '2093bcb6-0696-4eb3-81ba-54b4bf32d6df', // 01.2.1 - Receitas de Vendas
+                    };
+                    if (mapping[mappedRevenueCatId]) mappedRevenueCatId = mapping[mappedRevenueCatId];
+                }
+
+                if (mappedRevenueCatId && !mappedRevenueCatId.startsWith(tenantId)) {
+                    mappedRevenueCatId = `${tenantId}:${mappedRevenueCatId}`;
+                }
+
+                const ccId = sale.id_centro_custo || null;
+                const clientName = (sale.cliente?.nome || sale.cliente_nome || '').trim();
+                const saleNum = sale.numero || '';
+                const description = `Retenção Imposto Fonte (Venda ${saleNum})`.trim();
+                const saleDate = sale.data_emissao || sale.data_venda || sale.venda_em || sale.data || `${year}-${paddedMonth}-01`;
+                const dateObj = new Date(saleDate);
+
+                // Add revenue retention entry
+                entries.push({
+                    tenantId,
+                    categoryId: mappedRevenueCatId,
+                    costCenterId: !ccId ? null : (ccId.includes(':') ? ccId : `${tenantId}:${ccId}`),
+                    month,
+                    year,
+                    amount: totalRet,
+                    viewMode,
+                    externalId: `sync-${tenantId}-${sale.id}-ret-rev-${viewMode}`,
+                    description: `Recomposição Faturamento Bruto (Retenções Venda ${saleNum})`,
+                    customer: clientName || null,
+                    date: dateObj
+                });
+
+                // Add tax retention entry
+                entries.push({
+                    tenantId,
+                    categoryId: taxCatId,
+                    costCenterId: !ccId ? null : (ccId.includes(':') ? ccId : `${tenantId}:${ccId}`),
+                    month,
+                    year,
+                    amount: totalRet,
+                    viewMode,
+                    externalId: `sync-${tenantId}-${sale.id}-ret-tax-${viewMode}`,
+                    description: description,
+                    customer: clientName || null,
+                    date: dateObj
+                });
+            }
+        }
+
+        if (items.length < 100) hasMore = false;
+        else pagina++;
+    }
 }
 
 

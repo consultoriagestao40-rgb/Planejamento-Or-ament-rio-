@@ -401,8 +401,16 @@ async function collectDetailedTransactions(
                                                 
                                                 if (viewMode === 'competencia') {
                                                     if (isFinancialOrFine) {
-                                                        const isPaid = item.status === 'ACQUITTED' || (item.pago !== undefined && item.pago !== null && item.pago > 0) || (item.valor_pago !== undefined && item.valor_pago !== null && item.valor_pago > 0);
-                                                        ccValue = isPaid ? (catValue * percent) : 0;
+                                                        const descUpper = (description || '').toUpperCase();
+                                                        const isCardPayment = catName.startsWith('06.7') && (descUpper.includes('FATURA') || descUpper.includes('PAG.FATURA'));
+                                                        const isPatrimonialTax = descUpper.includes('INTEGR.CAPITAL') || descUpper.includes('IOF BASICO CH PJ') || descUpper.includes('IOF S/ UTILIZACAO') || descUpper.includes('CESTA DE RELACIONAMENTO') || descUpper.includes('TARIFA COM R LIQUIDACAO') || descUpper.includes('TARIFA BAIXA');
+                                                        
+                                                        if (isCardPayment || isPatrimonialTax) {
+                                                            ccValue = 0;
+                                                        } else {
+                                                            const isPaid = item.status === 'ACQUITTED' || (item.pago !== undefined && item.pago !== null && item.pago > 0) || (item.valor_pago !== undefined && item.valor_pago !== null && item.valor_pago > 0);
+                                                            ccValue = isPaid ? (catValue * percent) : 0;
+                                                        }
                                                     } else {
                                                         ccValue = catValue * percent;
                                                     }
@@ -742,7 +750,12 @@ export async function syncMasterData(tenantId: string) {
 function isNonDRECategory(name: string, tenantId: string): boolean {
     const norm = (name || '').trim();
     
-    // Se for Clean Tech, não exclui nenhuma categoria na competência (traz tudo dinamicamente)
+    // Frete recebido 06.1.8 é duplicidade de faturamento de vendas no Grupo 01, por isso é excluído para todas as empresas
+    if (norm.startsWith('06.1.8')) {
+        return true;
+    }
+
+    // Se for Clean Tech, não exclui as demais categorias patrimoniais (traz tudo dinamicamente)
     if (tenantId === '1fa165e3-178f-4d8f-ae7c-434c720c82dd') {
         return false;
     }
@@ -858,8 +871,16 @@ async function aggregateTransactions(accessToken: string, url: string, targetVal
                                                 
                                                 if (viewMode === 'competencia') {
                                                     if (isFinancialOrFine) {
-                                                        const isPaid = item.status === 'ACQUITTED' || (item.pago !== undefined && item.pago !== null && item.pago > 0) || (item.valor_pago !== undefined && item.valor_pago !== null && item.valor_pago > 0);
-                                                        ccValue = isPaid ? (catValue * percent) : 0;
+                                                        const descUpper = (description || '').toUpperCase();
+                                                        const isCardPayment = catName.startsWith('06.7') && (descUpper.includes('FATURA') || descUpper.includes('PAG.FATURA'));
+                                                        const isPatrimonialTax = descUpper.includes('INTEGR.CAPITAL') || descUpper.includes('IOF BASICO CH PJ') || descUpper.includes('IOF S/ UTILIZACAO') || descUpper.includes('CESTA DE RELACIONAMENTO') || descUpper.includes('TARIFA COM R LIQUIDACAO') || descUpper.includes('TARIFA BAIXA');
+                                                        
+                                                        if (isCardPayment || isPatrimonialTax) {
+                                                            ccValue = 0;
+                                                        } else {
+                                                            const isPaid = item.status === 'ACQUITTED' || (item.pago !== undefined && item.pago !== null && item.pago > 0) || (item.valor_pago !== undefined && item.valor_pago !== null && item.valor_pago > 0);
+                                                            ccValue = isPaid ? (catValue * percent) : 0;
+                                                        }
                                                     } else {
                                                         ccValue = catValue * percent;
                                                     }

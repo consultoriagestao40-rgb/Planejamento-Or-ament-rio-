@@ -403,9 +403,8 @@ async function collectDetailedTransactions(
                                                     if (isFinancialOrFine) {
                                                         const descUpper = (description || '').toUpperCase();
                                                         const isCardPayment = catName.startsWith('06.7') && (descUpper.includes('FATURA') || descUpper.includes('PAG.FATURA'));
-                                                        const isPatrimonialTax = descUpper.includes('INTEGR.CAPITAL') || descUpper.includes('IOF BASICO CH PJ') || descUpper.includes('IOF S/ UTILIZACAO') || descUpper.includes('CESTA DE RELACIONAMENTO') || descUpper.includes('TARIFA COM R LIQUIDACAO') || descUpper.includes('TARIFA BAIXA');
                                                         
-                                                        if (isCardPayment || isPatrimonialTax) {
+                                                        if (isCardPayment) {
                                                             ccValue = 0;
                                                         } else {
                                                             const isPaid = item.status === 'ACQUITTED' || (item.pago !== undefined && item.pago !== null && item.pago > 0) || (item.valor_pago !== undefined && item.valor_pago !== null && item.valor_pago > 0);
@@ -483,9 +482,8 @@ async function collectDetailedTransactions(
                         if (isFinancialOrFine) {
                             const descUpper = (item.descricao || item.description || '').toUpperCase();
                             const isCardPayment = catName.startsWith('06.7') && (descUpper.includes('FATURA') || descUpper.includes('PAG.FATURA'));
-                            const isPatrimonialTax = descUpper.includes('INTEGR.CAPITAL') || descUpper.includes('IOF BASICO CH PJ') || descUpper.includes('IOF S/ UTILIZACAO') || descUpper.includes('CESTA DE RELACIONAMENTO') || descUpper.includes('TARIFA COM R LIQUIDACAO') || descUpper.includes('TARIFA BAIXA');
                             
-                            if (isCardPayment || isPatrimonialTax) {
+                            if (isCardPayment) {
                                 continue;
                             }
                             
@@ -773,21 +771,7 @@ function isNonDRECategory(name: string, tenantId: string): boolean {
         return true;
     }
 
-    // Se for Clean Tech, não exclui as demais categorias patrimoniais (traz tudo dinamicamente)
-    if (tenantId === '1fa165e3-178f-4d8f-ae7c-434c720c82dd') {
-        return false;
-    }
-
-    const excludedPrefixes = [
-        '06.1.1', '06.1.2', '06.1.3', '06.1.4', '06.1.5', '06.1.6', '06.1.9',
-        '06.2.1', '06.2.2',
-        '06.3',
-        '06.5',
-        '06.7',
-        '06.8',
-        '05.6.1' // Pró-labore
-    ];
-    return excludedPrefixes.some(pref => norm.startsWith(pref));
+    return false;
 }
 
 async function aggregateTransactions(accessToken: string, url: string, targetValues: Record<string, number>, isExpense: boolean, costCenterIdString: string, targetYear: number, viewMode: string, tenantId: string) {
@@ -891,9 +875,8 @@ async function aggregateTransactions(accessToken: string, url: string, targetVal
                                                     if (isFinancialOrFine) {
                                                         const descUpper = (description || '').toUpperCase();
                                                         const isCardPayment = catName.startsWith('06.7') && (descUpper.includes('FATURA') || descUpper.includes('PAG.FATURA'));
-                                                        const isPatrimonialTax = descUpper.includes('INTEGR.CAPITAL') || descUpper.includes('IOF BASICO CH PJ') || descUpper.includes('IOF S/ UTILIZACAO') || descUpper.includes('CESTA DE RELACIONAMENTO') || descUpper.includes('TARIFA COM R LIQUIDACAO') || descUpper.includes('TARIFA BAIXA');
                                                         
-                                                        if (isCardPayment || isPatrimonialTax) {
+                                                        if (isCardPayment) {
                                                             ccValue = 0;
                                                         } else {
                                                             const isPaid = item.status === 'ACQUITTED' || (item.pago !== undefined && item.pago !== null && item.pago > 0) || (item.valor_pago !== undefined && item.valor_pago !== null && item.valor_pago > 0);
@@ -956,9 +939,8 @@ async function aggregateTransactions(accessToken: string, url: string, targetVal
                         if (isFinancialOrFine) {
                             const descUpper = (item.descricao || item.description || '').toUpperCase();
                             const isCardPayment = catName.startsWith('06.7') && (descUpper.includes('FATURA') || descUpper.includes('PAG.FATURA'));
-                            const isPatrimonialTax = descUpper.includes('INTEGR.CAPITAL') || descUpper.includes('IOF BASICO CH PJ') || descUpper.includes('IOF S/ UTILIZACAO') || descUpper.includes('CESTA DE RELACIONAMENTO') || descUpper.includes('TARIFA COM R LIQUIDACAO') || descUpper.includes('TARIFA BAIXA');
                             
-                            if (isCardPayment || isPatrimonialTax) {
+                            if (isCardPayment) {
                                 continue;
                             }
                             

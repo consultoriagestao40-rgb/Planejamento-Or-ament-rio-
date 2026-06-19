@@ -16,7 +16,6 @@ export async function GET() {
         const entries = await prisma.realizedEntry.findMany({
             where: {
                 tenantId: tenant.id,
-                month: 5,
                 year: 2026,
                 viewMode: 'competencia'
             },
@@ -35,7 +34,8 @@ export async function GET() {
             description: e.description,
             category: e.category.name,
             costCenter: e.costCenter ? e.costCenter.name : 'Nenhum',
-            externalId: e.externalId
+            externalId: e.externalId,
+            month: e.month
         }));
 
         return NextResponse.json({

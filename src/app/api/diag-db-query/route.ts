@@ -15,10 +15,10 @@ export async function GET() {
 
         const categories = await prisma.category.findMany({
             where: {
-                tenantId: tenant.id
-            },
-            orderBy: {
-                name: 'asc'
+                OR: [
+                    { name: { contains: '06T', mode: 'insensitive' } },
+                    { name: { contains: 'Lucro', mode: 'insensitive' } }
+                ]
             }
         });
 
@@ -26,6 +26,7 @@ export async function GET() {
             id: c.id,
             name: c.name,
             type: c.type,
+            tenantId: c.tenantId,
             entradaDre: c.entradaDre
         }));
 

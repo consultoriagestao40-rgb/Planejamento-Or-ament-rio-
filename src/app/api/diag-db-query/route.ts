@@ -13,30 +13,27 @@ export async function GET() {
             return NextResponse.json({ success: false, error: 'Clean Tech Tenant not found' });
         }
 
-        const budgets = await prisma.budgetEntry.findMany({
+        const categories = await prisma.category.findMany({
             where: {
-                tenantId: tenant.id,
-                year: 2026,
-                month: 5
+                tenantId: tenant.id
             },
-            include: {
-                category: true,
-                costCenter: true
+            orderBy: {
+                name: 'asc'
             }
         });
 
-        const detailedBudgets = budgets.map(b => ({
-            id: b.id,
-            amount: b.amount,
-            category: b.category.name,
-            costCenter: b.costCenter ? b.costCenter.name : 'Nenhum'
+        const detailedCategories = categories.map(c => ({
+            id: c.id,
+            name: c.name,
+            type: c.type,
+            entradaDre: c.entradaDre
         }));
 
         return NextResponse.json({
             success: true,
             tenant: { id: tenant.id, name: tenant.name },
-            detailedBudgets,
-            totalCount: budgets.length
+            detailedCategories,
+            totalCount: categories.length
         });
     } catch (e: any) {
         return NextResponse.json({ success: false, error: e.message });

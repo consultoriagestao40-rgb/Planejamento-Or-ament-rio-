@@ -102,116 +102,7 @@ export async function syncRealizedEntries(
             await addRetentionsFromSales(token, tenantId, year, month, monthValues);
         }
 
-        // --- AJUSTES ESPECÍFICOS PARA COMPETÊNCIA DE MAIO/2026 DA JVS FACILITIES ---
-        if (tenantId === 'dc2b6eed-a38a-43c3-9465-ce854bfda90f' && year === 2026 && month === 5 && viewMode === 'competencia') {
-            // 1. Receitas: Reclassificar Vendas (01.2.1) para Serviços Vendidos (01.1.1)
-            const salesKeys = Object.keys(monthValues).filter(k => k.includes('2093bcb6-0696-4eb3-81ba-54b4bf32d6df') || k.includes('c3c491af-26f8-4260-9958-64222c73dffd'));
-            let totalSales = 0;
-            salesKeys.forEach(k => {
-                totalSales += monthValues[k] || 0;
-                delete monthValues[k];
-            });
 
-            // Somar as vendas na categoria de Serviços Vendidos
-            const sKey = `dc2b6eed-a38a-43c3-9465-ce854bfda90f:ff1133d9-438c-418f-9fbd-7aaea606c089|NONE-4`;
-            monthValues[sKey] = (monthValues[sKey] || 0) + totalSales;
-
-            // 2. Custos Operacionais (Grupo 03): Ajustar o total de custos operacionais para R$ 210.452,98
-            // Custo original vindo da API é R$ 210.792,98. Deduzimos R$ 340,00 nos Salários.
-            // O Sefaz permanece no Grupo 02 (Tributos) conforme a lógica de consolidação do Conta Azul.
-            const salKey = `dc2b6eed-a38a-43c3-9465-ce854bfda90f:0f74ee3e-ed1e-4df8-9672-270873dc22b9|NONE-4`;
-            monthValues[salKey] = (monthValues[salKey] || 0) - 340.00 - 1760.16;
-
-            // Salários vs Vale Transporte (reclassificar R$ 2.686,00 no CC da Penha)
-            const penhaCC = '1600fc40-e936-11ef-bfb8-c373efbeeae7';
-            const salPenhaKey = Object.keys(monthValues).find(k => 
-                (k.includes('0f74ee3e-ed1e-4df8-9672-270873dc22b9') || k.includes('23b9c662-feca-4284-a11d-39bce5c233fc')) && 
-                k.includes(penhaCC)
-            ) || `dc2b6eed-a38a-43c3-9465-ce854bfda90f:0f74ee3e-ed1e-4df8-9672-270873dc22b9|${penhaCC}-4`;
-            
-            const vtPenhaKey = Object.keys(monthValues).find(k => 
-                (k.includes('094007e9-2b81-4b65-b7c5-468e356f73ea') || k.includes('c5e21dd4-2c92-4ca5-a180-0fdd138166a7')) && 
-                k.includes(penhaCC)
-            ) || `dc2b6eed-a38a-43c3-9465-ce854bfda90f:094007e9-2b81-4b65-b7c5-468e356f73ea|${penhaCC}-4`;
-
-            if (monthValues[salPenhaKey]) {
-                monthValues[salPenhaKey] = Math.max(0, monthValues[salPenhaKey] - 2686.00);
-                monthValues[vtPenhaKey] = (monthValues[vtPenhaKey] || 0) + 2686.00;
-            }
-
-            // Diárias: transferir R$ 300,00 da Diária de Serviço Vendido para Diária Coberturas no CC da Penha
-            const dsKey = Object.keys(monthValues).find(k => 
-                (k.includes('0523cd73-ac23-4b3e-827c-d60c8ef3377c') || k.includes('184e5b87-77df-4eae-942c-840a58a15f05')) && 
-                k.includes(penhaCC)
-            ) || `dc2b6eed-a38a-43c3-9465-ce854bfda90f:0523cd73-ac23-4b3e-827c-d60c8ef3377c|${penhaCC}-4`;
-
-            const dcKey = Object.keys(monthValues).find(k => 
-                (k.includes('36b7a96b-6cac-4c9f-a7ac-9de8774f5b95') || k.includes('c7a31d42-bd04-4f76-9dfa-d561b7c0cebf')) && 
-                k.includes(penhaCC)
-            ) || `dc2b6eed-a38a-43c3-9465-ce854bfda90f:36b7a96b-6cac-4c9f-a7ac-9de8774f5b95|${penhaCC}-4`;
-
-            if (monthValues[dsKey]) {
-                monthValues[dsKey] = Math.max(0, monthValues[dsKey] - 300.00);
-                monthValues[dcKey] = (monthValues[dcKey] || 0) + 300.00;
-            }
-
-            // 3. Despesa Operacional (Grupo 04): Ajustar para bater o total em R$ 11.900,00
-            // Categoria: Pagamento de Mensalidade de Terceiros. Adicionamos R$ 80,00 (API traz R$ 11.820,00).
-            const mtKey = `dc2b6eed-a38a-43c3-9465-ce854bfda90f:909681ce-2877-4240-9694-2ef6e8d38472|NONE-4`;
-            monthValues[mtKey] = (monthValues[mtKey] || 0) + 80.00;
-
-            // 4. Despesa Administrativa (Grupo 05): Ajustar para bater o total em R$ 9.967,92
-            // Excluímos o Pró-labore (1d018eed-24a5-42d3-986b-3b77726da7d4) que não integra a DRE de competência.
-            // Para bater os R$ 9.967,92 centavo a centavo (diferença de R$ 3,30), deduzimos R$ 3,30 de Software/Licença.
-            const plKeys = Object.keys(monthValues).filter(k => k.includes('9403a15f-6e38-4e66-bd7f-f45504c9aad7') || k.includes('1d018eed-24a5-42d3-986b-3b77726da7d4'));
-            plKeys.forEach(k => delete monthValues[k]);
-
-            const softKey = `dc2b6eed-a38a-43c3-9465-ce854bfda90f:4dbc02ba-db1e-47ce-9ba8-c3cc07d01659|NONE-4`;
-            monthValues[softKey] = (monthValues[softKey] || 0) - 3.30;
-
-            // 5. Despesas Financeiras (Grupo 06):
-            // Adicionamos R$ 10.381,69 na categoria de Tarifas/Juros/Multas para representar as tarifas de extrato
-            // bancário (débitos diretos) que não são expostas pela API de Contas a Pagar.
-            const tarKey = `dc2b6eed-a38a-43c3-9465-ce854bfda90f:72c69d1c-db65-4ae0-a6d9-8fc3c83ccd5b|NONE-4`;
-            monthValues[tarKey] = (monthValues[tarKey] || 0) + 10381.69;
-        }
-
-        // --- AJUSTES ESPECÍFICOS PARA COMPETÊNCIA DE MAIO/2026 DA SPOT FACILITIES ---
-        if (tenantId === '413f88a7-ce4a-4620-b044-43ef909b7b26' && year === 2026 && month === 5 && viewMode === 'competencia') {
-            // Despesas Financeiras (Grupo 06): Adicionar R$ 3.643,58 na categoria de Tarifas/Juros/Multas (4f3e8d55-a7f2-4361-9af9-1b2dbf8f0c78)
-            const tarKey = Object.keys(monthValues).find(k => k.includes('4f3e8d55-a7f2-4361-9af9-1b2dbf8f0c78')) || '4f3e8d55-a7f2-4361-9af9-1b2dbf8f0c78|NONE-4';
-            monthValues[tarKey] = (monthValues[tarKey] || 0) + 3643.58;
-        }
-
-        // --- AJUSTES ESPECÍFICOS PARA COMPETÊNCIA DE MAIO/2026 DA JVS TRATAMENTOS ---
-        if (tenantId === '0013c839-93bb-472d-ba64-092c89e1cacf' && year === 2026 && month === 5 && viewMode === 'competencia') {
-            // 1. Custos Operacionais (Grupo 03): Reduzir R$ 1.500,00 da categoria de Salários
-            const salKey = Object.keys(monthValues).find(k => k.includes('aba9621d-1f86-4356-b1a1-8193bbecb423')) || '0013c839-93bb-472d-ba64-092c89e1cacf:aba9621d-1f86-4356-b1a1-8193bbecb423|NONE-4';
-            if (monthValues[salKey]) {
-                monthValues[salKey] = Math.max(0, monthValues[salKey] - 1500.00);
-            }
-
-            // 2. Despesas Administrativas (Grupo 05): Adicionar R$ 1.500,00 na categoria de Pró-labore
-            const plKey = '0013c839-93bb-472d-ba64-092c89e1cacf:bd52b5c9-00b0-43a5-8ab5-140cee843893|NONE-4';
-            monthValues[plKey] = (monthValues[plKey] || 0) + 1500.00;
-
-            // 3. Despesas Financeiras (Grupo 06): Adicionar R$ 57,00 na categoria de Tarifas/Juros/Multas (8a2b406f-5877-407f-9eea-e655c3b6f333)
-            const tarKey = Object.keys(monthValues).find(k => k.includes('8a2b406f-5877-407f-9eea-e655c3b6f333')) || '0013c839-93bb-472d-ba64-092c89e1cacf:8a2b406f-5877-407f-9eea-e655c3b6f333|9988648c-775d-11ee-94f1-5fa0712f48e8-4';
-            monthValues[tarKey] = (monthValues[tarKey] || 0) + 57.00;
-        }
-
-        // --- AJUSTES ESPECÍFICOS PARA COMPETÊNCIA DE MAIO/2026 DA CLEAN TECH ---
-        if (tenantId === '1fa165e3-178f-4d8f-ae7c-434c720c82dd' && year === 2026 && month === 5 && viewMode === 'competencia') {
-            // 1. Custos Operacionais (Grupo 03): Adicionar R$ 245,68 para bater R$ 52.339,01
-            // (Splits de multas de compras integradas ao custo no Conta Azul)
-            const matKey = `1fa165e3-178f-4d8f-ae7c-434c720c82dd:23ccc9b5-0de1-4755-9bec-d4a2ec32d791|181bbe10-b34e-11f0-a457-93eb8a8ab1b0-4`;
-            monthValues[matKey] = (monthValues[matKey] || 0) + 245.68;
-
-            // 2. Resultado Financeiro (Grupo 06): Deduzir R$ 4.971,25 da despesa na categoria de Tarifas/Juros/Multas
-            // para bater o saldo líquido consolidado de R$ 20.501,00
-            const tarKey = `1fa165e3-178f-4d8f-ae7c-434c720c82dd:59c41d54-d6c5-4725-b1e8-16029a9bfc6a|0849e558-87cf-11ef-a16a-4732bc5656b0-4`;
-            monthValues[tarKey] = (monthValues[tarKey] || 0) + 4971.25;
-        }
 
 
 
@@ -405,6 +296,12 @@ export async function syncMasterData(tenantId: string) {
 
 function isNonDRECategory(name: string, tenantId: string): boolean {
     const norm = (name || '').trim();
+    
+    // Se for Clean Tech, não exclui nenhuma categoria na competência (traz tudo dinamicamente)
+    if (tenantId === '1fa165e3-178f-4d8f-ae7c-434c720c82dd') {
+        return false;
+    }
+
     const excludedPrefixes = [
         '06.1.1', '06.1.2', '06.1.3', '06.1.4', '06.1.5', '06.1.6', '06.1.9',
         '06.2.1', '06.2.2',
@@ -414,14 +311,6 @@ function isNonDRECategory(name: string, tenantId: string): boolean {
         '06.8',
         '05.6.1' // Pró-labore
     ];
-
-    // Exceções para Clean Tech: incluir Pró-labore e Transferências entre CNPJ na DRE
-    if (tenantId === '1fa165e3-178f-4d8f-ae7c-434c720c82dd') {
-        if (norm.startsWith('05.6.1') || norm.startsWith('06.1.1')) {
-            return false;
-        }
-    }
-
     return excludedPrefixes.some(pref => norm.startsWith(pref));
 }
 
@@ -519,6 +408,26 @@ async function aggregateTransactions(accessToken: string, url: string, targetVal
                                             const key = `${catId}|${ccId}-${monthIdx}`;
                                             targetValues[key] = (targetValues[key] || 0) + ccValue;
                                         });
+                                    }
+
+                                    // --- DUPLICAÇÃO DE MULTAS NO CUSTO (CLEAN TECH) ---
+                                    if (tenantId === '1fa165e3-178f-4d8f-ae7c-434c720c82dd' && (catName.includes('06.1.9') || catId === '769ce5a9-1d15-4d5f-aad8-3795e0902364')) {
+                                        const mainCatToUse = categories[0];
+                                        const mainCatId = mainCatToUse.id || mainCatToUse.categoria_id;
+                                        if (mainCatId) {
+                                            if (ratCcs.length === 0) {
+                                                const key = `${mainCatId}|NONE-${monthIdx}`;
+                                                targetValues[key] = (targetValues[key] || 0) + catValue;
+                                            } else {
+                                                ratCcs.forEach((rc: any) => {
+                                                    const ccId = rc.id_centro_custo;
+                                                    const percent = (rc.percentual || (100 / ratCcs.length)) / 100;
+                                                    const ccValue = (rc.valor !== undefined && rc.valor !== null) ? rc.valor : (catValue * percent);
+                                                    const key = `${mainCatId}|${ccId}-${monthIdx}`;
+                                                    targetValues[key] = (targetValues[key] || 0) + ccValue;
+                                                });
+                                            }
+                                        }
                                     }
                                 }
                                 processedSplits = true;

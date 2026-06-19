@@ -395,7 +395,9 @@ async function collectDetailedTransactions(
                                             ratCcs.forEach((rc: any) => {
                                                 const ccId = rc.id_centro_custo;
                                                 const percent = (rc.percentual || (100 / ratCcs.length)) / 100;
-                                                const ccValue = (rc.valor !== undefined && rc.valor !== null) ? rc.valor : (catValue * percent);
+                                                const ccValue = viewMode === 'competencia'
+                                                    ? (catValue * percent)
+                                                    : ((rc.valor !== undefined && rc.valor !== null) ? rc.valor : (catValue * percent));
                                                 addDetailedEntry(ccId, ccValue, ccId || 'NONE');
                                             });
                                         }
@@ -428,7 +430,9 @@ async function collectDetailedTransactions(
                                                 ratCcs.forEach((rc: any) => {
                                                     const ccId = rc.id_centro_custo;
                                                     const percent = (rc.percentual || (100 / ratCcs.length)) / 100;
-                                                    const ccValue = (rc.valor !== undefined && rc.valor !== null) ? rc.valor : (catValue * percent);
+                                                    const ccValue = viewMode === 'competencia'
+                                                        ? (catValue * percent)
+                                                        : ((rc.valor !== undefined && rc.valor !== null) ? rc.valor : (catValue * percent));
                                                     addDuplicatedDetailedEntry(ccId, ccValue, ccId || 'NONE');
                                                 });
                                             }
@@ -836,7 +840,9 @@ async function aggregateTransactions(accessToken: string, url: string, targetVal
                                             ratCcs.forEach((rc: any) => {
                                                 const ccId = rc.id_centro_custo;
                                                 const percent = (rc.percentual || (100 / ratCcs.length)) / 100;
-                                                const ccValue = (rc.valor !== undefined && rc.valor !== null) ? rc.valor : (catValue * percent);
+                                                const ccValue = viewMode === 'competencia'
+                                                    ? (catValue * percent)
+                                                    : ((rc.valor !== undefined && rc.valor !== null) ? rc.valor : (catValue * percent));
                                                 const key = `${catId}|${ccId}-${monthIdx}`;
                                                 targetValues[key] = (targetValues[key] || 0) + ccValue;
                                             });
@@ -855,7 +861,9 @@ async function aggregateTransactions(accessToken: string, url: string, targetVal
                                                 ratCcs.forEach((rc: any) => {
                                                     const ccId = rc.id_centro_custo;
                                                     const percent = (rc.percentual || (100 / ratCcs.length)) / 100;
-                                                    const ccValue = (rc.valor !== undefined && rc.valor !== null) ? rc.valor : (catValue * percent);
+                                                    const ccValue = viewMode === 'competencia'
+                                                        ? (catValue * percent)
+                                                        : ((rc.valor !== undefined && rc.valor !== null) ? rc.valor : (catValue * percent));
                                                     const key = `${mainCatId}|${ccId}-${monthIdx}`;
                                                     targetValues[key] = (targetValues[key] || 0) + ccValue;
                                                 });

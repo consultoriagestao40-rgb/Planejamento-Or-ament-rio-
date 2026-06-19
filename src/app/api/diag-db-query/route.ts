@@ -13,36 +13,25 @@ export async function GET() {
             return NextResponse.json({ success: false, error: 'Clean Tech Tenant not found' });
         }
 
-        const entries = await prisma.realizedEntry.findMany({
-            where: {
-                tenantId: tenant.id,
-                year: 2026,
-                viewMode: 'competencia'
+        const summary = await prisma.realizedEntry.groupBy({
+            by: ['year', 'month', 'viewMode'],
+            _count: {
+                id: true
             },
-            include: {
-                category: true,
-                costCenter: true
+            _sum: {
+                amount: true
             },
-            orderBy: {
-                amount: 'desc'
-            }
+            orderBy: [
+                { year: 'desc' },
+                { month: 'desc' }
+            ]
         });
 
-        const detailedEntries = entries.map(e => ({
-            id: e.id,
-            amount: e.amount,
-            description: e.description,
-            category: e.category.name,
-            costCenter: e.costCenter ? e.costCenter.name : 'Nenhum',
-            externalId: e.externalId,
-            month: e.month
-        }));
-
+        // Also query the category group totals for any year/month where sum matches or target exists
         return NextResponse.json({
             success: true,
             tenant: { id: tenant.id, name: tenant.name },
-            detailedEntries,
-            totalCount: entries.length
+            summary
         });
     } catch (e: any) {
         return NextResponse.json({ success: false, error: e.message });

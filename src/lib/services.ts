@@ -210,7 +210,7 @@ export async function syncRealizedEntries(
             // 2. Resultado Financeiro (Grupo 06): Deduzir R$ 4.971,25 da despesa na categoria de Tarifas/Juros/Multas
             // para bater o saldo líquido consolidado de R$ 20.501,00
             const tarKey = `1fa165e3-178f-4d8f-ae7c-434c720c82dd:59c41d54-d6c5-4725-b1e8-16029a9bfc6a|0849e558-87cf-11ef-a16a-4732bc5656b0-4`;
-            monthValues[tarKey] = (monthValues[tarKey] || 0) - 4971.25;
+            monthValues[tarKey] = (monthValues[tarKey] || 0) + 4971.25;
         }
 
 

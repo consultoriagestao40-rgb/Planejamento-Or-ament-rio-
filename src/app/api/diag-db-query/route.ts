@@ -13,47 +13,43 @@ export async function GET() {
             return NextResponse.json({ success: false, error: 'Clean Tech Tenant not found' });
         }
 
+        const costCenters = await prisma.costCenter.findMany({
+            where: { tenantId: tenant.id }
+        });
+
         const realizedEntries = await prisma.realizedEntry.findMany({
             where: {
                 tenantId: tenant.id,
                 year: 2026,
                 month: 5,
                 viewMode: 'competencia'
-            },
-            include: {
-                category: true
             }
         });
 
-        // Group by category name and prefix
-        const categoryGroups: Record<string, { total: number, count: number, type: string, entries: any[] }> = {};
-        let totalSum = 0;
+        // Group realized entries by costCenterId
+        const ccSummary: Record<string, { name: string, total: number, count: number }> = {};
+        
+        // Add "None/null" group
+        ccSummary['null'] = { name: 'Sem Centro de Custo', total: 0, count: 0 };
+        
+        costCenters.forEach(cc => {
+            ccSummary[cc.id] = { name: cc.name, total: 0, count: 0 };
+        });
 
         realizedEntries.forEach(e => {
-            const catName = e.category.name;
-            const catType = e.category.type;
-            if (!categoryGroups[catName]) {
-                categoryGroups[catName] = { total: 0, count: 0, type: catType, entries: [] };
+            const ccId = e.costCenterId || 'null';
+            if (!ccSummary[ccId]) {
+                ccSummary[ccId] = { name: `Unknown (${ccId})`, total: 0, count: 0 };
             }
-            categoryGroups[catName].total += e.amount;
-            categoryGroups[catName].count += 1;
-            categoryGroups[catName].entries.push({
-                id: e.id,
-                amount: e.amount,
-                description: e.description,
-                customer: e.customer,
-                date: e.date,
-                externalId: e.externalId
-            });
-            totalSum += e.amount;
+            ccSummary[ccId].total += e.amount;
+            ccSummary[ccId].count += 1;
         });
 
         return NextResponse.json({
             success: true,
             tenant: { id: tenant.id, name: tenant.name },
-            totalEntries: realizedEntries.length,
-            totalSum,
-            categoryGroups
+            costCenters,
+            ccSummary
         });
     } catch (e: any) {
         return NextResponse.json({ success: false, error: e.message });

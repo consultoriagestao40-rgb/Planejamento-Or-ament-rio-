@@ -104,6 +104,49 @@ async function main() {
     for (const [catName, sum] of Object.entries(spotGrouped).sort()) {
         console.log(`  * ${catName.padEnd(50)}: R$ ${sum.toFixed(2)}`);
     }
+
+    // 3. Verify Clean Tech
+    console.log("\n--------------------------------------------------");
+    console.log("3. CLEAN TECH (1fa165e3-178f-4d8f-ae7c-434c720c82dd)");
+    console.log("--------------------------------------------------");
+    const cleanTechEntries = await prisma.realizedEntry.findMany({
+        where: {
+            tenantId: '1fa165e3-178f-4d8f-ae7c-434c720c82dd',
+            year: 2026,
+            month: 5,
+            viewMode: 'competencia'
+        }
+    });
+
+    let ctRevenue = 0;
+    let ctTaxes = 0;
+    let ctCosts = 0;
+    let ctExpenses = 0;
+    let ctFinance = 0;
+
+    const ctGrouped: Record<string, number> = {};
+    for (const e of cleanTechEntries) {
+        const catName = catMap.get(e.categoryId) || e.categoryId;
+        ctGrouped[catName] = (ctGrouped[catName] || 0) + e.amount;
+
+        if (catName.startsWith("01.")) ctRevenue += e.amount;
+        else if (catName.startsWith("02.") || catName.startsWith("2.")) ctTaxes += e.amount;
+        else if (catName.startsWith("03.")) ctCosts += e.amount;
+        else if (catName.startsWith("04.") || catName.startsWith("05.")) ctExpenses += e.amount;
+        else if (catName.startsWith("06.")) ctFinance += e.amount;
+    }
+
+    console.log("\nSummary by category group:");
+    console.log(`- Receita Bruta (Grupo 01): R$ ${ctRevenue.toFixed(2)} (Expected: 56944.83)`);
+    console.log(`- Tributos (Grupo 02): R$ ${ctTaxes.toFixed(2)} (Expected: 4631.36)`);
+    console.log(`- Custos Operacionais (Grupo 03): R$ ${ctCosts.toFixed(2)} (Expected: 52339.01)`);
+    console.log(`- Despesas Operacionais/Administrativas (Grupo 04/05): R$ ${ctExpenses.toFixed(2)} (Expected: 20979.09)`);
+    console.log(`- Despesas Financeiras (Grupo 06): R$ ${ctFinance.toFixed(2)} (Expected: 20501.00)`);
+
+    console.log("\nDetailed Category Breakdown:");
+    for (const [catName, sum] of Object.entries(ctGrouped).sort()) {
+        console.log(`  * ${catName.padEnd(50)}: R$ ${sum.toFixed(2)}`);
+    }
 }
 
 main().catch(console.error).finally(() => prisma.$disconnect());

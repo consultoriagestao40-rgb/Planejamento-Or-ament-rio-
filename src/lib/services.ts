@@ -386,19 +386,23 @@ async function collectDetailedTransactions(
                                         });
                                     };
 
-                                    if (ratCcs.length === 0) {
-                                        addDetailedEntry(null, catValue, 'NONE');
-                                    } else {
-                                        ratCcs.forEach((rc: any) => {
-                                            const ccId = rc.id_centro_custo;
-                                            const percent = (rc.percentual || (100 / ratCcs.length)) / 100;
-                                            const ccValue = (rc.valor !== undefined && rc.valor !== null) ? rc.valor : (catValue * percent);
-                                            addDetailedEntry(ccId, ccValue, ccId || 'NONE');
-                                        });
+                                    const isFineToReclassify = tenantId === '1fa165e3-178f-4d8f-ae7c-434c720c82dd' && (catName.includes('06.1.9') || catId === '769ce5a9-1d15-4d5f-aad8-3795e0902364');
+
+                                    if (!isFineToReclassify) {
+                                        if (ratCcs.length === 0) {
+                                            addDetailedEntry(null, catValue, 'NONE');
+                                        } else {
+                                            ratCcs.forEach((rc: any) => {
+                                                const ccId = rc.id_centro_custo;
+                                                const percent = (rc.percentual || (100 / ratCcs.length)) / 100;
+                                                const ccValue = (rc.valor !== undefined && rc.valor !== null) ? rc.valor : (catValue * percent);
+                                                addDetailedEntry(ccId, ccValue, ccId || 'NONE');
+                                            });
+                                        }
                                     }
 
-                                    // --- DUPLICAÇÃO DE MULTAS NO CUSTO (CLEAN TECH) ---
-                                    if (tenantId === '1fa165e3-178f-4d8f-ae7c-434c720c82dd' && (catName.includes('06.1.9') || catId === '769ce5a9-1d15-4d5f-aad8-3795e0902364')) {
+                                    // --- RECLASSIFICAÇÃO DE MULTAS NO CUSTO (CLEAN TECH) ---
+                                    if (isFineToReclassify) {
                                         const mainCatToUse = categories[0];
                                         const mainCatId = mainCatToUse.id || mainCatToUse.categoria_id;
                                         if (mainCatId) {
@@ -824,19 +828,25 @@ async function aggregateTransactions(accessToken: string, url: string, targetVal
                                     const ratCcs = rat.rateio_centro_custo || [];
                                     if (ratCcs.length === 0) {
                                         const key = `${catId}|NONE-${monthIdx}`;
-                                        targetValues[key] = (targetValues[key] || 0) + catValue;
-                                    } else {
-                                        ratCcs.forEach((rc: any) => {
-                                            const ccId = rc.id_centro_custo;
-                                            const percent = (rc.percentual || (100 / ratCcs.length)) / 100;
-                                            const ccValue = (rc.valor !== undefined && rc.valor !== null) ? rc.valor : (catValue * percent);
-                                            const key = `${catId}|${ccId}-${monthIdx}`;
-                                            targetValues[key] = (targetValues[key] || 0) + ccValue;
-                                        });
+                                    const isFineToReclassify = tenantId === '1fa165e3-178f-4d8f-ae7c-434c720c82dd' && (catName.includes('06.1.9') || catId === '769ce5a9-1d15-4d5f-aad8-3795e0902364');
+
+                                    if (!isFineToReclassify) {
+                                        if (ratCcs.length === 0) {
+                                            const key = `${catId}|NONE-${monthIdx}`;
+                                            targetValues[key] = (targetValues[key] || 0) + catValue;
+                                        } else {
+                                            ratCcs.forEach((rc: any) => {
+                                                const ccId = rc.id_centro_custo;
+                                                const percent = (rc.percentual || (100 / ratCcs.length)) / 100;
+                                                const ccValue = (rc.valor !== undefined && rc.valor !== null) ? rc.valor : (catValue * percent);
+                                                const key = `${catId}|${ccId}-${monthIdx}`;
+                                                targetValues[key] = (targetValues[key] || 0) + ccValue;
+                                            });
+                                        }
                                     }
 
-                                    // --- DUPLICAÇÃO DE MULTAS NO CUSTO (CLEAN TECH) ---
-                                    if (tenantId === '1fa165e3-178f-4d8f-ae7c-434c720c82dd' && (catName.includes('06.1.9') || catId === '769ce5a9-1d15-4d5f-aad8-3795e0902364')) {
+                                    // --- RECLASSIFICAÇÃO DE MULTAS NO CUSTO (CLEAN TECH) ---
+                                    if (isFineToReclassify) {
                                         const mainCatToUse = categories[0];
                                         const mainCatId = mainCatToUse.id || mainCatToUse.categoria_id;
                                         if (mainCatId) {

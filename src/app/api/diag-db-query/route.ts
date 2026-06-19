@@ -17,28 +17,31 @@ export async function GET() {
 
         const { token } = await getValidAccessToken(cleanTech.id);
 
-        // Fetch contas a receber (receivables)
+        // Fetch category name
+        const catId = '6895488a-e4ff-45c8-b29e-369e0da037cc';
+        const catFromDb = await prisma.category.findFirst({
+            where: {
+                id: {
+                    contains: catId
+                }
+            }
+        });
+
+        // Fetch receivables to find Venda 619
         const recUrl = "https://api-v2.contaazul.com/v1/financeiro/eventos-financeiros/contas-a-receber/buscar?data_vencimento_de=2026-01-01&data_vencimento_ate=2026-12-31&data_competencia_de=2026-05-01&data_competencia_ate=2026-05-31&tamanho_pagina=100";
         const recRes = await fetch(recUrl, {
             headers: { 'Authorization': `Bearer ${token}` },
             cache: 'no-store'
         });
 
-        const recData = recRes.ok ? await recRes.json() : { error: true, details: await recRes.text() };
-
-        // Fetch contas a pagar (payables)
-        const pagUrl = "https://api-v2.contaazul.com/v1/financeiro/eventos-financeiros/contas-a-pagar/buscar?data_vencimento_de=2026-01-01&data_vencimento_ate=2026-12-31&data_competencia_de=2026-05-01&data_competencia_ate=2026-05-31&tamanho_pagina=100";
-        const pagRes = await fetch(pagUrl, {
-            headers: { 'Authorization': `Bearer ${token}` },
-            cache: 'no-store'
-        });
-
-        const pagData = pagRes.ok ? await pagRes.json() : { error: true, details: await pagRes.text() };
+        const recData = await recRes.json();
+        const recs = recData.itens || [];
+        const venda619 = recs.find((r: any) => r.descricao.includes('619'));
 
         return NextResponse.json({
             success: true,
-            receivables: recData.itens || recData,
-            payables: pagData.itens || pagData
+            categoryFromDb: catFromDb,
+            venda619
         });
     } catch (e: any) {
         return NextResponse.json({ success: false, error: e.message });

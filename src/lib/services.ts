@@ -73,6 +73,13 @@ export async function syncRealizedEntries(
     startMonth: number = 1,
     endMonth: number = 12
 ) {
+    // Garantir que categorias (como PDD) e centros de custo estejam atualizados no banco de dados
+    try {
+        await syncMasterData(tenantId);
+    } catch (err) {
+        console.warn(`[Sync] Falha ao atualizar dados mestre de categorias/centros de custo para o tenant ${tenantId}:`, err);
+    }
+
     const { token } = await getValidAccessToken(tenantId);
 
     const entriesToSave: any[] = [];
@@ -91,6 +98,11 @@ export async function syncRealizedEntries(
             `https://api-v2.contaazul.com/v1/financeiro/eventos-financeiros/contas-a-pagar/buscar?data_vencimento_de=${year}-01-01&data_vencimento_ate=${year}-12-31&${dateParam}_de=${startStr}&${dateParam}_ate=${endStr}&tamanho_pagina=100`,
             `https://api-v2.contaazul.com/v1/venda/busca?data_inicio=${startStr}&data_fim=${endStr}&tamanho_pagina=100`
         ];
+
+        if (viewMode === 'competencia') {
+            // Busca complementar para capturar títulos baixados como perda (PDD) no mês corrente
+            urls.push(`https://api-v2.contaazul.com/v1/financeiro/eventos-financeiros/contas-a-receber/buscar?data_vencimento_de=${year}-01-01&data_vencimento_ate=${year}-12-31&data_pagamento_de=${startStr}&data_pagamento_ate=${endStr}&tamanho_pagina=100`);
+        }
 
         const monthEntries: any[] = [];
         for (const url of urls) {
@@ -210,15 +222,34 @@ async function collectDetailedTransactions(
         if (items.length === 0) break;
 
         for (const item of items) {
+            const categories = item.categorias || (item.categoria ? [item.categoria] : []);
+            
+            // Identificar se a transação possui categoria correspondente a PDD/Perda (Grupo 06.8)
+            const hasPDD = categories.some((c: any) => {
+                const name = (c.nome || c.name || '').toLowerCase();
+                const id = (c.id || c.categoria_id || '').toLowerCase();
+                return name.includes('pdd') || name.includes('perda') || name.startsWith('06.8') || id.includes('06.8');
+            });
+
+            // Se for a busca complementar de perdas no regime de competência, processa APENAS itens de perda (PDD)
+            const isLossQuery = viewMode === 'competencia' && url.includes('data_pagamento_de') && !isExpense;
+            if (isLossQuery && !hasPDD) {
+                continue;
+            }
+
             const amount = item.valor_total || item.total || item.valor || item.pago || 0;
-            const dateStr = item.data_competencia || item.data_emissao || item.venda_em || item.data_pagamento || item.data;
+            
+            // Para PDD, a data que define o reconhecimento contábil na competência é a data da baixa/pagamento da perda
+            const dateStr = hasPDD
+                ? (item.data_baixa || item.data_pagamento || item.data_competencia || item.data_emissao || item.data)
+                : (item.data_competencia || item.data_emissao || item.venda_em || item.data_pagamento || item.data);
+
             if (!dateStr) continue;
             const dateObj = new Date(dateStr);
             if (dateObj.getFullYear() !== targetYear) continue;
             if (dateObj.getMonth() + 1 !== targetMonth) continue;
 
             const ccs = item.centros_de_custo || [];
-            const categories = item.categorias || (item.categoria ? [item.categoria] : []);
             
             if (categories.length > 0) {
                 let processedSplits = false;

@@ -9,29 +9,19 @@ export async function GET() {
             where: { name: { contains: 'CLEAN TECH', mode: 'insensitive' } }
         });
 
-        if (!tenant || !tenant.accessToken) {
-            return NextResponse.json({ success: false, error: 'Tenant or token not found' });
+        if (!tenant) {
+            return NextResponse.json({ success: false, error: 'Clean Tech Tenant not found' });
         }
 
-        const parcelId = 'f5540d13-505a-4dd7-a7cd-1c542cc01b9f';
-        const url = `https://api-v2.contaazul.com/v1/financeiro/eventos-financeiros/parcelas/${parcelId}`;
-        
-        const res = await fetch(url, {
-            headers: { 'Authorization': `Bearer ${tenant.accessToken}` },
-            cache: 'no-store'
+        const categories = await prisma.category.findMany({
+            where: { tenantId: tenant.id },
+            orderBy: { name: 'asc' }
         });
-
-        if (!res.ok) {
-            const text = await res.text();
-            return NextResponse.json({ success: false, status: res.status, error: text });
-        }
-
-        const data = await res.json();
 
         return NextResponse.json({
             success: true,
             tenant: { id: tenant.id, name: tenant.name },
-            parcelDetails: data
+            categories
         });
     } catch (e: any) {
         return NextResponse.json({ success: false, error: e.message });

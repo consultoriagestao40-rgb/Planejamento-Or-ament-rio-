@@ -386,7 +386,7 @@ async function collectDetailedTransactions(
                                         });
                                     };
 
-                                    const isFineToReclassify = tenantId === '1fa165e3-178f-4d8f-ae7c-434c720c82dd' && (catName.includes('06.1.9') || catId === '769ce5a9-1d15-4d5f-aad8-3795e0902364');
+                                    const isFineToReclassify = false; // Desativada reclassificação para manter integridade
 
                                     if (!isFineToReclassify) {
                                         if (ratCcs.length === 0) {
@@ -395,9 +395,21 @@ async function collectDetailedTransactions(
                                             ratCcs.forEach((rc: any) => {
                                                 const ccId = rc.id_centro_custo;
                                                 const percent = (rc.percentual || (100 / ratCcs.length)) / 100;
-                                                const ccValue = viewMode === 'competencia'
-                                                    ? (catValue * percent)
-                                                    : ((rc.valor !== undefined && rc.valor !== null) ? rc.valor : (catValue * percent));
+                                                
+                                                let ccValue = 0;
+                                                const isFinancialOrFine = catName.startsWith('06.') || catId === '769ce5a9-1d15-4d5f-aad8-3795e0902364';
+                                                
+                                                if (viewMode === 'competencia') {
+                                                    if (isFinancialOrFine) {
+                                                        const isPaid = item.status === 'ACQUITTED' || (item.pago !== undefined && item.pago !== null && item.pago > 0) || (item.valor_pago !== undefined && item.valor_pago !== null && item.valor_pago > 0);
+                                                        ccValue = isPaid ? (catValue * percent) : 0;
+                                                    } else {
+                                                        ccValue = catValue * percent;
+                                                    }
+                                                } else {
+                                                    ccValue = ((rc.valor !== undefined && rc.valor !== null) ? rc.valor : (catValue * percent));
+                                                }
+                                                
                                                 addDetailedEntry(ccId, ccValue, ccId || 'NONE');
                                             });
                                         }
@@ -830,7 +842,7 @@ async function aggregateTransactions(accessToken: string, url: string, targetVal
                                     }
 
                                     const ratCcs = rat.rateio_centro_custo || [];
-                                    const isFineToReclassify = tenantId === '1fa165e3-178f-4d8f-ae7c-434c720c82dd' && (catName.includes('06.1.9') || catId === '769ce5a9-1d15-4d5f-aad8-3795e0902364');
+                                    const isFineToReclassify = false; // Desativada reclassificação para manter integridade
 
                                     if (!isFineToReclassify) {
                                         if (ratCcs.length === 0) {
@@ -840,9 +852,21 @@ async function aggregateTransactions(accessToken: string, url: string, targetVal
                                             ratCcs.forEach((rc: any) => {
                                                 const ccId = rc.id_centro_custo;
                                                 const percent = (rc.percentual || (100 / ratCcs.length)) / 100;
-                                                const ccValue = viewMode === 'competencia'
-                                                    ? (catValue * percent)
-                                                    : ((rc.valor !== undefined && rc.valor !== null) ? rc.valor : (catValue * percent));
+                                                
+                                                let ccValue = 0;
+                                                const isFinancialOrFine = catName.startsWith('06.') || catId === '769ce5a9-1d15-4d5f-aad8-3795e0902364';
+                                                
+                                                if (viewMode === 'competencia') {
+                                                    if (isFinancialOrFine) {
+                                                        const isPaid = item.status === 'ACQUITTED' || (item.pago !== undefined && item.pago !== null && item.pago > 0) || (item.valor_pago !== undefined && item.valor_pago !== null && item.valor_pago > 0);
+                                                        ccValue = isPaid ? (catValue * percent) : 0;
+                                                    } else {
+                                                        ccValue = catValue * percent;
+                                                    }
+                                                } else {
+                                                    ccValue = ((rc.valor !== undefined && rc.valor !== null) ? rc.valor : (catValue * percent));
+                                                }
+                                                
                                                 const key = `${catId}|${ccId}-${monthIdx}`;
                                                 targetValues[key] = (targetValues[key] || 0) + ccValue;
                                             });

@@ -100,8 +100,8 @@ export async function syncRealizedEntries(
         ];
 
         if (viewMode === 'competencia') {
-            // Busca complementar para capturar títulos baixados como perda (PDD) no mês corrente
-            urls.push(`https://api-v2.contaazul.com/v1/financeiro/eventos-financeiros/contas-a-receber/buscar?data_vencimento_de=${year}-01-01&data_vencimento_ate=${year}-12-31&data_pagamento_de=${startStr}&data_pagamento_ate=${endStr}&tamanho_pagina=100`);
+            // Busca complementar para capturar títulos com status de perda (LOST) para fins de PDD
+            urls.push(`https://api-v2.contaazul.com/v1/financeiro/eventos-financeiros/contas-a-receber/buscar?data_vencimento_de=${year}-01-01&data_vencimento_ate=${year}-12-31&status=LOST&tamanho_pagina=100`);
         }
 
         const monthEntries: any[] = [];
@@ -224,17 +224,74 @@ async function collectDetailedTransactions(
         for (const item of items) {
             const categories = item.categorias || (item.categoria ? [item.categoria] : []);
             
-            // Identificar se a transação possui categoria correspondente a PDD/Perda (Grupo 06.8)
-            const hasPDD = categories.some((c: any) => {
-                const name = (c.nome || c.name || '').toLowerCase();
-                const id = (c.id || c.categoria_id || '').toLowerCase();
-                return name.includes('pdd') || name.includes('perda') || name.startsWith('06.8') || id.includes('06.8');
-            });
+            // Identificar se a transação possui status de perda (LOST ou PERDIDO)
+            const isLossItem = item.status === 'LOST' || item.status === 'PERDIDO';
 
-            // Se for a busca complementar de perdas no regime de competência, processa APENAS itens de perda (PDD)
-            const isLossQuery = viewMode === 'competencia' && url.includes('data_pagamento_de') && !isExpense;
-            if (isLossQuery && !hasPDD) {
+            // Se for a busca complementar de perdas, processamos APENAS os itens que de fato viraram perda (LOST/PERDIDO)
+            const isLossQuery = viewMode === 'competencia' && url.includes('status=LOST') && !isExpense;
+            if (isLossQuery && !isLossItem) {
                 continue;
+            }
+
+            // Tratamento especial para itens de perda (PDD)
+            if (isLossItem) {
+                try {
+                    // Para buscar os dados de perda, consultamos o detalhe da parcela no endpoint de parcelas
+                    const detailUrl = `https://api-v2.contaazul.com/v1/financeiro/eventos-financeiros/parcelas/${item.id}`;
+                    const detailRes = await fetch(detailUrl, {
+                        headers: { 'Authorization': `Bearer ${accessToken}` },
+                        cache: 'no-store'
+                    });
+                    if (detailRes.ok) {
+                        const detailData = await detailRes.json();
+                        const lossInfo = detailData.perda || detailData.evento?.perda || null;
+                        
+                        if (lossInfo && lossInfo.data) {
+                            const lossDate = new Date(lossInfo.data);
+                            
+                            // Se a data de baixa da perda for no mês/ano alvo, criamos o lançamento de PDD
+                            if (lossDate.getFullYear() === targetYear && (lossDate.getMonth() + 1) === targetMonth) {
+                                // Buscar a categoria de PDD (Grupo 06.8) do tenant no banco
+                                const lossCat = await prisma.category.findFirst({
+                                    where: {
+                                        tenantId,
+                                        OR: [
+                                            { name: { startsWith: '06.8' } },
+                                            { name: { contains: 'Perdas' } },
+                                            { name: { contains: 'PDD' } }
+                                        ]
+                                    }
+                                });
+                                
+                                const lossCatId = lossCat?.id || `${tenantId}:06.8.1`;
+                                const clientName = (item.cliente?.nome || item.fornecedor?.nome || '').trim();
+                                const description = (item.descricao || item.description || 'Baixa por Perda (PDD)').trim();
+                                const lossAmount = Math.abs(lossInfo.valor || amount || 0);
+
+                                entries.push({
+                                    tenantId,
+                                    categoryId: lossCatId,
+                                    costCenterId: null,
+                                    month: targetMonth,
+                                    year: targetYear,
+                                    amount: lossAmount,
+                                    viewMode,
+                                    externalId: `sync-${tenantId}-${item.id}-pdd-${viewMode}`,
+                                    description: `${description} (Baixa por Perda)`,
+                                    customer: clientName || null,
+                                    date: lossDate
+                                });
+                            }
+                        }
+                    }
+                } catch (err) {
+                    console.warn(`[Sync] Falha ao sincronizar detalhe de perda da parcela ${item.id}:`, err);
+                }
+                
+                // Se for a busca complementar de perdas, o item já foi tratado e podemos pular
+                if (isLossQuery) {
+                    continue;
+                }
             }
 
             const amount = item.valor_total || item.total || item.valor || item.pago || 0;

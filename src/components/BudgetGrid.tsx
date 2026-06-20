@@ -1250,6 +1250,33 @@ export default function BudgetGrid({
         return Array.from({ length: 12 }, (_, i) => dreStructure.calculateTotals(i));
     }, [dreStructure]);
 
+    const revenueProjectionData = useMemo(() => {
+        const currentMonthIdx = 5; // Junho (0-indexed, então Jan é 0 e Jun é 5)
+        let annualBudgetRev = 0;
+        let realizedAccumRev = 0;
+        let projectedRev = 0;
+
+        precomputedDreTotals.forEach((m, idx) => {
+            annualBudgetRev += m.vRev.b;
+            if (idx <= currentMonthIdx) {
+                realizedAccumRev += m.vRev.r;
+                projectedRev += m.vRev.r;
+            } else {
+                projectedRev += m.vRev.b;
+            }
+        });
+
+        const percent = annualBudgetRev > 0 ? (projectedRev / annualBudgetRev) * 100 : 0;
+
+        return {
+            annualBudgetRev,
+            realizedAccumRev,
+            projectedRev,
+            percent,
+            currentMonthIdx
+        };
+    }, [precomputedDreTotals]);
+
     const matchNode = (node: CategoryNode, query: string): boolean => {
         if (!query) return true;
         const cleanQuery = query.toLowerCase().trim();
@@ -1805,6 +1832,112 @@ export default function BudgetGrid({
         );
     };
 
+    const renderRevenueGauge = () => {
+        const { annualBudgetRev, realizedAccumRev, projectedRev, percent } = revenueProjectionData;
+
+        // SVG parameters
+        const cx = 120;
+        const cy = 110;
+        const r = 80;
+        
+        // 180 degree arc length
+        const arcLength = Math.PI * r; // ~251.32
+        
+        // Target percentage limit (max 100% for the fill gauge)
+        const displayPercent = Math.min(100, Math.max(0, percent));
+        const strokeDashoffset = arcLength - (displayPercent / 100) * arcLength;
+
+        // Trig angle in radians (left is PI, right is 0)
+        // needle represents projected percentage (allow needle to go past 100% up to 130% for visual effect)
+        const needleAngle = Math.PI - (Math.min(130, Math.max(0, percent)) / 100) * Math.PI;
+        const needleX = cx + 65 * Math.cos(needleAngle);
+        const needleY = cy - 65 * Math.sin(needleAngle);
+
+        // Marker represents realized percentage until current month
+        const realizedPercent = annualBudgetRev > 0 ? (realizedAccumRev / annualBudgetRev) * 100 : 0;
+        const markerAngle = Math.PI - (Math.min(100, Math.max(0, realizedPercent)) / 100) * Math.PI;
+        const markerX = cx + r * Math.cos(markerAngle);
+        const markerY = cy - r * Math.sin(markerAngle);
+
+        return (
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', background: '#f8fafc', padding: '1rem', borderRadius: '12px', border: '1px solid #cbd5e1', boxShadow: 'inset 0 2px 4px rgba(0,0,0,0.02)' }}>
+                <svg width="240" height="135" viewBox="0 0 240 135" style={{ overflow: 'visible' }}>
+                    <defs>
+                        <linearGradient id="gauge-grad" x1="0%" y1="0%" x2="100%" y2="0%">
+                            <stop offset="0%" stopColor="#2563eb" /> {/* Azul no início (0%) */}
+                            <stop offset="60%" stopColor="#3b82f6" />
+                            <stop offset="100%" stopColor="#10b981" /> {/* Verde no final (100%) */}
+                        </linearGradient>
+                        <filter id="needle-shadow" x="-20%" y="-20%" width="140%" height="140%">
+                            <feDropShadow dx="1" dy="2" stdDeviation="1" floodOpacity="0.15" />
+                        </filter>
+                    </defs>
+
+                    {/* Arco de fundo (escala completa de meta orçada) */}
+                    <path 
+                        d={`M ${cx - r} ${cy} A ${r} ${r} 0 0 1 ${cx + r} ${cy}`} 
+                        fill="none" 
+                        stroke="#e2e8f0" 
+                        strokeWidth="14" 
+                        strokeLinecap="round" 
+                    />
+
+                    {/* Arco de progresso (Projeção) */}
+                    <path 
+                        d={`M ${cx - r} ${cy} A ${r} ${r} 0 0 1 ${cx + r} ${cy}`} 
+                        fill="none" 
+                        stroke="url(#gauge-grad)" 
+                        strokeWidth="14" 
+                        strokeLinecap="round" 
+                        strokeDasharray={arcLength}
+                        strokeDashoffset={strokeDashoffset}
+                        style={{ transition: 'stroke-dashoffset 0.8s ease-in-out' }}
+                    />
+
+                    {/* Marcador do Realizado Acumulado (Jan-Jun) */}
+                    {realizedPercent > 0 && (
+                        <g>
+                            <circle 
+                                cx={markerX} 
+                                cy={markerY} 
+                                r="5" 
+                                fill="#1e3a8a" 
+                                stroke="#ffffff" 
+                                strokeWidth="1.5" 
+                                style={{ filter: 'drop-shadow(0px 2px 3px rgba(30,58,138,0.3))' }}
+                            />
+                        </g>
+                    )}
+
+                    {/* Ponteiro da Projeção */}
+                    <g filter="url(#needle-shadow)">
+                        <line 
+                            x1={cx} 
+                            y1={cy} 
+                            x2={needleX} 
+                            y2={needleY} 
+                            stroke="#1e293b" 
+                            strokeWidth="3.5" 
+                            strokeLinecap="round" 
+                            style={{ transition: 'all 0.8s ease-in-out' }}
+                        />
+                        <circle cx={cx} cy={cy} r="7.5" fill="#1e293b" />
+                        <circle cx={cx} cy={cy} r="3" fill="#94a3b8" />
+                    </g>
+
+                    {/* Rótulos de 0% e 100% */}
+                    <text x={cx - r - 10} y={cy + 15} fontSize="9" fontWeight="700" fill="#64748b" textAnchor="middle">0%</text>
+                    <text x={cx + r + 10} y={cy + 15} fontSize="9" fontWeight="700" fill="#64748b" textAnchor="middle">100%</text>
+                </svg>
+
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', marginTop: '-15px', zIndex: 10 }}>
+                    <span style={{ fontSize: '1.25rem', fontWeight: 900, color: '#0f172a' }}>{percent.toFixed(1)}%</span>
+                    <span style={{ fontSize: '0.68rem', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Atingimento Projetado</span>
+                </div>
+            </div>
+        );
+    };
+
     const handleCostCenterToggle = (id: string) => {
         setPendingCostCenter(prev => {
             if (prev.includes(id)) {
@@ -2115,6 +2248,49 @@ export default function BudgetGrid({
                                     </>
                                 );
                             })()}
+                        </div>
+                    </div>
+
+                    {/* Seção de Velocímetros (Projeções e Metas Anuais) */}
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '1.5rem', width: '100%' }}>
+                        <div className="glass-card" style={{ padding: '1.5rem', background: '#ffffff', borderRadius: '12px', border: '1px solid #e2e8f0', boxShadow: '0 4px 6px rgba(0,0,0,0.02)' }}>
+                            <h3 style={{ fontSize: '0.9rem', fontWeight: 800, color: '#0f172a', marginBottom: '1.25rem' }}>Projeção Anual de Faturamento</h3>
+                            
+                            <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'center', gap: '2.5rem' }}>
+                                {/* Velocímetro */}
+                                {renderRevenueGauge()}
+
+                                {/* Detalhes e Métricas */}
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', minWidth: '280px', flex: 1 }}>
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
+                                        <span style={{ fontSize: '0.7rem', color: '#64748b', textTransform: 'uppercase', fontWeight: 800, letterSpacing: '0.05em' }}>Projeção de Receita Anual</span>
+                                        <span style={{ fontSize: '1.75rem', fontWeight: 900, color: '#10b981' }}>
+                                            {formatCurrency(revenueProjectionData.projectedRev)}
+                                        </span>
+                                        <p style={{ fontSize: '0.75rem', color: '#64748b', margin: 0, lineHeight: 1.4 }}>
+                                            Com base no realizado de <strong>Jan-Jun</strong> ({formatCurrency(revenueProjectionData.realizedAccumRev)}) somado ao orçado restante de <strong>Jul-Dez</strong>.
+                                        </p>
+                                    </div>
+
+                                    <div style={{ borderTop: '1px solid #e2e8f0', paddingTop: '0.75rem', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                                        <div style={{ display: 'flex', flexDirection: 'column' }}>
+                                            <span style={{ fontSize: '0.65rem', color: '#64748b', textTransform: 'uppercase', fontWeight: 800 }}>Meta Orçada (Ano Todo)</span>
+                                            <span style={{ fontSize: '1.1rem', fontWeight: 800, color: '#2563eb' }}>{formatCurrency(revenueProjectionData.annualBudgetRev)}</span>
+                                        </div>
+                                        <div style={{ display: 'flex', flexDirection: 'column' }}>
+                                            <span style={{ fontSize: '0.65rem', color: '#64748b', textTransform: 'uppercase', fontWeight: 800 }}>Realizado Acumulado (Jan-Jun)</span>
+                                            <span style={{ fontSize: '1.1rem', fontWeight: 800, color: '#475569' }}>{formatCurrency(revenueProjectionData.realizedAccumRev)}</span>
+                                        </div>
+                                    </div>
+
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '0.65rem 0.85rem', background: '#f0fdf4', borderRadius: '8px', border: '1px solid #bbf7d0', fontSize: '0.75rem', color: '#14532d' }}>
+                                        <span style={{ fontSize: '1.1rem' }}>💡</span>
+                                        <span>
+                                            A projeção indica que a empresa deve atingir <strong>{revenueProjectionData.percent.toFixed(1)}%</strong> da meta de receita anual orçada para 2026.
+                                        </span>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
                     </div>
 

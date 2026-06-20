@@ -1843,83 +1843,69 @@ export default function BudgetGrid({
     };
 
     const renderRevenueGauge = () => {
-        const { annualBudgetRev, realizedAccumRev, projectedRev, percent } = revenueProjectionData;
+        const { annualBudgetRev, realizedAccumRev, projectedRev } = revenueProjectionData;
 
         // SVG parameters
         const cx = 120;
         const cy = 110;
         const r = 80;
         
-        // 180 degree arc length
-        const arcLength = Math.PI * r; // ~251.32
-        
-        // Target percentage limit (max 100% for the fill gauge)
-        const displayPercent = Math.min(100, Math.max(0, percent));
-        const strokeDashoffset = arcLength - (displayPercent / 100) * arcLength;
+        // Target percentage (realized in relation to projected)
+        const gaugePercent = projectedRev > 0 ? (realizedAccumRev / projectedRev) * 100 : 0;
 
-        // Trig angle in radians (left is PI, right is 0)
-        // needle represents projected percentage (allow needle to go past 100% up to 130% for visual effect)
-        const needleAngle = Math.PI - (Math.min(130, Math.max(0, percent)) / 100) * Math.PI;
-        const needleX = cx + 65 * Math.cos(needleAngle);
-        const needleY = cy - 65 * Math.sin(needleAngle);
+        // Trig angle in radians for needle (left is PI, right is 0)
+        const needleAngle = Math.PI - (Math.min(100, Math.max(0, gaugePercent)) / 100) * Math.PI;
+        const needleLength = 62;
+        const needleX = cx + needleLength * Math.cos(needleAngle);
+        const needleY = cy - needleLength * Math.sin(needleAngle);
 
-        // Marker represents realized percentage until current month
-        const realizedPercent = annualBudgetRev > 0 ? (realizedAccumRev / annualBudgetRev) * 100 : 0;
-        const markerAngle = Math.PI - (Math.min(100, Math.max(0, realizedPercent)) / 100) * Math.PI;
-        const markerX = cx + r * Math.cos(markerAngle);
-        const markerY = cy - r * Math.sin(markerAngle);
+        // Helper to get coordinates for arc segments
+        const getArcSegment = (startAngleDeg: number, endAngleDeg: number, strokeColor: string) => {
+            const startRad = (startAngleDeg * Math.PI) / 180;
+            const endRad = (endAngleDeg * Math.PI) / 180;
+            
+            const x1 = cx + r * Math.cos(startRad);
+            const y1 = cy - r * Math.sin(startRad);
+            const x2 = cx + r * Math.cos(endRad);
+            const y2 = cy - r * Math.sin(endRad);
+            
+            return (
+                <path 
+                    key={startAngleDeg}
+                    d={`M ${x1} ${y1} A ${r} ${r} 0 0 1 ${x2} ${y2}`} 
+                    fill="none" 
+                    stroke={strokeColor} 
+                    strokeWidth="14" 
+                />
+            );
+        };
+
+        // 5 segments matching the user's design (vermelho, laranja, amarelo, verde-limão, verde-escuro)
+        const segments = [
+            { color: '#ef4444', start: 180, end: 147 }, // Crítico
+            { color: '#f97316', start: 144, end: 111 }, // Alerta
+            { color: '#eab308', start: 108, end: 75 },  // Atenção
+            { color: '#84cc16', start: 72, end: 39 },   // Bom
+            { color: '#22c55e', start: 36, end: 3 }     // Excelente
+        ];
 
         return (
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', background: '#f8fafc', padding: '1rem', borderRadius: '12px', border: '1px solid #cbd5e1', boxShadow: 'inset 0 2px 4px rgba(0,0,0,0.02)' }}>
                 <svg width="240" height="135" viewBox="0 0 240 135" style={{ overflow: 'visible' }}>
                     <defs>
-                        <linearGradient id="gauge-grad" x1="0%" y1="0%" x2="100%" y2="0%">
-                            <stop offset="0%" stopColor="#2563eb" /> {/* Azul no início (0%) */}
-                            <stop offset="60%" stopColor="#3b82f6" />
-                            <stop offset="100%" stopColor="#10b981" /> {/* Verde no final (100%) */}
-                        </linearGradient>
                         <filter id="needle-shadow" x="-20%" y="-20%" width="140%" height="140%">
                             <feDropShadow dx="1" dy="2" stdDeviation="1" floodOpacity="0.15" />
                         </filter>
+                        {/* Ponta da Seta */}
+                        <marker id="arrow" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse">
+                            <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="#1e293b" />
+                        </marker>
                     </defs>
 
-                    {/* Arco de fundo (escala completa de meta orçada) */}
-                    <path 
-                        d={`M ${cx - r} ${cy} A ${r} ${r} 0 0 1 ${cx + r} ${cy}`} 
-                        fill="none" 
-                        stroke="#e2e8f0" 
-                        strokeWidth="14" 
-                        strokeLinecap="round" 
-                    />
+                    {/* Desenha os 5 segmentos coloridos */}
+                    {segments.map(seg => getArcSegment(seg.start, seg.end, seg.color))}
 
-                    {/* Arco de progresso (Projeção) */}
-                    <path 
-                        d={`M ${cx - r} ${cy} A ${r} ${r} 0 0 1 ${cx + r} ${cy}`} 
-                        fill="none" 
-                        stroke="url(#gauge-grad)" 
-                        strokeWidth="14" 
-                        strokeLinecap="round" 
-                        strokeDasharray={arcLength}
-                        strokeDashoffset={strokeDashoffset}
-                        style={{ transition: 'stroke-dashoffset 0.8s ease-in-out' }}
-                    />
-
-                    {/* Marcador do Realizado Acumulado (Jan-Jun) */}
-                    {realizedPercent > 0 && (
-                        <g>
-                            <circle 
-                                cx={markerX} 
-                                cy={markerY} 
-                                r="5" 
-                                fill="#1e3a8a" 
-                                stroke="#ffffff" 
-                                strokeWidth="1.5" 
-                                style={{ filter: 'drop-shadow(0px 2px 3px rgba(30,58,138,0.3))' }}
-                            />
-                        </g>
-                    )}
-
-                    {/* Ponteiro da Projeção */}
+                    {/* Ponteiro (aponta para o Realizado em relação à Projeção) */}
                     <g filter="url(#needle-shadow)">
                         <line 
                             x1={cx} 
@@ -1927,12 +1913,14 @@ export default function BudgetGrid({
                             x2={needleX} 
                             y2={needleY} 
                             stroke="#1e293b" 
-                            strokeWidth="3.5" 
+                            strokeWidth="3" 
                             strokeLinecap="round" 
+                            markerEnd="url(#arrow)"
                             style={{ transition: 'all 0.8s ease-in-out' }}
                         />
-                        <circle cx={cx} cy={cy} r="7.5" fill="#1e293b" />
-                        <circle cx={cx} cy={cy} r="3" fill="#94a3b8" />
+                        {/* Miolo do ponteiro (círculo preto com centro branco) */}
+                        <circle cx={cx} cy={cy} r="8.5" fill="#1e293b" />
+                        <circle cx={cx} cy={cy} r="4" fill="#f8fafc" />
                     </g>
 
                     {/* Rótulos de 0% e 100% */}
@@ -1941,8 +1929,8 @@ export default function BudgetGrid({
                 </svg>
 
                 <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', marginTop: '-15px', zIndex: 10 }}>
-                    <span style={{ fontSize: '1.25rem', fontWeight: 900, color: '#0f172a' }}>{percent.toFixed(1)}%</span>
-                    <span style={{ fontSize: '0.68rem', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Atingimento Projetado</span>
+                    <span style={{ fontSize: '1.25rem', fontWeight: 900, color: '#0f172a' }}>{gaugePercent.toFixed(1)}%</span>
+                    <span style={{ fontSize: '0.68rem', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Faturamento Realizado Acumulado</span>
                 </div>
             </div>
         );

@@ -1373,9 +1373,9 @@ export default function BudgetGrid({
                                         borderLeft: '2px solid #cbd5e1', 
                                         cursor: viewPeriod === 'month' ? 'pointer' : 'default',
                                         color: isHighlighted ? '#ffffff' : (bVal < 0 ? '#dc2626' : '#1e293b'),
-                                        width: '100px',
-                                        minWidth: '100px',
-                                        maxWidth: '100px',
+                                        width: '130px',
+                                        minWidth: '130px',
+                                        maxWidth: '130px',
                                         padding: '0.65rem 0.5rem',
                                         fontWeight: 600,
                                         background: isHighlighted ? '#0b579f' : undefined
@@ -1414,9 +1414,9 @@ export default function BudgetGrid({
                                         fontWeight: 800,
                                         position: 'relative',
                                         background: isHighlighted ? '#e0f2fe' : ((hasJustificationMap[`${node.id}-${i}`] && node.children.length === 0) ? '#eff6ff' : undefined),
-                                        width: '110px',
-                                        minWidth: '110px',
-                                        maxWidth: '110px',
+                                        width: '140px',
+                                        minWidth: '140px',
+                                        maxWidth: '140px',
                                         padding: '0.65rem 0.5rem',
                                         fontSize: '0.96rem'
                                     }}
@@ -1531,11 +1531,11 @@ export default function BudgetGrid({
                                 const val = itemsMap.get(itemName)?.[i] || 0;
                                 return (
                                     <React.Fragment key={i}>
-                                        <td className="spreadsheet-value" style={{ fontSize: '0.9rem', color: '#334155', borderLeft: '2px solid #e2e8f0', borderBottom: '1px solid #f1f5f9', width: '100px', minWidth: '100px', maxWidth: '100px' }}>
+                                        <td className="spreadsheet-value" style={{ fontSize: '0.9rem', color: '#334155', borderLeft: '2px solid #e2e8f0', borderBottom: '1px solid #f1f5f9', width: '130px', minWidth: '130px', maxWidth: '130px' }}>
                                             {val === 0 ? '-' : formatCurrency(val)}
                                         </td>
                                         {showAV && <td className="spreadsheet-value" style={{ color: 'transparent', fontSize: '0.7rem', width: '60px', minWidth: '60px', maxWidth: '60px' }}>-</td>}
-                                        <td className="spreadsheet-value" style={{ fontSize: '0.9rem', color: 'transparent', width: '110px', minWidth: '110px', maxWidth: '110px' }}>-</td>
+                                        <td className="spreadsheet-value" style={{ fontSize: '0.9rem', color: 'transparent', width: '140px', minWidth: '140px', maxWidth: '140px' }}>-</td>
                                         {showAV && <td className="spreadsheet-value" style={{ color: 'transparent', width: '60px', minWidth: '60px', maxWidth: '60px' }}>-</td>}
                                         {showAH && <td className="spreadsheet-value" style={{ color: 'transparent', width: '70px', minWidth: '70px', maxWidth: '70px' }}>-</td>}
                                         {showAH_MoM && <td className="spreadsheet-value" style={{ color: 'transparent', width: '70px', minWidth: '70px', maxWidth: '70px' }}>-</td>}
@@ -1704,9 +1704,9 @@ export default function BudgetGrid({
                                     color: isHighlighted ? '#ffffff' : bColor, 
                                     fontWeight: 700, 
                                     background: isLucroLiquido ? '#2563eb' : (isHighlighted ? '#0b579f' : undefined), 
-                                    width: '100px', 
-                                    minWidth: '100px', 
-                                    maxWidth: '100px', 
+                                    width: '130px', 
+                                    minWidth: '130px', 
+                                    maxWidth: '130px', 
                                     padding: '0.5rem 0.25rem' 
                                 }}
                             >
@@ -1737,9 +1737,9 @@ export default function BudgetGrid({
                                     fontWeight: 900, 
                                     background: isLucroLiquido ? '#2563eb' : (isHighlighted ? '#e0f2fe' : undefined), 
                                     position: 'relative', 
-                                    width: '110px', 
-                                    minWidth: '110px', 
-                                    maxWidth: '110px', 
+                                    width: '140px', 
+                                    minWidth: '140px', 
+                                    maxWidth: '140px', 
                                     padding: '0.5rem 0.25rem' 
                                 }}
                             >
@@ -2329,9 +2329,9 @@ export default function BudgetGrid({
                                     const highlightTextOther = isHighlighted ? '#0b579f' : '#64748b';
                                     return (
                                         <React.Fragment key={i}>
-                                            <th style={{ fontSize: '0.72rem', color: highlightTextOrç, borderLeft: '2px solid #cbd5e1', textAlign: 'center', padding: '0.2rem', width: '100px', minWidth: '100px', maxWidth: '100px', backgroundColor: highlightBgOrç }}>ORÇ</th>
+                                            <th style={{ fontSize: '0.72rem', color: highlightTextOrç, borderLeft: '2px solid #cbd5e1', textAlign: 'center', padding: '0.2rem', width: '130px', minWidth: '130px', maxWidth: '130px', backgroundColor: highlightBgOrç }}>ORÇ</th>
                                             {showAV && <th style={{ fontSize: '0.68rem', color: highlightTextOther, textAlign: 'center', padding: '0.2rem', width: '60px', minWidth: '60px', maxWidth: '60px', backgroundColor: highlightBgOther }}>AV OR</th>}
-                                            <th style={{ fontSize: '0.72rem', color: highlightTextReal, textAlign: 'center', padding: '0.2rem', width: '110px', minWidth: '110px', maxWidth: '110px', backgroundColor: highlightBgReal }}>REAL</th>
+                                            <th style={{ fontSize: '0.72rem', color: highlightTextReal, textAlign: 'center', padding: '0.2rem', width: '140px', minWidth: '140px', maxWidth: '140px', backgroundColor: highlightBgReal }}>REAL</th>
                                             {showAV && <th style={{ fontSize: '0.68rem', color: highlightTextOther, textAlign: 'center', padding: '0.2rem', width: '60px', minWidth: '60px', maxWidth: '60px', backgroundColor: highlightBgOther }}>AV RL</th>}
                                             {showAH && <th style={{ fontSize: '0.68rem', color: highlightTextOther, textAlign: 'center', padding: '0.2rem', width: '70px', minWidth: '70px', maxWidth: '70px', backgroundColor: highlightBgOther }}>AH %</th>}
                                             {showAH_MoM && (

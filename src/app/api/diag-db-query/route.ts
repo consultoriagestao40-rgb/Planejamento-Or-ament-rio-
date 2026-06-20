@@ -86,6 +86,8 @@ export async function GET() {
             return sum;
         };
 
+        const dreMonthlyMB: number[] = [];
+        let dreAccumulatedMB = 0;
         const dreMonthlyDetails: any[] = [];
         for (let m = 0; m <= 5; m++) {
             const rev = getMonthlyDREValue('01', m);

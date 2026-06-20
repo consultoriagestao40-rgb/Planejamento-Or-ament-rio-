@@ -92,6 +92,7 @@ export default function BudgetGrid({
     const [selectedPeriodOption, setSelectedPeriodOption] = useState<string>('1_semestre');
     const [viewMode, setViewMode] = useState<'caixa' | 'competencia'>('competencia');
     const [viewPeriod, setViewPeriod] = useState<'month' | 'quarter'>('month');
+    const [chartViewMode, setChartViewMode] = useState<'mensal' | 'acumulado'>('mensal');
 
     // Sync selectedYear with externalYear
     useEffect(() => {
@@ -1311,6 +1312,58 @@ export default function BudgetGrid({
     const precomputedDreTotals = useMemo(() => {
         return Array.from({ length: 12 }, (_, i) => dreStructure.calculateTotals(i));
     }, [dreStructure]);
+
+    const accumulatedDreTotals = useMemo(() => {
+        let accRevB = 0;
+        let accRevR = 0;
+        let accRevRd = 0;
+
+        let accTaxesB = 0;
+        let accTaxesR = 0;
+        let accTaxesRd = 0;
+
+        let accCostsB = 0;
+        let accCostsR = 0;
+        let accCostsRd = 0;
+
+        let accEbitdaB = 0;
+        let accEbitdaR = 0;
+        let accEbitdaRd = 0;
+
+        let accNetProfitB = 0;
+        let accNetProfitR = 0;
+        let accNetProfitRd = 0;
+
+        return precomputedDreTotals.map((m, idx) => {
+            accRevB += m.vRev.b;
+            accRevR += m.vRev.r;
+            accRevRd += m.vRev.rd;
+
+            accTaxesB += m.vTaxes.b;
+            accTaxesR += m.vTaxes.r;
+            accTaxesRd += m.vTaxes.rd;
+
+            accCostsB += m.vCosts.b;
+            accCostsR += m.vCosts.r;
+            accCostsRd += m.vCosts.rd;
+
+            accEbitdaB += m.vEbitda.b;
+            accEbitdaR += m.vEbitda.r;
+            accEbitdaRd += m.vEbitda.rd;
+
+            accNetProfitB += m.vNetProfit.b;
+            accNetProfitR += m.vNetProfit.r;
+            accNetProfitRd += m.vNetProfit.rd;
+
+            return {
+                vRev: { b: accRevB, r: accRevR, rd: accRevRd },
+                vTaxes: { b: accTaxesB, r: accTaxesR, rd: accTaxesRd },
+                vCosts: { b: accCostsB, r: accCostsR, rd: accCostsRd },
+                vEbitda: { b: accEbitdaB, r: accEbitdaR, rd: accEbitdaRd },
+                vNetProfit: { b: accNetProfitB, r: accNetProfitR, rd: accNetProfitRd }
+            };
+        });
+    }, [precomputedDreTotals]);
 
     const revenueProjectionData = useMemo(() => {
         let annualBudgetRev = 0;
@@ -2585,6 +2638,12 @@ export default function BudgetGrid({
                 {activeTab === 'graficos' ? (
                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                            <div className="toggle-group" style={{ height: '30px', padding: '2px' }}>
+                                <button onClick={() => setChartViewMode('mensal')} className={`toggle-btn ${chartViewMode === 'mensal' ? 'active' : ''}`} style={{ padding: '0 0.75rem', fontSize: '0.7rem' }}>Mensal</button>
+                                <button onClick={() => setChartViewMode('acumulado')} className={`toggle-btn ${chartViewMode === 'acumulado' ? 'active' : ''}`} style={{ padding: '0 0.75rem', fontSize: '0.7rem' }}>Acumulado</button>
+                            </div>
+                        </div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                             <span style={{ fontSize: '0.65rem', fontWeight: 800, color: 'var(--accent-blue)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Período</span>
                             <select
                                 value={selectedPeriodOption}
@@ -2925,7 +2984,10 @@ export default function BudgetGrid({
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', width: '100%' }}>
                         {/* Panel 1: Receita Bruta Monthly */}
                         <div className="glass-card" style={{ padding: '1.5rem', background: '#ffffff', borderRadius: '12px', border: '1px solid #e2e8f0', boxShadow: '0 4px 6px rgba(0,0,0,0.02)', width: '100%' }}>
-                            <h3 style={{ fontSize: '0.9rem', fontWeight: 800, color: '#0f172a', marginBottom: '1.5rem' }}>Faturamento Mensal (Receita Bruta) <span style={{ fontSize: '0.7rem', color: '#64748b', fontWeight: 500, marginLeft: '0.4rem' }}>(Valores em Mil R$)</span></h3>
+                            <h3 style={{ fontSize: '0.9rem', fontWeight: 800, color: '#0f172a', marginBottom: '1.5rem' }}>
+                                {chartViewMode === 'acumulado' ? 'Faturamento Acumulado (Receita Bruta)' : 'Faturamento Mensal (Receita Bruta)'}
+                                <span style={{ fontSize: '0.7rem', color: '#64748b', fontWeight: 500, marginLeft: '0.4rem' }}>(Valores em Mil R$)</span>
+                            </h3>
                             {(() => {
                                 // Formatter for values on top of the bars (in thousands, e.g. R$ 780.1)
                                 const formatChartValue = (val: number) => {
@@ -2937,14 +2999,16 @@ export default function BudgetGrid({
                                     return `${isNegative ? '-' : ''}R$ ${formatted}`;
                                 };
 
+                                const dataToUse = chartViewMode === 'acumulado' ? accumulatedDreTotals : precomputedDreTotals;
+
                                 // Max value across all 12 months for scale calculation
-                                const maxVal = Math.max(...precomputedDreTotals.map(m => Math.max(m.vRev.b, m.vRev.r))) || 1;
+                                const maxVal = Math.max(...dataToUse.map(m => Math.max(m.vRev.b, m.vRev.r))) || 1;
 
                                 // Build path for the % line chart
                                 let pathD = '';
                                 const points: { x: number, y: number, pct: number }[] = [];
                                 
-                                precomputedDreTotals.forEach((month, idx) => {
+                                dataToUse.forEach((month, idx) => {
                                     if (idx <= currentMonthIdx) {
                                         const bVal = month.vRev.b;
                                         const rVal = month.vRev.r;
@@ -2975,7 +3039,7 @@ export default function BudgetGrid({
                                                 <line x1="40" y1="44" x2="1160" y2="44" stroke="#cbd5e1" strokeWidth="1" strokeDasharray="4 4" />
 
                                                 {/* Bars & Labels */}
-                                                {precomputedDreTotals.map((month, idx) => {
+                                                {dataToUse.map((month, idx) => {
                                                     const bVal = month.vRev.b;
                                                     const rVal = idx <= currentMonthIdx ? month.vRev.r : 0;
                                                     
@@ -3121,7 +3185,10 @@ export default function BudgetGrid({
 
                         {/* Panel 2: Tributos Monthly */}
                         <div className="glass-card" style={{ padding: '1.5rem', background: '#ffffff', borderRadius: '12px', border: '1px solid #e2e8f0', boxShadow: '0 4px 6px rgba(0,0,0,0.02)', width: '100%' }}>
-                            <h3 style={{ fontSize: '0.9rem', fontWeight: 800, color: '#0f172a', marginBottom: '1.5rem' }}>Tributos <span style={{ fontSize: '0.7rem', color: '#64748b', fontWeight: 500, marginLeft: '0.4rem' }}>(Valores em Mil R$)</span></h3>
+                            <h3 style={{ fontSize: '0.9rem', fontWeight: 800, color: '#0f172a', marginBottom: '1.5rem' }}>
+                                {chartViewMode === 'acumulado' ? 'Tributos Acumulados' : 'Tributos'}
+                                <span style={{ fontSize: '0.7rem', color: '#64748b', fontWeight: 500, marginLeft: '0.4rem' }}>(Valores em Mil R$)</span>
+                            </h3>
                             {(() => {
                                 // Formatter for values on top of the bars (in thousands, e.g. R$ 780.1)
                                 const formatChartValue = (val: number) => {
@@ -3133,14 +3200,16 @@ export default function BudgetGrid({
                                     return `${isNegative ? '-' : ''}R$ ${formatted}`;
                                 };
 
+                                const dataToUse = chartViewMode === 'acumulado' ? accumulatedDreTotals : precomputedDreTotals;
+
                                 // Max value across all 12 months for scale calculation
-                                const maxVal = Math.max(...precomputedDreTotals.map(m => Math.max(m.vTaxes.b, m.vTaxes.r))) || 1;
+                                const maxVal = Math.max(...dataToUse.map(m => Math.max(m.vTaxes.b, m.vTaxes.r))) || 1;
 
                                 // Build path for the % line chart
                                 let pathD = '';
                                 const points: { x: number, y: number, pct: number }[] = [];
                                 
-                                precomputedDreTotals.forEach((month, idx) => {
+                                dataToUse.forEach((month, idx) => {
                                     if (idx <= currentMonthIdx) {
                                         const bVal = month.vTaxes.b;
                                         const rVal = month.vTaxes.r;
@@ -3171,7 +3240,7 @@ export default function BudgetGrid({
                                                 <line x1="40" y1="44" x2="1160" y2="44" stroke="#cbd5e1" strokeWidth="1" strokeDasharray="4 4" />
 
                                                 {/* Bars & Labels */}
-                                                {precomputedDreTotals.map((month, idx) => {
+                                                {dataToUse.map((month, idx) => {
                                                     const bVal = month.vTaxes.b;
                                                     const rVal = idx <= currentMonthIdx ? month.vTaxes.r : 0;
                                                     
@@ -3317,7 +3386,10 @@ export default function BudgetGrid({
 
                         {/* Panel 3: Lucro Líquido Monthly */}
                         <div className="glass-card" style={{ padding: '1.5rem', background: '#ffffff', borderRadius: '12px', border: '1px solid #e2e8f0', boxShadow: '0 4px 6px rgba(0,0,0,0.02)', width: '100%' }}>
-                            <h3 style={{ fontSize: '0.9rem', fontWeight: 800, color: '#0f172a', marginBottom: '1.5rem' }}>Resultado Líquido Mensal (Lucro / Prejuízo) <span style={{ fontSize: '0.7rem', color: '#64748b', fontWeight: 500, marginLeft: '0.4rem' }}>(Valores em Mil R$)</span></h3>
+                            <h3 style={{ fontSize: '0.9rem', fontWeight: 800, color: '#0f172a', marginBottom: '1.5rem' }}>
+                                {chartViewMode === 'acumulado' ? 'Resultado Líquido Acumulado (Lucro / Prejuízo)' : 'Resultado Líquido Mensal (Lucro / Prejuízo)'}
+                                <span style={{ fontSize: '0.7rem', color: '#64748b', fontWeight: 500, marginLeft: '0.4rem' }}>(Valores em Mil R$)</span>
+                            </h3>
                             {(() => {
                                 // Formatter for values on top/bottom of the bars (in thousands, e.g. R$ 780.1)
                                 const formatChartValue = (val: number) => {
@@ -3329,14 +3401,16 @@ export default function BudgetGrid({
                                     return `${isNegative ? '-' : ''}R$ ${formatted}`;
                                 };
 
+                                const dataToUse = chartViewMode === 'acumulado' ? accumulatedDreTotals : precomputedDreTotals;
+
                                 // Max absolute value across all 12 months for scale calculation
-                                const maxVal = Math.max(...precomputedDreTotals.map(m => Math.max(Math.abs(m.vNetProfit.b), Math.abs(m.vNetProfit.r)))) || 1;
+                                const maxVal = Math.max(...dataToUse.map(m => Math.max(Math.abs(m.vNetProfit.b), Math.abs(m.vNetProfit.r)))) || 1;
 
                                 // Build path for the % line chart
                                 let pathD = '';
                                 const points: { x: number, y: number, pct: number }[] = [];
                                 
-                                precomputedDreTotals.forEach((month, idx) => {
+                                dataToUse.forEach((month, idx) => {
                                     if (idx <= currentMonthIdx) {
                                         const bVal = month.vNetProfit.b;
                                         const rVal = month.vNetProfit.r;
@@ -3377,7 +3451,7 @@ export default function BudgetGrid({
                                                 <line x1="40" y1="50" x2="1160" y2="50" stroke="#cbd5e1" strokeWidth="1" strokeDasharray="4 4" />
 
                                                 {/* Bars & Labels */}
-                                                {precomputedDreTotals.map((month, idx) => {
+                                                {dataToUse.map((month, idx) => {
                                                     const bVal = month.vNetProfit.b;
                                                     const rVal = idx <= currentMonthIdx ? month.vNetProfit.r : 0;
                                                     

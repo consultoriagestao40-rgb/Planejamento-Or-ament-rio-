@@ -2360,6 +2360,7 @@ export default function BudgetGrid({
                                         </React.Fragment>
                                     );
                                 })}
+                            </tr>
                         </thead>
                     </table>
                 </div> {/* fecha a div headerScrollRef */}

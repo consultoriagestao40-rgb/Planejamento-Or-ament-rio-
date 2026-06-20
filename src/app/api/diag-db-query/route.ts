@@ -86,16 +86,15 @@ export async function GET() {
             return sum;
         };
 
-        const dreMonthlyMB: number[] = [];
-        let dreAccumulatedMB = 0;
-
-        for (let m = 0; m <= 5; m++) { // De Jan a Jun (limitMonth = 5)
+        const dreMonthlyDetails: any[] = [];
+        for (let m = 0; m <= 5; m++) {
             const rev = getMonthlyDREValue('01', m);
             const tax = getMonthlyDREValue('02', m);
             const cost = getMonthlyDREValue('03', m);
             const mb = rev - tax - cost;
             dreMonthlyMB.push(mb);
             dreAccumulatedMB += mb;
+            dreMonthlyDetails.push({ month: m + 1, rev, tax, cost, mb });
         }
 
         // 3. Detailed breakdown of JVS Facilities categories
@@ -152,7 +151,7 @@ export async function GET() {
         return NextResponse.json({
             success: true,
             jvsFac,
-            dreMonthlyMB,
+            dreMonthlyDetails,
             dreAccumulatedMB: dreAccumulatedMB / 1000,
             calculatedMB,
             totalRev,

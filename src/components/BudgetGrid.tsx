@@ -2677,8 +2677,10 @@ export default function BudgetGrid({
             // 1. Budget Rate - all 12 months
             if (showRateLines && visible.budgetRate) {
                 const bRate = bRev > 0 ? (bVal / bRev) * 100 : 0;
-                // Scale dynamically based on maxRate (0% at Y=300, maxRate at Y=50)
-                const bRateY = Math.max(30, Math.min(290, 300 - (bRate / maxRate) * 250));
+                // Scale dynamically based on maxRate
+                const bRateY = hasNegative
+                    ? Math.max(30, Math.min(290, 170 - (bRate / maxRate) * 120))
+                    : Math.max(30, Math.min(290, 300 - (bRate / maxRate) * 250));
                 pointsBudgetRate.push({ x: pctX, y: bRateY, rate: bRate });
                 if (pathBudgetRate === '') {
                     pathBudgetRate = `M ${pctX} ${bRateY}`;
@@ -2692,7 +2694,9 @@ export default function BudgetGrid({
                 // Realized Rate
                 if (showRateLines && visible.realizedRate) {
                     const rRate = rRev > 0 ? (rVal / rRev) * 100 : 0;
-                    const rRateY = Math.max(30, Math.min(290, 300 - (rRate / maxRate) * 250));
+                    const rRateY = hasNegative
+                        ? Math.max(30, Math.min(290, 170 - (rRate / maxRate) * 120))
+                        : Math.max(30, Math.min(290, 300 - (rRate / maxRate) * 250));
                     pointsRealizedRate.push({ x: pctX, y: rRateY, rate: rRate });
                     if (pathRealizedRate === '') {
                         pathRealizedRate = `M ${pctX} ${rRateY}`;
@@ -2704,7 +2708,9 @@ export default function BudgetGrid({
                 // % Atingido
                 if (visible.atingido) {
                     const pctAtingido = getPctAtingido(bVal, rVal);
-                    const pctAtingidoY = Math.max(30, Math.min(290, 280 - (pctAtingido / 100) * 150));
+                    const pctAtingidoY = hasNegative
+                        ? Math.max(30, Math.min(290, 170 - (pctAtingido / 100) * 60))
+                        : Math.max(30, Math.min(290, 280 - (pctAtingido / 100) * 150));
                     pointsAtingido.push({ x: pctX, y: pctAtingidoY, pct: pctAtingido });
                     if (pathAtingido === '') {
                         pathAtingido = `M ${pctX} ${pctAtingidoY}`;
@@ -2994,37 +3000,15 @@ export default function BudgetGrid({
                             style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer', opacity: visible.budget ? 1 : 0.5, userSelect: 'none' }}
                         >
                             <div style={{ width: '12px', height: '12px', background: colors.budget, borderRadius: '3px' }} />
-                            <span style={{ fontWeight: 600 }}>
-                                {hasNegative ? 'Meta Orçada (Lucro)' : 'Meta Orçada'}
-                            </span>
+                            <span style={{ fontWeight: 600 }}>Meta Orçada</span>
                         </div>
-                        {hasNegative && (
-                            <div 
-                                onClick={() => setVisible(prev => ({ ...prev, budget: !prev.budget }))}
-                                style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer', opacity: visible.budget ? 1 : 0.5, userSelect: 'none' }}
-                            >
-                                <div style={{ width: '12px', height: '12px', background: '#ef4444', borderRadius: '3px' }} />
-                                <span style={{ fontWeight: 600 }}>Meta Orçada (Prejuízo)</span>
-                            </div>
-                        )}
                         <div 
                             onClick={() => setVisible(prev => ({ ...prev, realized: !prev.realized }))}
                             style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer', opacity: visible.realized ? 1 : 0.5, userSelect: 'none' }}
                         >
                             <div style={{ width: '12px', height: '12px', background: colors.realized, borderRadius: '3px' }} />
-                            <span style={{ fontWeight: 600 }}>
-                                {hasNegative ? 'Realizado (Lucro)' : 'Realizado'}
-                            </span>
+                            <span style={{ fontWeight: 600 }}>Realizado</span>
                         </div>
-                        {hasNegative && (
-                            <div 
-                                onClick={() => setVisible(prev => ({ ...prev, realized: !prev.realized }))}
-                                style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer', opacity: visible.realized ? 1 : 0.5, userSelect: 'none' }}
-                            >
-                                <div style={{ width: '12px', height: '12px', background: '#b91c1c', borderRadius: '3px' }} />
-                                <span style={{ fontWeight: 600 }}>Realizado (Prejuízo)</span>
-                            </div>
-                        )}
                         {showRateLines && (
                             <>
                                 <div 

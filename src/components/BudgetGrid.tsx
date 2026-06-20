@@ -2581,83 +2581,26 @@ export default function BudgetGrid({
 
                 <div style={{ width: '1px', height: '24px', background: 'var(--border-subtle)' }} />
 
-                {/* RIGHT: Análises & Toggles */}
-                <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-                    
-                    {/* Análises Checkboxes Premium */}
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                        <span style={{ fontSize: '0.65rem', fontWeight: 800, color: 'var(--accent-blue)', textTransform: 'uppercase', letterSpacing: '0.05em', marginRight: '0.2rem' }}>Análises</span>
-
-                        {[
-                            { label: 'Análise Vertical', state: showAV, setState: setShowAV },
-                            { label: 'AH (Orçado x Real)', state: showAH, setState: setShowAH },
-                            // { label: 'AH (Radar x Real)', state: showAR, setState: setShowAR }, // RADAR OCULTO
-                            { label: 'AH MoM', state: showAH_MoM, setState: setShowAH_MoM }
-                        ].map((item, idx) => (
-                            <label key={idx} style={{ 
-                                display: 'flex', alignItems: 'center', gap: '0.3rem', fontSize: '0.7rem', cursor: 'pointer', 
-                                color: item.state ? 'var(--text-primary)' : 'var(--text-secondary)', 
-                                fontWeight: item.state ? 600 : 500, padding: '0.2rem 0.4rem', borderRadius: '6px', 
-                                background: item.state ? 'var(--bg-surface)' : 'transparent', 
-                                transition: 'all 0.2s', border: item.state ? '1px solid var(--border-default)' : '1px solid transparent'
-                            }}>
-                                <input type="checkbox" checked={item.state} onChange={(e) => item.setState(e.target.checked)} style={{ display: 'none' }} />
-                                <div style={{ 
-                                    width: '12px', height: '12px', borderRadius: '3px', 
-                                    border: `1px solid ${item.state ? 'var(--accent-blue)' : 'var(--border-darker)'}`, 
-                                    background: item.state ? 'var(--accent-blue)' : 'var(--bg-surface)', 
-                                    display: 'flex', alignItems: 'center', justifyContent: 'center' 
-                                }}>
-                                    {item.state && <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>}
-                                </div>
-                                {item.label}
-                            </label>
-                        ))}
-                    </div>
-
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                        <div className="toggle-group" style={{ height: '30px', padding: '2px' }}>
-                            <button onClick={() => setViewPeriod('month')} className={`toggle-btn ${viewPeriod === 'month' ? 'active' : ''}`} style={{ padding: '0 0.75rem', fontSize: '0.7rem' }}>Mês</button>
-                            <button onClick={() => setViewPeriod('quarter')} className={`toggle-btn ${viewPeriod === 'quarter' ? 'active' : ''}`} style={{ padding: '0 0.75rem', fontSize: '0.7rem' }}>Trimestre</button>
-                        </div>
-                    </div>
-                </div>
-            </div>
-            {activeTab === 'graficos' ? (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', marginTop: '1rem', width: '100%' }}>
-                    {/* Filtro de Período Personalizado */}
-                    <div className="glass-card" style={{ 
-                        padding: '0.85rem 1.25rem', 
-                        background: '#ffffff', 
-                        borderRadius: '12px', 
-                        border: '1px solid #e2e8f0', 
-                        boxShadow: '0 4px 6px rgba(0,0,0,0.02)',
-                        display: 'flex',
-                        flexDirection: 'row',
-                        alignItems: 'center',
-                        gap: '1.25rem',
-                        flexWrap: 'wrap',
-                        width: '100%'
-                    }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                            <span style={{ fontSize: '0.8rem', fontWeight: 800, color: '#0f172a', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                                Período de Análise:
-                            </span>
+                {/* RIGHT: Análises & Toggles / Período de Análise */}
+                {activeTab === 'graficos' ? (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                            <span style={{ fontSize: '0.65rem', fontWeight: 800, color: 'var(--accent-blue)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Período</span>
                             <select
                                 value={selectedPeriodOption}
                                 onChange={(e) => handlePeriodOptionChange(e.target.value)}
                                 style={{
-                                    padding: '0.4rem 0.75rem',
-                                    fontSize: '0.8rem',
+                                    padding: '0.35rem 0.5rem',
+                                    fontSize: '0.75rem',
                                     borderRadius: '8px',
-                                    border: '1px solid #cbd5e1',
-                                    background: '#ffffff',
-                                    color: '#0f172a',
+                                    border: '1px solid var(--border-default)',
+                                    background: 'var(--bg-surface)',
+                                    color: 'var(--text-primary)',
                                     fontWeight: 700,
                                     outline: 'none',
                                     cursor: 'pointer',
                                     boxShadow: '0 1px 2px rgba(0,0,0,0.05)',
-                                    transition: 'border-color 0.2s'
+                                    height: '32px'
                                 }}
                             >
                                 <option value="mes_atual">Mês Atual (Junho)</option>
@@ -2676,27 +2619,29 @@ export default function BudgetGrid({
                             <div style={{ 
                                 display: 'flex', 
                                 alignItems: 'center', 
-                                gap: '1rem',
-                                background: '#f8fafc',
-                                padding: '0.35rem 0.75rem',
+                                gap: '0.75rem',
+                                background: 'var(--bg-base)',
+                                padding: '0 0.5rem',
                                 borderRadius: '8px',
-                                border: '1px solid #e2e8f0'
+                                border: '1px solid var(--border-subtle)',
+                                height: '32px'
                             }}>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                                    <span style={{ fontSize: '0.75rem', fontWeight: 700, color: '#64748b' }}>De:</span>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
+                                    <span style={{ fontSize: '0.7rem', fontWeight: 700, color: 'var(--text-secondary)' }}>De:</span>
                                     <select 
                                         value={startMonth} 
                                         onChange={(e) => handleStartMonthChange(Number(e.target.value))}
                                         style={{ 
-                                            padding: '0.25rem 0.5rem', 
-                                            fontSize: '0.75rem', 
+                                            padding: '0.2rem 0.4rem', 
+                                            fontSize: '0.7rem', 
                                             borderRadius: '6px', 
-                                            border: '1px solid #cbd5e1', 
-                                            background: '#ffffff', 
-                                            color: '#0f172a', 
+                                            border: '1px solid var(--border-default)', 
+                                            background: 'var(--bg-surface)', 
+                                            color: 'var(--text-primary)', 
                                             fontWeight: 600,
                                             outline: 'none',
-                                            cursor: 'pointer'
+                                            cursor: 'pointer',
+                                            height: '24px'
                                         }}
                                     >
                                         {['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'].map((m, idx) => (
@@ -2705,21 +2650,22 @@ export default function BudgetGrid({
                                     </select>
                                 </div>
 
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                                    <span style={{ fontSize: '0.75rem', fontWeight: 700, color: '#64748b' }}>Até:</span>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
+                                    <span style={{ fontSize: '0.7rem', fontWeight: 700, color: 'var(--text-secondary)' }}>Até:</span>
                                     <select 
                                         value={endMonth} 
                                         onChange={(e) => handleEndMonthChange(Number(e.target.value))}
                                         style={{ 
-                                            padding: '0.25rem 0.5rem', 
-                                            fontSize: '0.75rem', 
+                                            padding: '0.2rem 0.4rem', 
+                                            fontSize: '0.7rem', 
                                             borderRadius: '6px', 
-                                            border: '1px solid #cbd5e1', 
-                                            background: '#ffffff', 
-                                            color: '#0f172a', 
+                                            border: '1px solid var(--border-default)', 
+                                            background: 'var(--bg-surface)', 
+                                            color: 'var(--text-primary)', 
                                             fontWeight: 600,
                                             outline: 'none',
-                                            cursor: 'pointer'
+                                            cursor: 'pointer',
+                                            height: '24px'
                                         }}
                                     >
                                         {['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'].map((m, idx) => (
@@ -2730,6 +2676,50 @@ export default function BudgetGrid({
                             </div>
                         )}
                     </div>
+                ) : (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                        {/* Análises Checkboxes Premium */}
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                            <span style={{ fontSize: '0.65rem', fontWeight: 800, color: 'var(--accent-blue)', textTransform: 'uppercase', letterSpacing: '0.05em', marginRight: '0.2rem' }}>Análises</span>
+
+                            {[
+                                { label: 'Análise Vertical', state: showAV, setState: setShowAV },
+                                { label: 'AH (Orçado x Real)', state: showAH, setState: setShowAH },
+                                // { label: 'AH (Radar x Real)', state: showAR, setState: setShowAR }, // RADAR OCULTO
+                                { label: 'AH MoM', state: showAH_MoM, setState: setShowAH_MoM }
+                            ].map((item, idx) => (
+                                <label key={idx} style={{ 
+                                    display: 'flex', alignItems: 'center', gap: '0.3rem', fontSize: '0.7rem', cursor: 'pointer', 
+                                    color: item.state ? 'var(--text-primary)' : 'var(--text-secondary)', 
+                                    fontWeight: item.state ? 600 : 500, padding: '0.2rem 0.4rem', borderRadius: '6px', 
+                                    background: item.state ? 'var(--bg-surface)' : 'transparent', 
+                                    transition: 'all 0.2s', border: item.state ? '1px solid var(--border-default)' : '1px solid transparent'
+                                }}>
+                                    <input type="checkbox" checked={item.state} onChange={(e) => item.setState(e.target.checked)} style={{ display: 'none' }} />
+                                    <div style={{ 
+                                        width: '12px', height: '12px', borderRadius: '3px', 
+                                        border: `1px solid ${item.state ? 'var(--accent-blue)' : 'var(--border-darker)'}`, 
+                                        background: item.state ? 'var(--accent-blue)' : 'var(--bg-surface)', 
+                                        display: 'flex', alignItems: 'center', justifyContent: 'center' 
+                                    }}>
+                                        {item.state && <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>}
+                                    </div>
+                                    {item.label}
+                                </label>
+                            ))}
+                        </div>
+
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                            <div className="toggle-group" style={{ height: '30px', padding: '2px' }}>
+                                <button onClick={() => setViewPeriod('month')} className={`toggle-btn ${viewPeriod === 'month' ? 'active' : ''}`} style={{ padding: '0 0.75rem', fontSize: '0.7rem' }}>Mês</button>
+                                <button onClick={() => setViewPeriod('quarter')} className={`toggle-btn ${viewPeriod === 'quarter' ? 'active' : ''}`} style={{ padding: '0 0.75rem', fontSize: '0.7rem' }}>Trimestre</button>
+                            </div>
+                        </div>
+                    </div>
+                )}
+            </div>
+            {activeTab === 'graficos' ? (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', marginTop: '1rem', width: '100%' }}>
 
                     {/* KPI Summary Cards */}
                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '1rem' }}>

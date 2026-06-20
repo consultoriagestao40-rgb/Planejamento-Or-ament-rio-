@@ -1397,6 +1397,34 @@ export default function BudgetGrid({
         };
     }, [precomputedDreTotals, startMonth, endMonth]);
 
+    const ebitdaProjectionData = useMemo(() => {
+        let periodBudgetRev = 0;
+        let periodBudgetEbitda = 0;
+        let realizedAccumRev = 0;
+        let realizedAccumEbitda = 0;
+
+        precomputedDreTotals.forEach((m, idx) => {
+            if (idx >= startMonth && idx <= endMonth) {
+                periodBudgetRev += m.vRev.b;
+                periodBudgetEbitda += m.vEbitda.b;
+                if (idx <= currentMonthIdx) {
+                    realizedAccumRev += m.vRev.r;
+                    realizedAccumEbitda += m.vEbitda.r;
+                }
+            }
+        });
+
+        const budgetEbitdaRate = periodBudgetRev > 0 ? (periodBudgetEbitda / periodBudgetRev) * 100 : 0;
+        const realizedEbitdaRate = realizedAccumRev > 0 ? (realizedAccumEbitda / realizedAccumRev) * 100 : 0;
+
+        return {
+            budgetEbitdaRate,
+            realizedEbitdaRate,
+            realizedAccumEbitda,
+            realizedAccumRev
+        };
+    }, [precomputedDreTotals, startMonth, endMonth]);
+
     const matchNode = (node: CategoryNode, query: string): boolean => {
         if (!query) return true;
         const cleanQuery = query.toLowerCase().trim();
@@ -2244,6 +2272,100 @@ export default function BudgetGrid({
         );
     };
 
+    const renderEbitdaGauge = () => {
+        const { budgetEbitdaRate, realizedEbitdaRate } = ebitdaProjectionData;
+
+        // SVG parameters
+        const cx = 120;
+        const cy = 110;
+        const r = 80;
+        
+        // Target percentage of realized EBITDA rate relative to budget EBITDA rate (max 100%)
+        const gaugePercent = budgetEbitdaRate > 0 ? (realizedEbitdaRate / budgetEbitdaRate) * 100 : 0;
+
+        // Trig angle in radians for needle (left is PI, right is 0)
+        const needleAngle = Math.PI - (Math.min(100, Math.max(0, gaugePercent)) / 100) * Math.PI;
+        const needleLength = 62;
+        const needleX = cx + needleLength * Math.cos(needleAngle);
+        const needleY = cy - needleLength * Math.sin(needleAngle);
+
+        // Helper to get coordinates for arc segments
+        const getArcSegment = (startAngleDeg: number, endAngleDeg: number, strokeColor: string) => {
+            const startRad = (startAngleDeg * Math.PI) / 180;
+            const endRad = (endAngleDeg * Math.PI) / 180;
+            
+            const x1 = cx + r * Math.cos(startRad);
+            const y1 = cy - r * Math.sin(startRad);
+            const x2 = cx + r * Math.cos(endRad);
+            const y2 = cy - r * Math.sin(endRad);
+            
+            return (
+                <path 
+                    key={startAngleDeg}
+                    d={`M ${x1} ${y1} A ${r} ${r} 0 0 1 ${x2} ${y2}`} 
+                    fill="none" 
+                    stroke={strokeColor} 
+                    strokeWidth="14" 
+                />
+            );
+        };
+
+        // 5 segments: Normal colors (vermelho to verde)
+        const segments = [
+            { color: '#ef4444', start: 180, end: 147 }, // Crítico
+            { color: '#f97316', start: 144, end: 111 }, // Alerta
+            { color: '#eab308', start: 108, end: 75 },  // Atenção
+            { color: '#84cc16', start: 72, end: 39 },   // Bom
+            { color: '#22c55e', start: 36, end: 3 }     // Excelente
+        ];
+
+        return (
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', background: '#f8fafc', padding: '1rem', borderRadius: '12px', border: '1px solid #cbd5e1', boxShadow: 'inset 0 2px 4px rgba(0,0,0,0.02)' }}>
+                <svg width="240" height="135" viewBox="0 0 240 135" style={{ overflow: 'visible' }}>
+                    <defs>
+                        <filter id="needle-shadow-ebitda" x="-20%" y="-20%" width="140%" height="140%">
+                            <feDropShadow dx="1" dy="2" stdDeviation="1" floodOpacity="0.15" />
+                        </filter>
+                        {/* Ponta da Seta */}
+                        <marker id="arrow-ebitda" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse">
+                            <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="#1e293b" />
+                        </marker>
+                    </defs>
+
+                    {/* Desenha os 5 segmentos coloridos */}
+                    {segments.map(seg => getArcSegment(seg.start, seg.end, seg.color))}
+
+                    {/* Ponteiro */}
+                    <g filter="url(#needle-shadow-ebitda)">
+                        <line 
+                            x1={cx} 
+                            y1={cy} 
+                            x2={needleX} 
+                            y2={needleY} 
+                            stroke="#1e293b" 
+                            strokeWidth="3" 
+                            strokeLinecap="round" 
+                            markerEnd="url(#arrow-ebitda)"
+                            style={{ transition: 'all 0.8s ease-in-out' }}
+                        />
+                        {/* Miolo do ponteiro */}
+                        <circle cx={cx} cy={cy} r="8.5" fill="#1e293b" />
+                        <circle cx={cx} cy={cy} r="4" fill="#f8fafc" />
+                    </g>
+
+                    {/* Rótulos de 0% e EBITDA Orçado */}
+                    <text x={cx - r - 10} y={cy + 15} fontSize="9" fontWeight="700" fill="#64748b" textAnchor="middle">0%</text>
+                    <text x={cx + r + 20} y={cy + 15} fontSize="9" fontWeight="700" fill="#64748b" textAnchor="middle">{budgetEbitdaRate.toFixed(1)}% (Orçado)</text>
+                </svg>
+
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', marginTop: '-15px', zIndex: 10 }}>
+                    <span style={{ fontSize: '1.25rem', fontWeight: 900, color: '#0f172a' }}>{realizedEbitdaRate.toFixed(2)}%</span>
+                    <span style={{ fontSize: '0.68rem', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Margem EBITDA Efetiva</span>
+                </div>
+            </div>
+        );
+    };
+
     const handleCostCenterToggle = (id: string) => {
         setPendingCostCenter(prev => {
             if (prev.includes(id)) {
@@ -2684,8 +2806,8 @@ export default function BudgetGrid({
                         </div>
                     </div>
 
-                    {/* Seção de Velocímetros (Faturamento, Tributos e Custos Operacionais) */}
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '1.5rem', width: '100%' }}>
+                    {/* Seção de Velocímetros (Faturamento, Tributos, Custos e EBITDA) */}
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '1.5rem', width: '100%' }}>
                         {/* Card 1: Faturamento */}
                         <div className="glass-card" style={{ padding: '1.5rem', background: '#ffffff', borderRadius: '12px', border: '1px solid #e2e8f0', boxShadow: '0 4px 6px rgba(0,0,0,0.02)', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
                             <h3 style={{ fontSize: '0.9rem', fontWeight: 800, color: '#0f172a', marginBottom: '1.25rem', width: '100%', textAlign: 'center' }}>Projeção Anual de Faturamento</h3>
@@ -2700,6 +2822,11 @@ export default function BudgetGrid({
                         <div className="glass-card" style={{ padding: '1.5rem', background: '#ffffff', borderRadius: '12px', border: '1px solid #e2e8f0', boxShadow: '0 4px 6px rgba(0,0,0,0.02)', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
                             <h3 style={{ fontSize: '0.9rem', fontWeight: 800, color: '#0f172a', marginBottom: '1.25rem', width: '100%', textAlign: 'center' }}>Custos Operacionais {periodLabel}</h3>
                             {renderCostsGauge()}
+                        </div>
+                        {/* Card 4: EBITDA Percentual */}
+                        <div className="glass-card" style={{ padding: '1.5rem', background: '#ffffff', borderRadius: '12px', border: '1px solid #e2e8f0', boxShadow: '0 4px 6px rgba(0,0,0,0.02)', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                            <h3 style={{ fontSize: '0.9rem', fontWeight: 800, color: '#0f172a', marginBottom: '1.25rem', width: '100%', textAlign: 'center' }}>EBITDA Percentual {periodLabel}</h3>
+                            {renderEbitdaGauge()}
                         </div>
                     </div>
 

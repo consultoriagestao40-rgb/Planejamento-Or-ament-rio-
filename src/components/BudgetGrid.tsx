@@ -2038,7 +2038,7 @@ export default function BudgetGrid({
         ];
 
         return (
-            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', background: '#f8fafc', padding: '1rem', borderRadius: '12px', border: '1px solid #cbd5e1', boxShadow: 'inset 0 2px 4px rgba(0,0,0,0.02)' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', background: '#f8fafc', padding: '1rem', borderRadius: '12px', border: '1px solid #cbd5e1', boxShadow: 'inset 0 2px 4px rgba(0,0,0,0.02)', width: '100%', flex: 1, justifyContent: 'space-between' }}>
                 <svg width="240" height="135" viewBox="0 0 240 135" style={{ overflow: 'visible' }}>
                     <defs>
                         <filter id="needle-shadow" x="-20%" y="-20%" width="140%" height="140%">
@@ -2076,9 +2076,9 @@ export default function BudgetGrid({
                     <text x={cx + r + 10} y={cy + 15} fontSize="9" fontWeight="700" fill="#64748b" textAnchor="middle">100%</text>
                 </svg>
 
-                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', marginTop: '-15px', zIndex: 10 }}>
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '2.5rem', textAlign: 'center', marginTop: '-15px', zIndex: 10 }}>
                     <span style={{ fontSize: '1.25rem', fontWeight: 900, color: '#0f172a' }}>{gaugePercent.toFixed(1)}%</span>
-                    <span style={{ fontSize: '0.68rem', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Faturamento Realizado Acumulado {periodLabel}</span>
+                    <span style={{ fontSize: '0.68rem', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Faturamento Realizado Acumulado</span>
                 </div>
             </div>
         );
@@ -2132,7 +2132,7 @@ export default function BudgetGrid({
         ];
 
         return (
-            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', background: '#f8fafc', padding: '1rem', borderRadius: '12px', border: '1px solid #cbd5e1', boxShadow: 'inset 0 2px 4px rgba(0,0,0,0.02)' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', background: '#f8fafc', padding: '1rem', borderRadius: '12px', border: '1px solid #cbd5e1', boxShadow: 'inset 0 2px 4px rgba(0,0,0,0.02)', width: '100%', flex: 1, justifyContent: 'space-between' }}>
                 <svg width="240" height="135" viewBox="0 0 240 135" style={{ overflow: 'visible' }}>
                     <defs>
                         <filter id="needle-shadow-taxes" x="-20%" y="-20%" width="140%" height="140%">
@@ -2170,7 +2170,7 @@ export default function BudgetGrid({
                     <text x={cx + r + 20} y={cy + 15} fontSize="9" fontWeight="700" fill="#64748b" textAnchor="middle">{budgetTaxRate.toFixed(1)}% (Orçado)</text>
                 </svg>
 
-                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', marginTop: '-15px', zIndex: 10 }}>
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '2.5rem', textAlign: 'center', marginTop: '-15px', zIndex: 10 }}>
                     <span style={{ fontSize: '1.25rem', fontWeight: 900, color: '#0f172a' }}>{realizedTaxRate.toFixed(2)}%</span>
                     <span style={{ fontSize: '0.68rem', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Alíquota Efetiva de Tributos</span>
                 </div>
@@ -2226,7 +2226,7 @@ export default function BudgetGrid({
         ];
 
         return (
-            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', background: '#f8fafc', padding: '1rem', borderRadius: '12px', border: '1px solid #cbd5e1', boxShadow: 'inset 0 2px 4px rgba(0,0,0,0.02)' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', background: '#f8fafc', padding: '1rem', borderRadius: '12px', border: '1px solid #cbd5e1', boxShadow: 'inset 0 2px 4px rgba(0,0,0,0.02)', width: '100%', flex: 1, justifyContent: 'space-between' }}>
                 <svg width="240" height="135" viewBox="0 0 240 135" style={{ overflow: 'visible' }}>
                     <defs>
                         <filter id="needle-shadow-costs" x="-20%" y="-20%" width="140%" height="140%">
@@ -2264,7 +2264,7 @@ export default function BudgetGrid({
                     <text x={cx + r + 20} y={cy + 15} fontSize="9" fontWeight="700" fill="#64748b" textAnchor="middle">{budgetCostRate.toFixed(1)}% (Orçado)</text>
                 </svg>
 
-                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', marginTop: '-15px', zIndex: 10 }}>
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '2.5rem', textAlign: 'center', marginTop: '-15px', zIndex: 10 }}>
                     <span style={{ fontSize: '1.25rem', fontWeight: 900, color: '#0f172a' }}>{realizedCostRate.toFixed(2)}%</span>
                     <span style={{ fontSize: '0.68rem', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Custo Operacional Efetivo</span>
                 </div>
@@ -2320,7 +2320,7 @@ export default function BudgetGrid({
         ];
 
         return (
-            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', background: '#f8fafc', padding: '1rem', borderRadius: '12px', border: '1px solid #cbd5e1', boxShadow: 'inset 0 2px 4px rgba(0,0,0,0.02)' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', background: '#f8fafc', padding: '1rem', borderRadius: '12px', border: '1px solid #cbd5e1', boxShadow: 'inset 0 2px 4px rgba(0,0,0,0.02)', width: '100%', flex: 1, justifyContent: 'space-between' }}>
                 <svg width="240" height="135" viewBox="0 0 240 135" style={{ overflow: 'visible' }}>
                     <defs>
                         <filter id="needle-shadow-ebitda" x="-20%" y="-20%" width="140%" height="140%">
@@ -2358,7 +2358,7 @@ export default function BudgetGrid({
                     <text x={cx + r + 20} y={cy + 15} fontSize="9" fontWeight="700" fill="#64748b" textAnchor="middle">{budgetEbitdaRate.toFixed(1)}% (Orçado)</text>
                 </svg>
 
-                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', marginTop: '-15px', zIndex: 10 }}>
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '2.5rem', textAlign: 'center', marginTop: '-15px', zIndex: 10 }}>
                     <span style={{ fontSize: '1.25rem', fontWeight: 900, color: '#0f172a' }}>{realizedEbitdaRate.toFixed(2)}%</span>
                     <span style={{ fontSize: '0.68rem', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Margem EBITDA Efetiva</span>
                 </div>
@@ -2810,23 +2810,23 @@ export default function BudgetGrid({
                     <div className="glass-card" style={{ padding: '1.5rem', background: '#ffffff', borderRadius: '12px', border: '1px solid #e2e8f0', boxShadow: '0 4px 6px rgba(0,0,0,0.02)', width: '100%' }}>
                         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(230px, 1fr))', gap: '1.5rem', width: '100%' }}>
                             {/* Card 1: Faturamento */}
-                            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', height: '100%' }}>
                                 <h3 style={{ fontSize: '0.85rem', fontWeight: 800, color: '#0f172a', marginBottom: '1.25rem', width: '100%', textAlign: 'center' }}>Projeção Anual de Faturamento</h3>
                                 {renderRevenueGauge()}
                             </div>
                             {/* Card 2: Tributos */}
-                            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-                                <h3 style={{ fontSize: '0.85rem', fontWeight: 800, color: '#0f172a', marginBottom: '1.25rem', width: '100%', textAlign: 'center' }}>Indicador de Tributos {periodLabel}</h3>
+                            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', height: '100%' }}>
+                                <h3 style={{ fontSize: '0.85rem', fontWeight: 800, color: '#0f172a', marginBottom: '1.25rem', width: '100%', textAlign: 'center' }}>Indicador de Tributos</h3>
                                 {renderTaxesGauge()}
                             </div>
                             {/* Card 3: Custos Operacionais */}
-                            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-                                <h3 style={{ fontSize: '0.85rem', fontWeight: 800, color: '#0f172a', marginBottom: '1.25rem', width: '100%', textAlign: 'center' }}>Custos Operacionais {periodLabel}</h3>
+                            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', height: '100%' }}>
+                                <h3 style={{ fontSize: '0.85rem', fontWeight: 800, color: '#0f172a', marginBottom: '1.25rem', width: '100%', textAlign: 'center' }}>Custos Operacionais</h3>
                                 {renderCostsGauge()}
                             </div>
                             {/* Card 4: EBITDA Percentual */}
-                            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-                                <h3 style={{ fontSize: '0.85rem', fontWeight: 800, color: '#0f172a', marginBottom: '1.25rem', width: '100%', textAlign: 'center' }}>EBITDA Percentual {periodLabel}</h3>
+                            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', height: '100%' }}>
+                                <h3 style={{ fontSize: '0.85rem', fontWeight: 800, color: '#0f172a', marginBottom: '1.25rem', width: '100%', textAlign: 'center' }}>EBITDA Percentual</h3>
                                 {renderEbitdaGauge()}
                             </div>
                         </div>

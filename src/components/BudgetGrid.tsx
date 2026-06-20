@@ -4686,8 +4686,10 @@ export default function BudgetGrid({
                                         <>
                                             {renderSummaryRow('🗓️ 03. CUSTOS OPERACIONAIS', 'vCosts', true, 'costs')}
                                             {expandedGroups.has('costs') && dreStructure.buckets.costs.map(root => renderNode(root))}
+                                            {renderSummaryRow('(=) MARGEM BRUTA', 'vGrossMarg', true)}
                                             {renderSummaryRow('04. DESPESAS OPERACIONAIS', 'vOpExp', true, 'opExp')}
                                             {expandedGroups.has('opExp') && dreStructure.buckets.opExp.map(root => renderNode(root))}
+                                            {renderSummaryRow('(=) MARGEM DE CONTRIBUIÇÃO', 'vContribMarg', true)}
                                             {renderSummaryRow('📂 05. DESPESAS ADMINISTRATIVAS', 'vAdminExp', true, 'adminExp')}
                                             {expandedGroups.has('adminExp') && dreStructure.buckets.adminExp.map(root => renderNode(root))}
                                             {renderSummaryRow('(=) EBITDA', 'vEbitda', true)}

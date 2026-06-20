@@ -12,22 +12,28 @@ export async function GET() {
 
         const jvsTrat = tenants.find(t => t.name.toUpperCase().includes('TRATMENTOS') || t.name.toUpperCase().includes('TRATAMENTOS'));
         
-        let revenueCategories = [];
+        let distinctRealizedCatIds: string[] = [];
+        let distinctBudgetCatIds: string[] = [];
+
         if (jvsTrat) {
-            const categories = await prisma.category.findMany({
-                where: { tenantId: jvsTrat.id }
+            const realized = await prisma.realizedEntry.findMany({
+                where: { tenantId: jvsTrat.id, year: 2026 },
+                select: { categoryId: true }
             });
-            revenueCategories = categories.filter(c => {
-                const cleanCode = (c.name.match(/^(\d{1,2}(?:\.\d+)*)/) || [])[1] || '';
-                const isCodeRev = cleanCode.startsWith('01') || cleanCode === '1';
-                return isCodeRev || c.type === 'RECEITA' || c.type === 'REVENUE';
+            distinctRealizedCatIds = Array.from(new Set(realized.map(r => r.categoryId)));
+
+            const budget = await prisma.budgetEntry.findMany({
+                where: { tenantId: jvsTrat.id, year: 2026 },
+                select: { categoryId: true }
             });
+            distinctBudgetCatIds = Array.from(new Set(budget.map(b => b.categoryId)));
         }
 
         return NextResponse.json({
             success: true,
             jvsTrat,
-            revenueCategories
+            distinctRealizedCatIds,
+            distinctBudgetCatIds
         });
     } catch (e: any) {
         return NextResponse.json({ success: false, error: e.message });

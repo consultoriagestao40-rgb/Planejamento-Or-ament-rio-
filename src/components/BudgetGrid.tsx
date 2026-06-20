@@ -2925,22 +2925,16 @@ export default function BudgetGrid({
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', width: '100%' }}>
                         {/* Panel 1: Receita Bruta Monthly */}
                         <div className="glass-card" style={{ padding: '1.5rem', background: '#ffffff', borderRadius: '12px', border: '1px solid #e2e8f0', boxShadow: '0 4px 6px rgba(0,0,0,0.02)', width: '100%' }}>
-                            <h3 style={{ fontSize: '0.9rem', fontWeight: 800, color: '#0f172a', marginBottom: '1.5rem' }}>Faturamento Mensal (Receita Bruta)</h3>
+                            <h3 style={{ fontSize: '0.9rem', fontWeight: 800, color: '#0f172a', marginBottom: '1.5rem' }}>Faturamento Mensal (Receita Bruta) <span style={{ fontSize: '0.7rem', color: '#64748b', fontWeight: 500, marginLeft: '0.4rem' }}>(Valores em Mil R$)</span></h3>
                             {(() => {
-                                // Formatter for values on top of the bars
+                                // Formatter for values on top of the bars (in thousands, e.g. R$ 780.1)
                                 const formatChartValue = (val: number) => {
                                     if (val === 0) return 'R$ 0';
                                     const isNegative = val < 0;
                                     const absVal = Math.abs(val);
-                                    let formatted = '';
-                                    if (absVal >= 1000000) {
-                                        formatted = `${(absVal / 1000000).toFixed(1)}M`;
-                                    } else if (absVal >= 1000) {
-                                        formatted = `${(absVal / 1000).toFixed(1)}K`;
-                                    } else {
-                                        formatted = absVal.toFixed(0);
-                                    }
-                                    return `${isNegative ? '-' : ''}R$ ${formatted.replace('.', ',')}`;
+                                    const valueInThousands = absVal / 1000;
+                                    const formatted = valueInThousands.toFixed(1);
+                                    return `${isNegative ? '-' : ''}R$ ${formatted}`;
                                 };
 
                                 // Max value across all 12 months for scale calculation
@@ -2990,6 +2984,11 @@ export default function BudgetGrid({
                                                     
                                                     const xBase = 60 + idx * 90;
                                                     
+                                                    // Anti-overlap vertical staggering
+                                                    const isClose = idx <= currentMonthIdx && Math.abs(bHeight - rHeight) < 16;
+                                                    const bLabelY = 300 - bHeight - 6;
+                                                    const rLabelY = isClose ? (300 - rHeight - 18) : (300 - rHeight - 6);
+                                                    
                                                     return (
                                                         <g key={idx}>
                                                             {/* Orçado Bar */}
@@ -3005,7 +3004,7 @@ export default function BudgetGrid({
                                                             {bVal > 0 && (
                                                                 <text 
                                                                     x={xBase + 31} 
-                                                                    y={300 - bHeight - 6} 
+                                                                    y={bLabelY} 
                                                                     textAnchor="middle" 
                                                                     fill="#1e3a8a" 
                                                                     fontSize="9px" 
@@ -3030,7 +3029,7 @@ export default function BudgetGrid({
                                                                     {rVal > 0 && (
                                                                         <text 
                                                                             x={xBase + 57} 
-                                                                            y={300 - rHeight - 6} 
+                                                                            y={rLabelY} 
                                                                             textAnchor="middle" 
                                                                             fill="#475569" 
                                                                             fontSize="9px" 
@@ -3122,22 +3121,16 @@ export default function BudgetGrid({
 
                         {/* Panel 2: Lucro Líquido Monthly */}
                         <div className="glass-card" style={{ padding: '1.5rem', background: '#ffffff', borderRadius: '12px', border: '1px solid #e2e8f0', boxShadow: '0 4px 6px rgba(0,0,0,0.02)', width: '100%' }}>
-                            <h3 style={{ fontSize: '0.9rem', fontWeight: 800, color: '#0f172a', marginBottom: '1.5rem' }}>Resultado Líquido Mensal (Lucro / Prejuízo)</h3>
+                            <h3 style={{ fontSize: '0.9rem', fontWeight: 800, color: '#0f172a', marginBottom: '1.5rem' }}>Resultado Líquido Mensal (Lucro / Prejuízo) <span style={{ fontSize: '0.7rem', color: '#64748b', fontWeight: 500, marginLeft: '0.4rem' }}>(Valores em Mil R$)</span></h3>
                             {(() => {
-                                // Formatter for values on top/bottom of the bars
+                                // Formatter for values on top/bottom of the bars (in thousands, e.g. R$ 780.1)
                                 const formatChartValue = (val: number) => {
                                     if (val === 0) return 'R$ 0';
                                     const isNegative = val < 0;
                                     const absVal = Math.abs(val);
-                                    let formatted = '';
-                                    if (absVal >= 1000000) {
-                                        formatted = `${(absVal / 1000000).toFixed(1)}M`;
-                                    } else if (absVal >= 1000) {
-                                        formatted = `${(absVal / 1000).toFixed(1)}K`;
-                                    } else {
-                                        formatted = absVal.toFixed(0);
-                                    }
-                                    return `${isNegative ? '-' : ''}R$ ${formatted.replace('.', ',')}`;
+                                    const valueInThousands = absVal / 1000;
+                                    const formatted = valueInThousands.toFixed(1);
+                                    return `${isNegative ? '-' : ''}R$ ${formatted}`;
                                 };
 
                                 // Max absolute value across all 12 months for scale calculation
@@ -3197,6 +3190,19 @@ export default function BudgetGrid({
                                                     
                                                     const xBase = 60 + idx * 90;
                                                     
+                                                    // Anti-overlap vertical staggering for Net Profit
+                                                    const isClose = idx <= currentMonthIdx && Math.abs(bHeight - rHeight) < 16 && (bVal >= 0 === rVal >= 0);
+                                                    
+                                                    const bLabelY = bVal >= 0 ? (170 - bHeight - 6) : (170 + bHeight + 12);
+                                                    let rLabelY = rVal >= 0 ? (170 - rHeight - 6) : (170 + rHeight + 12);
+                                                    if (isClose) {
+                                                        if (rVal >= 0) {
+                                                            rLabelY = 170 - rHeight - 18;
+                                                        } else {
+                                                            rLabelY = 170 + rHeight + 24;
+                                                        }
+                                                    }
+                                                    
                                                     return (
                                                         <g key={idx}>
                                                             {/* Orçado Bar */}
@@ -3212,7 +3218,7 @@ export default function BudgetGrid({
                                                             {bVal !== 0 && (
                                                                 <text 
                                                                     x={xBase + 31} 
-                                                                    y={bVal >= 0 ? 170 - bHeight - 6 : 170 + bHeight + 12} 
+                                                                    y={bLabelY} 
                                                                     textAnchor="middle" 
                                                                     fill={bVal >= 0 ? "#047857" : "#b91c1c"} 
                                                                     fontSize="9px" 
@@ -3237,7 +3243,7 @@ export default function BudgetGrid({
                                                                     {rVal !== 0 && (
                                                                         <text 
                                                                             x={xBase + 57} 
-                                                                            y={rVal >= 0 ? 170 - rHeight - 6 : 170 + rHeight + 12} 
+                                                                            y={rLabelY} 
                                                                             textAnchor="middle" 
                                                                             fill={rVal >= 0 ? "#1e40af" : "#991b1b"} 
                                                                             fontSize="9px" 

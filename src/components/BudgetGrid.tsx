@@ -3091,10 +3091,17 @@ export default function BudgetGrid({
     };
 
     const renderCompanyRevenueDonut = () => {
-        const C = 502.65; // Circumference for R=80
-        let cumulative = 0;
+        const activeRevenueData = companyRevenueData.filter(item => item.value > 0);
+        const totalRevenue = activeRevenueData.reduce((sum, item) => sum + item.value, 0);
 
-        const totalRevenue = companyRevenueData.reduce((sum, item) => sum + item.value, 0);
+        const cx = 350;
+        const cy = 180;
+        const R = 80;
+        const strokeWidth = 20;
+        const C = 2 * Math.PI * R; // ~502.65
+
+        let sliceCumulativePercent = 0;
+        let labelCumulativeAngle = -Math.PI / 2; // Start at the top (-90 degrees)
 
         return (
             <div className="glass-card" style={{ padding: '2rem', background: '#ffffff', borderRadius: '12px', border: '1px solid #e2e8f0', boxShadow: '0 4px 6px rgba(0,0,0,0.02)', width: '100%', maxWidth: '800px', margin: '0 auto' }}>
@@ -3105,40 +3112,39 @@ export default function BudgetGrid({
                     </span>
                 </h3>
 
-                {companyRevenueData.length === 0 || totalRevenue === 0 ? (
+                {activeRevenueData.length === 0 || totalRevenue === 0 ? (
                     <div style={{ padding: '3rem', textAlign: 'center', color: '#64748b', fontSize: '0.85rem', fontWeight: 600 }}>
                         Nenhum dado de receita disponível para o período selecionado.
                     </div>
                 ) : (
-                    <div style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: '3rem', flexWrap: 'wrap' }}>
-                        {/* Donut Graphic */}
-                        <div style={{ position: 'relative', width: '240px', height: '240px' }}>
-                            <svg viewBox="0 0 200 200" width="100%" height="100%">
-                                <g transform="rotate(-90 100 100)">
+                    <div style={{ display: 'flex', justifyContent: 'center', width: '100%' }}>
+                        <div style={{ width: '100%', maxWidth: '700px', height: 'auto' }}>
+                            <svg viewBox="0 0 700 360" width="100%" height="100%">
+                                <g transform={`rotate(-90 ${cx} ${cy})`}>
                                     {/* Background circle */}
                                     <circle 
-                                        cx="100" 
-                                        cy="100" 
-                                        r="80" 
+                                        cx={cx} 
+                                        cy={cy} 
+                                        r={R} 
                                         fill="transparent" 
                                         stroke="#f1f5f9" 
-                                        strokeWidth="24" 
+                                        strokeWidth={strokeWidth} 
                                     />
-                                    {companyRevenueData.map((item, idx) => {
-                                        const strokeDashoffset = -((cumulative / 100) * C);
+                                    {activeRevenueData.map((item, idx) => {
+                                        const strokeDashoffset = -((sliceCumulativePercent / 100) * C);
                                         const strokeDasharray = `${(item.percentage / 100) * C} ${C}`;
                                         const color = ['#3b82f6', '#10b981', '#f97316', '#8b5cf6', '#ec4899', '#06b6d4', '#eab308'][idx % 7];
-                                        cumulative += item.percentage;
+                                        sliceCumulativePercent += item.percentage;
 
                                         return (
                                             <circle
                                                 key={idx}
-                                                cx="100"
-                                                cy="100"
-                                                r="80"
+                                                cx={cx}
+                                                cy={cy}
+                                                r={R}
                                                 fill="transparent"
                                                 stroke={color}
-                                                strokeWidth="24"
+                                                strokeWidth={strokeWidth}
                                                 strokeDasharray={strokeDasharray}
                                                 strokeDashoffset={strokeDashoffset}
                                                 style={{ transition: 'stroke-dasharray 0.5s ease, stroke-dashoffset 0.5s ease' }}
@@ -3146,40 +3152,87 @@ export default function BudgetGrid({
                                         );
                                     })}
                                 </g>
-                            </svg>
-                            {/* Inner Text */}
-                            <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', pointerEvents: 'none' }}>
-                                <span style={{ fontSize: '0.75rem', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Total</span>
-                                <span style={{ fontSize: '1.25rem', fontWeight: 900, color: '#0f172a', marginTop: '2px' }}>
-                                    R$ {totalRevenue.toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}
-                                </span>
-                                <span style={{ fontSize: '0.65rem', color: '#64748b', fontWeight: 600 }}>Mil</span>
-                            </div>
-                        </div>
 
-                        {/* Legend Table */}
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', flex: 1, minWidth: '260px' }}>
-                            {companyRevenueData.map((item, idx) => {
-                                const color = ['#3b82f6', '#10b981', '#f97316', '#8b5cf6', '#ec4899', '#06b6d4', '#eab308'][idx % 7];
-                                return (
-                                    <div key={idx} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.5rem 0.75rem', background: '#f8fafc', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
-                                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: 0 }}>
-                                            <div style={{ width: '12px', height: '12px', borderRadius: '4px', background: color, flexShrink: 0 }} />
-                                            <span style={{ fontSize: '0.8rem', fontWeight: 700, color: '#1e293b', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                                                {item.name}
-                                            </span>
-                                        </div>
-                                        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginLeft: '1rem', flexShrink: 0 }}>
-                                            <span style={{ fontSize: '0.8rem', fontWeight: 800, color: '#0f172a' }}>
-                                                R$ {item.value.toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })} Mil
-                                            </span>
-                                            <span style={{ fontSize: '0.75rem', fontWeight: 800, color: color, width: '48px', textAlign: 'right' }}>
-                                                {item.percentage.toFixed(1)}%
-                                            </span>
-                                        </div>
-                                    </div>
-                                );
-                            })}
+                                {/* Center labels */}
+                                <text x={cx} y={cy - 12} textAnchor="middle" style={{ fontSize: '11px', fontWeight: 700, fill: '#64748b', letterSpacing: '0.05em', textTransform: 'uppercase' }}>
+                                    Total
+                                </text>
+                                <text x={cx} y={cy + 12} textAnchor="middle" style={{ fontSize: '18px', fontWeight: 900, fill: '#0f172a' }}>
+                                    R$ {totalRevenue.toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}
+                                </text>
+                                <text x={cx} y={cy + 28} textAnchor="middle" style={{ fontSize: '10px', fontWeight: 600, fill: '#64748b' }}>
+                                    Mil
+                                </text>
+
+                                {/* Pointer Lines and Labels */}
+                                {activeRevenueData.map((item, idx) => {
+                                    const sweep = (item.percentage / 100) * 2 * Math.PI;
+                                    const middleAngle = labelCumulativeAngle + sweep / 2;
+                                    labelCumulativeAngle += sweep;
+
+                                    const color = ['#3b82f6', '#10b981', '#f97316', '#8b5cf6', '#ec4899', '#06b6d4', '#eab308'][idx % 7];
+
+                                    // Trigonometry coordinates
+                                    const cos = Math.cos(middleAngle);
+                                    const sin = Math.sin(middleAngle);
+
+                                    // Point on the outer edge of the slice
+                                    const rStart = R + strokeWidth / 2; // 80 + 10 = 90
+                                    const x1 = cx + rStart * cos;
+                                    const y1 = cy + rStart * sin;
+
+                                    // Point where the line goes outwards
+                                    const rEnd = R + 35; // 80 + 35 = 115
+                                    const x2 = cx + rEnd * cos;
+                                    const y2 = cy + rEnd * sin;
+
+                                    // Elbow position
+                                    const isRightSide = cos >= 0;
+                                    const x3 = x2 + (isRightSide ? 20 : -20);
+                                    const textX = x3 + (isRightSide ? 6 : -6);
+                                    const textAnchor = isRightSide ? 'start' : 'end';
+
+                                    // Truncate name if too long
+                                    const displayName = item.name.length > 18 
+                                        ? item.name.substring(0, 16) + '...' 
+                                        : item.name;
+
+                                    return (
+                                        <g key={`label-${idx}`}>
+                                            {/* Small dot at start of pointer on the slice */}
+                                            <circle 
+                                                cx={x1} 
+                                                cy={y1} 
+                                                r="3.5" 
+                                                fill={color} 
+                                                stroke="#ffffff" 
+                                                strokeWidth="1.5" 
+                                            />
+                                            {/* Pointer line with elbow */}
+                                            <path 
+                                                d={`M ${x1} ${y1} L ${x2} ${y2} L ${x3} ${y2}`} 
+                                                fill="none" 
+                                                stroke="#cbd5e1" 
+                                                strokeWidth="1.2" 
+                                            />
+                                            {/* Text labels */}
+                                            <text
+                                                x={textX}
+                                                y={y2}
+                                                textAnchor={textAnchor}
+                                                style={{ fontSize: '11px', fontFamily: 'Inter, sans-serif' }}
+                                            >
+                                                <tspan x={textX} dy="-4" fontWeight="700" fill="#334155">
+                                                    {displayName}
+                                                </tspan>
+                                                <tspan x={textX} dy="15" fontWeight="800" fill={color}>
+                                                    R$ {item.value.toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })} Mil ({item.percentage.toFixed(1)}%)
+                                                </tspan>
+                                            </text>
+                                        </g>
+                                    );
+                                })}
+                            </svg>
                         </div>
                     </div>
                 )}

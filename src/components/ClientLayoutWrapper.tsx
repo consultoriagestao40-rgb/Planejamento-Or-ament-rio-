@@ -1,12 +1,13 @@
 'use client';
 
-import React from 'react';
+import React, { useState } from 'react';
 import { usePathname } from 'next/navigation';
 import Link from 'next/link';
 
 export default function ClientLayoutWrapper({ children }: { children: React.ReactNode }) {
     const pathname = usePathname();
     const isLoginPage = pathname === '/login';
+    const [isCollapsed, setIsCollapsed] = useState(false);
 
     if (isLoginPage) {
         return <>{children}</>;
@@ -93,13 +94,81 @@ export default function ClientLayoutWrapper({ children }: { children: React.Reac
     return (
         <div style={{ display: 'flex', minHeight: '100vh', width: '100vw', overflowX: 'hidden' }}>
             {/* Sidebar */}
-            <aside className="sidebar">
-                <div className="sidebar-logo">
-                    <span style={{ color: '#1d4ed8', fontWeight: 800 }}>Budget</span>
-                    <span style={{ color: '#0f172a', fontWeight: 800 }}>Hub</span>
+            <aside 
+                className="sidebar"
+                style={{ 
+                    width: isCollapsed ? '72px' : '260px',
+                    transition: 'width 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+                    position: 'fixed',
+                    left: 0,
+                    top: 0,
+                    height: '100vh',
+                    zIndex: 100
+                }}
+            >
+                {/* Floating Collapse/Expand Button */}
+                <button
+                    onClick={() => setIsCollapsed(!isCollapsed)}
+                    style={{
+                        position: 'absolute',
+                        top: '24px',
+                        right: '-12px',
+                        width: '24px',
+                        height: '24px',
+                        borderRadius: '50%',
+                        backgroundColor: '#ffffff',
+                        border: '1px solid #cbd5e1',
+                        boxShadow: '0 2px 4px rgba(0,0,0,0.08)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        cursor: 'pointer',
+                        zIndex: 110,
+                        color: '#475569',
+                        padding: 0
+                    }}
+                    title={isCollapsed ? "Expandir menu" : "Recolher menu"}
+                >
+                    <svg 
+                        width="14" 
+                        height="14" 
+                        viewBox="0 0 24 24" 
+                        fill="none" 
+                        stroke="currentColor" 
+                        strokeWidth="2.5" 
+                        strokeLinecap="round" 
+                        strokeLinejoin="round"
+                        style={{
+                            transform: isCollapsed ? 'rotate(180deg)' : 'none',
+                            transition: 'transform 0.3s'
+                        }}
+                    >
+                        <polyline points="15 18 9 12 15 6" />
+                    </svg>
+                </button>
+
+                <div 
+                    className="sidebar-logo"
+                    style={{
+                        justifyContent: isCollapsed ? 'center' : 'flex-start',
+                        padding: isCollapsed ? '1.8rem 0' : '1.8rem 1.8rem',
+                        transition: 'padding 0.3s'
+                    }}
+                >
+                    {isCollapsed ? (
+                        <div style={{ display: 'flex', gap: '1px' }}>
+                            <span style={{ color: '#1d4ed8', fontWeight: 900, fontSize: '1.4rem' }}>B</span>
+                            <span style={{ color: '#0f172a', fontWeight: 900, fontSize: '1.4rem' }}>H</span>
+                        </div>
+                    ) : (
+                        <>
+                            <span style={{ color: '#1d4ed8', fontWeight: 800 }}>Budget</span>
+                            <span style={{ color: '#0f172a', fontWeight: 800 }}>Hub</span>
+                        </>
+                    )}
                 </div>
                 <nav style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
-                    <ul className="sidebar-menu">
+                    <ul className="sidebar-menu" style={{ padding: isCollapsed ? '1.5rem 0.4rem' : '1.5rem 0.8rem', transition: 'padding 0.3s' }}>
                         {menuItems.map((item, idx) => {
                             const isSelected = item.path === '/' 
                                 ? pathname === '/' 
@@ -111,9 +180,23 @@ export default function ClientLayoutWrapper({ children }: { children: React.Reac
                                         <a 
                                             href={item.path} 
                                             className="sidebar-item"
+                                            style={{
+                                                justifyContent: isCollapsed ? 'center' : 'flex-start',
+                                                padding: isCollapsed ? '0.8rem 0' : '0.8rem 1.2rem',
+                                                gap: isCollapsed ? '0' : '0.85rem',
+                                                transition: 'padding 0.3s, gap 0.3s'
+                                            }}
                                         >
                                             <span style={{ display: 'flex', alignItems: 'center' }}>{item.icon}</span>
-                                            <span>{item.label}</span>
+                                            <span style={{ 
+                                                opacity: isCollapsed ? 0 : 1, 
+                                                width: isCollapsed ? 0 : 'auto',
+                                                visibility: isCollapsed ? 'hidden' : 'visible',
+                                                transition: 'opacity 0.2s, width 0.2s, visibility 0.2s',
+                                                whiteSpace: 'nowrap'
+                                            }}>
+                                                {item.label}
+                                            </span>
                                         </a>
                                     </li>
                                 );
@@ -124,20 +207,45 @@ export default function ClientLayoutWrapper({ children }: { children: React.Reac
                                     <Link 
                                         href={item.path} 
                                         className={`sidebar-item ${isSelected ? 'active' : ''}`}
+                                        style={{
+                                            justifyContent: isCollapsed ? 'center' : 'flex-start',
+                                            padding: isCollapsed ? '0.8rem 0' : '0.8rem 1.2rem',
+                                            gap: isCollapsed ? '0' : '0.85rem',
+                                            transition: 'padding 0.3s, gap 0.3s'
+                                        }}
                                     >
                                         <span style={{ display: 'flex', alignItems: 'center' }}>{item.icon}</span>
-                                        <span>{item.label}</span>
+                                        <span style={{ 
+                                            opacity: isCollapsed ? 0 : 1, 
+                                            width: isCollapsed ? 0 : 'auto',
+                                            visibility: isCollapsed ? 'hidden' : 'visible',
+                                            transition: 'opacity 0.2s, width 0.2s, visibility 0.2s',
+                                            whiteSpace: 'nowrap'
+                                        }}>
+                                            {item.label}
+                                        </span>
                                     </Link>
                                 </li>
                             );
                         })}
                     </ul>
                 </nav>
-                <div className="sidebar-footer">
+                <div className="sidebar-footer" style={{ padding: isCollapsed ? '1.5rem 0.4rem' : '1.5rem 1rem', transition: 'padding 0.3s' }}>
                     <button 
                         onClick={handleLogout}
                         className="sidebar-item" 
-                        style={{ background: 'none', border: 'none', width: '100%', cursor: 'pointer', textAlign: 'left', display: 'flex', alignItems: 'center', gap: '0.75rem' }}
+                        style={{ 
+                            background: 'none', 
+                            border: 'none', 
+                            width: '100%', 
+                            cursor: 'pointer', 
+                            display: 'flex', 
+                            alignItems: 'center', 
+                            justifyContent: isCollapsed ? 'center' : 'flex-start',
+                            padding: isCollapsed ? '0.8rem 0' : '0.8rem 1.2rem',
+                            gap: isCollapsed ? '0' : '0.75rem',
+                            transition: 'padding 0.3s, gap 0.3s'
+                        }}
                     >
                         <span style={{ display: 'flex', alignItems: 'center' }}>
                             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
@@ -146,16 +254,34 @@ export default function ClientLayoutWrapper({ children }: { children: React.Reac
                                 <line x1="21" y1="12" x2="9" y2="12" />
                             </svg>
                         </span>
-                        <span>Sair</span>
+                        <span style={{ 
+                            opacity: isCollapsed ? 0 : 1, 
+                            width: isCollapsed ? 0 : 'auto',
+                            visibility: isCollapsed ? 'hidden' : 'visible',
+                            transition: 'opacity 0.2s, width 0.2s, visibility 0.2s',
+                            whiteSpace: 'nowrap'
+                        }}>
+                            Sair
+                        </span>
                     </button>
-                    <div style={{ fontSize: '0.75rem', opacity: 0.5, textAlign: 'center', marginTop: '1rem', color: '#64748b' }}>
-                        BudgetHub © {new Date().getFullYear()}
-                    </div>
+                    {!isCollapsed && (
+                        <div style={{ fontSize: '0.75rem', opacity: 0.5, textAlign: 'center', marginTop: '1rem', color: '#64748b' }}>
+                            BudgetHub © {new Date().getFullYear()}
+                        </div>
+                    )}
                 </div>
             </aside>
 
             {/* Main Content Area */}
-            <main className="main-content">
+            <main 
+                className="main-content"
+                style={{ 
+                    marginLeft: isCollapsed ? '72px' : '260px',
+                    width: isCollapsed ? 'calc(100vw - 72px)' : 'calc(100vw - 260px)',
+                    transition: 'margin-left 0.3s cubic-bezier(0.4, 0, 0.2, 1), width 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+                    boxSizing: 'border-box'
+                }}
+            >
                 {children}
             </main>
         </div>

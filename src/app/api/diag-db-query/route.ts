@@ -12,10 +12,7 @@ export async function GET() {
 
         const jvsTrat = tenants.find(t => t.name.toUpperCase().includes('TRATMENTOS') || t.name.toUpperCase().includes('TRATAMENTOS'));
         
-        let revenueCategoryIds: string[] = [];
-        let totalRealizedCount = 0;
-        let matchedRealizedCount = 0;
-        let sampleMatchedEntry = null;
+        let stats: any = {};
 
         if (jvsTrat) {
             const categories = await prisma.category.findMany({
@@ -25,29 +22,50 @@ export async function GET() {
                 const cleanCode = (name.match(/^(\d{1,2}(?:\.\d+)*)/) || [])[1] || '';
                 return cleanCode.startsWith('01') || cleanCode === '1';
             };
-            revenueCategoryIds = categories
+            const revenueCategoryIds = categories
                 .filter(c => isRevenueCategory(c.name))
                 .map(c => c.id);
 
             const allRealized = await prisma.realizedEntry.findMany({
                 where: { tenantId: jvsTrat.id, year: 2026 }
             });
-            totalRealizedCount = allRealized.length;
 
             const matchedRealized = allRealized.filter(r => revenueCategoryIds.includes(r.categoryId));
-            matchedRealizedCount = matchedRealized.length;
-            if (matchedRealizedCount > 0) {
-                sampleMatchedEntry = matchedRealized[0];
-            }
+            
+            const totalMatched = matchedRealized.length;
+            const syncedMatched = matchedRealized.filter(r => r.externalId && r.externalId.startsWith('sync-')).length;
+            const nonSyncedMatched = matchedRealized.filter(r => !r.externalId || !r.externalId.startsWith('sync-')).length;
+
+            const syncedMonths = new Set<string>();
+            allRealized.forEach(e => {
+                if (e.externalId && e.externalId.startsWith('sync-')) {
+                    syncedMonths.add(`${e.year}|${e.month}`);
+                }
+            });
+
+            // Count how many matched realized entries remain after deduplication filter
+            const deduplicatedMatched = matchedRealized.filter(e => {
+                const key = `${e.year}|${e.month}`;
+                if (syncedMonths.has(key)) {
+                    return e.externalId && e.externalId.startsWith('sync-');
+                }
+                return true;
+            });
+
+            stats = {
+                totalMatched,
+                syncedMatched,
+                nonSyncedMatched,
+                deduplicatedMatchedCount: deduplicatedMatched.length,
+                syncedMonths: Array.from(syncedMonths),
+                sampleDeduplicatedMatched: deduplicatedMatched.slice(0, 5)
+            };
         }
 
         return NextResponse.json({
             success: true,
             jvsTrat,
-            revenueCategoryIds,
-            totalRealizedCount,
-            matchedRealizedCount,
-            sampleMatchedEntry
+            stats
         });
     } catch (e: any) {
         return NextResponse.json({ success: false, error: e.message });

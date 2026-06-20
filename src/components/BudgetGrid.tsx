@@ -3072,6 +3072,112 @@ export default function BudgetGrid({
                 </div>
             ) : (
                 <div style={{ position: 'relative', width: '100%' }}>
+                    {/* Filtro de Período Personalizado */}
+                    <div className="glass-card" style={{ 
+                        padding: '0.85rem 1.25rem', 
+                        background: '#ffffff', 
+                        borderRadius: '12px', 
+                        border: '1px solid #e2e8f0', 
+                        boxShadow: '0 4px 6px rgba(0,0,0,0.02)',
+                        display: 'flex',
+                        flexDirection: 'row',
+                        alignItems: 'center',
+                        gap: '1.25rem',
+                        flexWrap: 'wrap',
+                        width: '100%',
+                        marginBottom: '1rem',
+                        marginTop: '0.5rem'
+                    }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                            <span style={{ fontSize: '0.8rem', fontWeight: 800, color: '#0f172a', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                                Período de Análise:
+                            </span>
+                            <select
+                                value={selectedPeriodOption}
+                                onChange={(e) => handlePeriodOptionChange(e.target.value)}
+                                style={{
+                                    padding: '0.4rem 0.75rem',
+                                    fontSize: '0.8rem',
+                                    borderRadius: '8px',
+                                    border: '1px solid #cbd5e1',
+                                    background: '#ffffff',
+                                    color: '#0f172a',
+                                    fontWeight: 700,
+                                    outline: 'none',
+                                    cursor: 'pointer',
+                                    transition: 'border-color 0.2s'
+                                }}
+                            >
+                                <option value="mes_atual">Mês Atual (Junho)</option>
+                                <option value="1_tri">1º Trimestre (Jan-Mar)</option>
+                                <option value="2_tri">2º Trimestre (Abr-Jun)</option>
+                                <option value="3_tri">3º Trimestre (Jul-Set)</option>
+                                <option value="4_tri">4º Trimestre (Out-Dez)</option>
+                                <option value="1_semestre">1º Semestre (Jan-Jun)</option>
+                                <option value="2_semestre">2º Semestre (Jul-Dez)</option>
+                                <option value="ano_todo">Ano Todo (Jan-Dez)</option>
+                                <option value="personalizado">Personalizado</option>
+                            </select>
+                        </div>
+
+                        {selectedPeriodOption === 'personalizado' && (
+                            <div style={{ 
+                                display: 'flex', 
+                                alignItems: 'center', 
+                                gap: '1rem',
+                                background: '#f8fafc',
+                                padding: '0.35rem 0.75rem',
+                                borderRadius: '8px',
+                                border: '1px solid #e2e8f0'
+                            }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                    <span style={{ fontSize: '0.75rem', fontWeight: 700, color: '#64748b' }}>De:</span>
+                                    <select 
+                                        value={startMonth} 
+                                        onChange={(e) => handleStartMonthChange(Number(e.target.value))}
+                                        style={{ 
+                                            padding: '0.25rem 0.5rem', 
+                                            fontSize: '0.75rem', 
+                                            borderRadius: '6px', 
+                                            border: '1px solid #cbd5e1', 
+                                            background: '#ffffff', 
+                                            color: '#0f172a', 
+                                            fontWeight: 600,
+                                            outline: 'none',
+                                            cursor: 'pointer'
+                                        }}
+                                    >
+                                        {['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'].map((m, idx) => (
+                                            <option key={idx} value={idx}>{m}</option>
+                                        ))}
+                                    </select>
+                                </div>
+
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                    <span style={{ fontSize: '0.75rem', fontWeight: 700, color: '#64748b' }}>Até:</span>
+                                    <select 
+                                        value={endMonth} 
+                                        onChange={(e) => handleEndMonthChange(Number(e.target.value))}
+                                        style={{ 
+                                            padding: '0.25rem 0.5rem', 
+                                            fontSize: '0.75rem', 
+                                            borderRadius: '6px', 
+                                            border: '1px solid #cbd5e1', 
+                                            background: '#ffffff', 
+                                            color: '#0f172a', 
+                                            fontWeight: 600,
+                                            outline: 'none',
+                                            cursor: 'pointer'
+                                        }}
+                                    >
+                                        {['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'].map((m, idx) => (
+                                            <option key={idx} value={idx}>{m}</option>
+                                        ))}
+                                    </select>
+                                </div>
+                            </div>
+                        )}
+                    </div>
                     {(loading || isExternalLoading) && (
                         <div style={{ position: 'absolute', inset: 0, background: 'rgba(255, 255, 255, 0.4)', zIndex: 100, display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', backdropFilter: 'blur(1px)' }}>
                             <div className="spinner" />

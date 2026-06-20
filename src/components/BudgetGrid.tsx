@@ -1486,7 +1486,7 @@ export default function BudgetGrid({
         }));
     }, [companies, selectedCompany, categories, realizedValues, startMonth, endMonth, currentMonthIdx]);
 
-    const companyContribMarginData = useMemo(() => {
+    const companyGrossMarginData = useMemo(() => {
         const visibleCompanyIds = selectedCompany.includes('DEFAULT')
             ? companies.map(c => c.id)
             : selectedCompany;
@@ -1503,10 +1503,6 @@ export default function BudgetGrid({
             const code = (c.name.match(/^(\d{1,2}(?:\.\d+)*)/) || [])[1] || '';
             return code.startsWith('3') || code.startsWith('03');
         };
-        const isOpExp = (c: any) => {
-            const code = (c.name.match(/^(\d{1,2}(?:\.\d+)*)/) || [])[1] || '';
-            return code.startsWith('4') || code.startsWith('04');
-        };
 
         const limitMonth = Math.min(endMonth, currentMonthIdx);
 
@@ -1519,12 +1515,10 @@ export default function BudgetGrid({
             const revCats = tenantCategories.filter(isRev);
             const taxCats = tenantCategories.filter(isTax);
             const costCats = tenantCategories.filter(isCost);
-            const opExpCats = tenantCategories.filter(isOpExp);
 
             let totalRev = 0;
             let totalTax = 0;
             let totalCost = 0;
-            let totalOpExp = 0;
 
             for (let m = startMonth; m <= limitMonth; m++) {
                 revCats.forEach(cat => {
@@ -1539,18 +1533,14 @@ export default function BudgetGrid({
                     const cleanId = cat.id.includes(':') ? cat.id.split(':').pop() : cat.id;
                     totalCost += (realizedValues[`realized-${cat.id}-${m}`] || realizedValues[`realized-${cleanId}-${m}`] || 0);
                 });
-                opExpCats.forEach(cat => {
-                    const cleanId = cat.id.includes(':') ? cat.id.split(':').pop() : cat.id;
-                    totalOpExp += (realizedValues[`realized-${cat.id}-${m}`] || realizedValues[`realized-${cleanId}-${m}`] || 0);
-                });
             }
 
-            const contribMargin = totalRev - totalTax - totalCost - totalOpExp;
-            const percentage = totalRev > 0 ? (contribMargin / totalRev) * 100 : 0;
+            const grossMargin = totalRev - totalTax - totalCost;
+            const percentage = totalRev > 0 ? (grossMargin / totalRev) * 100 : 0;
 
             return {
                 name: compName,
-                margin: contribMargin / 1000,
+                margin: grossMargin / 1000,
                 percentage
             };
         });
@@ -3347,13 +3337,13 @@ export default function BudgetGrid({
         );
     };
 
-    const renderCompanyContribMargin = () => {
-        const sortedData = [...companyContribMarginData].sort((a, b) => b.margin - a.margin);
+    const renderCompanyGrossMargin = () => {
+        const sortedData = [...companyGrossMarginData].sort((a, b) => b.margin - a.margin);
 
         return (
             <div className="glass-card" style={{ padding: '2rem', background: '#ffffff', borderRadius: '12px', border: '1px solid #e2e8f0', boxShadow: '0 4px 6px rgba(0,0,0,0.02)', width: '100%' }}>
                 <h3 style={{ fontSize: '1rem', fontWeight: 800, color: '#0f172a', marginBottom: '1.5rem' }}>
-                    Margem de Contribuição por Empresa (Período Selecionado)
+                    Margem Bruta (MB) por Empresa (Período Selecionado)
                     <span style={{ fontSize: '0.75rem', color: '#64748b', fontWeight: 500, display: 'block', marginTop: '0.25rem' }}>
                         Valores Absolutos em Mil R$ e Margem Percentual (%)
                     </span>
@@ -3932,7 +3922,7 @@ export default function BudgetGrid({
                         </div>
                     </div>
                     <div style={{ width: '100%' }}>
-                        {renderCompanyContribMargin()}
+                        {renderCompanyGrossMargin()}
                     </div>
                 </div>
             ) : activeTab === 'graficos' ? (

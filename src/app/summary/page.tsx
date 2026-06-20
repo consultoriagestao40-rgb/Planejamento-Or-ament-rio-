@@ -354,14 +354,12 @@ export default function BudgetSummaryPage() {
                 {/* Header */}
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: '3rem', borderBottom: '1px solid var(--border-subtle)', paddingBottom: '1.5rem' }}>
                     <div>
-                        <h1 className="brand-text" style={{ fontSize: '2.25rem', marginBottom: '0.5rem' }}>Resumo Consolidado</h1>
-                        <p style={{ color: 'var(--text-secondary)', fontSize: '1rem' }}>Visão geral de orçamentos e centros de custo.</p>
+                        <h1 className="brand-text" style={{ fontSize: '2.25rem', marginBottom: '0.5rem', background: 'var(--gradient-brand)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
+                            💰 Orçamento
+                        </h1>
+                        <p style={{ color: 'var(--text-secondary)', fontSize: '1rem' }}>Visão geral de orçamentos e centros de custo por organização.</p>
                     </div>
                     <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
-                        {/* RADAR LINK HIDDEN */}
-                        {/* {userRole === 'MASTER' && (
-                            <Link href="/radar" className="btn btn-primary" style={{ padding: '0.75rem 1.25rem' }}>🎯 Gestão de Radar</Link>
-                        )} */}
                         {userRole === 'MASTER' && (
                             <button 
                                 onClick={async () => {
@@ -385,8 +383,6 @@ export default function BudgetSummaryPage() {
                         {userRole === 'MASTER' && (
                             <SyncButton year={selectedYear} onSyncStart={() => setLoading(true)} onSyncComplete={fetchData} />
                         )}
-                        <Link href="/carteira" className="btn btn-secondary" style={{ padding: '0.75rem 1.25rem' }}>💼 Análise de Carteira</Link>
-                        <Link href="/" className="btn btn-secondary" style={{ padding: '0.75rem 1.25rem' }}>⬅️ Dashboard</Link>
                     </div>
                 </div>
 
@@ -524,13 +520,6 @@ export default function BudgetSummaryPage() {
                                                 </td>
                                                  <td style={{ ...td, textAlign: 'center' }}>
                                                      <div style={{ display: 'flex', justifyContent: 'center', gap: '0.5rem' }}>
-                                                        {userRole === 'MASTER' && (
-                                                            <button 
-                                                                onClick={(e) => { e.stopPropagation(); setExcelTenantId(group.tenantId); setIsExcelModalOpen(true); }}
-                                                                style={{ padding: '0.6rem 1rem', fontSize: '0.75rem', background: '#16a34a', color: 'white', border: 'none', borderRadius: '8px', fontWeight: 800, cursor: 'pointer', boxShadow: '0 4px 6px -1px rgba(22, 163, 74, 0.4)', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                                                                <span>📊</span> IMPORTAR
-                                                            </button>
-                                                        )}
                                                         {userRole === 'MASTER' && (
                                                             <button onClick={(e) => { e.stopPropagation(); setEditingCC(null); setManualCCTenant({ id: group.tenantId, name: group.tenantName }); setIsManualCCModalOpen(true); }} style={{ padding: '0.6rem 0.8rem', fontSize: '0.75rem', background: 'white', color: '#2563eb', border: '1px solid #2563eb', borderRadius: '8px', fontWeight: 800, cursor: 'pointer' }}><span>➕</span> NOVO CC</button>
                                                         )}

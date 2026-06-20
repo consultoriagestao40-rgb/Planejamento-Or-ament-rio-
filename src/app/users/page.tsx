@@ -138,11 +138,15 @@ export default function UsersPage() {
     if (loading) return <div style={{ padding: '2rem' }}>Carregando...</div>;
 
     return (
-        <main style={{ padding: '2rem 4rem', boxSizing: 'border-box', backgroundColor: '#f8fafc', minHeight: '100vh' }}>
-            <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-                    <a href="/" style={{ fontSize: '1.5rem', textDecoration: 'none', color: '#64748b' }}>←</a>
-                    <h1 style={{ color: '#0f172a', margin: 0 }}>Gestão de Usuários</h1>
+        <main style={{ padding: '2.5rem 2rem', boxSizing: 'border-box', backgroundColor: 'var(--bg-base)', minHeight: '100vh' }}>
+            <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem', borderBottom: '1px solid var(--border-default)', paddingBottom: '1.5rem' }}>
+                <div>
+                    <h1 className="brand-text" style={{ fontSize: '2rem', fontWeight: 900, background: 'var(--gradient-brand)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', margin: 0 }}>
+                        👥 Usuários
+                    </h1>
+                    <p style={{ color: 'var(--text-secondary)', fontSize: '0.95rem', marginTop: '0.25rem' }}>
+                        Gerencie as permissões e níveis de acesso dos usuários do sistema.
+                    </p>
                 </div>
                 <button onClick={() => handleOpenModal()} style={{ padding: '0.6rem 1.2rem', backgroundColor: '#2563eb', color: 'white', border: 'none', borderRadius: '6px', fontWeight: 600, cursor: 'pointer' }}>+ Novo Usuário</button>
             </header>

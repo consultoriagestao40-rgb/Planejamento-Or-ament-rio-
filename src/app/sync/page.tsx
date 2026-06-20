@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
+import { ExcelPasteModal } from '@/components/ExcelPasteModal';
 
 const MONTHS = [
     { value: 1, label: 'Janeiro' }, { value: 2, label: 'Fevereiro' },
@@ -30,6 +31,11 @@ export default function SyncPage() {
     const [logs, setLogs] = useState<string[]>([]);
     const [report, setReport] = useState<any[]>([]);
     const [status, setStatus] = useState<'idle' | 'running' | 'success' | 'error'>('idle');
+
+    // Excel Import States
+    const [isExcelModalOpen, setIsExcelModalOpen] = useState(false);
+    const [setupData, setSetupData] = useState<{ categories: any[], costCenters: any[], companies: any[] }>({ categories: [], costCenters: [], companies: [] });
+
     useEffect(() => {
         fetch('/api/companies')
             .then(r => r.json())
@@ -37,6 +43,29 @@ export default function SyncPage() {
                 if (d.success) setTenants(d.companies || []);
             });
     }, []);
+
+    useEffect(() => {
+        fetch(`/api/setup?year=${selectedYear}`)
+            .then(r => r.json())
+            .then(d => {
+                if (d.success) {
+                    setSetupData({
+                        categories: d.categories || [],
+                        costCenters: d.costCenters || [],
+                        companies: d.tenants || []
+                    });
+                }
+            })
+            .catch(console.error);
+    }, [selectedYear]);
+
+    const handleOpenExcelImport = () => {
+        if (selectedTenant === 'ALL') {
+            alert('Por favor, selecione uma empresa específica no campo de seleção acima para realizar a importação de dados.');
+            return;
+        }
+        setIsExcelModalOpen(true);
+    };
 
     const handleDisconnect = async (id: string, name: string) => {
         if (!confirm(`Excluir a empresa "${name}" e todos os dados associados a ela? Isso não afetará sua conta no Conta Azul.`)) return;
@@ -106,13 +135,12 @@ export default function SyncPage() {
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: '2.5rem', borderBottom: '1px solid var(--border-default)', paddingBottom: '1.5rem' }}>
                     <div>
                         <h1 className="brand-text" style={{ fontSize: '2rem', marginBottom: '0.4rem', background: 'var(--gradient-brand)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
-                            🔄 Sincronização Conta Azul
+                            🔄 Sincronização
                         </h1>
                         <p style={{ color: 'var(--text-secondary)', fontSize: '0.95rem' }}>
-                            Importe dados realizados via API. Dados do Excel (Jan→Mai) são preservados automaticamente.
+                            Importe dados realizados via API ou envie planilhas do Excel de forma integrada.
                         </p>
                     </div>
-                    <Link href="/" className="btn btn-secondary" style={{ padding: '0.75rem 1.25rem' }}>⬅️ Dashboard</Link>
                 </div>
 
                 {/* Status das Empresas */}
@@ -227,6 +255,27 @@ export default function SyncPage() {
                     </button>
                 </div>
 
+                {/* Importador Excel */}
+                <div style={{ backgroundColor: 'var(--bg-surface)', border: '1px solid var(--border-default)', borderRadius: 'var(--radius)', padding: '1.5rem', marginBottom: '1.5rem' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem' }}>
+                        <h2 style={{ fontSize: '1rem', fontWeight: 700, color: 'var(--text-primary)', margin: 0 }}>📊 Importar Orçamento (Excel)</h2>
+                        <span style={{ fontSize: '0.8rem', background: '#16a34a15', color: '#16a34a', padding: '0.2rem 0.6rem', borderRadius: '8px', fontWeight: 700 }}>Excel (.xlsx)</span>
+                    </div>
+                    
+                    <p style={{ color: 'var(--text-secondary)', fontSize: '0.875rem', marginBottom: '1.5rem', lineHeight: 1.5 }}>
+                        Selecione uma empresa específica no dropdown acima e clique no botão abaixo para colar os dados de orçamento diretamente de sua planilha de planejamento.
+                    </p>
+
+                    <button
+                        onClick={handleOpenExcelImport}
+                        disabled={loading}
+                        className="btn"
+                        style={{ width: '100%', padding: '0.875rem', fontSize: '1rem', fontWeight: 700, background: '#16a34a', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem' }}
+                    >
+                        <span>📊</span> Colar Dados do Excel
+                    </button>
+                </div>
+
                 {/* Status + Logs */}
                 {(logs.length > 0 || report.length > 0) && (
                     <div style={{ backgroundColor: 'var(--bg-surface)', border: '1px solid var(--border-default)', borderRadius: 'var(--radius)', padding: '1.5rem' }}>
@@ -261,6 +310,17 @@ export default function SyncPage() {
                     </div>
                 )}
             </div>
+
+            <ExcelPasteModal 
+                isOpen={isExcelModalOpen}
+                onClose={() => setIsExcelModalOpen(false)}
+                tenantId={selectedTenant}
+                companies={setupData.companies}
+                categories={setupData.categories}
+                costCenters={setupData.costCenters}
+                year={selectedYear}
+                viewMode="competencia"
+            />
         </div>
     );
 }

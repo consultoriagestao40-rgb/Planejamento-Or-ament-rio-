@@ -83,110 +83,60 @@ export default function FinancialDashboard({
             width: '100%',
             minHeight: '100vh',
             backgroundColor: 'var(--bg-base)',
-            padding: '0 0 3rem',
+            padding: '2.5rem 2rem 3rem',
             boxSizing: 'border-box'
         }}>
-            {/* ─── HEADER ─────────────────────────────────── */}
-            <header style={{
-                position: 'sticky',
-                top: 0,
-                zIndex: 50,
-                backgroundColor: 'rgba(255, 255, 255, 0.8)',
-                backdropFilter: 'blur(20px)',
-                borderBottom: '1px solid var(--border-default)',
-                boxShadow: 'var(--shadow-card)',
-            }}>
-                <div style={{
-                    maxWidth: '100%',
-                    margin: '0 auto',
-                    padding: '0 2rem',
-                    display: 'flex',
-                    flexDirection: 'column',
-                    gap: '0',
-                }}>
-                    {/* Row 1 */}
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', height: '56px', gap: '1rem' }}>
-                        {/* Left: Brand + Year */}
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '1.5rem' }}>
-                            <span className="brand-text">Budget Hub</span>
-
-                            {isConnected && (
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                                    {/* Year Selector */}
-                                    <div style={{
-                                        display: 'flex',
-                                        alignItems: 'center',
-                                        gap: '0.25rem',
-                                        background: 'var(--bg-elevated)',
-                                        border: '1px solid var(--border-default)',
-                                        borderRadius: '8px',
-                                        padding: '0 0.5rem',
-                                        height: '34px',
-                                        userSelect: 'none'
-                                    }}>
-                                        <button 
-                                            onClick={() => setSelectedYear(prev => prev - 1)}
-                                            style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '0.9rem', padding: '0 0.4rem', color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', transition: 'all 0.2s' }}
-                                            className="hover-opacity"
-                                            title="Ano Anterior"
-                                        >
-                                            ◀
-                                        </button>
-                                        <span style={{ fontSize: '0.85rem', fontWeight: 800, color: 'var(--text-primary)', minWidth: '45px', textAlign: 'center', fontFamily: 'monospace' }}>
-                                            {selectedYear}
-                                        </span>
-                                        <button 
-                                            onClick={() => setSelectedYear(prev => prev + 1)}
-                                            style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '0.9rem', padding: '0 0.4rem', color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', transition: 'all 0.2s' }}
-                                            className="hover-opacity"
-                                            title="Próximo Ano"
-                                        >
-                                            ▶
-                                        </button>
-                                    </div>
-
-                                    {userRole === 'MASTER' && (
-                                        <Link href="/sync" className="btn btn-secondary" style={{ padding: '0.75rem 1.25rem', display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}>
-                                            🔄 Sincronização
-                                        </Link>
-                                    )}
-                                    <Link href="/summary" className="btn btn-secondary" style={{ padding: '0.75rem 1.25rem' }}>📊 Resumo por CC</Link>
-                                    <Link href="/carteira" className="btn btn-secondary" style={{ padding: '0.75rem 1.25rem' }}>💼 Análise de Carteira</Link>
-                                </div>
-                            )}
-                        </div>
-
-                        {/* Right: Nav Links */}
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                            {userRole === 'MASTER' && (
-                                <>
-                                    <a href="/users" className="btn btn-secondary" style={{ height: '34px', fontSize: '0.78rem' }}>
-                                        🪪 Usuários
-                                    </a>
-                                    {/* RADAR BUTTON HIDDEN - preserved for future use */}
-                                    {/* <a href="/radar" className="btn btn-secondary" style={{ height: '34px', fontSize: '0.78rem' }}>
-                                        🎯 Gestão de Radar
-                                    </a> */}
-                                    <a href={authUrl} className="btn btn-primary" style={{ height: '34px', fontSize: '0.78rem' }}>
-                                        ➕ Conectar Empresa
-                                    </a>
-                                    <div style={{ width: '1px', height: '24px', background: 'var(--border-default)', margin: '0 0.25rem' }} />
-                                </>
-                            )}
-                            <button
-                                onClick={async () => { await fetch('/api/auth/logout', { method: 'POST' }); window.location.href = '/login'; }}
-                                className="btn btn-danger"
-                                style={{ height: '34px', fontSize: '0.78rem' }}
-                            >
-                                Sair
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            </header>
-
             {/* ─── BODY ────────────────────────────────────── */}
-            <div style={{ maxWidth: '100%', margin: '0 auto', padding: '1.5rem 2rem 0' }}>
+            <div style={{ maxWidth: '100%', margin: '0 auto' }}>
+                {/* Local Header & Controls */}
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2.5rem', flexWrap: 'wrap', gap: '1rem', borderBottom: '1px solid var(--border-default)', paddingBottom: '1.5rem' }}>
+                    <div>
+                        <h1 style={{ fontSize: '2rem', fontWeight: 900, background: 'var(--gradient-brand)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', marginBottom: '0.4rem' }}>
+                            📊 Dashboard Geral
+                        </h1>
+                        <p style={{ color: 'var(--text-secondary)', fontSize: '0.95rem' }}>
+                            Visão consolidada de orçamentos e realizados por competência.
+                        </p>
+                    </div>
+                    
+                    {isConnected && (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                            <span style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--text-muted)' }}>Ano Referência:</span>
+                            {/* Year Selector */}
+                            <div style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '0.25rem',
+                                background: 'var(--bg-surface)',
+                                border: '1px solid var(--border-default)',
+                                borderRadius: '8px',
+                                padding: '0 0.5rem',
+                                height: '34px',
+                                userSelect: 'none'
+                            }}>
+                                <button 
+                                    onClick={() => setSelectedYear(prev => prev - 1)}
+                                    style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '0.9rem', padding: '0 0.4rem', color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', transition: 'all 0.2s' }}
+                                    className="hover-opacity"
+                                    title="Ano Anterior"
+                                >
+                                    ◀
+                                </button>
+                                <span style={{ fontSize: '0.85rem', fontWeight: 800, color: 'var(--text-primary)', minWidth: '45px', textAlign: 'center', fontFamily: 'monospace' }}>
+                                    {selectedYear}
+                                </span>
+                                <button 
+                                    onClick={() => setSelectedYear(prev => prev + 1)}
+                                    style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '0.9rem', padding: '0 0.4rem', color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', transition: 'all 0.2s' }}
+                                    className="hover-opacity"
+                                    title="Próximo Ano"
+                                >
+                                    ▶
+                                </button>
+                            </div>
+                        </div>
+                    )}
+                </div>
                 {params.error && (
                     <div style={{
                         padding: '1rem 1.25rem',

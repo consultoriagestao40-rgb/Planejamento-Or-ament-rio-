@@ -1334,25 +1334,17 @@ export default function BudgetGrid({
     }, [dreStructure]);
 
     const accumulatedDreTotals = useMemo(() => {
-        let accRevB = 0;
-        let accRevR = 0;
-        let accRevRd = 0;
-
-        let accTaxesB = 0;
-        let accTaxesR = 0;
-        let accTaxesRd = 0;
-
-        let accCostsB = 0;
-        let accCostsR = 0;
-        let accCostsRd = 0;
-
-        let accEbitdaB = 0;
-        let accEbitdaR = 0;
-        let accEbitdaRd = 0;
-
-        let accNetProfitB = 0;
-        let accNetProfitR = 0;
-        let accNetProfitRd = 0;
+        let accRevB = 0, accRevR = 0, accRevRd = 0;
+        let accTaxesB = 0, accTaxesR = 0, accTaxesRd = 0;
+        let accRecLiqB = 0, accRecLiqR = 0, accRecLiqRd = 0;
+        let accCostsB = 0, accCostsR = 0, accCostsRd = 0;
+        let accGrossMargB = 0, accGrossMargR = 0, accGrossMargRd = 0;
+        let accOpExpB = 0, accOpExpR = 0, accOpExpRd = 0;
+        let accContribMargB = 0, accContribMargR = 0, accContribMargRd = 0;
+        let accAdminExpB = 0, accAdminExpR = 0, accAdminExpRd = 0;
+        let accEbitdaB = 0, accEbitdaR = 0, accEbitdaRd = 0;
+        let accFinB = 0, accFinR = 0, accFinRd = 0;
+        let accNetProfitB = 0, accNetProfitR = 0, accNetProfitRd = 0;
 
         return precomputedDreTotals.map((m, idx) => {
             accRevB += m.vRev.b;
@@ -1363,13 +1355,37 @@ export default function BudgetGrid({
             accTaxesR += m.vTaxes.r;
             accTaxesRd += m.vTaxes.rd;
 
+            accRecLiqB += m.vRecLiq.b;
+            accRecLiqR += m.vRecLiq.r;
+            accRecLiqRd += m.vRecLiq.rd;
+
             accCostsB += m.vCosts.b;
             accCostsR += m.vCosts.r;
             accCostsRd += m.vCosts.rd;
 
+            accGrossMargB += m.vGrossMarg.b;
+            accGrossMargR += m.vGrossMarg.r;
+            accGrossMargRd += m.vGrossMarg.rd;
+
+            accOpExpB += m.vOpExp.b;
+            accOpExpR += m.vOpExp.r;
+            accOpExpRd += m.vOpExp.rd;
+
+            accContribMargB += m.vContribMarg.b;
+            accContribMargR += m.vContribMarg.r;
+            accContribMargRd += m.vContribMarg.rd;
+
+            accAdminExpB += m.vAdminExp.b;
+            accAdminExpR += m.vAdminExp.r;
+            accAdminExpRd += m.vAdminExp.rd;
+
             accEbitdaB += m.vEbitda.b;
             accEbitdaR += m.vEbitda.r;
             accEbitdaRd += m.vEbitda.rd;
+
+            accFinB += m.vFin.b;
+            accFinR += m.vFin.r;
+            accFinRd += m.vFin.rd;
 
             accNetProfitB += m.vNetProfit.b;
             accNetProfitR += m.vNetProfit.r;
@@ -1378,8 +1394,14 @@ export default function BudgetGrid({
             return {
                 vRev: { b: accRevB, r: accRevR, rd: accRevRd },
                 vTaxes: { b: accTaxesB, r: accTaxesR, rd: accTaxesRd },
+                vRecLiq: { b: accRecLiqB, r: accRecLiqR, rd: accRecLiqRd },
                 vCosts: { b: accCostsB, r: accCostsR, rd: accCostsRd },
+                vGrossMarg: { b: accGrossMargB, r: accGrossMargR, rd: accGrossMargRd },
+                vOpExp: { b: accOpExpB, r: accOpExpR, rd: accOpExpRd },
+                vContribMarg: { b: accContribMargB, r: accContribMargR, rd: accContribMargRd },
+                vAdminExp: { b: accAdminExpB, r: accAdminExpR, rd: accAdminExpRd },
                 vEbitda: { b: accEbitdaB, r: accEbitdaR, rd: accEbitdaRd },
+                vFin: { b: accFinB, r: accFinR, rd: accFinRd },
                 vNetProfit: { b: accNetProfitB, r: accNetProfitR, rd: accNetProfitRd }
             };
         });

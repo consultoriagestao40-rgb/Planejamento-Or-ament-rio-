@@ -10,7 +10,10 @@ export async function GET() {
             select: { id: true, name: true, cnpj: true }
         });
 
-        const jvsFac = tenants.find(t => t.name.toUpperCase().includes('JVS FACILITIES') || t.name.toUpperCase().includes('FACILITIES'));
+        let jvsFac = tenants.find(t => t.name.toUpperCase().includes('JVS') && t.name.toUpperCase().includes('FACILITIES'));
+        if (!jvsFac) {
+            jvsFac = tenants.find(t => t.name.toUpperCase().includes('JVS'));
+        }
         if (!jvsFac) {
             return NextResponse.json({ success: true, error: 'JVS FACILITIES tenant not found', tenants });
         }
@@ -138,6 +141,7 @@ export async function GET() {
         return NextResponse.json({
             success: true,
             jvsFac,
+            tenants,
             dreMonthlyMB,
             dreAccumulatedMB: dreAccumulatedMB / 1000,
             calculatedMB: calculatedMB / 1000,

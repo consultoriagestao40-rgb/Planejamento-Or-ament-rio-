@@ -75,6 +75,7 @@ export default function BudgetGrid({
     const [contractsLoading, setContractsLoading] = useState(false);
     const [selectedContractsMonth, setSelectedContractsMonth] = useState<string>('accumulated');
     const [monthlyBudgets, setMonthlyBudgets] = useState<Record<number, number>>({});
+    const [contractsAnnualTotal, setContractsAnnualTotal] = useState<number>(0);
 
     const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
     const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set()); // New state for main groups
@@ -519,6 +520,7 @@ export default function BudgetGrid({
                 if (data.success) {
                     setContractsData(data.contracts || []);
                     setMonthlyBudgets(data.monthlyBudgets || {});
+                    setContractsAnnualTotal(data.totalAnnualRealized || 0);
                     setSelectedContractsMonth('accumulated');
                 }
             } catch (err) {
@@ -3125,9 +3127,9 @@ export default function BudgetGrid({
 
         const cx = 350;
         const cy = 180;
-        const R = 80;
-        const strokeWidth = 20;
-        const C = 2 * Math.PI * R; // ~502.65
+        const R = 95;
+        const strokeWidth = 32;
+        const C = 2 * Math.PI * R; // ~596.90
 
         let sliceCumulativePercent = 0;
         let labelCumulativeAngle = -Math.PI / 2; // Start at the top (-90 degrees)
@@ -3183,13 +3185,13 @@ export default function BudgetGrid({
                                 </g>
 
                                 {/* Center labels */}
-                                <text x={cx} y={cy - 12} textAnchor="middle" style={{ fontSize: '11px', fontWeight: 700, fill: '#64748b', letterSpacing: '0.05em', textTransform: 'uppercase' }}>
+                                <text x={cx} y={cy - 14} textAnchor="middle" style={{ fontSize: '12px', fontWeight: 700, fill: '#64748b', letterSpacing: '0.05em', textTransform: 'uppercase' }}>
                                     Total
                                 </text>
-                                <text x={cx} y={cy + 12} textAnchor="middle" style={{ fontSize: '18px', fontWeight: 900, fill: '#0f172a' }}>
+                                <text x={cx} y={cy + 12} textAnchor="middle" style={{ fontSize: '22px', fontWeight: 900, fill: '#0f172a' }}>
                                     R$ {totalRevenue.toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}
                                 </text>
-                                <text x={cx} y={cy + 28} textAnchor="middle" style={{ fontSize: '10px', fontWeight: 600, fill: '#64748b' }}>
+                                <text x={cx} y={cy + 30} textAnchor="middle" style={{ fontSize: '11px', fontWeight: 600, fill: '#64748b' }}>
                                     Mil
                                 </text>
 
@@ -3206,12 +3208,12 @@ export default function BudgetGrid({
                                     const sin = Math.sin(middleAngle);
 
                                     // Point on the outer edge of the slice
-                                    const rStart = R + strokeWidth / 2; // 80 + 10 = 90
+                                    const rStart = R + strokeWidth / 2; // 95 + 16 = 111
                                     const x1 = cx + rStart * cos;
                                     const y1 = cy + rStart * sin;
 
                                     // Point where the line goes outwards
-                                    const rEnd = R + 35; // 80 + 35 = 115
+                                    const rEnd = R + 40; // 95 + 40 = 135
                                     const x2 = cx + rEnd * cos;
                                     const y2 = cy + rEnd * sin;
 
@@ -3285,10 +3287,25 @@ export default function BudgetGrid({
             );
         }
 
+        const isAccumulated = selectedContractsMonth === 'accumulated';
+
         if (contractsData.length === 0) {
             return (
-                <div className="glass-card" style={{ padding: '3rem', background: '#ffffff', borderRadius: '12px', border: '1px solid #e2e8f0', boxShadow: '0 4px 6px rgba(0,0,0,0.02)', width: '100%', textAlign: 'center', color: '#64748b', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                    <span style={{ fontSize: '0.85rem', fontWeight: 600 }}>Nenhum contrato com faturamento realizado no período selecionado.</span>
+                <div className="glass-card" style={{ padding: '2rem', background: '#ffffff', borderRadius: '12px', border: '1px solid #e2e8f0', boxShadow: '0 4px 6px rgba(0,0,0,0.02)', width: '100%', height: '100%', display: 'flex', flexDirection: 'column' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1.5rem', flexWrap: 'wrap', gap: '0.5rem' }}>
+                        <h3 style={{ fontSize: '1rem', fontWeight: 800, color: '#0f172a', margin: 0, textAlign: 'left' }}>
+                            Faturamento por Contrato
+                            <span style={{ fontSize: '0.75rem', color: '#64748b', fontWeight: 500, display: 'block', marginTop: '0.25rem' }}>
+                                Valores acumulados do período em Mil R$ e % do total orçado
+                            </span>
+                            <span style={{ fontSize: '0.8rem', color: '#0f172a', fontWeight: 700, display: 'block', marginTop: '0.35rem' }}>
+                                Receita Anual Total: <span style={{ color: '#10b981', fontWeight: 800 }}>{contractsAnnualTotal.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</span>
+                            </span>
+                        </h3>
+                    </div>
+                    <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#64748b', fontSize: '0.85rem', fontWeight: 600, minHeight: '150px' }}>
+                        Nenhum contrato com faturamento realizado no período selecionado.
+                    </div>
                 </div>
             );
         }
@@ -3303,7 +3320,6 @@ export default function BudgetGrid({
         const MONTH_SHORT = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
 
         // Determine active view mode (accumulated vs specific month)
-        const isAccumulated = selectedContractsMonth === 'accumulated';
         const displayData = contractsData.map(item => {
             let val = item.value;
             let percentage = item.percentage;
@@ -3330,6 +3346,9 @@ export default function BudgetGrid({
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1.5rem', flexWrap: 'wrap', gap: '0.5rem' }}>
                         <h3 style={{ fontSize: '1rem', fontWeight: 800, color: '#0f172a', margin: 0 }}>
                             Faturamento por Contrato
+                            <span style={{ fontSize: '0.8rem', color: '#0f172a', fontWeight: 700, display: 'block', marginTop: '0.35rem' }}>
+                                Receita Anual Total: <span style={{ color: '#10b981', fontWeight: 800 }}>{contractsAnnualTotal.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</span>
+                            </span>
                         </h3>
                         <select 
                             value={selectedContractsMonth} 
@@ -3360,6 +3379,9 @@ export default function BudgetGrid({
                             {isAccumulated 
                                 ? "Valores acumulados do período em Mil R$ e % do total orçado"
                                 : `Faturamento de ${MONTH_NAMES[parseInt(selectedContractsMonth, 10)]} em Mil R$ e % do orçado do mês`}
+                        </span>
+                        <span style={{ fontSize: '0.8rem', color: '#0f172a', fontWeight: 700, display: 'block', marginTop: '0.35rem' }}>
+                            Receita Anual Total: <span style={{ color: '#10b981', fontWeight: 800 }}>{contractsAnnualTotal.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</span>
                         </span>
                     </h3>
                     <select 

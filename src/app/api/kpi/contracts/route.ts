@@ -53,17 +53,26 @@ export async function GET(request: Request) {
             .map(c => c.id);
 
         if (revenueCategoryIds.length === 0) {
-            return NextResponse.json({ success: true, contracts: [], totalBudget: 0, totalRealized: 0 });
+            return NextResponse.json({ success: true, contracts: [], totalBudget: 0, totalRealized: 0, totalAnnualRealized: 0, monthlyBudgets: {} });
         }
 
-        // 4. Query DB
-        const [realizedRaw, budgetRaw] = await Promise.all([
+        // 4. Query DB for active period and annual faturamento
+        const [realizedRaw, realizedAnnualRaw, budgetRaw] = await Promise.all([
             prisma.realizedEntry.findMany({
                 where: {
                     tenantId: { in: targetTenantIds },
                     categoryId: { in: revenueCategoryIds },
                     year,
                     month: { gte: startMonth + 1, lte: endMonth + 1 },
+                    viewMode,
+                    ...(targetCostCenterIds.length > 0 ? { costCenterId: { in: targetCostCenterIds } } : {})
+                }
+            }),
+            prisma.realizedEntry.findMany({
+                where: {
+                    tenantId: { in: targetTenantIds },
+                    categoryId: { in: revenueCategoryIds },
+                    year,
                     viewMode,
                     ...(targetCostCenterIds.length > 0 ? { costCenterId: { in: targetCostCenterIds } } : {})
                 }
@@ -79,7 +88,7 @@ export async function GET(request: Request) {
             })
         ]);
 
-        // 5. Deduplicate realized data matching dashboard sync logic
+        // 5. Deduplicate realized data for active period
         const syncedMonths = new Set<string>();
         realizedRaw.forEach(e => {
             if (e.externalId && e.externalId.startsWith('sync-')) {
@@ -95,26 +104,65 @@ export async function GET(request: Request) {
             return true;
         });
 
+        // 5b. Deduplicate realized data for annual total
+        const syncedAnnualMonths = new Set<string>();
+        realizedAnnualRaw.forEach(e => {
+            if (e.externalId && e.externalId.startsWith('sync-')) {
+                syncedAnnualMonths.add(`${e.year}|${e.month}`);
+            }
+        });
+
+        const realizedAnnualEntries = realizedAnnualRaw.filter(e => {
+            const key = `${e.year}|${e.month}`;
+            if (syncedAnnualMonths.has(key)) {
+                return e.externalId && e.externalId.startsWith('sync-');
+            }
+            return true;
+        });
+
         // 6. Aggregate values
         let totalBudget = budgetRaw.reduce((sum, b) => sum + b.amount, 0);
         let totalRealized = realizedEntries.reduce((sum, r) => sum + r.amount, 0);
+        let totalAnnualRealized = realizedAnnualEntries.reduce((sum, r) => sum + r.amount, 0);
 
-        const customerMap = new Map<string, number>();
+        const customerMap = new Map<string, { total: number; monthly: Record<number, number> }>();
 
         realizedEntries.forEach(r => {
             const customerName = normalizeCustomerName(r.customer || r.description || 'Sem Cliente/Outros');
-            customerMap.set(customerName, (customerMap.get(customerName) || 0) + r.amount);
+            const monthIdx = r.month - 1; // 0-indexed month
+            
+            if (!customerMap.has(customerName)) {
+                customerMap.set(customerName, { total: 0, monthly: {} });
+            }
+            
+            const data = customerMap.get(customerName)!;
+            data.total += r.amount;
+            data.monthly[monthIdx] = (data.monthly[monthIdx] || 0) + r.amount;
+        });
+
+        // Calculate monthly budgets
+        const monthlyBudgets: Record<number, number> = {};
+        budgetRaw.forEach(b => {
+            const m = b.month - 1;
+            monthlyBudgets[m] = (monthlyBudgets[m] || 0) + b.amount / 1000;
         });
 
         // Convert to array and format
         const contracts = Array.from(customerMap.entries())
-            .map(([name, value]) => {
-                const valueInThousands = value / 1000;
-                const percentageOfBudget = totalBudget > 0 ? (value / totalBudget) * 100 : 0;
+            .map(([name, data]) => {
+                const totalInThousands = data.total / 1000;
+                const percentageOfBudget = totalBudget > 0 ? (data.total / totalBudget) * 100 : 0;
+                
+                const monthlyInThousands: Record<number, number> = {};
+                Object.entries(data.monthly).forEach(([m, val]) => {
+                    monthlyInThousands[parseInt(m)] = val / 1000;
+                });
+
                 return {
                     name,
-                    value: valueInThousands,
-                    percentage: percentageOfBudget
+                    value: totalInThousands,
+                    percentage: percentageOfBudget,
+                    monthlyValues: monthlyInThousands
                 };
             })
             .filter(c => c.value > 0) // Only return positive values
@@ -124,7 +172,9 @@ export async function GET(request: Request) {
             success: true,
             contracts,
             totalBudget: totalBudget / 1000,
-            totalRealized: totalRealized / 1000
+            totalRealized: totalRealized / 1000,
+            totalAnnualRealized,
+            monthlyBudgets
         });
 
     } catch (error: any) {

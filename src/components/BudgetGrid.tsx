@@ -31,6 +31,8 @@ interface BudgetGridProps {
     activeTab?: 'visao' | 'graficos';
 }
 
+const MONTH_ABBRS = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
+
 // Tree Node Interface
 interface CategoryNode {
     id: string;
@@ -84,6 +86,9 @@ export default function BudgetGrid({
     const [costCenterSearch, setCostCenterSearch] = useState('');
     const [selectedYear, setSelectedYear] = useState(externalYear);
     const currentMonthIdx = 5; // Junho (0-indexed)
+    const [startMonth, setStartMonth] = useState<number>(0);
+    const [endMonth, setEndMonth] = useState<number>(5);
+    const periodLabel = `(${MONTH_ABBRS[startMonth]}-${MONTH_ABBRS[endMonth]})`;
     const [viewMode, setViewMode] = useState<'caixa' | 'competencia'>('competencia');
     const [viewPeriod, setViewPeriod] = useState<'month' | 'quarter'>('month');
 
@@ -91,6 +96,20 @@ export default function BudgetGrid({
     useEffect(() => {
         setSelectedYear(externalYear);
     }, [externalYear]);
+
+    const handleStartMonthChange = (val: number) => {
+        setStartMonth(val);
+        if (val > endMonth) {
+            setEndMonth(val);
+        }
+    };
+
+    const handleEndMonthChange = (val: number) => {
+        setEndMonth(val);
+        if (val < startMonth) {
+            setStartMonth(val);
+        }
+    };
 
     // --- Transaction Drill-down State ---
     const [selectedCell, setSelectedCell] = useState<{ categoryId: string, month: number, categoryName: string } | null>(null);
@@ -1259,10 +1278,13 @@ export default function BudgetGrid({
         precomputedDreTotals.forEach((m, idx) => {
             annualBudgetRev += m.vRev.b;
             if (idx <= currentMonthIdx) {
-                realizedAccumRev += m.vRev.r;
                 projectedRev += m.vRev.r;
             } else {
                 projectedRev += m.vRev.b;
+            }
+
+            if (idx >= startMonth && idx <= endMonth && idx <= currentMonthIdx) {
+                realizedAccumRev += m.vRev.r;
             }
         });
 
@@ -1275,24 +1297,26 @@ export default function BudgetGrid({
             percent,
             currentMonthIdx
         };
-    }, [precomputedDreTotals]);
+    }, [precomputedDreTotals, startMonth, endMonth]);
 
     const taxesProjectionData = useMemo(() => {
-        let annualBudgetRev = 0;
-        let annualBudgetTaxes = 0;
+        let periodBudgetRev = 0;
+        let periodBudgetTaxes = 0;
         let realizedAccumRev = 0;
         let realizedAccumTaxes = 0;
 
         precomputedDreTotals.forEach((m, idx) => {
-            annualBudgetRev += m.vRev.b;
-            annualBudgetTaxes += m.vTaxes.b;
-            if (idx <= currentMonthIdx) {
-                realizedAccumRev += m.vRev.r;
-                realizedAccumTaxes += m.vTaxes.r;
+            if (idx >= startMonth && idx <= endMonth) {
+                periodBudgetRev += m.vRev.b;
+                periodBudgetTaxes += m.vTaxes.b;
+                if (idx <= currentMonthIdx) {
+                    realizedAccumRev += m.vRev.r;
+                    realizedAccumTaxes += m.vTaxes.r;
+                }
             }
         });
 
-        const budgetTaxRate = annualBudgetRev > 0 ? (annualBudgetTaxes / annualBudgetRev) * 100 : 0;
+        const budgetTaxRate = periodBudgetRev > 0 ? (periodBudgetTaxes / periodBudgetRev) * 100 : 0;
         const realizedTaxRate = realizedAccumRev > 0 ? (realizedAccumTaxes / realizedAccumRev) * 100 : 0;
 
         return {
@@ -1301,24 +1325,26 @@ export default function BudgetGrid({
             realizedAccumTaxes,
             realizedAccumRev
         };
-    }, [precomputedDreTotals]);
+    }, [precomputedDreTotals, startMonth, endMonth]);
 
     const costsProjectionData = useMemo(() => {
-        let annualBudgetRev = 0;
-        let annualBudgetCosts = 0;
+        let periodBudgetRev = 0;
+        let periodBudgetCosts = 0;
         let realizedAccumRev = 0;
         let realizedAccumCosts = 0;
 
         precomputedDreTotals.forEach((m, idx) => {
-            annualBudgetRev += m.vRev.b;
-            annualBudgetCosts += m.vCosts.b;
-            if (idx <= currentMonthIdx) {
-                realizedAccumRev += m.vRev.r;
-                realizedAccumCosts += m.vCosts.r;
+            if (idx >= startMonth && idx <= endMonth) {
+                periodBudgetRev += m.vRev.b;
+                periodBudgetCosts += m.vCosts.b;
+                if (idx <= currentMonthIdx) {
+                    realizedAccumRev += m.vRev.r;
+                    realizedAccumCosts += m.vCosts.r;
+                }
             }
         });
 
-        const budgetCostRate = annualBudgetRev > 0 ? (annualBudgetCosts / annualBudgetRev) * 100 : 0;
+        const budgetCostRate = periodBudgetRev > 0 ? (periodBudgetCosts / periodBudgetRev) * 100 : 0;
         const realizedCostRate = realizedAccumRev > 0 ? (realizedAccumCosts / realizedAccumRev) * 100 : 0;
 
         return {
@@ -1327,7 +1353,7 @@ export default function BudgetGrid({
             realizedAccumCosts,
             realizedAccumRev
         };
-    }, [precomputedDreTotals]);
+    }, [precomputedDreTotals, startMonth, endMonth]);
 
     const matchNode = (node: CategoryNode, query: string): boolean => {
         if (!query) return true;
@@ -1982,7 +2008,7 @@ export default function BudgetGrid({
 
                 <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', marginTop: '-15px', zIndex: 10 }}>
                     <span style={{ fontSize: '1.25rem', fontWeight: 900, color: '#0f172a' }}>{gaugePercent.toFixed(1)}%</span>
-                    <span style={{ fontSize: '0.68rem', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Faturamento Realizado Acumulado</span>
+                    <span style={{ fontSize: '0.68rem', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Faturamento Realizado Acumulado {periodLabel}</span>
                 </div>
             </div>
         );
@@ -2435,6 +2461,210 @@ export default function BudgetGrid({
             </div>
             {activeTab === 'graficos' ? (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', marginTop: '1rem', width: '100%' }}>
+                    {/* Filtro de Período Personalizado */}
+                    <div className="glass-card" style={{ 
+                        padding: '1rem 1.25rem', 
+                        background: '#ffffff', 
+                        borderRadius: '12px', 
+                        border: '1px solid #e2e8f0', 
+                        boxShadow: '0 4px 6px rgba(0,0,0,0.02)',
+                        display: 'flex',
+                        flexDirection: 'row',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        flexWrap: 'wrap',
+                        gap: '1rem',
+                        width: '100%'
+                    }}>
+                        {/* Seletores De/Até */}
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', flexWrap: 'wrap' }}>
+                            <span style={{ fontSize: '0.8rem', fontWeight: 800, color: '#0f172a', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                                Período:
+                            </span>
+                            
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                <label htmlFor="start-month-select" style={{ fontSize: '0.75rem', fontWeight: 700, color: '#64748b' }}>De:</label>
+                                <select 
+                                    id="start-month-select"
+                                    value={startMonth} 
+                                    onChange={(e) => handleStartMonthChange(Number(e.target.value))}
+                                    style={{ 
+                                        padding: '0.35rem 0.5rem', 
+                                        fontSize: '0.75rem', 
+                                        borderRadius: '6px', 
+                                        border: '1px solid #cbd5e1', 
+                                        background: '#ffffff', 
+                                        color: '#0f172a', 
+                                        fontWeight: 600,
+                                        outline: 'none',
+                                        cursor: 'pointer'
+                                    }}
+                                >
+                                    {['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'].map((m, idx) => (
+                                        <option key={idx} value={idx}>{m}</option>
+                                    ))}
+                                </select>
+                            </div>
+
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                <label htmlFor="end-month-select" style={{ fontSize: '0.75rem', fontWeight: 700, color: '#64748b' }}>Até:</label>
+                                <select 
+                                    id="end-month-select"
+                                    value={endMonth} 
+                                    onChange={(e) => handleEndMonthChange(Number(e.target.value))}
+                                    style={{ 
+                                        padding: '0.35rem 0.5rem', 
+                                        fontSize: '0.75rem', 
+                                        borderRadius: '6px', 
+                                        border: '1px solid #cbd5e1', 
+                                        background: '#ffffff', 
+                                        color: '#0f172a', 
+                                        fontWeight: 600,
+                                        outline: 'none',
+                                        cursor: 'pointer'
+                                    }}
+                                >
+                                    {['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'].map((m, idx) => (
+                                        <option key={idx} value={idx}>{m}</option>
+                                    ))}
+                                </select>
+                            </div>
+                        </div>
+
+                        {/* Botões de Atalho */}
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', flexWrap: 'wrap' }}>
+                            <span style={{ fontSize: '0.7rem', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', marginRight: '0.2rem' }}>Atalhos:</span>
+                            <button 
+                                onClick={() => { setStartMonth(5); setEndMonth(5); }} 
+                                style={{
+                                    padding: '0.3rem 0.6rem',
+                                    fontSize: '0.7rem',
+                                    fontWeight: 700,
+                                    borderRadius: '6px',
+                                    border: '1px solid #e2e8f0',
+                                    background: startMonth === 5 && endMonth === 5 ? '#0f172a' : '#f8fafc',
+                                    color: startMonth === 5 && endMonth === 5 ? '#ffffff' : '#64748b',
+                                    cursor: 'pointer',
+                                    transition: 'all 0.15s'
+                                }}
+                            >
+                                Mês Atual
+                            </button>
+                            <button 
+                                onClick={() => { setStartMonth(0); setEndMonth(2); }} 
+                                style={{
+                                    padding: '0.3rem 0.6rem',
+                                    fontSize: '0.7rem',
+                                    fontWeight: 700,
+                                    borderRadius: '6px',
+                                    border: '1px solid #e2e8f0',
+                                    background: startMonth === 0 && endMonth === 2 ? '#0f172a' : '#f8fafc',
+                                    color: startMonth === 0 && endMonth === 2 ? '#ffffff' : '#64748b',
+                                    cursor: 'pointer',
+                                    transition: 'all 0.15s'
+                                }}
+                            >
+                                1º Tri
+                            </button>
+                            <button 
+                                onClick={() => { setStartMonth(3); setEndMonth(5); }} 
+                                style={{
+                                    padding: '0.3rem 0.6rem',
+                                    fontSize: '0.7rem',
+                                    fontWeight: 700,
+                                    borderRadius: '6px',
+                                    border: '1px solid #e2e8f0',
+                                    background: startMonth === 3 && endMonth === 5 ? '#0f172a' : '#f8fafc',
+                                    color: startMonth === 3 && endMonth === 5 ? '#ffffff' : '#64748b',
+                                    cursor: 'pointer',
+                                    transition: 'all 0.15s'
+                                }}
+                            >
+                                2º Tri
+                            </button>
+                            <button 
+                                onClick={() => { setStartMonth(6); setEndMonth(8); }} 
+                                style={{
+                                    padding: '0.3rem 0.6rem',
+                                    fontSize: '0.7rem',
+                                    fontWeight: 700,
+                                    borderRadius: '6px',
+                                    border: '1px solid #e2e8f0',
+                                    background: startMonth === 6 && endMonth === 8 ? '#0f172a' : '#f8fafc',
+                                    color: startMonth === 6 && endMonth === 8 ? '#ffffff' : '#64748b',
+                                    cursor: 'pointer',
+                                    transition: 'all 0.15s'
+                                }}
+                            >
+                                3º Tri
+                            </button>
+                            <button 
+                                onClick={() => { setStartMonth(9); setEndMonth(11); }} 
+                                style={{
+                                    padding: '0.3rem 0.6rem',
+                                    fontSize: '0.7rem',
+                                    fontWeight: 700,
+                                    borderRadius: '6px',
+                                    border: '1px solid #e2e8f0',
+                                    background: startMonth === 9 && endMonth === 11 ? '#0f172a' : '#f8fafc',
+                                    color: startMonth === 9 && endMonth === 11 ? '#ffffff' : '#64748b',
+                                    cursor: 'pointer',
+                                    transition: 'all 0.15s'
+                                }}
+                            >
+                                4º Tri
+                            </button>
+                            <button 
+                                onClick={() => { setStartMonth(0); setEndMonth(5); }} 
+                                style={{
+                                    padding: '0.3rem 0.6rem',
+                                    fontSize: '0.7rem',
+                                    fontWeight: 700,
+                                    borderRadius: '6px',
+                                    border: '1px solid #e2e8f0',
+                                    background: startMonth === 0 && endMonth === 5 ? '#0f172a' : '#f8fafc',
+                                    color: startMonth === 0 && endMonth === 5 ? '#ffffff' : '#64748b',
+                                    cursor: 'pointer',
+                                    transition: 'all 0.15s'
+                                }}
+                            >
+                                1º Semestre
+                            </button>
+                            <button 
+                                onClick={() => { setStartMonth(6); setEndMonth(11); }} 
+                                style={{
+                                    padding: '0.3rem 0.6rem',
+                                    fontSize: '0.7rem',
+                                    fontWeight: 700,
+                                    borderRadius: '6px',
+                                    border: '1px solid #e2e8f0',
+                                    background: startMonth === 6 && endMonth === 11 ? '#0f172a' : '#f8fafc',
+                                    color: startMonth === 6 && endMonth === 11 ? '#ffffff' : '#64748b',
+                                    cursor: 'pointer',
+                                    transition: 'all 0.15s'
+                                }}
+                            >
+                                2º Semestre
+                            </button>
+                            <button 
+                                onClick={() => { setStartMonth(0); setEndMonth(11); }} 
+                                style={{
+                                    padding: '0.3rem 0.6rem',
+                                    fontSize: '0.7rem',
+                                    fontWeight: 700,
+                                    borderRadius: '6px',
+                                    border: '1px solid #e2e8f0',
+                                    background: startMonth === 0 && endMonth === 11 ? '#0f172a' : '#f8fafc',
+                                    color: startMonth === 0 && endMonth === 11 ? '#ffffff' : '#64748b',
+                                    cursor: 'pointer',
+                                    transition: 'all 0.15s'
+                                }}
+                            >
+                                Ano Todo
+                            </button>
+                        </div>
+                    </div>
+
                     {/* KPI Summary Cards */}
                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '1rem' }}>
                         {/* Card 1: Receita Bruta */}
@@ -2443,9 +2673,11 @@ export default function BudgetGrid({
                             {(() => {
                                 let totalB = 0, totalR = 0;
                                 precomputedDreTotals.forEach((m, idx) => { 
-                                    totalB += m.vRev.b; 
-                                    if (idx <= currentMonthIdx) {
-                                        totalR += m.vRev.r; 
+                                    if (idx >= startMonth && idx <= endMonth) {
+                                        totalB += m.vRev.b; 
+                                        if (idx <= currentMonthIdx) {
+                                            totalR += m.vRev.r; 
+                                        }
                                     }
                                 });
                                 return (
@@ -2464,9 +2696,11 @@ export default function BudgetGrid({
                             {(() => {
                                 let totalB = 0, totalR = 0;
                                 precomputedDreTotals.forEach((m, idx) => { 
-                                    totalB += m.vEbitda.b; 
-                                    if (idx <= currentMonthIdx) {
-                                        totalR += m.vEbitda.r; 
+                                    if (idx >= startMonth && idx <= endMonth) {
+                                        totalB += m.vEbitda.b; 
+                                        if (idx <= currentMonthIdx) {
+                                            totalR += m.vEbitda.r; 
+                                        }
                                     }
                                 });
                                 const isPositive = totalR >= 0;
@@ -2486,9 +2720,11 @@ export default function BudgetGrid({
                             {(() => {
                                 let totalB = 0, totalR = 0;
                                 precomputedDreTotals.forEach((m, idx) => { 
-                                    totalB += m.vNetProfit.b; 
-                                    if (idx <= currentMonthIdx) {
-                                        totalR += m.vNetProfit.r; 
+                                    if (idx >= startMonth && idx <= endMonth) {
+                                        totalB += m.vNetProfit.b; 
+                                        if (idx <= currentMonthIdx) {
+                                            totalR += m.vNetProfit.r; 
+                                        }
                                     }
                                 });
                                 const isPositive = totalR >= 0;
@@ -2513,12 +2749,12 @@ export default function BudgetGrid({
                         </div>
                         {/* Card 2: Tributos */}
                         <div className="glass-card" style={{ padding: '1.5rem', background: '#ffffff', borderRadius: '12px', border: '1px solid #e2e8f0', boxShadow: '0 4px 6px rgba(0,0,0,0.02)', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-                            <h3 style={{ fontSize: '0.9rem', fontWeight: 800, color: '#0f172a', marginBottom: '1.25rem', width: '100%', textAlign: 'center' }}>Indicador de Tributos (Jan-Jun)</h3>
+                            <h3 style={{ fontSize: '0.9rem', fontWeight: 800, color: '#0f172a', marginBottom: '1.25rem', width: '100%', textAlign: 'center' }}>Indicador de Tributos {periodLabel}</h3>
                             {renderTaxesGauge()}
                         </div>
                         {/* Card 3: Custos Operacionais */}
                         <div className="glass-card" style={{ padding: '1.5rem', background: '#ffffff', borderRadius: '12px', border: '1px solid #e2e8f0', boxShadow: '0 4px 6px rgba(0,0,0,0.02)', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-                            <h3 style={{ fontSize: '0.9rem', fontWeight: 800, color: '#0f172a', marginBottom: '1.25rem', width: '100%', textAlign: 'center' }}>Custos Operacionais (Jan-Jun)</h3>
+                            <h3 style={{ fontSize: '0.9rem', fontWeight: 800, color: '#0f172a', marginBottom: '1.25rem', width: '100%', textAlign: 'center' }}>Custos Operacionais {periodLabel}</h3>
                             {renderCostsGauge()}
                         </div>
                     </div>
@@ -2530,7 +2766,11 @@ export default function BudgetGrid({
                             <h3 style={{ fontSize: '0.9rem', fontWeight: 800, color: '#0f172a', marginBottom: '1.5rem' }}>Faturamento Mensal (Receita Bruta)</h3>
                             {(() => {
                                 let max = 0;
-                                precomputedDreTotals.forEach(m => max = Math.max(max, Math.abs(m.vRev.b), Math.abs(m.vRev.r)));
+                                precomputedDreTotals.forEach((m, idx) => {
+                                    if (idx >= startMonth && idx <= endMonth) {
+                                        max = Math.max(max, Math.abs(m.vRev.b), Math.abs(m.vRev.r));
+                                    }
+                                });
                                 const maxVal = max || 1;
                                 
                                 return (
@@ -2541,21 +2781,24 @@ export default function BudgetGrid({
                                             <div style={{ position: 'absolute', left: 0, right: 0, top: '50%', borderTop: '1px dashed #e2e8f0' }} />
                                             <div style={{ position: 'absolute', left: 0, right: 0, top: '75%', borderTop: '1px dashed #f1f5f9' }} />
                                             
-                                            {precomputedDreTotals.map((month, idx) => {
-                                                const bHeight = (Math.max(0, month.vRev.b) / maxVal) * 160;
-                                                const rHeight = idx <= currentMonthIdx ? (Math.max(0, month.vRev.r) / maxVal) * 160 : 0;
-                                                return (
-                                                    <div key={idx} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', flex: 1, zIndex: 1 }} title={`Meta: ${formatCurrency(month.vRev.b)}${idx <= currentMonthIdx ? ` | Realizado: ${formatCurrency(month.vRev.r)}` : ''}`}>
-                                                        <div style={{ display: 'flex', alignItems: 'flex-end', gap: '2px', height: '160px' }}>
-                                                            <div style={{ width: '10px', height: `${bHeight}px`, background: '#3b82f6', borderRadius: '2px 2px 0 0', transition: 'height 0.3s' }} />
-                                                            {idx <= currentMonthIdx && <div style={{ width: '10px', height: `${rHeight}px`, background: '#94a3b8', borderRadius: '2px 2px 0 0', transition: 'height 0.3s' }} />}
+                                            {precomputedDreTotals
+                                                .map((month, idx) => ({ month, idx }))
+                                                .filter(({ idx }) => idx >= startMonth && idx <= endMonth)
+                                                .map(({ month, idx }) => {
+                                                    const bHeight = (Math.max(0, month.vRev.b) / maxVal) * 160;
+                                                    const rHeight = idx <= currentMonthIdx ? (Math.max(0, month.vRev.r) / maxVal) * 160 : 0;
+                                                    return (
+                                                        <div key={idx} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', flex: 1, zIndex: 1 }} title={`Meta: ${formatCurrency(month.vRev.b)}${idx <= currentMonthIdx ? ` | Realizado: ${formatCurrency(month.vRev.r)}` : ''}`}>
+                                                            <div style={{ display: 'flex', alignItems: 'flex-end', gap: '2px', height: '160px' }}>
+                                                                <div style={{ width: '10px', height: `${bHeight}px`, background: '#3b82f6', borderRadius: '2px 2px 0 0', transition: 'height 0.3s' }} />
+                                                                {idx <= currentMonthIdx && <div style={{ width: '10px', height: `${rHeight}px`, background: '#94a3b8', borderRadius: '2px 2px 0 0', transition: 'height 0.3s' }} />}
+                                                            </div>
+                                                            <span style={{ fontSize: '0.65rem', fontWeight: 600, color: '#64748b', marginTop: '0.5rem' }}>
+                                                                {['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'][idx]}
+                                                            </span>
                                                         </div>
-                                                        <span style={{ fontSize: '0.65rem', fontWeight: 600, color: '#64748b', marginTop: '0.5rem' }}>
-                                                            {['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'][idx]}
-                                                        </span>
-                                                    </div>
-                                                );
-                                            })}
+                                                    );
+                                                })}
                                         </div>
                                         {/* Legend */}
                                         <div style={{ display: 'flex', gap: '1rem', fontSize: '0.7rem', color: '#64748b', marginTop: '0.5rem', justifyContent: 'center' }}>
@@ -2578,7 +2821,11 @@ export default function BudgetGrid({
                             <h3 style={{ fontSize: '0.9rem', fontWeight: 800, color: '#0f172a', marginBottom: '1.5rem' }}>Resultado Líquido Mensal (Lucro / Prejuízo)</h3>
                             {(() => {
                                 let max = 0;
-                                precomputedDreTotals.forEach(m => max = Math.max(max, Math.abs(m.vNetProfit.b), Math.abs(m.vNetProfit.r)));
+                                precomputedDreTotals.forEach((m, idx) => {
+                                    if (idx >= startMonth && idx <= endMonth) {
+                                        max = Math.max(max, Math.abs(m.vNetProfit.b), Math.abs(m.vNetProfit.r));
+                                    }
+                                });
                                 const maxVal = max || 1;
                                 
                                 return (
@@ -2589,49 +2836,52 @@ export default function BudgetGrid({
                                             <div style={{ position: 'absolute', left: 0, right: 0, top: '50%', borderTop: '1px dashed #cbd5e1', zIndex: 0 }} />
                                             <div style={{ position: 'absolute', left: 0, right: 0, top: '75%', borderTop: '1px dashed #f1f5f9' }} />
                                             
-                                            {precomputedDreTotals.map((month, idx) => {
-                                                const bVal = month.vNetProfit.b;
-                                                const rVal = idx <= currentMonthIdx ? month.vNetProfit.r : 0;
-                                                
-                                                const bHeight = (Math.abs(bVal) / maxVal) * 80;
-                                                const rHeight = idx <= currentMonthIdx ? (Math.abs(rVal) / maxVal) * 80 : 0;
- 
-                                                return (
-                                                    <div key={idx} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', flex: 1, height: '160px', position: 'relative', zIndex: 1 }} title={`Meta: ${formatCurrency(bVal)}${idx <= currentMonthIdx ? ` | Realizado: ${formatCurrency(month.vNetProfit.r)}` : ''}`}>
-                                                        {/* Bars wrapper */}
-                                                        <div style={{ position: 'absolute', top: '0', bottom: '0', left: '0', right: '0', display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
-                                                            <div style={{ display: 'flex', gap: '2px', height: '160px', position: 'relative', width: '22px' }}>
-                                                                {/* Budget Net Profit bar */}
-                                                                <div style={{ 
-                                                                    position: 'absolute',
-                                                                    width: '10px', 
-                                                                    height: `${bHeight}px`, 
-                                                                    background: bVal >= 0 ? '#10b981' : '#ef4444', 
-                                                                    borderRadius: bVal >= 0 ? '2px 2px 0 0' : '0 0 2px 2px',
-                                                                    top: bVal >= 0 ? `${80 - bHeight}px` : '80px',
-                                                                    left: '0px'
-                                                                }} />
-                                                                {/* Realized Net Profit bar */}
-                                                                {idx <= currentMonthIdx && (
+                                            {precomputedDreTotals
+                                                .map((month, idx) => ({ month, idx }))
+                                                .filter(({ idx }) => idx >= startMonth && idx <= endMonth)
+                                                .map(({ month, idx }) => {
+                                                    const bVal = month.vNetProfit.b;
+                                                    const rVal = idx <= currentMonthIdx ? month.vNetProfit.r : 0;
+                                                    
+                                                    const bHeight = (Math.abs(bVal) / maxVal) * 80;
+                                                    const rHeight = idx <= currentMonthIdx ? (Math.abs(rVal) / maxVal) * 80 : 0;
+  
+                                                    return (
+                                                        <div key={idx} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', flex: 1, height: '160px', position: 'relative', zIndex: 1 }} title={`Meta: ${formatCurrency(bVal)}${idx <= currentMonthIdx ? ` | Realizado: ${formatCurrency(month.vNetProfit.r)}` : ''}`}>
+                                                            {/* Bars wrapper */}
+                                                            <div style={{ position: 'absolute', top: '0', bottom: '0', left: '0', right: '0', display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
+                                                                <div style={{ display: 'flex', gap: '2px', height: '160px', position: 'relative', width: '22px' }}>
+                                                                    {/* Budget Net Profit bar */}
                                                                     <div style={{ 
                                                                         position: 'absolute',
                                                                         width: '10px', 
-                                                                        height: `${rHeight}px`, 
-                                                                        background: rVal >= 0 ? '#1d4ed8' : '#b91c1c', 
-                                                                        borderRadius: rVal >= 0 ? '2px 2px 0 0' : '0 0 2px 2px',
-                                                                        top: rVal >= 0 ? `${80 - rHeight}px` : '80px',
-                                                                        left: '12px'
+                                                                        height: `${bHeight}px`, 
+                                                                        background: bVal >= 0 ? '#10b981' : '#ef4444', 
+                                                                        borderRadius: bVal >= 0 ? '2px 2px 0 0' : '0 0 2px 2px',
+                                                                        top: bVal >= 0 ? `${80 - bHeight}px` : '80px',
+                                                                        left: '0px'
                                                                     }} />
-                                                                )}
+                                                                    {/* Realized Net Profit bar */}
+                                                                    {idx <= currentMonthIdx && (
+                                                                        <div style={{ 
+                                                                            position: 'absolute',
+                                                                            width: '10px', 
+                                                                            height: `${rHeight}px`, 
+                                                                            background: rVal >= 0 ? '#1d4ed8' : '#b91c1c', 
+                                                                            borderRadius: rVal >= 0 ? '2px 2px 0 0' : '0 0 2px 2px',
+                                                                            top: rVal >= 0 ? `${80 - rHeight}px` : '80px',
+                                                                            left: '12px'
+                                                                        }} />
+                                                                    )}
+                                                                </div>
                                                             </div>
+                                                            {/* Month label at the bottom of the container */}
+                                                            <span style={{ fontSize: '0.65rem', fontWeight: 600, color: '#64748b', position: 'absolute', bottom: '-20px' }}>
+                                                                {['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'][idx]}
+                                                            </span>
                                                         </div>
-                                                        {/* Month label at the bottom of the container */}
-                                                        <span style={{ fontSize: '0.65rem', fontWeight: 600, color: '#64748b', position: 'absolute', bottom: '-20px' }}>
-                                                            {['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'][idx]}
-                                                        </span>
-                                                    </div>
-                                                );
-                                            })}
+                                                    );
+                                                })}
                                         </div>
                                         {/* Legend */}
                                         <div style={{ display: 'flex', gap: '1rem', fontSize: '0.7rem', color: '#64748b', marginTop: '1.5rem', justifyContent: 'center' }}>

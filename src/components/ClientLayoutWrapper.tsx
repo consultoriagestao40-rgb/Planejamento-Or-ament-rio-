@@ -151,7 +151,7 @@ export default function ClientLayoutWrapper({ children }: { children: React.Reac
                     className="sidebar-logo"
                     style={{
                         justifyContent: isCollapsed ? 'center' : 'flex-start',
-                        padding: isCollapsed ? '1.8rem 0' : '1.8rem 1.8rem',
+                        padding: isCollapsed ? '1.2rem 0' : '1.2rem 1.2rem',
                         transition: 'padding 0.3s'
                     }}
                 >
@@ -168,7 +168,7 @@ export default function ClientLayoutWrapper({ children }: { children: React.Reac
                     )}
                 </div>
                 <nav style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
-                    <ul className="sidebar-menu" style={{ padding: isCollapsed ? '1.5rem 0.4rem' : '1.5rem 0.8rem', transition: 'padding 0.3s' }}>
+                    <ul className="sidebar-menu" style={{ padding: isCollapsed ? '0.8rem 0.4rem' : '0.8rem 0.8rem', transition: 'padding 0.3s' }}>
                         {menuItems.map((item, idx) => {
                             const isSelected = item.path === '/' 
                                 ? pathname === '/' 
@@ -182,7 +182,7 @@ export default function ClientLayoutWrapper({ children }: { children: React.Reac
                                             className="sidebar-item"
                                             style={{
                                                 justifyContent: isCollapsed ? 'center' : 'flex-start',
-                                                padding: isCollapsed ? '0.8rem 0' : '0.8rem 1.2rem',
+                                                padding: isCollapsed ? '0.45rem 0' : '0.45rem 1rem',
                                                 gap: isCollapsed ? '0' : '0.85rem',
                                                 transition: 'padding 0.3s, gap 0.3s'
                                             }}
@@ -209,7 +209,7 @@ export default function ClientLayoutWrapper({ children }: { children: React.Reac
                                         className={`sidebar-item ${isSelected ? 'active' : ''}`}
                                         style={{
                                             justifyContent: isCollapsed ? 'center' : 'flex-start',
-                                            padding: isCollapsed ? '0.8rem 0' : '0.8rem 1.2rem',
+                                            padding: isCollapsed ? '0.45rem 0' : '0.45rem 1rem',
                                             gap: isCollapsed ? '0' : '0.85rem',
                                             transition: 'padding 0.3s, gap 0.3s'
                                         }}
@@ -230,7 +230,7 @@ export default function ClientLayoutWrapper({ children }: { children: React.Reac
                         })}
                     </ul>
                 </nav>
-                <div className="sidebar-footer" style={{ padding: isCollapsed ? '1.5rem 0.4rem' : '1.5rem 1rem', transition: 'padding 0.3s' }}>
+                <div className="sidebar-footer" style={{ padding: isCollapsed ? '0.8rem 0.4rem' : '0.8rem 1rem', transition: 'padding 0.3s' }}>
                     <button 
                         onClick={handleLogout}
                         className="sidebar-item" 
@@ -242,7 +242,7 @@ export default function ClientLayoutWrapper({ children }: { children: React.Reac
                             display: 'flex', 
                             alignItems: 'center', 
                             justifyContent: isCollapsed ? 'center' : 'flex-start',
-                            padding: isCollapsed ? '0.8rem 0' : '0.8rem 1.2rem',
+                            padding: isCollapsed ? '0.45rem 0' : '0.45rem 1rem',
                             gap: isCollapsed ? '0' : '0.75rem',
                             transition: 'padding 0.3s, gap 0.3s'
                         }}

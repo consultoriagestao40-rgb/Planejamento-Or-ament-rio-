@@ -2340,7 +2340,7 @@ export default function BudgetGrid({
                         </thead>
                     </table>
 
-                    <div style={{ width: 'max-content', display: 'flex', flexDirection: 'column', gap: '20px', marginTop: '12px' }}>
+                    <div style={{ width: 'max-content', display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '6px' }}>
                         
                         {/* Card 1: Receitas */}
                         <div style={{

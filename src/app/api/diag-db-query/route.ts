@@ -12,23 +12,55 @@ export async function GET() {
 
         const jvsTrat = tenants.find(t => t.name.toUpperCase().includes('TRATMENTOS') || t.name.toUpperCase().includes('TRATAMENTOS'));
         
-        let simulation: any = {};
+        let contractsOutput: any = {};
 
         if (jvsTrat) {
-            const categories = await prisma.category.findMany({
-                orderBy: { name: 'asc' }
-            });
+            const targetTenantIds = [jvsTrat.id];
+            const year = 2026;
+            const startMonth = 0;
+            const endMonth = 11;
+            const viewMode = 'competencia';
+
             const isRevenueCategory = (name: string) => {
                 const cleanCode = (name.match(/^(\d{1,2}(?:\.\d+)*)/) || [])[1] || '';
                 return cleanCode.startsWith('01') || cleanCode === '1';
             };
-            const revenueCategories = categories.filter(c => isRevenueCategory(c.name));
-            const compRevCategories = revenueCategories.filter(c => c.tenantId === jvsTrat.id);
 
-            // Compute realizedValues like /api/sync
-            const realizedRaw = await prisma.realizedEntry.findMany({
-                where: { tenantId: jvsTrat.id, year: 2026, viewMode: 'competencia' }
+            const categories = await prisma.category.findMany({
+                where: { tenantId: { in: targetTenantIds } },
+                select: { id: true, name: true }
             });
+            const revenueCategoryIds = categories
+                .filter(c => isRevenueCategory(c.name))
+                .map(c => c.id);
+
+            const [realizedRaw, realizedAnnualRaw, budgetRaw] = await Promise.all([
+                prisma.realizedEntry.findMany({
+                    where: {
+                        tenantId: { in: targetTenantIds },
+                        categoryId: { in: revenueCategoryIds },
+                        year,
+                        month: { gte: startMonth + 1, lte: endMonth + 1 },
+                        viewMode
+                    }
+                }),
+                prisma.realizedEntry.findMany({
+                    where: {
+                        tenantId: { in: targetTenantIds },
+                        categoryId: { in: revenueCategoryIds },
+                        year,
+                        viewMode
+                    }
+                }),
+                prisma.budgetEntry.findMany({
+                    where: {
+                        tenantId: { in: targetTenantIds },
+                        categoryId: { in: revenueCategoryIds },
+                        year,
+                        month: { gte: startMonth + 1, lte: endMonth + 1 }
+                    }
+                })
+            ]);
 
             const syncedMonths = new Set<string>();
             realizedRaw.forEach(e => {
@@ -45,46 +77,80 @@ export async function GET() {
                 return true;
             });
 
-            const realizedValues: Record<string, number> = {};
-            realizedEntries.forEach(e => {
-                const idKey = `realized-${e.categoryId}-${e.month - 1}`;
-                realizedValues[idKey] = (realizedValues[idKey] || 0) + e.amount;
-            });
-
-            // Simulate the lookup
-            const lookups: any[] = [];
-            let totalRealized = 0;
-            compRevCategories.forEach(cat => {
-                for (let m = 0; m <= 11; m++) {
-                    const lookupKey = `realized-${cat.id}-${m}`;
-                    const val = realizedValues[lookupKey] || 0;
-                    if (val > 0) {
-                        totalRealized += val;
-                        lookups.push({
-                            catId: cat.id,
-                            catName: cat.name,
-                            month: m,
-                            lookupKey,
-                            val
-                        });
-                    }
+            const syncedAnnualMonths = new Set<string>();
+            realizedAnnualRaw.forEach(e => {
+                if (e.externalId && e.externalId.startsWith('sync-')) {
+                    syncedAnnualMonths.add(`${e.year}|${e.month}`);
                 }
             });
 
-            simulation = {
-                compRevCategoriesCount: compRevCategories.length,
-                compRevCategories: compRevCategories.map(c => ({ id: c.id, name: c.name })),
-                realizedValuesKeysCount: Object.keys(realizedValues).length,
-                realizedValuesKeysSample: Object.keys(realizedValues).slice(0, 15),
-                lookupsMatched: lookups,
-                totalRealized
+            const realizedAnnualEntries = realizedAnnualRaw.filter(e => {
+                const key = `${e.year}|${e.month}`;
+                if (syncedAnnualMonths.has(key)) {
+                    return e.externalId && e.externalId.startsWith('sync-');
+                }
+                return true;
+            });
+
+            let totalBudget = budgetRaw.reduce((sum, b) => sum + b.amount, 0);
+            let totalRealized = realizedEntries.reduce((sum, r) => sum + r.amount, 0);
+            let totalAnnualRealized = realizedAnnualEntries.reduce((sum, r) => sum + r.amount, 0);
+
+            const customerMap = new Map<string, { total: number; monthly: Record<number, number> }>();
+
+            const normalizeCustomerName = (name: string): string => {
+                return (name || 'Sem Cliente/Outros')
+                    .replace(/^\[INATIVO\]\s*/i, '')
+                    .replace(/^ENCERRADO\s*/i, '')
+                    .trim();
+            };
+
+            realizedEntries.forEach(r => {
+                const customerName = normalizeCustomerName(r.customer || r.description || 'Sem Cliente/Outros');
+                const monthIdx = r.month - 1; // 0-indexed month
+                
+                if (!customerMap.has(customerName)) {
+                    customerMap.set(customerName, { total: 0, monthly: {} });
+                }
+                
+                const data = customerMap.get(customerName)!;
+                data.total += r.amount;
+                data.monthly[monthIdx] = (data.monthly[monthIdx] || 0) + r.amount;
+            });
+
+            const contracts = Array.from(customerMap.entries())
+                .map(([name, data]) => {
+                    const totalInThousands = data.total / 1000;
+                    const percentageOfBudget = totalBudget > 0 ? (data.total / totalBudget) * 100 : 0;
+                    
+                    const monthlyInThousands: Record<number, number> = {};
+                    Object.entries(data.monthly).forEach(([m, val]) => {
+                        monthlyInThousands[parseInt(m)] = val / 1000;
+                    });
+
+                    return {
+                        name,
+                        value: totalInThousands,
+                        percentage: percentageOfBudget,
+                        monthlyValues: monthlyInThousands
+                    };
+                })
+                .filter(c => c.value > 0)
+                .sort((a, b) => b.value - a.value);
+
+            contractsOutput = {
+                contractsCount: contracts.length,
+                totalBudget,
+                totalRealized,
+                totalAnnualRealized,
+                contracts: contracts.slice(0, 10)
             };
         }
 
         return NextResponse.json({
             success: true,
             jvsTrat,
-            simulation
+            contractsOutput
         });
     } catch (e: any) {
         return NextResponse.json({ success: false, error: e.message });

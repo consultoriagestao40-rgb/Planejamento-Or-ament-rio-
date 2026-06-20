@@ -12,23 +12,18 @@ export async function GET() {
 
         const jvsTrat = tenants.find(t => t.name.toUpperCase().includes('TRATMENTOS') || t.name.toUpperCase().includes('TRATAMENTOS'));
         
-        let sampleBudget = null;
-        let sampleRealized = null;
-
+        let categories = [];
         if (jvsTrat) {
-            sampleBudget = await prisma.budgetEntry.findFirst({
-                where: { tenantId: jvsTrat.id }
-            });
-            sampleRealized = await prisma.realizedEntry.findFirst({
-                where: { tenantId: jvsTrat.id }
+            categories = await prisma.category.findMany({
+                where: { tenantId: jvsTrat.id },
+                select: { id: true, name: true, type: true }
             });
         }
 
         return NextResponse.json({
             success: true,
             jvsTrat,
-            sampleBudget,
-            sampleRealized
+            categories
         });
     } catch (e: any) {
         return NextResponse.json({ success: false, error: e.message });

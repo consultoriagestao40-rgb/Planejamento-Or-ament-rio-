@@ -151,8 +151,8 @@ export async function GET() {
         const rawSalariesEntries = await prisma.realizedEntry.findMany({
             where: {
                 tenantId: jvsFac.id,
-                year,
-                viewMode,
+                year: 2026,
+                viewMode: 'competencia',
                 categoryId: { in: ['0f74ee3e-ed1e-4df8-9672-270873dc22b9', 'dc2b6eed-a38a-43c3-9465-ce854bfda90f:0f74ee3e-ed1e-4df8-9672-270873dc22b9'] }
             },
             select: {

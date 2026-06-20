@@ -119,7 +119,7 @@ export default function BudgetGrid({
     const [isCustosExpanded, setIsCustosExpanded] = useState(true);
     const [isResultadosExpanded, setIsResultadosExpanded] = useState(true);
 
-    const highlightedMonth = new Date().getFullYear() === selectedYear ? new Date().getMonth() - 1 : 4;
+    const highlightedMonth = -1; // Desativar destaque de mês vigente
 
     // --- Realized Justification State ---
     const [justificationModal, setJustificationModal] = useState<{ categoryId: string, month: number, categoryName: string, tenantId: string, costCenterId: string | null } | null>(null);
@@ -1600,7 +1600,7 @@ export default function BudgetGrid({
 
     const renderSummaryRow = (label: string, validx: keyof ReturnType<typeof dreStructure.calculateTotals>, isBold = false, groupId?: string) => {
         const isGroupExpanded = groupId ? expandedGroups.has(groupId) : true;
-        const isLucroLiquido = label.includes('LUCRO LÍQUIDO');
+        const isLucroLiquido = false;
 
         return (
             <tr 

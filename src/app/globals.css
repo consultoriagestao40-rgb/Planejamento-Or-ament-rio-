@@ -523,7 +523,7 @@ select.premium-select:focus {
 /* INTERSECTION: Top-left cell remains fixed on both axes */
 .spreadsheet-table thead th.sticky-col {
   z-index: 40;
-  background-color: #f1f5f9 !important;
+  background-color: #e6f2fd !important;
   top: 0;
 }
 
@@ -531,7 +531,7 @@ select.premium-select:focus {
   position: sticky;
   top: 0;
   z-index: 30;
-  background-color: #f1f5f9;
+  background-color: #e6f2fd;
 }
 
 /* Force solid background for all rows to prevent transparency leak */

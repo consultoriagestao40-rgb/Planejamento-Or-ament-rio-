@@ -1279,14 +1279,15 @@ export default function BudgetGrid({
                             transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
                             width: '400px',
                             minWidth: '400px',
-                            maxWidth: '400px'
+                            maxWidth: '400px',
+                            fontSize: '0.92rem'
                         }}
                     >
-                        <div style={{ display: 'flex', alignItems: 'center', color: isInteractiveTree ? '#0f172a' : '#475569' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', color: isInteractiveTree ? '#0f172a' : '#1e293b' }}>
                             {isInteractiveTree && (
                                 <span style={{ 
                                     marginRight: '0.65rem', 
-                                    fontSize: '0.7rem', 
+                                    fontSize: '0.8rem', 
                                     color: hasCompositionChildren ? '#8b5cf6' : '#3b82f6', 
                                     width: '1rem',
                                     display: 'inline-flex',
@@ -1520,7 +1521,7 @@ export default function BudgetGrid({
 
                     return Array.from(allItemNames).sort().map(itemName => (
                         <tr key={`${node.id}-${itemName}`} style={{ background: 'rgba(241, 245, 249, 0.4)' }}>
-                            <td className="sticky-col" style={{ paddingLeft: `${2.5 + (node.level * 1.75)}rem`, fontSize: '0.84rem', fontStyle: 'italic', color: '#64748b', borderBottom: '1px solid #f1f5f9', width: '400px', minWidth: '400px', maxWidth: '400px' }}>
+                            <td className="sticky-col" style={{ paddingLeft: `${2.5 + (node.level * 1.75)}rem`, fontSize: '0.9rem', color: '#334155', borderBottom: '1px solid #f1f5f9', width: '400px', minWidth: '400px', maxWidth: '400px' }}>
                                 <div style={{ display: 'flex', alignItems: 'center' }}>
                                     <span style={{ marginRight: '0.5rem', color: '#cbd5e1' }}>└</span>
                                     {itemName}
@@ -1530,18 +1531,18 @@ export default function BudgetGrid({
                                 const val = itemsMap.get(itemName)?.[i] || 0;
                                 return (
                                     <React.Fragment key={i}>
-                                        <td className="spreadsheet-value" style={{ fontSize: '0.84rem', color: '#64748b', borderLeft: '2px solid #e2e8f0', borderBottom: '1px solid #f1f5f9', width: '100px', minWidth: '100px', maxWidth: '100px' }}>
+                                        <td className="spreadsheet-value" style={{ fontSize: '0.9rem', color: '#334155', borderLeft: '2px solid #e2e8f0', borderBottom: '1px solid #f1f5f9', width: '100px', minWidth: '100px', maxWidth: '100px' }}>
                                             {val === 0 ? '-' : formatCurrency(val)}
                                         </td>
                                         {showAV && <td className="spreadsheet-value" style={{ color: 'transparent', fontSize: '0.7rem', width: '60px', minWidth: '60px', maxWidth: '60px' }}>-</td>}
-                                        <td className="spreadsheet-value" style={{ fontSize: '0.84rem', color: 'transparent', width: '110px', minWidth: '110px', maxWidth: '110px' }}>-</td>
+                                        <td className="spreadsheet-value" style={{ fontSize: '0.9rem', color: 'transparent', width: '110px', minWidth: '110px', maxWidth: '110px' }}>-</td>
                                         {showAV && <td className="spreadsheet-value" style={{ color: 'transparent', width: '60px', minWidth: '60px', maxWidth: '60px' }}>-</td>}
                                         {showAH && <td className="spreadsheet-value" style={{ color: 'transparent', width: '70px', minWidth: '70px', maxWidth: '70px' }}>-</td>}
                                         {showAH_MoM && <td className="spreadsheet-value" style={{ color: 'transparent', width: '70px', minWidth: '70px', maxWidth: '70px' }}>-</td>}
                                     </React.Fragment>
                                 );
                             })}
-                            <td className="spreadsheet-value" style={{ background: 'rgba(241, 245, 249, 0.6)', fontSize: '0.84rem', fontWeight: 600, color: '#475569' }}>
+                            <td className="spreadsheet-value" style={{ background: 'rgba(241, 245, 249, 0.6)', fontSize: '0.9rem', fontWeight: 600, color: '#1e293b' }}>
                                 {formatCurrency(Array.from(Object.values(itemsMap.get(itemName) || {})).reduce((a, b) => a + b, 0))}
                             </td>
                         </tr>

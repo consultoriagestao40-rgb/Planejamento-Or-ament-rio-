@@ -535,36 +535,36 @@ select.premium-select:focus {
 }
 
 /* Force solid background for all rows to prevent transparency leak */
-.spreadsheet-table tr {
+.spreadsheet-table tbody tr {
   background-color: #ffffff;
 }
 
-.spreadsheet-table tr:nth-child(even) {
+.spreadsheet-table tbody tr:nth-child(even) {
   background-color: #f8fafc; /* Very light slate for zebra effect */
 }
 
 /* Ensure sticky columns in even rows also get the zebra color */
-.spreadsheet-table tr:nth-child(even) .sticky-col {
+.spreadsheet-table tbody tr:nth-child(even) .sticky-col {
   background-color: #f8fafc !important;
 }
 
 /* Base sticky-col background for odd rows */
-.spreadsheet-table tr:nth-child(odd) .sticky-col {
+.spreadsheet-table tbody tr:nth-child(odd) .sticky-col {
   background-color: #ffffff !important;
 }
 
-.spreadsheet-table tr.spreadsheet-summary-row,
-.spreadsheet-table tr.spreadsheet-summary-row .sticky-col {
+.spreadsheet-table tbody tr.spreadsheet-summary-row,
+.spreadsheet-table tbody tr.spreadsheet-summary-row .sticky-col {
   background-color: #eff6ff !important; /* Light blue for summaries */
 }
 
-.spreadsheet-table tr.spreadsheet-group-header,
-.spreadsheet-table tr.spreadsheet-group-header .sticky-col {
-  background-color: #f1f5f9 !important;
+.spreadsheet-table tbody tr.spreadsheet-group-header,
+.spreadsheet-table tbody tr.spreadsheet-group-header .sticky-col {
+  background-color: #e6f2fd !important; /* Blue background for group headers */
 }
 
-.spreadsheet-table tr:hover,
-.spreadsheet-table tr:hover .sticky-col {
+.spreadsheet-table tbody tr:hover,
+.spreadsheet-table tbody tr:hover .sticky-col {
   background-color: #f1f5f9 !important;
 }
 
@@ -582,7 +582,7 @@ select.premium-select:focus {
 }
 
 .spreadsheet-group-header {
-  background: #f1f5f9 !important;
+  background: #e6f2fd !important;
   font-weight: 700;
   color: var(--accent-blue);
 }

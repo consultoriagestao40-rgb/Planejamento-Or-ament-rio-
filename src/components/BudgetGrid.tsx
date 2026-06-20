@@ -1855,43 +1855,7 @@ export default function BudgetGrid({
                         )}
                     </div>
 
-                    {/* Mini-Chart Widget from mockup */}
-                    {!loading && !isExternalLoading && precomputedDreTotals.length > 0 && (
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', background: 'var(--bg-surface)', padding: '4px 10px', borderRadius: '8px', border: '1px solid var(--border-subtle)', marginLeft: '0.5rem', height: '32px' }}>
-                            <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'space-between', height: '24px', fontSize: '6px', color: '#94a3b8', paddingRight: '2px', textAlign: 'right', fontFamily: 'monospace', lineHeight: 1.1 }}>
-                                <span>{(() => {
-                                    let max = 0;
-                                    precomputedDreTotals.forEach(m => max = Math.max(max, Math.abs(m.vRev.b), Math.abs(m.vRev.r)));
-                                    if (max >= 1000000) return `${(max / 1000000).toFixed(0)}M`;
-                                    if (max >= 1000) return `${(max / 1000).toFixed(0)}k`;
-                                    return max.toFixed(0);
-                                })()}</span>
-                                <span>0</span>
-                            </div>
-                            <div style={{ display: 'flex', alignItems: 'flex-end', gap: '3px', height: '24px' }}>
-                                {(() => {
-                                    let max = 0;
-                                    precomputedDreTotals.forEach(m => max = Math.max(max, Math.abs(m.vRev.b), Math.abs(m.vRev.r)));
-                                    const maxVal = max || 1;
-                                    
-                                    return precomputedDreTotals.map((month, idx) => {
-                                        const bHeight = Math.min(22, (Math.max(0, month.vRev.b) / maxVal) * 22);
-                                        const rHeight = Math.min(22, (Math.max(0, month.vRev.r) / maxVal) * 22);
-                                        const showLabel = idx % 2 === 0;
-                                        
-                                        return (
-                                            <div key={idx} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', width: '8px' }} title={`${['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'][idx]}: Orçado ${formatCurrency(month.vRev.b)} | Realizado ${formatCurrency(month.vRev.r)}`}>
-                                                <div style={{ display: 'flex', alignItems: 'flex-end', gap: '1px', height: '22px' }}>
-                                                    <div style={{ width: '3px', height: `${bHeight}px`, background: '#3b82f6', borderRadius: '0.5px' }} />
-                                                    <div style={{ width: '3px', height: `${rHeight}px`, background: '#cbd5e1', borderRadius: '0.5px' }} />
-                                                </div>
-                                            </div>
-                                        );
-                                    });
-                                })()}
-                            </div>
-                        </div>
-                    )}
+
                 </div>
 
                 <div style={{ width: '1px', height: '24px', background: 'var(--border-subtle)' }} />

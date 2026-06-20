@@ -1,5 +1,5 @@
 import { prisma } from './prisma';
-import { syncRealizedEntries, syncMasterData } from './services';
+import { syncRealizedEntries, syncMasterData, syncBankAccounts, syncOpenCommitments, getValidAccessToken } from './services';
 
 /**
  * Orquestrador do Cron Sync com suporte a intervalo de meses.
@@ -32,6 +32,16 @@ export async function runCronSync(
             // Sincroniza Metadados (Categorias e Centros de Custo)
             pushLog(`[SYNC] [${t.name}] Sincronizando estrutura (Categorias/CCs)...`);
             await syncMasterData(t.id);
+
+            const { token: accessToken } = await getValidAccessToken(t.id);
+
+            // Sincroniza Contas Bancárias (Saldos)
+            pushLog(`[SYNC] [${t.name}] Sincronizando contas bancárias (saldos)...`);
+            await syncBankAccounts(t.id, accessToken);
+
+            // Sincroniza Títulos em Aberto (CAR e CAP previstos)
+            pushLog(`[SYNC] [${t.name}] Sincronizando títulos em aberto (previstos)...`);
+            await syncOpenCommitments(t.id, accessToken, reqYear);
 
             // Sincroniza Competência — apenas meses solicitados
             pushLog(`[SYNC] [${t.name}] Sincronizando Competência (meses ${startMonth}→${endMonth})...`);

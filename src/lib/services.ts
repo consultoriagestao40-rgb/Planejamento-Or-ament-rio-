@@ -1091,3 +1091,268 @@ async function addRetentionsFromSales(accessToken: string, tenantId: string, yea
         else pagina++;
     }
 }
+
+export async function syncBankAccounts(tenantId: string, accessToken: string) {
+    console.log(`[Sync Bank Accounts] Sincronizando contas financeiras para tenant ${tenantId}...`);
+    try {
+        const res = await fetch('https://api-v2.contaazul.com/v1/contas-financeiras', {
+            headers: { 'Authorization': `Bearer ${accessToken}` },
+            cache: 'no-store'
+        });
+        if (!res.ok) {
+            const errBody = await res.text().catch(() => '');
+            throw new Error(`[Conta Azul API] contas-financeiras retornou ${res.status}: ${errBody}`);
+        }
+        const data = await res.json();
+        const items = Array.isArray(data) ? data : (data.itens || []);
+        
+        for (const item of items) {
+            const balance = item.saldo_atual !== undefined ? item.saldo_atual : (item.saldo !== undefined ? item.saldo : 0);
+            await (prisma.bankAccount as any).upsert({
+                where: { id: item.id },
+                update: {
+                    name: item.name || 'Conta Bancária',
+                    balance: parseFloat(balance.toString()),
+                },
+                create: {
+                    id: item.id,
+                    name: item.name || 'Conta Bancária',
+                    balance: parseFloat(balance.toString()),
+                    tenantId
+                }
+            });
+        }
+        console.log(`[Sync Bank Accounts] Sincronizadas ${items.length} contas financeiras.`);
+    } catch (err: any) {
+        console.error(`[Sync Bank Accounts] Erro:`, err.message);
+        throw err;
+    }
+}
+
+export async function syncOpenCommitments(tenantId: string, accessToken: string, year: number) {
+    console.log(`[Sync Open Commitments] Sincronizando contas a receber/pagar previstas para tenant ${tenantId} (ano de vencimento: ${year-1} a ${year+2})...`);
+    
+    // Deletar previsto_receber e previsto_pagar antigos
+    await prisma.realizedEntry.deleteMany({
+        where: {
+            tenantId,
+            viewMode: { in: ['previsto_receber', 'previsto_pagar'] }
+        }
+    });
+
+    const entriesToSave: any[] = [];
+    const startStr = `${year - 1}-01-01`;
+    const endStr = `${year + 2}-12-31`;
+
+    // 1. Contas a Receber (Em aberto)
+    const recUrl = `https://api-v2.contaazul.com/v1/financeiro/eventos-financeiros/contas-a-receber/buscar?status=OPEN&data_vencimento_de=${startStr}&data_vencimento_ate=${endStr}&tamanho_pagina=100`;
+    await collectOpenTransactions(accessToken, recUrl, entriesToSave, false, tenantId);
+
+    // 2. Contas a Receber (Perdas / LOST) - opcional para trazer inadimplências
+    const lostUrl = `https://api-v2.contaazul.com/v1/financeiro/eventos-financeiros/contas-a-receber/buscar?status=LOST&data_vencimento_de=${startStr}&data_vencimento_ate=${endStr}&tamanho_pagina=100`;
+    await collectOpenTransactions(accessToken, lostUrl, entriesToSave, false, tenantId, true);
+
+    // 3. Contas a Pagar (Em aberto)
+    const payUrl = `https://api-v2.contaazul.com/v1/financeiro/eventos-financeiros/contas-a-pagar/buscar?status=OPEN&data_vencimento_de=${startStr}&data_vencimento_ate=${endStr}&tamanho_pagina=100`;
+    await collectOpenTransactions(accessToken, payUrl, entriesToSave, true, tenantId);
+
+    if (entriesToSave.length > 0) {
+        // Garantir FK de Cost Center
+        const ccIds = Array.from(new Set(entriesToSave.map(e => e.costCenterId).filter(Boolean)));
+        for (const ccId of ccIds) {
+            const exists = await prisma.costCenter.findUnique({ where: { id: ccId } });
+            if (!exists) {
+                await prisma.costCenter.create({
+                    data: {
+                        id: ccId,
+                        name: `Não Identificado (${ccId.substring(0, 8)})`,
+                        tenantId
+                    }
+                });
+            }
+        }
+
+        // Garantir FK de Category
+        const catIds = Array.from(new Set(entriesToSave.map(e => e.categoryId).filter(Boolean)));
+        for (const catId of catIds) {
+            const exists = await prisma.category.findUnique({ where: { id: catId } });
+            if (!exists) {
+                await prisma.category.create({
+                    data: {
+                        id: catId,
+                        name: `Outras Despesas (${catId.substring(0, 8)})`,
+                        tenantId,
+                        type: 'OTHER'
+                    }
+                });
+            }
+        }
+
+        await prisma.realizedEntry.createMany({
+            data: entriesToSave,
+            skipDuplicates: true
+        });
+    }
+
+    console.log(`[Sync Open Commitments] Concluído. Salvos ${entriesToSave.length} registros previstos.`);
+}
+
+async function collectOpenTransactions(
+    accessToken: string,
+    url: string,
+    entries: any[],
+    isExpense: boolean,
+    tenantId: string,
+    isLost: boolean = false
+) {
+    let pagina = 1;
+    let hasMore = true;
+    const viewMode = isExpense ? 'previsto_pagar' : 'previsto_receber';
+
+    while (hasMore) {
+        const pagedUrl = `${url}&pagina=${pagina}`;
+        const res = await fetch(pagedUrl, {
+            headers: { 'Authorization': `Bearer ${accessToken}` },
+            cache: 'no-store'
+        });
+        if (!res.ok) {
+            const errBody = await res.text().catch(() => '');
+            console.error(`[Sync Open Commitments] Erro ao buscar títulos: status ${res.status}: ${errBody}`);
+            break;
+        }
+        const data = await res.json();
+        const items = data.itens || [];
+        if (items.length === 0) break;
+
+        for (const item of items) {
+            const categories = item.categorias || (item.categoria ? [item.categoria] : []);
+            const amount = item.valor_total || item.total || item.valor || 0;
+            const dateStr = item.data_vencimento || item.due_date;
+            if (!dateStr) continue;
+
+            const dateObj = new Date(dateStr);
+            const clientName = (item.cliente?.nome || item.fornecedor?.nome || '').trim();
+            const description = (item.descricao || item.description || (isLost ? 'Inadimplência / Perda' : '')).trim();
+
+            const ccs = item.centros_de_custo || [];
+            
+            // Tratamento de Rateio
+            if (categories.length > 1 && item.id) {
+                try {
+                    const detailUrl = `https://api-v2.contaazul.com/v1/financeiro/eventos-financeiros/parcelas/${item.id}`;
+                    const detailRes = await fetch(detailUrl, {
+                        headers: { 'Authorization': `Bearer ${accessToken}` },
+                        cache: 'no-store'
+                    });
+                    if (detailRes.ok) {
+                        const detailData = await detailRes.json();
+                        const rateios = detailData.evento?.rateio || detailData.rateio || [];
+                        if (rateios.length > 0) {
+                            let ratIdx = 0;
+                            for (const rat of rateios) {
+                                let catId = rat.id_categoria;
+                                if (!catId) continue;
+
+                                if (tenantId === 'dc2b6eed-a38a-43c3-9465-ce854bfda90f') {
+                                    const mapping: Record<string, string> = {
+                                        'a5e9a3c0-464b-4ee8-97c2-41589c16cb39': 'dc2b6eed-a38a-43c3-9465-ce854bfda90f:ff1133d9-438c-418f-9fbd-7aaea606c089',
+                                        'df8e2be4-bc1a-43e6-abcf-e11bdc2166f6': 'dc2b6eed-a38a-43c3-9465-ce854bfda90f:cb3d9d47-39e8-4121-ae9b-85a2de798f0f',
+                                        'c3c491af-26f8-4260-9958-64222c73dffd': 'dc2b6eed-a38a-43c3-9465-ce854bfda90f:2093bcb6-0696-4eb3-81ba-54b4bf32d6df',
+                                        '23b9c662-feca-4284-a11d-39bce5c233fc': 'dc2b6eed-a38a-43c3-9465-ce854bfda90f:0f74ee3e-ed1e-4df8-9672-270873dc22b9',
+                                    };
+                                    if (mapping[catId]) catId = mapping[catId];
+                                }
+                                if (!catId.startsWith(tenantId) && catId.length < 36) {
+                                    catId = `${tenantId}:${catId}`;
+                                }
+
+                                const catValue = rat.valor || (amount / rateios.length);
+                                const ratCcs = rat.rateio_centro_custo || [];
+
+                                const addEntry = (ccId: string | null, val: number, suffix: string) => {
+                                    entries.push({
+                                        tenantId,
+                                        categoryId: catId,
+                                        costCenterId: ccId,
+                                        month: dateObj.getMonth() + 1,
+                                        year: dateObj.getFullYear(),
+                                        amount: val,
+                                        viewMode,
+                                        externalId: `sync-${tenantId}-${item.id}-prev-split-${ratIdx}-${suffix}`,
+                                        description: description || `Rateio Previsto`,
+                                        customer: clientName || null,
+                                        date: dateObj
+                                    });
+                                };
+
+                                if (ratCcs.length === 0) {
+                                    addEntry(null, catValue, 'NONE');
+                                } else {
+                                    ratCcs.forEach((rc: any) => {
+                                        const ccId = rc.id_centro_custo;
+                                        const percent = (rc.percentual || (100 / ratCcs.length)) / 100;
+                                        addEntry(ccId, catValue * percent, ccId || 'NONE');
+                                    });
+                                }
+                                ratIdx++;
+                            }
+                            continue;
+                        }
+                    }
+                } catch (err) {
+                    console.warn(`[Sync Open Commitments] Erro ao carregar parcelas rateadas para ${item.id}:`, err);
+                }
+            }
+
+            // Caso sem rateio complexo
+            const catToUse = categories[0] || {};
+            let catId = catToUse.id || catToUse.categoria_id;
+            if (!catId) {
+                // Default fallback categories
+                catId = isExpense ? `${tenantId}:other-expense` : `${tenantId}:other-revenue`;
+            }
+
+            if (tenantId === 'dc2b6eed-a38a-43c3-9465-ce854bfda90f') {
+                const mapping: Record<string, string> = {
+                    'a5e9a3c0-464b-4ee8-97c2-41589c16cb39': 'dc2b6eed-a38a-43c3-9465-ce854bfda90f:ff1133d9-438c-418f-9fbd-7aaea606c089',
+                    'df8e2be4-bc1a-43e6-abcf-e11bdc2166f6': 'dc2b6eed-a38a-43c3-9465-ce854bfda90f:cb3d9d47-39e8-4121-ae9b-85a2de798f0f',
+                    'c3c491af-26f8-4260-9958-64222c73dffd': 'dc2b6eed-a38a-43c3-9465-ce854bfda90f:2093bcb6-0696-4eb3-81ba-54b4bf32d6df',
+                    '23b9c662-feca-4284-a11d-39bce5c233fc': 'dc2b6eed-a38a-43c3-9465-ce854bfda90f:0f74ee3e-ed1e-4df8-9672-270873dc22b9',
+                };
+                if (mapping[catId]) catId = mapping[catId];
+            }
+            if (!catId.startsWith(tenantId) && catId.length < 36) {
+                catId = `${tenantId}:${catId}`;
+            }
+
+            const addEntryDirect = (ccId: string | null, val: number, suffix: string) => {
+                entries.push({
+                    tenantId,
+                    categoryId: catId,
+                    costCenterId: ccId,
+                    month: dateObj.getMonth() + 1,
+                    year: dateObj.getFullYear(),
+                    amount: val,
+                    viewMode,
+                    externalId: `sync-${tenantId}-${item.id}-${catId}-${suffix}-${isLost ? 'lost' : 'open'}`,
+                    description: description || `Título Previsto`,
+                    customer: clientName || null,
+                    date: dateObj
+                });
+            };
+
+            if (ccs.length === 0) {
+                addEntryDirect(null, amount, 'NONE');
+            } else {
+                ccs.forEach((c: any) => {
+                    const ccId = c.id;
+                    const percent = (c.percentual || (100 / ccs.length)) / 100;
+                    addEntryDirect(ccId, amount * percent, ccId || 'NONE');
+                });
+            }
+        }
+
+        if (items.length < 100) hasMore = false;
+        else pagina++;
+    }
+}

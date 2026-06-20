@@ -27,6 +27,7 @@ model Tenant {
   locks        CostCenterLock[]
   radarLocks   RadarLock[]
   justifications RealizedJustification[]
+  bankAccounts BankAccount[]
 }
 
 model RadarLock {
@@ -221,4 +222,14 @@ model RealizedJustification {
 enum Role {
   MASTER
   GESTOR
+}
+
+model BankAccount {
+  id        String   @id // ID da Conta Financeira no Conta Azul (UUID)
+  name      String
+  balance   Float
+  tenantId  String
+  updatedAt DateTime @updatedAt
+  
+  tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 }

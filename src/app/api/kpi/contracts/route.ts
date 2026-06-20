@@ -50,7 +50,11 @@ export async function GET(request: Request) {
         });
         const revenueCategoryIds = categories
             .filter(c => isRevenueCategory(c.name))
-            .map(c => c.id);
+            .flatMap(c => {
+                const parts = c.id.split(':');
+                const cleanId = parts.length > 1 ? parts[1] : c.id;
+                return [c.id, cleanId];
+            });
 
         if (revenueCategoryIds.length === 0) {
             return NextResponse.json({ success: true, contracts: [], totalBudget: 0, totalRealized: 0, totalAnnualRealized: 0, monthlyBudgets: {} });

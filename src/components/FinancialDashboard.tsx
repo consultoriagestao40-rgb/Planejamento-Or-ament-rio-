@@ -29,7 +29,7 @@ export default function FinancialDashboard({
     const [showAR, setShowAR] = useState(false);
     const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
     const [userRole, setUserRole] = useState<'MASTER' | 'GESTOR'>((serverUserRole as 'MASTER' | 'GESTOR') || 'GESTOR');
-    const [activeTab, setActiveTab] = useState<'visao' | 'graficos'>('visao');
+    const [activeTab, setActiveTab] = useState<'visao' | 'graficos' | 'kpi'>('visao');
     const [searchQuery, setSearchQuery] = useState('');
 
     useEffect(() => {
@@ -114,6 +114,28 @@ export default function FinancialDashboard({
                             >
                                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="7" height="9"></rect><rect x="14" y="3" width="7" height="5"></rect><rect x="14" y="12" width="7" height="9"></rect><rect x="3" y="16" width="7" height="5"></rect></svg>
                                 Visão Geral
+                            </button>
+                            <button 
+                                onClick={() => setActiveTab('kpi')} 
+                                style={{ 
+                                    padding: '0 1rem', 
+                                    fontSize: '0.75rem', 
+                                    fontWeight: 700,
+                                    display: 'flex', 
+                                    alignItems: 'center', 
+                                    gap: '0.4rem', 
+                                    border: 'none', 
+                                    borderRadius: '6px', 
+                                    cursor: 'pointer', 
+                                    height: '28px',
+                                    background: activeTab === 'kpi' ? '#ffffff' : 'transparent',
+                                    color: activeTab === 'kpi' ? '#0f172a' : '#64748b',
+                                    boxShadow: activeTab === 'kpi' ? '0 1px 3px rgba(0,0,0,0.1)' : 'none',
+                                    transition: 'all 0.15s ease'
+                                }}
+                            >
+                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path></svg>
+                                KPI
                             </button>
                             <button 
                                 onClick={() => setActiveTab('graficos')} 

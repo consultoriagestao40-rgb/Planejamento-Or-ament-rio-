@@ -1277,6 +1277,32 @@ export default function BudgetGrid({
         };
     }, [precomputedDreTotals]);
 
+    const taxesProjectionData = useMemo(() => {
+        let annualBudgetRev = 0;
+        let annualBudgetTaxes = 0;
+        let realizedAccumRev = 0;
+        let realizedAccumTaxes = 0;
+
+        precomputedDreTotals.forEach((m, idx) => {
+            annualBudgetRev += m.vRev.b;
+            annualBudgetTaxes += m.vTaxes.b;
+            if (idx <= currentMonthIdx) {
+                realizedAccumRev += m.vRev.r;
+                realizedAccumTaxes += m.vTaxes.r;
+            }
+        });
+
+        const budgetTaxRate = annualBudgetRev > 0 ? (annualBudgetTaxes / annualBudgetRev) * 100 : 0;
+        const realizedTaxRate = realizedAccumRev > 0 ? (realizedAccumTaxes / realizedAccumRev) * 100 : 0;
+
+        return {
+            budgetTaxRate,
+            realizedTaxRate,
+            realizedAccumTaxes,
+            realizedAccumRev
+        };
+    }, [precomputedDreTotals]);
+
     const matchNode = (node: CategoryNode, query: string): boolean => {
         if (!query) return true;
         const cleanQuery = query.toLowerCase().trim();
@@ -1936,6 +1962,100 @@ export default function BudgetGrid({
         );
     };
 
+    const renderTaxesGauge = () => {
+        const { budgetTaxesRate = 0, realizedTaxRate, budgetTaxRate } = taxesProjectionData;
+
+        // SVG parameters
+        const cx = 120;
+        const cy = 110;
+        const r = 80;
+        
+        // Target percentage of realized tax rate relative to budget tax rate (max 100%)
+        const gaugePercent = budgetTaxRate > 0 ? (realizedTaxRate / budgetTaxRate) * 100 : 0;
+
+        // Trig angle in radians for needle (left is PI, right is 0)
+        const needleAngle = Math.PI - (Math.min(100, Math.max(0, gaugePercent)) / 100) * Math.PI;
+        const needleLength = 62;
+        const needleX = cx + needleLength * Math.cos(needleAngle);
+        const needleY = cy - needleLength * Math.sin(needleAngle);
+
+        // Helper to get coordinates for arc segments
+        const getArcSegment = (startAngleDeg: number, endAngleDeg: number, strokeColor: string) => {
+            const startRad = (startAngleDeg * Math.PI) / 180;
+            const endRad = (endAngleDeg * Math.PI) / 180;
+            
+            const x1 = cx + r * Math.cos(startRad);
+            const y1 = cy - r * Math.sin(startRad);
+            const x2 = cx + r * Math.cos(endRad);
+            const y2 = cy - r * Math.sin(endRad);
+            
+            return (
+                <path 
+                    key={startAngleDeg}
+                    d={`M ${x1} ${y1} A ${r} ${r} 0 0 1 ${x2} ${y2}`} 
+                    fill="none" 
+                    stroke={strokeColor} 
+                    strokeWidth="14" 
+                />
+            );
+        };
+
+        // 5 segments: Inverted colors (verde to vermelho)
+        const segments = [
+            { color: '#22c55e', start: 180, end: 147 }, // Excelente
+            { color: '#84cc16', start: 144, end: 111 }, // Bom
+            { color: '#eab308', start: 108, end: 75 },  // Atenção
+            { color: '#f97316', start: 72, end: 39 },   // Alerta
+            { color: '#ef4444', start: 36, end: 3 }     // Crítico
+        ];
+
+        return (
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', background: '#f8fafc', padding: '1rem', borderRadius: '12px', border: '1px solid #cbd5e1', boxShadow: 'inset 0 2px 4px rgba(0,0,0,0.02)' }}>
+                <svg width="240" height="135" viewBox="0 0 240 135" style={{ overflow: 'visible' }}>
+                    <defs>
+                        <filter id="needle-shadow-taxes" x="-20%" y="-20%" width="140%" height="140%">
+                            <feDropShadow dx="1" dy="2" stdDeviation="1" floodOpacity="0.15" />
+                        </filter>
+                        {/* Ponta da Seta */}
+                        <marker id="arrow-taxes" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse">
+                            <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="#1e293b" />
+                        </marker>
+                    </defs>
+
+                    {/* Desenha os 5 segmentos coloridos invertidos */}
+                    {segments.map(seg => getArcSegment(seg.start, seg.end, seg.color))}
+
+                    {/* Ponteiro (aponta para a Alíquota Realizada em relação à Orçada) */}
+                    <g filter="url(#needle-shadow-taxes)">
+                        <line 
+                            x1={cx} 
+                            y1={cy} 
+                            x2={needleX} 
+                            y2={needleY} 
+                            stroke="#1e293b" 
+                            strokeWidth="3" 
+                            strokeLinecap="round" 
+                            markerEnd="url(#arrow-taxes)"
+                            style={{ transition: 'all 0.8s ease-in-out' }}
+                        />
+                        {/* Miolo do ponteiro */}
+                        <circle cx={cx} cy={cy} r="8.5" fill="#1e293b" />
+                        <circle cx={cx} cy={cy} r="4" fill="#f8fafc" />
+                    </g>
+
+                    {/* Rótulos de 0% e Alíquota Orçada */}
+                    <text x={cx - r - 10} y={cy + 15} fontSize="9" fontWeight="700" fill="#64748b" textAnchor="middle">0%</text>
+                    <text x={cx + r + 20} y={cy + 15} fontSize="9" fontWeight="700" fill="#64748b" textAnchor="middle">{budgetTaxRate.toFixed(1)}% (Orçado)</text>
+                </svg>
+
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', marginTop: '-15px', zIndex: 10 }}>
+                    <span style={{ fontSize: '1.25rem', fontWeight: 900, color: '#0f172a' }}>{realizedTaxRate.toFixed(2)}%</span>
+                    <span style={{ fontSize: '0.68rem', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Alíquota Efetiva de Tributos</span>
+                </div>
+            </div>
+        );
+    };
+
     const handleCostCenterToggle = (id: string) => {
         setPendingCostCenter(prev => {
             if (prev.includes(id)) {
@@ -2264,36 +2384,17 @@ export default function BudgetGrid({
                         </div>
                     </div>
 
-                    {/* Seção de Velocímetros (Projeções e Metas Anuais) */}
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '1.5rem', width: '100%' }}>
-                        <div className="glass-card" style={{ padding: '1.5rem', background: '#ffffff', borderRadius: '12px', border: '1px solid #e2e8f0', boxShadow: '0 4px 6px rgba(0,0,0,0.02)' }}>
-                            <h3 style={{ fontSize: '0.9rem', fontWeight: 800, color: '#0f172a', marginBottom: '1.25rem' }}>Projeção Anual de Faturamento</h3>
-                            
-                            <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'center', gap: '2.5rem' }}>
-                                {/* Velocímetro */}
-                                {renderRevenueGauge()}
-
-                                {/* Detalhes e Métricas */}
-                                <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', minWidth: '240px', flex: 1 }}>
-                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
-                                        <span style={{ fontSize: '0.75rem', color: '#64748b', textTransform: 'uppercase', fontWeight: 800, letterSpacing: '0.05em' }}>Projeção de Faturamento (Ano)</span>
-                                        <span style={{ fontSize: '2rem', fontWeight: 900, color: '#10b981' }}>
-                                            {formatCurrency(revenueProjectionData.projectedRev)}
-                                        </span>
-                                    </div>
-
-                                    <div style={{ borderTop: '1px solid #e2e8f0', paddingTop: '1rem', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem' }}>
-                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
-                                            <span style={{ fontSize: '0.7rem', color: '#64748b', textTransform: 'uppercase', fontWeight: 800 }}>Meta Orçada (Ano)</span>
-                                            <span style={{ fontSize: '1.2rem', fontWeight: 800, color: '#2563eb' }}>{formatCurrency(revenueProjectionData.annualBudgetRev)}</span>
-                                        </div>
-                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
-                                            <span style={{ fontSize: '0.7rem', color: '#64748b', textTransform: 'uppercase', fontWeight: 800 }}>Realizado (Jan-Jun)</span>
-                                            <span style={{ fontSize: '1.2rem', fontWeight: 800, color: '#475569' }}>{formatCurrency(revenueProjectionData.realizedAccumRev)}</span>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
+                    {/* Seção de Velocímetros (Faturamento e Tributos) */}
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '1.5rem', width: '100%' }}>
+                        {/* Card 1: Faturamento */}
+                        <div className="glass-card" style={{ padding: '1.5rem', background: '#ffffff', borderRadius: '12px', border: '1px solid #e2e8f0', boxShadow: '0 4px 6px rgba(0,0,0,0.02)', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                            <h3 style={{ fontSize: '0.9rem', fontWeight: 800, color: '#0f172a', marginBottom: '1.25rem', width: '100%', textAlign: 'center' }}>Projeção Anual de Faturamento</h3>
+                            {renderRevenueGauge()}
+                        </div>
+                        {/* Card 2: Tributos */}
+                        <div className="glass-card" style={{ padding: '1.5rem', background: '#ffffff', borderRadius: '12px', border: '1px solid #e2e8f0', boxShadow: '0 4px 6px rgba(0,0,0,0.02)', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                            <h3 style={{ fontSize: '0.9rem', fontWeight: 800, color: '#0f172a', marginBottom: '1.25rem', width: '100%', textAlign: 'center' }}>Indicador de Tributos (Jan-Jun)</h3>
+                            {renderTaxesGauge()}
                         </div>
                     </div>
 

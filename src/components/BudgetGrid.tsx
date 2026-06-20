@@ -1561,7 +1561,7 @@ export default function BudgetGrid({
         );
     };
 
-    const renderGroupHeaderRow = (label: string, isExpanded: boolean, onToggle: () => void) => {
+    const renderGroupHeaderRow = (label: string, _isExpanded?: boolean, _onToggle?: () => void) => {
         const colsCount = 1 + (viewPeriod === 'month' ? MONTHS : [1, 2, 3, 4]).length * (2 + (showAV ? 2 : 0) + (showAH ? 1 : 0) + (showAH_MoM ? 1 : 0));
         return (
             <tr style={{ background: '#e6f2fd' }} className="spreadsheet-group-header">
@@ -1577,28 +1577,10 @@ export default function BudgetGrid({
                         minWidth: '400px',
                         maxWidth: '400px',
                         padding: '0.5rem 0.75rem',
-                        cursor: 'pointer'
+                        cursor: 'default'
                     }}
-                    onClick={onToggle}
                 >
                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                        <span style={{
-                            display: 'inline-flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            width: '16px',
-                            height: '16px',
-                            border: '1px solid #a5d0f5',
-                            borderRadius: '3px',
-                            background: '#fff',
-                            color: '#0b579f',
-                            fontSize: '0.85rem',
-                            lineHeight: 1,
-                            fontWeight: 'bold',
-                            userSelect: 'none'
-                        }}>
-                            {isExpanded ? '−' : '+'}
-                        </span>
                         <span style={{ fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.05em' }}>{label}</span>
                     </div>
                 </td>

@@ -3129,7 +3129,7 @@ export default function BudgetGrid({
         let labelCumulativeAngle = -Math.PI / 2; // Start at the top (-90 degrees)
 
         return (
-            <div className="glass-card" style={{ padding: '2rem', background: '#ffffff', borderRadius: '12px', border: '1px solid #e2e8f0', boxShadow: '0 4px 6px rgba(0,0,0,0.02)', width: '100%', maxWidth: '800px', margin: '0 auto' }}>
+            <div className="glass-card" style={{ padding: '2rem', background: '#ffffff', borderRadius: '12px', border: '1px solid #e2e8f0', boxShadow: '0 4px 6px rgba(0,0,0,0.02)', width: '100%', height: '100%', display: 'flex', flexDirection: 'column' }}>
                 <h3 style={{ fontSize: '1rem', fontWeight: 800, color: '#0f172a', marginBottom: '1.5rem', textAlign: 'center' }}>
                     Receita por Empresa (Período Selecionado)
                     <span style={{ fontSize: '0.75rem', color: '#64748b', fontWeight: 500, display: 'block', marginTop: '0.25rem' }}>
@@ -3268,7 +3268,7 @@ export default function BudgetGrid({
     const renderContractsBarChart = () => {
         if (contractsLoading) {
             return (
-                <div className="glass-card" style={{ padding: '2rem', background: '#ffffff', borderRadius: '12px', border: '1px solid #e2e8f0', boxShadow: '0 4px 6px rgba(0,0,0,0.02)', width: '100%', maxWidth: '800px', margin: '0 auto', minHeight: '200px', display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center' }}>
+                <div className="glass-card" style={{ padding: '2rem', background: '#ffffff', borderRadius: '12px', border: '1px solid #e2e8f0', boxShadow: '0 4px 6px rgba(0,0,0,0.02)', width: '100%', minHeight: '300px', display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', height: '100%' }}>
                     <div style={{ border: '3px solid #f3f3f3', borderTop: '3px solid #3b82f6', borderRadius: '50%', width: '30px', height: '30px', animation: 'spin 1s linear infinite' }} />
                     <span style={{ marginTop: '1rem', fontSize: '0.85rem', color: '#64748b', fontWeight: 600 }}>Carregando contratos...</span>
                     <style>{`
@@ -3283,7 +3283,7 @@ export default function BudgetGrid({
 
         if (contractsData.length === 0) {
             return (
-                <div className="glass-card" style={{ padding: '3rem', background: '#ffffff', borderRadius: '12px', border: '1px solid #e2e8f0', boxShadow: '0 4px 6px rgba(0,0,0,0.02)', width: '100%', maxWidth: '800px', margin: '0 auto', textAlign: 'center', color: '#64748b' }}>
+                <div className="glass-card" style={{ padding: '3rem', background: '#ffffff', borderRadius: '12px', border: '1px solid #e2e8f0', boxShadow: '0 4px 6px rgba(0,0,0,0.02)', width: '100%', textAlign: 'center', color: '#64748b', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                     <span style={{ fontSize: '0.85rem', fontWeight: 600 }}>Nenhum contrato com faturamento realizado no período selecionado.</span>
                 </div>
             );
@@ -3292,7 +3292,7 @@ export default function BudgetGrid({
         const maxVal = Math.max(...contractsData.map(c => c.value));
 
         return (
-            <div className="glass-card" style={{ padding: '2rem', background: '#ffffff', borderRadius: '12px', border: '1px solid #e2e8f0', boxShadow: '0 4px 6px rgba(0,0,0,0.02)', width: '100%', maxWidth: '800px', margin: '0 auto' }}>
+            <div className="glass-card" style={{ padding: '2rem', background: '#ffffff', borderRadius: '12px', border: '1px solid #e2e8f0', boxShadow: '0 4px 6px rgba(0,0,0,0.02)', width: '100%', height: '100%', display: 'flex', flexDirection: 'column' }}>
                 <h3 style={{ fontSize: '1rem', fontWeight: 800, color: '#0f172a', marginBottom: '1.5rem', textAlign: 'center' }}>
                     Faturamento por Contrato / Cliente (Período Selecionado)
                     <span style={{ fontSize: '0.75rem', color: '#64748b', fontWeight: 500, display: 'block', marginTop: '0.25rem' }}>
@@ -3686,9 +3686,13 @@ export default function BudgetGrid({
                 )}
             </div>
             {activeTab === 'kpi' ? (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem', marginTop: '1rem', width: '100%' }}>
-                    {renderCompanyRevenueDonut()}
-                    {renderContractsBarChart()}
+                <div style={{ display: 'flex', flexDirection: 'row', gap: '1.5rem', marginTop: '1rem', width: '100%', flexWrap: 'wrap', alignItems: 'stretch' }}>
+                    <div style={{ flex: 1, minWidth: '350px' }}>
+                        {renderCompanyRevenueDonut()}
+                    </div>
+                    <div style={{ flex: 1, minWidth: '350px' }}>
+                        {renderContractsBarChart()}
+                    </div>
                 </div>
             ) : activeTab === 'graficos' ? (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', marginTop: '1rem', width: '100%' }}>

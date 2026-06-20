@@ -148,7 +148,22 @@ export async function GET() {
             if (item.isCosts) totalCost += item.idSum;
         });
 
-        const calculatedMB = totalRev - totalTax - totalCost;
+        const rawSalariesEntries = await prisma.realizedEntry.findMany({
+            where: {
+                tenantId: jvsFac.id,
+                year,
+                viewMode,
+                categoryId: { in: ['0f74ee3e-ed1e-4df8-9672-270873dc22b9', 'dc2b6eed-a38a-43c3-9465-ce854bfda90f:0f74ee3e-ed1e-4df8-9672-270873dc22b9'] }
+            },
+            select: {
+                id: true,
+                categoryId: true,
+                amount: true,
+                externalId: true,
+                month: true,
+                description: true
+            }
+        });
 
         return NextResponse.json({
             success: true,
@@ -159,6 +174,7 @@ export async function GET() {
             totalRev,
             totalTax,
             totalCost,
+            rawSalariesEntries,
             breakdown
         });
     } catch (e: any) {

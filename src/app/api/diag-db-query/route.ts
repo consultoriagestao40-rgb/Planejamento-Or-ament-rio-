@@ -164,6 +164,7 @@ export async function GET() {
                 description: true
             }
         });
+        const calculatedMB = totalRev - totalTax - totalCost;
 
         return NextResponse.json({
             success: true,

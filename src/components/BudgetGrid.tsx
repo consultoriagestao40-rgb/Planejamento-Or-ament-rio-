@@ -71,7 +71,7 @@ export default function BudgetGrid({
     const [isCCLocked, setIsCCLocked] = useState(false);
     const [radarLocks, setRadarLocks] = useState<any[]>([]);
     const [realizedValues, setRealizedValues] = useState<Record<string, number>>({});
-    const [contractsData, setContractsData] = useState<{ name: string; value: number; percentage: number }[]>([]);
+    const [contractsData, setContractsData] = useState<{ name: string; value: number; percentage: number; monthlyValues?: Record<number, number> }[]>([]);
     const [contractsLoading, setContractsLoading] = useState(false);
 
     const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
@@ -3298,9 +3298,11 @@ export default function BudgetGrid({
         // Find max value for inline bars
         let maxMonthlyValue = 0;
         contractsData.forEach(c => {
-            Object.values(c.monthlyValues).forEach(val => {
-                if (val > maxMonthlyValue) maxMonthlyValue = val;
-            });
+            if (c.monthlyValues) {
+                Object.values(c.monthlyValues).forEach(val => {
+                    if (val > maxMonthlyValue) maxMonthlyValue = val;
+                });
+            }
         });
 
         const MONTH_NAMES = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
@@ -3380,7 +3382,7 @@ export default function BudgetGrid({
 
                                         {/* Month columns */}
                                         {monthsInPeriod.map(m => {
-                                            const val = item.monthlyValues[m] || 0;
+                                            const val = item.monthlyValues?.[m] || 0;
                                             const barPct = maxMonthlyValue > 0 ? (val / maxMonthlyValue) * 100 : 0;
                                             return (
                                                 <td 

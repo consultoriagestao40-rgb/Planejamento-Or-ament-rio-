@@ -3125,11 +3125,11 @@ export default function BudgetGrid({
         const activeRevenueData = companyRevenueData.filter(item => item.value > 0);
         const totalRevenue = activeRevenueData.reduce((sum, item) => sum + item.value, 0);
 
-        const cx = 350;
-        const cy = 180;
-        const R = 95;
-        const strokeWidth = 32;
-        const C = 2 * Math.PI * R; // ~596.90
+        const cx = 300;
+        const cy = 225;
+        const R = 120;
+        const strokeWidth = 36;
+        const C = 2 * Math.PI * R; // ~753.98
 
         let sliceCumulativePercent = 0;
         let labelCumulativeAngle = -Math.PI / 2; // Start at the top (-90 degrees)
@@ -3148,9 +3148,9 @@ export default function BudgetGrid({
                         Nenhum dado de receita disponível para o período selecionado.
                     </div>
                 ) : (
-                    <div style={{ display: 'flex', justifyContent: 'center', width: '100%' }}>
-                        <div style={{ width: '100%', maxWidth: '700px', height: 'auto' }}>
-                            <svg viewBox="0 0 700 360" width="100%" height="100%">
+                    <div style={{ flex: 1, display: 'flex', justifyContent: 'center', alignItems: 'center', width: '100%' }}>
+                        <div style={{ width: '100%', maxWidth: '600px', height: 'auto', display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
+                            <svg viewBox="0 0 600 450" width="100%" height="100%">
                                 <g transform={`rotate(-90 ${cx} ${cy})`}>
                                     {/* Background circle */}
                                     <circle 
@@ -3185,13 +3185,13 @@ export default function BudgetGrid({
                                 </g>
 
                                 {/* Center labels */}
-                                <text x={cx} y={cy - 14} textAnchor="middle" style={{ fontSize: '12px', fontWeight: 700, fill: '#64748b', letterSpacing: '0.05em', textTransform: 'uppercase' }}>
+                                <text x={cx} y={cy - 16} textAnchor="middle" style={{ fontSize: '14px', fontWeight: 700, fill: '#64748b', letterSpacing: '0.05em', textTransform: 'uppercase' }}>
                                     Total
                                 </text>
-                                <text x={cx} y={cy + 12} textAnchor="middle" style={{ fontSize: '22px', fontWeight: 900, fill: '#0f172a' }}>
+                                <text x={cx} y={cy + 14} textAnchor="middle" style={{ fontSize: '28px', fontWeight: 900, fill: '#0f172a' }}>
                                     R$ {totalRevenue.toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}
                                 </text>
-                                <text x={cx} y={cy + 30} textAnchor="middle" style={{ fontSize: '11px', fontWeight: 600, fill: '#64748b' }}>
+                                <text x={cx} y={cy + 34} textAnchor="middle" style={{ fontSize: '12px', fontWeight: 600, fill: '#64748b' }}>
                                     Mil
                                 </text>
 
@@ -3208,18 +3208,18 @@ export default function BudgetGrid({
                                     const sin = Math.sin(middleAngle);
 
                                     // Point on the outer edge of the slice
-                                    const rStart = R + strokeWidth / 2; // 95 + 16 = 111
+                                    const rStart = R + strokeWidth / 2; // 120 + 18 = 138
                                     const x1 = cx + rStart * cos;
                                     const y1 = cy + rStart * sin;
 
                                     // Point where the line goes outwards
-                                    const rEnd = R + 40; // 95 + 40 = 135
+                                    const rEnd = R + 45; // 120 + 45 = 165
                                     const x2 = cx + rEnd * cos;
                                     const y2 = cy + rEnd * sin;
 
                                     // Elbow position
                                     const isRightSide = cos >= 0;
-                                    const x3 = x2 + (isRightSide ? 20 : -20);
+                                    const x3 = x2 + (isRightSide ? 25 : -25);
                                     const textX = x3 + (isRightSide ? 6 : -6);
                                     const textAnchor = isRightSide ? 'start' : 'end';
 

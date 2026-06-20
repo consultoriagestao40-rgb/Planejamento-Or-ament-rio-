@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { syncBankAccounts, syncOpenCommitments, getValidAccessToken } from '@/lib/services';
+import { getValidAccessToken } from '@/lib/services';
 
 export const dynamic = 'force-dynamic';
 
@@ -14,54 +14,55 @@ export async function GET(request: Request) {
 
     try {
         const { searchParams } = new URL(request.url);
-        // Default to JVS Tratmentos / Facilities
         const tenantId = searchParams.get('tenantId') || 'dc2b6eed-a38a-43c3-9465-ce854bfda90f'; 
         
-        pushLog(`[Debug Sync] Buscando tenant ${tenantId}`);
-        const tenant = await prisma.tenant.findUnique({ where: { id: tenantId } });
-        if (!tenant) {
-            pushLog(`[Debug Sync] Tenant não encontrado!`);
-            return NextResponse.json({ success: false, error: 'Tenant não encontrado', logs });
-        }
-        pushLog(`[Debug Sync] Tenant encontrado: ${tenant.name}`);
-
-        pushLog(`[Debug Sync] Obtendo token de acesso...`);
+        pushLog(`[Debug URLs] Buscando token...`);
         const { token } = await getValidAccessToken(tenantId);
-        pushLog(`[Debug Sync] Token obtido com sucesso (comprimento: ${token?.length})`);
+        pushLog(`[Debug URLs] Token obtido. testando endpoints...`);
 
-        pushLog(`[Debug Sync] Chamando syncBankAccounts...`);
-        try {
-            await syncBankAccounts(tenantId, token);
-            pushLog(`[Debug Sync] syncBankAccounts concluído.`);
-        } catch (e: any) {
-            pushLog(`[Debug Sync] FALHA em syncBankAccounts: ${e.message}\nStack: ${e.stack}`);
+        const paths = [
+            '/v1/contas-financeiras',
+            '/v1/financeiro/contas-financeiras',
+            '/v1/contas',
+            '/v1/financeiro/contas',
+            '/v1/contas-correntes',
+            '/v1/financeiro/contas-correntes',
+            '/v1/financeiro/eventos-financeiros/contas-financeiras',
+            '/v1/financeiro/eventos-financeiros/saldo-inicial?data_inicio=2026-01-01&data_fim=2026-01-31',
+            '/v1/financeiro/eventos-financeiros/saldo-inicial'
+        ];
+
+        const results: Record<string, { status: number, bodySample: string }> = {};
+
+        for (const path of paths) {
+            try {
+                const url = `https://api-v2.contaazul.com${path}`;
+                const res = await fetch(url, {
+                    headers: { 'Authorization': `Bearer ${token}` },
+                    cache: 'no-store'
+                });
+                const bodyText = await res.text().catch(() => '');
+                results[path] = {
+                    status: res.status,
+                    bodySample: bodyText.substring(0, 300)
+                };
+                pushLog(`Path: ${path} -> Status: ${res.status}`);
+            } catch (e: any) {
+                results[path] = {
+                    status: 500,
+                    bodySample: e.message
+                };
+                pushLog(`Path: ${path} -> ERROR: ${e.message}`);
+            }
         }
-
-        pushLog(`[Debug Sync] Chamando syncOpenCommitments...`);
-        try {
-            await syncOpenCommitments(tenantId, token, 2026);
-            pushLog(`[Debug Sync] syncOpenCommitments concluído.`);
-        } catch (e: any) {
-            pushLog(`[Debug Sync] FALHA em syncOpenCommitments: ${e.message}\nStack: ${e.stack}`);
-        }
-
-        // Verificações finais no DB
-        const countAccounts = await prisma.bankAccount.count({ where: { tenantId } });
-        const countCommitments = await prisma.realizedEntry.count({
-            where: { tenantId, viewMode: { in: ['previsto_receber', 'previsto_pagar'] } }
-        });
-
-        pushLog(`[Debug Sync] Verificação final: Encontradas ${countAccounts} contas bancárias e ${countCommitments} títulos previstos no banco.`);
 
         return NextResponse.json({
             success: true,
             logs,
-            countAccounts,
-            countCommitments
+            results
         });
 
     } catch (e: any) {
-        pushLog(`[Debug Sync] CRITICAL ERROR: ${e.message}\nStack: ${e.stack}`);
         return NextResponse.json({ success: false, error: e.message, logs }, { status: 500 });
     }
 }

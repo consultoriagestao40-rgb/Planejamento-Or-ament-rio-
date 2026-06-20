@@ -2834,6 +2834,63 @@ export default function BudgetGrid({
                                 );
                             })()}
                         </div>
+                        {/* Card: Margem Bruta */}
+                        <div className="glass-card" style={{ padding: '1.25rem', background: '#ffffff', borderRadius: '12px', border: '1px solid #e2e8f0', boxShadow: '0 4px 6px rgba(0,0,0,0.02)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            {(() => {
+                                let totalB = 0, totalR = 0;
+                                const hasRealizedMonths = startMonth <= currentMonthIdx;
+                                precomputedDreTotals.forEach((m, idx) => { 
+                                    if (idx >= startMonth && idx <= endMonth) {
+                                        if (hasRealizedMonths) {
+                                            if (idx <= currentMonthIdx) {
+                                                totalB += m.vGrossMarg.b; 
+                                                totalR += m.vGrossMarg.r; 
+                                            }
+                                        } else {
+                                            totalB += m.vGrossMarg.b; 
+                                            totalR += 0; 
+                                        }
+                                    }
+                                });
+
+                                const getAtingidoData = (realized: number, budgeted: number) => {
+                                    let pct = 0;
+                                    if (budgeted > 0) {
+                                        pct = (realized / budgeted) * 100;
+                                    } else if (budgeted < 0) {
+                                        pct = (1 + (budgeted - realized) / budgeted) * 100;
+                                    } else {
+                                        pct = realized > 0 ? 100 : 0;
+                                    }
+                                    let color = '#dc2626';
+                                    if (pct >= 100) {
+                                        color = '#16a34a';
+                                    } else if (pct >= 80) {
+                                        color = '#d97706';
+                                    }
+                                    return { pct, color };
+                                };
+
+                                const { pct, color: pctColor } = getAtingidoData(totalR, totalB);
+                                const isPositive = totalR >= 0;
+
+                                return (
+                                    <>
+                                        <div style={{ flex: 1 }}>
+                                            <div style={{ fontSize: '0.75rem', fontWeight: 800, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.5rem' }}>Margem Bruta (MB)</div>
+                                            <div style={{ fontSize: '1.5rem', fontWeight: 900, color: isPositive ? '#0f172a' : '#dc2626' }}>{formatCurrency(totalR)}</div>
+                                            <div style={{ fontSize: '0.75rem', color: '#64748b', marginTop: '0.25rem' }}>
+                                                Meta Orçada: <span style={{ fontWeight: 600 }}>{formatCurrency(totalB)}</span>
+                                            </div>
+                                        </div>
+                                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', justifyContent: 'center', marginLeft: '1rem' }}>
+                                            <div style={{ fontSize: '1.75rem', fontWeight: 900, color: pctColor }}>{pct.toFixed(1)}%</div>
+                                            <div style={{ fontSize: '0.65rem', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Atingido</div>
+                                        </div>
+                                    </>
+                                );
+                            })()}
+                        </div>
                         {/* Card 2: EBITDA */}
                         <div className="glass-card" style={{ padding: '1.25rem', background: '#ffffff', borderRadius: '12px', border: '1px solid #e2e8f0', boxShadow: '0 4px 6px rgba(0,0,0,0.02)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                             {(() => {

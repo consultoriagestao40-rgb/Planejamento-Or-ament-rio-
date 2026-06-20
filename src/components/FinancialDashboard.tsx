@@ -29,6 +29,8 @@ export default function FinancialDashboard({
     const [showAR, setShowAR] = useState(false);
     const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
     const [userRole, setUserRole] = useState<'MASTER' | 'GESTOR'>((serverUserRole as 'MASTER' | 'GESTOR') || 'GESTOR');
+    const [activeTab, setActiveTab] = useState<'visao' | 'graficos'>('visao');
+    const [searchQuery, setSearchQuery] = useState('');
 
     useEffect(() => {
         if (isConnected) {
@@ -86,56 +88,118 @@ export default function FinancialDashboard({
             padding: '2.5rem 2rem 3rem',
             boxSizing: 'border-box'
         }}>
-            {/* ─── BODY ────────────────────────────────────── */}
-            <div style={{ maxWidth: '100%', margin: '0 auto' }}>
-                {/* Local Header & Controls */}
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2.5rem', flexWrap: 'wrap', gap: '1rem', borderBottom: '1px solid var(--border-default)', paddingBottom: '1.5rem' }}>
-                    <div>
-                        <h1 style={{ fontSize: '2rem', fontWeight: 900, background: 'var(--gradient-brand)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', marginBottom: '0.4rem' }}>
-                            📊 Dashboard Geral
-                        </h1>
-                        <p style={{ color: 'var(--text-secondary)', fontSize: '0.95rem' }}>
-                            Visão consolidada de orçamentos e realizados por competência.
-                        </p>
-                    </div>
-                    
-                    {isConnected && (
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                            <span style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--text-muted)' }}>Ano Referência:</span>
-                            {/* Year Selector */}
-                            <div style={{
-                                display: 'flex',
-                                alignItems: 'center',
-                                gap: '0.25rem',
-                                background: 'var(--bg-surface)',
-                                border: '1px solid var(--border-default)',
-                                borderRadius: '8px',
-                                padding: '0 0.5rem',
-                                height: '34px',
-                                userSelect: 'none'
-                            }}>
+            {/* ─── BODY ─────────────────────────────────                {/* Mockup Header Bar */}
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem', flexWrap: 'wrap', gap: '1rem', background: '#f8fafc', padding: '0.75rem 1.5rem', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
+                    {/* Left side: Tabs & Year Selector */}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '2px', background: '#e2e8f0', padding: '3px', borderRadius: '8px', height: '34px', boxSizing: 'border-box' }}>
+                            <button 
+                                onClick={() => setActiveTab('visao')} 
+                                style={{ 
+                                    padding: '0 1rem', 
+                                    fontSize: '0.75rem', 
+                                    fontWeight: 700,
+                                    display: 'flex', 
+                                    alignItems: 'center', 
+                                    gap: '0.4rem', 
+                                    border: 'none', 
+                                    borderRadius: '6px', 
+                                    cursor: 'pointer', 
+                                    height: '28px',
+                                    background: activeTab === 'visao' ? '#ffffff' : 'transparent',
+                                    color: activeTab === 'visao' ? '#0f172a' : '#64748b',
+                                    boxShadow: activeTab === 'visao' ? '0 1px 3px rgba(0,0,0,0.1)' : 'none',
+                                    transition: 'all 0.15s ease'
+                                }}
+                            >
+                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="7" height="9"></rect><rect x="14" y="3" width="7" height="5"></rect><rect x="14" y="12" width="7" height="9"></rect><rect x="3" y="16" width="7" height="5"></rect></svg>
+                                Visão Geral
+                            </button>
+                            <button 
+                                onClick={() => setActiveTab('graficos')} 
+                                style={{ 
+                                    padding: '0 1rem', 
+                                    fontSize: '0.75rem', 
+                                    fontWeight: 700,
+                                    display: 'flex', 
+                                    alignItems: 'center', 
+                                    gap: '0.4rem', 
+                                    border: 'none', 
+                                    borderRadius: '6px', 
+                                    cursor: 'pointer', 
+                                    height: '28px',
+                                    background: activeTab === 'graficos' ? '#ffffff' : 'transparent',
+                                    color: activeTab === 'graficos' ? '#0f172a' : '#64748b',
+                                    boxShadow: activeTab === 'graficos' ? '0 1px 3px rgba(0,0,0,0.1)' : 'none',
+                                    transition: 'all 0.15s ease'
+                                }}
+                            >
+                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M21.21 15.89A10 10 0 1 1 8 2.83"></path><path d="M22 12A10 10 0 0 0 12 2v10z"></path></svg>
+                                Gráficos
+                            </button>
+                        </div>
+
+                        {isConnected && (
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', background: '#ffffff', border: '1px solid #e2e8f0', borderRadius: '8px', padding: '0 0.5rem', height: '34px', userSelect: 'none', marginLeft: '0.5rem' }}>
                                 <button 
                                     onClick={() => setSelectedYear(prev => prev - 1)}
-                                    style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '0.9rem', padding: '0 0.4rem', color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', transition: 'all 0.2s' }}
-                                    className="hover-opacity"
+                                    style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '0.8rem', padding: '0 0.3rem', color: '#64748b' }}
                                     title="Ano Anterior"
                                 >
                                     ◀
                                 </button>
-                                <span style={{ fontSize: '0.85rem', fontWeight: 800, color: 'var(--text-primary)', minWidth: '45px', textAlign: 'center', fontFamily: 'monospace' }}>
+                                <span style={{ fontSize: '0.8rem', fontWeight: 800, color: '#0f172a', minWidth: '40px', textAlign: 'center', fontFamily: 'monospace' }}>
                                     {selectedYear}
                                 </span>
                                 <button 
                                     onClick={() => setSelectedYear(prev => prev + 1)}
-                                    style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '0.9rem', padding: '0 0.4rem', color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', transition: 'all 0.2s' }}
-                                    className="hover-opacity"
+                                    style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '0.8rem', padding: '0 0.3rem', color: '#64748b' }}
                                     title="Próximo Ano"
                                 >
                                     ▶
                                 </button>
                             </div>
+                        )}
+                    </div>
+
+                    {/* Center: Search input */}
+                    <div style={{ display: 'flex', justifyContent: 'center', flex: 1, minWidth: '220px', maxWidth: '360px' }}>
+                        <div style={{ position: 'relative', width: '100%' }}>
+                            <span style={{ position: 'absolute', left: '14px', top: '50%', transform: 'translateY(-50%)', color: '#94a3b8', fontSize: '0.85rem' }}>🔍</span>
+                            <input 
+                                type="text" 
+                                placeholder="Busca..." 
+                                value={searchQuery}
+                                onChange={(e) => setSearchQuery(e.target.value)}
+                                style={{ width: '100%', padding: '0.45rem 1rem 0.45rem 2.25rem', fontSize: '0.8rem', borderRadius: '9999px', border: '1px solid #e2e8f0', background: '#ffffff', outline: 'none', color: '#0f172a', transition: 'border 0.2s' }}
+                            />
                         </div>
-                    )}
+                    </div>
+
+                    {/* Right side: Action icons & User Avatar */}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '1.25rem' }}>
+                        {/* Users icon */}
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#64748b" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ cursor: 'pointer' }}>
+                            <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+                            <circle cx="9" cy="7" r="4"></circle>
+                            <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
+                            <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
+                        </svg>
+
+                        {/* Bell icon with notification indicator */}
+                        <div style={{ position: 'relative', cursor: 'pointer', display: 'flex', alignItems: 'center' }}>
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#64748b" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                                <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path>
+                                <path d="M13.73 21a2 2 0 0 1-3.46 0"></path>
+                            </svg>
+                            <span style={{ position: 'absolute', top: '-1px', right: '-1px', width: '6px', height: '6px', borderRadius: '50%', background: '#ef4444' }}></span>
+                        </div>
+
+                        {/* User Avatar circle */}
+                        <div style={{ width: '32px', height: '32px', borderRadius: '50%', overflow: 'hidden', border: '1px solid #cbd5e1', background: '#e2e8f0', cursor: 'pointer' }}>
+                            <img src="https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=100&q=80" alt="User profile" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                        </div>
+                    </div>
                 </div>
                 {params.error && (
                     <div style={{
@@ -193,6 +257,8 @@ export default function FinancialDashboard({
                         setUserRole={setUserRole}
                         companies={companies}
                         externalYear={selectedYear}
+                        searchQuery={searchQuery}
+                        activeTab={activeTab}
                     />
                 </section>
             </div>

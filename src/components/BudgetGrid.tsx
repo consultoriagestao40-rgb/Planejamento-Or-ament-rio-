@@ -27,6 +27,8 @@ interface BudgetGridProps {
     setUserRole: (val: 'MASTER' | 'GESTOR') => void;
     companies: any[];
     externalYear?: number;
+    searchQuery?: string;
+    activeTab?: 'visao' | 'graficos';
 }
 
 // Tree Node Interface
@@ -56,7 +58,9 @@ export default function BudgetGrid({
     userRole,
     setUserRole,
     companies,
-    externalYear = new Date().getFullYear()
+    externalYear = new Date().getFullYear(),
+    searchQuery = '',
+    activeTab = 'visao'
 }: BudgetGridProps) {
     const [internalRefresh, setInternalRefresh] = useState(0);
     const triggerRefresh = () => setInternalRefresh((prev: number) => prev + 1);
@@ -1223,7 +1227,17 @@ export default function BudgetGrid({
         return Array.from({ length: 12 }, (_, i) => dreStructure.calculateTotals(i));
     }, [dreStructure]);
 
+    const matchNode = (node: CategoryNode, query: string): boolean => {
+        if (!query) return true;
+        const cleanQuery = query.toLowerCase().trim();
+        if (node.name.toLowerCase().includes(cleanQuery) || (node.code && node.code.toLowerCase().includes(cleanQuery))) {
+            return true;
+        }
+        return node.children.some(child => matchNode(child, query));
+    };
+
     const renderNode = (node: CategoryNode) => {
+        if (searchQuery && !matchNode(node, searchQuery)) return null;
         const hasChildren = node.children.length > 0;
         const hasCompositionChildren = !hasChildren && node.id.split(',').some(id => 
             [0,1,2,3,4,5,6,7,8,9,10,11].some((i) => {
@@ -1840,6 +1854,44 @@ export default function BudgetGrid({
                             </div>
                         )}
                     </div>
+
+                    {/* Mini-Chart Widget from mockup */}
+                    {!loading && !isExternalLoading && precomputedDreTotals.length > 0 && (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', background: 'var(--bg-surface)', padding: '4px 10px', borderRadius: '8px', border: '1px solid var(--border-subtle)', marginLeft: '0.5rem', height: '32px' }}>
+                            <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'space-between', height: '24px', fontSize: '6px', color: '#94a3b8', paddingRight: '2px', textAlign: 'right', fontFamily: 'monospace', lineHeight: 1.1 }}>
+                                <span>{(() => {
+                                    let max = 0;
+                                    precomputedDreTotals.forEach(m => max = Math.max(max, Math.abs(m.vRev.b), Math.abs(m.vRev.r)));
+                                    if (max >= 1000000) return `${(max / 1000000).toFixed(0)}M`;
+                                    if (max >= 1000) return `${(max / 1000).toFixed(0)}k`;
+                                    return max.toFixed(0);
+                                })()}</span>
+                                <span>0</span>
+                            </div>
+                            <div style={{ display: 'flex', alignItems: 'flex-end', gap: '3px', height: '24px' }}>
+                                {(() => {
+                                    let max = 0;
+                                    precomputedDreTotals.forEach(m => max = Math.max(max, Math.abs(m.vRev.b), Math.abs(m.vRev.r)));
+                                    const maxVal = max || 1;
+                                    
+                                    return precomputedDreTotals.map((month, idx) => {
+                                        const bHeight = Math.min(22, (Math.max(0, month.vRev.b) / maxVal) * 22);
+                                        const rHeight = Math.min(22, (Math.max(0, month.vRev.r) / maxVal) * 22);
+                                        const showLabel = idx % 2 === 0;
+                                        
+                                        return (
+                                            <div key={idx} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', width: '8px' }} title={`${['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'][idx]}: Orçado ${formatCurrency(month.vRev.b)} | Realizado ${formatCurrency(month.vRev.r)}`}>
+                                                <div style={{ display: 'flex', alignItems: 'flex-end', gap: '1px', height: '22px' }}>
+                                                    <div style={{ width: '3px', height: `${bHeight}px`, background: '#3b82f6', borderRadius: '0.5px' }} />
+                                                    <div style={{ width: '3px', height: `${rHeight}px`, background: '#cbd5e1', borderRadius: '0.5px' }} />
+                                                </div>
+                                            </div>
+                                        );
+                                    });
+                                })()}
+                            </div>
+                        </div>
+                    )}
                 </div>
 
                 <div style={{ width: '1px', height: '24px', background: 'var(--border-subtle)' }} />
@@ -1886,77 +1938,267 @@ export default function BudgetGrid({
                     </div>
                 </div>
             </div>
-
-            <div className="spreadsheet-container" style={{ minHeight: '300px', position: 'relative' }}>
-                {(loading || isExternalLoading) && (
-                    <div style={{ position: 'absolute', inset: 0, background: 'rgba(255, 255, 255, 0.4)', zIndex: 100, display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', backdropFilter: 'blur(1px)' }}>
-                        <div className="spinner" />
-                        <span style={{ marginTop: '0.5rem', color: 'var(--text-primary)', fontWeight: 700, fontSize: '0.75rem' }}>CARREGANDO...</span>
-                    </div>
-                )}
-                <table className="spreadsheet-table">
-                    <thead>
-                        <tr>
-                            <th className="sticky-col" style={{ minWidth: '400px' }}>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', padding: '0 0.5rem' }}>
-                                    <button
-                                        onClick={handleToggleAll}
-                                        className="spreadsheet-btn-expand"
-                                        style={{ background: '#fff', border: '1px solid #cbd5e1', fontSize: '0.8rem' }}
-                                    >
-                                        {isAnyExpanded ? '−' : '+'}
-                                    </button>
-                                    <span style={{ fontSize: '0.75rem', fontWeight: 800 }}>ESTRUTURA DRE — {selectedYear}</span>
-                                </div>
-                            </th>
-                            {(viewPeriod === 'month' ? MONTHS : ['1º Tri', '2º Tri', '3º Tri', '4º Tri']).map((c, i) => {
-                                const colsPerMonth = 2 + (showAV ? 2 : 0) + (showAH ? 1 : 0) + (showAH_MoM ? 1 : 0);
+            {activeTab === 'graficos' ? (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', marginTop: '1rem', width: '100%' }}>
+                    {/* KPI Summary Cards */}
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '1rem' }}>
+                        {/* Card 1: Receita Bruta */}
+                        <div className="glass-card" style={{ padding: '1.25rem', background: '#ffffff', borderRadius: '12px', border: '1px solid #e2e8f0', boxShadow: '0 4px 6px rgba(0,0,0,0.02)' }}>
+                            <div style={{ fontSize: '0.75rem', fontWeight: 800, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.5rem' }}>Receita Bruta Total</div>
+                            {(() => {
+                                let totalB = 0, totalR = 0;
+                                precomputedDreTotals.forEach(m => { totalB += m.vRev.b; totalR += m.vRev.r; });
                                 return (
-                                    <th key={i} colSpan={colsPerMonth} style={{ textAlign: 'center', padding: '0.4rem', borderLeft: '2px solid #cbd5e1', fontSize: '0.7rem' }}>
-                                        {c}
-                                    </th>
+                                    <>
+                                        <div style={{ fontSize: '1.5rem', fontWeight: 900, color: '#0f172a' }}>{formatCurrency(totalR)}</div>
+                                        <div style={{ fontSize: '0.75rem', color: '#64748b', marginTop: '0.25rem' }}>
+                                            Meta Orçada: <span style={{ fontWeight: 600 }}>{formatCurrency(totalB)}</span>
+                                        </div>
+                                    </>
                                 );
-                            })}
-                        </tr>
-                        <tr>
-                            <th className="sticky-col"></th>
-                            {(viewPeriod === 'month' ? MONTHS : [1, 2, 3, 4]).map((_, i) => (
-                                <React.Fragment key={i}>
-                                    <th style={{ fontSize: '0.6rem', color: '#64748b', borderLeft: '2px solid #cbd5e1', textAlign: 'center', padding: '0.2rem', minWidth: '100px', maxWidth: '100px' }}>ORÇ</th>
-                                    {showAV && <th style={{ fontSize: '0.55rem', color: '#94a3b8', textAlign: 'center', padding: '0.2rem', minWidth: '60px', maxWidth: '60px' }}>AV OR</th>}
-                                    <th style={{ fontSize: '0.6rem', color: '#64748b', textAlign: 'center', padding: '0.2rem', minWidth: '110px', maxWidth: '110px' }}>REAL</th>
-                                    {showAV && <th style={{ fontSize: '0.55rem', color: '#94a3b8', textAlign: 'center', padding: '0.2rem', minWidth: '60px', maxWidth: '60px' }}>AV RL</th>}
-                                    {showAH && <th style={{ fontSize: '0.55rem', color: '#94a3b8', textAlign: 'center', padding: '0.2rem', minWidth: '65px', maxWidth: '65px' }}>AH %</th>}
-                                    {showAH_MoM && (
-                                        <th style={{ fontSize: '0.55rem', color: '#94a3b8', textAlign: 'center', padding: '0.2rem', minWidth: '65px', maxWidth: '65px' }}>
-                                            {viewPeriod === 'month' ? 'MoM' : 'QoQ'}
+                            })()}
+                        </div>
+                        {/* Card 2: EBITDA */}
+                        <div className="glass-card" style={{ padding: '1.25rem', background: '#ffffff', borderRadius: '12px', border: '1px solid #e2e8f0', boxShadow: '0 4px 6px rgba(0,0,0,0.02)' }}>
+                            <div style={{ fontSize: '0.75rem', fontWeight: 800, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.5rem' }}>EBITDA Acumulado</div>
+                            {(() => {
+                                let totalB = 0, totalR = 0;
+                                precomputedDreTotals.forEach(m => { totalB += m.vEbitda.b; totalR += m.vEbitda.r; });
+                                const isPositive = totalR >= 0;
+                                return (
+                                    <>
+                                        <div style={{ fontSize: '1.5rem', fontWeight: 900, color: isPositive ? '#16a34a' : '#dc2626' }}>{formatCurrency(totalR)}</div>
+                                        <div style={{ fontSize: '0.75rem', color: '#64748b', marginTop: '0.25rem' }}>
+                                            Meta Orçada: <span style={{ fontWeight: 600 }}>{formatCurrency(totalB)}</span>
+                                        </div>
+                                    </>
+                                );
+                            })()}
+                        </div>
+                        {/* Card 3: Lucro Líquido */}
+                        <div className="glass-card" style={{ padding: '1.25rem', background: '#ffffff', borderRadius: '12px', border: '1px solid #e2e8f0', boxShadow: '0 4px 6px rgba(0,0,0,0.02)' }}>
+                            <div style={{ fontSize: '0.75rem', fontWeight: 800, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.5rem' }}>Lucro Líquido Total</div>
+                            {(() => {
+                                let totalB = 0, totalR = 0;
+                                precomputedDreTotals.forEach(m => { totalB += m.vNetProfit.b; totalR += m.vNetProfit.r; });
+                                const isPositive = totalR >= 0;
+                                return (
+                                    <>
+                                        <div style={{ fontSize: '1.5rem', fontWeight: 900, color: isPositive ? '#1d4ed8' : '#dc2626' }}>{formatCurrency(totalR)}</div>
+                                        <div style={{ fontSize: '0.75rem', color: '#64748b', marginTop: '0.25rem' }}>
+                                            Meta Orçada: <span style={{ fontWeight: 600 }}>{formatCurrency(totalB)}</span>
+                                        </div>
+                                    </>
+                                );
+                            })()}
+                        </div>
+                    </div>
+
+                    {/* Chart Panels */}
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(480px, 1fr))', gap: '1.5rem' }}>
+                        {/* Panel 1: Receita Bruta Monthly */}
+                        <div className="glass-card" style={{ padding: '1.5rem', background: '#ffffff', borderRadius: '12px', border: '1px solid #e2e8f0', boxShadow: '0 4px 6px rgba(0,0,0,0.02)' }}>
+                            <h3 style={{ fontSize: '0.9rem', fontWeight: 800, color: '#0f172a', marginBottom: '1.5rem' }}>Faturamento Mensal (Receita Bruta)</h3>
+                            {(() => {
+                                let max = 0;
+                                precomputedDreTotals.forEach(m => max = Math.max(max, Math.abs(m.vRev.b), Math.abs(m.vRev.r)));
+                                const maxVal = max || 1;
+                                
+                                return (
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                                        <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', height: '180px', borderBottom: '1px solid #cbd5e1', paddingBottom: '0.5rem', position: 'relative' }}>
+                                            {/* Y-Axis lines */}
+                                            <div style={{ position: 'absolute', left: 0, right: 0, top: '25%', borderTop: '1px dashed #f1f5f9' }} />
+                                            <div style={{ position: 'absolute', left: 0, right: 0, top: '50%', borderTop: '1px dashed #e2e8f0' }} />
+                                            <div style={{ position: 'absolute', left: 0, right: 0, top: '75%', borderTop: '1px dashed #f1f5f9' }} />
+                                            
+                                            {precomputedDreTotals.map((month, idx) => {
+                                                const bHeight = (Math.max(0, month.vRev.b) / maxVal) * 160;
+                                                const rHeight = (Math.max(0, month.vRev.r) / maxVal) * 160;
+                                                return (
+                                                    <div key={idx} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', flex: 1, zIndex: 1 }} title={`Meta: ${formatCurrency(month.vRev.b)} | Realizado: ${formatCurrency(month.vRev.r)}`}>
+                                                        <div style={{ display: 'flex', alignItems: 'flex-end', gap: '2px', height: '160px' }}>
+                                                            <div style={{ width: '10px', height: `${bHeight}px`, background: '#3b82f6', borderRadius: '2px 2px 0 0', transition: 'height 0.3s' }} />
+                                                            <div style={{ width: '10px', height: `${rHeight}px`, background: '#94a3b8', borderRadius: '2px 2px 0 0', transition: 'height 0.3s' }} />
+                                                        </div>
+                                                        <span style={{ fontSize: '0.65rem', fontWeight: 600, color: '#64748b', marginTop: '0.5rem' }}>
+                                                            {['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'][idx]}
+                                                        </span>
+                                                    </div>
+                                                );
+                                            })}
+                                        </div>
+                                        {/* Legend */}
+                                        <div style={{ display: 'flex', gap: '1rem', fontSize: '0.7rem', color: '#64748b', marginTop: '0.5rem', justifyContent: 'center' }}>
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                                <div style={{ width: '10px', height: '10px', background: '#3b82f6', borderRadius: '2px' }} />
+                                                <span>Meta Orçada</span>
+                                            </div>
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                                <div style={{ width: '10px', height: '10px', background: '#94a3b8', borderRadius: '2px' }} />
+                                                <span>Realizado</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                );
+                            })()}
+                        </div>
+
+                        {/* Panel 2: Lucro Líquido Monthly */}
+                        <div className="glass-card" style={{ padding: '1.5rem', background: '#ffffff', borderRadius: '12px', border: '1px solid #e2e8f0', boxShadow: '0 4px 6px rgba(0,0,0,0.02)' }}>
+                            <h3 style={{ fontSize: '0.9rem', fontWeight: 800, color: '#0f172a', marginBottom: '1.5rem' }}>Resultado Líquido Mensal (Lucro / Prejuízo)</h3>
+                            {(() => {
+                                let max = 0;
+                                precomputedDreTotals.forEach(m => max = Math.max(max, Math.abs(m.vNetProfit.b), Math.abs(m.vNetProfit.r)));
+                                const maxVal = max || 1;
+                                
+                                return (
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                                        <div style={{ display: 'flex', justifyContent: 'space-between', height: '180px', borderBottom: '1px solid #cbd5e1', paddingBottom: '0.5rem', position: 'relative' }}>
+                                            {/* Y-Axis lines */}
+                                            <div style={{ position: 'absolute', left: 0, right: 0, top: '25%', borderTop: '1px dashed #f1f5f9' }} />
+                                            <div style={{ position: 'absolute', left: 0, right: 0, top: '50%', borderTop: '1px dashed #cbd5e1', zIndex: 0 }} />
+                                            <div style={{ position: 'absolute', left: 0, right: 0, top: '75%', borderTop: '1px dashed #f1f5f9' }} />
+                                            
+                                            {precomputedDreTotals.map((month, idx) => {
+                                                const bVal = month.vNetProfit.b;
+                                                const rVal = month.vNetProfit.r;
+                                                
+                                                const bHeight = (Math.abs(bVal) / maxVal) * 80;
+                                                const rHeight = (Math.abs(rVal) / maxVal) * 80;
+
+                                                return (
+                                                    <div key={idx} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', flex: 1, height: '160px', position: 'relative', zIndex: 1 }} title={`Meta: ${formatCurrency(bVal)} | Realizado: ${formatCurrency(rVal)}`}>
+                                                        {/* Bars wrapper */}
+                                                        <div style={{ position: 'absolute', top: '0', bottom: '0', left: '0', right: '0', display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
+                                                            <div style={{ display: 'flex', gap: '2px', height: '160px', position: 'relative', width: '22px' }}>
+                                                                {/* Budget Net Profit bar */}
+                                                                <div style={{ 
+                                                                    position: 'absolute',
+                                                                    width: '10px', 
+                                                                    height: `${bHeight}px`, 
+                                                                    background: bVal >= 0 ? '#10b981' : '#ef4444', 
+                                                                    borderRadius: bVal >= 0 ? '2px 2px 0 0' : '0 0 2px 2px',
+                                                                    top: bVal >= 0 ? `${80 - bHeight}px` : '80px',
+                                                                    left: '0px'
+                                                                }} />
+                                                                {/* Realized Net Profit bar */}
+                                                                <div style={{ 
+                                                                    position: 'absolute',
+                                                                    width: '10px', 
+                                                                    height: `${rHeight}px`, 
+                                                                    background: rVal >= 0 ? '#1d4ed8' : '#b91c1c', 
+                                                                    borderRadius: rVal >= 0 ? '2px 2px 0 0' : '0 0 2px 2px',
+                                                                    top: rVal >= 0 ? `${80 - rHeight}px` : '80px',
+                                                                    left: '12px'
+                                                                }} />
+                                                            </div>
+                                                        </div>
+                                                        {/* Month label at the bottom of the container */}
+                                                        <span style={{ fontSize: '0.65rem', fontWeight: 600, color: '#64748b', position: 'absolute', bottom: '-20px' }}>
+                                                            {['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'][idx]}
+                                                        </span>
+                                                    </div>
+                                                );
+                                            })}
+                                        </div>
+                                        {/* Legend */}
+                                        <div style={{ display: 'flex', gap: '1rem', fontSize: '0.7rem', color: '#64748b', marginTop: '1.5rem', justifyContent: 'center' }}>
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                                <div style={{ width: '10px', height: '10px', background: '#10b981', borderRadius: '2px' }} />
+                                                <span>Meta Orçada (Lucro)</span>
+                                            </div>
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                                <div style={{ width: '10px', height: '10px', background: '#1d4ed8', borderRadius: '2px' }} />
+                                                <span>Realizado (Lucro)</span>
+                                            </div>
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                                <div style={{ width: '10px', height: '10px', background: '#ef4444', borderRadius: '2px' }} />
+                                                <span>Orçado (Prejuízo)</span>
+                                            </div>
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                                <div style={{ width: '10px', height: '10px', background: '#b91c1c', borderRadius: '2px' }} />
+                                                <span>Realizado (Prejuízo)</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                );
+                            })()}
+                        </div>
+                    </div>
+                </div>
+            ) : (
+                <div className="spreadsheet-container" style={{ minHeight: '300px', position: 'relative' }}>
+                    {(loading || isExternalLoading) && (
+                        <div style={{ position: 'absolute', inset: 0, background: 'rgba(255, 255, 255, 0.4)', zIndex: 100, display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', backdropFilter: 'blur(1px)' }}>
+                            <div className="spinner" />
+                            <span style={{ marginTop: '0.5rem', color: 'var(--text-primary)', fontWeight: 700, fontSize: '0.75rem' }}>CARREGANDO...</span>
+                        </div>
+                    )}
+                    <table className="spreadsheet-table">
+                        <thead>
+                            <tr>
+                                <th className="sticky-col" style={{ minWidth: '400px' }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', padding: '0 0.5rem' }}>
+                                        <button
+                                            onClick={handleToggleAll}
+                                            className="spreadsheet-btn-expand"
+                                            style={{ background: '#fff', border: '1px solid #cbd5e1', fontSize: '0.8rem' }}
+                                        >
+                                            {isAnyExpanded ? '−' : '+'}
+                                        </button>
+                                        <span style={{ fontSize: '0.75rem', fontWeight: 800 }}>ESTRUTURA DRE — {selectedYear}</span>
+                                    </div>
+                                </th>
+                                {(viewPeriod === 'month' ? MONTHS : ['1º Tri', '2º Tri', '3º Tri', '4º Tri']).map((c, i) => {
+                                    const colsPerMonth = 2 + (showAV ? 2 : 0) + (showAH ? 1 : 0) + (showAH_MoM ? 1 : 0);
+                                    return (
+                                        <th key={i} colSpan={colsPerMonth} style={{ textAlign: 'center', padding: '0.4rem', borderLeft: '2px solid #cbd5e1', fontSize: '0.7rem' }}>
+                                            {c}
                                         </th>
-                                    )}
-                                </React.Fragment>
-                            ))}
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {renderSummaryRow('01. RECEITA BRUTA', 'vRev', true, 'rev')}
-                        {expandedGroups.has('rev') && dreStructure.buckets.rev.map(root => renderNode(root))}
-                         {renderSummaryRow('02. TRIBUTO SOBRE FATURAMENTO', 'vTaxes', true, 'taxes')}
-                        {expandedGroups.has('taxes') && dreStructure.buckets.taxes.map(root => renderNode(root))}
-                        {renderSummaryRow('(=) RECEITA LÍQUIDA', 'vRecLiq', true)}
-                        {renderSummaryRow('03. CUSTO OPERACIONAL', 'vCosts', true, 'costs')}
-                        {expandedGroups.has('costs') && dreStructure.buckets.costs.map(root => renderNode(root))}
-                        {renderSummaryRow('(=) MARGEM BRUTA', 'vGrossMarg', true)}
-                        {renderSummaryRow('04. DESPESA OPERACIONAL', 'vOpExp', true, 'opExp')}
-                        {expandedGroups.has('opExp') && dreStructure.buckets.opExp.map(root => renderNode(root))}
-                        {renderSummaryRow('(=) MARGEM DE CONTRIBUIÇÃO', 'vContribMarg', true)}
-                        {renderSummaryRow('05. DESPESAS ADMINISTRATIVAS', 'vAdminExp', true, 'adminExp')}
-                        {expandedGroups.has('adminExp') && dreStructure.buckets.adminExp.map(root => renderNode(root))}
-                        {renderSummaryRow('(=) EBITDA', 'vEbitda', true)}
-                        {renderSummaryRow('06. DESPESAS FINANCEIRAS', 'vFin', true, 'fin')}
-                        {expandedGroups.has('fin') && dreStructure.buckets.fin.map(root => renderNode(root))}
-                        {renderSummaryRow('(=) LUCRO LÍQUIDO', 'vNetProfit', true)}
-                    </tbody>
-                </table>
-            </div>
+                                    );
+                                })}
+                            </tr>
+                            <tr>
+                                <th className="sticky-col"></th>
+                                {(viewPeriod === 'month' ? MONTHS : [1, 2, 3, 4]).map((_, i) => (
+                                    <React.Fragment key={i}>
+                                        <th style={{ fontSize: '0.6rem', color: '#64748b', borderLeft: '2px solid #cbd5e1', textAlign: 'center', padding: '0.2rem', minWidth: '100px', maxWidth: '100px' }}>ORÇ</th>
+                                        {showAV && <th style={{ fontSize: '0.55rem', color: '#94a3b8', textAlign: 'center', padding: '0.2rem', minWidth: '60px', maxWidth: '60px' }}>AV OR</th>}
+                                        <th style={{ fontSize: '0.6rem', color: '#64748b', textAlign: 'center', padding: '0.2rem', minWidth: '110px', maxWidth: '110px' }}>REAL</th>
+                                        {showAV && <th style={{ fontSize: '0.55rem', color: '#94a3b8', textAlign: 'center', padding: '0.2rem', minWidth: '60px', maxWidth: '60px' }}>AV RL</th>}
+                                        {showAH && <th style={{ fontSize: '0.55rem', color: '#94a3b8', textAlign: 'center', padding: '0.2rem', minWidth: '65px', maxWidth: '65px' }}>AH %</th>}
+                                        {showAH_MoM && (
+                                            <th style={{ fontSize: '0.55rem', color: '#94a3b8', textAlign: 'center', padding: '0.2rem', minWidth: '65px', maxWidth: '65px' }}>
+                                                {viewPeriod === 'month' ? 'MoM' : 'QoQ'}
+                                            </th>
+                                        )}
+                                    </React.Fragment>
+                                ))}
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {renderSummaryRow('01. RECEITA BRUTA', 'vRev', true, 'rev')}
+                            {expandedGroups.has('rev') && dreStructure.buckets.rev.map(root => renderNode(root))}
+                            {renderSummaryRow('02. TRIBUTO SOBRE FATURAMENTO', 'vTaxes', true, 'taxes')}
+                            {expandedGroups.has('taxes') && dreStructure.buckets.taxes.map(root => renderNode(root))}
+                            {renderSummaryRow('(=) RECEITA LÍQUIDA', 'vRecLiq', true)}
+                            {renderSummaryRow('03. CUSTO OPERACIONAL', 'vCosts', true, 'costs')}
+                            {expandedGroups.has('costs') && dreStructure.buckets.costs.map(root => renderNode(root))}
+                            {renderSummaryRow('(=) MARGEM BRUTA', 'vGrossMarg', true)}
+                            {renderSummaryRow('04. DESPESA OPERACIONAL', 'vOpExp', true, 'opExp')}
+                            {expandedGroups.has('opExp') && dreStructure.buckets.opExp.map(root => renderNode(root))}
+                            {renderSummaryRow('(=) MARGEM DE CONTRIBUIÇÃO', 'vContribMarg', true)}
+                            {renderSummaryRow('05. DESPESAS ADMINISTRATIVAS', 'vAdminExp', true, 'adminExp')}
+                            {expandedGroups.has('adminExp') && dreStructure.buckets.adminExp.map(root => renderNode(root))}
+                            {renderSummaryRow('(=) EBITDA', 'vEbitda', true)}
+                            {renderSummaryRow('06. DESPESAS FINANCEIRAS', 'vFin', true, 'fin')}
+                            {expandedGroups.has('fin') && dreStructure.buckets.fin.map(root => renderNode(root))}
+                            {renderSummaryRow('(=) LUCRO LÍQUIDO', 'vNetProfit', true)}
+                        </tbody>
+                    </table>
+                </div>
+            )}
             {/* Budget Drill-Down Modal — 3-Step */}
                 {budgetDrillModal && (() => {
                     const { entries, loading, categoryName, month, drillStep, drillCompany, drillCC } = budgetDrillModal;

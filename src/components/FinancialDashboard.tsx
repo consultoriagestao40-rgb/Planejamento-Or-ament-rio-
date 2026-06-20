@@ -88,7 +88,7 @@ export default function FinancialDashboard({
             padding: '2.5rem 2rem 3rem',
             boxSizing: 'border-box'
         }}>
-            {/* ─── BODY ─────────────────────────────────                {/* Mockup Header Bar */}
+            {/* Mockup Header Bar */}
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem', flexWrap: 'wrap', gap: '1rem', background: '#f8fafc', padding: '0.75rem 1.5rem', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
                     {/* Left side: Tabs & Year Selector */}
                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>

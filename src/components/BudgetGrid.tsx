@@ -92,7 +92,9 @@ export default function BudgetGrid({
     const [selectedPeriodOption, setSelectedPeriodOption] = useState<string>('1_semestre');
     const [viewMode, setViewMode] = useState<'caixa' | 'competencia'>('competencia');
     const [viewPeriod, setViewPeriod] = useState<'month' | 'quarter'>('month');
-    const [chartViewMode, setChartViewMode] = useState<'mensal' | 'acumulado'>('mensal');
+    const [faturamentoViewMode, setFaturamentoViewMode] = useState<'mensal' | 'acumulado'>('mensal');
+    const [tributosViewMode, setTributosViewMode] = useState<'mensal' | 'acumulado'>('mensal');
+    const [resultadoViewMode, setResultadoViewMode] = useState<'mensal' | 'acumulado'>('mensal');
 
     // Sync selectedYear with externalYear
     useEffect(() => {
@@ -2638,12 +2640,6 @@ export default function BudgetGrid({
                 {activeTab === 'graficos' ? (
                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                            <div className="toggle-group" style={{ height: '30px', padding: '2px' }}>
-                                <button onClick={() => setChartViewMode('mensal')} className={`toggle-btn ${chartViewMode === 'mensal' ? 'active' : ''}`} style={{ padding: '0 0.75rem', fontSize: '0.7rem' }}>Mensal</button>
-                                <button onClick={() => setChartViewMode('acumulado')} className={`toggle-btn ${chartViewMode === 'acumulado' ? 'active' : ''}`} style={{ padding: '0 0.75rem', fontSize: '0.7rem' }}>Acumulado</button>
-                            </div>
-                        </div>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                             <span style={{ fontSize: '0.65rem', fontWeight: 800, color: 'var(--accent-blue)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Período</span>
                             <select
                                 value={selectedPeriodOption}
@@ -2984,10 +2980,16 @@ export default function BudgetGrid({
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', width: '100%' }}>
                         {/* Panel 1: Receita Bruta Monthly */}
                         <div className="glass-card" style={{ padding: '1.5rem', background: '#ffffff', borderRadius: '12px', border: '1px solid #e2e8f0', boxShadow: '0 4px 6px rgba(0,0,0,0.02)', width: '100%' }}>
-                            <h3 style={{ fontSize: '0.9rem', fontWeight: 800, color: '#0f172a', marginBottom: '1.5rem' }}>
-                                {chartViewMode === 'acumulado' ? 'Faturamento Acumulado (Receita Bruta)' : 'Faturamento Mensal (Receita Bruta)'}
-                                <span style={{ fontSize: '0.7rem', color: '#64748b', fontWeight: 500, marginLeft: '0.4rem' }}>(Valores em Mil R$)</span>
-                            </h3>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
+                                <h3 style={{ fontSize: '0.9rem', fontWeight: 800, color: '#0f172a', margin: 0 }}>
+                                    {faturamentoViewMode === 'acumulado' ? 'Faturamento Acumulado (Receita Bruta)' : 'Faturamento Mensal (Receita Bruta)'}
+                                    <span style={{ fontSize: '0.7rem', color: '#64748b', fontWeight: 500, marginLeft: '0.4rem' }}>(Valores em Mil R$)</span>
+                                </h3>
+                                <div className="toggle-group" style={{ height: '30px', padding: '2px' }}>
+                                    <button onClick={() => setFaturamentoViewMode('mensal')} className={`toggle-btn ${faturamentoViewMode === 'mensal' ? 'active' : ''}`} style={{ padding: '0 0.75rem', fontSize: '0.7rem' }}>Mensal</button>
+                                    <button onClick={() => setFaturamentoViewMode('acumulado')} className={`toggle-btn ${faturamentoViewMode === 'acumulado' ? 'active' : ''}`} style={{ padding: '0 0.75rem', fontSize: '0.7rem' }}>Acumulado</button>
+                                </div>
+                            </div>
                             {(() => {
                                 // Formatter for values on top of the bars (in thousands, e.g. R$ 780.1)
                                 const formatChartValue = (val: number) => {
@@ -2999,7 +3001,7 @@ export default function BudgetGrid({
                                     return `${isNegative ? '-' : ''}R$ ${formatted}`;
                                 };
 
-                                const dataToUse = chartViewMode === 'acumulado' ? accumulatedDreTotals : precomputedDreTotals;
+                                const dataToUse = faturamentoViewMode === 'acumulado' ? accumulatedDreTotals : precomputedDreTotals;
 
                                 // Max value across all 12 months for scale calculation
                                 const maxVal = Math.max(...dataToUse.map(m => Math.max(m.vRev.b, m.vRev.r))) || 1;
@@ -3185,10 +3187,16 @@ export default function BudgetGrid({
 
                         {/* Panel 2: Tributos Monthly */}
                         <div className="glass-card" style={{ padding: '1.5rem', background: '#ffffff', borderRadius: '12px', border: '1px solid #e2e8f0', boxShadow: '0 4px 6px rgba(0,0,0,0.02)', width: '100%' }}>
-                            <h3 style={{ fontSize: '0.9rem', fontWeight: 800, color: '#0f172a', marginBottom: '1.5rem' }}>
-                                {chartViewMode === 'acumulado' ? 'Tributos Acumulados' : 'Tributos'}
-                                <span style={{ fontSize: '0.7rem', color: '#64748b', fontWeight: 500, marginLeft: '0.4rem' }}>(Valores em Mil R$)</span>
-                            </h3>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
+                                <h3 style={{ fontSize: '0.9rem', fontWeight: 800, color: '#0f172a', margin: 0 }}>
+                                    {tributosViewMode === 'acumulado' ? 'Tributos Acumulados' : 'Tributos'}
+                                    <span style={{ fontSize: '0.7rem', color: '#64748b', fontWeight: 500, marginLeft: '0.4rem' }}>(Valores em Mil R$)</span>
+                                </h3>
+                                <div className="toggle-group" style={{ height: '30px', padding: '2px' }}>
+                                    <button onClick={() => setTributosViewMode('mensal')} className={`toggle-btn ${tributosViewMode === 'mensal' ? 'active' : ''}`} style={{ padding: '0 0.75rem', fontSize: '0.7rem' }}>Mensal</button>
+                                    <button onClick={() => setTributosViewMode('acumulado')} className={`toggle-btn ${tributosViewMode === 'acumulado' ? 'active' : ''}`} style={{ padding: '0 0.75rem', fontSize: '0.7rem' }}>Acumulado</button>
+                                </div>
+                            </div>
                             {(() => {
                                 // Formatter for values on top of the bars (in thousands, e.g. R$ 780.1)
                                 const formatChartValue = (val: number) => {
@@ -3200,7 +3208,7 @@ export default function BudgetGrid({
                                     return `${isNegative ? '-' : ''}R$ ${formatted}`;
                                 };
 
-                                const dataToUse = chartViewMode === 'acumulado' ? accumulatedDreTotals : precomputedDreTotals;
+                                const dataToUse = tributosViewMode === 'acumulado' ? accumulatedDreTotals : precomputedDreTotals;
 
                                 // Max value across all 12 months for scale calculation
                                 const maxVal = Math.max(...dataToUse.map(m => Math.max(m.vTaxes.b, m.vTaxes.r))) || 1;
@@ -3386,10 +3394,16 @@ export default function BudgetGrid({
 
                         {/* Panel 3: Lucro Líquido Monthly */}
                         <div className="glass-card" style={{ padding: '1.5rem', background: '#ffffff', borderRadius: '12px', border: '1px solid #e2e8f0', boxShadow: '0 4px 6px rgba(0,0,0,0.02)', width: '100%' }}>
-                            <h3 style={{ fontSize: '0.9rem', fontWeight: 800, color: '#0f172a', marginBottom: '1.5rem' }}>
-                                {chartViewMode === 'acumulado' ? 'Resultado Líquido Acumulado (Lucro / Prejuízo)' : 'Resultado Líquido Mensal (Lucro / Prejuízo)'}
-                                <span style={{ fontSize: '0.7rem', color: '#64748b', fontWeight: 500, marginLeft: '0.4rem' }}>(Valores em Mil R$)</span>
-                            </h3>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
+                                <h3 style={{ fontSize: '0.9rem', fontWeight: 800, color: '#0f172a', margin: 0 }}>
+                                    {resultadoViewMode === 'acumulado' ? 'Resultado Líquido Acumulado (Lucro / Prejuízo)' : 'Resultado Líquido Mensal (Lucro / Prejuízo)'}
+                                    <span style={{ fontSize: '0.7rem', color: '#64748b', fontWeight: 500, marginLeft: '0.4rem' }}>(Valores em Mil R$)</span>
+                                </h3>
+                                <div className="toggle-group" style={{ height: '30px', padding: '2px' }}>
+                                    <button onClick={() => setResultadoViewMode('mensal')} className={`toggle-btn ${resultadoViewMode === 'mensal' ? 'active' : ''}`} style={{ padding: '0 0.75rem', fontSize: '0.7rem' }}>Mensal</button>
+                                    <button onClick={() => setResultadoViewMode('acumulado')} className={`toggle-btn ${resultadoViewMode === 'acumulado' ? 'active' : ''}`} style={{ padding: '0 0.75rem', fontSize: '0.7rem' }}>Acumulado</button>
+                                </div>
+                            </div>
                             {(() => {
                                 // Formatter for values on top/bottom of the bars (in thousands, e.g. R$ 780.1)
                                 const formatChartValue = (val: number) => {
@@ -3401,7 +3415,7 @@ export default function BudgetGrid({
                                     return `${isNegative ? '-' : ''}R$ ${formatted}`;
                                 };
 
-                                const dataToUse = chartViewMode === 'acumulado' ? accumulatedDreTotals : precomputedDreTotals;
+                                const dataToUse = resultadoViewMode === 'acumulado' ? accumulatedDreTotals : precomputedDreTotals;
 
                                 // Max absolute value across all 12 months for scale calculation
                                 const maxVal = Math.max(...dataToUse.map(m => Math.max(Math.abs(m.vNetProfit.b), Math.abs(m.vNetProfit.r)))) || 1;

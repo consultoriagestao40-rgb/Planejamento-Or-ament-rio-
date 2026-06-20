@@ -1676,18 +1676,18 @@ export default function BudgetGrid({
     };
 
     const getSelectedCostCenterNames = (current: string[]) => {
-        if (current.includes('DEFAULT') && current.length === 1) return 'Geral (Todos)';
+        if (current.includes('DEFAULT') && current.length === 1) return 'Todos os Centros de Custos';
         const names = filteredCostCenters.filter(c => current.includes(c.id)).map(c => c.name);
-        if (names.length === 0) return 'Geral (Todos)';
+        if (names.length === 0) return 'Todos os Centros de Custos';
         if (names.length === 1) return names[0];
         if (names.length === filteredCostCenters.length) return 'Todos Selecionados';
         return `${names.length} selecionados`;
     };
 
     const getSelectedCompanyNames = (current: string[]) => {
-        if (current.includes('DEFAULT') && current.length === 1) return 'Geral (Todas)';
+        if (current.includes('DEFAULT') && current.length === 1) return 'Todas as Empresas';
         const names = companies.filter(c => current.includes(c.id)).map(c => c.name);
-        if (names.length === 0) return 'Geral (Todas)';
+        if (names.length === 0) return 'Todas as Empresas';
         if (names.length === 1) return names[0];
         if (names.length === companies.length) return 'Todas Selecionadas';
         return `${names.length} selecionadas`;
@@ -1705,7 +1705,13 @@ export default function BudgetGrid({
                         <label style={{ fontSize: '0.65rem', fontWeight: 800, color: 'var(--accent-blue)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Empresa</label>
                         <div style={{ position: 'relative', minWidth: '200px' }}>
                             <div
-                                onClick={() => setCompanyDropdownOpen(!companyDropdownOpen)}
+                                onClick={() => {
+                                    if (companyDropdownOpen) {
+                                        applyFilter();
+                                    } else {
+                                        setCompanyDropdownOpen(true);
+                                    }
+                                }}
                                 className="premium-input"
                                 style={{ cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0.4rem 0.75rem', paddingRight: '0.75rem', height: 'auto', minHeight: '32px' }}
                             >
@@ -1715,7 +1721,7 @@ export default function BudgetGrid({
 
                             {companyDropdownOpen && (
                                 <>
-                                    <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, zIndex: 999 }} onClick={() => setCompanyDropdownOpen(false)} />
+                                    <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, zIndex: 999 }} onClick={() => applyFilter()} />
                                     <div className="glass-card" style={{ position: 'absolute', top: 'calc(100% + 8px)', left: 0, right: 0, zIndex: 1000, maxHeight: '350px', overflowY: 'auto', background: 'var(--bg-surface)', padding: '0.5rem 0' }}>
                                         <div style={{ padding: '0.5rem 1rem', borderBottom: '1px solid var(--border-subtle)', position: 'sticky', top: 0, background: 'var(--bg-surface)', zIndex: 10 }}>
                                             <input 
@@ -1727,6 +1733,22 @@ export default function BudgetGrid({
                                                 style={{ width: '100%', padding: '0.4rem 0.6rem', fontSize: '0.75rem', borderRadius: '6px', border: '1px solid var(--border-default)', background: 'var(--bg-base)', outline: 'none' }}
                                             />
                                         </div>
+                                        <label style={{ display: 'flex', alignItems: 'center', padding: '0.65rem 1rem', cursor: 'pointer', borderBottom: '1px solid var(--border-subtle)', fontSize: '0.8rem', fontWeight: pendingCompany.includes('DEFAULT') ? 700 : 400 }} className="hover-row">
+                                            <input 
+                                                type="checkbox" 
+                                                checked={pendingCompany.includes('DEFAULT')} 
+                                                onChange={() => {
+                                                    setPendingCompany(['DEFAULT']);
+                                                    setPendingCostCenter(['DEFAULT']);
+                                                    setSelectedCompany(['DEFAULT']);
+                                                    setSelectedCostCenter(['DEFAULT']);
+                                                    setCompanyDropdownOpen(false);
+                                                    setCompanySearch('');
+                                                }} 
+                                                style={{ marginRight: '0.75rem', accentColor: 'var(--accent-blue)' }} 
+                                            />
+                                            <span style={{ flex: 1, color: 'var(--text-primary)' }}>Todas as Empresas</span>
+                                        </label>
                                         {companies.filter(c => c.name.toLowerCase().includes(companySearch.toLowerCase())).map(c => (
                                             <label key={c.id} style={{ display: 'flex', alignItems: 'center', padding: '0.65rem 1rem', cursor: 'pointer', borderBottom: '1px solid var(--border-subtle)', fontSize: '0.8rem' }} className="hover-row">
                                                 <input type="checkbox" checked={pendingCompany.includes(c.id)} onChange={() => handleCompanyToggle(c.id)} style={{ marginRight: '0.75rem', accentColor: 'var(--accent-blue)' }} />
@@ -1744,7 +1766,13 @@ export default function BudgetGrid({
                         <label style={{ fontSize: '0.65rem', fontWeight: 800, color: 'var(--accent-blue)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Centro de Custo</label>
                         <div style={{ position: 'relative', minWidth: '200px' }}>
                             <div
-                                onClick={() => setCostCenterDropdownOpen(!costCenterDropdownOpen)}
+                                onClick={() => {
+                                    if (costCenterDropdownOpen) {
+                                        applyFilter();
+                                    } else {
+                                        setCostCenterDropdownOpen(true);
+                                    }
+                                }}
                                 className="premium-input"
                                 style={{ cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0.4rem 0.75rem', paddingRight: '0.75rem', height: 'auto', minHeight: '32px' }}
                             >
@@ -1754,7 +1782,7 @@ export default function BudgetGrid({
 
                             {costCenterDropdownOpen && (
                                 <>
-                                    <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, zIndex: 999 }} onClick={() => setCostCenterDropdownOpen(false)} />
+                                    <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, zIndex: 999 }} onClick={() => applyFilter()} />
                                     <div className="glass-card" style={{ position: 'absolute', top: 'calc(100% + 8px)', left: 0, right: 0, zIndex: 1000, maxHeight: '350px', overflowY: 'auto', background: 'var(--bg-surface)', padding: '0.5rem 0' }}>
                                         <div style={{ padding: '0.5rem 1rem', borderBottom: '1px solid var(--border-subtle)', position: 'sticky', top: 0, background: 'var(--bg-surface)', zIndex: 10 }}>
                                             <input 
@@ -1766,6 +1794,20 @@ export default function BudgetGrid({
                                                 style={{ width: '100%', padding: '0.4rem 0.6rem', fontSize: '0.75rem', borderRadius: '6px', border: '1px solid var(--border-default)', background: 'var(--bg-base)', outline: 'none' }}
                                             />
                                         </div>
+                                        <label style={{ display: 'flex', alignItems: 'center', padding: '0.65rem 1rem', cursor: 'pointer', borderBottom: '1px solid var(--border-subtle)', fontSize: '0.8rem', fontWeight: pendingCostCenter.includes('DEFAULT') ? 700 : 400 }} className="hover-row">
+                                            <input 
+                                                type="checkbox" 
+                                                checked={pendingCostCenter.includes('DEFAULT')} 
+                                                onChange={() => {
+                                                    setPendingCostCenter(['DEFAULT']);
+                                                    setSelectedCostCenter(['DEFAULT']);
+                                                    setCostCenterDropdownOpen(false);
+                                                    setCostCenterSearch('');
+                                                }} 
+                                                style={{ marginRight: '0.75rem', accentColor: 'var(--accent-blue)' }} 
+                                            />
+                                            <span style={{ flex: 1, color: 'var(--text-primary)' }}>Todos os Centros de Custos</span>
+                                        </label>
                                         {filteredCostCenters.filter(cc => cc.name.toLowerCase().includes(costCenterSearch.toLowerCase())).map(cc => (
                                             <label key={cc.id} style={{ display: 'flex', alignItems: 'center', padding: '0.65rem 1rem', cursor: 'pointer', borderBottom: '1px solid var(--border-subtle)', fontSize: '0.8rem' }} className="hover-row">
                                                 <input type="checkbox" checked={pendingCostCenter.includes(cc.id)} onChange={() => handleCostCenterToggle(cc.id)} style={{ marginRight: '0.75rem', accentColor: 'var(--accent-blue)' }} />
@@ -1779,9 +1821,6 @@ export default function BudgetGrid({
                     </div>
 
                     <div style={{ display: 'flex', gap: '0.4rem', alignItems: 'center' }}>
-                        <button onClick={applyFilter} className="btn btn-primary" style={{ padding: '0 1rem', height: '32px', fontSize: '0.75rem' }}>Filtrar</button>
-                        <button onClick={clearFilter} className="btn btn-secondary" style={{ padding: '0 1rem', height: '32px', fontSize: '0.75rem' }}>Limpar</button>
-                        
                         {/* Status Badge */}
                         {selectedCostCenter.length === 1 && selectedCostCenter[0] !== 'DEFAULT' && isCCLocked && (
                             <div style={{ 
@@ -1799,28 +1838,6 @@ export default function BudgetGrid({
                             }}>
                                 🔒 ORÇAMENTO BLOQUEADO
                             </div>
-                        )}
-
-                        {userRole === 'MASTER' && (
-                            <button 
-                                onClick={() => setIsExcelModalOpen(true)} 
-                                className="btn" 
-                                style={{ 
-                                    padding: '0 1.25rem', 
-                                    height: '32px', 
-                                    fontSize: '0.75rem', 
-                                    background: '#16a34a', 
-                                    color: 'white', 
-                                    fontWeight: 800,
-                                    borderRadius: '8px',
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    gap: '0.4rem',
-                                    boxShadow: '0 4px 6px -1px rgba(22, 163, 74, 0.4)'
-                                }}
-                            >
-                                <span>📊</span> IMPORTAR
-                            </button>
                         )}
                     </div>
                 </div>

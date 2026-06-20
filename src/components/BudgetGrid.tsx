@@ -3387,40 +3387,7 @@ export default function BudgetGrid({
                     </div>
                 )}
             </div>
-            {activeTab === 'kpi' ? (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', marginTop: '1rem', width: '100%' }}>
-                    {/* Seção de Velocímetros (Faturamento, Tributos, Custos e EBITDA) em Bloco Único */}
-                    <div className="glass-card" style={{ padding: '1.25rem 1rem', background: '#ffffff', borderRadius: '12px', border: '1px solid #e2e8f0', boxShadow: '0 4px 6px rgba(0,0,0,0.02)', width: '100%', overflow: 'hidden' }}>
-                        <div style={{ display: 'flex', flexDirection: 'row', gap: '0.75rem', width: '100%' }}>
-                            {/* Card 1: Faturamento */}
-                            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', height: '100%', flex: 1, minWidth: 0 }}>
-                                <h3 style={{ fontSize: '0.72rem', fontWeight: 800, color: '#0f172a', marginBottom: '0.75rem', width: '100%', textAlign: 'center', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }} title="Projeção Anual de Faturamento">Projeção Anual de Faturamento</h3>
-                                {renderRevenueGauge()}
-                            </div>
-                            {/* Card 2: Tributos */}
-                            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', height: '100%', flex: 1, minWidth: 0 }}>
-                                <h3 style={{ fontSize: '0.72rem', fontWeight: 800, color: '#0f172a', marginBottom: '0.75rem', width: '100%', textAlign: 'center', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }} title="Indicador de Tributos">Indicador de Tributos</h3>
-                                {renderTaxesGauge()}
-                            </div>
-                            {/* Card: Margem Bruta */}
-                            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', height: '100%', flex: 1, minWidth: 0 }}>
-                                <h3 style={{ fontSize: '0.72rem', fontWeight: 800, color: '#0f172a', marginBottom: '0.75rem', width: '100%', textAlign: 'center', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }} title="Margem Bruta (MB)">Margem Bruta (MB)</h3>
-                                {renderGrossMargGauge()}
-                            </div>
-                            {/* Card 3: Custos Operacionais */}
-                            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', height: '100%', flex: 1, minWidth: 0 }}>
-                                <h3 style={{ fontSize: '0.72rem', fontWeight: 800, color: '#0f172a', marginBottom: '0.75rem', width: '100%', textAlign: 'center', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }} title="Custos Operacionais">Custos Operacionais</h3>
-                                {renderCostsGauge()}
-                            </div>
-                            {/* Card 4: EBITDA Percentual */}
-                            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', height: '100%', flex: 1, minWidth: 0 }}>
-                                <h3 style={{ fontSize: '0.72rem', fontWeight: 800, color: '#0f172a', marginBottom: '0.75rem', width: '100%', textAlign: 'center', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }} title="EBITDA Percentual">EBITDA Percentual</h3>
-                                {renderEbitdaGauge()}
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            ) : activeTab === 'graficos' ? (
+            {activeTab === 'kpi' ? null : activeTab === 'graficos' ? (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', marginTop: '1rem', width: '100%' }}>
 
                     {/* KPI Summary Cards */}

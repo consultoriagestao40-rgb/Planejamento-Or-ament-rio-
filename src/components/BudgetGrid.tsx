@@ -2261,33 +2261,23 @@ export default function BudgetGrid({
                                 {renderRevenueGauge()}
 
                                 {/* Detalhes e Métricas */}
-                                <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', minWidth: '280px', flex: 1 }}>
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', minWidth: '240px', flex: 1 }}>
                                     <div style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
-                                        <span style={{ fontSize: '0.7rem', color: '#64748b', textTransform: 'uppercase', fontWeight: 800, letterSpacing: '0.05em' }}>Projeção de Receita Anual</span>
-                                        <span style={{ fontSize: '1.75rem', fontWeight: 900, color: '#10b981' }}>
+                                        <span style={{ fontSize: '0.75rem', color: '#64748b', textTransform: 'uppercase', fontWeight: 800, letterSpacing: '0.05em' }}>Projeção de Faturamento (Ano)</span>
+                                        <span style={{ fontSize: '2rem', fontWeight: 900, color: '#10b981' }}>
                                             {formatCurrency(revenueProjectionData.projectedRev)}
                                         </span>
-                                        <p style={{ fontSize: '0.75rem', color: '#64748b', margin: 0, lineHeight: 1.4 }}>
-                                            Com base no realizado de <strong>Jan-Jun</strong> ({formatCurrency(revenueProjectionData.realizedAccumRev)}) somado ao orçado restante de <strong>Jul-Dez</strong>.
-                                        </p>
                                     </div>
 
-                                    <div style={{ borderTop: '1px solid #e2e8f0', paddingTop: '0.75rem', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
-                                        <div style={{ display: 'flex', flexDirection: 'column' }}>
-                                            <span style={{ fontSize: '0.65rem', color: '#64748b', textTransform: 'uppercase', fontWeight: 800 }}>Meta Orçada (Ano Todo)</span>
-                                            <span style={{ fontSize: '1.1rem', fontWeight: 800, color: '#2563eb' }}>{formatCurrency(revenueProjectionData.annualBudgetRev)}</span>
+                                    <div style={{ borderTop: '1px solid #e2e8f0', paddingTop: '1rem', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem' }}>
+                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
+                                            <span style={{ fontSize: '0.7rem', color: '#64748b', textTransform: 'uppercase', fontWeight: 800 }}>Meta Orçada (Ano)</span>
+                                            <span style={{ fontSize: '1.2rem', fontWeight: 800, color: '#2563eb' }}>{formatCurrency(revenueProjectionData.annualBudgetRev)}</span>
                                         </div>
-                                        <div style={{ display: 'flex', flexDirection: 'column' }}>
-                                            <span style={{ fontSize: '0.65rem', color: '#64748b', textTransform: 'uppercase', fontWeight: 800 }}>Realizado Acumulado (Jan-Jun)</span>
-                                            <span style={{ fontSize: '1.1rem', fontWeight: 800, color: '#475569' }}>{formatCurrency(revenueProjectionData.realizedAccumRev)}</span>
+                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
+                                            <span style={{ fontSize: '0.7rem', color: '#64748b', textTransform: 'uppercase', fontWeight: 800 }}>Realizado (Jan-Jun)</span>
+                                            <span style={{ fontSize: '1.2rem', fontWeight: 800, color: '#475569' }}>{formatCurrency(revenueProjectionData.realizedAccumRev)}</span>
                                         </div>
-                                    </div>
-
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '0.65rem 0.85rem', background: '#f0fdf4', borderRadius: '8px', border: '1px solid #bbf7d0', fontSize: '0.75rem', color: '#14532d' }}>
-                                        <span style={{ fontSize: '1.1rem' }}>💡</span>
-                                        <span>
-                                            A projeção indica que a empresa deve atingir <strong>{revenueProjectionData.percent.toFixed(1)}%</strong> da meta de receita anual orçada para 2026.
-                                        </span>
                                     </div>
                                 </div>
                             </div>

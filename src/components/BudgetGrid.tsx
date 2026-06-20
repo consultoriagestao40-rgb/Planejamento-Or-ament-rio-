@@ -3119,7 +3119,203 @@ export default function BudgetGrid({
                             })()}
                         </div>
 
-                        {/* Panel 2: Lucro Líquido Monthly */}
+                        {/* Panel 2: Tributos Monthly */}
+                        <div className="glass-card" style={{ padding: '1.5rem', background: '#ffffff', borderRadius: '12px', border: '1px solid #e2e8f0', boxShadow: '0 4px 6px rgba(0,0,0,0.02)', width: '100%' }}>
+                            <h3 style={{ fontSize: '0.9rem', fontWeight: 800, color: '#0f172a', marginBottom: '1.5rem' }}>Tributos <span style={{ fontSize: '0.7rem', color: '#64748b', fontWeight: 500, marginLeft: '0.4rem' }}>(Valores em Mil R$)</span></h3>
+                            {(() => {
+                                // Formatter for values on top of the bars (in thousands, e.g. R$ 780.1)
+                                const formatChartValue = (val: number) => {
+                                    if (val === 0) return 'R$ 0';
+                                    const isNegative = val < 0;
+                                    const absVal = Math.abs(val);
+                                    const valueInThousands = absVal / 1000;
+                                    const formatted = valueInThousands.toFixed(1);
+                                    return `${isNegative ? '-' : ''}R$ ${formatted}`;
+                                };
+
+                                // Max value across all 12 months for scale calculation
+                                const maxVal = Math.max(...precomputedDreTotals.map(m => Math.max(m.vTaxes.b, m.vTaxes.r))) || 1;
+
+                                // Build path for the % line chart
+                                let pathD = '';
+                                const points: { x: number, y: number, pct: number }[] = [];
+                                
+                                precomputedDreTotals.forEach((month, idx) => {
+                                    if (idx <= currentMonthIdx) {
+                                        const bVal = month.vTaxes.b;
+                                        const rVal = month.vTaxes.r;
+                                        const pct = bVal > 0 ? (rVal / bVal) * 100 : 0;
+                                        // scale: 0% at Y=280, 100% at Y=130, 150% at Y=55
+                                        const pctY = 280 - (pct / 100) * 150;
+                                        const finalPctY = Math.max(30, Math.min(290, pctY));
+                                        const pctX = 60 + idx * 90 + 44;
+                                        
+                                        points.push({ x: pctX, y: finalPctY, pct });
+                                        if (pathD === '') {
+                                            pathD = `M ${pctX} ${finalPctY}`;
+                                        } else {
+                                            pathD += ` L ${pctX} ${finalPctY}`;
+                                        }
+                                    }
+                                });
+
+                                return (
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', width: '100%' }}>
+                                        <div style={{ width: '100%', overflowX: 'auto' }}>
+                                            <svg viewBox="0 0 1200 350" width="100%" height="350px" style={{ minWidth: '800px', display: 'block' }}>
+                                                {/* Grid Lines */}
+                                                <line x1="40" y1="300" x2="1160" y2="300" stroke="#cbd5e1" strokeWidth="1" />
+                                                <line x1="40" y1="236" x2="1160" y2="236" stroke="#f1f5f9" strokeWidth="1" strokeDasharray="4 4" />
+                                                <line x1="40" y1="172" x2="1160" y2="172" stroke="#e2e8f0" strokeWidth="1" strokeDasharray="4 4" />
+                                                <line x1="40" y1="108" x2="1160" y2="108" stroke="#f1f5f9" strokeWidth="1" strokeDasharray="4 4" />
+                                                <line x1="40" y1="44" x2="1160" y2="44" stroke="#cbd5e1" strokeWidth="1" strokeDasharray="4 4" />
+
+                                                {/* Bars & Labels */}
+                                                {precomputedDreTotals.map((month, idx) => {
+                                                    const bVal = month.vTaxes.b;
+                                                    const rVal = idx <= currentMonthIdx ? month.vTaxes.r : 0;
+                                                    
+                                                    const bHeight = (Math.max(0, bVal) / maxVal) * 210;
+                                                    const rHeight = idx <= currentMonthIdx ? (Math.max(0, rVal) / maxVal) * 210 : 0;
+                                                    
+                                                    const xBase = 60 + idx * 90;
+                                                    
+                                                    // Anti-overlap vertical staggering
+                                                    const isClose = idx <= currentMonthIdx && Math.abs(bHeight - rHeight) < 16;
+                                                    const bLabelY = 300 - bHeight - 6;
+                                                    const rLabelY = isClose ? (300 - rHeight - 18) : (300 - rHeight - 6);
+                                                    
+                                                    return (
+                                                        <g key={idx}>
+                                                            {/* Orçado Bar */}
+                                                            <rect 
+                                                                x={xBase + 20} 
+                                                                y={300 - bHeight} 
+                                                                width="22" 
+                                                                height={bHeight} 
+                                                                fill="#f97316" 
+                                                                rx="3"
+                                                            />
+                                                            {/* Orçado Label */}
+                                                            {bVal > 0 && (
+                                                                <text 
+                                                                    x={xBase + 31} 
+                                                                    y={bLabelY} 
+                                                                    textAnchor="middle" 
+                                                                    fill="#c2410c" 
+                                                                    fontSize="9px" 
+                                                                    fontWeight="700"
+                                                                >
+                                                                    {formatChartValue(bVal)}
+                                                                </text>
+                                                            )}
+
+                                                            {/* Realizado Bar */}
+                                                            {idx <= currentMonthIdx && (
+                                                                <>
+                                                                    <rect 
+                                                                        x={xBase + 46} 
+                                                                        y={300 - rHeight} 
+                                                                        width="22" 
+                                                                        height={rHeight} 
+                                                                        fill="#94a3b8" 
+                                                                        rx="3"
+                                                                    />
+                                                                    {/* Realizado Label */}
+                                                                    {rVal > 0 && (
+                                                                        <text 
+                                                                            x={xBase + 57} 
+                                                                            y={rLabelY} 
+                                                                            textAnchor="middle" 
+                                                                            fill="#475569" 
+                                                                            fontSize="9px" 
+                                                                            fontWeight="700"
+                                                                        >
+                                                                            {formatChartValue(rVal)}
+                                                                        </text>
+                                                                    )}
+                                                                </>
+                                                            )}
+
+                                                            {/* Month Label */}
+                                                            <text 
+                                                                x={xBase + 44} 
+                                                                y="325" 
+                                                                textAnchor="middle" 
+                                                                fill="#64748b" 
+                                                                fontSize="11px" 
+                                                                fontWeight="700"
+                                                            >
+                                                                {['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'][idx]}
+                                                            </text>
+                                                        </g>
+                                                    );
+                                                })}
+
+                                                {/* Percentage Line */}
+                                                {pathD && (
+                                                    <path 
+                                                        d={pathD} 
+                                                        fill="none" 
+                                                        stroke="#f43f5e" 
+                                                        strokeWidth="3" 
+                                                        strokeLinecap="round" 
+                                                        strokeLinejoin="round" 
+                                                    />
+                                                )}
+
+                                                {/* Percentage dots & labels */}
+                                                {points.map((p, idx) => (
+                                                    <g key={idx}>
+                                                        <circle 
+                                                            cx={p.x} 
+                                                            cy={p.y} 
+                                                            r="5" 
+                                                            fill="#f43f5e" 
+                                                            stroke="#ffffff" 
+                                                            strokeWidth="2" 
+                                                        />
+                                                        <text 
+                                                            x={p.x} 
+                                                            y={p.y - 10} 
+                                                            textAnchor="middle" 
+                                                            fill="#e11d48" 
+                                                            fontSize="10px" 
+                                                            fontWeight="800"
+                                                            stroke="#ffffff"
+                                                            strokeWidth="3"
+                                                            paintOrder="stroke"
+                                                        >
+                                                            {p.pct.toFixed(1)}%
+                                                        </text>
+                                                    </g>
+                                                ))}
+                                            </svg>
+                                        </div>
+
+                                        {/* Legend */}
+                                        <div style={{ display: 'flex', gap: '1.5rem', fontSize: '0.75rem', color: '#64748b', marginTop: '0.5rem', justifyContent: 'center', flexWrap: 'wrap' }}>
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                                <div style={{ width: '12px', height: '12px', background: '#f97316', borderRadius: '3px' }} />
+                                                <span style={{ fontWeight: 600 }}>Meta Orçada</span>
+                                            </div>
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                                <div style={{ width: '12px', height: '12px', background: '#94a3b8', borderRadius: '3px' }} />
+                                                <span style={{ fontWeight: 600 }}>Realizado</span>
+                                            </div>
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                                <div style={{ height: '3px', width: '20px', background: '#f43f5e', position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                                    <div style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#f43f5e', border: '1px solid #fff' }} />
+                                                </div>
+                                                <span style={{ fontWeight: 600 }}>% Atingido</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                );
+                            })()}
+                        </div>
+
+                        {/* Panel 3: Lucro Líquido Monthly */}
                         <div className="glass-card" style={{ padding: '1.5rem', background: '#ffffff', borderRadius: '12px', border: '1px solid #e2e8f0', boxShadow: '0 4px 6px rgba(0,0,0,0.02)', width: '100%' }}>
                             <h3 style={{ fontSize: '0.9rem', fontWeight: 800, color: '#0f172a', marginBottom: '1.5rem' }}>Resultado Líquido Mensal (Lucro / Prejuízo) <span style={{ fontSize: '0.7rem', color: '#64748b', fontWeight: 500, marginLeft: '0.4rem' }}>(Valores em Mil R$)</span></h3>
                             {(() => {

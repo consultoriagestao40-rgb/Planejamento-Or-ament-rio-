@@ -95,10 +95,12 @@ export default function BudgetGrid({
     const [faturamentoViewMode, setFaturamentoViewMode] = useState<'mensal' | 'acumulado'>('mensal');
     const [tributosViewMode, setTributosViewMode] = useState<'mensal' | 'acumulado'>('mensal');
     const [resultadoViewMode, setResultadoViewMode] = useState<'mensal' | 'acumulado'>('mensal');
+    const [csvViewMode, setCsvViewMode] = useState<'mensal' | 'acumulado'>('mensal');
 
     const [fatVisible, setFatVisible] = useState({ budget: true, realized: true, atingido: true });
     const [tribVisible, setTribVisible] = useState({ budget: true, realized: true, atingido: true, budgetRate: true, realizedRate: true });
     const [resVisible, setResVisible] = useState({ budget: true, realized: true, atingido: true });
+    const [csvVisible, setCsvVisible] = useState({ budget: true, realized: true, atingido: true, budgetRate: true, realizedRate: true });
 
     // Sync selectedYear with externalYear
     useEffect(() => {
@@ -3738,7 +3740,369 @@ export default function BudgetGrid({
                             })()}
                         </div>
 
-                        {/* Panel 3: Lucro Líquido Monthly */}
+                        {/* Panel 3: CSV - Custo do Serviço Vendido */}
+                        <div className="glass-card" style={{ padding: '1.5rem', background: '#ffffff', borderRadius: '12px', border: '1px solid #e2e8f0', boxShadow: '0 4px 6px rgba(0,0,0,0.02)', width: '100%' }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
+                                <h3 style={{ fontSize: '0.9rem', fontWeight: 800, color: '#0f172a', margin: 0 }}>
+                                    {csvViewMode === 'acumulado' ? 'CSV Acumulado - Custo do Serviço Vendido' : 'CSV - Custo do Serviço Vendido'}
+                                    <span style={{ fontSize: '0.7rem', color: '#64748b', fontWeight: 500, marginLeft: '0.4rem' }}>(Valores em Mil R$)</span>
+                                </h3>
+                                <div className="toggle-group" style={{ height: '30px', padding: '2px' }}>
+                                    <button onClick={() => setCsvViewMode('mensal')} className={`toggle-btn ${csvViewMode === 'mensal' ? 'active' : ''}`} style={{ padding: '0 0.75rem', fontSize: '0.7rem' }}>Mensal</button>
+                                    <button onClick={() => setCsvViewMode('acumulado')} className={`toggle-btn ${csvViewMode === 'acumulado' ? 'active' : ''}`} style={{ padding: '0 0.75rem', fontSize: '0.7rem' }}>Acumulado</button>
+                                </div>
+                            </div>
+                            {(() => {
+                                // Formatter for values on top of the bars (in thousands, e.g. R$ 780.1)
+                                const formatChartValue = (val: number) => {
+                                    if (val === 0) return 'R$ 0';
+                                    const isNegative = val < 0;
+                                    const absVal = Math.abs(val);
+                                    const valueInThousands = absVal / 1000;
+                                    const formatted = valueInThousands.toFixed(1);
+                                    return `${isNegative ? '-' : ''}R$ ${formatted}`;
+                                };
+
+                                const dataToUse = csvViewMode === 'acumulado' ? accumulatedDreTotals : precomputedDreTotals;
+
+                                // Max value across all 12 months for scale calculation
+                                const maxVal = Math.max(...dataToUse.map(m => Math.max(
+                                    csvVisible.budget ? m.vCosts.b : 0, 
+                                    csvVisible.realized ? m.vCosts.r : 0
+                                ))) || 1;
+
+                                // Find the maximum rate to define the scale, default to 100 if all rates are 0
+                                const maxRate = Math.max(1, ...dataToUse.map(month => {
+                                    const bRev = month.vRev.b;
+                                    const bCost = month.vCosts.b;
+                                    const bRate = bRev > 0 ? (bCost / bRev) * 100 : 0;
+                                    
+                                    const rRev = month.vRev.r;
+                                    const rCost = month.vCosts.r;
+                                    const rRate = rRev > 0 ? (rCost / rRev) * 100 : 0;
+                                    
+                                    return Math.max(bRate, rRate);
+                                })) || 100;
+
+                                // Build paths for % lines (Atingido, CSV Orçado, CSV Realizado)
+                                let pathAtingido = '';
+                                let pathBudgetRate = '';
+                                let pathRealizedRate = '';
+                                const pointsAtingido: { x: number, y: number, pct: number }[] = [];
+                                const pointsBudgetRate: { x: number, y: number, rate: number }[] = [];
+                                const pointsRealizedRate: { x: number, y: number, rate: number }[] = [];
+                                
+                                dataToUse.forEach((month, idx) => {
+                                    const pctX = 60 + idx * 90 + 44;
+                                    const bRev = month.vRev.b;
+                                    const bCost = month.vCosts.b;
+                                    const rRev = month.vRev.r;
+                                    const rCost = month.vCosts.r;
+                                    
+                                    // 1. CSV Orçado (%) - all 12 months
+                                    if (csvVisible.budgetRate) {
+                                        const bRate = bRev > 0 ? (bCost / bRev) * 100 : 0;
+                                        // Scale dynamically based on maxRate (0% at Y=300, maxRate at Y=50)
+                                        const bRateY = Math.max(30, Math.min(290, 300 - (bRate / maxRate) * 250));
+                                        pointsBudgetRate.push({ x: pctX, y: bRateY, rate: bRate });
+                                        if (pathBudgetRate === '') {
+                                            pathBudgetRate = `M ${pctX} ${bRateY}`;
+                                        } else {
+                                            pathBudgetRate += ` L ${pctX} ${bRateY}`;
+                                        }
+                                    }
+                                    
+                                    // 2. Realized elements (only for months <= currentMonthIdx)
+                                    if (idx <= currentMonthIdx) {
+                                        // CSV Realizado (%)
+                                        if (csvVisible.realizedRate) {
+                                            const rRate = rRev > 0 ? (rCost / rRev) * 100 : 0;
+                                            const rRateY = Math.max(30, Math.min(290, 300 - (rRate / maxRate) * 250));
+                                            pointsRealizedRate.push({ x: pctX, y: rRateY, rate: rRate });
+                                            if (pathRealizedRate === '') {
+                                                pathRealizedRate = `M ${pctX} ${rRateY}`;
+                                            } else {
+                                                pathRealizedRate += ` L ${pctX} ${rRateY}`;
+                                            }
+                                        }
+                                        
+                                        // % Atingido de Custos
+                                        if (csvVisible.atingido) {
+                                            const pctAtingido = bCost > 0 ? (rCost / bCost) * 100 : 0;
+                                            const pctAtingidoY = Math.max(30, Math.min(290, 280 - (pctAtingido / 100) * 150));
+                                            pointsAtingido.push({ x: pctX, y: pctAtingidoY, pct: pctAtingido });
+                                            if (pathAtingido === '') {
+                                                pathAtingido = `M ${pctX} ${pctAtingidoY}`;
+                                            } else {
+                                                pathAtingido += ` L ${pctX} ${pctAtingidoY}`;
+                                            }
+                                        }
+                                    }
+                                });
+
+                                return (
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', width: '100%' }}>
+                                        <div style={{ width: '100%', overflowX: 'auto' }}>
+                                            <svg viewBox="0 0 1200 350" width="100%" height="350px" style={{ minWidth: '800px', display: 'block' }}>
+                                                {/* Grid Lines */}
+                                                <line x1="40" y1="300" x2="1160" y2="300" stroke="#cbd5e1" strokeWidth="1" />
+                                                <line x1="40" y1="236" x2="1160" y2="236" stroke="#f1f5f9" strokeWidth="1" strokeDasharray="4 4" />
+                                                <line x1="40" y1="172" x2="1160" y2="172" stroke="#e2e8f0" strokeWidth="1" strokeDasharray="4 4" />
+                                                <line x1="40" y1="108" x2="1160" y2="108" stroke="#f1f5f9" strokeWidth="1" strokeDasharray="4 4" />
+                                                <line x1="40" y1="44" x2="1160" y2="44" stroke="#cbd5e1" strokeWidth="1" strokeDasharray="4 4" />
+
+                                                {/* Bars & Labels */}
+                                                {dataToUse.map((month, idx) => {
+                                                    const bVal = csvVisible.budget ? month.vCosts.b : 0;
+                                                    const rVal = (csvVisible.realized && idx <= currentMonthIdx) ? month.vCosts.r : 0;
+                                                    
+                                                    const bHeight = csvVisible.budget ? (Math.max(0, bVal) / maxVal) * 210 : 0;
+                                                    const rHeight = (csvVisible.realized && idx <= currentMonthIdx) ? (Math.max(0, rVal) / maxVal) * 210 : 0;
+                                                    
+                                                    const xBase = 60 + idx * 90;
+                                                    
+                                                    // Anti-overlap vertical staggering
+                                                    const isClose = csvVisible.budget && csvVisible.realized && idx <= currentMonthIdx && Math.abs(bHeight - rHeight) < 16;
+                                                    const bLabelY = 300 - bHeight - 6;
+                                                    const rLabelY = isClose ? (300 - rHeight - 18) : (300 - rHeight - 6);
+                                                    
+                                                    return (
+                                                        <g key={idx}>
+                                                             {/* Orçado Bar */}
+                                                             {csvVisible.budget && bVal > 0 && (
+                                                                 <>
+                                                                     <rect 
+                                                                         x={xBase + 20} 
+                                                                         y={300 - bHeight} 
+                                                                         width="22" 
+                                                                         height={bHeight} 
+                                                                         fill="#8b5cf6" 
+                                                                         rx="3"
+                                                                     />
+                                                                     {/* Orçado Label */}
+                                                                     <text 
+                                                                         x={xBase + 31} 
+                                                                         y={bLabelY} 
+                                                                         textAnchor="middle" 
+                                                                         fill="#6d28d9" 
+                                                                         fontSize="9px" 
+                                                                         fontWeight="700"
+                                                                     >
+                                                                         {formatChartValue(bVal)}
+                                                                     </text>
+                                                                 </>
+                                                             )}
+
+                                                             {/* Realizado Bar */}
+                                                             {csvVisible.realized && idx <= currentMonthIdx && rVal > 0 && (
+                                                                 <>
+                                                                     <rect 
+                                                                         x={xBase + 46} 
+                                                                         y={300 - rHeight} 
+                                                                         width="22" 
+                                                                         height={rHeight} 
+                                                                         fill="#94a3b8" 
+                                                                         rx="3"
+                                                                     />
+                                                                     {/* Realizado Label */}
+                                                                     <text 
+                                                                         x={xBase + 57} 
+                                                                         y={rLabelY} 
+                                                                         textAnchor="middle" 
+                                                                         fill="#475569" 
+                                                                         fontSize="9px" 
+                                                                         fontWeight="700"
+                                                                     >
+                                                                         {formatChartValue(rVal)}
+                                                                     </text>
+                                                                 </>
+                                                             )}
+
+                                                            {/* Month Label */}
+                                                            <text 
+                                                                x={xBase + 44} 
+                                                                y="325" 
+                                                                textAnchor="middle" 
+                                                                fill="#64748b" 
+                                                                fontSize="11px" 
+                                                                fontWeight="700"
+                                                            >
+                                                                {['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'][idx]}
+                                                            </text>
+                                                        </g>
+                                                    );
+                                                })}
+
+                                                {/* CSV Orçado Line (Violet dashed) */}
+                                                {pathBudgetRate && (
+                                                    <path 
+                                                        d={pathBudgetRate} 
+                                                        fill="none" 
+                                                        stroke="#7c3aed" 
+                                                        strokeWidth="2" 
+                                                        strokeDasharray="4 4"
+                                                        strokeLinecap="round" 
+                                                        strokeLinejoin="round" 
+                                                    />
+                                                )}
+
+                                                {/* CSV Realizado Line (Indigo solid) */}
+                                                {pathRealizedRate && (
+                                                    <path 
+                                                        d={pathRealizedRate} 
+                                                        fill="none" 
+                                                        stroke="#4f46e5" 
+                                                        strokeWidth="2.5" 
+                                                        strokeLinecap="round" 
+                                                        strokeLinejoin="round" 
+                                                    />
+                                                )}
+
+                                                {/* Percentage Line (% Atingido) */}
+                                                {pathAtingido && (
+                                                    <path 
+                                                        d={pathAtingido} 
+                                                        fill="none" 
+                                                        stroke="#f43f5e" 
+                                                        strokeWidth="2" 
+                                                        strokeLinecap="round" 
+                                                        strokeLinejoin="round" 
+                                                    />
+                                                )}
+
+                                                {/* CSV Orçado dots & labels */}
+                                                {pointsBudgetRate.map((p, idx) => (
+                                                    <g key={`br-${idx}`}>
+                                                        <circle 
+                                                            cx={p.x} 
+                                                            cy={p.y} 
+                                                            r="4" 
+                                                            fill="#7c3aed" 
+                                                            stroke="#ffffff" 
+                                                            strokeWidth="1.5" 
+                                                        />
+                                                        <text 
+                                                            x={p.x} 
+                                                            y={p.y + 13} 
+                                                            textAnchor="middle" 
+                                                            fill="#6d28d9" 
+                                                            fontSize="8px" 
+                                                            fontWeight="700"
+                                                            stroke="#ffffff"
+                                                            strokeWidth="2"
+                                                            paintOrder="stroke"
+                                                        >
+                                                            {p.rate.toFixed(1)}%
+                                                        </text>
+                                                    </g>
+                                                ))}
+
+                                                {/* CSV Realizado dots & labels */}
+                                                {pointsRealizedRate.map((p, idx) => (
+                                                    <g key={`rr-${idx}`}>
+                                                        <circle 
+                                                            cx={p.x} 
+                                                            cy={p.y} 
+                                                            r="4.5" 
+                                                            fill="#4f46e5" 
+                                                            stroke="#ffffff" 
+                                                            strokeWidth="2" 
+                                                        />
+                                                        <text 
+                                                            x={p.x} 
+                                                            y={p.y - 8} 
+                                                            textAnchor="middle" 
+                                                            fill="#3730a3" 
+                                                            fontSize="8.5px" 
+                                                            fontWeight="800"
+                                                            stroke="#ffffff"
+                                                            strokeWidth="2.5"
+                                                            paintOrder="stroke"
+                                                        >
+                                                            {p.rate.toFixed(1)}%
+                                                        </text>
+                                                    </g>
+                                                ))}
+
+                                                {/* Percentage dots & labels (% Atingido) */}
+                                                {pointsAtingido.map((p, idx) => (
+                                                    <g key={`at-${idx}`}>
+                                                        <circle 
+                                                            cx={p.x} 
+                                                            cy={p.y} 
+                                                            r="4" 
+                                                            fill="#f43f5e" 
+                                                            stroke="#ffffff" 
+                                                            strokeWidth="1.5" 
+                                                        />
+                                                        <text 
+                                                            x={p.x} 
+                                                            y={p.y - 8} 
+                                                            textAnchor="middle" 
+                                                            fill="#e11d48" 
+                                                            fontSize="8.5px" 
+                                                            fontWeight="800"
+                                                            stroke="#ffffff"
+                                                            strokeWidth="2"
+                                                            paintOrder="stroke"
+                                                        >
+                                                            {p.pct.toFixed(1)}%
+                                                        </text>
+                                                    </g>
+                                                ))}
+                                            </svg>
+                                        </div>
+
+                                        {/* Legend */}
+                                         <div style={{ display: 'flex', gap: '1.5rem', fontSize: '0.75rem', color: '#64748b', marginTop: '0.5rem', justifyContent: 'center', flexWrap: 'wrap' }}>
+                                             <div 
+                                                 onClick={() => setCsvVisible(prev => ({ ...prev, budget: !prev.budget }))}
+                                                 style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer', opacity: csvVisible.budget ? 1 : 0.5, userSelect: 'none' }}
+                                             >
+                                                 <div style={{ width: '12px', height: '12px', background: '#8b5cf6', borderRadius: '3px' }} />
+                                                 <span style={{ fontWeight: 600 }}>Meta Orçada</span>
+                                             </div>
+                                             <div 
+                                                 onClick={() => setCsvVisible(prev => ({ ...prev, realized: !prev.realized }))}
+                                                 style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer', opacity: csvVisible.realized ? 1 : 0.5, userSelect: 'none' }}
+                                             >
+                                                 <div style={{ width: '12px', height: '12px', background: '#94a3b8', borderRadius: '3px' }} />
+                                                 <span style={{ fontWeight: 600 }}>Realizado</span>
+                                             </div>
+                                             <div 
+                                                 onClick={() => setCsvVisible(prev => ({ ...prev, budgetRate: !prev.budgetRate }))}
+                                                 style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer', opacity: csvVisible.budgetRate ? 1 : 0.5, userSelect: 'none' }}
+                                             >
+                                                 <div style={{ height: '3px', width: '20px', borderTop: '2.5px dashed #7c3aed', position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                                     <div style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#7c3aed', border: '1px solid #fff' }} />
+                                                 </div>
+                                                 <span style={{ fontWeight: 600 }}>CSV Orçado (%)</span>
+                                             </div>
+                                             <div 
+                                                 onClick={() => setCsvVisible(prev => ({ ...prev, realizedRate: !prev.realizedRate }))}
+                                                 style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer', opacity: csvVisible.realizedRate ? 1 : 0.5, userSelect: 'none' }}
+                                             >
+                                                 <div style={{ height: '3px', width: '20px', background: '#4f46e5', position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                                     <div style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#4f46e5', border: '1px solid #fff' }} />
+                                                 </div>
+                                                 <span style={{ fontWeight: 600 }}>CSV Realizado (%)</span>
+                                             </div>
+                                             <div 
+                                                 onClick={() => setCsvVisible(prev => ({ ...prev, atingido: !prev.atingido }))}
+                                                 style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer', opacity: csvVisible.atingido ? 1 : 0.5, userSelect: 'none' }}
+                                             >
+                                                 <div style={{ height: '3px', width: '20px', background: '#f43f5e', position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                                     <div style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#f43f5e', border: '1px solid #fff' }} />
+                                                 </div>
+                                                 <span style={{ fontWeight: 600 }}>% Atingido</span>
+                                             </div>
+                                         </div>
+                                    </div>
+                                );
+                            })()}
+                        </div>
+
+                        {/* Panel 4: Lucro Líquido Monthly */}
                         <div className="glass-card" style={{ padding: '1.5rem', background: '#ffffff', borderRadius: '12px', border: '1px solid #e2e8f0', boxShadow: '0 4px 6px rgba(0,0,0,0.02)', width: '100%' }}>
                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
                                 <h3 style={{ fontSize: '0.9rem', fontWeight: 800, color: '#0f172a', margin: 0 }}>

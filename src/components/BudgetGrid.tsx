@@ -3397,25 +3397,53 @@ export default function BudgetGrid({
                                 // Max value across all 12 months for scale calculation
                                 const maxVal = Math.max(...dataToUse.map(m => Math.max(m.vTaxes.b, m.vTaxes.r))) || 1;
 
-                                // Build path for the % line chart
-                                let pathD = '';
-                                const points: { x: number, y: number, pct: number }[] = [];
+                                // Build paths for % lines (Atingido, Alíquota Orçada, Alíquota Realizada)
+                                let pathAtingido = '';
+                                let pathBudgetRate = '';
+                                let pathRealizedRate = '';
+                                const pointsAtingido: { x: number, y: number, pct: number }[] = [];
+                                const pointsBudgetRate: { x: number, y: number, rate: number }[] = [];
+                                const pointsRealizedRate: { x: number, y: number, rate: number }[] = [];
                                 
                                 dataToUse.forEach((month, idx) => {
+                                    const pctX = 60 + idx * 90 + 44;
+                                    
+                                    // 1. Alíquota Orçada (Meta Orçada / Receita Orçada * 100) - all 12 months
+                                    const bRev = month.vRev.b;
+                                    const bTax = month.vTaxes.b;
+                                    const bRate = bRev > 0 ? (bTax / bRev) * 100 : 0;
+                                    // Scale: 0% at Y=300, 25% at Y=50
+                                    const bRateY = Math.max(30, Math.min(290, 300 - (bRate / 25) * 250));
+                                    pointsBudgetRate.push({ x: pctX, y: bRateY, rate: bRate });
+                                    if (pathBudgetRate === '') {
+                                        pathBudgetRate = `M ${pctX} ${bRateY}`;
+                                    } else {
+                                        pathBudgetRate += ` L ${pctX} ${bRateY}`;
+                                    }
+                                    
+                                    // 2. Realized elements (only for months <= currentMonthIdx)
                                     if (idx <= currentMonthIdx) {
-                                        const bVal = month.vTaxes.b;
-                                        const rVal = month.vTaxes.r;
-                                        const pct = bVal > 0 ? (rVal / bVal) * 100 : 0;
-                                        // scale: 0% at Y=280, 100% at Y=130, 150% at Y=55
-                                        const pctY = 280 - (pct / 100) * 150;
-                                        const finalPctY = Math.max(30, Math.min(290, pctY));
-                                        const pctX = 60 + idx * 90 + 44;
+                                        const rRev = month.vRev.r;
+                                        const rTax = month.vTaxes.r;
                                         
-                                        points.push({ x: pctX, y: finalPctY, pct });
-                                        if (pathD === '') {
-                                            pathD = `M ${pctX} ${finalPctY}`;
+                                        // Alíquota Realizada (Realizado / Receita Realizada * 100)
+                                        const rRate = rRev > 0 ? (rTax / rRev) * 100 : 0;
+                                        const rRateY = Math.max(30, Math.min(290, 300 - (rRate / 25) * 250));
+                                        pointsRealizedRate.push({ x: pctX, y: rRateY, rate: rRate });
+                                        if (pathRealizedRate === '') {
+                                            pathRealizedRate = `M ${pctX} ${rRateY}`;
                                         } else {
-                                            pathD += ` L ${pctX} ${finalPctY}`;
+                                            pathRealizedRate += ` L ${pctX} ${rRateY}`;
+                                        }
+                                        
+                                        // % Atingido de Tributos
+                                        const pctAtingido = bTax > 0 ? (rTax / bTax) * 100 : 0;
+                                        const pctAtingidoY = Math.max(30, Math.min(290, 280 - (pctAtingido / 100) * 150));
+                                        pointsAtingido.push({ x: pctX, y: pctAtingidoY, pct: pctAtingido });
+                                        if (pathAtingido === '') {
+                                            pathAtingido = `M ${pctX} ${pctAtingidoY}`;
+                                        } else {
+                                            pathAtingido += ` L ${pctX} ${pctAtingidoY}`;
                                         }
                                     }
                                 });
@@ -3513,38 +3541,117 @@ export default function BudgetGrid({
                                                     );
                                                 })}
 
-                                                {/* Percentage Line */}
-                                                {pathD && (
+                                                {/* Alíquota Orçada Line (Orange dashed) */}
+                                                {pathBudgetRate && (
                                                     <path 
-                                                        d={pathD} 
+                                                        d={pathBudgetRate} 
                                                         fill="none" 
-                                                        stroke="#f43f5e" 
-                                                        strokeWidth="3" 
+                                                        stroke="#ea580c" 
+                                                        strokeWidth="2" 
+                                                        strokeDasharray="4 4"
                                                         strokeLinecap="round" 
                                                         strokeLinejoin="round" 
                                                     />
                                                 )}
 
-                                                {/* Percentage dots & labels */}
-                                                {points.map((p, idx) => (
-                                                    <g key={idx}>
+                                                {/* Alíquota Realizada Line (Blue solid) */}
+                                                {pathRealizedRate && (
+                                                    <path 
+                                                        d={pathRealizedRate} 
+                                                        fill="none" 
+                                                        stroke="#2563eb" 
+                                                        strokeWidth="2.5" 
+                                                        strokeLinecap="round" 
+                                                        strokeLinejoin="round" 
+                                                    />
+                                                )}
+
+                                                {/* Percentage Line (% Atingido) */}
+                                                {pathAtingido && (
+                                                    <path 
+                                                        d={pathAtingido} 
+                                                        fill="none" 
+                                                        stroke="#f43f5e" 
+                                                        strokeWidth="2" 
+                                                        strokeLinecap="round" 
+                                                        strokeLinejoin="round" 
+                                                    />
+                                                )}
+
+                                                {/* Alíquota Orçada dots & labels */}
+                                                {pointsBudgetRate.map((p, idx) => (
+                                                    <g key={`br-${idx}`}>
                                                         <circle 
                                                             cx={p.x} 
                                                             cy={p.y} 
-                                                            r="5" 
-                                                            fill="#f43f5e" 
+                                                            r="4" 
+                                                            fill="#ea580c" 
+                                                            stroke="#ffffff" 
+                                                            strokeWidth="1.5" 
+                                                        />
+                                                        <text 
+                                                            x={p.x} 
+                                                            y={p.y + 13} 
+                                                            textAnchor="middle" 
+                                                            fill="#c2410c" 
+                                                            fontSize="8px" 
+                                                            fontWeight="700"
+                                                            stroke="#ffffff"
+                                                            strokeWidth="2"
+                                                            paintOrder="stroke"
+                                                        >
+                                                            {p.rate.toFixed(1)}%
+                                                        </text>
+                                                    </g>
+                                                ))}
+
+                                                {/* Alíquota Realizada dots & labels */}
+                                                {pointsRealizedRate.map((p, idx) => (
+                                                    <g key={`rr-${idx}`}>
+                                                        <circle 
+                                                            cx={p.x} 
+                                                            cy={p.y} 
+                                                            r="4.5" 
+                                                            fill="#2563eb" 
                                                             stroke="#ffffff" 
                                                             strokeWidth="2" 
                                                         />
                                                         <text 
                                                             x={p.x} 
-                                                            y={p.y - 10} 
+                                                            y={p.y - 8} 
                                                             textAnchor="middle" 
-                                                            fill="#e11d48" 
-                                                            fontSize="10px" 
+                                                            fill="#1e40af" 
+                                                            fontSize="8.5px" 
                                                             fontWeight="800"
                                                             stroke="#ffffff"
-                                                            strokeWidth="3"
+                                                            strokeWidth="2.5"
+                                                            paintOrder="stroke"
+                                                        >
+                                                            {p.rate.toFixed(1)}%
+                                                        </text>
+                                                    </g>
+                                                ))}
+
+                                                {/* Percentage dots & labels (% Atingido) */}
+                                                {pointsAtingido.map((p, idx) => (
+                                                    <g key={`at-${idx}`}>
+                                                        <circle 
+                                                            cx={p.x} 
+                                                            cy={p.y} 
+                                                            r="4" 
+                                                            fill="#f43f5e" 
+                                                            stroke="#ffffff" 
+                                                            strokeWidth="1.5" 
+                                                        />
+                                                        <text 
+                                                            x={p.x} 
+                                                            y={p.y - 8} 
+                                                            textAnchor="middle" 
+                                                            fill="#e11d48" 
+                                                            fontSize="8.5px" 
+                                                            fontWeight="800"
+                                                            stroke="#ffffff"
+                                                            strokeWidth="2"
                                                             paintOrder="stroke"
                                                         >
                                                             {p.pct.toFixed(1)}%
@@ -3563,6 +3670,18 @@ export default function BudgetGrid({
                                             <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                                                 <div style={{ width: '12px', height: '12px', background: '#94a3b8', borderRadius: '3px' }} />
                                                 <span style={{ fontWeight: 600 }}>Realizado</span>
+                                            </div>
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                                <div style={{ height: '3px', width: '20px', borderTop: '2.5px dashed #ea580c', position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                                    <div style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#ea580c', border: '1px solid #fff' }} />
+                                                </div>
+                                                <span style={{ fontWeight: 600 }}>Alíquota Orçada (%)</span>
+                                            </div>
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                                <div style={{ height: '3px', width: '20px', background: '#2563eb', position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                                    <div style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#2563eb', border: '1px solid #fff' }} />
+                                                </div>
+                                                <span style={{ fontWeight: 600 }}>Alíquota Realizada (%)</span>
                                             </div>
                                             <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                                                 <div style={{ height: '3px', width: '20px', background: '#f43f5e', position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>

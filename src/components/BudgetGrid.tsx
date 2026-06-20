@@ -1424,6 +1424,34 @@ export default function BudgetGrid({
         };
     }, [precomputedDreTotals, startMonth, endMonth]);
 
+    const grossMargProjectionData = useMemo(() => {
+        let periodBudgetRev = 0;
+        let periodBudgetGrossMarg = 0;
+        let realizedAccumRev = 0;
+        let realizedAccumGrossMarg = 0;
+
+        precomputedDreTotals.forEach((m, idx) => {
+            if (idx >= startMonth && idx <= endMonth) {
+                periodBudgetRev += m.vRev.b;
+                periodBudgetGrossMarg += m.vGrossMarg.b;
+                if (idx <= currentMonthIdx) {
+                    realizedAccumRev += m.vRev.r;
+                    realizedAccumGrossMarg += m.vGrossMarg.r;
+                }
+            }
+        });
+
+        const budgetGrossMargRate = periodBudgetRev > 0 ? (periodBudgetGrossMarg / periodBudgetRev) * 100 : 0;
+        const realizedGrossMargRate = realizedAccumRev > 0 ? (realizedAccumGrossMarg / realizedAccumRev) * 100 : 0;
+
+        return {
+            budgetGrossMargRate,
+            realizedGrossMargRate,
+            realizedAccumGrossMarg,
+            realizedAccumRev
+        };
+    }, [precomputedDreTotals, startMonth, endMonth]);
+
     const costsProjectionData = useMemo(() => {
         let periodBudgetRev = 0;
         let periodBudgetCosts = 0;
@@ -2233,6 +2261,100 @@ export default function BudgetGrid({
         );
     };
 
+    const renderGrossMargGauge = () => {
+        const { budgetGrossMargRate, realizedGrossMargRate } = grossMargProjectionData;
+
+        // SVG parameters
+        const cx = 120;
+        const cy = 110;
+        const r = 80;
+        
+        // Target percentage of realized gross marg rate relative to budget gross marg rate (max 100%)
+        const gaugePercent = budgetGrossMargRate > 0 ? (realizedGrossMargRate / budgetGrossMargRate) * 100 : 0;
+
+        // Trig angle in radians for needle (left is PI, right is 0)
+        const needleAngle = Math.PI - (Math.min(100, Math.max(0, gaugePercent)) / 100) * Math.PI;
+        const needleLength = 62;
+        const needleX = cx + needleLength * Math.cos(needleAngle);
+        const needleY = cy - needleLength * Math.sin(needleAngle);
+
+        // Helper to get coordinates for arc segments
+        const getArcSegment = (startAngleDeg: number, endAngleDeg: number, strokeColor: string) => {
+            const startRad = (startAngleDeg * Math.PI) / 180;
+            const endRad = (endAngleDeg * Math.PI) / 180;
+            
+            const x1 = cx + r * Math.cos(startRad);
+            const y1 = cy - r * Math.sin(startRad);
+            const x2 = cx + r * Math.cos(endRad);
+            const y2 = cy - r * Math.sin(endRad);
+            
+            return (
+                <path 
+                    key={startAngleDeg}
+                    d={`M ${x1} ${y1} A ${r} ${r} 0 0 1 ${x2} ${y2}`} 
+                    fill="none" 
+                    stroke={strokeColor} 
+                    strokeWidth="14" 
+                />
+            );
+        };
+
+        // 5 segments (vermelho, laranja, amarelo, verde-limão, verde-escuro)
+        const segments = [
+            { color: '#ef4444', start: 180, end: 147 }, // Crítico
+            { color: '#f97316', start: 144, end: 111 }, // Alerta
+            { color: '#eab308', start: 108, end: 75 },  // Atenção
+            { color: '#84cc16', start: 72, end: 39 },   // Bom
+            { color: '#22c55e', start: 36, end: 3 }     // Excelente
+        ];
+
+        return (
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', background: '#f8fafc', padding: '1rem', borderRadius: '12px', border: '1px solid #cbd5e1', boxShadow: 'inset 0 2px 4px rgba(0,0,0,0.02)', width: '100%', flex: 1, justifyContent: 'space-between' }}>
+                <svg width="240" height="135" viewBox="0 0 240 135" style={{ overflow: 'visible' }}>
+                    <defs>
+                        <filter id="needle-shadow-grossmarg" x="-20%" y="-20%" width="140%" height="140%">
+                            <feDropShadow dx="1" dy="2" stdDeviation="1" floodOpacity="0.15" />
+                        </filter>
+                        {/* Ponta da Seta */}
+                        <marker id="arrow-grossmarg" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse">
+                            <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="#1e293b" />
+                        </marker>
+                    </defs>
+
+                    {/* Desenha os 5 segmentos coloridos */}
+                    {segments.map(seg => getArcSegment(seg.start, seg.end, seg.color))}
+
+                    {/* Ponteiro (aponta para a Margem Realizada em relação à Orçada) */}
+                    <g filter="url(#needle-shadow-grossmarg)">
+                        <line 
+                            x1={cx} 
+                            y1={cy} 
+                            x2={needleX} 
+                            y2={needleY} 
+                            stroke="#1e293b" 
+                            strokeWidth="3" 
+                            strokeLinecap="round" 
+                            markerEnd="url(#arrow-grossmarg)"
+                            style={{ transition: 'all 0.8s ease-in-out' }}
+                        />
+                        {/* Miolo do ponteiro */}
+                        <circle cx={cx} cy={cy} r="8.5" fill="#1e293b" />
+                        <circle cx={cx} cy={cy} r="4" fill="#f8fafc" />
+                    </g>
+
+                    {/* Rótulos de 0% e Margem Orçada */}
+                    <text x={cx - r - 10} y={cy + 15} fontSize="9" fontWeight="700" fill="#64748b" textAnchor="middle">0%</text>
+                    <text x={cx + r + 20} y={cy + 15} fontSize="9" fontWeight="700" fill="#64748b" textAnchor="middle">{budgetGrossMargRate.toFixed(1)}% (Orçado)</text>
+                </svg>
+
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '2.5rem', textAlign: 'center', marginTop: '-15px', zIndex: 10 }}>
+                    <span style={{ fontSize: '1.25rem', fontWeight: 900, color: '#0f172a' }}>{realizedGrossMargRate.toFixed(2)}%</span>
+                    <span style={{ fontSize: '0.68rem', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Margem Bruta Efetiva</span>
+                </div>
+            </div>
+        );
+    };
+
     const renderCostsGauge = () => {
         const { budgetCostRate, realizedCostRate } = costsProjectionData;
 
@@ -3019,6 +3141,11 @@ export default function BudgetGrid({
                             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', height: '100%' }}>
                                 <h3 style={{ fontSize: '0.85rem', fontWeight: 800, color: '#0f172a', marginBottom: '1.25rem', width: '100%', textAlign: 'center' }}>Indicador de Tributos</h3>
                                 {renderTaxesGauge()}
+                            </div>
+                            {/* Card: Margem Bruta */}
+                            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', height: '100%' }}>
+                                <h3 style={{ fontSize: '0.85rem', fontWeight: 800, color: '#0f172a', marginBottom: '1.25rem', width: '100%', textAlign: 'center' }}>Margem Bruta (MB)</h3>
+                                {renderGrossMargGauge()}
                             </div>
                             {/* Card 3: Custos Operacionais */}
                             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', height: '100%' }}>

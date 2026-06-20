@@ -1,7 +1,7 @@
 'use client';
 // V47.130 - Hierarchical Indentation Fix (Recursive Leveling + Deep Padding)
 
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { MONTHS, MOCK_COST_CENTERS } from '@/lib/mock-data';
 import { ExcelPasteModal } from '@/components/ExcelPasteModal';
 
@@ -120,6 +120,15 @@ export default function BudgetGrid({
     const [isResultadosExpanded, setIsResultadosExpanded] = useState(true);
 
     const highlightedMonth = -1; // Desativar destaque de mês vigente
+
+    const headerScrollRef = useRef<HTMLDivElement>(null);
+    const bodyScrollRef = useRef<HTMLDivElement>(null);
+
+    const handleScrollSync = () => {
+        if (bodyScrollRef.current && headerScrollRef.current) {
+            headerScrollRef.current.scrollLeft = bodyScrollRef.current.scrollLeft;
+        }
+    };
 
     // --- Realized Justification State ---
     const [justificationModal, setJustificationModal] = useState<{ categoryId: string, month: number, categoryName: string, tenantId: string, costCenterId: string | null } | null>(null);
@@ -2261,26 +2270,35 @@ export default function BudgetGrid({
                     </div>
                 </div>
             ) : (
-                <div className="spreadsheet-container" style={{ minHeight: '300px', overflowX: 'auto', overflowY: 'clip', position: 'relative' }}>
+                <div style={{ position: 'relative', width: '100%' }}>
                     {(loading || isExternalLoading) && (
                         <div style={{ position: 'absolute', inset: 0, background: 'rgba(255, 255, 255, 0.4)', zIndex: 100, display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', backdropFilter: 'blur(1px)' }}>
                             <div className="spinner" />
                             <span style={{ marginTop: '0.5rem', color: 'var(--text-primary)', fontWeight: 700, fontSize: '0.75rem' }}>CARREGANDO...</span>
                         </div>
                     )}
-                    <table 
-                        className="spreadsheet-table" 
+
+                    {/* Container do Cabeçalho Sticky no Topo da Tela */}
+                    <div 
+                        ref={headerScrollRef}
                         style={{ 
-                            width: 'max-content', 
-                            tableLayout: 'fixed', 
+                            overflowX: 'hidden', 
                             position: 'sticky', 
                             top: 0, 
                             zIndex: 40, 
                             background: '#e6f2fd', 
-                            borderCollapse: 'collapse',
+                            width: '100%',
                             borderBottom: '2px solid var(--border-strong)'
                         }}
                     >
+                        <table 
+                            className="spreadsheet-table" 
+                            style={{ 
+                                width: 'max-content', 
+                                tableLayout: 'fixed', 
+                                borderCollapse: 'collapse'
+                            }}
+                        >
                         <thead>
                             <tr>
                                 <th className="sticky-col" style={{ width: '400px', minWidth: '400px', maxWidth: '400px', backgroundColor: '#e6f2fd', color: '#0b579f' }}>
@@ -2342,10 +2360,22 @@ export default function BudgetGrid({
                                         </React.Fragment>
                                     );
                                 })}
-                            </tr>
                         </thead>
                     </table>
+                </div> {/* fecha a div headerScrollRef */}
 
+                {/* Container do Corpo com Scroll Horizontal Independente */}
+                <div 
+                    ref={bodyScrollRef}
+                    onScroll={handleScrollSync}
+                    className="spreadsheet-container" 
+                    style={{ 
+                        minHeight: '300px', 
+                        overflowX: 'auto', 
+                        position: 'relative',
+                        width: '100%'
+                    }}
+                >
                     <div style={{ width: 'max-content', display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '6px' }}>
                         
                         {/* Card 1: Receitas */}
@@ -2425,6 +2455,7 @@ export default function BudgetGrid({
 
                     </div>
                 </div>
+            </div>
             )}
             {/* Budget Drill-Down Modal — 3-Step */}
                 {budgetDrillModal && (() => {

@@ -2353,7 +2353,7 @@ export default function BudgetGrid({
                             borderRadius: '12px',
                             border: '1px solid #e2e8f0',
                             boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03)',
-                            overflow: 'hidden',
+                            overflow: 'visible',
                             width: '100%'
                         }}>
                             <table className="spreadsheet-table" style={{ width: 'max-content', tableLayout: 'fixed', borderCollapse: 'collapse' }}>
@@ -2378,7 +2378,7 @@ export default function BudgetGrid({
                             borderRadius: '12px',
                             border: '1px solid #e2e8f0',
                             boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03)',
-                            overflow: 'hidden',
+                            overflow: 'visible',
                             width: '100%'
                         }}>
                             <table className="spreadsheet-table" style={{ width: 'max-content', tableLayout: 'fixed', borderCollapse: 'collapse' }}>
@@ -2405,7 +2405,7 @@ export default function BudgetGrid({
                             borderRadius: '12px',
                             border: '1px solid #e2e8f0',
                             boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03)',
-                            overflow: 'hidden',
+                            overflow: 'visible',
                             width: '100%'
                         }}>
                             <table className="spreadsheet-table" style={{ width: 'max-content', tableLayout: 'fixed', borderCollapse: 'collapse' }}>

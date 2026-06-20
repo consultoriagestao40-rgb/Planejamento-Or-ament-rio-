@@ -83,6 +83,7 @@ export default function BudgetGrid({
     const [companySearch, setCompanySearch] = useState('');
     const [costCenterSearch, setCostCenterSearch] = useState('');
     const [selectedYear, setSelectedYear] = useState(externalYear);
+    const currentMonthIdx = 5; // Junho (0-indexed)
     const [viewMode, setViewMode] = useState<'caixa' | 'competencia'>('competencia');
     const [viewPeriod, setViewPeriod] = useState<'month' | 'quarter'>('month');
 
@@ -1251,7 +1252,6 @@ export default function BudgetGrid({
     }, [dreStructure]);
 
     const revenueProjectionData = useMemo(() => {
-        const currentMonthIdx = 5; // Junho (0-indexed, então Jan é 0 e Jun é 5)
         let annualBudgetRev = 0;
         let realizedAccumRev = 0;
         let projectedRev = 0;
@@ -1323,16 +1323,16 @@ export default function BudgetGrid({
                             {isInteractiveTree && (
                                 <span style={{ 
                                     marginRight: '0.65rem', 
-                                    fontSize: '0.8rem', 
+                                    fontSize: '0.92rem', 
                                     color: hasCompositionChildren ? '#8b5cf6' : '#3b82f6', 
                                     width: '1rem',
                                     display: 'inline-flex',
                                     alignItems: 'center',
                                     justifyContent: 'center',
-                                    transform: isExpanded ? 'rotate(180deg)' : 'rotate(90deg)',
-                                    transition: 'transform 0.3s'
+                                    fontWeight: 'bold',
+                                    userSelect: 'none'
                                 }}>
-                                    {isExpanded ? '▲' : '▼'}
+                                    {isExpanded ? '−' : '+'}
                                 </span>
                             )}
                             {!isInteractiveTree && <span style={{ width: '1.65rem' }}></span>}
@@ -1642,11 +1642,21 @@ export default function BudgetGrid({
                 >
                     <div style={{ display: 'flex', alignItems: 'center', opacity: 1, visibility: 'visible' }}>
                         {groupId && (
-                            <span style={{ marginRight: '0.5rem', fontSize: '0.8rem' }}>
-                                {isGroupExpanded ? '▼' : '▶'}
+                            <span style={{ 
+                                marginRight: '0.65rem', 
+                                fontSize: '0.92rem', 
+                                color: '#3b82f6', 
+                                width: '1rem',
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                fontWeight: 'bold',
+                                userSelect: 'none'
+                            }}>
+                                {isGroupExpanded ? '−' : '+'}
                             </span>
                         )}
-                        {!groupId && <span style={{ width: '1.2rem' }}></span>}
+                        {!groupId && <span style={{ width: '1.65rem' }}></span>}
                         <span style={{ color: 'inherit' }}>{label}</span>
                     </div>
                 </td>
@@ -2204,7 +2214,12 @@ export default function BudgetGrid({
                             <div style={{ fontSize: '0.75rem', fontWeight: 800, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.5rem' }}>Receita Bruta Total</div>
                             {(() => {
                                 let totalB = 0, totalR = 0;
-                                precomputedDreTotals.forEach(m => { totalB += m.vRev.b; totalR += m.vRev.r; });
+                                precomputedDreTotals.forEach((m, idx) => { 
+                                    totalB += m.vRev.b; 
+                                    if (idx <= currentMonthIdx) {
+                                        totalR += m.vRev.r; 
+                                    }
+                                });
                                 return (
                                     <>
                                         <div style={{ fontSize: '1.5rem', fontWeight: 900, color: '#0f172a' }}>{formatCurrency(totalR)}</div>
@@ -2220,7 +2235,12 @@ export default function BudgetGrid({
                             <div style={{ fontSize: '0.75rem', fontWeight: 800, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.5rem' }}>EBITDA Acumulado</div>
                             {(() => {
                                 let totalB = 0, totalR = 0;
-                                precomputedDreTotals.forEach(m => { totalB += m.vEbitda.b; totalR += m.vEbitda.r; });
+                                precomputedDreTotals.forEach((m, idx) => { 
+                                    totalB += m.vEbitda.b; 
+                                    if (idx <= currentMonthIdx) {
+                                        totalR += m.vEbitda.r; 
+                                    }
+                                });
                                 const isPositive = totalR >= 0;
                                 return (
                                     <>
@@ -2237,7 +2257,12 @@ export default function BudgetGrid({
                             <div style={{ fontSize: '0.75rem', fontWeight: 800, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.5rem' }}>Lucro Líquido Total</div>
                             {(() => {
                                 let totalB = 0, totalR = 0;
-                                precomputedDreTotals.forEach(m => { totalB += m.vNetProfit.b; totalR += m.vNetProfit.r; });
+                                precomputedDreTotals.forEach((m, idx) => { 
+                                    totalB += m.vNetProfit.b; 
+                                    if (idx <= currentMonthIdx) {
+                                        totalR += m.vNetProfit.r; 
+                                    }
+                                });
                                 const isPositive = totalR >= 0;
                                 return (
                                     <>
@@ -2304,12 +2329,12 @@ export default function BudgetGrid({
                                             
                                             {precomputedDreTotals.map((month, idx) => {
                                                 const bHeight = (Math.max(0, month.vRev.b) / maxVal) * 160;
-                                                const rHeight = (Math.max(0, month.vRev.r) / maxVal) * 160;
+                                                const rHeight = idx <= currentMonthIdx ? (Math.max(0, month.vRev.r) / maxVal) * 160 : 0;
                                                 return (
-                                                    <div key={idx} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', flex: 1, zIndex: 1 }} title={`Meta: ${formatCurrency(month.vRev.b)} | Realizado: ${formatCurrency(month.vRev.r)}`}>
+                                                    <div key={idx} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', flex: 1, zIndex: 1 }} title={`Meta: ${formatCurrency(month.vRev.b)}${idx <= currentMonthIdx ? ` | Realizado: ${formatCurrency(month.vRev.r)}` : ''}`}>
                                                         <div style={{ display: 'flex', alignItems: 'flex-end', gap: '2px', height: '160px' }}>
                                                             <div style={{ width: '10px', height: `${bHeight}px`, background: '#3b82f6', borderRadius: '2px 2px 0 0', transition: 'height 0.3s' }} />
-                                                            <div style={{ width: '10px', height: `${rHeight}px`, background: '#94a3b8', borderRadius: '2px 2px 0 0', transition: 'height 0.3s' }} />
+                                                            {idx <= currentMonthIdx && <div style={{ width: '10px', height: `${rHeight}px`, background: '#94a3b8', borderRadius: '2px 2px 0 0', transition: 'height 0.3s' }} />}
                                                         </div>
                                                         <span style={{ fontSize: '0.65rem', fontWeight: 600, color: '#64748b', marginTop: '0.5rem' }}>
                                                             {['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'][idx]}
@@ -2352,13 +2377,13 @@ export default function BudgetGrid({
                                             
                                             {precomputedDreTotals.map((month, idx) => {
                                                 const bVal = month.vNetProfit.b;
-                                                const rVal = month.vNetProfit.r;
+                                                const rVal = idx <= currentMonthIdx ? month.vNetProfit.r : 0;
                                                 
                                                 const bHeight = (Math.abs(bVal) / maxVal) * 80;
-                                                const rHeight = (Math.abs(rVal) / maxVal) * 80;
-
+                                                const rHeight = idx <= currentMonthIdx ? (Math.abs(rVal) / maxVal) * 80 : 0;
+ 
                                                 return (
-                                                    <div key={idx} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', flex: 1, height: '160px', position: 'relative', zIndex: 1 }} title={`Meta: ${formatCurrency(bVal)} | Realizado: ${formatCurrency(rVal)}`}>
+                                                    <div key={idx} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', flex: 1, height: '160px', position: 'relative', zIndex: 1 }} title={`Meta: ${formatCurrency(bVal)}${idx <= currentMonthIdx ? ` | Realizado: ${formatCurrency(month.vNetProfit.r)}` : ''}`}>
                                                         {/* Bars wrapper */}
                                                         <div style={{ position: 'absolute', top: '0', bottom: '0', left: '0', right: '0', display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
                                                             <div style={{ display: 'flex', gap: '2px', height: '160px', position: 'relative', width: '22px' }}>
@@ -2373,15 +2398,17 @@ export default function BudgetGrid({
                                                                     left: '0px'
                                                                 }} />
                                                                 {/* Realized Net Profit bar */}
-                                                                <div style={{ 
-                                                                    position: 'absolute',
-                                                                    width: '10px', 
-                                                                    height: `${rHeight}px`, 
-                                                                    background: rVal >= 0 ? '#1d4ed8' : '#b91c1c', 
-                                                                    borderRadius: rVal >= 0 ? '2px 2px 0 0' : '0 0 2px 2px',
-                                                                    top: rVal >= 0 ? `${80 - rHeight}px` : '80px',
-                                                                    left: '12px'
-                                                                }} />
+                                                                {idx <= currentMonthIdx && (
+                                                                    <div style={{ 
+                                                                        position: 'absolute',
+                                                                        width: '10px', 
+                                                                        height: `${rHeight}px`, 
+                                                                        background: rVal >= 0 ? '#1d4ed8' : '#b91c1c', 
+                                                                        borderRadius: rVal >= 0 ? '2px 2px 0 0' : '0 0 2px 2px',
+                                                                        top: rVal >= 0 ? `${80 - rHeight}px` : '80px',
+                                                                        left: '12px'
+                                                                    }} />
+                                                                )}
                                                             </div>
                                                         </div>
                                                         {/* Month label at the bottom of the container */}
@@ -2566,9 +2593,9 @@ export default function BudgetGrid({
                                     {renderGroupHeaderRow('CUSTOS E DESPESAS', isCustosExpanded, () => setIsCustosExpanded(!isCustosExpanded))}
                                     {isCustosExpanded && (
                                         <>
-                                            {renderSummaryRow('🗓️ 03. DESPESA OPERACIONAL', 'vCosts', true, 'costs')}
+                                            {renderSummaryRow('🗓️ 03. CUSTOS OPERACIONAIS', 'vCosts', true, 'costs')}
                                             {expandedGroups.has('costs') && dreStructure.buckets.costs.map(root => renderNode(root))}
-                                            {renderSummaryRow('04. DESPESA DE CONTRIBUIÇÃO', 'vOpExp', true, 'opExp')}
+                                            {renderSummaryRow('04. DESPESAS OPERACIONAIS', 'vOpExp', true, 'opExp')}
                                             {expandedGroups.has('opExp') && dreStructure.buckets.opExp.map(root => renderNode(root))}
                                             {renderSummaryRow('📂 05. DESPESAS ADMINISTRATIVAS', 'vAdminExp', true, 'adminExp')}
                                             {expandedGroups.has('adminExp') && dreStructure.buckets.adminExp.map(root => renderNode(root))}

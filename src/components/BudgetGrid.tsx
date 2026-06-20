@@ -2261,7 +2261,7 @@ export default function BudgetGrid({
                     </div>
                 </div>
             ) : (
-                <div className="spreadsheet-container" style={{ minHeight: '300px', position: 'relative' }}>
+                <div className="spreadsheet-container" style={{ minHeight: '300px', maxHeight: 'calc(100vh - 190px)', overflow: 'auto', position: 'relative' }}>
                     {(loading || isExternalLoading) && (
                         <div style={{ position: 'absolute', inset: 0, background: 'rgba(255, 255, 255, 0.4)', zIndex: 100, display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', backdropFilter: 'blur(1px)' }}>
                             <div className="spinner" />

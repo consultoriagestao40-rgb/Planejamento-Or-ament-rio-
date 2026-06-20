@@ -1,40 +1,51 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { getValidAccessToken } from '@/lib/services';
 
 export const dynamic = 'force-dynamic';
 
 export async function GET() {
     try {
-        const tenant = await prisma.tenant.findFirst({
-            where: { name: { contains: 'CLEAN TECH', mode: 'insensitive' } }
+        const tenants = await prisma.tenant.findMany({
+            select: { id: true, name: true, cnpj: true }
         });
 
-        if (!tenant) {
-            return NextResponse.json({ success: false, error: 'Clean Tech Tenant not found' });
+        const jvsTrat = tenants.find(t => t.name.toUpperCase().includes('TRATAMENTOS') || t.name.toUpperCase().includes('TRATMENTOS'));
+        if (!jvsTrat) {
+            return NextResponse.json({ success: true, error: 'JVS TRATMENTOS tenant not found', tenants });
         }
 
-        const { token } = await getValidAccessToken(tenant.id);
-
-        const p1PurchaseId = 'dc7860d4-95a2-47eb-bd16-780613b2ac77'; // Fatura 117 purchase
-        const p2PurchaseId = 'a01028b8-7c92-4957-9776-d38209933ce4'; // Fatura 113 purchase
-
-        const p1PurchaseRes = await fetch(`https://api-v2.contaazul.com/v1/compras/${p1PurchaseId}`, {
-            headers: { 'Authorization': `Bearer ${token}` },
-            cache: 'no-store'
+        const categories = await prisma.category.findMany({
+            where: { tenantId: jvsTrat.id }
         });
-        const p1Purchase = p1PurchaseRes.ok ? await p1PurchaseRes.json() : { error: `Status ${p1PurchaseRes.status}` };
 
-        const p2PurchaseRes = await fetch(`https://api-v2.contaazul.com/v1/compras/${p2PurchaseId}`, {
-            headers: { 'Authorization': `Bearer ${token}` },
-            cache: 'no-store'
+        const realizedEntries = await prisma.realizedEntry.findMany({
+            where: {
+                tenantId: jvsTrat.id,
+                year: 2026
+            },
+            include: {
+                category: true,
+                costCenter: true
+            }
         });
-        const p2Purchase = p2PurchaseRes.ok ? await p2PurchaseRes.json() : { error: `Status ${p2PurchaseRes.status}` };
 
         return NextResponse.json({
             success: true,
-            p1Purchase,
-            p2Purchase
+            tenant: jvsTrat,
+            categoriesCount: categories.length,
+            categories: categories.map(c => ({ id: c.id, name: c.name, type: c.type, code: c.id.split(':').pop() })),
+            realizedEntriesCount: realizedEntries.length,
+            realizedEntries: realizedEntries.map(e => ({
+                id: e.id,
+                month: e.month,
+                amount: e.amount,
+                description: e.description,
+                customer: e.customer,
+                viewMode: e.viewMode,
+                externalId: e.externalId,
+                categoryName: e.category?.name,
+                costCenterName: e.costCenter?.name
+            }))
         });
     } catch (e: any) {
         return NextResponse.json({ success: false, error: e.message });

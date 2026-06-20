@@ -1878,7 +1878,7 @@ export default function BudgetGrid({
     return (
         <>
             {/* SECTION 2: FILTERS & CONTROLS - SINGLE ROW PREMIUM */}
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', margin: '0 0 2rem 0', width: '100%', flexWrap: 'nowrap', gap: '1rem', background: 'var(--bg-card)', padding: '0.75rem 1rem', borderRadius: '16px', boxShadow: '0 4px 6px rgba(0,0,0,0.02)', border: '1px solid var(--border-subtle)' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', margin: '0 0 0.75rem 0', width: '100%', flexWrap: 'nowrap', gap: '1rem', background: 'var(--bg-card)', padding: '0.5rem 1rem', borderRadius: '16px', boxShadow: '0 4px 6px rgba(0,0,0,0.02)', border: '1px solid var(--border-subtle)' }}>
                 
                 {/* LEFT: Empresa & Centro de Custo */}
                 <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>

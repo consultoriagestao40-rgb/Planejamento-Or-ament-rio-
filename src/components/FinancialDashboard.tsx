@@ -85,11 +85,11 @@ export default function FinancialDashboard({
             width: '100%',
             minHeight: '100vh',
             backgroundColor: 'var(--bg-base)',
-            padding: '2.5rem 2rem 3rem',
+            padding: '1.25rem 1.5rem 2rem',
             boxSizing: 'border-box'
         }}>
             {/* Mockup Header Bar */}
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem', flexWrap: 'wrap', gap: '1rem', background: '#f8fafc', padding: '0.75rem 1.5rem', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem', flexWrap: 'wrap', gap: '1rem', background: '#f8fafc', padding: '0.5rem 1.25rem', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
                     {/* Left side: Tabs & Year Selector */}
                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '2px', background: '#e2e8f0', padding: '3px', borderRadius: '8px', height: '34px', boxSizing: 'border-box' }}>

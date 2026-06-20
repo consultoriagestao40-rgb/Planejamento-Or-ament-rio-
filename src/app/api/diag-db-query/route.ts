@@ -141,15 +141,33 @@ export async function GET() {
             };
         }).filter(item => item.idSum !== 0 || item.nameSum !== 0);
 
+        const addedKeys = new Set<string>();
         let totalRev = 0;
         let totalTax = 0;
         let totalCost = 0;
 
-        breakdown.forEach(item => {
-            if (item.isRevenue) totalRev += item.idSum;
-            if (item.isTaxes) totalTax += item.idSum;
-            if (item.isCosts) totalCost += item.idSum;
-        });
+        for (let m = 0; m <= 5; m++) {
+            tenantCategories.forEach(cat => {
+                const cleanId = cat.id.includes(':') ? cat.id.split(':').pop() : cat.id;
+                const k1 = `realized-${cat.id}-${m}`;
+                const k2 = `realized-${cleanId}-${m}`;
+                if (isRev(cat)) {
+                    if (!addedKeys.has(k1)) { addedKeys.add(k1); totalRev += (realizedValues[k1] || 0); }
+                    if (!addedKeys.has(k2)) { addedKeys.add(k2); totalRev += (realizedValues[k2] || 0); }
+                }
+                if (isTax(cat)) {
+                    if (!addedKeys.has(k1)) { addedKeys.add(k1); totalTax += (realizedValues[k1] || 0); }
+                    if (!addedKeys.has(k2)) { addedKeys.add(k2); totalTax += (realizedValues[k2] || 0); }
+                }
+                if (isCost(cat)) {
+                    if (!addedKeys.has(k1)) { addedKeys.add(k1); totalCost += (realizedValues[k1] || 0); }
+                    if (!addedKeys.has(k2)) { addedKeys.add(k2); totalCost += (realizedValues[k2] || 0); }
+                }
+            });
+        }
+        totalRev = totalRev / 1000;
+        totalTax = totalTax / 1000;
+        totalCost = totalCost / 1000;
 
         const rawSalariesEntries = await prisma.realizedEntry.findMany({
             where: {

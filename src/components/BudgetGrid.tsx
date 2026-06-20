@@ -89,6 +89,7 @@ export default function BudgetGrid({
     const [startMonth, setStartMonth] = useState<number>(0);
     const [endMonth, setEndMonth] = useState<number>(5);
     const periodLabel = `(${MONTH_ABBRS[startMonth]}-${MONTH_ABBRS[endMonth]})`;
+    const [selectedPeriodOption, setSelectedPeriodOption] = useState<string>('1_semestre');
     const [viewMode, setViewMode] = useState<'caixa' | 'competencia'>('competencia');
     const [viewPeriod, setViewPeriod] = useState<'month' | 'quarter'>('month');
 
@@ -96,6 +97,47 @@ export default function BudgetGrid({
     useEffect(() => {
         setSelectedYear(externalYear);
     }, [externalYear]);
+
+    const handlePeriodOptionChange = (option: string) => {
+        setSelectedPeriodOption(option);
+        switch (option) {
+            case 'mes_atual':
+                setStartMonth(5);
+                setEndMonth(5);
+                break;
+            case '1_tri':
+                setStartMonth(0);
+                setEndMonth(2);
+                break;
+            case '2_tri':
+                setStartMonth(3);
+                setEndMonth(5);
+                break;
+            case '3_tri':
+                setStartMonth(6);
+                setEndMonth(8);
+                break;
+            case '4_tri':
+                setStartMonth(9);
+                setEndMonth(11);
+                break;
+            case '1_semestre':
+                setStartMonth(0);
+                setEndMonth(5);
+                break;
+            case '2_semestre':
+                setStartMonth(6);
+                setEndMonth(11);
+                break;
+            case 'ano_todo':
+                setStartMonth(0);
+                setEndMonth(11);
+                break;
+            case 'personalizado':
+                // Mantém startMonth e endMonth atuais
+                break;
+        }
+    };
 
     const handleStartMonthChange = (val: number) => {
         setStartMonth(val);
@@ -2463,7 +2505,7 @@ export default function BudgetGrid({
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', marginTop: '1rem', width: '100%' }}>
                     {/* Filtro de Período Personalizado */}
                     <div className="glass-card" style={{ 
-                        padding: '1rem 1.25rem', 
+                        padding: '0.85rem 1.25rem', 
                         background: '#ffffff', 
                         borderRadius: '12px', 
                         border: '1px solid #e2e8f0', 
@@ -2471,198 +2513,100 @@ export default function BudgetGrid({
                         display: 'flex',
                         flexDirection: 'row',
                         alignItems: 'center',
-                        justifyContent: 'space-between',
+                        gap: '1.25rem',
                         flexWrap: 'wrap',
-                        gap: '1rem',
                         width: '100%'
                     }}>
-                        {/* Seletores De/Até */}
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', flexWrap: 'wrap' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
                             <span style={{ fontSize: '0.8rem', fontWeight: 800, color: '#0f172a', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                                Período:
+                                Período de Análise:
                             </span>
-                            
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                                <label htmlFor="start-month-select" style={{ fontSize: '0.75rem', fontWeight: 700, color: '#64748b' }}>De:</label>
-                                <select 
-                                    id="start-month-select"
-                                    value={startMonth} 
-                                    onChange={(e) => handleStartMonthChange(Number(e.target.value))}
-                                    style={{ 
-                                        padding: '0.35rem 0.5rem', 
-                                        fontSize: '0.75rem', 
-                                        borderRadius: '6px', 
-                                        border: '1px solid #cbd5e1', 
-                                        background: '#ffffff', 
-                                        color: '#0f172a', 
-                                        fontWeight: 600,
-                                        outline: 'none',
-                                        cursor: 'pointer'
-                                    }}
-                                >
-                                    {['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'].map((m, idx) => (
-                                        <option key={idx} value={idx}>{m}</option>
-                                    ))}
-                                </select>
-                            </div>
-
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                                <label htmlFor="end-month-select" style={{ fontSize: '0.75rem', fontWeight: 700, color: '#64748b' }}>Até:</label>
-                                <select 
-                                    id="end-month-select"
-                                    value={endMonth} 
-                                    onChange={(e) => handleEndMonthChange(Number(e.target.value))}
-                                    style={{ 
-                                        padding: '0.35rem 0.5rem', 
-                                        fontSize: '0.75rem', 
-                                        borderRadius: '6px', 
-                                        border: '1px solid #cbd5e1', 
-                                        background: '#ffffff', 
-                                        color: '#0f172a', 
-                                        fontWeight: 600,
-                                        outline: 'none',
-                                        cursor: 'pointer'
-                                    }}
-                                >
-                                    {['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'].map((m, idx) => (
-                                        <option key={idx} value={idx}>{m}</option>
-                                    ))}
-                                </select>
-                            </div>
+                            <select
+                                value={selectedPeriodOption}
+                                onChange={(e) => handlePeriodOptionChange(e.target.value)}
+                                style={{
+                                    padding: '0.4rem 0.75rem',
+                                    fontSize: '0.8rem',
+                                    borderRadius: '8px',
+                                    border: '1px solid #cbd5e1',
+                                    background: '#ffffff',
+                                    color: '#0f172a',
+                                    fontWeight: 700,
+                                    outline: 'none',
+                                    cursor: 'pointer',
+                                    boxShadow: '0 1px 2px rgba(0,0,0,0.05)',
+                                    transition: 'border-color 0.2s'
+                                }}
+                            >
+                                <option value="mes_atual">Mês Atual (Junho)</option>
+                                <option value="1_tri">1º Trimestre (Jan-Mar)</option>
+                                <option value="2_tri">2º Trimestre (Abr-Jun)</option>
+                                <option value="3_tri">3º Trimestre (Jul-Set)</option>
+                                <option value="4_tri">4º Trimestre (Out-Dez)</option>
+                                <option value="1_semestre">1º Semestre (Jan-Jun)</option>
+                                <option value="2_semestre">2º Semestre (Jul-Dez)</option>
+                                <option value="ano_todo">Ano Todo (Jan-Dez)</option>
+                                <option value="personalizado">Personalizado</option>
+                            </select>
                         </div>
 
-                        {/* Botões de Atalho */}
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', flexWrap: 'wrap' }}>
-                            <span style={{ fontSize: '0.7rem', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', marginRight: '0.2rem' }}>Atalhos:</span>
-                            <button 
-                                onClick={() => { setStartMonth(5); setEndMonth(5); }} 
-                                style={{
-                                    padding: '0.3rem 0.6rem',
-                                    fontSize: '0.7rem',
-                                    fontWeight: 700,
-                                    borderRadius: '6px',
-                                    border: '1px solid #e2e8f0',
-                                    background: startMonth === 5 && endMonth === 5 ? '#0f172a' : '#f8fafc',
-                                    color: startMonth === 5 && endMonth === 5 ? '#ffffff' : '#64748b',
-                                    cursor: 'pointer',
-                                    transition: 'all 0.15s'
-                                }}
-                            >
-                                Mês Atual
-                            </button>
-                            <button 
-                                onClick={() => { setStartMonth(0); setEndMonth(2); }} 
-                                style={{
-                                    padding: '0.3rem 0.6rem',
-                                    fontSize: '0.7rem',
-                                    fontWeight: 700,
-                                    borderRadius: '6px',
-                                    border: '1px solid #e2e8f0',
-                                    background: startMonth === 0 && endMonth === 2 ? '#0f172a' : '#f8fafc',
-                                    color: startMonth === 0 && endMonth === 2 ? '#ffffff' : '#64748b',
-                                    cursor: 'pointer',
-                                    transition: 'all 0.15s'
-                                }}
-                            >
-                                1º Tri
-                            </button>
-                            <button 
-                                onClick={() => { setStartMonth(3); setEndMonth(5); }} 
-                                style={{
-                                    padding: '0.3rem 0.6rem',
-                                    fontSize: '0.7rem',
-                                    fontWeight: 700,
-                                    borderRadius: '6px',
-                                    border: '1px solid #e2e8f0',
-                                    background: startMonth === 3 && endMonth === 5 ? '#0f172a' : '#f8fafc',
-                                    color: startMonth === 3 && endMonth === 5 ? '#ffffff' : '#64748b',
-                                    cursor: 'pointer',
-                                    transition: 'all 0.15s'
-                                }}
-                            >
-                                2º Tri
-                            </button>
-                            <button 
-                                onClick={() => { setStartMonth(6); setEndMonth(8); }} 
-                                style={{
-                                    padding: '0.3rem 0.6rem',
-                                    fontSize: '0.7rem',
-                                    fontWeight: 700,
-                                    borderRadius: '6px',
-                                    border: '1px solid #e2e8f0',
-                                    background: startMonth === 6 && endMonth === 8 ? '#0f172a' : '#f8fafc',
-                                    color: startMonth === 6 && endMonth === 8 ? '#ffffff' : '#64748b',
-                                    cursor: 'pointer',
-                                    transition: 'all 0.15s'
-                                }}
-                            >
-                                3º Tri
-                            </button>
-                            <button 
-                                onClick={() => { setStartMonth(9); setEndMonth(11); }} 
-                                style={{
-                                    padding: '0.3rem 0.6rem',
-                                    fontSize: '0.7rem',
-                                    fontWeight: 700,
-                                    borderRadius: '6px',
-                                    border: '1px solid #e2e8f0',
-                                    background: startMonth === 9 && endMonth === 11 ? '#0f172a' : '#f8fafc',
-                                    color: startMonth === 9 && endMonth === 11 ? '#ffffff' : '#64748b',
-                                    cursor: 'pointer',
-                                    transition: 'all 0.15s'
-                                }}
-                            >
-                                4º Tri
-                            </button>
-                            <button 
-                                onClick={() => { setStartMonth(0); setEndMonth(5); }} 
-                                style={{
-                                    padding: '0.3rem 0.6rem',
-                                    fontSize: '0.7rem',
-                                    fontWeight: 700,
-                                    borderRadius: '6px',
-                                    border: '1px solid #e2e8f0',
-                                    background: startMonth === 0 && endMonth === 5 ? '#0f172a' : '#f8fafc',
-                                    color: startMonth === 0 && endMonth === 5 ? '#ffffff' : '#64748b',
-                                    cursor: 'pointer',
-                                    transition: 'all 0.15s'
-                                }}
-                            >
-                                1º Semestre
-                            </button>
-                            <button 
-                                onClick={() => { setStartMonth(6); setEndMonth(11); }} 
-                                style={{
-                                    padding: '0.3rem 0.6rem',
-                                    fontSize: '0.7rem',
-                                    fontWeight: 700,
-                                    borderRadius: '6px',
-                                    border: '1px solid #e2e8f0',
-                                    background: startMonth === 6 && endMonth === 11 ? '#0f172a' : '#f8fafc',
-                                    color: startMonth === 6 && endMonth === 11 ? '#ffffff' : '#64748b',
-                                    cursor: 'pointer',
-                                    transition: 'all 0.15s'
-                                }}
-                            >
-                                2º Semestre
-                            </button>
-                            <button 
-                                onClick={() => { setStartMonth(0); setEndMonth(11); }} 
-                                style={{
-                                    padding: '0.3rem 0.6rem',
-                                    fontSize: '0.7rem',
-                                    fontWeight: 700,
-                                    borderRadius: '6px',
-                                    border: '1px solid #e2e8f0',
-                                    background: startMonth === 0 && endMonth === 11 ? '#0f172a' : '#f8fafc',
-                                    color: startMonth === 0 && endMonth === 11 ? '#ffffff' : '#64748b',
-                                    cursor: 'pointer',
-                                    transition: 'all 0.15s'
-                                }}
-                            >
-                                Ano Todo
-                            </button>
-                        </div>
+                        {selectedPeriodOption === 'personalizado' && (
+                            <div style={{ 
+                                display: 'flex', 
+                                alignItems: 'center', 
+                                gap: '1rem',
+                                background: '#f8fafc',
+                                padding: '0.35rem 0.75rem',
+                                borderRadius: '8px',
+                                border: '1px solid #e2e8f0'
+                            }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                    <span style={{ fontSize: '0.75rem', fontWeight: 700, color: '#64748b' }}>De:</span>
+                                    <select 
+                                        value={startMonth} 
+                                        onChange={(e) => handleStartMonthChange(Number(e.target.value))}
+                                        style={{ 
+                                            padding: '0.25rem 0.5rem', 
+                                            fontSize: '0.75rem', 
+                                            borderRadius: '6px', 
+                                            border: '1px solid #cbd5e1', 
+                                            background: '#ffffff', 
+                                            color: '#0f172a', 
+                                            fontWeight: 600,
+                                            outline: 'none',
+                                            cursor: 'pointer'
+                                        }}
+                                    >
+                                        {['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'].map((m, idx) => (
+                                            <option key={idx} value={idx}>{m}</option>
+                                        ))}
+                                    </select>
+                                </div>
+
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                    <span style={{ fontSize: '0.75rem', fontWeight: 700, color: '#64748b' }}>Até:</span>
+                                    <select 
+                                        value={endMonth} 
+                                        onChange={(e) => handleEndMonthChange(Number(e.target.value))}
+                                        style={{ 
+                                            padding: '0.25rem 0.5rem', 
+                                            fontSize: '0.75rem', 
+                                            borderRadius: '6px', 
+                                            border: '1px solid #cbd5e1', 
+                                            background: '#ffffff', 
+                                            color: '#0f172a', 
+                                            fontWeight: 600,
+                                            outline: 'none',
+                                            cursor: 'pointer'
+                                        }}
+                                    >
+                                        {['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'].map((m, idx) => (
+                                            <option key={idx} value={idx}>{m}</option>
+                                        ))}
+                                    </select>
+                                </div>
+                            </div>
+                        )}
                     </div>
 
                     {/* KPI Summary Cards */}

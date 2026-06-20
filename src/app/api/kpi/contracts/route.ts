@@ -13,7 +13,7 @@ function normalizeCustomerName(name: string): string {
 
 const isRevenueCategory = (name: string) => {
     const cleanCode = (name.match(/^(\d{1,2}(?:\.\d+)*)/) || [])[1] || '';
-    return cleanCode.startsWith('01') || cleanCode === '1';
+    return cleanCode.startsWith('01') || cleanCode.startsWith('1');
 };
 
 export async function GET(request: Request) {

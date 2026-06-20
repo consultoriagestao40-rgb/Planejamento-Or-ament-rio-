@@ -169,7 +169,7 @@ export async function GET(request: Request) {
 
             const catName = category.name || "";
             const catCode = (catName.match(/^(\d{1,2}(?:\.\d+)*)/) || [])[1] || "";
-            const isGrossRevenue = catCode.startsWith('01') || catCode === '1';
+            const isGrossRevenue = catCode.startsWith('01') || catCode.startsWith('1');
 
             const type = (category.type || '').toUpperCase();
             const isRevenueType = type === 'REVENUE' || type === 'RECEITA';
@@ -228,7 +228,7 @@ export async function GET(request: Request) {
 
             const catName = category.name || "";
             const catCode = (catName.match(/^(\d{1,2}(?:\.\d+)*)/) || [])[1] || "";
-            const isGrossRevenue = catCode.startsWith('01') || catCode === '1';
+            const isGrossRevenue = catCode.startsWith('01') || catCode.startsWith('1');
 
             const type = (category.type || '').toUpperCase();
             const isRevenueType = type === 'REVENUE' || type === 'RECEITA';

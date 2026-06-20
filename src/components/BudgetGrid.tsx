@@ -794,7 +794,7 @@ export default function BudgetGrid({
         recalculateLevels(finalRoots, 0);
 
         return finalRoots;
-    }, [categories, selectedCompany]);
+    }, [categories, selectedCompany, activeVariantIds]);
 
     // --- RECURSIVE TOTALS ---
     const nodeTotals = useMemo(() => {
@@ -882,8 +882,8 @@ export default function BudgetGrid({
 
         treeRoots.forEach(root => {
             const code = root.code || '';
-            if (code.startsWith('01') || code === '1') buckets.rev.push(root);
-            else if (code.startsWith('02') || code === '2') buckets.taxes.push(root);
+            if (code.startsWith('01') || code.startsWith('1')) buckets.rev.push(root);
+            else if (code.startsWith('02') || code.startsWith('2')) buckets.taxes.push(root);
             else if (code.startsWith('3') || code.startsWith('03')) buckets.costs.push(root);
             else if (code.startsWith('4') || code.startsWith('04')) buckets.opExp.push(root);
             else if (code.startsWith('5') || code.startsWith('05') || code.startsWith('7') || code.startsWith('07') || code.startsWith('8') || code.startsWith('08')) buckets.adminExp.push(root);
@@ -1449,7 +1449,7 @@ export default function BudgetGrid({
 
         const isRevenueCategory = (cat: any) => {
             const cleanCode = (cat.name.match(/^(\d{1,2}(?:\.\d+)*)/) || [])[1] || '';
-            return cleanCode.startsWith('01') || cleanCode === '1';
+            return cleanCode.startsWith('01') || cleanCode.startsWith('1');
         };
 
         const revenueCategories = categories.filter(isRevenueCategory);
@@ -1501,11 +1501,11 @@ export default function BudgetGrid({
 
         const isRev = (c: any) => {
             const code = (c.name.match(/^(\d{1,2}(?:\.\d+)*)/) || [])[1] || '';
-            return code.startsWith('01') || code === '1';
+            return code.startsWith('01') || code.startsWith('1');
         };
         const isTax = (c: any) => {
             const code = (c.name.match(/^(\d{1,2}(?:\.\d+)*)/) || [])[1] || '';
-            return code.startsWith('02') || code === '2';
+            return code.startsWith('02') || code.startsWith('2');
         };
         const isCost = (c: any) => {
             const code = (c.name.match(/^(\d{1,2}(?:\.\d+)*)/) || [])[1] || '';

@@ -167,11 +167,21 @@ export async function GET(request: Request) {
             const category = categoryMap.get(b.categoryId);
             if (!category) return;
 
+            const catName = category.name || "";
+            const catCode = (catName.match(/^(\d{1,2}(?:\.\d+)*)/) || [])[1] || "";
+            const isGrossRevenue = catCode.startsWith('01') || catCode === '1';
+
             const type = (category.type || '').toUpperCase();
-            if (type === 'REVENUE' || type === 'RECEITA') {
+            const isRevenueType = type === 'REVENUE' || type === 'RECEITA';
+
+            if (isGrossRevenue) {
                 summaryMap[key].totalRevenueBudget += b.amount;
             } else {
-                summaryMap[key].totalExpenseBudget += b.amount;
+                if (isRevenueType) {
+                    summaryMap[key].totalExpenseBudget -= b.amount;
+                } else {
+                    summaryMap[key].totalExpenseBudget += b.amount;
+                }
             }
             summaryMap[key].hasBudgetData = true;
         });
@@ -216,11 +226,21 @@ export async function GET(request: Request) {
             const category = categoryMap.get(r.categoryId);
             if (!category) return;
 
+            const catName = category.name || "";
+            const catCode = (catName.match(/^(\d{1,2}(?:\.\d+)*)/) || [])[1] || "";
+            const isGrossRevenue = catCode.startsWith('01') || catCode === '1';
+
             const type = (category.type || '').toUpperCase();
-            if (type === 'REVENUE' || type === 'RECEITA') {
+            const isRevenueType = type === 'REVENUE' || type === 'RECEITA';
+
+            if (isGrossRevenue) {
                 summaryMap[key].totalRevenue += r.amount;
             } else {
-                summaryMap[key].totalExpense += r.amount;
+                if (isRevenueType) {
+                    summaryMap[key].totalExpense -= r.amount;
+                } else {
+                    summaryMap[key].totalExpense += r.amount;
+                }
             }
             summaryMap[key].hasRealizedData = true;
         });

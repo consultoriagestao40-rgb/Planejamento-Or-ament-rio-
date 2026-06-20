@@ -73,6 +73,8 @@ export default function BudgetGrid({
     const [realizedValues, setRealizedValues] = useState<Record<string, number>>({});
     const [contractsData, setContractsData] = useState<{ name: string; value: number; percentage: number; monthlyValues?: Record<number, number> }[]>([]);
     const [contractsLoading, setContractsLoading] = useState(false);
+    const [selectedContractsMonth, setSelectedContractsMonth] = useState<string>('accumulated');
+    const [monthlyBudgets, setMonthlyBudgets] = useState<Record<number, number>>({});
 
     const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
     const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set()); // New state for main groups
@@ -516,6 +518,8 @@ export default function BudgetGrid({
                 const data = await res.json();
                 if (data.success) {
                     setContractsData(data.contracts || []);
+                    setMonthlyBudgets(data.monthlyBudgets || {});
+                    setSelectedContractsMonth('accumulated');
                 }
             } catch (err) {
                 console.error("Error fetching contracts:", err);
@@ -3295,148 +3299,130 @@ export default function BudgetGrid({
             monthsInPeriod.push(m);
         }
 
-        // Find max value for inline bars
-        let maxMonthlyValue = 0;
-        contractsData.forEach(c => {
-            if (c.monthlyValues) {
-                Object.values(c.monthlyValues).forEach(val => {
-                    if (val > maxMonthlyValue) maxMonthlyValue = val;
-                });
-            }
-        });
+        const MONTH_NAMES = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
+        const MONTH_SHORT = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
 
-        const MONTH_NAMES = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
+        // Determine active view mode (accumulated vs specific month)
+        const isAccumulated = selectedContractsMonth === 'accumulated';
+        const displayData = contractsData.map(item => {
+            let val = item.value;
+            let percentage = item.percentage;
+
+            if (!isAccumulated) {
+                const mIdx = parseInt(selectedContractsMonth, 10);
+                val = item.monthlyValues?.[mIdx] || 0;
+                const mBudget = monthlyBudgets[mIdx] || 0;
+                percentage = mBudget > 0 ? (val / mBudget) * 100 : 0;
+            }
+
+            return {
+                name: item.name,
+                value: val,
+                percentage
+            };
+        })
+        .filter(c => c.value > 0)
+        .sort((a, b) => b.value - a.value);
+
+        if (displayData.length === 0) {
+            return (
+                <div className="glass-card" style={{ padding: '2rem', background: '#ffffff', borderRadius: '12px', border: '1px solid #e2e8f0', boxShadow: '0 4px 6px rgba(0,0,0,0.02)', width: '100%', height: '100%', display: 'flex', flexDirection: 'column' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1.5rem', flexWrap: 'wrap', gap: '0.5rem' }}>
+                        <h3 style={{ fontSize: '1rem', fontWeight: 800, color: '#0f172a', margin: 0 }}>
+                            Faturamento por Contrato
+                        </h3>
+                        <select 
+                            value={selectedContractsMonth} 
+                            onChange={(e) => setSelectedContractsMonth(e.target.value)}
+                            style={{ padding: '0.25rem 0.5rem', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '0.75rem', fontWeight: 600, color: '#334155', background: '#ffffff', cursor: 'pointer', outline: 'none' }}
+                        >
+                            <option value="accumulated">Acumulado do Período</option>
+                            {monthsInPeriod.map(m => (
+                                <option key={m} value={m.toString()}>{MONTH_SHORT[m]}</option>
+                            ))}
+                        </select>
+                    </div>
+                    <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#64748b', fontSize: '0.85rem', fontWeight: 600, minHeight: '150px' }}>
+                        Sem faturamento lançado no mês selecionado.
+                    </div>
+                </div>
+            );
+        }
+
+        const maxVal = Math.max(...displayData.map(c => c.value));
 
         return (
             <div className="glass-card" style={{ padding: '2rem', background: '#ffffff', borderRadius: '12px', border: '1px solid #e2e8f0', boxShadow: '0 4px 6px rgba(0,0,0,0.02)', width: '100%', height: '100%', display: 'flex', flexDirection: 'column' }}>
-                <h3 style={{ fontSize: '1rem', fontWeight: 800, color: '#0f172a', marginBottom: '1.5rem', textAlign: 'center' }}>
-                    Valores Mensais por Contrato / Cliente
-                    <span style={{ fontSize: '0.75rem', color: '#64748b', fontWeight: 500, display: 'block', marginTop: '0.25rem' }}>
-                        Valores em Mil R$ e % em relação ao total orçado do período
-                    </span>
-                </h3>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1.5rem', flexWrap: 'wrap', gap: '0.5rem' }}>
+                    <h3 style={{ fontSize: '1rem', fontWeight: 800, color: '#0f172a', margin: 0, textAlign: 'left' }}>
+                        Faturamento por Contrato
+                        <span style={{ fontSize: '0.75rem', color: '#64748b', fontWeight: 500, display: 'block', marginTop: '0.25rem' }}>
+                            {isAccumulated 
+                                ? "Valores acumulados do período em Mil R$ e % do total orçado"
+                                : `Faturamento de ${MONTH_NAMES[parseInt(selectedContractsMonth, 10)]} em Mil R$ e % do orçado do mês`}
+                        </span>
+                    </h3>
+                    <select 
+                        value={selectedContractsMonth} 
+                        onChange={(e) => setSelectedContractsMonth(e.target.value)}
+                        style={{ 
+                            padding: '0.25rem 0.5rem', 
+                            borderRadius: '6px', 
+                            border: '1px solid #cbd5e1', 
+                            fontSize: '0.75rem', 
+                            fontWeight: 600, 
+                            color: '#334155', 
+                            background: '#ffffff', 
+                            cursor: 'pointer', 
+                            outline: 'none',
+                            boxShadow: '0 1px 2px rgba(0,0,0,0.05)'
+                        }}
+                    >
+                        <option value="accumulated">Acumulado do Período</option>
+                        {monthsInPeriod.map(m => (
+                            <option key={m} value={m.toString()}>{MONTH_SHORT[m]}</option>
+                        ))}
+                    </select>
+                </div>
 
-                <style>{`
-                    .hover-row:hover {
-                        background-color: #f8fafc !important;
-                    }
-                    .hover-row:hover td {
-                        background-color: #f8fafc !important;
-                    }
-                `}</style>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', maxHeight: '420px', overflowY: 'auto', paddingRight: '0.5rem' }}>
+                    {displayData.map((item, idx) => {
+                        const barWidth = maxVal > 0 ? (item.value / maxVal) * 100 : 0;
+                        const barColor = ['#3b82f6', '#10b981', '#f97316', '#8b5cf6', '#ec4899', '#06b6d4', '#eab308'][idx % 7];
 
-                <div style={{ flex: 1, overflowX: 'auto', maxHeight: '420px', overflowY: 'auto' }}>
-                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8rem', textAlign: 'left' }}>
-                        <thead>
-                            <tr style={{ background: '#f8fafc', borderBottom: '2px solid #e2e8f0' }}>
-                                <th style={{ padding: '0.75rem', color: '#64748b', fontWeight: 800, position: 'sticky', left: 0, background: '#f8fafc', zIndex: 2, minWidth: '150px' }}>
-                                    Contrato
-                                </th>
-                                {monthsInPeriod.map(m => (
-                                    <th key={m} style={{ padding: '0.75rem', color: '#64748b', fontWeight: 800, textAlign: 'right', minWidth: '70px' }}>
-                                        {MONTH_NAMES[m]}
-                                    </th>
-                                ))}
-                                <th style={{ padding: '0.75rem', color: '#64748b', fontWeight: 800, textAlign: 'right', minWidth: '85px' }}>
-                                    Total
-                                </th>
-                                <th style={{ padding: '0.75rem', color: '#64748b', fontWeight: 800, textAlign: 'right', minWidth: '70px' }}>
-                                    % Orc.
-                                </th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {contractsData.map((item, idx) => {
-                                const rowColor = ['#3b82f6', '#10b981', '#f97316', '#8b5cf6', '#ec4899', '#06b6d4', '#eab308'][idx % 7];
+                        return (
+                            <div key={idx} style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                                {/* Contract/Customer Name */}
+                                <div style={{ width: '180px', minWidth: '180px', maxWidth: '180px', fontSize: '0.8rem', fontWeight: 700, color: '#334155', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }} title={item.name}>
+                                    {item.name}
+                                </div>
 
-                                return (
-                                    <tr 
-                                        key={idx} 
-                                        className="hover-row"
+                                {/* Bar Container */}
+                                <div style={{ flex: 1, height: '24px', background: '#f1f5f9', borderRadius: '6px', position: 'relative', overflow: 'hidden' }}>
+                                    <div 
                                         style={{ 
-                                            borderBottom: '1px solid #f1f5f9',
-                                            background: idx % 2 === 0 ? '#ffffff' : '#fafafa',
-                                            transition: 'background 0.2s'
-                                        }}
-                                    >
-                                        {/* Contract Name */}
-                                        <td 
-                                            style={{ 
-                                                padding: '0.75rem', 
-                                                fontWeight: 700, 
-                                                color: '#334155', 
-                                                position: 'sticky', 
-                                                left: 0, 
-                                                background: idx % 2 === 0 ? '#ffffff' : '#fafafa',
-                                                zIndex: 1,
-                                                whiteSpace: 'nowrap',
-                                                overflow: 'hidden',
-                                                textOverflow: 'ellipsis',
-                                                maxWidth: '180px',
-                                                borderRight: '1px solid #f1f5f9'
-                                            }}
-                                            title={item.name}
-                                        >
-                                            {item.name}
-                                        </td>
+                                            width: `${barWidth}%`, 
+                                            height: '100%', 
+                                            background: `linear-gradient(90deg, ${barColor}dd, ${barColor})`, 
+                                            borderRadius: '6px',
+                                            transition: 'width 0.8s cubic-bezier(0.4, 0, 0.2, 1)',
+                                            position: 'relative'
+                                        }} 
+                                    />
+                                </div>
 
-                                        {/* Month columns */}
-                                        {monthsInPeriod.map(m => {
-                                            const val = item.monthlyValues?.[m] || 0;
-                                            const barPct = maxMonthlyValue > 0 ? (val / maxMonthlyValue) * 100 : 0;
-                                            return (
-                                                <td 
-                                                    key={m} 
-                                                    style={{ 
-                                                        padding: '0.75rem 0.75rem 0.95rem 0.75rem', 
-                                                        textAlign: 'right', 
-                                                        color: '#475569',
-                                                        position: 'relative',
-                                                        fontWeight: val > 0 ? 600 : 400
-                                                    }}
-                                                >
-                                                    {val > 0 ? `R$ ${val.toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}` : '-'}
-                                                    {val > 0 && (
-                                                        <div 
-                                                            style={{ 
-                                                                position: 'absolute', 
-                                                                bottom: '3px', 
-                                                                right: '0.75rem', 
-                                                                left: '0.75rem', 
-                                                                height: '3px', 
-                                                                background: `${rowColor}33`, 
-                                                                borderRadius: '2px',
-                                                                overflow: 'hidden'
-                                                            }}
-                                                        >
-                                                            <div 
-                                                                style={{ 
-                                                                    width: `${barPct}%`, 
-                                                                    height: '100%', 
-                                                                    background: rowColor,
-                                                                    borderRadius: '2px'
-                                                                }} 
-                                                            />
-                                                        </div>
-                                                    )}
-                                                </td>
-                                            );
-                                        })}
-
-                                        {/* Total */}
-                                        <td style={{ padding: '0.75rem', textAlign: 'right', fontWeight: 800, color: '#0f172a' }}>
-                                            R$ {item.value.toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}
-                                        </td>
-
-                                        {/* % Budgeted */}
-                                        <td style={{ padding: '0.75rem', textAlign: 'right', fontWeight: 800, color: rowColor }}>
-                                            {item.percentage.toFixed(1)}%
-                                        </td>
-                                    </tr>
-                                );
-                            })}
-                        </tbody>
-                    </table>
+                                {/* Value and percentage */}
+                                <div style={{ width: '160px', minWidth: '160px', textAlign: 'right', display: 'flex', justifyContent: 'flex-end', gap: '8px', fontSize: '0.8rem', fontWeight: 800 }}>
+                                    <span style={{ color: '#0f172a' }}>
+                                        R$ {item.value.toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })} Mil
+                                    </span>
+                                    <span style={{ color: barColor, width: '56px', textAlign: 'right' }}>
+                                        {item.percentage.toFixed(1)}%
+                                    </span>
+                                </div>
+                            </div>
+                        );
+                    })}
                 </div>
             </div>
         );

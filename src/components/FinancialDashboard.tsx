@@ -261,7 +261,6 @@ export default function FinancialDashboard({
                         activeTab={activeTab}
                     />
                 </section>
-            </div>
         </main>
     );
 }

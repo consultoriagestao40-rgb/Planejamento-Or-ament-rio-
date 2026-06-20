@@ -1303,6 +1303,32 @@ export default function BudgetGrid({
         };
     }, [precomputedDreTotals]);
 
+    const costsProjectionData = useMemo(() => {
+        let annualBudgetRev = 0;
+        let annualBudgetCosts = 0;
+        let realizedAccumRev = 0;
+        let realizedAccumCosts = 0;
+
+        precomputedDreTotals.forEach((m, idx) => {
+            annualBudgetRev += m.vRev.b;
+            annualBudgetCosts += m.vCosts.b;
+            if (idx <= currentMonthIdx) {
+                realizedAccumRev += m.vRev.r;
+                realizedAccumCosts += m.vCosts.r;
+            }
+        });
+
+        const budgetCostRate = annualBudgetRev > 0 ? (annualBudgetCosts / annualBudgetRev) * 100 : 0;
+        const realizedCostRate = realizedAccumRev > 0 ? (realizedAccumCosts / realizedAccumRev) * 100 : 0;
+
+        return {
+            budgetCostRate,
+            realizedCostRate,
+            realizedAccumCosts,
+            realizedAccumRev
+        };
+    }, [precomputedDreTotals]);
+
     const matchNode = (node: CategoryNode, query: string): boolean => {
         if (!query) return true;
         const cleanQuery = query.toLowerCase().trim();
@@ -2056,6 +2082,100 @@ export default function BudgetGrid({
         );
     };
 
+    const renderCostsGauge = () => {
+        const { budgetCostRate, realizedCostRate } = costsProjectionData;
+
+        // SVG parameters
+        const cx = 120;
+        const cy = 110;
+        const r = 80;
+        
+        // Target percentage of realized cost rate relative to budget cost rate (max 100%)
+        const gaugePercent = budgetCostRate > 0 ? (realizedCostRate / budgetCostRate) * 100 : 0;
+
+        // Trig angle in radians for needle (left is PI, right is 0)
+        const needleAngle = Math.PI - (Math.min(100, Math.max(0, gaugePercent)) / 100) * Math.PI;
+        const needleLength = 62;
+        const needleX = cx + needleLength * Math.cos(needleAngle);
+        const needleY = cy - needleLength * Math.sin(needleAngle);
+
+        // Helper to get coordinates for arc segments
+        const getArcSegment = (startAngleDeg: number, endAngleDeg: number, strokeColor: string) => {
+            const startRad = (startAngleDeg * Math.PI) / 180;
+            const endRad = (endAngleDeg * Math.PI) / 180;
+            
+            const x1 = cx + r * Math.cos(startRad);
+            const y1 = cy - r * Math.sin(startRad);
+            const x2 = cx + r * Math.cos(endRad);
+            const y2 = cy - r * Math.sin(endRad);
+            
+            return (
+                <path 
+                    key={startAngleDeg}
+                    d={`M ${x1} ${y1} A ${r} ${r} 0 0 1 ${x2} ${y2}`} 
+                    fill="none" 
+                    stroke={strokeColor} 
+                    strokeWidth="14" 
+                />
+            );
+        };
+
+        // 5 segments: Inverted colors (verde to vermelho)
+        const segments = [
+            { color: '#22c55e', start: 180, end: 147 }, // Excelente (baixo custo operacional)
+            { color: '#84cc16', start: 144, end: 111 }, // Bom
+            { color: '#eab308', start: 108, end: 75 },  // Atenção
+            { color: '#f97316', start: 72, end: 39 },   // Alerta
+            { color: '#ef4444', start: 36, end: 3 }     // Crítico
+        ];
+
+        return (
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', background: '#f8fafc', padding: '1rem', borderRadius: '12px', border: '1px solid #cbd5e1', boxShadow: 'inset 0 2px 4px rgba(0,0,0,0.02)' }}>
+                <svg width="240" height="135" viewBox="0 0 240 135" style={{ overflow: 'visible' }}>
+                    <defs>
+                        <filter id="needle-shadow-costs" x="-20%" y="-20%" width="140%" height="140%">
+                            <feDropShadow dx="1" dy="2" stdDeviation="1" floodOpacity="0.15" />
+                        </filter>
+                        {/* Ponta da Seta */}
+                        <marker id="arrow-costs" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse">
+                            <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="#1e293b" />
+                        </marker>
+                    </defs>
+
+                    {/* Desenha os 5 segmentos coloridos */}
+                    {segments.map(seg => getArcSegment(seg.start, seg.end, seg.color))}
+
+                    {/* Ponteiro (aponta para o Custo Realizado em relação ao Orçado) */}
+                    <g filter="url(#needle-shadow-costs)">
+                        <line 
+                            x1={cx} 
+                            y1={cy} 
+                            x2={needleX} 
+                            y2={needleY} 
+                            stroke="#1e293b" 
+                            strokeWidth="3" 
+                            strokeLinecap="round" 
+                            markerEnd="url(#arrow-costs)"
+                            style={{ transition: 'all 0.8s ease-in-out' }}
+                        />
+                        {/* Miolo do ponteiro */}
+                        <circle cx={cx} cy={cy} r="8.5" fill="#1e293b" />
+                        <circle cx={cx} cy={cy} r="4" fill="#f8fafc" />
+                    </g>
+
+                    {/* Rótulos de 0% e Alíquota Orçada */}
+                    <text x={cx - r - 10} y={cy + 15} fontSize="9" fontWeight="700" fill="#64748b" textAnchor="middle">0%</text>
+                    <text x={cx + r + 20} y={cy + 15} fontSize="9" fontWeight="700" fill="#64748b" textAnchor="middle">{budgetCostRate.toFixed(1)}% (Orçado)</text>
+                </svg>
+
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', marginTop: '-15px', zIndex: 10 }}>
+                    <span style={{ fontSize: '1.25rem', fontWeight: 900, color: '#0f172a' }}>{realizedCostRate.toFixed(2)}%</span>
+                    <span style={{ fontSize: '0.68rem', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Custo Operacional Efetivo</span>
+                </div>
+            </div>
+        );
+    };
+
     const handleCostCenterToggle = (id: string) => {
         setPendingCostCenter(prev => {
             if (prev.includes(id)) {
@@ -2384,7 +2504,7 @@ export default function BudgetGrid({
                         </div>
                     </div>
 
-                    {/* Seção de Velocímetros (Faturamento e Tributos) */}
+                    {/* Seção de Velocímetros (Faturamento, Tributos e Custos Operacionais) */}
                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '1.5rem', width: '100%' }}>
                         {/* Card 1: Faturamento */}
                         <div className="glass-card" style={{ padding: '1.5rem', background: '#ffffff', borderRadius: '12px', border: '1px solid #e2e8f0', boxShadow: '0 4px 6px rgba(0,0,0,0.02)', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
@@ -2395,6 +2515,11 @@ export default function BudgetGrid({
                         <div className="glass-card" style={{ padding: '1.5rem', background: '#ffffff', borderRadius: '12px', border: '1px solid #e2e8f0', boxShadow: '0 4px 6px rgba(0,0,0,0.02)', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
                             <h3 style={{ fontSize: '0.9rem', fontWeight: 800, color: '#0f172a', marginBottom: '1.25rem', width: '100%', textAlign: 'center' }}>Indicador de Tributos (Jan-Jun)</h3>
                             {renderTaxesGauge()}
+                        </div>
+                        {/* Card 3: Custos Operacionais */}
+                        <div className="glass-card" style={{ padding: '1.5rem', background: '#ffffff', borderRadius: '12px', border: '1px solid #e2e8f0', boxShadow: '0 4px 6px rgba(0,0,0,0.02)', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                            <h3 style={{ fontSize: '0.9rem', fontWeight: 800, color: '#0f172a', marginBottom: '1.25rem', width: '100%', textAlign: 'center' }}>Custos Operacionais (Jan-Jun)</h3>
+                            {renderCostsGauge()}
                         </div>
                     </div>
 

@@ -71,6 +71,8 @@ export default function BudgetGrid({
     const [isCCLocked, setIsCCLocked] = useState(false);
     const [radarLocks, setRadarLocks] = useState<any[]>([]);
     const [realizedValues, setRealizedValues] = useState<Record<string, number>>({});
+    const [contractsData, setContractsData] = useState<{ name: string; value: number; percentage: number }[]>([]);
+    const [contractsLoading, setContractsLoading] = useState(false);
 
     const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
     const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set()); // New state for main groups
@@ -501,6 +503,29 @@ export default function BudgetGrid({
 
         loadValues();
     }, [selectedCostCenter, selectedCompany, selectedYear, refreshKey, viewMode]);
+
+    useEffect(() => {
+        if (activeTab !== 'kpi') return;
+
+        const fetchContracts = async () => {
+            setContractsLoading(true);
+            try {
+                const companyParam = selectedCompany.join(',');
+                const ccParam = selectedCostCenter.join(',');
+                const res = await fetch(`/api/kpi/contracts?tenantId=${companyParam}&costCenterId=${ccParam}&year=${selectedYear}&startMonth=${startMonth}&endMonth=${endMonth}&viewMode=${viewMode}`);
+                const data = await res.json();
+                if (data.success) {
+                    setContractsData(data.contracts || []);
+                }
+            } catch (err) {
+                console.error("Error fetching contracts:", err);
+            } finally {
+                setContractsLoading(false);
+            }
+        };
+
+        fetchContracts();
+    }, [activeTab, selectedCompany, selectedCostCenter, selectedYear, startMonth, endMonth, viewMode, refreshKey]);
     
     // --- VARIANT LOGIC (CNPJ-BASED) ---
     const activeVariantIds = useMemo(() => {
@@ -3240,6 +3265,84 @@ export default function BudgetGrid({
         );
     };
 
+    const renderContractsBarChart = () => {
+        if (contractsLoading) {
+            return (
+                <div className="glass-card" style={{ padding: '2rem', background: '#ffffff', borderRadius: '12px', border: '1px solid #e2e8f0', boxShadow: '0 4px 6px rgba(0,0,0,0.02)', width: '100%', maxWidth: '800px', margin: '0 auto', minHeight: '200px', display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center' }}>
+                    <div style={{ border: '3px solid #f3f3f3', borderTop: '3px solid #3b82f6', borderRadius: '50%', width: '30px', height: '30px', animation: 'spin 1s linear infinite' }} />
+                    <span style={{ marginTop: '1rem', fontSize: '0.85rem', color: '#64748b', fontWeight: 600 }}>Carregando contratos...</span>
+                    <style>{`
+                        @keyframes spin {
+                            0% { transform: rotate(0deg); }
+                            100% { transform: rotate(360deg); }
+                        }
+                    `}</style>
+                </div>
+            );
+        }
+
+        if (contractsData.length === 0) {
+            return (
+                <div className="glass-card" style={{ padding: '3rem', background: '#ffffff', borderRadius: '12px', border: '1px solid #e2e8f0', boxShadow: '0 4px 6px rgba(0,0,0,0.02)', width: '100%', maxWidth: '800px', margin: '0 auto', textAlign: 'center', color: '#64748b' }}>
+                    <span style={{ fontSize: '0.85rem', fontWeight: 600 }}>Nenhum contrato com faturamento realizado no período selecionado.</span>
+                </div>
+            );
+        }
+
+        const maxVal = Math.max(...contractsData.map(c => c.value));
+
+        return (
+            <div className="glass-card" style={{ padding: '2rem', background: '#ffffff', borderRadius: '12px', border: '1px solid #e2e8f0', boxShadow: '0 4px 6px rgba(0,0,0,0.02)', width: '100%', maxWidth: '800px', margin: '0 auto' }}>
+                <h3 style={{ fontSize: '1rem', fontWeight: 800, color: '#0f172a', marginBottom: '1.5rem', textAlign: 'center' }}>
+                    Faturamento por Contrato / Cliente (Período Selecionado)
+                    <span style={{ fontSize: '0.75rem', color: '#64748b', fontWeight: 500, display: 'block', marginTop: '0.25rem' }}>
+                        Valores em Mil R$ e % em relação ao total orçado do período
+                    </span>
+                </h3>
+
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', maxHeight: '420px', overflowY: 'auto', paddingRight: '0.5rem' }}>
+                    {contractsData.map((item, idx) => {
+                        const barWidth = maxVal > 0 ? (item.value / maxVal) * 100 : 0;
+                        const barColor = ['#3b82f6', '#10b981', '#f97316', '#8b5cf6', '#ec4899', '#06b6d4', '#eab308'][idx % 7];
+
+                        return (
+                            <div key={idx} style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                                {/* Contract/Customer Name */}
+                                <div style={{ width: '180px', minWidth: '180px', maxWidth: '180px', fontSize: '0.8rem', fontWeight: 700, color: '#334155', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }} title={item.name}>
+                                    {item.name}
+                                </div>
+
+                                {/* Bar Container */}
+                                <div style={{ flex: 1, height: '24px', background: '#f1f5f9', borderRadius: '6px', position: 'relative', overflow: 'hidden' }}>
+                                    <div 
+                                        style={{ 
+                                            width: `${barWidth}%`, 
+                                            height: '100%', 
+                                            background: `linear-gradient(90deg, ${barColor}dd, ${barColor})`, 
+                                            borderRadius: '6px',
+                                            transition: 'width 0.8s cubic-bezier(0.4, 0, 0.2, 1)',
+                                            position: 'relative'
+                                        }} 
+                                    />
+                                </div>
+
+                                {/* Value and percentage */}
+                                <div style={{ width: '160px', minWidth: '160px', textAlign: 'right', display: 'flex', justifyContent: 'flex-end', gap: '8px', fontSize: '0.8rem', fontWeight: 800 }}>
+                                    <span style={{ color: '#0f172a' }}>
+                                        R$ {item.value.toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })} Mil
+                                    </span>
+                                    <span style={{ color: barColor, width: '56px', textAlign: 'right' }}>
+                                        {item.percentage.toFixed(1)}%
+                                    </span>
+                                </div>
+                            </div>
+                        );
+                    })}
+                </div>
+            </div>
+        );
+    };
+
 
     const handleCompanyToggle = (id: string) => {
         setPendingCompany(prev => {
@@ -3583,8 +3686,9 @@ export default function BudgetGrid({
                 )}
             </div>
             {activeTab === 'kpi' ? (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', marginTop: '1rem', width: '100%' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem', marginTop: '1rem', width: '100%' }}>
                     {renderCompanyRevenueDonut()}
+                    {renderContractsBarChart()}
                 </div>
             ) : activeTab === 'graficos' ? (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', marginTop: '1rem', width: '100%' }}>

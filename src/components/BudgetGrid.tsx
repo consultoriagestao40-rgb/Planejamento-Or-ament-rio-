@@ -1407,6 +1407,50 @@ export default function BudgetGrid({
         });
     }, [precomputedDreTotals]);
 
+    const companyRevenueData = useMemo(() => {
+        const visibleCompanyIds = selectedCompany.includes('DEFAULT')
+            ? companies.map(c => c.id)
+            : selectedCompany;
+
+        const isRevenueCategory = (cat: any) => {
+            const cleanCode = (cat.name.match(/^(\d{1,2}(?:\.\d+)*)/) || [])[1] || '';
+            return cleanCode.startsWith('01') || cleanCode === '1';
+        };
+
+        const revenueCategories = categories.filter(isRevenueCategory);
+
+        const data = visibleCompanyIds.map(tenantId => {
+            const comp = companies.find(c => c.id === tenantId);
+            const compName = comp ? comp.name : tenantId;
+
+            const compRevCategories = revenueCategories.filter(c => c.tenantId === tenantId);
+
+            let totalRealized = 0;
+            const limitMonth = Math.min(endMonth, currentMonthIdx);
+            
+            for (let m = startMonth; m <= limitMonth; m++) {
+                compRevCategories.forEach(cat => {
+                    const lookupKey = `realized-${cat.id}-${m}`;
+                    totalRealized += realizedValues[lookupKey] || 0;
+                });
+            }
+
+            return {
+                name: compName,
+                value: totalRealized / 1000
+            };
+        });
+
+        const grandTotal = data.reduce((sum, item) => sum + item.value, 0);
+
+        return data.map(item => ({
+            ...item,
+            percentage: grandTotal > 0 ? (item.value / grandTotal) * 100 : 0
+        }));
+    }, [companies, selectedCompany, categories, realizedValues, startMonth, endMonth, currentMonthIdx]);
+
+
+
     const revenueProjectionData = useMemo(() => {
         let annualBudgetRev = 0;
         let realizedAccumRev = 0;
@@ -3046,6 +3090,104 @@ export default function BudgetGrid({
         );
     };
 
+    const renderCompanyRevenueDonut = () => {
+        const C = 502.65; // Circumference for R=80
+        let cumulative = 0;
+
+        const totalRevenue = companyRevenueData.reduce((sum, item) => sum + item.value, 0);
+
+        return (
+            <div className="glass-card" style={{ padding: '2rem', background: '#ffffff', borderRadius: '12px', border: '1px solid #e2e8f0', boxShadow: '0 4px 6px rgba(0,0,0,0.02)', width: '100%', maxWidth: '800px', margin: '0 auto' }}>
+                <h3 style={{ fontSize: '1rem', fontWeight: 800, color: '#0f172a', marginBottom: '1.5rem', textAlign: 'center' }}>
+                    Receita por Empresa (Período Selecionado)
+                    <span style={{ fontSize: '0.75rem', color: '#64748b', fontWeight: 500, display: 'block', marginTop: '0.25rem' }}>
+                        Valores em Mil R$
+                    </span>
+                </h3>
+
+                {companyRevenueData.length === 0 || totalRevenue === 0 ? (
+                    <div style={{ padding: '3rem', textAlign: 'center', color: '#64748b', fontSize: '0.85rem', fontWeight: 600 }}>
+                        Nenhum dado de receita disponível para o período selecionado.
+                    </div>
+                ) : (
+                    <div style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: '3rem', flexWrap: 'wrap' }}>
+                        {/* Donut Graphic */}
+                        <div style={{ position: 'relative', width: '240px', height: '240px' }}>
+                            <svg viewBox="0 0 200 200" width="100%" height="100%">
+                                <g transform="rotate(-90 100 100)">
+                                    {/* Background circle */}
+                                    <circle 
+                                        cx="100" 
+                                        cy="100" 
+                                        r="80" 
+                                        fill="transparent" 
+                                        stroke="#f1f5f9" 
+                                        strokeWidth="24" 
+                                    />
+                                    {companyRevenueData.map((item, idx) => {
+                                        const strokeDashoffset = -((cumulative / 100) * C);
+                                        const strokeDasharray = `${(item.percentage / 100) * C} ${C}`;
+                                        const color = ['#3b82f6', '#10b981', '#f97316', '#8b5cf6', '#ec4899', '#06b6d4', '#eab308'][idx % 7];
+                                        cumulative += item.percentage;
+
+                                        return (
+                                            <circle
+                                                key={idx}
+                                                cx="100"
+                                                cy="100"
+                                                r="80"
+                                                fill="transparent"
+                                                stroke={color}
+                                                strokeWidth="24"
+                                                strokeDasharray={strokeDasharray}
+                                                strokeDashoffset={strokeDashoffset}
+                                                style={{ transition: 'stroke-dasharray 0.5s ease, stroke-dashoffset 0.5s ease' }}
+                                            />
+                                        );
+                                    })}
+                                </g>
+                            </svg>
+                            {/* Inner Text */}
+                            <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', pointerEvents: 'none' }}>
+                                <span style={{ fontSize: '0.75rem', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Total</span>
+                                <span style={{ fontSize: '1.25rem', fontWeight: 900, color: '#0f172a', marginTop: '2px' }}>
+                                    R$ {totalRevenue.toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}
+                                </span>
+                                <span style={{ fontSize: '0.65rem', color: '#64748b', fontWeight: 600 }}>Mil</span>
+                            </div>
+                        </div>
+
+                        {/* Legend Table */}
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', flex: 1, minWidth: '260px' }}>
+                            {companyRevenueData.map((item, idx) => {
+                                const color = ['#3b82f6', '#10b981', '#f97316', '#8b5cf6', '#ec4899', '#06b6d4', '#eab308'][idx % 7];
+                                return (
+                                    <div key={idx} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.5rem 0.75rem', background: '#f8fafc', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: 0 }}>
+                                            <div style={{ width: '12px', height: '12px', borderRadius: '4px', background: color, flexShrink: 0 }} />
+                                            <span style={{ fontSize: '0.8rem', fontWeight: 700, color: '#1e293b', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                                {item.name}
+                                            </span>
+                                        </div>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginLeft: '1rem', flexShrink: 0 }}>
+                                            <span style={{ fontSize: '0.8rem', fontWeight: 800, color: '#0f172a' }}>
+                                                R$ {item.value.toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })} Mil
+                                            </span>
+                                            <span style={{ fontSize: '0.75rem', fontWeight: 800, color: color, width: '48px', textAlign: 'right' }}>
+                                                {item.percentage.toFixed(1)}%
+                                            </span>
+                                        </div>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    </div>
+                )}
+            </div>
+        );
+    };
+
+
     const handleCompanyToggle = (id: string) => {
         setPendingCompany(prev => {
             if (prev.includes(id)) {
@@ -3387,7 +3529,11 @@ export default function BudgetGrid({
                     </div>
                 )}
             </div>
-            {activeTab === 'kpi' ? null : activeTab === 'graficos' ? (
+            {activeTab === 'kpi' ? (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', marginTop: '1rem', width: '100%' }}>
+                    {renderCompanyRevenueDonut()}
+                </div>
+            ) : activeTab === 'graficos' ? (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', marginTop: '1rem', width: '100%' }}>
 
                     {/* KPI Summary Cards */}

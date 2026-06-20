@@ -1309,17 +1309,17 @@ export default function BudgetGrid({
                         onClick={() => isInteractiveTree && toggleRow(node.id)}
                         style={{ 
                             cursor: isInteractiveTree ? 'pointer' : 'default', 
-                            fontWeight: isInteractiveTree ? 750 : 500,
+                            fontWeight: isInteractiveTree ? 800 : 600,
                             paddingLeft: `${0.75 + (node.level * 1.75)}rem`,
                             borderBottom: '1px solid #f1f5f9',
                             transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
                             width: '400px',
                             minWidth: '400px',
                             maxWidth: '400px',
-                            fontSize: '0.92rem'
+                            fontSize: '0.95rem'
                         }}
                     >
-                        <div style={{ display: 'flex', alignItems: 'center', color: isInteractiveTree ? '#0f172a' : '#1e293b' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', color: '#0f172a' }}>
                             {isInteractiveTree && (
                                 <span style={{ 
                                     marginRight: '0.65rem', 

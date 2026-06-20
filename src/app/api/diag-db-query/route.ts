@@ -12,39 +12,32 @@ export async function GET() {
 
         const jvsTrat = tenants.find(t => t.name.toUpperCase().includes('TRATMENTOS') || t.name.toUpperCase().includes('TRATAMENTOS'));
         
-        let stats: any = {};
+        let simulation: any = {};
 
         if (jvsTrat) {
             const categories = await prisma.category.findMany({
-                where: { tenantId: jvsTrat.id }
+                orderBy: { name: 'asc' }
             });
             const isRevenueCategory = (name: string) => {
                 const cleanCode = (name.match(/^(\d{1,2}(?:\.\d+)*)/) || [])[1] || '';
                 return cleanCode.startsWith('01') || cleanCode === '1';
             };
-            const revenueCategoryIds = categories
-                .filter(c => isRevenueCategory(c.name))
-                .map(c => c.id);
+            const revenueCategories = categories.filter(c => isRevenueCategory(c.name));
+            const compRevCategories = revenueCategories.filter(c => c.tenantId === jvsTrat.id);
 
-            const allRealized = await prisma.realizedEntry.findMany({
-                where: { tenantId: jvsTrat.id, year: 2026 }
+            // Compute realizedValues like /api/sync
+            const realizedRaw = await prisma.realizedEntry.findMany({
+                where: { tenantId: jvsTrat.id, year: 2026, viewMode: 'competencia' }
             });
 
-            const matchedRealized = allRealized.filter(r => revenueCategoryIds.includes(r.categoryId));
-            
-            const totalMatched = matchedRealized.length;
-            const syncedMatched = matchedRealized.filter(r => r.externalId && r.externalId.startsWith('sync-')).length;
-            const nonSyncedMatched = matchedRealized.filter(r => !r.externalId || !r.externalId.startsWith('sync-')).length;
-
             const syncedMonths = new Set<string>();
-            allRealized.forEach(e => {
+            realizedRaw.forEach(e => {
                 if (e.externalId && e.externalId.startsWith('sync-')) {
                     syncedMonths.add(`${e.year}|${e.month}`);
                 }
             });
 
-            // Count how many matched realized entries remain after deduplication filter
-            const deduplicatedMatched = matchedRealized.filter(e => {
+            const realizedEntries = realizedRaw.filter(e => {
                 const key = `${e.year}|${e.month}`;
                 if (syncedMonths.has(key)) {
                     return e.externalId && e.externalId.startsWith('sync-');
@@ -52,20 +45,46 @@ export async function GET() {
                 return true;
             });
 
-            stats = {
-                totalMatched,
-                syncedMatched,
-                nonSyncedMatched,
-                deduplicatedMatchedCount: deduplicatedMatched.length,
-                syncedMonths: Array.from(syncedMonths),
-                sampleDeduplicatedMatched: deduplicatedMatched.slice(0, 5)
+            const realizedValues: Record<string, number> = {};
+            realizedEntries.forEach(e => {
+                const idKey = `realized-${e.categoryId}-${e.month - 1}`;
+                realizedValues[idKey] = (realizedValues[idKey] || 0) + e.amount;
+            });
+
+            // Simulate the lookup
+            const lookups: any[] = [];
+            let totalRealized = 0;
+            compRevCategories.forEach(cat => {
+                for (let m = 0; m <= 11; m++) {
+                    const lookupKey = `realized-${cat.id}-${m}`;
+                    const val = realizedValues[lookupKey] || 0;
+                    if (val > 0) {
+                        totalRealized += val;
+                        lookups.push({
+                            catId: cat.id,
+                            catName: cat.name,
+                            month: m,
+                            lookupKey,
+                            val
+                        });
+                    }
+                }
+            });
+
+            simulation = {
+                compRevCategoriesCount: compRevCategories.length,
+                compRevCategories: compRevCategories.map(c => ({ id: c.id, name: c.name })),
+                realizedValuesKeysCount: Object.keys(realizedValues).length,
+                realizedValuesKeysSample: Object.keys(realizedValues).slice(0, 15),
+                lookupsMatched: lookups,
+                totalRealized
             };
         }
 
         return NextResponse.json({
             success: true,
             jvsTrat,
-            stats
+            simulation
         });
     } catch (e: any) {
         return NextResponse.json({ success: false, error: e.message });

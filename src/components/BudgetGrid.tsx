@@ -1463,13 +1463,18 @@ export default function BudgetGrid({
             let totalRealized = 0;
             const limitMonth = Math.min(endMonth, currentMonthIdx);
             
+            const addedKeys = new Set<string>();
             for (let m = startMonth; m <= limitMonth; m++) {
                 compRevCategories.forEach(cat => {
                     const cleanId = cat.id.includes(':') ? cat.id.split(':').pop() : cat.id;
                     const lookupKey1 = `realized-${cat.id}-${m}`;
                     const lookupKey2 = `realized-${cleanId}-${m}`;
-                    totalRealized += (realizedValues[lookupKey1] || 0);
-                    if (cleanId !== cat.id) {
+                    if (!addedKeys.has(lookupKey1)) {
+                        addedKeys.add(lookupKey1);
+                        totalRealized += (realizedValues[lookupKey1] || 0);
+                    }
+                    if (!addedKeys.has(lookupKey2)) {
+                        addedKeys.add(lookupKey2);
                         totalRealized += (realizedValues[lookupKey2] || 0);
                     }
                 });
@@ -1523,26 +1528,45 @@ export default function BudgetGrid({
             let totalTax = 0;
             let totalCost = 0;
 
+            const addedKeys = new Set<string>();
             for (let m = startMonth; m <= limitMonth; m++) {
                 revCats.forEach(cat => {
                     const cleanId = cat.id.includes(':') ? cat.id.split(':').pop() : cat.id;
-                    totalRev += (realizedValues[`realized-${cat.id}-${m}`] || 0);
-                    if (cleanId !== cat.id) {
-                        totalRev += (realizedValues[`realized-${cleanId}-${m}`] || 0);
+                    const k1 = `realized-${cat.id}-${m}`;
+                    const k2 = `realized-${cleanId}-${m}`;
+                    if (!addedKeys.has(k1)) {
+                        addedKeys.add(k1);
+                        totalRev += (realizedValues[k1] || 0);
+                    }
+                    if (!addedKeys.has(k2)) {
+                        addedKeys.add(k2);
+                        totalRev += (realizedValues[k2] || 0);
                     }
                 });
                 taxCats.forEach(cat => {
                     const cleanId = cat.id.includes(':') ? cat.id.split(':').pop() : cat.id;
-                    totalTax += (realizedValues[`realized-${cat.id}-${m}`] || 0);
-                    if (cleanId !== cat.id) {
-                        totalTax += (realizedValues[`realized-${cleanId}-${m}`] || 0);
+                    const k1 = `realized-${cat.id}-${m}`;
+                    const k2 = `realized-${cleanId}-${m}`;
+                    if (!addedKeys.has(k1)) {
+                        addedKeys.add(k1);
+                        totalTax += (realizedValues[k1] || 0);
+                    }
+                    if (!addedKeys.has(k2)) {
+                        addedKeys.add(k2);
+                        totalTax += (realizedValues[k2] || 0);
                     }
                 });
                 costCats.forEach(cat => {
                     const cleanId = cat.id.includes(':') ? cat.id.split(':').pop() : cat.id;
-                    totalCost += (realizedValues[`realized-${cat.id}-${m}`] || 0);
-                    if (cleanId !== cat.id) {
-                        totalCost += (realizedValues[`realized-${cleanId}-${m}`] || 0);
+                    const k1 = `realized-${cat.id}-${m}`;
+                    const k2 = `realized-${cleanId}-${m}`;
+                    if (!addedKeys.has(k1)) {
+                        addedKeys.add(k1);
+                        totalCost += (realizedValues[k1] || 0);
+                    }
+                    if (!addedKeys.has(k2)) {
+                        addedKeys.add(k2);
+                        totalCost += (realizedValues[k2] || 0);
                     }
                 });
             }

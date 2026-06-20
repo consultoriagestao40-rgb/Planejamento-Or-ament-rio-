@@ -364,7 +364,7 @@ export default function BudgetEntryGrid({ costCenterId, year, taxRate = 0 }: Bud
                             myBudget[i] += sign * (bVal.amount || 0);
                             myRadar[i] += sign * (bVal.radarAmount || 0);
                         }
-                        const rVal = realizedValues[`${id.trim()}-${i}`];
+                        const rVal = realizedValues[`realized-${id.trim()}-${i}`];
                         if (rVal) {
                             myRealized[i] += sign * (rVal || 0);
                         }

@@ -1468,7 +1468,10 @@ export default function BudgetGrid({
                     const cleanId = cat.id.includes(':') ? cat.id.split(':').pop() : cat.id;
                     const lookupKey1 = `realized-${cat.id}-${m}`;
                     const lookupKey2 = `realized-${cleanId}-${m}`;
-                    totalRealized += (realizedValues[lookupKey1] || realizedValues[lookupKey2] || 0);
+                    totalRealized += (realizedValues[lookupKey1] || 0);
+                    if (cleanId !== cat.id) {
+                        totalRealized += (realizedValues[lookupKey2] || 0);
+                    }
                 });
             }
 
@@ -1523,15 +1526,24 @@ export default function BudgetGrid({
             for (let m = startMonth; m <= limitMonth; m++) {
                 revCats.forEach(cat => {
                     const cleanId = cat.id.includes(':') ? cat.id.split(':').pop() : cat.id;
-                    totalRev += (realizedValues[`realized-${cat.id}-${m}`] || realizedValues[`realized-${cleanId}-${m}`] || 0);
+                    totalRev += (realizedValues[`realized-${cat.id}-${m}`] || 0);
+                    if (cleanId !== cat.id) {
+                        totalRev += (realizedValues[`realized-${cleanId}-${m}`] || 0);
+                    }
                 });
                 taxCats.forEach(cat => {
                     const cleanId = cat.id.includes(':') ? cat.id.split(':').pop() : cat.id;
-                    totalTax += (realizedValues[`realized-${cat.id}-${m}`] || realizedValues[`realized-${cleanId}-${m}`] || 0);
+                    totalTax += (realizedValues[`realized-${cat.id}-${m}`] || 0);
+                    if (cleanId !== cat.id) {
+                        totalTax += (realizedValues[`realized-${cleanId}-${m}`] || 0);
+                    }
                 });
                 costCats.forEach(cat => {
                     const cleanId = cat.id.includes(':') ? cat.id.split(':').pop() : cat.id;
-                    totalCost += (realizedValues[`realized-${cat.id}-${m}`] || realizedValues[`realized-${cleanId}-${m}`] || 0);
+                    totalCost += (realizedValues[`realized-${cat.id}-${m}`] || 0);
+                    if (cleanId !== cat.id) {
+                        totalCost += (realizedValues[`realized-${cleanId}-${m}`] || 0);
+                    }
                 });
             }
 

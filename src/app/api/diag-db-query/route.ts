@@ -118,7 +118,10 @@ export async function GET() {
             const cleanId = cat.id.includes(':') ? cat.id.split(':').pop() : cat.id;
             let idSum = 0;
             for (let m = 0; m <= 5; m++) {
-                idSum += (realizedValues[`realized-${cat.id}-${m}`] || realizedValues[`realized-${cleanId}-${m}`] || 0);
+                idSum += (realizedValues[`realized-${cat.id}-${m}`] || 0);
+                if (cleanId !== cat.id) {
+                    idSum += (realizedValues[`realized-${cleanId}-${m}`] || 0);
+                }
             }
 
             const normalizedName = cat.name.toUpperCase().replace(/[^A-Z0-9]/g, '');

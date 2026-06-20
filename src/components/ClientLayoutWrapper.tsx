@@ -157,13 +157,13 @@ export default function ClientLayoutWrapper({ children }: { children: React.Reac
                 >
                     {isCollapsed ? (
                         <div style={{ display: 'flex', gap: '1px' }}>
-                            <span style={{ color: '#1d4ed8', fontWeight: 900, fontSize: '1.4rem' }}>B</span>
-                            <span style={{ color: '#0f172a', fontWeight: 900, fontSize: '1.4rem' }}>H</span>
+                            <span style={{ color: '#ffffff', fontWeight: 900, fontSize: '1.4rem' }}>B</span>
+                            <span style={{ color: '#93c5fd', fontWeight: 900, fontSize: '1.4rem' }}>H</span>
                         </div>
                     ) : (
                         <>
-                            <span style={{ color: '#1d4ed8', fontWeight: 800 }}>Budget</span>
-                            <span style={{ color: '#0f172a', fontWeight: 800 }}>Hub</span>
+                            <span style={{ color: '#ffffff', fontWeight: 800 }}>Budget</span>
+                            <span style={{ color: '#93c5fd', fontWeight: 800 }}>Hub</span>
                         </>
                     )}
                 </div>

@@ -1554,13 +1554,13 @@ export default function BudgetGrid({
     const renderGroupHeaderRow = (label: string, isExpanded: boolean, onToggle: () => void) => {
         const colsCount = 1 + (viewPeriod === 'month' ? MONTHS : [1, 2, 3, 4]).length * (2 + (showAV ? 2 : 0) + (showAH ? 1 : 0) + (showAH_MoM ? 1 : 0));
         return (
-            <tr style={{ background: '#f1f5f9' }} className="spreadsheet-group-header">
+            <tr style={{ background: '#e6f2fd' }} className="spreadsheet-group-header">
                 <td 
                     className="sticky-col" 
                     style={{ 
                         fontWeight: 800, 
-                        color: '#475569', 
-                        background: '#f1f5f9', 
+                        color: '#0b579f', 
+                        background: '#e6f2fd', 
                         zIndex: 25, 
                         fontSize: '0.85rem',
                         width: '400px',
@@ -1578,10 +1578,10 @@ export default function BudgetGrid({
                             justifyContent: 'center',
                             width: '16px',
                             height: '16px',
-                            border: '1px solid #cbd5e1',
+                            border: '1px solid #a5d0f5',
                             borderRadius: '3px',
                             background: '#fff',
-                            color: '#475569',
+                            color: '#0b579f',
                             fontSize: '0.75rem',
                             lineHeight: 1,
                             fontWeight: 'bold',
@@ -1592,7 +1592,7 @@ export default function BudgetGrid({
                         <span style={{ fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.05em' }}>{label}</span>
                     </div>
                 </td>
-                <td colSpan={colsCount - 1} style={{ background: '#f1f5f9' }}></td>
+                <td colSpan={colsCount - 1} style={{ background: '#e6f2fd' }}></td>
             </tr>
         );
     };
@@ -2275,19 +2275,19 @@ export default function BudgetGrid({
                             position: 'sticky', 
                             top: 0, 
                             zIndex: 40, 
-                            background: '#f1f5f9', 
+                            background: '#e6f2fd', 
                             borderCollapse: 'collapse',
                             borderBottom: '2px solid var(--border-strong)'
                         }}
                     >
                         <thead>
                             <tr>
-                                <th className="sticky-col" style={{ width: '400px', minWidth: '400px', maxWidth: '400px' }}>
+                                <th className="sticky-col" style={{ width: '400px', minWidth: '400px', maxWidth: '400px', backgroundColor: '#e6f2fd', color: '#0b579f' }}>
                                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', padding: '0 0.5rem' }}>
                                         <button
                                             onClick={handleToggleAll}
                                             className="spreadsheet-btn-expand"
-                                            style={{ background: '#fff', border: '1px solid #cbd5e1', fontSize: '0.8rem' }}
+                                            style={{ background: '#fff', border: '1px solid #a5d0f5', color: '#0b579f', fontSize: '0.8rem' }}
                                         >
                                             {isAnyExpanded ? '−' : '+'}
                                         </button>
@@ -2306,8 +2306,8 @@ export default function BudgetGrid({
                                                 padding: '0.4rem', 
                                                 borderLeft: '2px solid #cbd5e1', 
                                                 fontSize: '0.7rem',
-                                                backgroundColor: isHighlighted ? '#bae6fd' : '#f1f5f9',
-                                                color: isHighlighted ? '#0b579f' : '#475569',
+                                                backgroundColor: isHighlighted ? '#bae6fd' : '#e6f2fd',
+                                                color: '#0b579f',
                                                 fontWeight: 900
                                             }}
                                         >
@@ -2317,19 +2317,24 @@ export default function BudgetGrid({
                                 })}
                             </tr>
                             <tr>
-                                <th className="sticky-col" style={{ width: '400px', minWidth: '400px', maxWidth: '400px' }}></th>
+                                <th className="sticky-col" style={{ width: '400px', minWidth: '400px', maxWidth: '400px', backgroundColor: '#e6f2fd' }}></th>
                                 {(viewPeriod === 'month' ? MONTHS : [1, 2, 3, 4]).map((_, i) => {
                                     const isHighlighted = viewPeriod === 'month' && i === highlightedMonth;
-                                    const highlightBg = isHighlighted ? '#e0f2fe' : undefined;
+                                    const highlightBgOrç = isHighlighted ? '#0b579f' : '#e6f2fd';
+                                    const highlightTextOrç = isHighlighted ? '#ffffff' : '#0b579f';
+                                    const highlightBgReal = isHighlighted ? '#bae6fd' : '#e6f2fd';
+                                    const highlightTextReal = isHighlighted ? '#0b579f' : '#0b579f';
+                                    const highlightBgOther = isHighlighted ? '#e0f2fe' : '#e6f2fd';
+                                    const highlightTextOther = isHighlighted ? '#0b579f' : '#64748b';
                                     return (
                                         <React.Fragment key={i}>
-                                            <th style={{ fontSize: '0.6rem', color: isHighlighted ? '#0b579f' : '#64748b', borderLeft: '2px solid #cbd5e1', textAlign: 'center', padding: '0.2rem', width: '100px', minWidth: '100px', maxWidth: '100px', backgroundColor: highlightBg }}>ORÇ</th>
-                                            {showAV && <th style={{ fontSize: '0.55rem', color: isHighlighted ? '#0b579f' : '#94a3b8', textAlign: 'center', padding: '0.2rem', width: '60px', minWidth: '60px', maxWidth: '60px', backgroundColor: highlightBg }}>AV OR</th>}
-                                            <th style={{ fontSize: '0.6rem', color: isHighlighted ? '#0b579f' : '#64748b', textAlign: 'center', padding: '0.2rem', width: '110px', minWidth: '110px', maxWidth: '110px', backgroundColor: highlightBg }}>REAL</th>
-                                            {showAV && <th style={{ fontSize: '0.55rem', color: isHighlighted ? '#0b579f' : '#94a3b8', textAlign: 'center', padding: '0.2rem', width: '60px', minWidth: '60px', maxWidth: '60px', backgroundColor: highlightBg }}>AV RL</th>}
-                                            {showAH && <th style={{ fontSize: '0.55rem', color: isHighlighted ? '#0b579f' : '#94a3b8', textAlign: 'center', padding: '0.2rem', width: '70px', minWidth: '70px', maxWidth: '70px', backgroundColor: highlightBg }}>AH %</th>}
+                                            <th style={{ fontSize: '0.6rem', color: highlightTextOrç, borderLeft: '2px solid #cbd5e1', textAlign: 'center', padding: '0.2rem', width: '100px', minWidth: '100px', maxWidth: '100px', backgroundColor: highlightBgOrç }}>ORÇ</th>
+                                            {showAV && <th style={{ fontSize: '0.55rem', color: highlightTextOther, textAlign: 'center', padding: '0.2rem', width: '60px', minWidth: '60px', maxWidth: '60px', backgroundColor: highlightBgOther }}>AV OR</th>}
+                                            <th style={{ fontSize: '0.6rem', color: highlightTextReal, textAlign: 'center', padding: '0.2rem', width: '110px', minWidth: '110px', maxWidth: '110px', backgroundColor: highlightBgReal }}>REAL</th>
+                                            {showAV && <th style={{ fontSize: '0.55rem', color: highlightTextOther, textAlign: 'center', padding: '0.2rem', width: '60px', minWidth: '60px', maxWidth: '60px', backgroundColor: highlightBgOther }}>AV RL</th>}
+                                            {showAH && <th style={{ fontSize: '0.55rem', color: highlightTextOther, textAlign: 'center', padding: '0.2rem', width: '70px', minWidth: '70px', maxWidth: '70px', backgroundColor: highlightBgOther }}>AH %</th>}
                                             {showAH_MoM && (
-                                                <th style={{ fontSize: '0.55rem', color: isHighlighted ? '#0b579f' : '#94a3b8', textAlign: 'center', padding: '0.2rem', width: '70px', minWidth: '70px', maxWidth: '70px', backgroundColor: highlightBg }}>
+                                                <th style={{ fontSize: '0.55rem', color: highlightTextOther, textAlign: 'center', padding: '0.2rem', width: '70px', minWidth: '70px', maxWidth: '70px', backgroundColor: highlightBgOther }}>
                                                     {viewPeriod === 'month' ? 'MoM' : 'QoQ'}
                                                 </th>
                                             )}
@@ -2394,7 +2399,7 @@ export default function BudgetGrid({
                             </table>
                         </div>
 
-                        {/* Card 3: Resultados Financeiros e Líquido */}
+                        {/* Card 3: Resultado Financeiro */}
                         <div style={{
                             background: '#ffffff',
                             borderRadius: '12px',
@@ -2405,7 +2410,7 @@ export default function BudgetGrid({
                         }}>
                             <table className="spreadsheet-table" style={{ width: 'max-content', tableLayout: 'fixed', borderCollapse: 'collapse' }}>
                                 <tbody>
-                                    {renderGroupHeaderRow('RESULTADOS FINANCEIROS E LÍQUIDO', isResultadosExpanded, () => setIsResultadosExpanded(!isResultadosExpanded))}
+                                    {renderGroupHeaderRow('RESULTADO FINANCEIRO', isResultadosExpanded, () => setIsResultadosExpanded(!isResultadosExpanded))}
                                     {isResultadosExpanded && (
                                         <>
                                             {renderSummaryRow('📉 06. DESPESAS FINANCEIRAS', 'vFin', true, 'fin')}

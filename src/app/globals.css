@@ -631,12 +631,12 @@ select.premium-select:focus {
   position: fixed;
   left: 0;
   top: 0;
-  background: #ffffff; /* White background from the mockup */
-  color: #0f172a;
+  background: #0f62ac; /* Vibrant blue corporate background */
+  color: #ffffff;
   display: flex;
   flex-direction: column;
   z-index: 100;
-  border-right: 1px solid #e2e8f0;
+  border-right: 1px solid #0b579f;
   font-family: 'Inter', sans-serif;
 }
 
@@ -646,7 +646,7 @@ select.premium-select:focus {
   font-weight: 800;
   letter-spacing: -0.04em;
   background: transparent;
-  border-bottom: 1px solid #f1f5f9;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.15);
   display: flex;
   align-items: center;
   gap: 0.1rem;
@@ -667,7 +667,7 @@ select.premium-select:focus {
   align-items: center;
   gap: 0.85rem;
   padding: 0.8rem 1.2rem;
-  color: #475569; /* Slate text color from the mockup */
+  color: rgba(255, 255, 255, 0.85); /* Light gray/white text */
   text-decoration: none;
   border-radius: 8px;
   font-weight: 700;
@@ -679,22 +679,22 @@ select.premium-select:focus {
 }
 
 .sidebar-item:hover {
-  background: #f1f5f9;
-  color: #0f172a;
+  background: rgba(255, 255, 255, 0.1);
+  color: #ffffff;
 }
 
 .sidebar-item.active {
-  background: #eff6ff; /* Soft blue active background */
-  color: #1d4ed8; /* Blue text */
+  background: #0b579f; /* Deep blue highlight background */
+  color: #ffffff; /* White text */
 }
 
 .sidebar-footer {
   padding: 1.5rem 1rem;
-  border-top: 1px solid #f1f5f9;
+  border-top: 1px solid rgba(255, 255, 255, 0.15);
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
-  background: #f8fafc;
+  background: #094e8a; /* Darker blue background for footer */
 }
 
 .main-content {

@@ -98,7 +98,7 @@ export async function GET() {
             dreAccumulatedMB += mb;
         }
 
-        // 3. Simular o cálculo de companyGrossMarginData (ID-based)
+        // 3. Detailed breakdown of JVS Facilities categories
         const isRev = (c: any) => {
             const code = (c.name.match(/^(\d{1,2}(?:\.\d+)*)/) || [])[1] || '';
             return code.startsWith('01') || code === '1';
@@ -113,41 +113,52 @@ export async function GET() {
         };
 
         const tenantCategories = categories.filter((c: any) => c.tenantId === jvsFac.id);
-        const revCats = tenantCategories.filter(isRev);
-        const taxCats = tenantCategories.filter(isTax);
-        const costCats = tenantCategories.filter(isCost);
+        const breakdown = tenantCategories.map(cat => {
+            const cleanId = cat.id.includes(':') ? cat.id.split(':').pop() : cat.id;
+            let idSum = 0;
+            for (let m = 0; m <= 5; m++) {
+                idSum += (realizedValues[`realized-${cat.id}-${m}`] || realizedValues[`realized-${cleanId}-${m}`] || 0);
+            }
+
+            const normalizedName = cat.name.toUpperCase().replace(/[^A-Z0-9]/g, '');
+            let nameSum = 0;
+            for (let m = 0; m <= 5; m++) {
+                nameSum += (realizedValues[`${normalizedName}|${m}`] || 0);
+            }
+
+            return {
+                id: cat.id,
+                name: cat.name,
+                isRevenue: isRev(cat),
+                isTaxes: isTax(cat),
+                isCosts: isCost(cat),
+                idSum: idSum / 1000,
+                nameSum: nameSum / 1000
+            };
+        }).filter(item => item.idSum !== 0 || item.nameSum !== 0);
 
         let totalRev = 0;
         let totalTax = 0;
         let totalCost = 0;
 
-        for (let m = 0; m <= 5; m++) {
-            revCats.forEach(cat => {
-                const cleanId = cat.id.includes(':') ? cat.id.split(':').pop() : cat.id;
-                totalRev += (realizedValues[`realized-${cat.id}-${m}`] || realizedValues[`realized-${cleanId}-${m}`] || 0);
-            });
-            taxCats.forEach(cat => {
-                const cleanId = cat.id.includes(':') ? cat.id.split(':').pop() : cat.id;
-                totalTax += (realizedValues[`realized-${cat.id}-${m}`] || realizedValues[`realized-${cleanId}-${m}`] || 0);
-            });
-            costCats.forEach(cat => {
-                const cleanId = cat.id.includes(':') ? cat.id.split(':').pop() : cat.id;
-                totalCost += (realizedValues[`realized-${cat.id}-${m}`] || realizedValues[`realized-${cleanId}-${m}`] || 0);
-            });
-        }
+        breakdown.forEach(item => {
+            if (item.isRevenue) totalRev += item.idSum;
+            if (item.isTaxes) totalTax += item.idSum;
+            if (item.isCosts) totalCost += item.idSum;
+        });
 
         const calculatedMB = totalRev - totalTax - totalCost;
 
         return NextResponse.json({
             success: true,
             jvsFac,
-            tenants,
             dreMonthlyMB,
             dreAccumulatedMB: dreAccumulatedMB / 1000,
-            calculatedMB: calculatedMB / 1000,
-            totalRev: totalRev / 1000,
-            totalTax: totalTax / 1000,
-            totalCost: totalCost / 1000
+            calculatedMB,
+            totalRev,
+            totalTax,
+            totalCost,
+            breakdown
         });
     } catch (e: any) {
         return NextResponse.json({ success: false, error: e.message });

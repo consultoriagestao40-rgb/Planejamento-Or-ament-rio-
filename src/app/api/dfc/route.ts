@@ -3,18 +3,48 @@ import { prisma } from '@/lib/prisma';
 
 export const dynamic = 'force-dynamic';
 
-function classifyCategory(categoryName: string, isRevenue: boolean): 'OPERATIONAL_IN' | 'OPERATIONAL_OUT' | 'CAPEX' | 'FINANCING' {
+function classifyCategory(
+    categoryName: string, 
+    isRevenue: boolean, 
+    isConsolidated: boolean
+): 'OPERATIONAL_IN' | 'OPERATIONAL_OUT' | 'CAPEX' | 'FINANCING' | 'TRANSFER' {
     const name = categoryName.toUpperCase().trim();
     
-    // Check CAPEX first (Group 07 or keywords)
+    // 1. Verificar Transferências Internas (mesmo CNPJ): Grupo 06.1.2 e 06.2.2 (ou 6.1.2 / 6.2.2)
+    const isInternalTransfer = 
+        name.startsWith('06.1.2') || name.startsWith('06.2.2') || 
+        name.startsWith('6.1.2') || name.startsWith('6.2.2');
+        
+    // 2. Verificar Transferências Intercompany (empresas do grupo): Grupo 06.1.1 e 06.2.1 (ou 6.1.1 / 6.2.1)
+    const isIntercompanyTransfer = 
+        name.startsWith('06.1.1') || name.startsWith('06.2.1') || 
+        name.startsWith('6.1.1') || name.startsWith('6.2.1');
+
+    if (isInternalTransfer) {
+        return 'TRANSFER';
+    }
+
+    if (isIntercompanyTransfer) {
+        return isConsolidated ? 'TRANSFER' : 'FINANCING';
+    }
+
+    // Outros grupos de financiamento específicos sob o grupo 06 (empréstimos, sócios, aportes)
+    const isGroup06Financing = 
+        name.startsWith('06.1.5') || name.startsWith('06.3.1') || 
+        name.startsWith('06.1.6') || name.startsWith('06.3.2') ||
+        name.startsWith('6.1.5') || name.startsWith('6.3.1') || 
+        name.startsWith('6.1.6') || name.startsWith('6.3.2');
+
+    // 3. Verificar CAPEX (Grupo 07 ou palavras-chave)
     const isCapex = name.startsWith('07') || name.startsWith('7.') || 
                     name.includes('CAPEX') || name.includes('INVESTIMENTO') || name.includes('IMOBILIZADO');
     if (isCapex) {
         return 'CAPEX';
     }
     
-    // Check FINANCING (Group 08 or loans, or partner contribution keywords)
+    // 4. Verificar FINANCING (Grupo 08 ou palavras-chave)
     const isFinancing = name.startsWith('08') || name.startsWith('8.') || 
+                        isGroup06Financing ||
                         name.includes('FINANCIAMENTO') || name.includes('EMPRESTIMO') || name.includes('EMPRÉSTIMO') ||
                         name.includes('SÓCIO') || name.includes('SOCIO') || name.includes('APORTE') ||
                         name.includes('MÚTUO') || name.includes('MUTUO');
@@ -85,7 +115,7 @@ export async function GET(request: Request) {
             const entryDate = entry.date ? new Date(entry.date) : null;
             if (entryDate && entryDate.getTime() <= today.getTime()) {
                 const isRevenue = entry.category.type === 'REVENUE' || entry.category.name.startsWith('01') || entry.category.name.startsWith('1.');
-                const dfcClass = classifyCategory(entry.category.name, isRevenue);
+                const dfcClass = classifyCategory(entry.category.name, isRevenue, isConsolidated);
                 
                 if (dfcClass === 'OPERATIONAL_IN') {
                     netCashFlowFromJan1ToToday += entry.amount;
@@ -126,8 +156,82 @@ export async function GET(request: Request) {
                 if (dateObj.getFullYear() === year && monthIdx >= 0 && monthIdx < 12) {
                     const isRevenue = entry.category.type === 'REVENUE' || entry.category.name.startsWith('01') || entry.category.name.startsWith('1.');
                     const amount = entry.amount;
-                    const dfcClass = classifyCategory(entry.category.name, isRevenue);
+                    const dfcClass = classifyCategory(entry.category.name, isRevenue, isConsolidated);
 
+                    if (dfcClass !== 'TRANSFER') {
+                        if (dfcClass === 'OPERATIONAL_IN') {
+                            monthlyData[monthIdx].recebimentosOperacionais += amount;
+                        } else if (dfcClass === 'OPERATIONAL_OUT') {
+                            monthlyData[monthIdx].pagamentosOperacionais += amount;
+                        } else if (dfcClass === 'CAPEX') {
+                            monthlyData[monthIdx].capex += amount;
+                        } else if (dfcClass === 'FINANCING') {
+                            monthlyData[monthIdx].fluxoFinanciamento += isRevenue ? amount : -amount;
+                        }
+
+                        if (isRevenue) {
+                            monthlyData[monthIdx].inflows += amount;
+                        } else {
+                            monthlyData[monthIdx].outflows += amount;
+                        }
+
+                        // Detalhe por Categoria (Agrupado por Nome para consolidar)
+                        const catKey = entry.category.name;
+                        if (!monthlyData[monthIdx].categories[catKey]) {
+                            monthlyData[monthIdx].categories[catKey] = {
+                                id: entry.category.id,
+                                name: entry.category.name,
+                                isRevenue,
+                                amount: 0,
+                                dfcClass
+                            };
+                        }
+                        monthlyData[monthIdx].categories[catKey].amount += amount;
+
+                        monthlyData[monthIdx].details.push({
+                            id: entry.id,
+                            date: dateObj.toISOString().split('T')[0],
+                            description: entry.description,
+                            customer: entry.customer,
+                            amount,
+                            isRevenue,
+                            isRealized: true,
+                            category: entry.category.name,
+                            dfcClass
+                        });
+                    }
+                }
+            }
+        });
+
+        // 7. Processar Previstos (Projeções)
+        expectedEntries.forEach(entry => {
+            const origDate = entry.date ? new Date(entry.date) : new Date(year, entry.month - 1, 15);
+            const isRevenue = entry.viewMode === 'previsto_receber';
+            
+            let projDate = new Date(origDate);
+            let isOverdue = origDate.getTime() < todayTime;
+
+            // Tratamento de Atrasados
+            if (isOverdue) {
+                if (overdueAction === 'ignore') {
+                    return;
+                } else if (overdueAction === 'today') {
+                    projDate = new Date(today);
+                }
+            }
+
+            // Aplicar taxa de inadimplência apenas em Receitas Previstas
+            let amount = entry.amount;
+            if (isRevenue) {
+                amount = amount * (1 - defaultRate / 100);
+            }
+
+            const monthIdx = projDate.getMonth();
+            if (projDate.getFullYear() === year && monthIdx >= 0 && monthIdx < 12) {
+                const dfcClass = classifyCategory(entry.category.name, isRevenue, isConsolidated);
+
+                if (dfcClass !== 'TRANSFER') {
                     if (dfcClass === 'OPERATIONAL_IN') {
                         monthlyData[monthIdx].recebimentosOperacionais += amount;
                     } else if (dfcClass === 'OPERATIONAL_OUT') {
@@ -159,88 +263,18 @@ export async function GET(request: Request) {
 
                     monthlyData[monthIdx].details.push({
                         id: entry.id,
-                        date: dateObj.toISOString().split('T')[0],
+                        date: projDate.toISOString().split('T')[0],
+                        originalDate: origDate.toISOString().split('T')[0],
                         description: entry.description,
                         customer: entry.customer,
                         amount,
                         isRevenue,
-                        isRealized: true,
+                        isRealized: false,
+                        isOverdue,
                         category: entry.category.name,
                         dfcClass
                     });
                 }
-            }
-        });
-
-        // 7. Processar Previstos (Projeções)
-        expectedEntries.forEach(entry => {
-            const origDate = entry.date ? new Date(entry.date) : new Date(year, entry.month - 1, 15);
-            const isRevenue = entry.viewMode === 'previsto_receber';
-            
-            let projDate = new Date(origDate);
-            let isOverdue = origDate.getTime() < todayTime;
-
-            // Tratamento de Atrasados
-            if (isOverdue) {
-                if (overdueAction === 'ignore') {
-                    return;
-                } else if (overdueAction === 'today') {
-                    projDate = new Date(today);
-                }
-            }
-
-            // Aplicar taxa de inadimplência apenas em Receitas Previstas
-            let amount = entry.amount;
-            if (isRevenue) {
-                amount = amount * (1 - defaultRate / 100);
-            }
-
-            const monthIdx = projDate.getMonth();
-            if (projDate.getFullYear() === year && monthIdx >= 0 && monthIdx < 12) {
-                const dfcClass = classifyCategory(entry.category.name, isRevenue);
-
-                if (dfcClass === 'OPERATIONAL_IN') {
-                    monthlyData[monthIdx].recebimentosOperacionais += amount;
-                } else if (dfcClass === 'OPERATIONAL_OUT') {
-                    monthlyData[monthIdx].pagamentosOperacionais += amount;
-                } else if (dfcClass === 'CAPEX') {
-                    monthlyData[monthIdx].capex += amount;
-                } else if (dfcClass === 'FINANCING') {
-                    monthlyData[monthIdx].fluxoFinanciamento += isRevenue ? amount : -amount;
-                }
-
-                if (isRevenue) {
-                    monthlyData[monthIdx].inflows += amount;
-                } else {
-                    monthlyData[monthIdx].outflows += amount;
-                }
-
-                // Detalhe por Categoria (Agrupado por Nome para consolidar)
-                const catKey = entry.category.name;
-                if (!monthlyData[monthIdx].categories[catKey]) {
-                    monthlyData[monthIdx].categories[catKey] = {
-                        id: entry.category.id,
-                        name: entry.category.name,
-                        isRevenue,
-                        amount: 0,
-                        dfcClass
-                    };
-                }
-                monthlyData[monthIdx].categories[catKey].amount += amount;
-
-                monthlyData[monthIdx].details.push({
-                    id: entry.id,
-                    date: projDate.toISOString().split('T')[0],
-                    originalDate: origDate.toISOString().split('T')[0],
-                    description: entry.description,
-                    customer: entry.customer,
-                    amount,
-                    isRevenue,
-                    isRealized: false,
-                    isOverdue,
-                    category: entry.category.name,
-                    dfcClass
-                });
             }
         });
 
@@ -286,7 +320,7 @@ export async function GET(request: Request) {
                 amount = amount * (1 - defaultRate / 100);
             }
 
-            const dfcClass = classifyCategory(entry.category.name, isRevenue);
+            const dfcClass = classifyCategory(entry.category.name, isRevenue, isConsolidated);
             let netAmount = 0;
             if (dfcClass === 'OPERATIONAL_IN') {
                 netAmount = amount;

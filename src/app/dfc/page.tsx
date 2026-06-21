@@ -55,8 +55,22 @@ export default function DFCPage() {
     const [syncLog, setSyncLog] = useState<string>('');
     
     // UI active tab
-    const [activeTab, setActiveTab] = useState<'projection' | 'table' | 'audit'>('projection');
+    const [activeTab, setActiveTab] = useState<'projection' | 'table' | 'audit' | 'car' | 'cap'>('projection');
     const [hoveredPoint, setHoveredPoint] = useState<any | null>(null);
+
+    // Filtros e estados das novas abas CAR e CAP
+    const [carSearch, setCarSearch] = useState<string>('');
+    const [carStatusFilter, setCarStatusFilter] = useState<'all' | 'overdue' | 'ontime'>('all');
+    const [carPage, setCarPage] = useState<number>(1);
+
+    const [capSearch, setCapSearch] = useState<string>('');
+    const [capStatusFilter, setCapStatusFilter] = useState<'all' | 'overdue' | 'ontime'>('all');
+    const [capPage, setCapPage] = useState<number>(1);
+
+    // Estados do modal de detalhamento de KPIs
+    const [modalOpen, setModalOpen] = useState<boolean>(false);
+    const [modalTitle, setModalTitle] = useState<string>('');
+    const [modalType, setModalType] = useState<'balance' | 'inflows' | 'outflows' | 'projected' | null>(null);
     
     // Controle de seções expandidas do DFC
     const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({
@@ -130,6 +144,12 @@ export default function DFCPage() {
     useEffect(() => {
         fetchDFC();
     }, [fetchDFC]);
+
+    // Resetar páginas de paginação ao trocar os filtros globais
+    useEffect(() => {
+        setCarPage(1);
+        setCapPage(1);
+    }, [selectedTenant, selectedYear, selectedCostCenter, defaultRate, overdueAction]);
 
     // 3. Sincronizar dados do Conta Azul
     const handleSync = async () => {
@@ -246,7 +266,7 @@ export default function DFCPage() {
         const zeroY = getY(0);
 
         return (
-            <div style={{ position: 'relative', width: '100%', overflowX: 'auto', backgroundColor: '#ffffff', borderRadius: '12px', padding: '1.5rem', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05), 0 2px 4px -1px rgba(0,0,0,0.03)' }}>
+            <div style={{ position: 'relative', width: '100%', boxSizing: 'border-box', overflowX: 'auto', backgroundColor: '#ffffff', borderRadius: '12px', padding: '1.5rem', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05), 0 2px 4px -1px rgba(0,0,0,0.03)' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '1rem', alignItems: 'center' }}>
                     <h3 style={{ fontSize: '1rem', fontWeight: 600, color: '#1e293b', margin: 0 }}>Projeção de Saldo Acumulado (180 dias)</h3>
                     <div style={{ display: 'flex', gap: '1rem', fontSize: '0.8rem' }}>
@@ -354,7 +374,7 @@ export default function DFCPage() {
     };
 
     return (
-        <div style={{ padding: '2rem', maxWidth: '1600px', margin: '0 auto', fontFamily: 'Inter, system-ui, sans-serif', color: '#334155', backgroundColor: '#f8fafc', minHeight: '100vh' }}>
+        <div style={{ padding: '2rem', maxWidth: '1600px', width: '100%', boxSizing: 'border-box', margin: '0 auto', fontFamily: 'Inter, system-ui, sans-serif', color: '#334155', backgroundColor: '#f8fafc', minHeight: '100vh', overflowX: 'hidden' }}>
             
             {/* Header Area */}
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem', flexWrap: 'wrap', gap: '1rem' }}>
@@ -477,9 +497,16 @@ export default function DFCPage() {
             </div>
 
             {/* KPI Cards */}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '1.5rem', marginBottom: '2rem' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '1.5rem', marginBottom: '2rem', width: '100%', boxSizing: 'border-box' }}>
                 {/* Saldo Inicial */}
-                <div style={{ backgroundColor: '#ffffff', borderRadius: '12px', padding: '1.5rem', border: '1px solid #e2e8f0', boxShadow: '0 1px 3px rgba(0,0,0,0.02)', display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                <div 
+                    onClick={() => {
+                        setModalTitle('Detalhamento de Saldo Bancário Atual');
+                        setModalType('balance');
+                        setModalOpen(true);
+                    }}
+                    style={{ backgroundColor: '#ffffff', borderRadius: '12px', padding: '1.5rem', border: '1px solid #e2e8f0', boxShadow: '0 1px 3px rgba(0,0,0,0.02)', display: 'flex', alignItems: 'center', gap: '1rem', cursor: 'pointer', transition: 'all 0.2s' }}
+                >
                     <div style={{ width: '48px', height: '48px', borderRadius: '10px', backgroundColor: '#eff6ff', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#2563eb' }}>
                         <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" /></svg>
                     </div>
@@ -490,7 +517,14 @@ export default function DFCPage() {
                 </div>
 
                 {/* Recebíveis Previstos */}
-                <div style={{ backgroundColor: '#ffffff', borderRadius: '12px', padding: '1.5rem', border: '1px solid #e2e8f0', boxShadow: '0 1px 3px rgba(0,0,0,0.02)', display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                <div 
+                    onClick={() => {
+                        setModalTitle('Recebimentos em Aberto (CAR)');
+                        setModalType('inflows');
+                        setModalOpen(true);
+                    }}
+                    style={{ backgroundColor: '#ffffff', borderRadius: '12px', padding: '1.5rem', border: '1px solid #e2e8f0', boxShadow: '0 1px 3px rgba(0,0,0,0.02)', display: 'flex', alignItems: 'center', gap: '1rem', cursor: 'pointer', transition: 'all 0.2s' }}
+                >
                     <div style={{ width: '48px', height: '48px', borderRadius: '10px', backgroundColor: '#f0fdf4', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#16a34a' }}>
                         <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18" /><polyline points="17 6 23 6 23 12" /></svg>
                     </div>
@@ -501,7 +535,14 @@ export default function DFCPage() {
                 </div>
 
                 {/* Pagamentos Previstos */}
-                <div style={{ backgroundColor: '#ffffff', borderRadius: '12px', padding: '1.5rem', border: '1px solid #e2e8f0', boxShadow: '0 1px 3px rgba(0,0,0,0.02)', display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                <div 
+                    onClick={() => {
+                        setModalTitle('Pagamentos em Aberto (CAP)');
+                        setModalType('outflows');
+                        setModalOpen(true);
+                    }}
+                    style={{ backgroundColor: '#ffffff', borderRadius: '12px', padding: '1.5rem', border: '1px solid #e2e8f0', boxShadow: '0 1px 3px rgba(0,0,0,0.02)', display: 'flex', alignItems: 'center', gap: '1rem', cursor: 'pointer', transition: 'all 0.2s' }}
+                >
                     <div style={{ width: '48px', height: '48px', borderRadius: '10px', backgroundColor: '#fef2f2', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#dc2626' }}>
                         <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="23 18 13.5 8.5 8.5 13.5 1 6" /><polyline points="17 18 23 18 23 12" /></svg>
                     </div>
@@ -512,7 +553,14 @@ export default function DFCPage() {
                 </div>
 
                 {/* Saldo Final Projetado */}
-                <div style={{ backgroundColor: '#1e293b', borderRadius: '12px', padding: '1.5rem', border: '1px solid #334155', boxShadow: '0 1px 3px rgba(0,0,0,0.02)', display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                <div 
+                    onClick={() => {
+                        setModalTitle('Fórmula de Projeção do Saldo Final');
+                        setModalType('projected');
+                        setModalOpen(true);
+                    }}
+                    style={{ backgroundColor: '#1e293b', borderRadius: '12px', padding: '1.5rem', border: '1px solid #334155', boxShadow: '0 1px 3px rgba(0,0,0,0.02)', display: 'flex', alignItems: 'center', gap: '1rem', cursor: 'pointer', transition: 'all 0.2s' }}
+                >
                     <div style={{ width: '48px', height: '48px', borderRadius: '10px', backgroundColor: '#334155', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#38bdf8' }}>
                         <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><rect x="3" y="3" width="18" height="18" rx="2" ry="2" /><line x1="9" y1="9" x2="15" y2="15" /><line x1="15" y1="9" x2="9" y2="15" /></svg>
                     </div>
@@ -524,7 +572,7 @@ export default function DFCPage() {
             </div>
 
             {/* Navegação de Abas */}
-            <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1.5rem', borderBottom: '1px solid #e2e8f0', paddingBottom: '0.5rem' }}>
+            <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1.5rem', borderBottom: '1px solid #e2e8f0', paddingBottom: '0.5rem', flexWrap: 'wrap' }}>
                 <button
                     onClick={() => setActiveTab('projection')}
                     style={{
@@ -558,6 +606,38 @@ export default function DFCPage() {
                     Demonstrativo Mensal DFC
                 </button>
                 <button
+                    onClick={() => setActiveTab('car')}
+                    style={{
+                        padding: '0.5rem 1rem',
+                        borderRadius: '6px',
+                        border: 'none',
+                        backgroundColor: activeTab === 'car' ? '#cbd5e1' : 'transparent',
+                        color: activeTab === 'car' ? '#0f172a' : '#64748b',
+                        fontWeight: 600,
+                        fontSize: '0.875rem',
+                        cursor: 'pointer',
+                        transition: 'background-color 0.2s, color 0.2s'
+                    }}
+                >
+                    Contas a Receber (CAR)
+                </button>
+                <button
+                    onClick={() => setActiveTab('cap')}
+                    style={{
+                        padding: '0.5rem 1rem',
+                        borderRadius: '6px',
+                        border: 'none',
+                        backgroundColor: activeTab === 'cap' ? '#cbd5e1' : 'transparent',
+                        color: activeTab === 'cap' ? '#0f172a' : '#64748b',
+                        fontWeight: 600,
+                        fontSize: '0.875rem',
+                        cursor: 'pointer',
+                        transition: 'background-color 0.2s, color 0.2s'
+                    }}
+                >
+                    Contas a Pagar (CAP)
+                </button>
+                <button
                     onClick={() => setActiveTab('audit')}
                     style={{
                         padding: '0.5rem 1rem',
@@ -589,9 +669,9 @@ export default function DFCPage() {
                             {renderChart()}
 
                             {/* Tabela de Próximos Eventos */}
-                            <div style={{ backgroundColor: '#ffffff', borderRadius: '12px', padding: '1.5rem', border: '1px solid #e2e8f0', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
+                            <div style={{ backgroundColor: '#ffffff', borderRadius: '12px', padding: '1.5rem', border: '1px solid #e2e8f0', boxShadow: '0 1px 3px rgba(0,0,0,0.05)', width: '100%', boxSizing: 'border-box' }}>
                                 <h3 style={{ fontSize: '1rem', fontWeight: 700, color: '#0f172a', margin: '0 0 1rem' }}>Contas a Receber e Pagar Previstas</h3>
-                                <div style={{ overflowX: 'auto' }}>
+                                <div style={{ overflowX: 'auto', width: '100%', boxSizing: 'border-box' }}>
                                     <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.875rem', textAlign: 'left' }}>
                                         <thead>
                                             <tr style={{ borderBottom: '2px solid #f1f5f9', color: '#475569' }}>
@@ -637,7 +717,7 @@ export default function DFCPage() {
 
                     {/* ABA: TABELA DFC MENSAL */}
                     {activeTab === 'table' && data && (
-                        <div style={{ backgroundColor: '#ffffff', borderRadius: '12px', padding: '1.5rem', border: '1px solid #e2e8f0', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)', overflowX: 'auto' }}>
+                        <div style={{ backgroundColor: '#ffffff', borderRadius: '12px', padding: '1.5rem', border: '1px solid #e2e8f0', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)', overflowX: 'auto', width: '100%', boxSizing: 'border-box' }}>
                             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem' }}>
                                 <thead>
                                     <tr style={{ backgroundColor: '#1e293b', color: '#ffffff' }}>
@@ -885,7 +965,469 @@ export default function DFCPage() {
                             </div>
                         </div>
                     )}
+
+                    {/* ABA: CONTAS A RECEBER (CAR) */}
+                    {activeTab === 'car' && data && (() => {
+                        const allDetails = data.monthlyData.flatMap(m => m.details);
+                        const carDetails = allDetails.filter(d => !d.isRealized && d.isRevenue);
+                        
+                        const filtered = carDetails.filter(d => {
+                            const matchSearch = 
+                                (d.description || '').toLowerCase().includes(carSearch.toLowerCase()) ||
+                                (d.customer || '').toLowerCase().includes(carSearch.toLowerCase()) ||
+                                (d.category || '').toLowerCase().includes(carSearch.toLowerCase());
+                            
+                            if (carStatusFilter === 'overdue') {
+                                return matchSearch && d.isOverdue;
+                            } else if (carStatusFilter === 'ontime') {
+                                return matchSearch && !d.isOverdue;
+                            }
+                            return matchSearch;
+                        });
+
+                        const pageSize = 15;
+                        const totalItems = filtered.length;
+                        const totalPages = Math.ceil(totalItems / pageSize) || 1;
+                        const pageItems = filtered.slice((carPage - 1) * pageSize, carPage * pageSize);
+
+                        return (
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+                                <div style={{ backgroundColor: '#ffffff', borderRadius: '12px', padding: '1.25rem', border: '1px solid #e2e8f0', boxShadow: '0 1px 3px rgba(0,0,0,0.05)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
+                                    <div style={{ display: 'flex', gap: '1rem', flex: 1, minWidth: '300px' }}>
+                                        <input
+                                            type="text"
+                                            placeholder="Buscar por descrição, cliente ou categoria..."
+                                            value={carSearch}
+                                            onChange={(e) => { setCarSearch(e.target.value); setCarPage(1); }}
+                                            style={{ flex: 1, padding: '0.625rem 1rem', borderRadius: '8px', border: '1px solid #cbd5e1', outline: 'none', fontSize: '0.875rem' }}
+                                        />
+                                        <select
+                                            value={carStatusFilter}
+                                            onChange={(e) => { setCarStatusFilter(e.target.value as any); setCarPage(1); }}
+                                            style={{ padding: '0.625rem 1rem', borderRadius: '8px', border: '1px solid #cbd5e1', outline: 'none', fontSize: '0.875rem', color: '#1e293b', fontWeight: 500 }}
+                                        >
+                                            <option value="all">Todos os Status</option>
+                                            <option value="overdue">Atrasados</option>
+                                            <option value="ontime">No Prazo</option>
+                                        </select>
+                                    </div>
+                                    <div style={{ fontSize: '0.875rem', fontWeight: 600, color: '#475569' }}>
+                                        Total: <span style={{ color: '#2563eb' }}>{totalItems}</span> títulos (R$ {formatCurrency(filtered.reduce((sum, item) => sum + item.amount, 0))})
+                                    </div>
+                                </div>
+
+                                <div style={{ backgroundColor: '#ffffff', borderRadius: '12px', padding: '1.5rem', border: '1px solid #e2e8f0', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)', overflowX: 'auto', width: '100%', boxSizing: 'border-box' }}>
+                                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.875rem', textAlign: 'left' }}>
+                                        <thead>
+                                            <tr style={{ borderBottom: '2px solid #f1f5f9', color: '#475569' }}>
+                                                <th style={{ padding: '0.75rem 1rem' }}>Vencimento</th>
+                                                <th style={{ padding: '0.75rem 1rem' }}>Status</th>
+                                                <th style={{ padding: '0.75rem 1rem' }}>Descrição</th>
+                                                <th style={{ padding: '0.75rem 1rem' }}>Cliente</th>
+                                                <th style={{ padding: '0.75rem 1rem' }}>Categoria</th>
+                                                <th style={{ padding: '0.75rem 1rem', textAlign: 'right' }}>Valor Original</th>
+                                                <th style={{ padding: '0.75rem 1rem', textAlign: 'right' }}>Valor Líquido (c/ Inad.)</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {pageItems.map((item, idx) => {
+                                                const originalVal = defaultRate === 100 ? item.amount : item.amount / (1 - defaultRate / 100);
+                                                return (
+                                                    <tr key={item.id || idx} style={{ borderBottom: '1px solid #f1f5f9', backgroundColor: idx % 2 === 0 ? '#f8fafc' : '#ffffff' }}>
+                                                        <td style={{ padding: '0.75rem 1rem', fontWeight: 500 }}>
+                                                            {new Date(item.originalDate || item.date).toLocaleDateString('pt-BR')}
+                                                            {item.isOverdue && overdueAction === 'today' && (
+                                                                <div style={{ fontSize: '0.7rem', color: '#64748b', fontWeight: 400 }}>Projetado: {new Date(item.date).toLocaleDateString('pt-BR')}</div>
+                                                            )}
+                                                        </td>
+                                                        <td style={{ padding: '0.75rem 1rem' }}>
+                                                            <span style={{ display: 'inline-block', padding: '0.2rem 0.5rem', borderRadius: '6px', fontSize: '0.75rem', fontWeight: 600, backgroundColor: item.isOverdue ? '#fef2f2' : '#f0fdf4', color: item.isOverdue ? '#dc2626' : '#16a34a' }}>
+                                                                {item.isOverdue ? 'ATRASADO' : 'NO PRAZO'}
+                                                            </span>
+                                                        </td>
+                                                        <td style={{ padding: '0.75rem 1rem', color: '#1e293b', fontWeight: 500 }}>{item.description || 'Recebimento previsto'}</td>
+                                                        <td style={{ padding: '0.75rem 1rem', color: '#64748b' }}>{item.customer || '-'}</td>
+                                                        <td style={{ padding: '0.75rem 1rem', color: '#64748b' }}>{item.category}</td>
+                                                        <td style={{ padding: '0.75rem 1rem', fontWeight: 500, color: '#475569', textAlign: 'right' }}>
+                                                            {formatCurrency(originalVal)}
+                                                        </td>
+                                                        <td style={{ padding: '0.75rem 1rem', fontWeight: 700, color: '#16a34a', textAlign: 'right' }}>
+                                                            {formatCurrency(item.amount)}
+                                                        </td>
+                                                    </tr>
+                                                );
+                                            })}
+                                            {pageItems.length === 0 && (
+                                                <tr>
+                                                    <td colSpan={7} style={{ padding: '3rem', textAlign: 'center', color: '#94a3b8' }}>Nenhum recebimento em aberto encontrado para os filtros ativos.</td>
+                                                </tr>
+                                            )}
+                                        </tbody>
+                                    </table>
+
+                                    {totalPages > 1 && (
+                                        <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '1rem', marginTop: '1.5rem', paddingTop: '1rem', borderTop: '1px solid #f1f5f9' }}>
+                                            <button
+                                                disabled={carPage === 1}
+                                                onClick={() => setCarPage(prev => Math.max(prev - 1, 1))}
+                                                style={{ padding: '0.4rem 0.8rem', borderRadius: '6px', border: '1px solid #cbd5e1', backgroundColor: carPage === 1 ? '#f1f5f9' : '#ffffff', color: carPage === 1 ? '#94a3b8' : '#334155', cursor: carPage === 1 ? 'not-allowed' : 'pointer', fontSize: '0.85rem', fontWeight: 500 }}
+                                            >
+                                                Anterior
+                                            </button>
+                                            <span style={{ fontSize: '0.85rem', fontWeight: 600, color: '#475569' }}>
+                                                Página {carPage} de {totalPages}
+                                            </span>
+                                            <button
+                                                disabled={carPage === totalPages}
+                                                onClick={() => setCarPage(prev => Math.min(prev + 1, totalPages))}
+                                                style={{ padding: '0.4rem 0.8rem', borderRadius: '6px', border: '1px solid #cbd5e1', backgroundColor: carPage === totalPages ? '#f1f5f9' : '#ffffff', color: carPage === totalPages ? '#94a3b8' : '#334155', cursor: carPage === totalPages ? 'not-allowed' : 'pointer', fontSize: '0.85rem', fontWeight: 500 }}
+                                            >
+                                                Próxima
+                                            </button>
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                        );
+                    })()}
+
+                    {/* ABA: CONTAS A PAGAR (CAP) */}
+                    {activeTab === 'cap' && data && (() => {
+                        const allDetails = data.monthlyData.flatMap(m => m.details);
+                        const capDetails = allDetails.filter(d => !d.isRealized && !d.isRevenue);
+                        
+                        const filtered = capDetails.filter(d => {
+                            const matchSearch = 
+                                (d.description || '').toLowerCase().includes(capSearch.toLowerCase()) ||
+                                (d.customer || '').toLowerCase().includes(capSearch.toLowerCase()) ||
+                                (d.category || '').toLowerCase().includes(capSearch.toLowerCase());
+                            
+                            if (capStatusFilter === 'overdue') {
+                                return matchSearch && d.isOverdue;
+                            } else if (capStatusFilter === 'ontime') {
+                                return matchSearch && !d.isOverdue;
+                            }
+                            return matchSearch;
+                        });
+
+                        const pageSize = 15;
+                        const totalItems = filtered.length;
+                        const totalPages = Math.ceil(totalItems / pageSize) || 1;
+                        const pageItems = filtered.slice((capPage - 1) * pageSize, capPage * pageSize);
+
+                        return (
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+                                <div style={{ backgroundColor: '#ffffff', borderRadius: '12px', padding: '1.25rem', border: '1px solid #e2e8f0', boxShadow: '0 1px 3px rgba(0,0,0,0.05)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
+                                    <div style={{ display: 'flex', gap: '1rem', flex: 1, minWidth: '300px' }}>
+                                        <input
+                                            type="text"
+                                            placeholder="Buscar por descrição, fornecedor ou categoria..."
+                                            value={capSearch}
+                                            onChange={(e) => { setCapSearch(e.target.value); setCapPage(1); }}
+                                            style={{ flex: 1, padding: '0.625rem 1rem', borderRadius: '8px', border: '1px solid #cbd5e1', outline: 'none', fontSize: '0.875rem' }}
+                                        />
+                                        <select
+                                            value={capStatusFilter}
+                                            onChange={(e) => { setCapStatusFilter(e.target.value as any); setCapPage(1); }}
+                                            style={{ padding: '0.625rem 1rem', borderRadius: '8px', border: '1px solid #cbd5e1', outline: 'none', fontSize: '0.875rem', color: '#1e293b', fontWeight: 500 }}
+                                        >
+                                            <option value="all">Todos os Status</option>
+                                            <option value="overdue">Atrasados</option>
+                                            <option value="ontime">No Prazo</option>
+                                        </select>
+                                    </div>
+                                    <div style={{ fontSize: '0.875rem', fontWeight: 600, color: '#475569' }}>
+                                        Total: <span style={{ color: '#dc2626' }}>{totalItems}</span> títulos (R$ {formatCurrency(filtered.reduce((sum, item) => sum + item.amount, 0))})
+                                    </div>
+                                </div>
+
+                                <div style={{ backgroundColor: '#ffffff', borderRadius: '12px', padding: '1.5rem', border: '1px solid #e2e8f0', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)', overflowX: 'auto', width: '100%', boxSizing: 'border-box' }}>
+                                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.875rem', textAlign: 'left' }}>
+                                        <thead>
+                                            <tr style={{ borderBottom: '2px solid #f1f5f9', color: '#475569' }}>
+                                                <th style={{ padding: '0.75rem 1rem' }}>Vencimento</th>
+                                                <th style={{ padding: '0.75rem 1rem' }}>Status</th>
+                                                <th style={{ padding: '0.75rem 1rem' }}>Descrição</th>
+                                                <th style={{ padding: '0.75rem 1rem' }}>Fornecedor</th>
+                                                <th style={{ padding: '0.75rem 1rem' }}>Categoria</th>
+                                                <th style={{ padding: '0.75rem 1rem', textAlign: 'right' }}>Valor do Título</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {pageItems.map((item, idx) => (
+                                                <tr key={item.id || idx} style={{ borderBottom: '1px solid #f1f5f9', backgroundColor: idx % 2 === 0 ? '#f8fafc' : '#ffffff' }}>
+                                                    <td style={{ padding: '0.75rem 1rem', fontWeight: 500 }}>
+                                                        {new Date(item.originalDate || item.date).toLocaleDateString('pt-BR')}
+                                                        {item.isOverdue && overdueAction === 'today' && (
+                                                            <div style={{ fontSize: '0.7rem', color: '#64748b', fontWeight: 400 }}>Projetado: {new Date(item.date).toLocaleDateString('pt-BR')}</div>
+                                                        )}
+                                                    </td>
+                                                    <td style={{ padding: '0.75rem 1rem' }}>
+                                                        <span style={{ display: 'inline-block', padding: '0.2rem 0.5rem', borderRadius: '6px', fontSize: '0.75rem', fontWeight: 600, backgroundColor: item.isOverdue ? '#fef2f2' : '#f0fdf4', color: item.isOverdue ? '#dc2626' : '#16a34a' }}>
+                                                            {item.isOverdue ? 'ATRASADO' : 'NO PRAZO'}
+                                                        </span>
+                                                    </td>
+                                                    <td style={{ padding: '0.75rem 1rem', color: '#1e293b', fontWeight: 500 }}>{item.description || 'Pagamento previsto'}</td>
+                                                    <td style={{ padding: '0.75rem 1rem', color: '#64748b' }}>{item.customer || '-'}</td>
+                                                    <td style={{ padding: '0.75rem 1rem', color: '#64748b' }}>{item.category}</td>
+                                                    <td style={{ padding: '0.75rem 1rem', fontWeight: 700, color: '#dc2626', textAlign: 'right' }}>
+                                                        {formatCurrency(item.amount)}
+                                                    </td>
+                                                </tr>
+                                            ))}
+                                            {pageItems.length === 0 && (
+                                                <tr>
+                                                    <td colSpan={6} style={{ padding: '3rem', textAlign: 'center', color: '#94a3b8' }}>Nenhum pagamento em aberto encontrado para os filtros ativos.</td>
+                                                </tr>
+                                            )}
+                                        </tbody>
+                                    </table>
+
+                                    {totalPages > 1 && (
+                                        <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '1rem', marginTop: '1.5rem', paddingTop: '1rem', borderTop: '1px solid #f1f5f9' }}>
+                                            <button
+                                                disabled={capPage === 1}
+                                                onClick={() => setCapPage(prev => Math.max(prev - 1, 1))}
+                                                style={{ padding: '0.4rem 0.8rem', borderRadius: '6px', border: '1px solid #cbd5e1', backgroundColor: capPage === 1 ? '#f1f5f9' : '#ffffff', color: capPage === 1 ? '#94a3b8' : '#334155', cursor: capPage === 1 ? 'not-allowed' : 'pointer', fontSize: '0.85rem', fontWeight: 500 }}
+                                            >
+                                                Anterior
+                                            </button>
+                                            <span style={{ fontSize: '0.85rem', fontWeight: 600, color: '#475569' }}>
+                                                Página {capPage} de {totalPages}
+                                            </span>
+                                            <button
+                                                disabled={capPage === totalPages}
+                                                onClick={() => setCapPage(prev => Math.min(prev + 1, totalPages))}
+                                                style={{ padding: '0.4rem 0.8rem', borderRadius: '6px', border: '1px solid #cbd5e1', backgroundColor: capPage === totalPages ? '#f1f5f9' : '#ffffff', color: capPage === totalPages ? '#94a3b8' : '#334155', cursor: capPage === totalPages ? 'not-allowed' : 'pointer', fontSize: '0.85rem', fontWeight: 500 }}
+                                            >
+                                                Próxima
+                                            </button>
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                        );
+                    })()}
                 </>
+            )}
+
+            {/* Modal de Detalhes dos Cards */}
+            {modalOpen && data && (
+                <div style={{
+                    position: 'fixed',
+                    top: 0,
+                    left: 0,
+                    right: 0,
+                    bottom: 0,
+                    backgroundColor: 'rgba(15, 23, 42, 0.6)',
+                    backdropFilter: 'blur(4px)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    zIndex: 1000,
+                    padding: '1.5rem'
+                }}>
+                    <div style={{
+                        backgroundColor: '#ffffff',
+                        borderRadius: '16px',
+                        width: '100%',
+                        maxWidth: '800px',
+                        maxHeight: '85vh',
+                        boxShadow: '0 25px 50px -12px rgba(0,0,0,0.25)',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        border: '1px solid #e2e8f0',
+                        overflow: 'hidden'
+                    }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '1.25rem 1.5rem', borderBottom: '1px solid #f1f5f9', backgroundColor: '#f8fafc' }}>
+                            <h3 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 700, color: '#0f172a' }}>{modalTitle}</h3>
+                            <button
+                                onClick={() => { setModalOpen(false); setModalType(null); }}
+                                style={{
+                                    border: 'none',
+                                    background: 'none',
+                                    color: '#64748b',
+                                    cursor: 'pointer',
+                                    padding: '0.25rem',
+                                    borderRadius: '6px',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center'
+                                }}
+                            >
+                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
+                            </button>
+                        </div>
+
+                        <div style={{ padding: '1.5rem', overflowY: 'auto', flex: 1 }}>
+                            {modalType === 'balance' && (
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.875rem', textAlign: 'left' }}>
+                                        <thead>
+                                            <tr style={{ borderBottom: '2px solid #f1f5f9', color: '#475569' }}>
+                                                <th style={{ padding: '0.5rem 0.75rem' }}>Conta / Banco</th>
+                                                <th style={{ padding: '0.5rem 0.75rem' }}>Tipo</th>
+                                                <th style={{ padding: '0.5rem 0.75rem', textAlign: 'right' }}>Saldo Real</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {data.bankAccounts.map((acc) => (
+                                                <tr key={acc.id} style={{ borderBottom: '1px solid #f1f5f9' }}>
+                                                    <td style={{ padding: '0.75rem', fontWeight: 600, color: '#1e293b' }}>{acc.name}</td>
+                                                    <td style={{ padding: '0.75rem', color: '#64748b' }}>Conta Corrente / Carteira</td>
+                                                    <td style={{ padding: '0.75rem', textAlign: 'right', fontWeight: 700, color: acc.balance >= 0 ? '#0f172a' : '#ef4444' }}>
+                                                        {formatCurrency(acc.balance)}
+                                                    </td>
+                                                </tr>
+                                            ))}
+                                            {data.bankAccounts.length === 0 && (
+                                                <tr>
+                                                    <td colSpan={3} style={{ padding: '2rem', textAlign: 'center', color: '#94a3b8' }}>Nenhuma conta ativa sincronizada.</td>
+                                                </tr>
+                                            )}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            )}
+
+                            {modalType === 'inflows' && (() => {
+                                const list = data.monthlyData.flatMap(m => m.details).filter(d => !d.isRealized && d.isRevenue);
+                                return (
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                                        <div style={{ fontSize: '0.875rem', color: '#64748b', marginBottom: '0.5rem' }}>
+                                            Exibindo todos os <strong>{list.length}</strong> recebimentos previstos em aberto para o ano selecionado:
+                                        </div>
+                                        <div style={{ overflowX: 'auto' }}>
+                                            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem', textAlign: 'left' }}>
+                                                <thead>
+                                                    <tr style={{ borderBottom: '2px solid #f1f5f9', color: '#475569' }}>
+                                                        <th style={{ padding: '0.5rem 0.75rem' }}>Vencimento</th>
+                                                        <th style={{ padding: '0.5rem 0.75rem' }}>Descrição</th>
+                                                        <th style={{ padding: '0.5rem 0.75rem' }}>Cliente</th>
+                                                        <th style={{ padding: '0.5rem 0.75rem', textAlign: 'right' }}>Valor c/ Inad.</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody>
+                                                    {list.map((item, idx) => (
+                                                        <tr key={item.id || idx} style={{ borderBottom: '1px solid #f1f5f9' }}>
+                                                            <td style={{ padding: '0.6rem 0.75rem', fontWeight: 500 }}>
+                                                                {new Date(item.originalDate || item.date).toLocaleDateString('pt-BR')}
+                                                                {item.isOverdue && <span style={{ display: 'inline-block', marginLeft: '0.4rem', padding: '0.1rem 0.3rem', backgroundColor: '#fef2f2', color: '#dc2626', borderRadius: '4px', fontSize: '0.65rem', fontWeight: 600 }}>ATRASADO</span>}
+                                                            </td>
+                                                            <td style={{ padding: '0.6rem 0.75rem', color: '#1e293b' }}>{item.description}</td>
+                                                            <td style={{ padding: '0.6rem 0.75rem', color: '#64748b' }}>{item.customer || '-'}</td>
+                                                            <td style={{ padding: '0.6rem 0.75rem', textAlign: 'right', fontWeight: 600, color: '#16a34a' }}>
+                                                                {formatCurrency(item.amount)}
+                                                            </td>
+                                                        </tr>
+                                                    ))}
+                                                    {list.length === 0 && (
+                                                        <tr>
+                                                            <td colSpan={4} style={{ padding: '2rem', textAlign: 'center', color: '#94a3b8' }}>Não há recebimentos previstos em aberto.</td>
+                                                        </tr>
+                                                    )}
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    </div>
+                                );
+                            })()}
+
+                            {modalType === 'outflows' && (() => {
+                                const list = data.monthlyData.flatMap(m => m.details).filter(d => !d.isRealized && !d.isRevenue);
+                                return (
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                                        <div style={{ fontSize: '0.875rem', color: '#64748b', marginBottom: '0.5rem' }}>
+                                            Exibindo todos os <strong>{list.length}</strong> pagamentos previstos em aberto para o ano selecionado:
+                                        </div>
+                                        <div style={{ overflowX: 'auto' }}>
+                                            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem', textAlign: 'left' }}>
+                                                <thead>
+                                                    <tr style={{ borderBottom: '2px solid #f1f5f9', color: '#475569' }}>
+                                                        <th style={{ padding: '0.5rem 0.75rem' }}>Vencimento</th>
+                                                        <th style={{ padding: '0.5rem 0.75rem' }}>Descrição</th>
+                                                        <th style={{ padding: '0.75rem 0.75rem' }}>Fornecedor</th>
+                                                        <th style={{ padding: '0.75rem 0.75rem', textAlign: 'right' }}>Valor</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody>
+                                                    {list.map((item, idx) => (
+                                                        <tr key={item.id || idx} style={{ borderBottom: '1px solid #f1f5f9' }}>
+                                                            <td style={{ padding: '0.6rem 0.75rem', fontWeight: 500 }}>
+                                                                {new Date(item.originalDate || item.date).toLocaleDateString('pt-BR')}
+                                                                {item.isOverdue && <span style={{ display: 'inline-block', marginLeft: '0.4rem', padding: '0.1rem 0.3rem', backgroundColor: '#fef2f2', color: '#dc2626', borderRadius: '4px', fontSize: '0.65rem', fontWeight: 600 }}>ATRASADO</span>}
+                                                            </td>
+                                                            <td style={{ padding: '0.6rem 0.75rem', color: '#1e293b' }}>{item.description}</td>
+                                                            <td style={{ padding: '0.6rem 0.75rem', color: '#64748b' }}>{item.customer || '-'}</td>
+                                                            <td style={{ padding: '0.6rem 0.75rem', textAlign: 'right', fontWeight: 600, color: '#dc2626' }}>
+                                                                {formatCurrency(item.amount)}
+                                                            </td>
+                                                        </tr>
+                                                    ))}
+                                                    {list.length === 0 && (
+                                                        <tr>
+                                                            <td colSpan={4} style={{ padding: '2rem', textAlign: 'center', color: '#94a3b8' }}>Não há pagamentos previstos em aberto.</td>
+                                                        </tr>
+                                                    )}
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    </div>
+                                );
+                            })()}
+
+                            {modalType === 'projected' && (
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem', padding: '0.5rem 0' }}>
+                                    <p style={{ margin: 0, fontSize: '0.9rem', color: '#475569', lineHeight: 1.5 }}>
+                                        O <strong>Saldo Final Projetado</strong> é a estimativa da disponibilidade líquida de caixa ao final do ano, considerando os saldos bancários e a conciliação de todos os títulos em aberto (atrasados e futuros).
+                                    </p>
+                                    <div style={{ backgroundColor: '#f8fafc', borderRadius: '12px', padding: '1.25rem', border: '1px solid #e2e8f0', fontFamily: 'monospace', fontSize: '0.95rem', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                                        <div style={{ display: 'flex', justifyContent: 'space-between', color: '#475569' }}>
+                                            <span>(+) Saldo Bancário Atual</span>
+                                            <span style={{ fontWeight: 600, color: '#0f172a' }}>{formatCurrency(cardTotals.current)}</span>
+                                        </div>
+                                        <div style={{ display: 'flex', justifyContent: 'space-between', color: '#16a34a' }}>
+                                            <span>(+) Recebimentos em Aberto (c/ inad.)</span>
+                                            <span>{formatCurrency(cardTotals.inflows)}</span>
+                                        </div>
+                                        <div style={{ display: 'flex', justifyContent: 'space-between', color: '#dc2626', borderBottom: '1px solid #cbd5e1', paddingBottom: '0.75rem' }}>
+                                            <span>(-) Pagamentos em Aberto</span>
+                                            <span>{formatCurrency(cardTotals.outflows)}</span>
+                                        </div>
+                                        <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 800, fontSize: '1.05rem', color: '#0369a1' }}>
+                                            <span>(=) Saldo Final Projetado</span>
+                                            <span>{formatCurrency(cardTotals.projected)}</span>
+                                        </div>
+                                    </div>
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', fontSize: '0.825rem', color: '#64748b', backgroundColor: '#eff6ff', padding: '1rem', borderRadius: '8px', border: '1px solid #bfdbfe' }}>
+                                        <span style={{ fontWeight: 700, color: '#1e40af' }}>Fórmulas e Controles Ativos:</span>
+                                        <span>• Taxa de inadimplência projetada: <strong>{defaultRate}%</strong> aplicada a todas as parcelas CAR previstas.</span>
+                                        <span>• Tratamento de atrasados: <strong>{overdueAction === 'today' ? 'Postergar vencimento para hoje (padrão)' : overdueAction === 'ignore' ? 'Desconsiderar atrasados' : 'Manter vencimento original'}</strong>.</span>
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+
+                        <div style={{ padding: '1rem 1.5rem', borderTop: '1px solid #f1f5f9', display: 'flex', justifyContent: 'flex-end', backgroundColor: '#f8fafc' }}>
+                            <button
+                                onClick={() => { setModalOpen(false); setModalType(null); }}
+                                style={{
+                                    padding: '0.5rem 1rem',
+                                    borderRadius: '6px',
+                                    border: '1px solid #cbd5e1',
+                                    backgroundColor: '#ffffff',
+                                    color: '#334155',
+                                    fontWeight: 600,
+                                    fontSize: '0.875rem',
+                                    cursor: 'pointer',
+                                    transition: 'background-color 0.2s'
+                                }}
+                            >
+                                Fechar
+                            </button>
+                        </div>
+                    </div>
+                </div>
             )}
 
             {/* Injetar estilos de spin para o loader */}

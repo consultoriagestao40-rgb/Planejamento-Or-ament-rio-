@@ -174,7 +174,6 @@ export async function GET(request: Request) {
 
         // 2. Build Category Tree
         const map = new Map<string, CategoryNode>();
-        const potentialRoots: CategoryNode[] = [];
         const codeMap = new Map<string, CategoryNode>();
         const nameMap = new Map<string, CategoryNode>();
 
@@ -207,32 +206,186 @@ export async function GET(request: Request) {
             nameMap.set(uniqueKey, node);
             if (cleanCode) {
                 codeMap.set(cleanCode, node);
+                if (!cleanCode.startsWith('0') && cleanCode.length > 0) codeMap.set(`0${cleanCode}`, node);
             }
         });
 
-        map.forEach((node) => {
-            if (!node.code) {
-                potentialRoots.push(node);
-                return;
-            }
-            const parts = node.code.split('.');
-            if (parts.length === 1) {
-                potentialRoots.push(node);
-                return;
-            }
-            let parentCode = parts.slice(0, -1).join('.');
-            let parentNode = codeMap.get(parentCode);
-            if (!parentNode && parts.length > 2) {
-                parentCode = parts.slice(0, -2).join('.');
-                parentNode = codeMap.get(parentCode);
-            }
-            if (parentNode) {
-                parentNode.children.push(node);
-                node.level = parentNode.level + 1;
-            } else {
-                potentialRoots.push(node);
+        const syntheticParents = [
+            { code: '01.1', name: '01.1 - Receita de Serviços', parentCode: '01' },
+            { code: '01.2', name: '01.2 - Receitas de Vendas', parentCode: '01' },
+            { code: '02.1', name: '02.1 - Tributos', parentCode: '02' },
+            // CUSTOS OPERACIONAIS (03.1 to 03.9)
+            { code: '03.1', name: '03.1 Salarios e Remuneração', parentCode: '03' },
+            { code: '03.2', name: '03.2 Encargos Sociais', parentCode: '03' },
+            { code: '03.3', name: '03.3 Beneficios', parentCode: '03' },
+            { code: '03.4', name: '03.4 Diárias', parentCode: '03' },
+            { code: '03.5', name: '03.5 SSMA', parentCode: '03' },
+            { code: '03.6', name: '03.6 Materiais', parentCode: '03' },
+            { code: '03.7', name: '03.7 Equipamentos', parentCode: '03' },
+            { code: '03.8', name: '03.8 Comunicação/Sistema/Licenças', parentCode: '03' },
+            { code: '03.9', name: '03.9 Custo com Veiculo', parentCode: '03' },
+            // DESPESAS OPERACIONAIS (04.1 to 04.8)
+            { code: '04.1', name: '04.1 Salarios e Remuneração', parentCode: '04' },
+            { code: '04.2', name: '04.2 Encargos Sociais', parentCode: '04' },
+            { code: '04.3', name: '04.3 Beneficios', parentCode: '04' },
+            { code: '04.4', name: '04.4 SSMA', parentCode: '04' },
+            { code: '04.5', name: '04.5 Viagens', parentCode: '04' },
+            { code: '04.6', name: '04.6 Custo com Veículos', parentCode: '04' },
+            { code: '04.7', name: '04.7 Cartão Corporativo', parentCode: '04' },
+            { code: '04.8', name: '04.8 Serviços Terceirizados', parentCode: '04' },
+            // DESPESAS ADMINISTRATIVAS (05.1 to 05.13)
+            { code: '05.1', name: '05.1 Salario e Remuneração', parentCode: '05' },
+            { code: '05.2', name: '05.2 Encargos Sociais', parentCode: '05' },
+            { code: '05.3', name: '05.3 Beneficios', parentCode: '05' },
+            { code: '05.4', name: '05.4 SSMA', parentCode: '05' },
+            { code: '05.5', name: '05.5 Viagens', parentCode: '05' },
+            { code: '05.6', name: '05.6 Despesa com Socios', parentCode: '05' },
+            { code: '05.7', name: '05.7 Serviços Contratados', parentCode: '05' },
+            { code: '05.8', name: '05.8 Despesa Comercial/Marketing', parentCode: '05' },
+            { code: '05.9', name: '05.9 Despesa com Estrutura', parentCode: '05' },
+            { code: '05.10', name: '05.10 Despesa Copa e Cozinha', parentCode: '05' },
+            { code: '05.11', name: '05.11 Despesa com Veículos', parentCode: '05' },
+            { code: '05.12', name: '05.12 Despesa de Informatica', parentCode: '05' },
+            { code: '05.13', name: '05.13 Taxas e Despesas Legais', parentCode: '05' },
+            // DESPESAS FINANCEIRAS (06.1 to 06.8)
+            { code: '06.1', name: '06.1 Entradas Financeiras', parentCode: '06' },
+            { code: '06.2', name: '06.2 Saidas Financeiras', parentCode: '06' },
+            { code: '06.3', name: '06.3 Financiamento', parentCode: '06' },
+            { code: '06.4', name: '06.4 Juros/Multas', parentCode: '06' },
+            { code: '06.5', name: '06.5 Passivo Trabalhista', parentCode: '06' },
+            { code: '06.6', name: '06.6 Depreciação', parentCode: '06' },
+            { code: '06.7', name: '06.7 Cartão de Credito', parentCode: '06' },
+            { code: '06.8', name: '06.8 PDD', parentCode: '06' },
+        ];
+
+        syntheticParents.forEach(synth => {
+            if (!codeMap.has(synth.code)) {
+                const node: CategoryNode = {
+                    id: `synth-${synth.code}`,
+                    name: synth.name,
+                    code: synth.code,
+                    children: [],
+                    level: 0,
+                    isSynthetic: true,
+                    tenantId: ''
+                };
+                map.set(node.id, node);
+                codeMap.set(synth.code, node);
             }
         });
+
+        // Linking
+        map.forEach(node => {
+            const code = node.code || '';
+
+            if (node.isSynthetic) {
+                const synthDef = syntheticParents.find(s => s.code === code);
+                if (synthDef && synthDef.parentCode) {
+                    const parent = codeMap.get(synthDef.parentCode);
+                    if (parent) {
+                        const alreadyHas = parent.children.some(c => c.id === node.id);
+                        if (!alreadyHas) {
+                            parent.children.push(node);
+                        }
+                    }
+                }
+                return;
+            }
+
+            if (code.startsWith('01.1.')) {
+                const parent = codeMap.get('01.1');
+                if (parent) { parent.children.push(node); return; }
+            }
+            if (code.startsWith('01.2.')) {
+                const parent = codeMap.get('01.2');
+                if (parent) { parent.children.push(node); return; }
+            }
+            if (code.startsWith('2.1')) {
+                const parent = codeMap.get('02.1');
+                if (parent) { parent.children.push(node); return; }
+            }
+
+            let parentFound = false;
+            if (code.includes('.')) {
+                let currentPrefix = code.substring(0, code.lastIndexOf('.'));
+                while (currentPrefix.length > 0) {
+                    const potentialParent = Array.from(codeMap.values()).find(n => n.code === currentPrefix);
+                    if (potentialParent) {
+                        if (!potentialParent.children.includes(node)) {
+                            potentialParent.children.push(node);
+                        }
+                        parentFound = true;
+                        break;
+                    }
+                    if (!currentPrefix.includes('.')) break;
+                    currentPrefix = currentPrefix.substring(0, currentPrefix.lastIndexOf('.'));
+                }
+            }
+
+            if (!parentFound && code.match(/^(0[3456])\.(\d+)\./)) {
+                const match = code.match(/^(0[3456])\.(\d+)/);
+                if (match) {
+                    const synthParentCode = match[0];
+                    const synthParent = codeMap.get(synthParentCode);
+                    if (synthParent) {
+                        const alreadyHas = synthParent.children.some(c => c.id === node.id);
+                        if (!alreadyHas) {
+                            synthParent.children.push(node);
+                        }
+                    }
+                }
+            }
+        });
+
+        // Roots Retrieval
+        const allChildren = new Set<string>();
+        map.forEach(node => node.children.forEach(c => allChildren.add(c.id)));
+
+        const rawRoots: CategoryNode[] = [];
+        map.forEach(node => {
+            if (!allChildren.has(node.id)) {
+                rawRoots.push(node);
+            }
+        });
+
+        // ROOT DEDUPLICATION
+        const uniqueRootsMap = new Map<string, CategoryNode>();
+        rawRoots.forEach(root => {
+            const rootCode = root.code || root.name;
+            if (uniqueRootsMap.has(rootCode)) {
+                const existingRoot = uniqueRootsMap.get(rootCode)!;
+                root.children.forEach(child => {
+                    if (!existingRoot.children.find(c => c.id === child.id)) {
+                        existingRoot.children.push(child);
+                    }
+                });
+                if (rootCode === '01') existingRoot.name = 'RECEITAS';
+                if (rootCode === '02') existingRoot.name = 'TRIBUTO SOBRE FATURAMENTO';
+            } else {
+                uniqueRootsMap.set(rootCode, root);
+            }
+        });
+
+        const finalRoots = Array.from(uniqueRootsMap.values());
+
+        // DEDUPLICATE CHILDREN
+        map.forEach(node => {
+            if (node.children.length > 0) {
+                const uniqueChildren = new Map<string, CategoryNode>();
+                node.children.forEach(c => uniqueChildren.set(c.id, c));
+                node.children = Array.from(uniqueChildren.values());
+            }
+        });
+
+        // Recalculate levels and sort
+        const recalculateLevels = (nodes: CategoryNode[], lvl: number) => {
+            nodes.sort((a, b) => (a.code || a.name).localeCompare(b.code || b.name, undefined, { numeric: true }));
+            nodes.forEach(n => {
+                n.level = lvl;
+                recalculateLevels(n.children, lvl + 1);
+            });
+        };
+        recalculateLevels(finalRoots, 0);
 
         // 3. Compute Totals Map recursively
         const totalsMap = new Map<string, { budget: number[], realized: number[] }>();
@@ -252,9 +405,9 @@ export async function GET(request: Request) {
             });
 
             for (let i = 0; i < 12; i++) {
-                const isDataPoint = node.children.length === 0;
+                const isDataPoint = !node.isSynthetic && node.children.length === 0;
 
-                if (isDataPoint) {
+                if (!node.isSynthetic && isDataPoint) {
                     const sign = negated ? -1 : 1;
                     const idsToRead = node.id.split(',');
                     let sumB = 0, sumR = 0;
@@ -289,7 +442,8 @@ export async function GET(request: Request) {
             return finalNodeTotals;
         };
 
-        potentialRoots.forEach(root => calculateNode(root));
+        finalRoots.forEach(root => calculateNode(root));
+        const potentialRoots = finalRoots;
 
         // 4. Helper to get DRE Totals
         const getDreTotalsForMonth = (m: number) => {

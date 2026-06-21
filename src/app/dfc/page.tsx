@@ -326,10 +326,11 @@ export default function DFCPage() {
         const maxBarVal = Math.max(...points.map(p => Math.max(p.inflows, p.outflows)), 1000) * 1.1;
         const barScale = (chartHeight / 2) / maxBarVal; // Altura máxima de cada barra é metade do gráfico
 
-        // Escala da Linha de Saldo
+        // Escala da Linha de Saldo (Simétrica em torno de zero para alinhar a linha zero com as barras)
         const balances = points.map(p => p.balance);
-        const maxBal = Math.max(...balances, 1000) * 1.05;
-        const minBal = Math.min(...balances, 0) * 1.05;
+        const absoluteMaxBal = Math.max(...balances.map(b => Math.abs(b)), 1000) * 1.05;
+        const maxBal = absoluteMaxBal;
+        const minBal = -absoluteMaxBal;
         const balRange = maxBal - minBal;
         const balScale = chartHeight / (balRange || 1);
 
@@ -426,9 +427,9 @@ export default function DFCPage() {
                         <text x={paddingLeft - 10} y={paddingTop + chartHeight} textAnchor="end" fontSize="9" fill="#ef4444" fontWeight="700">-{new Intl.NumberFormat('pt-BR', { notation: 'compact' }).format(maxBarVal)}</text>
 
                         {/* Y-Axis Direita (Saldo Acumulado) */}
-                        <text x={width - paddingRight + 10} y={paddingTop + 5} textAnchor="start" fontSize="9" fill="#2563eb" fontWeight="700">{new Intl.NumberFormat('pt-BR', { notation: 'compact' }).format(maxBal)}</text>
-                        <text x={width - paddingRight + 10} y={getBalY((maxBal + minBal) / 2) + 3} textAnchor="start" fontSize="9" fill="#64748b" fontWeight="600">{new Intl.NumberFormat('pt-BR', { notation: 'compact' }).format((maxBal + minBal) / 2)}</text>
-                        <text x={width - paddingRight + 10} y={paddingTop + chartHeight} textAnchor="start" fontSize="9" fill="#2563eb" fontWeight="700">{new Intl.NumberFormat('pt-BR', { notation: 'compact' }).format(minBal)}</text>
+                        <text x={width - paddingRight + 10} y={paddingTop + 5} textAnchor="start" fontSize="9" fill="#2563eb" fontWeight="700">+{new Intl.NumberFormat('pt-BR', { notation: 'compact' }).format(maxBal)}</text>
+                        <text x={width - paddingRight + 10} y={baselineY + 3} textAnchor="start" fontSize="9" fill="#64748b" fontWeight="600">0</text>
+                        <text x={width - paddingRight + 10} y={paddingTop + chartHeight} textAnchor="start" fontSize="9" fill="#2563eb" fontWeight="700">-{new Intl.NumberFormat('pt-BR', { notation: 'compact' }).format(maxBal)}</text>
 
                         {/* 1. Desenhar Barras de Entradas e Saídas */}
                         {points.map((p, idx) => {

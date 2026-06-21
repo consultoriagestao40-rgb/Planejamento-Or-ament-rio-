@@ -1969,41 +1969,57 @@ const renderDetailedChart = (
 
                     if (key === 'budget') {
                         return (
-                            <rect 
-                                key={`${monthIdx}-budget`}
-                                x={barX} 
-                                y={yVal} 
-                                width={barWidth} 
-                                height={hVal} 
-                                fill="none" 
-                                stroke="var(--text-muted)" 
-                                strokeWidth="1" 
-                                strokeDasharray="2 2" 
-                                rx="2"
-                            />
+                            <g key={`${monthIdx}-budget`}>
+                                {!onlyRealized && valScaled > 0 && (
+                                    <>
+                                        <rect 
+                                            x={barX} 
+                                            y={yVal} 
+                                            width={barWidth} 
+                                            height={hVal} 
+                                            fill="#cbd5e1" 
+                                            rx="3"
+                                        />
+                                        <text 
+                                            x={barX + barWidth / 2} 
+                                            y={yVal - 4} 
+                                            textAnchor="middle" 
+                                            fill="var(--text-secondary)" 
+                                            fontSize="7px" 
+                                            fontWeight="700"
+                                        >
+                                            {formatAbs(valScaled, isDailyMode(bMode))}
+                                        </text>
+                                    </>
+                                )}
+                            </g>
                         );
                     } else {
                         // realized
                         return (
                             <g key={`${monthIdx}-realized`}>
-                                <rect 
-                                    x={barX} 
-                                    y={yVal} 
-                                    width={barWidth} 
-                                    height={hVal} 
-                                    fill={chartColor} 
-                                    rx="2"
-                                />
-                                <text 
-                                    x={barX + barWidth / 2} 
-                                    y={yVal - 4} 
-                                    textAnchor="middle" 
-                                    fill="var(--text-secondary)" 
-                                    fontSize="7px" 
-                                    fontWeight="700"
-                                >
-                                    {formatAbs(valScaled, isDailyMode(rMode))}
-                                </text>
+                                {monthIdx + 1 <= currentMonthIdx + 1 && valScaled > 0 && (
+                                    <>
+                                        <rect 
+                                            x={barX} 
+                                            y={yVal} 
+                                            width={barWidth} 
+                                            height={hVal} 
+                                            fill={chartColor} 
+                                            rx="3"
+                                        />
+                                        <text 
+                                            x={barX + barWidth / 2} 
+                                            y={yVal - 4} 
+                                            textAnchor="middle" 
+                                            fill="var(--text-secondary)" 
+                                            fontSize="7px" 
+                                            fontWeight="700"
+                                        >
+                                            {formatAbs(valScaled, isDailyMode(rMode))}
+                                        </text>
+                                    </>
+                                )}
                             </g>
                         );
                     }

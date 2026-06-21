@@ -940,6 +940,293 @@ export default function BudgetGrid({
                     return new Date(year, mNum, 0).getDate();
                 };
 
+                // Detect if it is the new format (uses global keys 'budget' and/or 'realized')
+                const isNewFormat = config && ('budget' in config || 'realized' in config);
+
+                const getAbsValueNew = (val: number, mode: string, mIdx: number) => {
+                    if (mode === 'diarias_bar' || mode === 'diarias_line') {
+                        const days = getDaysInMonth(mIdx + 1);
+                        return val / days;
+                    }
+                    return val;
+                };
+
+                const isDailyMode = (mode: string) => {
+                    return mode === 'diarias_bar' || mode === 'diarias_line';
+                };
+
+                const formatAbs = (val: number, isDaily: boolean = false) => {
+                    if (val === 0) return 'R$ 0';
+                    const absVal = Math.abs(val);
+                    let formatted = '';
+                    if (absVal < 1000) {
+                        formatted = absVal.toFixed(0);
+                    } else {
+                        formatted = (absVal / 1000).toFixed(1) + 'k';
+                    }
+                    return `${val < 0 ? '-' : ''}R$ ${formatted}${isDaily ? '/d' : ''}`;
+                };
+
+                if (isNewFormat) {
+                    const bMode = config?.budget || 'bar';
+                    const rMode = config?.realized || 'bar';
+                    const atMode = config?.atingido || 'none';
+                    const pctMode = config?.pctOfRevenue || 'none';
+
+                    const hasDailyActive = isDailyMode(bMode) || isDailyMode(rMode);
+
+                    let maxAbs = 1;
+                    data.forEach((m, idx) => {
+                        if (bMode !== 'none') {
+                            const bVal = getAbsValueNew(m.budget, bMode, idx);
+                            maxAbs = Math.max(maxAbs, Math.abs(bVal));
+                        }
+                        if (rMode !== 'none' && idx + 1 <= currentMonthIdx + 1) {
+                            const rVal = getAbsValueNew(m.realized, rMode, idx);
+                            maxAbs = Math.max(maxAbs, Math.abs(rVal));
+                        }
+                    });
+                    const scaleMaxAbs = maxAbs * 1.20;
+
+                    let maxPct = 5;
+                    data.forEach((m, idx) => {
+                        if (idx + 1 <= currentMonthIdx + 1) {
+                            if (atMode !== 'none') {
+                                maxPct = Math.max(maxPct, Math.abs(m.atingido));
+                            }
+                            if (pctMode !== 'none') {
+                                maxPct = Math.max(maxPct, Math.abs(m.pctOfRevenue));
+                            }
+                        }
+                    });
+                    const scaleMaxPct = maxPct * 1.15;
+
+                    const getYAbs = (val: number) => {
+                        const ratio = val / scaleMaxAbs;
+                        return yBaseline - ratio * 170;
+                    };
+
+                    const getYPct = (val: number) => {
+                        const ratio = val / scaleMaxPct;
+                        return yBaseline - ratio * 170;
+                    };
+
+                    const startX = 80;
+                    const stepX = 94;
+                    const getX = (idx: number) => startX + idx * stepX;
+
+                    const activeBarKeys: ('budget' | 'realized')[] = [];
+                    if (bMode === 'bar' || bMode === 'diarias_bar') activeBarKeys.push('budget');
+                    if (rMode === 'bar' || rMode === 'diarias_bar') activeBarKeys.push('realized');
+
+                    const renderedBars = data.map((m, monthIdx) => {
+                        const xCenter = getX(monthIdx);
+                        const numBars = activeBarKeys.length;
+                        if (numBars === 0) return null;
+
+                        const groupWidth = 76;
+                        const barWidth = Math.max(16, (groupWidth / numBars) - 4);
+                        const startBarX = xCenter - (groupWidth / 2);
+
+                        return activeBarKeys.map((key, keyIdx) => {
+                            const mode = key === 'budget' ? bMode : rMode;
+                            const val = key === 'budget' ? m.budget : m.realized;
+                            const valScaled = getAbsValueNew(val, mode, monthIdx);
+
+                            const barX = startBarX + keyIdx * (barWidth + 4);
+                            const yVal = getYAbs(valScaled);
+                            const hVal = Math.max(2, yBaseline - yVal);
+
+                            if (key === 'budget') {
+                                return (
+                                    <g key={`${monthIdx}-budget`}>
+                                        {!onlyRealized && valScaled > 0 && (
+                                            <>
+                                                <rect 
+                                                    x={barX} 
+                                                    y={yVal} 
+                                                    width={barWidth} 
+                                                    height={hVal} 
+                                                    fill="#cbd5e1" 
+                                                    rx="3"
+                                                />
+                                                <text 
+                                                    x={barX + barWidth / 2} 
+                                                    y={yVal - 4} 
+                                                    textAnchor="middle" 
+                                                    fill="#64748b" 
+                                                    fontSize="7px" 
+                                                    fontWeight="700"
+                                                >
+                                                    {formatAbs(valScaled, isDailyMode(bMode))}
+                                                </text>
+                                            </>
+                                        )}
+                                    </g>
+                                );
+                            } else {
+                                return (
+                                    <g key={`${monthIdx}-realized`}>
+                                        {monthIdx + 1 <= currentMonthIdx + 1 && valScaled > 0 && (
+                                            <>
+                                                <rect 
+                                                    x={barX} 
+                                                    y={yVal} 
+                                                    width={barWidth} 
+                                                    height={hVal} 
+                                                    fill={chartColor} 
+                                                    rx="3"
+                                                />
+                                                <text 
+                                                    x={barX + barWidth / 2} 
+                                                    y={yVal - 4} 
+                                                    textAnchor="middle" 
+                                                    fill="#475569" 
+                                                    fontSize="7px" 
+                                                    fontWeight="700"
+                                                >
+                                                    {formatAbs(valScaled, isDailyMode(rMode))}
+                                                </text>
+                                            </>
+                                        )}
+                                    </g>
+                                );
+                            }
+                        });
+                    });
+
+                    // Lines
+                    const leftLines: JSX.Element[] = [];
+                    if (bMode === 'line_val' || bMode === 'diarias_line') {
+                        const points: { x: number; y: number; val: number }[] = [];
+                        data.forEach((m, monthIdx) => {
+                            const valScaled = getAbsValueNew(m.budget, bMode, monthIdx);
+                            points.push({ x: getX(monthIdx), y: getYAbs(valScaled), val: valScaled });
+                        });
+                        let pathD = `M ${points[0].x} ${points[0].y}`;
+                        for (let i = 1; i < points.length; i++) pathD += ` L ${points[i].x} ${points[i].y}`;
+                        leftLines.push(
+                            <g key="budget-line">
+                                <path d={pathD} fill="none" stroke="#94a3b8" strokeWidth="2" strokeDasharray="3 3" strokeLinecap="round" strokeLinejoin="round" />
+                                {points.map((p, idx) => (
+                                    <circle key={idx} cx={p.x} cy={p.y} r="3.5" fill="#94a3b8" stroke="#ffffff" strokeWidth="1" />
+                                ))}
+                            </g>
+                        );
+                    }
+                    if (rMode === 'line_val' || rMode === 'diarias_line') {
+                        const points: { x: number; y: number; val: number }[] = [];
+                        data.forEach((m, monthIdx) => {
+                            if (monthIdx + 1 <= currentMonthIdx + 1) {
+                                const valScaled = getAbsValueNew(m.realized, rMode, monthIdx);
+                                points.push({ x: getX(monthIdx), y: getYAbs(valScaled), val: valScaled });
+                            }
+                        });
+                        if (points.length > 0) {
+                            let pathD = `M ${points[0].x} ${points[0].y}`;
+                            for (let i = 1; i < points.length; i++) pathD += ` L ${points[i].x} ${points[i].y}`;
+                            leftLines.push(
+                                <g key="realized-line">
+                                    <path d={pathD} fill="none" stroke={chartColor} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
+                                    {points.map((p, idx) => (
+                                        <g key={idx}>
+                                            <circle cx={p.x} cy={p.y} r="4.5" fill={chartColor} stroke="#ffffff" strokeWidth="1.5" />
+                                            <text x={p.x} y={p.y - 7} textAnchor="middle" fill={chartColor} fontSize="7.5px" fontWeight="800">
+                                                {formatAbs(p.val, isDailyMode(rMode))}
+                                            </text>
+                                        </g>
+                                    ))}
+                                </g>
+                            );
+                        }
+                    }
+
+                    const rightLines: JSX.Element[] = [];
+                    if (atMode === 'line_atingido') {
+                        const points: { x: number; y: number; val: number }[] = [];
+                        data.forEach((m, monthIdx) => {
+                            if (monthIdx + 1 <= currentMonthIdx + 1) {
+                                points.push({ x: getX(monthIdx), y: getYPct(m.atingido), val: m.atingido });
+                            }
+                        });
+                        if (points.length > 0) {
+                            let pathD = `M ${points[0].x} ${points[0].y}`;
+                            for (let i = 1; i < points.length; i++) pathD += ` L ${points[i].x} ${points[i].y}`;
+                            const lineColor = '#10b981';
+                            rightLines.push(
+                                <g key="atingido-line">
+                                    <path d={pathD} fill="none" stroke={lineColor} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
+                                    {points.map((p, idx) => (
+                                        <g key={idx}>
+                                            <circle cx={p.x} cy={p.y} r="4.5" fill={lineColor} stroke="#ffffff" strokeWidth="1.5" />
+                                            <text x={p.x} y={p.y - 7} textAnchor="middle" fill={lineColor} fontSize="7.5px" fontWeight="800">
+                                                {p.val.toFixed(1)}%
+                                            </text>
+                                        </g>
+                                    ))}
+                                </g>
+                            );
+                        }
+                    }
+                    if (pctMode === 'line_revenue') {
+                        const points: { x: number; y: number; val: number }[] = [];
+                        data.forEach((m, monthIdx) => {
+                            if (monthIdx + 1 <= currentMonthIdx + 1) {
+                                points.push({ x: getX(monthIdx), y: getYPct(m.pctOfRevenue), val: m.pctOfRevenue });
+                            }
+                        });
+                        if (points.length > 0) {
+                            let pathD = `M ${points[0].x} ${points[0].y}`;
+                            for (let i = 1; i < points.length; i++) pathD += ` L ${points[i].x} ${points[i].y}`;
+                            const lineColor = '#f59e0b';
+                            rightLines.push(
+                                <g key="revenue-line">
+                                    <path d={pathD} fill="none" stroke={lineColor} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
+                                    {points.map((p, idx) => (
+                                        <g key={idx}>
+                                            <circle cx={p.x} cy={p.y} r="4.5" fill={lineColor} stroke="#ffffff" strokeWidth="1.5" />
+                                            <text x={p.x} y={p.y - 7} textAnchor="middle" fill={lineColor} fontSize="7.5px" fontWeight="800">
+                                                {p.val.toFixed(1)}%
+                                            </text>
+                                        </g>
+                                    ))}
+                                </g>
+                            );
+                        }
+                    }
+
+                    return (
+                        <svg viewBox="0 0 1200 260" width="100%" height="auto" style={{ overflow: 'visible' }}>
+                            {[0, 0.25, 0.5, 0.75, 1.0].map((ratio, gridIdx) => {
+                                const yGrid = yBaseline - ratio * 170;
+                                return (
+                                    <g key={gridIdx}>
+                                        <line x1="80" y1={yGrid} x2="1120" y2={yGrid} stroke="#f1f5f9" strokeWidth="0.5" strokeDasharray="3 3" />
+                                        <text x="70" y={yGrid + 3} textAnchor="end" fill="#94a3b8" fontSize="7.5px" fontWeight="600">
+                                            {formatAbs(ratio * scaleMaxAbs, hasDailyActive)}
+                                        </text>
+                                        <text x="1130" y={yGrid + 3} textAnchor="start" fill="#94a3b8" fontSize="7.5px" fontWeight="600">
+                                            {(ratio * scaleMaxPct).toFixed(0)}%
+                                        </text>
+                                    </g>
+                                );
+                            })}
+
+                            <line x1="80" y1={yBaseline} x2="1120" y2={yBaseline} stroke="#cbd5e1" strokeWidth="1" />
+
+                            {renderedBars}
+                            {leftLines}
+                            {rightLines}
+
+                            {data.map((m, idx) => (
+                                <text key={idx} x={getX(idx)} y={yBaseline + 18} textAnchor="middle" fill="#475569" fontSize="8px" fontWeight="800">
+                                    {['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'][idx]}
+                                </text>
+                            ))}
+                        </svg>
+                    );
+                }
+
                 const getAbsValue = (m: any, k: string, field: 'budget' | 'realized', mIdx: number) => {
                     const vals = m.breakdown?.[k] || { budget: 0, realized: 0 };
                     const rawVal = vals[field] || 0;
@@ -954,18 +1241,6 @@ export default function BudgetGrid({
                 const isDailyKey = (k: string) => {
                     const mode = config?.[k];
                     return mode === 'diarias_bar' || mode === 'diarias_line';
-                };
-
-                const formatAbs = (val: number, isDaily: boolean = false) => {
-                    if (val === 0) return 'R$ 0';
-                    const absVal = Math.abs(val);
-                    let formatted = '';
-                    if (absVal < 1000) {
-                        formatted = absVal.toFixed(0);
-                    } else {
-                        formatted = (absVal / 1000).toFixed(1) + 'k';
-                    }
-                    return `${val < 0 ? '-' : ''}R$ ${formatted}${isDaily ? '/d' : ''}`;
                 };
 
                 const leftKeys = Object.keys(config || {}).filter(k => 

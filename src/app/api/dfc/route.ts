@@ -77,7 +77,12 @@ export async function GET(request: Request) {
 
         // 1. Obter saldos atuais das contas financeiras
         const bankAccounts = await prisma.bankAccount.findMany({
-            where: tenantFilter
+            where: tenantFilter,
+            include: {
+                tenant: {
+                    select: { name: true }
+                }
+            }
         });
         const currentBankBalance = bankAccounts.reduce((sum, acc) => sum + acc.balance, 0);
 

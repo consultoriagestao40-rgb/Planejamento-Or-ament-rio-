@@ -1094,7 +1094,9 @@ export default function DFCPage() {
                                         <div key={acc.id} style={{ border: '1px solid #e2e8f0', padding: '1rem', borderRadius: '8px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                                             <div>
                                                 <h4 style={{ margin: 0, fontSize: '0.9rem', fontWeight: 600, color: '#1e293b' }}>{acc.name}</h4>
-                                                <span style={{ fontSize: '0.75rem', color: '#64748b' }}>Sincronizado da API</span>
+                                                <span style={{ fontSize: '0.75rem', color: '#64748b' }}>
+                                                    {acc.tenant?.name || 'Sincronizado da API'}
+                                                </span>
                                             </div>
                                             <span style={{ fontSize: '1.1rem', fontWeight: 700, color: acc.balance >= 0 ? '#1e293b' : '#ef4444' }}>
                                                 {formatCurrency(acc.balance)}
@@ -1471,7 +1473,9 @@ export default function DFCPage() {
                                             {data.bankAccounts.map((acc) => (
                                                 <tr key={acc.id} style={{ borderBottom: '1px solid #f1f5f9' }}>
                                                     <td style={{ padding: '0.75rem', fontWeight: 600, color: '#1e293b' }}>{acc.name}</td>
-                                                    <td style={{ padding: '0.75rem', color: '#64748b' }}>Conta Corrente / Carteira</td>
+                                                    <td style={{ padding: '0.75rem', color: '#64748b' }}>
+                                                        {acc.tenant?.name || 'Conta Corrente / Carteira'}
+                                                    </td>
                                                     <td style={{ padding: '0.75rem', textAlign: 'right', fontWeight: 700, color: acc.balance >= 0 ? '#0f172a' : '#ef4444' }}>
                                                         {formatCurrency(acc.balance)}
                                                     </td>

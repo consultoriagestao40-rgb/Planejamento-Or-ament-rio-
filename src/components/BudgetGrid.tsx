@@ -1031,15 +1031,15 @@ export default function BudgetGrid({
                     const numBars = activeBarKeys.length;
                     if (numBars === 0) return null;
 
-                    const groupWidth = 36;
-                    const barWidth = Math.max(6, (groupWidth / numBars) - 2);
+                    const groupWidth = 76;
+                    const barWidth = Math.max(16, (groupWidth / numBars) - 4);
                     const startBarX = xCenter - (groupWidth / 2);
 
                     return activeBarKeys.map((k, keyIdx) => {
                         const valR = getAbsValue(m, k, 'realized', monthIdx);
                         const valB = getAbsValue(m, k, 'budget', monthIdx);
 
-                        const barX = startBarX + keyIdx * (barWidth + 2);
+                        const barX = startBarX + keyIdx * (barWidth + 4);
                         const yR = getYAbs(valR);
                         const hR = Math.max(2, yBaseline - yR);
 
@@ -1262,25 +1262,25 @@ export default function BudgetGrid({
                 const maxBarHeight = hasNegative ? 100 : 165;
 
                 return (
-                    <svg viewBox="0 0 800 260" width="100%" height="220px" style={{ overflow: 'visible' }}>
+                    <svg viewBox="0 0 1200 260" width="100%" height="auto" style={{ overflow: 'visible', maxHeight: '250px' }}>
                         {hasNegative ? (
                             <>
-                                <line x1="40" y1="130" x2="760" y2="130" stroke="#475569" strokeWidth="1.5" />
-                                <line x1="40" y1="70" x2="760" y2="70" stroke="#f1f5f9" strokeDasharray="3 3" />
-                                <line x1="40" y1="190" x2="760" y2="190" stroke="#f1f5f9" strokeDasharray="3 3" />
+                                <line x1="80" y1="130" x2="1140" y2="130" stroke="#475569" strokeWidth="1.5" />
+                                <line x1="80" y1="70" x2="1140" y2="70" stroke="#f1f5f9" strokeDasharray="3 3" />
+                                <line x1="80" y1="190" x2="1140" y2="190" stroke="#f1f5f9" strokeDasharray="3 3" />
                             </>
                         ) : (
                             <>
-                                <line x1="40" y1="210" x2="760" y2="210" stroke="#cbd5e1" strokeWidth="1" />
-                                <line x1="40" y1="130" x2="760" y2="130" stroke="#f1f5f9" strokeDasharray="3 3" />
-                                <line x1="40" y1="50" x2="760" y2="50" stroke="#f1f5f9" strokeDasharray="3 3" />
+                                <line x1="80" y1="210" x2="1140" y2="210" stroke="#cbd5e1" strokeWidth="1" />
+                                <line x1="80" y1="130" x2="1140" y2="130" stroke="#f1f5f9" strokeDasharray="3 3" />
+                                <line x1="80" y1="50" x2="1140" y2="50" stroke="#f1f5f9" strokeDasharray="3 3" />
                             </>
                         )}
 
-                        <text x="35" y={hasNegative ? "73" : "53"} textAnchor="end" fill="#94a3b8" fontSize="8px" fontWeight="700">{formatVal(maxVal)}</text>
-                        <text x="35" y={yBaseline + 3} textAnchor="end" fill="#94a3b8" fontSize="8px" fontWeight="700">{formatVal(0)}</text>
+                        <text x="75" y={hasNegative ? "73" : "53"} textAnchor="end" fill="#94a3b8" fontSize="8px" fontWeight="700">{formatVal(maxVal)}</text>
+                        <text x="75" y={yBaseline + 3} textAnchor="end" fill="#94a3b8" fontSize="8px" fontWeight="700">{formatVal(0)}</text>
                         {hasNegative && (
-                            <text x="35" y="193" textAnchor="end" fill="#94a3b8" fontSize="8px" fontWeight="700">{formatVal(-maxVal)}</text>
+                            <text x="75" y="193" textAnchor="end" fill="#94a3b8" fontSize="8px" fontWeight="700">{formatVal(-maxVal)}</text>
                         )}
 
                         {data.map((m, idx) => {
@@ -1290,7 +1290,11 @@ export default function BudgetGrid({
                             const bHeight = onlyRealized ? 0 : (Math.abs(valB) / maxVal) * maxBarHeight;
                             const rHeight = (idx + 1 <= currentMonthIdx + 1) ? (Math.abs(valR) / maxVal) * maxBarHeight : 0;
                             
-                            const xBase = 50 + idx * 58;
+                            const xBase = 80 + idx * 94;
+                            const barWidth = onlyRealized ? 48 : 36;
+                            const xB = xBase + 6;
+                            const xR = onlyRealized ? xBase + 20 : xBase + 46;
+                            
                             const isClose = !onlyRealized && (idx + 1 <= currentMonthIdx + 1) && Math.abs(bHeight - rHeight) < 14 && (valB >= 0 === valR >= 0);
 
                             const bLabelY = valB >= 0 ? yBaseline - bHeight - 5 : yBaseline + bHeight + 11;
@@ -1299,37 +1303,39 @@ export default function BudgetGrid({
                                 rLabelY = valR >= 0 ? yBaseline - rHeight - 15 : yBaseline + rHeight + 21;
                             }
 
+                            const xMonthText = xBase + 44;
+
                             return (
                                 <g key={idx}>
                                     {!onlyRealized && valB !== 0 && (
                                         <>
                                             <rect 
-                                                x={xBase + 8} 
+                                                x={xB} 
                                                 y={valB >= 0 ? yBaseline - bHeight : yBaseline} 
-                                                width="14" 
+                                                width={barWidth} 
                                                 height={bHeight} 
                                                 fill="#cbd5e1" 
-                                                rx="2" 
+                                                rx="3" 
                                             />
-                                            <text x={xBase + 15} y={bLabelY} textAnchor="middle" fill="#64748b" fontSize="8px" fontWeight="700">{formatVal(valB)}</text>
+                                            <text x={xB + barWidth / 2} y={bLabelY} textAnchor="middle" fill="#64748b" fontSize="8px" fontWeight="700">{formatVal(valB)}</text>
                                         </>
                                     )}
 
                                     {idx + 1 <= currentMonthIdx + 1 && valR !== 0 && (
                                         <>
                                             <rect 
-                                                x={xBase + 24} 
+                                                x={xR} 
                                                 y={valR >= 0 ? yBaseline - rHeight : yBaseline} 
-                                                width="14" 
+                                                width={barWidth} 
                                                 height={rHeight} 
                                                 fill={valR >= 0 ? chartColor : '#ef4444'} 
-                                                rx="2" 
+                                                rx="3" 
                                             />
-                                            <text x={xBase + 31} y={rLabelY} textAnchor="middle" fill={valR >= 0 ? '#ffffff' : '#7f1d1d'} fontSize="8px" fontWeight="700">{formatVal(valR)}</text>
+                                            <text x={xR + barWidth / 2} y={rLabelY} textAnchor="middle" fill={valR >= 0 ? '#ffffff' : '#7f1d1d'} fontSize="8px" fontWeight="700">{formatVal(valR)}</text>
                                         </>
                                     )}
 
-                                    <text x={xBase + 22} y="240" textAnchor="middle" fill="#64748b" fontSize="9px" fontWeight="700">
+                                    <text x={xMonthText} y="240" textAnchor="middle" fill="#64748b" fontSize="9px" fontWeight="700">
                                         {['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'][idx]}
                                     </text>
                                 </g>
@@ -1340,27 +1346,31 @@ export default function BudgetGrid({
             }
 
             case 'HORIZONTAL_BAR': {
-                const xBaseline = 100;
-                const maxBarWidth = 630;
+                const xBaseline = 120;
+                const maxBarWidth = 980;
+                const scaleMaxVal = maxVal * 1.15; // 15% respiro horizontal para rótulos de valores
 
                 return (
-                    <svg viewBox="0 0 800 320" width="100%" height="280px" style={{ overflow: 'visible' }}>
+                    <svg viewBox="0 0 1200 320" width="100%" height="auto" style={{ overflow: 'visible', maxHeight: '280px' }}>
                         <line x1={xBaseline} y1="10" x2={xBaseline} y2="295" stroke="#cbd5e1" strokeWidth="1.5" />
                         <line x1={xBaseline + maxBarWidth / 2} y1="10" x2={xBaseline + maxBarWidth / 2} y2="295" stroke="#f1f5f9" strokeDasharray="3 3" />
                         <line x1={xBaseline + maxBarWidth} y1="10" x2={xBaseline + maxBarWidth} y2="295" stroke="#cbd5e1" strokeDasharray="3 3" />
 
                         <text x={xBaseline} y="310" textAnchor="middle" fill="#94a3b8" fontSize="8px" fontWeight="700">{formatVal(0)}</text>
-                        <text x={xBaseline + maxBarWidth / 2} y="310" textAnchor="middle" fill="#94a3b8" fontSize="8px" fontWeight="700">{formatVal(maxVal / 2)}</text>
-                        <text x={xBaseline + maxBarWidth} y="310" textAnchor="middle" fill="#94a3b8" fontSize="8px" fontWeight="700">{formatVal(maxVal)}</text>
+                        <text x={xBaseline + maxBarWidth / 2} y="310" textAnchor="middle" fill="#94a3b8" fontSize="8px" fontWeight="700">{formatVal(scaleMaxVal / 2)}</text>
+                        <text x={xBaseline + maxBarWidth} y="310" textAnchor="middle" fill="#94a3b8" fontSize="8px" fontWeight="700">{formatVal(scaleMaxVal)}</text>
 
                         {data.map((m, idx) => {
                             const valB = pctOfRevenue ? m.pctOfRevenue : m.budget;
                             const valR = (idx + 1 <= currentMonthIdx + 1) ? (pctOfRevenue ? m.pctOfRevenue : m.realized) : 0;
 
-                            const bWidth = onlyRealized ? 0 : (Math.abs(valB) / maxVal) * maxBarWidth;
-                            const rWidth = (idx + 1 <= currentMonthIdx + 1) ? (Math.abs(valR) / maxVal) * maxBarWidth : 0;
+                            const bWidth = onlyRealized ? 0 : (Math.abs(valB) / scaleMaxVal) * maxBarWidth;
+                            const rWidth = (idx + 1 <= currentMonthIdx + 1) ? (Math.abs(valR) / scaleMaxVal) * maxBarWidth : 0;
                             
-                            const yBase = 15 + idx * 23;
+                            const yBase = 15 + idx * 24;
+                            const barHeight = onlyRealized ? 16 : 10;
+                            const yB = yBase;
+                            const yR = onlyRealized ? yBase + 2 : yBase + 12;
 
                             return (
                                 <g key={idx}>
@@ -1372,13 +1382,13 @@ export default function BudgetGrid({
                                         <>
                                             <rect 
                                                 x={xBaseline} 
-                                                y={yBase} 
-                                                height="7" 
+                                                y={yB} 
+                                                height={barHeight} 
                                                 width={bWidth} 
                                                 fill="#cbd5e1" 
                                                 rx="1.5" 
                                             />
-                                            <text x={xBaseline + bWidth + 5} y={yBase + 7} textAnchor="start" fill="#64748b" fontSize="7px" fontWeight="700">{formatVal(valB)}</text>
+                                            <text x={xBaseline + bWidth + 5} y={yB + 7} textAnchor="start" fill="#64748b" fontSize="7px" fontWeight="700">{formatVal(valB)}</text>
                                         </>
                                     )}
 
@@ -1386,13 +1396,13 @@ export default function BudgetGrid({
                                         <>
                                             <rect 
                                                 x={xBaseline} 
-                                                y={yBase + 9} 
-                                                height="7" 
+                                                y={yR} 
+                                                height={barHeight} 
                                                 width={rWidth} 
                                                 fill={valR >= 0 ? chartColor : '#ef4444'} 
                                                 rx="1.5" 
                                             />
-                                            <text x={xBaseline + rWidth + 5} y={yBase + 16} textAnchor="start" fill={valR >= 0 ? chartColor : '#7f1d1d'} fontSize="7px" fontWeight="700">{formatVal(valR)}</text>
+                                            <text x={xBaseline + rWidth + 5} y={yR + 7} textAnchor="start" fill={valR >= 0 ? chartColor : '#7f1d1d'} fontSize="7px" fontWeight="700">{formatVal(valR)}</text>
                                         </>
                                     )}
                                 </g>

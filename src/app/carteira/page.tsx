@@ -1954,8 +1954,8 @@ const renderDetailedChart = (
                 const numBars = activeBarKeys.length;
                 if (numBars === 0) return null;
 
-                const groupWidth = 36;
-                const barWidth = Math.max(10, (groupWidth / numBars) - 2);
+                const groupWidth = 76;
+                const barWidth = Math.max(16, (groupWidth / numBars) - 4);
                 const startBarX = xCenter - (groupWidth / 2);
 
                 return activeBarKeys.map((key, keyIdx) => {
@@ -1963,7 +1963,7 @@ const renderDetailedChart = (
                     const val = key === 'budget' ? m.budget : m.realized;
                     const valScaled = getAbsValue(val, mode, monthIdx);
 
-                    const barX = startBarX + keyIdx * (barWidth + 2);
+                    const barX = startBarX + keyIdx * (barWidth + 4);
                     const yVal = getYAbs(valScaled);
                     const hVal = Math.max(2, yBaseline - yVal);
 
@@ -2304,9 +2304,9 @@ const renderDetailedChart = (
                         const rHeight = (idx + 1 <= currentMonthIdx + 1) ? (Math.abs(valR) / scaleMaxVal) * maxBarHeight : 0;
                         
                         const xBase = 80 + idx * 94;
-                        const barWidth = onlyRealized ? 38 : 30;
-                        const xB = xBase + 10;
-                        const xR = onlyRealized ? xBase + 28 : xBase + 44;
+                        const barWidth = onlyRealized ? 48 : 36;
+                        const xB = xBase + 6;
+                        const xR = onlyRealized ? xBase + 20 : xBase + 46;
 
                         const isClose = !onlyRealized && (idx + 1 <= currentMonthIdx + 1) && Math.abs(bHeight - rHeight) < 14 && (valB >= 0 === valR >= 0);
 
@@ -2316,7 +2316,7 @@ const renderDetailedChart = (
                             rLabelY = valR >= 0 ? yBaseline - rHeight - 15 : yBaseline + rHeight + 21;
                         }
 
-                        const xMonthText = xBase + 42;
+                        const xMonthText = xBase + 44;
 
                         return (
                             <g key={idx}>
@@ -2381,9 +2381,9 @@ const renderDetailedChart = (
                         const rWidth = (idx + 1 <= currentMonthIdx + 1) ? (Math.abs(valR) / scaleMaxVal) * maxBarWidth : 0;
                         
                         const yBase = 15 + idx * 24;
-                        const barHeight = onlyRealized ? 12 : 9;
+                        const barHeight = onlyRealized ? 16 : 10;
                         const yB = yBase;
-                        const yR = onlyRealized ? yBase + 3 : yBase + 10;
+                        const yR = onlyRealized ? yBase + 2 : yBase + 12;
 
                         return (
                             <g key={idx}>

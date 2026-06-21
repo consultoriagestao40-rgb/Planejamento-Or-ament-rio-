@@ -3611,8 +3611,9 @@ export default function BudgetGrid({
             : `${MONTH_ABBR[startMonth]} a ${MONTH_ABBR[endMonth]} de ${selectedYear}`;
 
         const maxAbs = Math.max(...contractsMarginData.flatMap(d => [Math.abs(d.realizedValue), Math.abs(d.budgetValue)]), 1);
-        const heightUpper = 130;
-        const heightLower = 60;
+        const heightUpper = 220; // Barras mais altas
+        const heightLower = 90;  // Negativas mais altas
+        const colWidth = 46;     // Menos espaço horizontal
 
         return (
             <div className="glass-card" style={{ padding: '1.5rem', background: '#ffffff', borderRadius: '12px', border: '1px solid #e2e8f0', boxShadow: '0 4px 6px rgba(0,0,0,0.02)', width: '100%' }}>
@@ -3644,7 +3645,7 @@ export default function BudgetGrid({
                 {/* Container de rolagem horizontal */}
                 <div style={{ 
                     display: 'flex', 
-                    gap: '1.25rem', 
+                    gap: '0.4rem', // Espaço reduzido entre centros de custo
                     overflowX: 'auto', 
                     paddingBottom: '0.75rem', 
                     paddingTop: '0.5rem',
@@ -3653,40 +3654,68 @@ export default function BudgetGrid({
                     WebkitOverflowScrolling: 'touch'
                 }}>
                     {contractsMarginData.map((item, idx) => {
+                        const bHeight = (Math.abs(item.budgetValue) / maxAbs) * (item.budgetValue >= 0 ? heightUpper : heightLower);
+                        const rHeight = (Math.abs(item.realizedValue) / maxAbs) * (item.realizedValue >= 0 ? heightUpper : heightLower);
+
+                        const isBudgTall = bHeight > 45;
+                        const isRealTall = rHeight > 45;
+
                         return (
-                            <div key={idx} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', minWidth: '95px', flexShrink: 0 }}>
+                            <div key={idx} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', width: `${colWidth}px`, flexShrink: 0 }}>
                                 {/* Bloco Superior (Positivos) */}
-                                <div style={{ display: 'flex', height: `${heightUpper}px`, alignItems: 'flex-end', gap: '6px', position: 'relative', width: '100%', justifyContent: 'center' }}>
+                                <div style={{ display: 'flex', height: `${heightUpper}px`, alignItems: 'flex-end', gap: '4px', position: 'relative', width: '100%', justifyContent: 'center' }}>
                                     {/* Orçado Superior */}
                                     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', height: '100%', justifyContent: 'flex-end', width: '18px' }}>
-                                        {item.budgetValue > 0 && (
-                                            <span style={{ fontSize: '0.62rem', fontWeight: 700, color: '#64748b', marginBottom: '2px', whiteSpace: 'nowrap' }}>
-                                                {item.budgetValue.toFixed(1)}k
+                                        {item.budgetValue > 0 && !isBudgTall && (
+                                            <span style={{ fontSize: '0.55rem', fontWeight: 700, color: '#64748b', marginBottom: '2px', whiteSpace: 'nowrap' }}>
+                                                {item.budgetValue.toFixed(0)}k
                                             </span>
                                         )}
                                         <div style={{ 
                                             width: '100%', 
-                                            height: `${item.budgetValue > 0 ? (item.budgetValue / maxAbs) * heightUpper : 0}px`, 
-                                            backgroundColor: '#e2e8f0', 
-                                            borderRadius: '3px 3px 0 0',
-                                            transition: 'height 0.3s ease'
-                                        }} />
+                                            height: `${item.budgetValue > 0 ? bHeight : 0}px`, 
+                                            backgroundColor: '#cbd5e1', 
+                                            borderRadius: '2px 2px 0 0',
+                                            transition: 'height 0.3s ease',
+                                            display: 'flex',
+                                            flexDirection: 'column',
+                                            justifyContent: 'flex-end',
+                                            alignItems: 'center',
+                                            overflow: 'hidden'
+                                        }}>
+                                            {item.budgetValue > 0 && isBudgTall && (
+                                                <span style={{ fontSize: '0.55rem', fontWeight: 800, color: '#475569', writingMode: 'vertical-rl', transform: 'rotate(180deg)', whiteSpace: 'nowrap', marginBottom: '4px' }}>
+                                                    {item.budgetValue.toFixed(0)}k
+                                                </span>
+                                            )}
+                                        </div>
                                     </div>
                                     
                                     {/* Realizado Superior */}
                                     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', height: '100%', justifyContent: 'flex-end', width: '18px' }}>
-                                        {item.realizedValue > 0 && (
-                                            <span style={{ fontSize: '0.62rem', fontWeight: 800, color: '#4f46e5', marginBottom: '2px', whiteSpace: 'nowrap' }}>
-                                                {item.realizedValue.toFixed(1)}k
+                                        {item.realizedValue > 0 && !isRealTall && (
+                                            <span style={{ fontSize: '0.55rem', fontWeight: 800, color: '#4f46e5', marginBottom: '2px', whiteSpace: 'nowrap' }}>
+                                                {item.realizedValue.toFixed(0)}k
                                             </span>
                                         )}
                                         <div style={{ 
                                             width: '100%', 
-                                            height: `${item.realizedValue > 0 ? (item.realizedValue / maxAbs) * heightUpper : 0}px`, 
+                                            height: `${item.realizedValue > 0 ? rHeight : 0}px`, 
                                             background: 'linear-gradient(180deg, #6366f1, #4f46e5)', 
-                                            borderRadius: '3px 3px 0 0',
-                                            transition: 'height 0.3s ease'
-                                        }} />
+                                            borderRadius: '2px 2px 0 0',
+                                            transition: 'height 0.3s ease',
+                                            display: 'flex',
+                                            flexDirection: 'column',
+                                            justifyContent: 'flex-end',
+                                            alignItems: 'center',
+                                            overflow: 'hidden'
+                                        }}>
+                                            {item.realizedValue > 0 && isRealTall && (
+                                                <span style={{ fontSize: '0.55rem', fontWeight: 800, color: '#ffffff', writingMode: 'vertical-rl', transform: 'rotate(180deg)', whiteSpace: 'nowrap', marginBottom: '4px' }}>
+                                                    {item.realizedValue.toFixed(0)}k
+                                                </span>
+                                            )}
+                                        </div>
                                     </div>
                                 </div>
 
@@ -3694,19 +3723,30 @@ export default function BudgetGrid({
                                 <div style={{ width: '100%', height: '1.5px', backgroundColor: '#cbd5e1', margin: '4px 0' }} />
 
                                 {/* Bloco Inferior (Negativos) */}
-                                <div style={{ display: 'flex', height: `${heightLower}px`, alignItems: 'flex-start', gap: '6px', position: 'relative', width: '100%', justifyContent: 'center' }}>
+                                <div style={{ display: 'flex', height: `${heightLower}px`, alignItems: 'flex-start', gap: '4px', position: 'relative', width: '100%', justifyContent: 'center' }}>
                                     {/* Orçado Inferior */}
                                     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', height: '100%', justifyContent: 'flex-start', width: '18px' }}>
                                         <div style={{ 
                                             width: '100%', 
-                                            height: `${item.budgetValue < 0 ? (Math.abs(item.budgetValue) / maxAbs) * heightLower : 0}px`, 
+                                            height: `${item.budgetValue < 0 ? bHeight : 0}px`, 
                                             backgroundColor: '#cbd5e1', 
-                                            borderRadius: '0 0 3px 3px',
-                                            transition: 'height 0.3s ease'
-                                        }} />
-                                        {item.budgetValue < 0 && (
-                                            <span style={{ fontSize: '0.62rem', fontWeight: 700, color: '#ef4444', marginTop: '2px', whiteSpace: 'nowrap' }}>
-                                                {item.budgetValue.toFixed(1)}k
+                                            borderRadius: '0 0 2px 2px',
+                                            transition: 'height 0.3s ease',
+                                            display: 'flex',
+                                            flexDirection: 'column',
+                                            justifyContent: 'flex-start',
+                                            alignItems: 'center',
+                                            overflow: 'hidden'
+                                        }}>
+                                            {item.budgetValue < 0 && isBudgTall && (
+                                                <span style={{ fontSize: '0.55rem', fontWeight: 800, color: '#475569', writingMode: 'vertical-rl', transform: 'rotate(180deg)', whiteSpace: 'nowrap', marginTop: '4px' }}>
+                                                    {item.budgetValue.toFixed(0)}k
+                                                </span>
+                                            )}
+                                        </div>
+                                        {item.budgetValue < 0 && !isBudgTall && (
+                                            <span style={{ fontSize: '0.55rem', fontWeight: 700, color: '#ef4444', marginTop: '2px', whiteSpace: 'nowrap' }}>
+                                                {item.budgetValue.toFixed(0)}k
                                             </span>
                                         )}
                                     </div>
@@ -3715,35 +3755,48 @@ export default function BudgetGrid({
                                     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', height: '100%', justifyContent: 'flex-start', width: '18px' }}>
                                         <div style={{ 
                                             width: '100%', 
-                                            height: `${item.realizedValue < 0 ? (Math.abs(item.realizedValue) / maxAbs) * heightLower : 0}px`, 
+                                            height: `${item.realizedValue < 0 ? rHeight : 0}px`, 
                                             background: 'linear-gradient(180deg, #f87171, #ef4444)', 
-                                            borderRadius: '0 0 3px 3px',
-                                            transition: 'height 0.3s ease'
-                                        }} />
-                                        {item.realizedValue < 0 && (
-                                            <span style={{ fontSize: '0.62rem', fontWeight: 800, color: '#ef4444', marginTop: '2px', whiteSpace: 'nowrap' }}>
-                                                {item.realizedValue.toFixed(1)}k
+                                            borderRadius: '0 0 2px 2px',
+                                            transition: 'height 0.3s ease',
+                                            display: 'flex',
+                                            flexDirection: 'column',
+                                            justifyContent: 'flex-start',
+                                            alignItems: 'center',
+                                            overflow: 'hidden'
+                                        }}>
+                                            {item.realizedValue < 0 && isRealTall && (
+                                                <span style={{ fontSize: '0.55rem', fontWeight: 800, color: '#ffffff', writingMode: 'vertical-rl', transform: 'rotate(180deg)', whiteSpace: 'nowrap', marginTop: '4px' }}>
+                                                    {item.realizedValue.toFixed(0)}k
+                                                </span>
+                                            )}
+                                        </div>
+                                        {item.realizedValue < 0 && !isRealTall && (
+                                            <span style={{ fontSize: '0.55rem', fontWeight: 800, color: '#ef4444', marginTop: '2px', whiteSpace: 'nowrap' }}>
+                                                {item.realizedValue.toFixed(0)}k
                                             </span>
                                         )}
                                     </div>
                                 </div>
 
-                                {/* Nome do Contrato */}
+                                {/* Nome do Contrato na Vertical */}
                                 <div 
                                     style={{ 
-                                        fontSize: '0.68rem', 
+                                        fontSize: '0.66rem', 
                                         fontWeight: 700, 
                                         color: '#334155', 
-                                        textAlign: 'center', 
+                                        writingMode: 'vertical-rl',
+                                        transform: 'rotate(180deg)',
+                                        whiteSpace: 'nowrap',
+                                        height: '110px',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
                                         marginTop: '8px', 
                                         width: '100%', 
-                                        height: '32px', 
-                                        overflow: 'hidden', 
-                                        display: '-webkit-box', 
-                                        WebkitLineClamp: 2, 
-                                        WebkitBoxOrient: 'vertical', 
-                                        textOverflow: 'ellipsis', 
-                                        lineHeight: '1.25' 
+                                        overflow: 'hidden',
+                                        textOverflow: 'ellipsis',
+                                        textAlign: 'center'
                                     }} 
                                     title={item.name}
                                 >
@@ -3779,9 +3832,42 @@ export default function BudgetGrid({
             ? `${MONTH_ABBR[startMonth]} / ${selectedYear}`
             : `${MONTH_ABBR[startMonth]} a ${MONTH_ABBR[endMonth]} de ${selectedYear}`;
 
-        const maxAbs = Math.max(...contractsMarginData.flatMap(d => [Math.abs(d.realizedPercent), Math.abs(d.budgetPercent)]), 1);
-        const heightUpper = 130;
-        const heightLower = 60;
+        // Lógica de cálculo dos limites do gráfico
+        let minP = Math.min(...contractsMarginData.flatMap(d => [d.realizedPercent, d.budgetPercent]), 0);
+        let maxP = Math.max(...contractsMarginData.flatMap(d => [d.realizedPercent, d.budgetPercent]), 0);
+        
+        // Se as porcentagens forem todas zero, coloca um limite razoável
+        if (minP === 0 && maxP === 0) {
+            minP = -10;
+            maxP = 100;
+        }
+
+        const range = maxP - minP;
+        const buffer = range * 0.15; // respiro nas bordas superior e inferior
+        const minVal = minP - buffer;
+        const maxVal = maxP + buffer;
+
+        const colWidth = 50;     // Largura reduzida para alinhar com o outro gráfico
+        const svgHeight = 220;    // Altura do gráfico de linhas
+        const paddingTop = 30;
+        const paddingBottom = 25;
+        const chartHeight = svgHeight - paddingTop - paddingBottom;
+
+        const getY = (v: number) => {
+            const ratio = (v - minVal) / (maxVal - minVal);
+            return svgHeight - paddingBottom - (ratio * chartHeight);
+        };
+
+        const yZero = getY(0);
+        const totalWidth = contractsMarginData.length * colWidth;
+
+        // Path do Orçado
+        const budgetPoints = contractsMarginData.map((d, idx) => `${idx * colWidth + colWidth/2},${getY(d.budgetPercent)}`).join(' L ');
+        const budgetPath = `M ${budgetPoints}`;
+
+        // Path do Realizado
+        const realizedPoints = contractsMarginData.map((d, idx) => `${idx * colWidth + colWidth/2},${getY(d.realizedPercent)}`).join(' L ');
+        const realizedPath = `M ${realizedPoints}`;
 
         return (
             <div className="glass-card" style={{ padding: '1.5rem', background: '#ffffff', borderRadius: '12px', border: '1px solid #e2e8f0', boxShadow: '0 4px 6px rgba(0,0,0,0.02)', width: '100%' }}>
@@ -3797,130 +3883,167 @@ export default function BudgetGrid({
                             Período: {periodLabel} (Acumulado)
                         </span>
                     </div>
-                    {/* Legenda */}
+                    {/* Legenda de Linhas */}
                     <div style={{ display: 'flex', gap: '1rem', fontSize: '0.75rem', fontWeight: 600 }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                            <div style={{ width: '10px', height: '10px', backgroundColor: '#cbd5e1', borderRadius: '2px' }} />
+                            <div style={{ width: '12px', height: '3px', backgroundColor: '#cbd5e1' }} />
+                            <div style={{ width: '6px', height: '6px', backgroundColor: '#ffffff', stroke: '#cbd5e1', strokeWidth: '1.5px', borderRadius: '50%', marginLeft: '-9px' }} />
                             <span style={{ color: '#64748b' }}>Orçado</span>
                         </div>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                            <div style={{ width: '10px', height: '10px', background: 'linear-gradient(180deg, #10b981, #059669)', borderRadius: '2px' }} />
+                            <div style={{ width: '12px', height: '3px', backgroundColor: '#10b981' }} />
+                            <div style={{ width: '6px', height: '6px', backgroundColor: '#ffffff', stroke: '#10b981', strokeWidth: '1.5px', borderRadius: '50%', marginLeft: '-9px' }} />
                             <span style={{ color: '#059669' }}>Realizado</span>
                         </div>
                     </div>
                 </div>
 
-                {/* Container de rolagem horizontal */}
+                {/* Container com scroll horizontal */}
                 <div style={{ 
                     display: 'flex', 
-                    gap: '1.25rem', 
+                    flexDirection: 'column',
                     overflowX: 'auto', 
-                    paddingBottom: '0.75rem', 
-                    paddingTop: '0.5rem',
-                    width: '100%', 
-                    scrollBehavior: 'smooth',
+                    width: '100%',
                     WebkitOverflowScrolling: 'touch'
                 }}>
-                    {contractsMarginData.map((item, idx) => {
-                        return (
-                            <div key={idx} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', minWidth: '95px', flexShrink: 0 }}>
-                                {/* Bloco Superior (Positivos) */}
-                                <div style={{ display: 'flex', height: `${heightUpper}px`, alignItems: 'flex-end', gap: '6px', position: 'relative', width: '100%', justifyContent: 'center' }}>
-                                    {/* Orçado Superior */}
-                                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', height: '100%', justifyContent: 'flex-end', width: '18px' }}>
-                                        {item.budgetPercent > 0 && (
-                                            <span style={{ fontSize: '0.62rem', fontWeight: 700, color: '#64748b', marginBottom: '2px', whiteSpace: 'nowrap' }}>
-                                                {item.budgetPercent.toFixed(1)}%
-                                            </span>
-                                        )}
-                                        <div style={{ 
-                                            width: '100%', 
-                                            height: `${item.budgetPercent > 0 ? (item.budgetPercent / maxAbs) * heightUpper : 0}px`, 
-                                            backgroundColor: '#e2e8f0', 
-                                            borderRadius: '3px 3px 0 0',
-                                            transition: 'height 0.3s ease'
-                                        }} />
-                                    </div>
-                                    
-                                    {/* Realizado Superior */}
-                                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', height: '100%', justifyContent: 'flex-end', width: '18px' }}>
-                                        {item.realizedPercent > 0 && (
-                                            <span style={{ fontSize: '0.62rem', fontWeight: 800, color: '#10b981', marginBottom: '2px', whiteSpace: 'nowrap' }}>
-                                                {item.realizedPercent.toFixed(1)}%
-                                            </span>
-                                        )}
-                                        <div style={{ 
-                                            width: '100%', 
-                                            height: `${item.realizedPercent > 0 ? (item.realizedPercent / maxAbs) * heightUpper : 0}px`, 
-                                            background: 'linear-gradient(180deg, #10b981, #059669)', 
-                                            borderRadius: '3px 3px 0 0',
-                                            transition: 'height 0.3s ease'
-                                        }} />
-                                    </div>
-                                </div>
+                    {/* Linha do SVG */}
+                    <div style={{ width: `${totalWidth}px`, height: `${svgHeight}px`, position: 'relative' }}>
+                        <svg width={totalWidth} height={svgHeight} style={{ overflow: 'visible' }}>
+                            {/* Linha de Base Zero */}
+                            {yZero >= 0 && yZero <= svgHeight && (
+                                <line 
+                                    x1={0} 
+                                    y1={yZero} 
+                                    x2={totalWidth} 
+                                    y2={yZero} 
+                                    stroke="#cbd5e1" 
+                                    strokeWidth={1} 
+                                    strokeDasharray="4 4" 
+                                />
+                            )}
 
-                                {/* Linha de Base */}
-                                <div style={{ width: '100%', height: '1.5px', backgroundColor: '#cbd5e1', margin: '4px 0' }} />
+                            {/* Linha Orçado */}
+                            {contractsMarginData.length > 1 && (
+                                <path 
+                                    d={budgetPath} 
+                                    fill="none" 
+                                    stroke="#cbd5e1" 
+                                    strokeWidth={2} 
+                                    strokeLinecap="round" 
+                                    strokeLinejoin="round" 
+                                />
+                            )}
 
-                                {/* Bloco Inferior (Negativos) */}
-                                <div style={{ display: 'flex', height: `${heightLower}px`, alignItems: 'flex-start', gap: '6px', position: 'relative', width: '100%', justifyContent: 'center' }}>
-                                    {/* Orçado Inferior */}
-                                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', height: '100%', justifyContent: 'flex-start', width: '18px' }}>
-                                        <div style={{ 
-                                            width: '100%', 
-                                            height: `${item.budgetPercent < 0 ? (Math.abs(item.budgetPercent) / maxAbs) * heightLower : 0}px`, 
-                                            backgroundColor: '#cbd5e1', 
-                                            borderRadius: '0 0 3px 3px',
-                                            transition: 'height 0.3s ease'
-                                        }} />
-                                        {item.budgetPercent < 0 && (
-                                            <span style={{ fontSize: '0.62rem', fontWeight: 700, color: '#ef4444', marginTop: '2px', whiteSpace: 'nowrap' }}>
-                                                {item.budgetPercent.toFixed(1)}%
-                                            </span>
-                                        )}
-                                    </div>
+                            {/* Linha Realizado */}
+                            {contractsMarginData.length > 1 && (
+                                <path 
+                                    d={realizedPath} 
+                                    fill="none" 
+                                    stroke="#10b981" 
+                                    strokeWidth={2.5} 
+                                    strokeLinecap="round" 
+                                    strokeLinejoin="round" 
+                                />
+                            )}
 
-                                    {/* Realizado Inferior */}
-                                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', height: '100%', justifyContent: 'flex-start', width: '18px' }}>
-                                        <div style={{ 
-                                            width: '100%', 
-                                            height: `${item.realizedPercent < 0 ? (Math.abs(item.realizedPercent) / maxAbs) * heightLower : 0}px`, 
-                                            background: 'linear-gradient(180deg, #f87171, #ef4444)', 
-                                            borderRadius: '0 0 3px 3px',
-                                            transition: 'height 0.3s ease'
-                                        }} />
-                                        {item.realizedPercent < 0 && (
-                                            <span style={{ fontSize: '0.62rem', fontWeight: 800, color: '#ef4444', marginTop: '2px', whiteSpace: 'nowrap' }}>
-                                                {item.realizedPercent.toFixed(1)}%
-                                            </span>
-                                        )}
-                                    </div>
-                                </div>
+                            {/* Círculos e Rótulos */}
+                            {contractsMarginData.map((item, idx) => {
+                                const x = idx * colWidth + colWidth / 2;
+                                const yB = getY(item.budgetPercent);
+                                const yR = getY(item.realizedPercent);
 
-                                {/* Nome do Contrato */}
+                                // Evitar sobreposição de textos: 
+                                // O valor maior fica por cima (y - 12), o valor menor fica por baixo (y + 14)
+                                const isRealGreater = item.realizedPercent >= item.budgetPercent;
+                                const rTextY = isRealGreater ? yR - 10 : yR + 14;
+                                const bTextY = isRealGreater ? yB + 14 : yB - 10;
+
+                                return (
+                                    <g key={idx}>
+                                        {/* Pontos do Orçado */}
+                                        <circle 
+                                            cx={x} 
+                                            cy={yB} 
+                                            r={3.5} 
+                                            fill="#ffffff" 
+                                            stroke="#cbd5e1" 
+                                            strokeWidth={1.5} 
+                                        />
+                                        <text 
+                                            x={x} 
+                                            y={bTextY} 
+                                            textAnchor="middle" 
+                                            fontSize="9px" 
+                                            fontWeight="600" 
+                                            fill="#64748b"
+                                        >
+                                            {item.budgetPercent.toFixed(0)}%
+                                        </text>
+
+                                        {/* Pontos do Realizado */}
+                                        <circle 
+                                            cx={x} 
+                                            cy={yR} 
+                                            r={4.5} 
+                                            fill="#ffffff" 
+                                            stroke="#10b981" 
+                                            strokeWidth={2} 
+                                        />
+                                        <text 
+                                            x={x} 
+                                            y={rTextY} 
+                                            textAnchor="middle" 
+                                            fontSize="9px" 
+                                            fontWeight="800" 
+                                            fill="#049669"
+                                        >
+                                            {item.realizedPercent.toFixed(0)}%
+                                        </text>
+                                    </g>
+                                );
+                            })}
+                        </svg>
+                    </div>
+
+                    {/* Nomes na vertical logo abaixo */}
+                    <div style={{ display: 'flex', width: `${totalWidth}px`, borderTop: '1px solid #e2e8f0', paddingTop: '8px' }}>
+                        {contractsMarginData.map((item, idx) => {
+                            return (
                                 <div 
+                                    key={idx} 
                                     style={{ 
-                                        fontSize: '0.68rem', 
-                                        fontWeight: 700, 
-                                        color: '#334155', 
-                                        textAlign: 'center', 
-                                        marginTop: '8px', 
-                                        width: '100%', 
-                                        height: '32px', 
-                                        overflow: 'hidden', 
-                                        display: '-webkit-box', 
-                                        WebkitLineClamp: 2, 
-                                        WebkitBoxOrient: 'vertical', 
-                                        textOverflow: 'ellipsis', 
-                                        lineHeight: '1.25' 
-                                    }} 
-                                    title={item.name}
+                                        width: `${colWidth}px`, 
+                                        flexShrink: 0,
+                                        display: 'flex',
+                                        justifyContent: 'center',
+                                        alignItems: 'center'
+                                    }}
                                 >
-                                    {item.name}
+                                    <div 
+                                        style={{ 
+                                            fontSize: '0.66rem', 
+                                            fontWeight: 700, 
+                                            color: '#334155', 
+                                            writingMode: 'vertical-rl',
+                                            transform: 'rotate(180deg)',
+                                            whiteSpace: 'nowrap',
+                                            height: '110px',
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            justifyContent: 'center',
+                                            overflow: 'hidden',
+                                            textOverflow: 'ellipsis',
+                                            width: '100%',
+                                            textAlign: 'center'
+                                        }} 
+                                        title={item.name}
+                                    >
+                                        {item.name}
+                                    </div>
                                 </div>
-                            </div>
-                        );
-                    })}
+                            );
+                        })}
+                    </div>
                 </div>
             </div>
         );

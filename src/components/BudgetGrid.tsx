@@ -74,6 +74,24 @@ export default function BudgetGrid({
     const [contractsData, setContractsData] = useState<{ name: string; value: number; percentage: number; monthlyValues?: Record<number, number> }[]>([]);
     const [contractsMarginData, setContractsMarginData] = useState<{ id: string; name: string; realizedValue: number; budgetValue: number; realizedPercent: number; budgetPercent: number }[]>([]);
     const [contractsLoading, setContractsLoading] = useState(false);
+    const [contractsMarginTooltip, setContractsMarginTooltip] = useState<{
+        x: number;
+        y: number;
+        title: string;
+        budget: string;
+        realized: string;
+        achievement: string;
+        type: 'absolute' | 'percentage';
+    } | null>(null);
+    const [contractsMarginHoveredIndex, setContractsMarginHoveredIndex] = useState<number | null>(null);
+    const [contractsMarginHoveredChart, setContractsMarginHoveredChart] = useState<'absolute' | 'percentage' | null>(null);
+
+    const calculateAtingimento = (budget: number, realized: number) => {
+        if (budget > 0) return `${((realized / budget) * 100).toFixed(0)}%`;
+        if (budget < 0) return `${((1 + (budget - realized) / budget) * 100).toFixed(0)}%`;
+        return realized >= 0 ? '100%' : '0%';
+    };
+
     const [selectedContractsMonth, setSelectedContractsMonth] = useState<string>('accumulated');
     const [monthlyBudgets, setMonthlyBudgets] = useState<Record<number, number>>({});
     const [contractsAnnualTotal, setContractsAnnualTotal] = useState<number>(0);
@@ -3674,7 +3692,43 @@ export default function BudgetGrid({
                         const isRealTall = rHeight > 45;
 
                         return (
-                            <div key={idx} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', width: `${colWidth}px`, flexShrink: 0 }}>
+                            <div 
+                                key={idx} 
+                                style={{ 
+                                    display: 'flex', 
+                                    flexDirection: 'column', 
+                                    alignItems: 'center', 
+                                    width: `${colWidth}px`, 
+                                    flexShrink: 0,
+                                    position: 'relative',
+                                    cursor: 'pointer',
+                                    backgroundColor: (contractsMarginHoveredIndex === idx && contractsMarginHoveredChart === 'absolute') ? '#f1f5f9' : 'transparent',
+                                    borderRadius: '6px',
+                                    transition: 'background-color 0.2s ease',
+                                    padding: '4px 0'
+                                }}
+                                onMouseEnter={(e) => {
+                                    setContractsMarginHoveredIndex(idx);
+                                    setContractsMarginHoveredChart('absolute');
+                                    setContractsMarginTooltip({
+                                        x: e.clientX,
+                                        y: e.clientY,
+                                        title: item.name,
+                                        budget: `R$ ${item.budgetValue.toLocaleString('pt-BR', { minimumFractionDigits: 0, maximumFractionDigits: 1 })}k`,
+                                        realized: `R$ ${item.realizedValue.toLocaleString('pt-BR', { minimumFractionDigits: 0, maximumFractionDigits: 1 })}k`,
+                                        achievement: calculateAtingimento(item.budgetValue, item.realizedValue),
+                                        type: 'absolute'
+                                    });
+                                }}
+                                onMouseMove={(e) => {
+                                    setContractsMarginTooltip(prev => prev ? { ...prev, x: e.clientX, y: e.clientY } : null);
+                                }}
+                                onMouseLeave={() => {
+                                    setContractsMarginHoveredIndex(null);
+                                    setContractsMarginHoveredChart(null);
+                                    setContractsMarginTooltip(null);
+                                }}
+                            >
                                 {/* Bloco Superior (Positivos) */}
                                 <div style={{ display: 'flex', height: `${heightUpper}px`, alignItems: 'flex-end', gap: '4px', position: 'relative', width: '100%', justifyContent: 'center' }}>
                                     {/* Orçado Superior */}
@@ -3790,30 +3844,6 @@ export default function BudgetGrid({
                                             </span>
                                         )}
                                     </div>
-                                </div>
-
-                                {/* Nome do Contrato na Vertical */}
-                                <div 
-                                    style={{ 
-                                        fontSize: '0.66rem', 
-                                        fontWeight: 700, 
-                                        color: '#334155', 
-                                        writingMode: 'vertical-rl',
-                                        transform: 'rotate(180deg)',
-                                        whiteSpace: 'nowrap',
-                                        height: '110px',
-                                        display: 'flex',
-                                        alignItems: 'center',
-                                        justifyContent: 'center',
-                                        marginTop: '8px', 
-                                        width: '100%', 
-                                        overflow: 'hidden',
-                                        textOverflow: 'ellipsis',
-                                        textAlign: 'center'
-                                    }} 
-                                    title={item.name}
-                                >
-                                    {item.name}
                                 </div>
                             </div>
                         );
@@ -3932,6 +3962,20 @@ export default function BudgetGrid({
                     {/* Linha do SVG */}
                     <div style={{ width: `${totalWidth}px`, height: `${svgHeight}px`, position: 'relative' }}>
                         <svg width={totalWidth} height={svgHeight} style={{ overflow: 'visible' }}>
+                            {/* Guideline de Hover */}
+                            {contractsMarginHoveredIndex !== null && contractsMarginHoveredChart === 'percentage' && (
+                                <line
+                                    x1={contractsMarginHoveredIndex * colWidth + colWidth / 2}
+                                    y1={0}
+                                    x2={contractsMarginHoveredIndex * colWidth + colWidth / 2}
+                                    y2={svgHeight}
+                                    stroke="#cbd5e1"
+                                    strokeWidth={1.5}
+                                    strokeDasharray="4 4"
+                                    pointerEvents="none"
+                                />
+                            )}
+
                             {/* Linha de Base Zero */}
                             {yZero >= 0 && yZero <= svgHeight && (
                                 <line 
@@ -3954,7 +3998,7 @@ export default function BudgetGrid({
                                     strokeWidth={2} 
                                     strokeLinecap="round" 
                                     strokeLinejoin="round" 
-                                />
+                                 />
                             )}
 
                             {/* Linha Realizado */}
@@ -3966,7 +4010,7 @@ export default function BudgetGrid({
                                     strokeWidth={2.5} 
                                     strokeLinecap="round" 
                                     strokeLinejoin="round" 
-                                />
+                                 />
                             )}
 
                             {/* Círculos e Rótulos */}
@@ -4025,47 +4069,41 @@ export default function BudgetGrid({
                                     </g>
                                 );
                             })}
-                        </svg>
-                    </div>
 
-                    {/* Nomes na vertical logo abaixo */}
-                    <div style={{ display: 'flex', width: `${totalWidth}px`, borderTop: '1px solid #e2e8f0', paddingTop: '8px' }}>
-                        {contractsMarginData.map((item, idx) => {
-                            return (
-                                <div 
-                                    key={idx} 
-                                    style={{ 
-                                        width: `${colWidth}px`, 
-                                        flexShrink: 0,
-                                        display: 'flex',
-                                        justifyContent: 'center',
-                                        alignItems: 'center'
+                            {/* Hover Detector Slices */}
+                            {contractsMarginData.map((item, idx) => (
+                                <rect
+                                    key={`hover-percent-${idx}`}
+                                    x={idx * colWidth}
+                                    y={0}
+                                    width={colWidth}
+                                    height={svgHeight}
+                                    fill="transparent"
+                                    style={{ cursor: 'pointer' }}
+                                    onMouseEnter={(e) => {
+                                        setContractsMarginHoveredIndex(idx);
+                                        setContractsMarginHoveredChart('percentage');
+                                        setContractsMarginTooltip({
+                                            x: e.clientX,
+                                            y: e.clientY,
+                                            title: item.name,
+                                            budget: `${item.budgetPercent.toFixed(1)}%`,
+                                            realized: `${item.realizedPercent.toFixed(1)}%`,
+                                            achievement: calculateAtingimento(item.budgetPercent, item.realizedPercent),
+                                            type: 'percentage'
+                                        });
                                     }}
-                                >
-                                    <div 
-                                        style={{ 
-                                            fontSize: '0.66rem', 
-                                            fontWeight: 700, 
-                                            color: '#334155', 
-                                            writingMode: 'vertical-rl',
-                                            transform: 'rotate(180deg)',
-                                            whiteSpace: 'nowrap',
-                                            height: '110px',
-                                            display: 'flex',
-                                            alignItems: 'center',
-                                            justifyContent: 'center',
-                                            overflow: 'hidden',
-                                            textOverflow: 'ellipsis',
-                                            width: '100%',
-                                            textAlign: 'center'
-                                        }} 
-                                        title={item.name}
-                                    >
-                                        {item.name}
-                                    </div>
-                                </div>
-                            );
-                        })}
+                                    onMouseMove={(e) => {
+                                        setContractsMarginTooltip(prev => prev ? { ...prev, x: e.clientX, y: e.clientY } : null);
+                                    }}
+                                    onMouseLeave={() => {
+                                        setContractsMarginHoveredIndex(null);
+                                        setContractsMarginHoveredChart(null);
+                                        setContractsMarginTooltip(null);
+                                    }}
+                                />
+                            ))}
+                        </svg>
                     </div>
                 </div>
             </div>
@@ -6020,6 +6058,58 @@ export default function BudgetGrid({
             />
 
             <div style={{ height: '2rem' }}></div> {/* Spacer after card */}
+
+            {contractsMarginTooltip && (() => {
+                const isClient = typeof window !== 'undefined';
+                const screenWidth = isClient ? window.innerWidth : 1200;
+                const screenHeight = isClient ? window.innerHeight : 800;
+                const tooltipWidth = 190;
+                const tooltipHeight = 110;
+                const xOffset = contractsMarginTooltip.x + 15 + tooltipWidth > screenWidth
+                    ? contractsMarginTooltip.x - tooltipWidth - 15
+                    : contractsMarginTooltip.x + 15;
+                const yOffset = contractsMarginTooltip.y + 15 + tooltipHeight > screenHeight
+                    ? contractsMarginTooltip.y - tooltipHeight - 15
+                    : contractsMarginTooltip.y + 15;
+                return (
+                    <div style={{
+                        position: 'fixed',
+                        left: `${xOffset}px`,
+                        top: `${yOffset}px`,
+                        backgroundColor: 'rgba(15, 23, 42, 0.95)',
+                        backdropFilter: 'blur(4px)',
+                        color: '#ffffff',
+                        padding: '0.75rem',
+                        borderRadius: '8px',
+                        boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.3), 0 4px 6px -2px rgba(0, 0, 0, 0.05)',
+                        zIndex: 9999,
+                        pointerEvents: 'none',
+                        fontSize: '0.75rem',
+                        fontFamily: 'inherit',
+                        border: '1px solid rgba(255, 255, 255, 0.1)',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: '4px',
+                        minWidth: `${tooltipWidth}px`
+                    }}>
+                        <div style={{ fontWeight: 800, fontSize: '0.8rem', borderBottom: '1px solid rgba(255, 255, 255, 0.2)', paddingBottom: '4px', marginBottom: '4px', color: '#f8fafc', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }} title={contractsMarginTooltip.title}>
+                            {contractsMarginTooltip.title}
+                        </div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', gap: '1rem' }}>
+                            <span style={{ color: '#cbd5e1', fontWeight: 500 }}>Orçado:</span>
+                            <span style={{ fontWeight: 700 }}>{contractsMarginTooltip.budget}</span>
+                        </div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', gap: '1rem' }}>
+                            <span style={{ color: '#cbd5e1', fontWeight: 500 }}>Realizado:</span>
+                            <span style={{ fontWeight: 700, color: contractsMarginTooltip.type === 'percentage' ? '#10b981' : '#818cf8' }}>{contractsMarginTooltip.realized}</span>
+                        </div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', gap: '1rem', borderTop: '1px solid rgba(255, 255, 255, 0.1)', paddingTop: '4px', marginTop: '2px' }}>
+                            <span style={{ color: '#94a3b8', fontWeight: 600 }}>Atingimento:</span>
+                            <span style={{ fontWeight: 800, color: '#f59e0b' }}>{contractsMarginTooltip.achievement}</span>
+                        </div>
+                    </div>
+                );
+            })()}
         </>
     );
 }

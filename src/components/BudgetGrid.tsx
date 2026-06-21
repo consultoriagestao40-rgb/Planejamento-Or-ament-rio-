@@ -4368,6 +4368,7 @@ export default function BudgetGrid({
                         ))}
                     </select>
                 </div>
+            </div>
 
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', maxHeight: '420px', overflowY: 'auto', paddingRight: '0.5rem' }}>
                     {displayData.map((item, idx) => {

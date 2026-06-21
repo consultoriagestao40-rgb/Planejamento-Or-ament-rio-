@@ -3602,7 +3602,11 @@ export default function BudgetGrid({
                         );
                     })}
                 </div>
-                const renderContractsMarginPercentChart = () => {
+            </div>
+        );
+    };
+
+    const renderContractsMarginPercentChart = () => {
         if (contractsLoading) {
             return (
                 <div className="glass-card" style={{ padding: '2rem', background: '#ffffff', borderRadius: '12px', border: '1px solid #e2e8f0', boxShadow: '0 4px 6px rgba(0,0,0,0.02)', width: '100%', minHeight: '300px', display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center' }}>

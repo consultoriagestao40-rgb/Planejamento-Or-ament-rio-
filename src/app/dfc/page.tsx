@@ -244,13 +244,28 @@ export default function DFCPage() {
         
         let inflows = 0;
         let outflows = 0;
+        let allFutureInflows = 0;
+        let allFutureOutflows = 0;
         
-        // Sum expected values (not realized yet) across all months
+        const today = new Date();
+        const curYear = today.getFullYear();
+        const curMonthIdx = today.getMonth(); // 0 to 11
+        
+        // Sum expected values (not realized yet) across all months up to the current month of the selected year
         data.monthlyData.forEach(m => {
+            const isPastOrCurrentMonth = 
+                selectedYear < curYear || 
+                (selectedYear === curYear && (m.month - 1) <= curMonthIdx);
+                
             m.details.forEach(d => {
                 if (!d.isRealized) {
-                    if (d.isRevenue) inflows += d.amount;
-                    else outflows += d.amount;
+                    if (d.isRevenue) {
+                        allFutureInflows += d.amount;
+                        if (isPastOrCurrentMonth) inflows += d.amount;
+                    } else {
+                        allFutureOutflows += d.amount;
+                        if (isPastOrCurrentMonth) outflows += d.amount;
+                    }
                 }
             });
         });
@@ -258,7 +273,7 @@ export default function DFCPage() {
         // Use the last element of the daily projection as the projected final balance
         const projectedBalance = data.dailyProjection && data.dailyProjection.length > 0
             ? data.dailyProjection[data.dailyProjection.length - 1].balance
-            : (data.currentBankBalance + inflows - outflows);
+            : (data.currentBankBalance + allFutureInflows - allFutureOutflows);
 
         return {
             current: data.currentBankBalance,
@@ -266,7 +281,7 @@ export default function DFCPage() {
             outflows,
             projected: projectedBalance
         };
-    }, [data]);
+    }, [data, selectedYear]);
 
     const formatCurrency = (val: number) => {
         return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val);
@@ -1140,7 +1155,12 @@ export default function DFCPage() {
 
                     {/* ABA: CONTAS A RECEBER (CAR) */}
                     {activeTab === 'car' && data && (() => {
-                        const allDetails = data.monthlyData.flatMap(m => m.details);
+                        const today = new Date();
+                        const curYear = today.getFullYear();
+                        const curMonthIdx = today.getMonth();
+                        const allDetails = data.monthlyData
+                            .filter(m => selectedYear < curYear || (selectedYear === curYear && (m.month - 1) <= curMonthIdx))
+                            .flatMap(m => m.details);
                         const carDetails = allDetails.filter(d => !d.isRealized && d.isRevenue);
                         
                         const filtered = carDetails.filter(d => {
@@ -1265,7 +1285,12 @@ export default function DFCPage() {
 
                     {/* ABA: CONTAS A PAGAR (CAP) */}
                     {activeTab === 'cap' && data && (() => {
-                        const allDetails = data.monthlyData.flatMap(m => m.details);
+                        const today = new Date();
+                        const curYear = today.getFullYear();
+                        const curMonthIdx = today.getMonth();
+                        const allDetails = data.monthlyData
+                            .filter(m => selectedYear < curYear || (selectedYear === curYear && (m.month - 1) <= curMonthIdx))
+                            .flatMap(m => m.details);
                         const capDetails = allDetails.filter(d => !d.isRealized && !d.isRevenue);
                         
                         const filtered = capDetails.filter(d => {
@@ -1463,7 +1488,13 @@ export default function DFCPage() {
                             )}
 
                             {modalType === 'inflows' && (() => {
-                                const list = data.monthlyData.flatMap(m => m.details).filter(d => !d.isRealized && d.isRevenue);
+                                const today = new Date();
+                                const curYear = today.getFullYear();
+                                const curMonthIdx = today.getMonth();
+                                const list = data.monthlyData
+                                    .filter(m => selectedYear < curYear || (selectedYear === curYear && (m.month - 1) <= curMonthIdx))
+                                    .flatMap(m => m.details)
+                                    .filter(d => !d.isRealized && d.isRevenue);
                                 return (
                                     <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
                                         <div style={{ fontSize: '0.875rem', color: '#64748b', marginBottom: '0.5rem' }}>
@@ -1506,7 +1537,13 @@ export default function DFCPage() {
                             })()}
 
                             {modalType === 'outflows' && (() => {
-                                const list = data.monthlyData.flatMap(m => m.details).filter(d => !d.isRealized && !d.isRevenue);
+                                const today = new Date();
+                                const curYear = today.getFullYear();
+                                const curMonthIdx = today.getMonth();
+                                const list = data.monthlyData
+                                    .filter(m => selectedYear < curYear || (selectedYear === curYear && (m.month - 1) <= curMonthIdx))
+                                    .flatMap(m => m.details)
+                                    .filter(d => !d.isRealized && !d.isRevenue);
                                 return (
                                     <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
                                         <div style={{ fontSize: '0.875rem', color: '#64748b', marginBottom: '0.5rem' }}>

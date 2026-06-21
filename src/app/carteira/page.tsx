@@ -1145,9 +1145,8 @@ export default function PortfolioAnalysisPage() {
                                                                     <input 
                                                                         type="checkbox" 
                                                                         checked={isSelected}
-                                                                        onChange={() => {}}
-                                                                        onClick={(e) => e.stopPropagation()}
-                                                                        style={{ accentColor: 'var(--accent-indigo)', cursor: 'pointer' }}
+                                                                        readOnly
+                                                                        style={{ accentColor: 'var(--accent-indigo)', pointerEvents: 'none' }}
                                                                     />
                                                                     <span>⭐ {name}</span>
                                                                 </div>
@@ -1185,9 +1184,8 @@ export default function PortfolioAnalysisPage() {
                                                                         <input 
                                                                             type="checkbox" 
                                                                             checked={isSelected}
-                                                                            onChange={() => {}}
-                                                                            onClick={(e) => e.stopPropagation()}
-                                                                            style={{ accentColor: 'var(--accent-indigo)', cursor: 'pointer' }}
+                                                                            readOnly
+                                                                            style={{ accentColor: 'var(--accent-indigo)', pointerEvents: 'none' }}
                                                                         />
                                                                         <span>{cat.name}</span>
                                                                     </div>

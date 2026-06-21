@@ -57,6 +57,7 @@ export default function DFCPage() {
     // UI active tab
     const [activeTab, setActiveTab] = useState<'projection' | 'table' | 'audit' | 'car' | 'cap'>('projection');
     const [hoveredPoint, setHoveredPoint] = useState<any | null>(null);
+    const [chartView, setChartView] = useState<'day' | 'week' | 'quinzena' | 'month'>('week');
 
     // Filtros e estados das novas abas CAR e CAP
     const [carSearch, setCarSearch] = useState<string>('');
@@ -175,6 +176,68 @@ export default function DFCPage() {
         }
     };
 
+    // Agrupamento dinâmico da projeção diária do gráfico
+    const groupedProjection = React.useMemo(() => {
+        if (!data || !data.dailyProjection) return [];
+        const rawPoints = data.dailyProjection;
+        
+        if (chartView === 'day') {
+            return rawPoints;
+        }
+        
+        const result: any[] = [];
+        let currentGroup: any = null;
+        let daysInGroup = 0;
+
+        rawPoints.forEach((p, idx) => {
+            const date = new Date(p.date);
+            let belongsToNewGroup = false;
+
+            if (!currentGroup) {
+                belongsToNewGroup = true;
+            } else {
+                if (chartView === 'week') {
+                    belongsToNewGroup = daysInGroup >= 7;
+                } else if (chartView === 'quinzena') {
+                    belongsToNewGroup = daysInGroup >= 15;
+                } else if (chartView === 'month') {
+                    const prevDate = new Date(currentGroup.rawDate);
+                    belongsToNewGroup = date.getMonth() !== prevDate.getMonth();
+                }
+            }
+
+            if (belongsToNewGroup) {
+                if (currentGroup) {
+                    result.push(currentGroup);
+                }
+                currentGroup = {
+                    date: p.date,
+                    rawDate: p.date,
+                    formattedDate: chartView === 'month' 
+                        ? date.toLocaleString('pt-BR', { month: 'short' }).toUpperCase()
+                        : date.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }),
+                    inflows: p.inflows || 0,
+                    outflows: p.outflows || 0,
+                    netFlow: p.netFlow || 0,
+                    balance: p.balance
+                };
+                daysInGroup = 1;
+            } else {
+                currentGroup.inflows += (p.inflows || 0);
+                currentGroup.outflows += (p.outflows || 0);
+                currentGroup.netFlow += (p.netFlow || 0);
+                currentGroup.balance = p.balance;
+                daysInGroup++;
+            }
+        });
+
+        if (currentGroup) {
+            result.push(currentGroup);
+        }
+
+        return result;
+    }, [data, chartView]);
+
     // Calcular valores agregados para os cards
     const cardTotals = React.useMemo(() => {
         if (!data) return { current: 0, inflows: 0, outflows: 0, projected: 0 };
@@ -225,117 +288,217 @@ export default function DFCPage() {
 
 
 
-    // Renderização do gráfico SVG de projeção diária
+    // Renderização do gráfico SVG de projeção diária/semanal/mensal
     const renderChart = () => {
         if (!data || !data.dailyProjection || data.dailyProjection.length === 0) return null;
 
-        const points = data.dailyProjection;
-        const width = 1000;
-        const height = 300;
-        const padding = 40;
+        // Limitar visualização diária para 45 dias para legibilidade
+        const points = chartView === 'day' 
+            ? groupedProjection.slice(0, 45) 
+            : groupedProjection;
 
+        const width = 1000;
+        const height = 320;
+        const paddingLeft = 70;
+        const paddingRight = 70;
+        const paddingTop = 40;
+        const paddingBottom = 40;
+        const chartWidth = width - paddingLeft - paddingRight;
+        const chartHeight = height - paddingTop - paddingBottom;
+        const baselineY = paddingTop + chartHeight / 2; // Linha de zero para as barras (Y = 160)
+
+        // Escala das Barras (Entradas e Saídas)
+        const maxBarVal = Math.max(...points.map(p => Math.max(p.inflows, p.outflows)), 1000) * 1.1;
+        const barScale = (chartHeight / 2) / maxBarVal; // Altura máxima de cada barra é metade do gráfico
+
+        // Escala da Linha de Saldo
         const balances = points.map(p => p.balance);
-        const maxVal = Math.max(...balances, 1000) * 1.1;
-        const minVal = Math.min(...balances, 0) * 1.1;
-        const range = maxVal - minVal;
+        const maxBal = Math.max(...balances, 1000) * 1.05;
+        const minBal = Math.min(...balances, 0) * 1.05;
+        const balRange = maxBal - minBal;
+        const balScale = chartHeight / (balRange || 1);
 
         const getX = (index: number) => {
-            return padding + (index / (points.length - 1)) * (width - 2 * padding);
+            if (points.length <= 1) return paddingLeft + chartWidth / 2;
+            return paddingLeft + (index / (points.length - 1)) * chartWidth;
         };
 
-        const getY = (val: number) => {
-            return height - padding - ((val - minVal) / range) * (height - 2 * padding);
+        const getBalY = (val: number) => {
+            return paddingTop + chartHeight - ((val - minBal) * balScale);
         };
 
-        // Gerar string do path da linha
+        // Gerar string do path da linha de saldo
         let pathD = '';
         points.forEach((p, idx) => {
             const x = getX(idx);
-            const y = getY(p.balance);
+            const y = getBalY(p.balance);
             if (idx === 0) pathD += `M ${x} ${y}`;
             else pathD += ` L ${x} ${y}`;
         });
 
-        // Gerar string do path da área (para gradiente)
-        const firstX = getX(0);
-        const lastX = getX(points.length - 1);
-        const baselineY = getY(Math.max(minVal, 0)); // Linha base (zero)
-        const areaD = `${pathD} L ${lastX} ${baselineY} L ${firstX} ${baselineY} Z`;
-
-        // Linha do saldo zero (limite crítico)
-        const zeroY = getY(0);
+        // Configuração de hover do ponto
+        const barWidth = Math.max(2, (chartWidth / points.length) * 0.4);
 
         return (
-            <div style={{ position: 'relative', width: '100%', boxSizing: 'border-box', overflowX: 'auto', backgroundColor: '#ffffff', borderRadius: '12px', padding: '1.5rem', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05), 0 2px 4px -1px rgba(0,0,0,0.03)' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '1rem', alignItems: 'center' }}>
-                    <h3 style={{ fontSize: '1rem', fontWeight: 600, color: '#1e293b', margin: 0 }}>Projeção de Saldo Acumulado (180 dias)</h3>
-                    <div style={{ display: 'flex', gap: '1rem', fontSize: '0.8rem' }}>
-                        <span style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', color: '#64748b' }}>
-                            <span style={{ display: 'inline-block', width: '12px', height: '4px', backgroundColor: '#3b82f6', borderRadius: '2px' }}></span> Saldo Projetado
-                        </span>
-                        <span style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', color: '#64748b' }}>
-                            <span style={{ display: 'inline-block', width: '12px', height: '1px', backgroundColor: '#ef4444', borderTop: '1px dashed #ef4444' }}></span> Limite Crítico (R$ 0)
-                        </span>
+            <div style={{ position: 'relative', width: '100%', boxSizing: 'border-box', backgroundColor: '#ffffff', borderRadius: '12px', padding: '1.5rem', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)' }}>
+                {/* Controles de Visualização */}
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '1.5rem', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
+                    <div>
+                        <h3 style={{ fontSize: '1rem', fontWeight: 700, color: '#0f172a', margin: 0 }}>Fluxo de Caixa Projetado</h3>
+                        <p style={{ margin: '0.1rem 0 0', fontSize: '0.8rem', color: '#64748b' }}>
+                            Visualização gráfica das entradas, saídas e evolução do saldo acumulado.
+                        </p>
+                    </div>
+                    
+                    {/* Botões de Agrupamento */}
+                    <div style={{ display: 'flex', backgroundColor: '#f1f5f9', padding: '0.25rem', borderRadius: '8px', gap: '0.25rem' }}>
+                        {(['day', 'week', 'quinzena', 'month'] as const).map((view) => {
+                            const labelMap = { day: 'Dia', week: 'Semana', quinzena: 'Quinzena', month: 'Mês' };
+                            const isActive = chartView === view;
+                            return (
+                                <button
+                                    key={view}
+                                    onClick={() => setChartView(view)}
+                                    style={{
+                                        padding: '0.35rem 0.75rem',
+                                        borderRadius: '6px',
+                                        border: 'none',
+                                        backgroundColor: isActive ? '#ffffff' : 'transparent',
+                                        color: isActive ? '#0f172a' : '#64748b',
+                                        fontWeight: 600,
+                                        fontSize: '0.75rem',
+                                        cursor: 'pointer',
+                                        boxShadow: isActive ? '0 1px 3px rgba(0,0,0,0.08)' : 'none',
+                                        transition: 'all 0.15s'
+                                    }}
+                                >
+                                    {labelMap[view]}
+                                </button>
+                            );
+                        })}
                     </div>
                 </div>
 
-                <svg viewBox={`0 0 ${width} ${height}`} width="100%" height={height} style={{ overflow: 'visible' }}>
-                    <defs>
-                        <linearGradient id="chartGrad" x1="0" y1="0" x2="0" y2="1">
-                            <stop offset="0%" stopColor="#3b82f6" stopOpacity="0.25" />
-                            <stop offset="100%" stopColor="#3b82f6" stopOpacity="0.0" />
-                        </linearGradient>
-                    </defs>
+                {/* Legendas de Cores */}
+                <div style={{ display: 'flex', gap: '1.5rem', fontSize: '0.8rem', marginBottom: '1.5rem', flexWrap: 'wrap', borderBottom: '1px solid #f1f5f9', paddingBottom: '0.75rem' }}>
+                    <span style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', color: '#475569', fontWeight: 500 }}>
+                        <span style={{ display: 'inline-block', width: '12px', height: '12px', backgroundColor: '#10b981', borderRadius: '3px' }}></span> Entradas (Recebimentos)
+                    </span>
+                    <span style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', color: '#475569', fontWeight: 500 }}>
+                        <span style={{ display: 'inline-block', width: '12px', height: '12px', backgroundColor: '#ef4444', borderRadius: '3px' }}></span> Saídas (Custos / Despesas)
+                    </span>
+                    <span style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', color: '#475569', fontWeight: 500 }}>
+                        <span style={{ display: 'inline-block', width: '16px', height: '3px', backgroundColor: '#2563eb', borderRadius: '2px' }}></span> Saldo Acumulado
+                    </span>
+                </div>
 
-                    {/* Gridlines horizontais */}
-                    {Array.from({ length: 5 }).map((_, idx) => {
-                        const val = minVal + (idx / 4) * range;
-                        const y = getY(val);
-                        return (
-                            <g key={idx}>
-                                <line x1={padding} y1={y} x2={width - padding} y2={y} stroke="#f1f5f9" strokeWidth="1" />
-                                <text x={padding - 8} y={y + 4} textAnchor="end" fontSize="10" fill="#94a3b8" fontWeight="500">
-                                    {new Intl.NumberFormat('pt-BR', { notation: 'compact' }).format(val)}
-                                </text>
-                            </g>
-                        );
-                    })}
+                <div style={{ overflowX: 'auto', width: '100%' }}>
+                    <svg viewBox={`0 0 ${width} ${height}`} width="100%" height={height} style={{ overflow: 'visible', minWidth: '800px' }}>
+                        {/* Linhas de Grade de Fundo */}
+                        {[0.1, 0.3, 0.5, 0.7, 0.9].map((ratio, idx) => {
+                            const y = paddingTop + ratio * chartHeight;
+                            return (
+                                <line key={idx} x1={paddingLeft} y1={y} x2={width - paddingRight} y2={y} stroke="#f1f5f9" strokeWidth="1" />
+                            );
+                        })}
 
-                    {/* Linha de Limite Zero */}
-                    {zeroY >= padding && zeroY <= height - padding && (
-                        <line x1={padding} y1={zeroY} x2={width - padding} y2={zeroY} stroke="#ef4444" strokeWidth="1.5" strokeDasharray="4 4" />
-                    )}
+                        {/* Linha Central de Baseline zero (para barras) */}
+                        <line x1={paddingLeft} y1={baselineY} x2={width - paddingRight} y2={baselineY} stroke="#cbd5e1" strokeWidth="1.5" />
 
-                    {/* Área preenchida com gradiente */}
-                    <path d={areaD} fill="url(#chartGrad)" />
+                        {/* Y-Axis Esquerda (Entradas / Saídas) */}
+                        <text x={paddingLeft - 10} y={paddingTop + 5} textAnchor="end" fontSize="9" fill="#10b981" fontWeight="700">+{new Intl.NumberFormat('pt-BR', { notation: 'compact' }).format(maxBarVal)}</text>
+                        <text x={paddingLeft - 10} y={baselineY + 3} textAnchor="end" fontSize="9" fill="#64748b" fontWeight="600">0</text>
+                        <text x={paddingLeft - 10} y={paddingTop + chartHeight} textAnchor="end" fontSize="9" fill="#ef4444" fontWeight="700">-{new Intl.NumberFormat('pt-BR', { notation: 'compact' }).format(maxBarVal)}</text>
 
-                    {/* Linha de saldo */}
-                    <path d={pathD} fill="none" stroke="#3b82f6" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
+                        {/* Y-Axis Direita (Saldo Acumulado) */}
+                        <text x={width - paddingRight + 10} y={paddingTop + 5} textAnchor="start" fontSize="9" fill="#2563eb" fontWeight="700">{new Intl.NumberFormat('pt-BR', { notation: 'compact' }).format(maxBal)}</text>
+                        <text x={width - paddingRight + 10} y={getBalY((maxBal + minBal) / 2) + 3} textAnchor="start" fontSize="9" fill="#64748b" fontWeight="600">{new Intl.NumberFormat('pt-BR', { notation: 'compact' }).format((maxBal + minBal) / 2)}</text>
+                        <text x={width - paddingRight + 10} y={paddingTop + chartHeight} textAnchor="start" fontSize="9" fill="#2563eb" fontWeight="700">{new Intl.NumberFormat('pt-BR', { notation: 'compact' }).format(minBal)}</text>
 
-                    {/* Pontos interativos ao passar o mouse */}
-                    {points.map((p, idx) => {
-                        const x = getX(idx);
-                        const y = getY(p.balance);
+                        {/* 1. Desenhar Barras de Entradas e Saídas */}
+                        {points.map((p, idx) => {
+                            const x = getX(idx);
+                            
+                            // Inflows Bar (Green, goes UP from baselineY)
+                            const inflowHeight = p.inflows * barScale;
+                            const inflowY = baselineY - inflowHeight;
 
-                        return (
-                            <circle
-                                key={idx}
-                                cx={x}
-                                cy={y}
-                                r={hoveredPoint && hoveredPoint.idx === idx ? 6 : 2}
-                                fill={hoveredPoint && hoveredPoint.idx === idx ? '#2563eb' : '#3b82f6'}
-                                stroke="#ffffff"
-                                strokeWidth={2}
-                                opacity={hoveredPoint && hoveredPoint.idx === idx ? 1 : 0.4}
-                                onMouseEnter={() => setHoveredPoint({ idx, ...p })}
-                                onMouseLeave={() => setHoveredPoint(null)}
-                                style={{ cursor: 'pointer', transition: 'r 0.1s, fill 0.1s' }}
-                            />
-                        );
-                    })}
-                </svg>
+                            // Outflows Bar (Red, goes DOWN from baselineY)
+                            const outflowHeight = p.outflows * barScale;
 
-                {/* Tooltip do gráfico */}
+                            return (
+                                <g key={idx}>
+                                    {/* Barra de Entradas */}
+                                    {p.inflows > 0 && (
+                                        <rect
+                                            x={x - barWidth / 2}
+                                            y={inflowY}
+                                            width={barWidth}
+                                            height={inflowHeight}
+                                            fill="#10b981"
+                                            opacity="0.85"
+                                            rx="1"
+                                        />
+                                    )}
+                                    {/* Barra de Saídas */}
+                                    {p.outflows > 0 && (
+                                        <rect
+                                            x={x - barWidth / 2}
+                                            y={baselineY}
+                                            width={barWidth}
+                                            height={outflowHeight}
+                                            fill="#ef4444"
+                                            opacity="0.85"
+                                            rx="1"
+                                        />
+                                    )}
+                                </g>
+                            );
+                        })}
+
+                        {/* 2. Desenhar Linha de Saldo Acumulado */}
+                        <path d={pathD} fill="none" stroke="#2563eb" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
+
+                        {/* 3. Desenhar Pontos e Área de Interação da Linha de Saldo */}
+                        {points.map((p, idx) => {
+                            const x = getX(idx);
+                            const y = getBalY(p.balance);
+
+                            return (
+                                <g key={`dot-${idx}`}>
+                                    {/* Círculo da linha de saldo */}
+                                    <circle
+                                        cx={x}
+                                        cy={y}
+                                        r={hoveredPoint && hoveredPoint.idx === idx ? 6 : 2.5}
+                                        fill={hoveredPoint && hoveredPoint.idx === idx ? '#1d4ed8' : '#2563eb'}
+                                        stroke="#ffffff"
+                                        strokeWidth={2}
+                                        style={{ cursor: 'pointer', transition: 'r 0.1s, fill 0.1s' }}
+                                        onMouseEnter={() => setHoveredPoint({ idx, ...p })}
+                                        onMouseLeave={() => setHoveredPoint(null)}
+                                    />
+
+                                    {/* Rótulos do Eixo X (Datas) - Exibir a cada N pontos dependendo do tamanho */}
+                                    {((points.length < 15) || (points.length < 35 && idx % 3 === 0) || (idx % 6 === 0)) && (
+                                        <text
+                                            x={x}
+                                            y={height - paddingBottom + 18}
+                                            textAnchor="middle"
+                                            fontSize="9"
+                                            fill="#64748b"
+                                            fontWeight="600"
+                                        >
+                                            {p.formattedDate}
+                                        </text>
+                                    )}
+                                </g>
+                            );
+                        })}
+                    </svg>
+                </div>
+
+                {/* Tooltip interativo */}
                 {hoveredPoint && (
                     <div style={{
                         position: 'absolute',
@@ -344,26 +507,35 @@ export default function DFCPage() {
                         transform: 'translateX(-50%)',
                         backgroundColor: '#1e293b',
                         color: '#ffffff',
-                        padding: '0.75rem 1rem',
-                        borderRadius: '8px',
+                        padding: '0.85rem 1.2rem',
+                        borderRadius: '10px',
                         fontSize: '0.8rem',
                         boxShadow: '0 10px 15px -3px rgba(0,0,0,0.3)',
                         border: '1px solid #334155',
                         zIndex: 10,
-                        pointerEvents: 'none'
+                        pointerEvents: 'none',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: '0.35rem'
                     }}>
-                        <div style={{ fontWeight: 600, borderBottom: '1px solid #334155', paddingBottom: '0.25rem', marginBottom: '0.25rem', color: '#93c5fd' }}>
-                            {new Date(hoveredPoint.date).toLocaleDateString('pt-BR', { dateStyle: 'long' })}
+                        <div style={{ fontWeight: 700, borderBottom: '1px solid #334155', paddingBottom: '0.35rem', color: '#93c5fd', fontSize: '0.85rem' }}>
+                            Período: {chartView === 'day' ? new Date(hoveredPoint.date).toLocaleDateString('pt-BR', { dateStyle: 'long' }) : `A partir de ${new Date(hoveredPoint.date).toLocaleDateString('pt-BR')}`}
                         </div>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', gap: '1.5rem' }}>
-                            <span>Movimento do Dia:</span>
-                            <span style={{ fontWeight: 600, color: hoveredPoint.netFlow >= 0 ? '#4ade80' : '#f87171' }}>
-                                {hoveredPoint.netFlow >= 0 ? '+' : ''}{formatCurrency(hoveredPoint.netFlow)}
+                        <div style={{ display: 'flex', justifyContent: 'space-between', gap: '2rem' }}>
+                            <span>Entradas no Período:</span>
+                            <span style={{ fontWeight: 700, color: '#4ade80' }}>
+                                +{formatCurrency(hoveredPoint.inflows)}
                             </span>
                         </div>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', gap: '1.5rem' }}>
-                            <span>Saldo Projetado:</span>
-                            <span style={{ fontWeight: 700, color: hoveredPoint.balance >= 0 ? '#60a5fa' : '#f87171' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', gap: '2rem' }}>
+                            <span>Saídas no Período:</span>
+                            <span style={{ fontWeight: 700, color: '#f87171' }}>
+                                -{formatCurrency(hoveredPoint.outflows)}
+                            </span>
+                        </div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', gap: '2rem', borderTop: '1px solid #334155', paddingTop: '0.35rem', marginTop: '0.15rem' }}>
+                            <span>Saldo Acumulado:</span>
+                            <span style={{ fontWeight: 800, color: '#60a5fa', fontSize: '0.85rem' }}>
                                 {formatCurrency(hoveredPoint.balance)}
                             </span>
                         </div>

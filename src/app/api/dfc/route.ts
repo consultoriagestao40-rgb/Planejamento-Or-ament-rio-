@@ -91,7 +91,7 @@ export async function GET(request: Request) {
             where: {
                 ...tenantFilter,
                 viewMode: 'caixa',
-                date: { gte: new Date(`${year}-01-01T00:00:00.000Z`) },
+                year: 2026, // Filtrar estritamente apenas dados do ano de 2026!
                 ...(costCenterId ? { costCenterId } : {})
             },
             include: { category: true }
@@ -102,6 +102,7 @@ export async function GET(request: Request) {
             where: {
                 ...tenantFilter,
                 viewMode: { in: ['previsto_receber', 'previsto_pagar'] },
+                year: 2026, // Filtrar estritamente apenas previstos originais do ano de 2026!
                 ...(costCenterId ? { costCenterId } : {})
             },
             include: { category: true }
@@ -293,12 +294,12 @@ export async function GET(request: Request) {
         let dailyRunningBalance = currentBankBalance;
         const totalProjectionDays = 180;
         
-        const dailyMap = new Map<string, number>();
+        const dailyMap = new Map<string, { inflows: number; outflows: number }>();
         for (let i = 0; i <= totalProjectionDays; i++) {
             const d = new Date(today);
             d.setDate(today.getDate() + i);
             const key = d.toISOString().split('T')[0];
-            dailyMap.set(key, 0);
+            dailyMap.set(key, { inflows: 0, outflows: 0 });
         }
 
         // Lançar previstos nos dias correspondentes
@@ -320,32 +321,30 @@ export async function GET(request: Request) {
             }
 
             const dfcClass = classifyCategory(entry.category.name, isRevenue, isConsolidated);
-            let netAmount = 0;
-            if (dfcClass === 'OPERATIONAL_IN') {
-                netAmount = amount;
-            } else if (dfcClass === 'OPERATIONAL_OUT') {
-                netAmount = -amount;
-            } else if (dfcClass === 'CAPEX') {
-                netAmount = -amount;
-            } else if (dfcClass === 'FINANCING') {
-                netAmount = isRevenue ? amount : -amount;
-            }
+            if (dfcClass === 'TRANSFER') return;
 
             const key = projDate.toISOString().split('T')[0];
             if (dailyMap.has(key)) {
-                const currentVal = dailyMap.get(key) || 0;
-                dailyMap.set(key, currentVal + netAmount);
+                const dayData = dailyMap.get(key)!;
+                if (isRevenue) {
+                    dayData.inflows += amount;
+                } else {
+                    dayData.outflows += amount;
+                }
             }
         });
 
         // Calcular saldo acumulado dia a dia
         const sortedDays = Array.from(dailyMap.keys()).sort();
         sortedDays.forEach(dayStr => {
-            const netDayFlow = dailyMap.get(dayStr) || 0;
+            const dayData = dailyMap.get(dayStr) || { inflows: 0, outflows: 0 };
+            const netDayFlow = dayData.inflows - dayData.outflows;
             dailyRunningBalance += netDayFlow;
             dailyProjection.push({
                 date: dayStr,
                 formattedDate: new Date(dayStr).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }),
+                inflows: dayData.inflows,
+                outflows: dayData.outflows,
                 netFlow: netDayFlow,
                 balance: dailyRunningBalance
             });

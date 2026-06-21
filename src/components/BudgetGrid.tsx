@@ -439,6 +439,7 @@ export default function BudgetGrid({
     const [analysisSelectedTenant, setAnalysisSelectedTenant] = useState<string>('');
     const [analysisSelectedMonth, setAnalysisSelectedMonth] = useState<number>(new Date().getMonth() + 1); // 1-12
     const [analysisSelectedCategory, setAnalysisSelectedCategory] = useState<string>('');
+    const [analysisCategorySearch, setAnalysisCategorySearch] = useState<string>('');
     const [deviationReport, setDeviationReport] = useState<string>('');
     const [analysisPerformed, setAnalysisPerformed] = useState<string>('');
     const [analysisActions, setAnalysisActions] = useState<{ id?: string; description: string; dueDate: string; isDone?: boolean }[]>([]);
@@ -611,6 +612,7 @@ export default function BudgetGrid({
         const defaultTenant = selectedCompany.includes('DEFAULT') ? (companies?.[0]?.id || '') : selectedCompany[0];
         setAnalysisSelectedTenant(defaultTenant);
         setAnalysisSelectedMonth(startMonth + 1);
+        setAnalysisCategorySearch('');
         
         // Find matching category for default tenant
         let defaultCatId = '';
@@ -6318,6 +6320,41 @@ export default function BudgetGrid({
                                             {isQuickCategoryFormOpen ? '✕ Fechar Cadastro' : '➕ Cadastro Rápido'}
                                         </button>
                                     </label>
+                                    <div style={{ position: 'relative', width: '100%' }}>
+                                        <input
+                                            type="text"
+                                            placeholder="🔍 Filtrar contas..."
+                                            value={analysisCategorySearch}
+                                            onChange={(e) => setAnalysisCategorySearch(e.target.value)}
+                                            style={{
+                                                width: '100%',
+                                                height: '30px',
+                                                padding: '0 0.5rem 0 1.6rem',
+                                                fontSize: '0.75rem',
+                                                fontWeight: 600,
+                                                border: '1px solid #cbd5e1',
+                                                borderRadius: '6px',
+                                                outline: 'none',
+                                                marginBottom: '0.35rem',
+                                                background: '#f8fafc',
+                                                boxSizing: 'border-box'
+                                            }}
+                                        />
+                                        <svg
+                                            width="12"
+                                            height="12"
+                                            viewBox="0 0 24 24"
+                                            fill="none"
+                                            stroke="#64748b"
+                                            strokeWidth="2.5"
+                                            strokeLinecap="round"
+                                            strokeLinejoin="round"
+                                            style={{ position: 'absolute', left: '0.5rem', top: '9px', pointerEvents: 'none' }}
+                                        >
+                                            <circle cx="11" cy="11" r="8"></circle>
+                                            <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+                                        </svg>
+                                    </div>
                                     <select
                                         value={analysisSelectedCategory}
                                         onChange={(e) => setAnalysisSelectedCategory(e.target.value)}
@@ -6327,6 +6364,7 @@ export default function BudgetGrid({
                                         <option value="">Selecione uma conta...</option>
                                         {categories
                                             .filter(cat => !analysisSelectedTenant || cat.tenantId === analysisSelectedTenant)
+                                            .filter(cat => !analysisCategorySearch || cat.name.toLowerCase().includes(analysisCategorySearch.toLowerCase()))
                                             .sort((a,b) => a.name.localeCompare(b.name))
                                             .map((cat: any) => (
                                                 <option key={cat.id} value={cat.id}>{cat.name}</option>

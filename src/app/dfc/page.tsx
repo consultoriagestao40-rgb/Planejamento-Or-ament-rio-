@@ -40,7 +40,7 @@ export default function DFCPage() {
     // State de filtros e parâmetros
     const [tenants, setTenants] = useState<any[]>([]);
     const [costCenters, setCostCenters] = useState<any[]>([]);
-    const [selectedTenant, setSelectedTenant] = useState<string>('');
+    const [selectedTenant, setSelectedTenant] = useState<string>('all');
     const [selectedCostCenter, setSelectedCostCenter] = useState<string>('');
     const [selectedYear, setSelectedYear] = useState<number>(new Date().getFullYear());
     
@@ -57,7 +57,18 @@ export default function DFCPage() {
     // UI active tab
     const [activeTab, setActiveTab] = useState<'projection' | 'table' | 'audit'>('projection');
     const [hoveredPoint, setHoveredPoint] = useState<any | null>(null);
-    const [expandedCategories, setExpandedCategories] = useState<Set<string>>(new Set());
+    
+    // Controle de seções expandidas do DFC
+    const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({
+        operational_in: false,
+        operational_out: false,
+        capex: false,
+        financing: false
+    });
+
+    const toggleSection = (section: string) => {
+        setExpandedSections(prev => ({ ...prev, [section]: !prev[section] }));
+    };
 
     // 1. Carregar estrutura inicial (Setup)
     useEffect(() => {
@@ -68,14 +79,12 @@ export default function DFCPage() {
                 if (setup.success) {
                     setTenants(setup.tenants || []);
                     setCostCenters(setup.fullCostCenters || []);
-                    if (setup.tenants && setup.tenants.length > 0) {
-                        // Tentar pegar do localStorage ou default
-                        const cached = localStorage.getItem('selectedTenantId');
-                        if (cached && setup.tenants.some((t: any) => t.id === cached)) {
-                            setSelectedTenant(cached);
-                        } else {
-                            setSelectedTenant(setup.tenants[0].id);
-                        }
+                    
+                    const cached = localStorage.getItem('selectedTenantId');
+                    if (cached && (cached === 'all' || (setup.tenants && setup.tenants.some((t: any) => t.id === cached)))) {
+                        setSelectedTenant(cached);
+                    } else if (setup.tenants && setup.tenants.length > 0) {
+                        setSelectedTenant(setup.tenants[0].id);
                     }
                 }
             } catch (err) {
@@ -92,8 +101,10 @@ export default function DFCPage() {
         }
     }, [selectedTenant]);
 
-    // Filtrar centros de custo da empresa selecionada
-    const filteredCCs = costCenters.filter((cc) => cc.tenantId === selectedTenant);
+    // Filtrar centros de custo da empresa selecionada (ou todos se consolidado)
+    const filteredCCs = selectedTenant === 'all' 
+        ? costCenters 
+        : costCenters.filter((cc) => cc.tenantId === selectedTenant);
 
     // 2. Carregar dados do DFC
     const fetchDFC = useCallback(async () => {
@@ -161,16 +172,35 @@ export default function DFCPage() {
             });
         });
 
+        // Use the last element of the daily projection as the projected final balance
+        const projectedBalance = data.dailyProjection && data.dailyProjection.length > 0
+            ? data.dailyProjection[data.dailyProjection.length - 1].balance
+            : (data.currentBankBalance + inflows - outflows);
+
         return {
             current: data.currentBankBalance,
             inflows,
             outflows,
-            projected: data.currentBankBalance + inflows - outflows
+            projected: projectedBalance
         };
     }, [data]);
 
     const formatCurrency = (val: number) => {
         return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val);
+    };
+
+    const getCategoriesByClass = (dfcClass: string) => {
+        if (!data) return [];
+        return Object.values(
+            data.monthlyData.reduce((acc, m) => {
+                Object.values(m.categories).forEach(c => {
+                    if (c.dfcClass === dfcClass) {
+                        acc[c.name] = { name: c.name };
+                    }
+                });
+                return acc;
+            }, {} as Record<string, { name: string }>)
+        ).sort((a, b) => a.name.localeCompare(b.name));
     };
 
     // Alternar colapso de categorias na tabela DFC
@@ -386,6 +416,7 @@ export default function DFCPage() {
                             onChange={(e) => setSelectedTenant(e.target.value)}
                             style={{ width: '100%', padding: '0.625rem', borderRadius: '8px', border: '1px solid #cbd5e1', outline: 'none', fontSize: '0.875rem', color: '#1e293b', fontWeight: 500 }}
                         >
+                            <option value="all">CONSOLIDADO (TODAS AS EMPRESAS)</option>
                             {tenants.map((t) => (
                                 <option key={t.id} value={t.id}>{t.name}</option>
                             ))}
@@ -624,9 +655,7 @@ export default function DFCPage() {
                                         ))}
                                         <th style={{ padding: '0.75rem 1rem', textAlign: 'right', minWidth: '110px' }}>TOTAL</th>
                                     </tr>
-                                </thead>
-                                <tbody>
-                                    {/* Saldo Inicial */}
+                                                {/* 1. Saldo Inicial */}
                                     <tr style={{ borderBottom: '1px solid #e2e8f0', backgroundColor: '#f8fafc', fontWeight: 600 }}>
                                         <td style={{ padding: '0.75rem 1rem', color: '#334155' }}>Saldo Inicial de Caixa</td>
                                         {data.monthlyData.map((m) => (
@@ -639,94 +668,144 @@ export default function DFCPage() {
                                         </td>
                                     </tr>
 
-                                    {/* Entradas */}
-                                    <tr style={{ borderBottom: '1px solid #e2e8f0', fontWeight: 700, color: '#16a34a' }}>
-                                        <td style={{ padding: '0.75rem 1rem' }}>(+) Ingressos de Caixa (Recebimentos)</td>
+                                    {/* 2. (+) Recebimentos Operacionais */}
+                                    <tr style={{ borderBottom: '1px solid #e2e8f0', fontWeight: 700, color: '#16a34a', cursor: 'pointer', backgroundColor: '#f0fdf4' }} onClick={() => toggleSection('operational_in')}>
+                                        <td style={{ padding: '0.75rem 1rem', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                            <span style={{ fontSize: '0.65rem', display: 'inline-block', transition: 'transform 0.15s', transform: expandedSections.operational_in ? 'rotate(90deg)' : 'none' }}>▶</span>
+                                            (+) Recebimentos Operacionais
+                                        </td>
                                         {data.monthlyData.map((m) => (
                                             <td key={m.month} style={{ padding: '0.75rem 0.5rem', textAlign: 'right' }}>
-                                                {formatCurrency(m.inflows)}
+                                                {formatCurrency(m.recebimentosOperacionais)}
                                             </td>
                                         ))}
                                         <td style={{ padding: '0.75rem 1rem', textAlign: 'right' }}>
-                                            {formatCurrency(data.monthlyData.reduce((sum, m) => sum + m.inflows, 0))}
+                                            {formatCurrency(data.monthlyData.reduce((sum, m) => sum + m.recebimentosOperacionais, 0))}
                                         </td>
                                     </tr>
 
-                                    {/* Subcategorias Entradas */}
-                                    {Object.values(
-                                        data.monthlyData.reduce((acc, m) => {
-                                            Object.values(m.categories).forEach(c => {
-                                                if (c.isRevenue) {
-                                                    acc[c.id] = { id: c.id, name: c.name };
-                                                }
-                                            });
-                                            return acc;
-                                        }, {} as Record<string, { id: string, name: string }>)
-                                    ).map(cat => (
-                                        <tr key={cat.id} style={{ borderBottom: '1px dotted #e2e8f0', color: '#64748b', fontSize: '0.8rem' }}>
+                                    {/* Subcategorias Recebimentos Operacionais */}
+                                    {expandedSections.operational_in && getCategoriesByClass('OPERATIONAL_IN').map(cat => (
+                                        <tr key={cat.name} style={{ borderBottom: '1px dotted #e2e8f0', color: '#64748b', fontSize: '0.8rem', backgroundColor: '#fafafa' }}>
                                             <td style={{ padding: '0.5rem 2rem', textOverflow: 'ellipsis', whiteSpace: 'nowrap', overflow: 'hidden' }}>{cat.name}</td>
                                             {data.monthlyData.map((m) => (
                                                 <td key={m.month} style={{ padding: '0.5rem 0.5rem', textAlign: 'right' }}>
-                                                    {formatCurrency(m.categories[cat.id]?.amount || 0)}
+                                                    {formatCurrency(m.categories[cat.name]?.amount || 0)}
                                                 </td>
                                             ))}
                                             <td style={{ padding: '0.5rem 1rem', textAlign: 'right', fontWeight: 600 }}>
-                                                {formatCurrency(data.monthlyData.reduce((sum, m) => sum + (m.categories[cat.id]?.amount || 0), 0))}
+                                                {formatCurrency(data.monthlyData.reduce((sum, m) => sum + (m.categories[cat.name]?.amount || 0), 0))}
                                             </td>
                                         </tr>
                                     ))}
 
-                                    {/* Saídas */}
-                                    <tr style={{ borderBottom: '1px solid #e2e8f0', fontWeight: 700, color: '#dc2626' }}>
-                                        <td style={{ padding: '0.75rem 1rem' }}>(-) Desembolsos de Caixa (Pagamentos)</td>
+                                    {/* 3. (-) Pagamentos Operacionais */}
+                                    <tr style={{ borderBottom: '1px solid #e2e8f0', fontWeight: 700, color: '#dc2626', cursor: 'pointer', backgroundColor: '#fef2f2' }} onClick={() => toggleSection('operational_out')}>
+                                        <td style={{ padding: '0.75rem 1rem', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                            <span style={{ fontSize: '0.65rem', display: 'inline-block', transition: 'transform 0.15s', transform: expandedSections.operational_out ? 'rotate(90deg)' : 'none' }}>▶</span>
+                                            (-) Pagamentos Operacionais
+                                        </td>
                                         {data.monthlyData.map((m) => (
                                             <td key={m.month} style={{ padding: '0.75rem 0.5rem', textAlign: 'right' }}>
-                                                {formatCurrency(m.outflows)}
+                                                {formatCurrency(m.pagamentosOperacionais)}
                                             </td>
                                         ))}
                                         <td style={{ padding: '0.75rem 1rem', textAlign: 'right' }}>
-                                            {formatCurrency(data.monthlyData.reduce((sum, m) => sum + m.outflows, 0))}
+                                            {formatCurrency(data.monthlyData.reduce((sum, m) => sum + m.pagamentosOperacionais, 0))}
                                         </td>
                                     </tr>
 
-                                    {/* Subcategorias Saídas */}
-                                    {Object.values(
-                                        data.monthlyData.reduce((acc, m) => {
-                                            Object.values(m.categories).forEach(c => {
-                                                if (!c.isRevenue) {
-                                                    acc[c.id] = { id: c.id, name: c.name };
-                                                }
-                                            });
-                                            return acc;
-                                        }, {} as Record<string, { id: string, name: string }>)
-                                    ).map(cat => (
-                                        <tr key={cat.id} style={{ borderBottom: '1px dotted #e2e8f0', color: '#64748b', fontSize: '0.8rem' }}>
+                                    {/* Subcategorias Pagamentos Operacionais */}
+                                    {expandedSections.operational_out && getCategoriesByClass('OPERATIONAL_OUT').map(cat => (
+                                        <tr key={cat.name} style={{ borderBottom: '1px dotted #e2e8f0', color: '#64748b', fontSize: '0.8rem', backgroundColor: '#fafafa' }}>
                                             <td style={{ padding: '0.5rem 2rem', textOverflow: 'ellipsis', whiteSpace: 'nowrap', overflow: 'hidden' }}>{cat.name}</td>
                                             {data.monthlyData.map((m) => (
                                                 <td key={m.month} style={{ padding: '0.5rem 0.5rem', textAlign: 'right' }}>
-                                                    {formatCurrency(m.categories[cat.id]?.amount || 0)}
+                                                    {formatCurrency(m.categories[cat.name]?.amount || 0)}
                                                 </td>
                                             ))}
                                             <td style={{ padding: '0.5rem 1rem', textAlign: 'right', fontWeight: 600 }}>
-                                                {formatCurrency(data.monthlyData.reduce((sum, m) => sum + (m.categories[cat.id]?.amount || 0), 0))}
+                                                {formatCurrency(data.monthlyData.reduce((sum, m) => sum + (m.categories[cat.name]?.amount || 0), 0))}
                                             </td>
                                         </tr>
                                     ))}
 
-                                    {/* Saldo Líquido do Período */}
+                                    {/* 4. (=) Fluxo de Caixa Operacional */}
                                     <tr style={{ borderBottom: '1px solid #e2e8f0', backgroundColor: '#f8fafc', fontWeight: 700 }}>
-                                        <td style={{ padding: '0.75rem 1rem', color: '#1e293b' }}>Saldo Líquido no Mês</td>
+                                        <td style={{ padding: '0.75rem 1rem', color: '#1e293b' }}>(=) Fluxo de Caixa Operacional</td>
                                         {data.monthlyData.map((m) => (
-                                            <td key={m.month} style={{ padding: '0.75rem 0.5rem', textAlign: 'right', color: m.netFlow >= 0 ? '#16a34a' : '#dc2626' }}>
-                                                {m.netFlow >= 0 ? '+' : ''}{formatCurrency(m.netFlow)}
+                                            <td key={m.month} style={{ padding: '0.75rem 0.5rem', textAlign: 'right', color: m.fluxoOperacional >= 0 ? '#16a34a' : '#dc2626' }}>
+                                                {m.fluxoOperacional >= 0 ? '+' : ''}{formatCurrency(m.fluxoOperacional)}
                                             </td>
                                         ))}
-                                        <td style={{ padding: '0.75rem 1rem', textAlign: 'right', color: data.monthlyData.reduce((sum, m) => sum + m.netFlow, 0) >= 0 ? '#16a34a' : '#dc2626' }}>
-                                            {formatCurrency(data.monthlyData.reduce((sum, m) => sum + m.netFlow, 0))}
+                                        <td style={{ padding: '0.75rem 1rem', textAlign: 'right', color: data.monthlyData.reduce((sum, m) => sum + m.fluxoOperacional, 0) >= 0 ? '#16a34a' : '#dc2626' }}>
+                                            {formatCurrency(data.monthlyData.reduce((sum, m) => sum + m.fluxoOperacional, 0))}
                                         </td>
                                     </tr>
 
-                                    {/* Saldo Final */}
+                                    {/* 5. (-) CAPEX */}
+                                    <tr style={{ borderBottom: '1px solid #e2e8f0', fontWeight: 700, color: '#d97706', cursor: 'pointer', backgroundColor: '#fffbeb' }} onClick={() => toggleSection('capex')}>
+                                        <td style={{ padding: '0.75rem 1rem', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                            <span style={{ fontSize: '0.65rem', display: 'inline-block', transition: 'transform 0.15s', transform: expandedSections.capex ? 'rotate(90deg)' : 'none' }}>▶</span>
+                                            (-) CAPEX (Investimentos em Imobilizado)
+                                        </td>
+                                        {data.monthlyData.map((m) => (
+                                            <td key={m.month} style={{ padding: '0.75rem 0.5rem', textAlign: 'right' }}>
+                                                {formatCurrency(m.capex)}
+                                            </td>
+                                        ))}
+                                        <td style={{ padding: '0.75rem 1rem', textAlign: 'right' }}>
+                                            {formatCurrency(data.monthlyData.reduce((sum, m) => sum + m.capex, 0))}
+                                        </td>
+                                    </tr>
+
+                                    {/* Subcategorias CAPEX */}
+                                    {expandedSections.capex && getCategoriesByClass('CAPEX').map(cat => (
+                                        <tr key={cat.name} style={{ borderBottom: '1px dotted #e2e8f0', color: '#64748b', fontSize: '0.8rem', backgroundColor: '#fafafa' }}>
+                                            <td style={{ padding: '0.5rem 2rem', textOverflow: 'ellipsis', whiteSpace: 'nowrap', overflow: 'hidden' }}>{cat.name}</td>
+                                            {data.monthlyData.map((m) => (
+                                                <td key={m.month} style={{ padding: '0.5rem 0.5rem', textAlign: 'right' }}>
+                                                    {formatCurrency(m.categories[cat.name]?.amount || 0)}
+                                                </td>
+                                            ))}
+                                            <td style={{ padding: '0.5rem 1rem', textAlign: 'right', fontWeight: 600 }}>
+                                                {formatCurrency(data.monthlyData.reduce((sum, m) => sum + (m.categories[cat.name]?.amount || 0), 0))}
+                                            </td>
+                                        </tr>
+                                    ))}
+
+                                    {/* 6. (+/-) Fluxo de Financiamento */}
+                                    <tr style={{ borderBottom: '1px solid #e2e8f0', fontWeight: 700, color: '#4f46e5', cursor: 'pointer', backgroundColor: '#eef2ff' }} onClick={() => toggleSection('financing')}>
+                                        <td style={{ padding: '0.75rem 1rem', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                            <span style={{ fontSize: '0.65rem', display: 'inline-block', transition: 'transform 0.15s', transform: expandedSections.financing ? 'rotate(90deg)' : 'none' }}>▶</span>
+                                            (+/-) Fluxo de Financiamento
+                                        </td>
+                                        {data.monthlyData.map((m) => (
+                                            <td key={m.month} style={{ padding: '0.75rem 0.5rem', textAlign: 'right', color: m.fluxoFinanciamento >= 0 ? '#4f46e5' : '#b91c1c' }}>
+                                                {m.fluxoFinanciamento >= 0 ? '+' : ''}{formatCurrency(m.fluxoFinanciamento)}
+                                            </td>
+                                        ))}
+                                        <td style={{ padding: '0.75rem 1rem', textAlign: 'right', color: data.monthlyData.reduce((sum, m) => sum + m.fluxoFinanciamento, 0) >= 0 ? '#4f46e5' : '#b91c1c' }}>
+                                            {formatCurrency(data.monthlyData.reduce((sum, m) => sum + m.fluxoFinanciamento, 0))}
+                                        </td>
+                                    </tr>
+
+                                    {/* Subcategorias Fluxo de Financiamento */}
+                                    {expandedSections.financing && getCategoriesByClass('FINANCING').map(cat => (
+                                        <tr key={cat.name} style={{ borderBottom: '1px dotted #e2e8f0', color: '#64748b', fontSize: '0.8rem', backgroundColor: '#fafafa' }}>
+                                            <td style={{ padding: '0.5rem 2rem', textOverflow: 'ellipsis', whiteSpace: 'nowrap', overflow: 'hidden' }}>{cat.name}</td>
+                                            {data.monthlyData.map((m) => (
+                                                <td key={m.month} style={{ padding: '0.5rem 0.5rem', textAlign: 'right' }}>
+                                                    {formatCurrency(m.categories[cat.name]?.amount || 0)}
+                                                </td>
+                                            ))}
+                                            <td style={{ padding: '0.5rem 1rem', textAlign: 'right', fontWeight: 600 }}>
+                                                {formatCurrency(data.monthlyData.reduce((sum, m) => sum + (m.categories[cat.name]?.amount || 0), 0))}
+                                            </td>
+                                        </tr>
+                                    ))}
+
+                                    {/* 7. Saldo Final */}
                                     <tr style={{ borderBottom: '2px solid #1e293b', backgroundColor: '#e2e8f0', fontWeight: 800, fontSize: '0.9rem' }}>
                                         <td style={{ padding: '0.75rem 1rem', color: '#0f172a' }}>(=) Saldo Final de Caixa</td>
                                         {data.monthlyData.map((m) => (

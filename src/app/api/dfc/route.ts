@@ -3,6 +3,29 @@ import { prisma } from '@/lib/prisma';
 
 export const dynamic = 'force-dynamic';
 
+function classifyCategory(categoryName: string, isRevenue: boolean): 'OPERATIONAL_IN' | 'OPERATIONAL_OUT' | 'CAPEX' | 'FINANCING' {
+    const name = categoryName.toUpperCase().trim();
+    
+    // Check CAPEX first (Group 07 or keywords)
+    const isCapex = name.startsWith('07') || name.startsWith('7.') || 
+                    name.includes('CAPEX') || name.includes('INVESTIMENTO') || name.includes('IMOBILIZADO');
+    if (isCapex) {
+        return 'CAPEX';
+    }
+    
+    // Check FINANCING (Group 08 or loans, or partner contribution keywords)
+    const isFinancing = name.startsWith('08') || name.startsWith('8.') || 
+                        name.includes('FINANCIAMENTO') || name.includes('EMPRESTIMO') || name.includes('EMPRÉSTIMO') ||
+                        name.includes('SÓCIO') || name.includes('SOCIO') || name.includes('APORTE') ||
+                        name.includes('MÚTUO') || name.includes('MUTUO');
+    if (isFinancing) {
+        return 'FINANCING';
+    }
+    
+    // Default to Operational In/Out
+    return isRevenue ? 'OPERATIONAL_IN' : 'OPERATIONAL_OUT';
+}
+
 export async function GET(request: Request) {
     try {
         const { searchParams } = new URL(request.url);
@@ -11,6 +34,9 @@ export async function GET(request: Request) {
         if (!tenantId) {
             return NextResponse.json({ success: false, error: 'Parâmetro tenantId é obrigatório.' }, { status: 400 });
         }
+
+        const isConsolidated = tenantId.toUpperCase() === 'ALL';
+        const tenantFilter = isConsolidated ? {} : { tenantId };
 
         const paramYear = searchParams.get('year');
         const year = paramYear ? parseInt(paramYear, 10) : new Date().getFullYear();
@@ -22,7 +48,7 @@ export async function GET(request: Request) {
 
         // 1. Obter saldos atuais das contas financeiras
         const bankAccounts = await prisma.bankAccount.findMany({
-            where: { tenantId }
+            where: tenantFilter
         });
         const currentBankBalance = bankAccounts.reduce((sum, acc) => sum + acc.balance, 0);
 
@@ -34,7 +60,7 @@ export async function GET(request: Request) {
         // 2. Buscar lançamentos Realizados (Caixa) a partir do início do ano alvo
         const realizedEntries = await prisma.realizedEntry.findMany({
             where: {
-                tenantId,
+                ...tenantFilter,
                 viewMode: 'caixa',
                 date: { gte: new Date(`${year}-01-01T00:00:00.000Z`) },
                 ...(costCenterId ? { costCenterId } : {})
@@ -45,7 +71,7 @@ export async function GET(request: Request) {
         // 3. Buscar lançamentos Previstos (A Receber e A Pagar)
         const expectedEntries = await prisma.realizedEntry.findMany({
             where: {
-                tenantId,
+                ...tenantFilter,
                 viewMode: { in: ['previsto_receber', 'previsto_pagar'] },
                 ...(costCenterId ? { costCenterId } : {})
             },
@@ -59,10 +85,16 @@ export async function GET(request: Request) {
             const entryDate = entry.date ? new Date(entry.date) : null;
             if (entryDate && entryDate.getTime() <= today.getTime()) {
                 const isRevenue = entry.category.type === 'REVENUE' || entry.category.name.startsWith('01') || entry.category.name.startsWith('1.');
-                if (isRevenue) {
+                const dfcClass = classifyCategory(entry.category.name, isRevenue);
+                
+                if (dfcClass === 'OPERATIONAL_IN') {
                     netCashFlowFromJan1ToToday += entry.amount;
-                } else {
+                } else if (dfcClass === 'OPERATIONAL_OUT') {
                     netCashFlowFromJan1ToToday -= entry.amount;
+                } else if (dfcClass === 'CAPEX') {
+                    netCashFlowFromJan1ToToday -= entry.amount;
+                } else if (dfcClass === 'FINANCING') {
+                    netCashFlowFromJan1ToToday += isRevenue ? entry.amount : -entry.amount;
                 }
             }
         });
@@ -73,23 +105,38 @@ export async function GET(request: Request) {
             month: i + 1,
             name: new Date(year, i, 1).toLocaleString('pt-BR', { month: 'short' }).toUpperCase(),
             startingBalance: 0,
-            inflows: 0,
+            recebimentosOperacionais: 0,
+            pagamentosOperacionais: 0,
+            fluxoOperacional: 0,
+            capex: 0,
+            fluxoFinanciamento: 0,
+            inflows: 0, // Keep inflows/outflows for general metrics / charts
             outflows: 0,
             netFlow: 0,
             endingBalance: 0,
-            categories: {} as Record<string, { id: string, name: string, isRevenue: boolean, amount: number }>,
+            categories: {} as Record<string, { id: string, name: string, isRevenue: boolean, amount: number, dfcClass: 'OPERATIONAL_IN' | 'OPERATIONAL_OUT' | 'CAPEX' | 'FINANCING' }>,
             details: [] as any[]
         }));
 
         // 6. Processar Realizados (Caixa) nos meses correspondentes
         realizedEntries.forEach(entry => {
             const dateObj = entry.date ? new Date(entry.date) : new Date(year, entry.month - 1, 15);
-            // Só consideramos como realizado se a data for menor ou igual a hoje
             if (dateObj.getTime() <= today.getTime()) {
                 const monthIdx = dateObj.getMonth();
                 if (dateObj.getFullYear() === year && monthIdx >= 0 && monthIdx < 12) {
                     const isRevenue = entry.category.type === 'REVENUE' || entry.category.name.startsWith('01') || entry.category.name.startsWith('1.');
                     const amount = entry.amount;
+                    const dfcClass = classifyCategory(entry.category.name, isRevenue);
+
+                    if (dfcClass === 'OPERATIONAL_IN') {
+                        monthlyData[monthIdx].recebimentosOperacionais += amount;
+                    } else if (dfcClass === 'OPERATIONAL_OUT') {
+                        monthlyData[monthIdx].pagamentosOperacionais += amount;
+                    } else if (dfcClass === 'CAPEX') {
+                        monthlyData[monthIdx].capex += amount;
+                    } else if (dfcClass === 'FINANCING') {
+                        monthlyData[monthIdx].fluxoFinanciamento += isRevenue ? amount : -amount;
+                    }
 
                     if (isRevenue) {
                         monthlyData[monthIdx].inflows += amount;
@@ -97,14 +144,15 @@ export async function GET(request: Request) {
                         monthlyData[monthIdx].outflows += amount;
                     }
 
-                    // Detalhe por Categoria
-                    const catKey = entry.category.id;
+                    // Detalhe por Categoria (Agrupado por Nome para consolidar)
+                    const catKey = entry.category.name;
                     if (!monthlyData[monthIdx].categories[catKey]) {
                         monthlyData[monthIdx].categories[catKey] = {
                             id: entry.category.id,
                             name: entry.category.name,
                             isRevenue,
-                            amount: 0
+                            amount: 0,
+                            dfcClass
                         };
                     }
                     monthlyData[monthIdx].categories[catKey].amount += amount;
@@ -117,7 +165,8 @@ export async function GET(request: Request) {
                         amount,
                         isRevenue,
                         isRealized: true,
-                        category: entry.category.name
+                        category: entry.category.name,
+                        dfcClass
                     });
                 }
             }
@@ -134,11 +183,10 @@ export async function GET(request: Request) {
             // Tratamento de Atrasados
             if (isOverdue) {
                 if (overdueAction === 'ignore') {
-                    return; // Ignora o lançamento
+                    return;
                 } else if (overdueAction === 'today') {
-                    projDate = new Date(today); // Projeta para hoje
+                    projDate = new Date(today);
                 }
-                // Se overdueAction === 'original', mantemos origDate
             }
 
             // Aplicar taxa de inadimplência apenas em Receitas Previstas
@@ -149,20 +197,33 @@ export async function GET(request: Request) {
 
             const monthIdx = projDate.getMonth();
             if (projDate.getFullYear() === year && monthIdx >= 0 && monthIdx < 12) {
+                const dfcClass = classifyCategory(entry.category.name, isRevenue);
+
+                if (dfcClass === 'OPERATIONAL_IN') {
+                    monthlyData[monthIdx].recebimentosOperacionais += amount;
+                } else if (dfcClass === 'OPERATIONAL_OUT') {
+                    monthlyData[monthIdx].pagamentosOperacionais += amount;
+                } else if (dfcClass === 'CAPEX') {
+                    monthlyData[monthIdx].capex += amount;
+                } else if (dfcClass === 'FINANCING') {
+                    monthlyData[monthIdx].fluxoFinanciamento += isRevenue ? amount : -amount;
+                }
+
                 if (isRevenue) {
                     monthlyData[monthIdx].inflows += amount;
                 } else {
                     monthlyData[monthIdx].outflows += amount;
                 }
 
-                // Detalhe por Categoria
-                const catKey = entry.category.id;
+                // Detalhe por Categoria (Agrupado por Nome para consolidar)
+                const catKey = entry.category.name;
                 if (!monthlyData[monthIdx].categories[catKey]) {
                     monthlyData[monthIdx].categories[catKey] = {
                         id: entry.category.id,
                         name: entry.category.name,
                         isRevenue,
-                        amount: 0
+                        amount: 0,
+                        dfcClass
                     };
                 }
                 monthlyData[monthIdx].categories[catKey].amount += amount;
@@ -177,16 +238,18 @@ export async function GET(request: Request) {
                     isRevenue,
                     isRealized: false,
                     isOverdue,
-                    category: entry.category.name
+                    category: entry.category.name,
+                    dfcClass
                 });
             }
         });
 
-        // 8. Calcular Saldos Iniciais e Finais em Cascata (Meses 1 a 12)
+        // 8. Calcular Saldos Iniciais, Fluxos e Finais em Cascata (Meses 1 a 12)
         let runningBalance = startingBalanceJan1;
         for (let i = 0; i < 12; i++) {
             monthlyData[i].startingBalance = runningBalance;
-            monthlyData[i].netFlow = monthlyData[i].inflows - monthlyData[i].outflows;
+            monthlyData[i].fluxoOperacional = monthlyData[i].recebimentosOperacionais - monthlyData[i].pagamentosOperacionais;
+            monthlyData[i].netFlow = monthlyData[i].fluxoOperacional - monthlyData[i].capex + monthlyData[i].fluxoFinanciamento;
             monthlyData[i].endingBalance = runningBalance + monthlyData[i].netFlow;
             runningBalance = monthlyData[i].endingBalance;
         }
@@ -197,7 +260,6 @@ export async function GET(request: Request) {
         let dailyRunningBalance = currentBankBalance;
         const totalProjectionDays = 180;
         
-        // Inicializar os dias da projeção
         const dailyMap = new Map<string, number>();
         for (let i = 0; i <= totalProjectionDays; i++) {
             const d = new Date(today);
@@ -224,10 +286,22 @@ export async function GET(request: Request) {
                 amount = amount * (1 - defaultRate / 100);
             }
 
+            const dfcClass = classifyCategory(entry.category.name, isRevenue);
+            let netAmount = 0;
+            if (dfcClass === 'OPERATIONAL_IN') {
+                netAmount = amount;
+            } else if (dfcClass === 'OPERATIONAL_OUT') {
+                netAmount = -amount;
+            } else if (dfcClass === 'CAPEX') {
+                netAmount = -amount;
+            } else if (dfcClass === 'FINANCING') {
+                netAmount = isRevenue ? amount : -amount;
+            }
+
             const key = projDate.toISOString().split('T')[0];
             if (dailyMap.has(key)) {
                 const currentVal = dailyMap.get(key) || 0;
-                dailyMap.set(key, currentVal + (isRevenue ? amount : -amount));
+                dailyMap.set(key, currentVal + netAmount);
             }
         });
 

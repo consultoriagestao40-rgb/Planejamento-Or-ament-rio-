@@ -1179,7 +1179,7 @@ export async function syncOpenCommitments(tenantId: string, accessToken: string,
     const endStr = `${year + 2}-12-31`;
 
     // 1. Contas a Receber (Em aberto)
-    const recUrl = `https://api-v2.contaazul.com/v1/financeiro/eventos-financeiros/contas-a-receber/buscar?status=OPEN&data_vencimento_de=${startStr}&data_vencimento_ate=${endStr}&tamanho_pagina=100`;
+    const recUrl = `https://api-v2.contaazul.com/v1/financeiro/eventos-financeiros/contas-a-receber/buscar?status=PENDING&data_vencimento_de=${startStr}&data_vencimento_ate=${endStr}&tamanho_pagina=100`;
     await collectOpenTransactions(accessToken, recUrl, entriesToSave, false, tenantId);
 
     // 2. Contas a Receber (Perdas / LOST) - opcional para trazer inadimplências
@@ -1187,7 +1187,7 @@ export async function syncOpenCommitments(tenantId: string, accessToken: string,
     await collectOpenTransactions(accessToken, lostUrl, entriesToSave, false, tenantId, true);
 
     // 3. Contas a Pagar (Em aberto)
-    const payUrl = `https://api-v2.contaazul.com/v1/financeiro/eventos-financeiros/contas-a-pagar/buscar?status=OPEN&data_vencimento_de=${startStr}&data_vencimento_ate=${endStr}&tamanho_pagina=100`;
+    const payUrl = `https://api-v2.contaazul.com/v1/financeiro/eventos-financeiros/contas-a-pagar/buscar?status=PENDING&data_vencimento_de=${startStr}&data_vencimento_ate=${endStr}&tamanho_pagina=100`;
     await collectOpenTransactions(accessToken, payUrl, entriesToSave, true, tenantId);
 
     if (entriesToSave.length > 0) {

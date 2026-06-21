@@ -21,7 +21,7 @@ export async function runCronSync(
     pushLog(`[SYNC] Iniciando sync — Ano: ${reqYear}, Meses: ${startMonth}→${endMonth}`);
 
     const tenants = await prisma.tenant.findMany();
-    const targets = tenantId ? tenants.filter(t => t.id === tenantId) : tenants;
+    const targets = (tenantId && tenantId.toUpperCase() !== 'ALL') ? tenants.filter(t => t.id === tenantId) : tenants;
 
     const report: any[] = [];
 

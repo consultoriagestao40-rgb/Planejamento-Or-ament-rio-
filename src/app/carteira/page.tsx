@@ -1241,8 +1241,6 @@ export default function PortfolioAnalysisPage() {
                                 background-color: rgba(37, 99, 235, 0.02) !important;
                             }
                         `}</style>
-                    </div>
-                )}
             </div>
         </div>
     );

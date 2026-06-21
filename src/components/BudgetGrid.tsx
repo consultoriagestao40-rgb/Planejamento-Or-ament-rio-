@@ -590,6 +590,58 @@ export default function BudgetGrid({
         }
     };
 
+    const chartButtonStyle: React.CSSProperties = {
+        display: 'flex',
+        alignItems: 'center',
+        gap: '0.4rem',
+        padding: '0 0.75rem',
+        height: '28px',
+        background: 'linear-gradient(135deg, #3b82f6, #2563eb)',
+        color: '#ffffff',
+        border: 'none',
+        borderRadius: '6px',
+        fontSize: '0.7rem',
+        fontWeight: 700,
+        cursor: 'pointer',
+        boxShadow: '0 2px 4px rgba(37, 99, 235, 0.15)',
+        transition: 'all 0.15s ease'
+    };
+
+    const openAnalysisForChart = (indicatorType: string) => {
+        const defaultTenant = selectedCompany.includes('DEFAULT') ? (companies?.[0]?.id || '') : selectedCompany[0];
+        setAnalysisSelectedTenant(defaultTenant);
+        setAnalysisSelectedMonth(startMonth + 1);
+        
+        // Find matching category for default tenant
+        let defaultCatId = '';
+        const tenantCats = categories.filter((c: any) => c.tenantId === defaultTenant);
+        
+        if (indicatorType === 'receita') {
+            const found = tenantCats.find((c: any) => c.type === 'REVENUE' || c.entradaDre?.includes('RECEITA'));
+            if (found) defaultCatId = found.id;
+        } else if (indicatorType === 'faturamento') {
+            const found = tenantCats.find((c: any) => c.type === 'REVENUE' || c.entradaDre?.includes('RECEITA'));
+            if (found) defaultCatId = found.id;
+        } else if (indicatorType === 'margem_bruta') {
+            const found = tenantCats.find((c: any) => c.entradaDre?.includes('CUSTOS'));
+            if (found) defaultCatId = found.id;
+        } else if (indicatorType === 'margem_contribuicao') {
+            const found = tenantCats.find((c: any) => c.entradaDre?.includes('DESPESAS'));
+            if (found) defaultCatId = found.id;
+        } else if (indicatorType === 'contratos') {
+            const found = tenantCats.find((c: any) => c.type === 'REVENUE' || c.entradaDre?.includes('CUSTOS') || c.entradaDre?.includes('DESPESAS'));
+            if (found) defaultCatId = found.id;
+        }
+        
+        setAnalysisSelectedCategory(defaultCatId);
+        setDeviationReport('');
+        setAnalysisPerformed('');
+        setAnalysisActions([]);
+        setAnalysisComments([]);
+        setIsAnalysisModalOpen(true);
+    };
+
+
 
     // --- Dynamic Filters ---
     // React to pendingCompany so the CC dropdown updates IMMEDIATELY as the user picks a company,
@@ -3523,12 +3575,22 @@ export default function BudgetGrid({
 
         return (
             <div className="glass-card" style={{ padding: '2rem', background: '#ffffff', borderRadius: '12px', border: '1px solid #e2e8f0', boxShadow: '0 4px 6px rgba(0,0,0,0.02)', width: '100%', height: '100%', display: 'flex', flexDirection: 'column' }}>
-                <h3 style={{ fontSize: '1rem', fontWeight: 800, color: '#0f172a', marginBottom: '1.5rem', textAlign: 'center' }}>
-                    Receita por Empresa (Período Selecionado)
-                    <span style={{ fontSize: '0.75rem', color: '#64748b', fontWeight: 500, display: 'block', marginTop: '0.25rem' }}>
-                        Valores em Mil R$
-                    </span>
-                </h3>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '1.5rem', gap: '0.5rem' }}>
+                    <h3 style={{ fontSize: '1rem', fontWeight: 800, color: '#0f172a', margin: 0, textAlign: 'left' }}>
+                        Receita por Empresa (Período Selecionado)
+                        <span style={{ fontSize: '0.75rem', color: '#64748b', fontWeight: 500, display: 'block', marginTop: '0.25rem' }}>
+                            Valores em Mil R$
+                        </span>
+                    </h3>
+                    <button
+                        onClick={() => openAnalysisForChart('receita')}
+                        style={chartButtonStyle}
+                        onMouseEnter={(e) => e.currentTarget.style.transform = 'translateY(-1px)'}
+                        onMouseLeave={(e) => e.currentTarget.style.transform = 'none'}
+                    >
+                        📊 Análise do Indicador
+                    </button>
+                </div>
 
                 {activeRevenueData.length === 0 || totalRevenue === 0 ? (
                     <div style={{ padding: '3rem', textAlign: 'center', color: '#64748b', fontSize: '0.85rem', fontWeight: 600 }}>
@@ -3663,12 +3725,22 @@ export default function BudgetGrid({
 
         return (
             <div className="glass-card" style={{ padding: '2rem', background: '#ffffff', borderRadius: '12px', border: '1px solid #e2e8f0', boxShadow: '0 4px 6px rgba(0,0,0,0.02)', width: '100%', height: '100%', display: 'flex', flexDirection: 'column' }}>
-                <h3 style={{ fontSize: '1rem', fontWeight: 800, color: '#0f172a', marginBottom: '1.5rem' }}>
-                    Margem Bruta (MB) por Empresa (Período Selecionado)
-                    <span style={{ fontSize: '0.75rem', color: '#64748b', fontWeight: 500, display: 'block', marginTop: '0.25rem' }}>
-                        Valores Absolutos em Mil R$ e Margem Percentual (%)
-                    </span>
-                </h3>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '1.5rem', gap: '0.5rem' }}>
+                    <h3 style={{ fontSize: '1rem', fontWeight: 800, color: '#0f172a', margin: 0, textAlign: 'left' }}>
+                        Margem Bruta (MB) por Empresa (Período Selecionado)
+                        <span style={{ fontSize: '0.75rem', color: '#64748b', fontWeight: 500, display: 'block', marginTop: '0.25rem' }}>
+                            Valores Absolutos em Mil R$ e Margem Percentual (%)
+                        </span>
+                    </h3>
+                    <button
+                        onClick={() => openAnalysisForChart('margem_bruta')}
+                        style={chartButtonStyle}
+                        onMouseEnter={(e) => e.currentTarget.style.transform = 'translateY(-1px)'}
+                        onMouseLeave={(e) => e.currentTarget.style.transform = 'none'}
+                    >
+                        📊 Análise do Indicador
+                    </button>
+                </div>
 
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
                     {sortedData.map((item, idx) => {
@@ -3716,12 +3788,22 @@ export default function BudgetGrid({
 
         return (
             <div className="glass-card" style={{ padding: '2rem', background: '#ffffff', borderRadius: '12px', border: '1px solid #e2e8f0', boxShadow: '0 4px 6px rgba(0,0,0,0.02)', width: '100%', height: '100%', display: 'flex', flexDirection: 'column' }}>
-                <h3 style={{ fontSize: '1rem', fontWeight: 800, color: '#0f172a', marginBottom: '1.5rem' }}>
-                    Margem de Contribuição (MC) por Empresa (Período Selecionado)
-                    <span style={{ fontSize: '0.75rem', color: '#64748b', fontWeight: 500, display: 'block', marginTop: '0.25rem' }}>
-                        Valores Absolutos em Mil R$ e Margem Percentual (%)
-                    </span>
-                </h3>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '1.5rem', gap: '0.5rem' }}>
+                    <h3 style={{ fontSize: '1rem', fontWeight: 800, color: '#0f172a', margin: 0, textAlign: 'left' }}>
+                        Margem de Contribuição (MC) por Empresa (Período Selecionado)
+                        <span style={{ fontSize: '0.75rem', color: '#64748b', fontWeight: 500, display: 'block', marginTop: '0.25rem' }}>
+                            Valores Absolutos em Mil R$ e Margem Percentual (%)
+                        </span>
+                    </h3>
+                    <button
+                        onClick={() => openAnalysisForChart('margem_contribuicao')}
+                        style={chartButtonStyle}
+                        onMouseEnter={(e) => e.currentTarget.style.transform = 'translateY(-1px)'}
+                        onMouseLeave={(e) => e.currentTarget.style.transform = 'none'}
+                    >
+                        📊 Análise do Indicador
+                    </button>
+                </div>
 
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
                     {sortedData.map((item, idx) => {
@@ -3907,6 +3989,14 @@ export default function BudgetGrid({
                             Período: {periodLabel} (Acumulado) — Valores detalhados no card ao apontar
                         </span>
                     </div>
+                    <button
+                        onClick={() => openAnalysisForChart('contratos')}
+                        style={chartButtonStyle}
+                        onMouseEnter={(e) => e.currentTarget.style.transform = 'translateY(-1px)'}
+                        onMouseLeave={(e) => e.currentTarget.style.transform = 'none'}
+                    >
+                        📊 Análise do Indicador
+                    </button>
                     {/* Legenda Combinada */}
                     <div style={{ display: 'flex', gap: '1.25rem', fontSize: '0.75rem', fontWeight: 600 }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
@@ -4146,6 +4236,14 @@ export default function BudgetGrid({
                                 Receita Anual Total: <span style={{ color: '#10b981', fontWeight: 800 }}>{contractsAnnualTotal.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</span>
                             </span>
                         </h3>
+                        <button
+                            onClick={() => openAnalysisForChart('faturamento')}
+                            style={chartButtonStyle}
+                            onMouseEnter={(e) => e.currentTarget.style.transform = 'translateY(-1px)'}
+                            onMouseLeave={(e) => e.currentTarget.style.transform = 'none'}
+                        >
+                            📊 Análise do Indicador
+                        </button>
                     </div>
                     <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#64748b', fontSize: '0.85rem', fontWeight: 600, minHeight: '150px' }}>
                         Nenhum contrato com faturamento realizado no período selecionado.
@@ -4194,16 +4292,26 @@ export default function BudgetGrid({
                                 Receita Anual Total: <span style={{ color: '#10b981', fontWeight: 800 }}>{contractsAnnualTotal.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</span>
                             </span>
                         </h3>
-                        <select 
-                            value={selectedContractsMonth} 
-                            onChange={(e) => setSelectedContractsMonth(e.target.value)}
-                            style={{ padding: '0.25rem 0.5rem', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '0.75rem', fontWeight: 600, color: '#334155', background: '#ffffff', cursor: 'pointer', outline: 'none' }}
-                        >
-                            <option value="accumulated">Acumulado do Período</option>
-                            {monthsInPeriod.map(m => (
-                                <option key={m} value={m.toString()}>{MONTH_SHORT[m]}</option>
-                            ))}
-                        </select>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                            <button
+                                onClick={() => openAnalysisForChart('faturamento')}
+                                style={chartButtonStyle}
+                                onMouseEnter={(e) => e.currentTarget.style.transform = 'translateY(-1px)'}
+                                onMouseLeave={(e) => e.currentTarget.style.transform = 'none'}
+                            >
+                                📊 Análise do Indicador
+                            </button>
+                            <select 
+                                value={selectedContractsMonth} 
+                                onChange={(e) => setSelectedContractsMonth(e.target.value)}
+                                style={{ padding: '0.25rem 0.5rem', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '0.75rem', fontWeight: 600, color: '#334155', background: '#ffffff', cursor: 'pointer', outline: 'none', height: '28px' }}
+                            >
+                                <option value="accumulated">Acumulado do Período</option>
+                                {monthsInPeriod.map(m => (
+                                    <option key={m} value={m.toString()}>{MONTH_SHORT[m]}</option>
+                                ))}
+                            </select>
+                        </div>
                     </div>
                     <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#64748b', fontSize: '0.85rem', fontWeight: 600, minHeight: '150px' }}>
                         Sem faturamento lançado no mês selecionado.
@@ -4228,22 +4336,32 @@ export default function BudgetGrid({
                             Receita Anual Total: <span style={{ color: '#10b981', fontWeight: 800 }}>{contractsAnnualTotal.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</span>
                         </span>
                     </h3>
-                    <select 
-                        value={selectedContractsMonth} 
-                        onChange={(e) => setSelectedContractsMonth(e.target.value)}
-                        style={{ 
-                            padding: '0.25rem 0.5rem', 
-                            borderRadius: '6px', 
-                            border: '1px solid #cbd5e1', 
-                            fontSize: '0.75rem', 
-                            fontWeight: 600, 
-                            color: '#334155', 
-                            background: '#ffffff', 
-                            cursor: 'pointer', 
-                            outline: 'none',
-                            boxShadow: '0 1px 2px rgba(0,0,0,0.05)'
-                        }}
-                    >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                        <button
+                            onClick={() => openAnalysisForChart('faturamento')}
+                            style={chartButtonStyle}
+                            onMouseEnter={(e) => e.currentTarget.style.transform = 'translateY(-1px)'}
+                            onMouseLeave={(e) => e.currentTarget.style.transform = 'none'}
+                        >
+                            📊 Análise do Indicador
+                        </button>
+                        <select 
+                            value={selectedContractsMonth} 
+                            onChange={(e) => setSelectedContractsMonth(e.target.value)}
+                            style={{ 
+                                padding: '0.25rem 0.5rem', 
+                                borderRadius: '6px', 
+                                border: '1px solid #cbd5e1', 
+                                fontSize: '0.75rem', 
+                                fontWeight: 600, 
+                                color: '#334155', 
+                                background: '#ffffff', 
+                                cursor: 'pointer', 
+                                outline: 'none',
+                                boxShadow: '0 1px 2px rgba(0,0,0,0.05)',
+                                height: '28px'
+                            }}
+                        >
                         <option value="accumulated">Acumulado do Período</option>
                         {monthsInPeriod.map(m => (
                             <option key={m} value={m.toString()}>{MONTH_SHORT[m]}</option>
@@ -4502,40 +4620,6 @@ export default function BudgetGrid({
                 {/* RIGHT: Análises & Toggles / Período de Análise */}
                 {activeTab === 'graficos' || activeTab === 'kpi' ? (
                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                        {/* BOTÃO ANÁLISE DO INDICADOR */}
-                        <button
-                            onClick={() => {
-                                const defaultTenant = selectedCompany.includes('DEFAULT') ? (companies[0]?.id || '') : selectedCompany[0];
-                                setAnalysisSelectedTenant(defaultTenant);
-                                setAnalysisSelectedMonth(startMonth + 1);
-                                setAnalysisSelectedCategory('');
-                                setDeviationReport('');
-                                setAnalysisPerformed('');
-                                setAnalysisActions([]);
-                                setAnalysisComments([]);
-                                setIsAnalysisModalOpen(true);
-                            }}
-                            style={{
-                                display: 'flex',
-                                alignItems: 'center',
-                                gap: '0.4rem',
-                                padding: '0 0.75rem',
-                                height: '32px',
-                                background: 'linear-gradient(135deg, #3b82f6, #2563eb)',
-                                color: '#ffffff',
-                                border: 'none',
-                                borderRadius: '8px',
-                                fontSize: '0.75rem',
-                                fontWeight: 700,
-                                cursor: 'pointer',
-                                boxShadow: '0 2px 4px rgba(37, 99, 235, 0.2)',
-                                transition: 'all 0.15s ease'
-                            }}
-                            onMouseEnter={(e) => e.currentTarget.style.transform = 'translateY(-1px)'}
-                            onMouseLeave={(e) => e.currentTarget.style.transform = 'none'}
-                        >
-                            📊 Análise do Indicador
-                        </button>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                             <span style={{ fontSize: '0.65rem', fontWeight: 800, color: 'var(--accent-blue)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Período</span>
                             <select

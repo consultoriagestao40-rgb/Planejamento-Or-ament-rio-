@@ -1582,6 +1582,113 @@ export default function BudgetGrid({
         });
     }, [companies, selectedCompany, categories, realizedValues, startMonth, endMonth, currentMonthIdx]);
 
+    const companyContributionMarginData = useMemo(() => {
+        const visibleCompanyIds = selectedCompany.includes('DEFAULT')
+            ? companies.map(c => c.id)
+            : selectedCompany;
+
+        const isRev = (c: any) => {
+            const code = (c.name.match(/^(\d{1,2}(?:\.\d+)*)/) || [])[1] || '';
+            return code.startsWith('01') || code.startsWith('1');
+        };
+        const isTax = (c: any) => {
+            const code = (c.name.match(/^(\d{1,2}(?:\.\d+)*)/) || [])[1] || '';
+            return code.startsWith('02') || code.startsWith('2');
+        };
+        const isCost = (c: any) => {
+            const code = (c.name.match(/^(\d{1,2}(?:\.\d+)*)/) || [])[1] || '';
+            return code.startsWith('3') || code.startsWith('03');
+        };
+        const isOpExp = (c: any) => {
+            const code = (c.name.match(/^(\d{1,2}(?:\.\d+)*)/) || [])[1] || '';
+            return code.startsWith('4') || code.startsWith('04');
+        };
+
+        const limitMonth = Math.min(endMonth, currentMonthIdx);
+
+        return visibleCompanyIds.map(tenantId => {
+            const comp = companies.find(c => c.id === tenantId);
+            const compName = comp ? comp.name : tenantId;
+
+            const tenantCategories = categories.filter((c: any) => c.tenantId === tenantId);
+
+            const revCats = tenantCategories.filter(isRev);
+            const taxCats = tenantCategories.filter(isTax);
+            const costCats = tenantCategories.filter(isCost);
+            const opExpCats = tenantCategories.filter(isOpExp);
+
+            let totalRev = 0;
+            let totalTax = 0;
+            let totalCost = 0;
+            let totalOpExp = 0;
+
+            const addedKeys = new Set<string>();
+            for (let m = startMonth; m <= limitMonth; m++) {
+                revCats.forEach(cat => {
+                    const cleanId = cat.id.includes(':') ? cat.id.split(':').pop() : cat.id;
+                    const k1 = `realized-${cat.id}-${m}`;
+                    const k2 = `realized-${cleanId}-${m}`;
+                    if (!addedKeys.has(k1)) {
+                        addedKeys.add(k1);
+                        totalRev += (realizedValues[k1] || 0);
+                    }
+                    if (!addedKeys.has(k2)) {
+                        addedKeys.add(k2);
+                        totalRev += (realizedValues[k2] || 0);
+                    }
+                });
+                taxCats.forEach(cat => {
+                    const cleanId = cat.id.includes(':') ? cat.id.split(':').pop() : cat.id;
+                    const k1 = `realized-${cat.id}-${m}`;
+                    const k2 = `realized-${cleanId}-${m}`;
+                    if (!addedKeys.has(k1)) {
+                        addedKeys.add(k1);
+                        totalTax += (realizedValues[k1] || 0);
+                    }
+                    if (!addedKeys.has(k2)) {
+                        addedKeys.add(k2);
+                        totalTax += (realizedValues[k2] || 0);
+                    }
+                });
+                costCats.forEach(cat => {
+                    const cleanId = cat.id.includes(':') ? cat.id.split(':').pop() : cat.id;
+                    const k1 = `realized-${cat.id}-${m}`;
+                    const k2 = `realized-${cleanId}-${m}`;
+                    if (!addedKeys.has(k1)) {
+                        addedKeys.add(k1);
+                        totalCost += (realizedValues[k1] || 0);
+                    }
+                    if (!addedKeys.has(k2)) {
+                        addedKeys.add(k2);
+                        totalCost += (realizedValues[k2] || 0);
+                    }
+                });
+                opExpCats.forEach(cat => {
+                    const cleanId = cat.id.includes(':') ? cat.id.split(':').pop() : cat.id;
+                    const k1 = `realized-${cat.id}-${m}`;
+                    const k2 = `realized-${cleanId}-${m}`;
+                    if (!addedKeys.has(k1)) {
+                        addedKeys.add(k1);
+                        totalOpExp += (realizedValues[k1] || 0);
+                    }
+                    if (!addedKeys.has(k2)) {
+                        addedKeys.add(k2);
+                        totalOpExp += (realizedValues[k2] || 0);
+                    }
+                });
+            }
+
+            const contribMargin = totalRev - totalTax - totalCost - totalOpExp;
+            const percentage = totalRev > 0 ? (contribMargin / totalRev) * 100 : 0;
+
+            return {
+                name: compName,
+                margin: contribMargin / 1000,
+                percentage
+            };
+        });
+    }, [companies, selectedCompany, categories, realizedValues, startMonth, endMonth, currentMonthIdx]);
+
 
 
     const revenueProjectionData = useMemo(() => {
@@ -3426,6 +3533,59 @@ export default function BudgetGrid({
         );
     };
 
+    const renderCompanyContributionMargin = () => {
+        const sortedData = [...companyContributionMarginData].sort((a, b) => b.margin - a.margin);
+
+        return (
+            <div className="glass-card" style={{ padding: '2rem', background: '#ffffff', borderRadius: '12px', border: '1px solid #e2e8f0', boxShadow: '0 4px 6px rgba(0,0,0,0.02)', width: '100%' }}>
+                <h3 style={{ fontSize: '1rem', fontWeight: 800, color: '#0f172a', marginBottom: '1.5rem' }}>
+                    Margem de Contribuição (MC) por Empresa (Período Selecionado)
+                    <span style={{ fontSize: '0.75rem', color: '#64748b', fontWeight: 500, display: 'block', marginTop: '0.25rem' }}>
+                        Valores Absolutos em Mil R$ e Margem Percentual (%)
+                    </span>
+                </h3>
+
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+                    {sortedData.map((item, idx) => {
+                        const isPositive = item.margin >= 0;
+                        const marginPercentStr = `${item.percentage.toFixed(1)}%`;
+                        
+                        const maxAbsMargin = Math.max(...sortedData.map(d => Math.abs(d.margin)), 1);
+                        const barWidthPercent = `${Math.min((Math.abs(item.margin) / maxAbsMargin) * 100, 100)}%`;
+
+                        return (
+                            <div key={idx} style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.85rem', fontWeight: 700 }}>
+                                    <span style={{ color: '#334155' }}>{item.name}</span>
+                                    <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
+                                        <span style={{ color: isPositive ? '#16a34a' : '#dc2626', fontWeight: 800 }}>
+                                            R$ {item.margin.toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })} Mil
+                                        </span>
+                                        <span style={{ color: '#64748b', fontSize: '0.8rem', background: '#f1f5f9', padding: '2px 8px', borderRadius: '4px' }}>
+                                            {marginPercentStr}
+                                        </span>
+                                    </div>
+                                </div>
+                                <div style={{ width: '100%', height: '8px', background: '#e2e8f0', borderRadius: '4px', overflow: 'hidden', position: 'relative' }}>
+                                    <div style={{ 
+                                        position: 'absolute',
+                                        left: isPositive ? '0' : 'auto',
+                                        right: isPositive ? 'auto' : '0',
+                                        width: barWidthPercent, 
+                                        height: '100%', 
+                                        background: isPositive ? 'linear-gradient(90deg, #6366f1, #8b5cf6)' : 'linear-gradient(90deg, #f87171, #ef4444)', 
+                                        borderRadius: '4px',
+                                        transition: 'width 0.5s ease'
+                                    }} />
+                                </div>
+                            </div>
+                        );
+                    })}
+                </div>
+            </div>
+        );
+    };
+
     const renderContractsBarChart = () => {
         if (contractsLoading) {
             return (
@@ -3957,8 +4117,13 @@ export default function BudgetGrid({
                             {renderContractsBarChart()}
                         </div>
                     </div>
-                    <div style={{ width: '100%' }}>
-                        {renderCompanyGrossMargin()}
+                    <div style={{ display: 'flex', flexDirection: 'row', gap: '1.5rem', width: '100%', flexWrap: 'wrap', alignItems: 'stretch' }}>
+                        <div style={{ flex: 1, minWidth: '350px' }}>
+                            {renderCompanyGrossMargin()}
+                        </div>
+                        <div style={{ flex: 1, minWidth: '350px' }}>
+                            {renderCompanyContributionMargin()}
+                        </div>
                     </div>
                 </div>
             ) : activeTab === 'graficos' ? (

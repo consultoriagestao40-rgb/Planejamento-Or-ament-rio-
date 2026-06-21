@@ -818,6 +818,11 @@ export default function PortfolioAnalysisPage() {
                                 </tr>
                             </tfoot>
                         </table>
+                        <style jsx global>{`
+                            .hover-row:hover {
+                                background-color: rgba(37, 99, 235, 0.02) !important;
+                            }
+                        `}</style>
 
                     </div>
                 )}
@@ -1236,11 +1241,7 @@ export default function PortfolioAnalysisPage() {
                     </div>
                 )}
 
-                        <style jsx global>{`
-                            .hover-row:hover {
-                                background-color: rgba(37, 99, 235, 0.02) !important;
-                            }
-                        `}</style>
+
             </div>
         </div>
     );

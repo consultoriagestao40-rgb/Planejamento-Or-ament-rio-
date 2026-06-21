@@ -546,10 +546,19 @@ export async function GET(request: Request) {
             let budgetVal = 0;
             let realizedVal = 0;
             const breakdown: Record<string, { budget: number; realized: number; atingido: number; pctOfRevenue: number }> = {};
+            const addedCanonicalKeys = new Set<string>();
 
             resolvedKeys.forEach((key, idx) => {
                 const originalKey = keys[idx];
                 const isDreKey = ['vRev', 'vTaxes', 'vRecLiq', 'vCosts', 'vGrossMarg', 'vOpExp', 'vContribMarg', 'vAdminExp', 'vEbitda', 'vFin', 'vNetProfit'].includes(key);
+
+                let canonicalKey = key;
+                if (!isDreKey) {
+                    const node = map.get(key);
+                    if (node) {
+                        canonicalKey = node.id;
+                    }
+                }
 
                 let bVal = 0;
                 let rVal = 0;
@@ -575,8 +584,11 @@ export async function GET(request: Request) {
                     }
                 }
 
-                budgetVal += bVal;
-                realizedVal += rVal;
+                if (!addedCanonicalKeys.has(canonicalKey)) {
+                    addedCanonicalKeys.add(canonicalKey);
+                    budgetVal += bVal;
+                    realizedVal += rVal;
+                }
 
                 // Individual account target achievement percentage
                 let at = 0;

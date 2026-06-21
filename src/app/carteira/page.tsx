@@ -66,15 +66,29 @@ export default function PortfolioAnalysisPage() {
     const toggleChartCategory = useCallback((id: string) => {
         setChartCategory(prev => {
             const selectedIds = prev ? prev.split(',').map(x => x.trim()).filter(Boolean) : [];
-            const index = selectedIds.indexOf(id);
-            if (index === -1) {
-                selectedIds.push(id);
+            
+            // Find if there are equivalent/duplicate categories in categories state
+            const targetCat = categories.find((c: any) => c.id === id);
+            const targetName = targetCat?.name;
+            const isDreKey = ['vRev', 'vTaxes', 'vRecLiq', 'vCosts', 'vGrossMarg', 'vOpExp', 'vContribMarg', 'vAdminExp', 'vEbitda', 'vFin', 'vNetProfit'].includes(id);
+
+            // Get all IDs associated with this category name in the active list
+            const equivalentIds = !isDreKey && targetName
+                ? categories.filter((c: any) => c.name === targetName).map((c: any) => c.id)
+                : [id];
+
+            const alreadyHasAny = selectedIds.some(sid => equivalentIds.includes(sid));
+
+            if (alreadyHasAny) {
+                // Remove all equivalent IDs
+                return selectedIds.filter(sid => !equivalentIds.includes(sid)).join(',');
             } else {
-                selectedIds.splice(index, 1);
+                // Add only the toggled ID
+                selectedIds.push(id);
+                return selectedIds.join(',');
             }
-            return selectedIds.join(',');
         });
-    }, []);
+    }, [categories]);
 
     const getChartCategoryLabel = useCallback((categoriesStr: string) => {
         if (!categoriesStr) return 'Selecione as contas...';
@@ -99,7 +113,9 @@ export default function PortfolioAnalysisPage() {
             return found ? found.name : id;
         });
 
-        return labels.join(' + ');
+        // Deduplicate labels to clean up any duplicate/equivalent database category rows
+        const uniqueLabels = Array.from(new Set(labels));
+        return uniqueLabels.join(' + ');
     }, [categories]);
 
     const getChartHeaderTitle = useCallback((chart: any) => {
@@ -1263,45 +1279,66 @@ export default function PortfolioAnalysisPage() {
                                                             );
                                                         })}
                                                         {/* Categories list */}
-                                                        {categories
-                                                            .filter(cat => {
-                                                                const activeTenant = analysisSelectedTenant || (companies.length > 0 ? companies[0].id : '');
-                                                                return cat.tenantId === activeTenant;
-                                                            })
-                                                            .filter(cat => !chartCategorySearch || cat.name.toLowerCase().includes(chartCategorySearch.toLowerCase()))
-                                                            .sort((a, b) => a.name.localeCompare(b.name))
-                                                            .map((cat: any) => {
-                                                                const isSelected = chartCategory.split(',').map(x => x.trim()).filter(Boolean).includes(cat.id);
-                                                                return (
-                                                                    <div
-                                                                        key={cat.id}
-                                                                        onClick={(e) => {
-                                                                            e.stopPropagation();
-                                                                            toggleChartCategory(cat.id);
-                                                                        }}
-                                                                        style={{ 
-                                                                            padding: '0.45rem 0.75rem', 
-                                                                            cursor: 'pointer', 
-                                                                            fontSize: '0.8rem', 
-                                                                            fontWeight: 600,
-                                                                            color: 'var(--text-primary)',
-                                                                            background: isSelected ? 'rgba(99, 102, 241, 0.05)' : 'transparent',
-                                                                            display: 'flex',
-                                                                            alignItems: 'center',
-                                                                            gap: '0.5rem'
-                                                                        }}
-                                                                    >
-                                                                        <input 
-                                                                            type="checkbox" 
-                                                                            checked={isSelected}
-                                                                            readOnly
-                                                                            style={{ accentColor: 'var(--accent-indigo)', pointerEvents: 'none' }}
-                                                                        />
-                                                                        <span>{cat.name}</span>
-                                                                    </div>
-                                                                );
-                                                            })
-                                                        }
+                                                        {(() => {
+                                                             const filtered = categories
+                                                                 .filter(cat => {
+                                                                     const activeTenant = analysisSelectedTenant || (companies.length > 0 ? companies[0].id : '');
+                                                                     return cat.tenantId === activeTenant;
+                                                                 })
+                                                                 .filter(cat => !chartCategorySearch || cat.name.toLowerCase().includes(chartCategorySearch.toLowerCase()));
+
+                                                             const uniqueMap = new Map<string, any>();
+                                                             filtered.forEach(cat => {
+                                                                 if (!uniqueMap.has(cat.name)) {
+                                                                     uniqueMap.set(cat.name, cat);
+                                                                 }
+                                                             });
+
+                                                             const uniqueCategories = Array.from(uniqueMap.values())
+                                                                 .sort((a, b) => a.name.localeCompare(b.name));
+
+                                                             return uniqueCategories.map((cat: any) => {
+                                                                 // Check if any of the equivalent duplicate category IDs are selected
+                                                                 const equivalentIds = categories
+                                                                     .filter((c: any) => c.name === cat.name)
+                                                                     .map((c: any) => c.id);
+                                                                 
+                                                                 const isSelected = chartCategory
+                                                                     .split(',')
+                                                                     .map(x => x.trim())
+                                                                     .filter(Boolean)
+                                                                     .some(sid => equivalentIds.includes(sid));
+
+                                                                 return (
+                                                                     <div
+                                                                         key={cat.id}
+                                                                         onClick={(e) => {
+                                                                             e.stopPropagation();
+                                                                             toggleChartCategory(cat.id);
+                                                                         }}
+                                                                         style={{ 
+                                                                             padding: '0.45rem 0.75rem', 
+                                                                             cursor: 'pointer', 
+                                                                             fontSize: '0.8rem', 
+                                                                             fontWeight: 600,
+                                                                             color: 'var(--text-primary)',
+                                                                             background: isSelected ? 'rgba(99, 102, 241, 0.05)' : 'transparent',
+                                                                             display: 'flex',
+                                                                             alignItems: 'center',
+                                                                             gap: '0.5rem'
+                                                                         }}
+                                                                     >
+                                                                         <input 
+                                                                             type="checkbox" 
+                                                                             checked={isSelected}
+                                                                             readOnly
+                                                                             style={{ accentColor: 'var(--accent-indigo)', pointerEvents: 'none' }}
+                                                                         />
+                                                                         <span>{cat.name}</span>
+                                                                     </div>
+                                                                 );
+                                                             });
+                                                         })()}
                                                     </div>
                                                 </div>
                                             </>

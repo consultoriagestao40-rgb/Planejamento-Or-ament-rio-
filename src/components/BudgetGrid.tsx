@@ -435,6 +435,29 @@ export default function BudgetGrid({
 
     // --- Indicator Analysis State ---
     const [isAnalysisModalOpen, setIsAnalysisModalOpen] = useState(false);
+    // --- Detailed Analysis Custom Charts State ---
+    const [activeModalTab, setActiveModalTab] = useState<'deviation' | 'detailed'>('deviation');
+    const [detailedAnalyses, setDetailedAnalyses] = useState<any[]>([]);
+    const [loadingDetailed, setLoadingDetailed] = useState(false);
+    const [isEditingChart, setIsEditingChart] = useState(false);
+    const [editingChartId, setEditingChartId] = useState<string | null>(null);
+
+    // Chart editor form states
+    const [chartCategory, setChartCategory] = useState<string>('');
+    const [chartCategorySearch, setChartCategorySearch] = useState<string>('');
+    const [isChartCategoryDropdownOpen, setIsChartCategoryDropdownOpen] = useState(false);
+    const [chartTenant, setChartTenant] = useState<string>('');
+    const [chartCC, setChartCC] = useState<string>('ALL');
+    const [chartType, setChartType] = useState<string>('VERTICAL_BAR');
+    const [chartOnlyRealized, setChartOnlyRealized] = useState<boolean>(false);
+    const [chartShowAtingido, setChartShowAtingido] = useState<boolean>(false);
+    const [chartPctOfRevenue, setChartPctOfRevenue] = useState<boolean>(false);
+    const [chartAnalysisText, setChartAnalysisText] = useState<string>('');
+
+    // Preview data states
+    const [chartPreviewData, setChartPreviewData] = useState<any[]>([]);
+    const [loadingPreviewData, setLoadingPreviewData] = useState(false);
+    const [savingChart, setSavingChart] = useState(false);
     const [analysisId, setAnalysisId] = useState<string | null>(null);
     const [analysisSelectedTenant, setAnalysisSelectedTenant] = useState<string>('');
     const [analysisSelectedMonth, setAnalysisSelectedMonth] = useState<number>(new Date().getMonth() + 1); // 1-12
@@ -559,6 +582,653 @@ export default function BudgetGrid({
         }
     };
 
+    // --- Detailed Analysis Custom Charts Functions ---
+    const fetchDetailedAnalyses = async () => {
+        if (!analysisSelectedTenant || !analysisSelectedMonth || !selectedYear) return;
+        setLoadingDetailed(true);
+        try {
+            const res = await fetch(`/api/kpi/detailed-analysis?tenantId=${analysisSelectedTenant}&month=${analysisSelectedMonth}&year=${selectedYear}`);
+            const json = await res.json();
+            if (json.success) {
+                setDetailedAnalyses(json.data || []);
+            }
+        } catch (err) {
+            console.error('Error fetching detailed analyses:', err);
+        } finally {
+            setLoadingDetailed(false);
+        }
+    };
+
+    const fetchChartData = async (catId: string, tenId: string, ccId: string) => {
+        if (!catId || !tenId) return;
+        setLoadingPreviewData(true);
+        try {
+            const res = await fetch(`/api/kpi/detailed-chart-data?categoryId=${catId}&filterTenantId=${tenId}&filterCCId=${ccId}&year=${selectedYear}&viewMode=${viewMode}`);
+            const json = await res.json();
+            if (json.success) {
+                setChartPreviewData(json.data || []);
+            }
+        } catch (err) {
+            console.error('Error fetching chart preview data:', err);
+        } finally {
+            setLoadingPreviewData(false);
+        }
+    };
+
+    const saveDetailedAnalysis = async () => {
+        if (!analysisSelectedTenant || !analysisSelectedMonth || !selectedYear) {
+            alert('Parâmetros de contexto ausentes.');
+            return;
+        }
+        if (!chartCategory || !chartTenant || !chartType) {
+            alert('Por favor, configure os campos obrigatórios do gráfico (Conta, Empresa e Tipo).');
+            return;
+        }
+        setSavingChart(true);
+        try {
+            const res = await fetch('/api/kpi/detailed-analysis', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    id: editingChartId || undefined,
+                    tenantId: analysisSelectedTenant,
+                    month: analysisSelectedMonth,
+                    year: selectedYear,
+                    categoryId: chartCategory,
+                    filterTenantId: chartTenant,
+                    filterCCId: chartCC,
+                    chartType,
+                    onlyRealized: chartOnlyRealized,
+                    showAtingido: chartShowAtingido,
+                    pctOfRevenue: chartPctOfRevenue,
+                    analysisText: chartAnalysisText
+                })
+            });
+            const json = await res.json();
+            if (json.success) {
+                alert('Gráfico e análise detalhada salvos com sucesso!');
+                setIsEditingChart(false);
+                setEditingChartId(null);
+                fetchDetailedAnalyses();
+            } else {
+                alert(`Erro ao salvar gráfico: ${json.error}`);
+            }
+        } catch (err) {
+            console.error('Error saving detailed analysis:', err);
+            alert('Erro de conexão ao salvar.');
+        } finally {
+            setSavingChart(false);
+        }
+    };
+
+    const deleteDetailedAnalysis = async (id: string) => {
+        if (!confirm('Deseja realmente excluir este gráfico e sua análise detalhada?')) return;
+        try {
+            const res = await fetch(`/api/kpi/detailed-analysis?id=${id}`, { method: 'DELETE' });
+            const json = await res.json();
+            if (json.success) {
+                fetchDetailedAnalyses();
+            } else {
+                alert(`Erro ao excluir: ${json.error}`);
+            }
+        } catch (err) {
+            console.error('Error deleting detailed analysis:', err);
+        }
+    };
+
+    const handleAddChartClick = () => {
+        setEditingChartId(null);
+        setChartCategory(analysisSelectedCategory);
+        setChartCategorySearch('');
+        setChartTenant(analysisSelectedTenant);
+        setChartCC('ALL');
+        setChartType('VERTICAL_BAR');
+        setChartOnlyRealized(false);
+        setChartShowAtingido(false);
+        setChartPctOfRevenue(false);
+        setChartAnalysisText('');
+        setChartPreviewData([]);
+        setIsEditingChart(true);
+    };
+
+    const handleEditChartClick = (chart: any) => {
+        setEditingChartId(chart.id);
+        setChartCategory(chart.categoryId);
+        setChartCategorySearch('');
+        setChartTenant(chart.filterTenantId);
+        setChartCC(chart.filterCCId || 'ALL');
+        setChartType(chart.chartType);
+        setChartOnlyRealized(!!chart.onlyRealized);
+        setChartShowAtingido(!!chart.showAtingido);
+        setChartPctOfRevenue(!!chart.pctOfRevenue);
+        setChartAnalysisText(chart.analysisText || '');
+        setChartPreviewData([]);
+        setIsEditingChart(true);
+    };
+
+    // Reactively fetch detailed analysis list when main modal context changes
+    useEffect(() => {
+        if (isAnalysisModalOpen && activeModalTab === 'detailed') {
+            fetchDetailedAnalyses();
+        }
+    }, [isAnalysisModalOpen, activeModalTab, analysisSelectedTenant, analysisSelectedMonth, selectedYear]);
+
+    // Reactively fetch preview chart data during editing
+    useEffect(() => {
+        if (isEditingChart && chartCategory && chartTenant) {
+            fetchChartData(chartCategory, chartTenant, chartCC);
+        }
+    }, [isEditingChart, chartCategory, chartTenant, chartCC, selectedYear, viewMode]);
+
+    const DetailedChartCard = ({ chart, onEdit, onDelete, mainMonth, year, viewMode, categories }: { chart: any, onEdit: (c: any) => void, onDelete: (id: string) => void, mainMonth: number, year: number, viewMode: 'caixa' | 'competencia', categories: any[] }) => {
+        const [data, setData] = useState<any[]>([]);
+        const [loading, setLoading] = useState(true);
+
+        useEffect(() => {
+            let active = true;
+            const load = async () => {
+                setLoading(true);
+                try {
+                    const res = await fetch(`/api/kpi/detailed-chart-data?categoryId=${chart.categoryId}&filterTenantId=${chart.filterTenantId}&filterCCId=${chart.filterCCId || 'ALL'}&year=${year}&viewMode=${viewMode}`);
+                    const json = await res.json();
+                    if (json.success && active) {
+                        setData(json.data || []);
+                    }
+                } catch (err) {
+                    console.error(err);
+                } finally {
+                    if (active) setLoading(false);
+                }
+            };
+            load();
+            return () => { active = false; };
+        }, [chart.categoryId, chart.filterTenantId, chart.filterCCId, year, viewMode]);
+
+        const getChartCategoryLabel = (id: string) => {
+            const dreLabels: Record<string, string> = {
+                vRev: '(=) Receita Bruta',
+                vTaxes: '(-) Deduções / Impostos',
+                vRecLiq: '(=) Receita Líquida',
+                vCosts: '(-) Custos Operacionais',
+                vGrossMarg: '(=) Margem Bruta',
+                vOpExp: '(-) Despesas Operacionais',
+                vContribMarg: '(=) Margem de Contribuição',
+                vAdminExp: '(-) Despesas Administrativas',
+                vEbitda: '(=) EBITDA',
+                vFin: '(-) Despesas Financeiras',
+                vNetProfit: '(=) Lucro Líquido'
+            };
+            if (dreLabels[id]) return dreLabels[id];
+            const found = categories.find((cat: any) => cat.id === id);
+            return found ? found.name : id;
+        };
+
+        const chartTypeNameMap: Record<string, string> = {
+            VERTICAL_BAR: 'Barras Vertical',
+            HORIZONTAL_BAR: 'Barras Horizontal',
+            LINE: 'Linha',
+            LINE_MARKERS: 'Linha com Marcadores',
+            PIE: 'Pizza',
+            DONUT: 'Rosca',
+            GAUGE: 'Velocímetro'
+        };
+
+        return (
+            <div className="glass-card" style={{ padding: '1.25rem', background: '#ffffff', borderRadius: '12px', border: '1px solid #e2e8f0', boxShadow: '0 4px 6px rgba(0,0,0,0.02)', width: '100%', marginBottom: '1.5rem', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', borderBottom: '1px solid #f1f5f9', paddingBottom: '0.5rem' }}>
+                    <div>
+                        <h4 style={{ fontSize: '0.85rem', fontWeight: 800, color: '#0f172a', margin: 0 }}>
+                            📊 {getChartCategoryLabel(chart.categoryId)} ({chartTypeNameMap[chart.chartType] || chart.chartType})
+                        </h4>
+                        <span style={{ fontSize: '0.7rem', color: '#64748b', fontWeight: 500 }}>
+                            Filtros: {chart.filterTenantId === 'ALL' ? 'Todas Empresas' : 'Empresa Única'} 
+                            {chart.filterCCId && chart.filterCCId !== 'ALL' ? ` | Centro de Custo: ${chart.filterCCId}` : ' | Todos Centros de Custo'}
+                            {chart.pctOfRevenue ? ' | % sobre Receita' : ''}
+                            {chart.onlyRealized ? ' | Somente Realizado' : ''}
+                        </span>
+                    </div>
+                    <div style={{ display: 'flex', gap: '0.5rem' }}>
+                        <button 
+                            onClick={() => onEdit(chart)}
+                            style={{ background: '#eff6ff', border: 'none', borderRadius: '6px', padding: '0.25rem 0.5rem', fontSize: '0.7rem', fontWeight: 700, color: '#2563eb', cursor: 'pointer' }}
+                        >
+                            ✏️ Editar
+                        </button>
+                        <button 
+                            onClick={() => onDelete(chart.id)}
+                            style={{ background: '#fef2f2', border: 'none', borderRadius: '6px', padding: '0.25rem 0.5rem', fontSize: '0.7rem', fontWeight: 700, color: '#ef4444', cursor: 'pointer' }}
+                        >
+                            🗑️ Excluir
+                        </button>
+                    </div>
+                </div>
+
+                <div style={{ width: '100%', display: 'flex', justifyContent: 'center' }}>
+                    {loading ? (
+                        <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '180px', width: '100%' }}>
+                            <div style={{ border: '2.5px solid #f3f3f3', borderTop: '2.5px solid #3b82f6', borderRadius: '50%', width: '22px', height: '22px', animation: 'spin 1s linear infinite' }} />
+                        </div>
+                    ) : (
+                        renderDetailedChart(chart.chartType, data, !!chart.onlyRealized, !!chart.showAtingido, !!chart.pctOfRevenue, mainMonth)
+                    )}
+                </div>
+
+                {chart.analysisText && (
+                    <div style={{ padding: '0.75rem 1rem', background: '#f8fafc', borderLeft: '3.5px solid #3b82f6', borderRadius: '4px', fontSize: '0.75rem', color: '#334155', fontStyle: 'italic', whiteSpace: 'pre-wrap' }}>
+                        <strong>Análise Histórica:</strong> {chart.analysisText}
+                    </div>
+                )}
+            </div>
+        );
+    };
+
+    const renderDetailedChart = (
+        type: string,
+        data: any[],
+        onlyRealized: boolean,
+        showAtingido: boolean,
+        pctOfRevenue: boolean,
+        mainMonth: number
+    ) => {
+        if (!data || data.length === 0) {
+            return (
+                <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '220px', background: '#f8fafc', borderRadius: '8px', border: '1px dashed #cbd5e1', fontSize: '0.8rem', fontWeight: 600, color: '#64748b' }}>
+                    Carregando dados do gráfico...
+                </div>
+            );
+        }
+
+        const formatVal = (val: number) => {
+            if (pctOfRevenue) return `${val.toFixed(1)}%`;
+            if (val === 0) return 'R$ 0';
+            const absVal = Math.abs(val);
+            const formatted = (absVal / 1000).toFixed(1);
+            return `${val < 0 ? '-' : ''}R$ ${formatted}k`;
+        };
+
+        const hasNegative = data.some(m => m.budget < 0 || m.realized < 0);
+        
+        const maxVal = Math.max(...data.map((m, idx) => Math.max(
+            onlyRealized ? 0 : Math.abs(pctOfRevenue ? m.pctOfRevenue : m.budget),
+            (idx + 1 <= currentMonthIdx + 1) ? Math.abs(pctOfRevenue ? m.pctOfRevenue : m.realized) : 0
+        ))) || 1;
+
+        switch (type) {
+            case 'VERTICAL_BAR': {
+                const yBaseline = hasNegative ? 130 : 210;
+                const maxBarHeight = hasNegative ? 100 : 165;
+
+                return (
+                    <svg viewBox="0 0 800 260" width="100%" height="220px" style={{ overflow: 'visible' }}>
+                        {hasNegative ? (
+                            <>
+                                <line x1="40" y1="130" x2="760" y2="130" stroke="#475569" strokeWidth="1.5" />
+                                <line x1="40" y1="70" x2="760" y2="70" stroke="#f1f5f9" strokeDasharray="3 3" />
+                                <line x1="40" y1="190" x2="760" y2="190" stroke="#f1f5f9" strokeDasharray="3 3" />
+                            </>
+                        ) : (
+                            <>
+                                <line x1="40" y1="210" x2="760" y2="210" stroke="#cbd5e1" strokeWidth="1" />
+                                <line x1="40" y1="130" x2="760" y2="130" stroke="#f1f5f9" strokeDasharray="3 3" />
+                                <line x1="40" y1="50" x2="760" y2="50" stroke="#f1f5f9" strokeDasharray="3 3" />
+                            </>
+                        )}
+
+                        <text x="35" y={hasNegative ? "73" : "53"} textAnchor="end" fill="#94a3b8" fontSize="8px" fontWeight="700">{formatVal(maxVal)}</text>
+                        <text x="35" y={yBaseline + 3} textAnchor="end" fill="#94a3b8" fontSize="8px" fontWeight="700">{formatVal(0)}</text>
+                        {hasNegative && (
+                            <text x="35" y="193" textAnchor="end" fill="#94a3b8" fontSize="8px" fontWeight="700">{formatVal(-maxVal)}</text>
+                        )}
+
+                        {data.map((m, idx) => {
+                            const valB = pctOfRevenue ? m.pctOfRevenue : m.budget;
+                            const valR = (idx + 1 <= currentMonthIdx + 1) ? (pctOfRevenue ? m.pctOfRevenue : m.realized) : 0;
+                            
+                            const bHeight = onlyRealized ? 0 : (Math.abs(valB) / maxVal) * maxBarHeight;
+                            const rHeight = (idx + 1 <= currentMonthIdx + 1) ? (Math.abs(valR) / maxVal) * maxBarHeight : 0;
+                            
+                            const xBase = 50 + idx * 58;
+                            const isClose = !onlyRealized && (idx + 1 <= currentMonthIdx + 1) && Math.abs(bHeight - rHeight) < 14 && (valB >= 0 === valR >= 0);
+
+                            const bLabelY = valB >= 0 ? yBaseline - bHeight - 5 : yBaseline + bHeight + 11;
+                            let rLabelY = valR >= 0 ? yBaseline - rHeight - 5 : yBaseline + rHeight + 11;
+                            if (isClose) {
+                                rLabelY = valR >= 0 ? yBaseline - rHeight - 15 : yBaseline + rHeight + 21;
+                            }
+
+                            return (
+                                <g key={idx}>
+                                    {!onlyRealized && valB !== 0 && (
+                                        <>
+                                            <rect 
+                                                x={xBase + 8} 
+                                                y={valB >= 0 ? yBaseline - bHeight : yBaseline} 
+                                                width="14" 
+                                                height={bHeight} 
+                                                fill="#cbd5e1" 
+                                                rx="2" 
+                                            />
+                                            <text x={xBase + 15} y={bLabelY} textAnchor="middle" fill="#64748b" fontSize="8px" fontWeight="700">{formatVal(valB)}</text>
+                                        </>
+                                    )}
+
+                                    {idx + 1 <= currentMonthIdx + 1 && valR !== 0 && (
+                                        <>
+                                            <rect 
+                                                x={xBase + 24} 
+                                                y={valR >= 0 ? yBaseline - rHeight : yBaseline} 
+                                                width="14" 
+                                                height={rHeight} 
+                                                fill={valR >= 0 ? '#3b82f6' : '#ef4444'} 
+                                                rx="2" 
+                                            />
+                                            <text x={xBase + 31} y={rLabelY} textAnchor="middle" fill={valR >= 0 ? '#1e3a8a' : '#7f1d1d'} fontSize="8px" fontWeight="700">{formatVal(valR)}</text>
+                                        </>
+                                    )}
+
+                                    <text x={xBase + 22} y="240" textAnchor="middle" fill="#64748b" fontSize="9px" fontWeight="700">
+                                        {['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'][idx]}
+                                    </text>
+                                </g>
+                            );
+                        })}
+                    </svg>
+                );
+            }
+
+            case 'HORIZONTAL_BAR': {
+                const xBaseline = 100;
+                const maxBarWidth = 630;
+
+                return (
+                    <svg viewBox="0 0 800 320" width="100%" height="280px" style={{ overflow: 'visible' }}>
+                        <line x1={xBaseline} y1="10" x2={xBaseline} y2="295" stroke="#cbd5e1" strokeWidth="1.5" />
+                        <line x1={xBaseline + maxBarWidth / 2} y1="10" x2={xBaseline + maxBarWidth / 2} y2="295" stroke="#f1f5f9" strokeDasharray="3 3" />
+                        <line x1={xBaseline + maxBarWidth} y1="10" x2={xBaseline + maxBarWidth} y2="295" stroke="#cbd5e1" strokeDasharray="3 3" />
+
+                        <text x={xBaseline} y="310" textAnchor="middle" fill="#94a3b8" fontSize="8px" fontWeight="700">{formatVal(0)}</text>
+                        <text x={xBaseline + maxBarWidth / 2} y="310" textAnchor="middle" fill="#94a3b8" fontSize="8px" fontWeight="700">{formatVal(maxVal / 2)}</text>
+                        <text x={xBaseline + maxBarWidth} y="310" textAnchor="middle" fill="#94a3b8" fontSize="8px" fontWeight="700">{formatVal(maxVal)}</text>
+
+                        {data.map((m, idx) => {
+                            const valB = pctOfRevenue ? m.pctOfRevenue : m.budget;
+                            const valR = (idx + 1 <= currentMonthIdx + 1) ? (pctOfRevenue ? m.pctOfRevenue : m.realized) : 0;
+
+                            const bWidth = onlyRealized ? 0 : (Math.abs(valB) / maxVal) * maxBarWidth;
+                            const rWidth = (idx + 1 <= currentMonthIdx + 1) ? (Math.abs(valR) / maxVal) * maxBarWidth : 0;
+                            
+                            const yBase = 15 + idx * 23;
+
+                            return (
+                                <g key={idx}>
+                                    <text x={xBaseline - 10} y={yBase + 12} textAnchor="end" fill="#64748b" fontSize="9px" fontWeight="700">
+                                        {['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'][idx]}
+                                    </text>
+
+                                    {!onlyRealized && valB !== 0 && (
+                                        <>
+                                            <rect 
+                                                x={xBaseline} 
+                                                y={yBase} 
+                                                height="7" 
+                                                width={bWidth} 
+                                                fill="#cbd5e1" 
+                                                rx="1.5" 
+                                            />
+                                            <text x={xBaseline + bWidth + 5} y={yBase + 7} textAnchor="start" fill="#64748b" fontSize="7px" fontWeight="700">{formatVal(valB)}</text>
+                                        </>
+                                    )}
+
+                                    {idx + 1 <= currentMonthIdx + 1 && valR !== 0 && (
+                                        <>
+                                            <rect 
+                                                x={xBaseline} 
+                                                y={yBase + 9} 
+                                                height="7" 
+                                                width={rWidth} 
+                                                fill={valR >= 0 ? '#3b82f6' : '#ef4444'} 
+                                                rx="1.5" 
+                                            />
+                                            <text x={xBaseline + rWidth + 5} y={yBase + 16} textAnchor="start" fill={valR >= 0 ? '#1e3a8a' : '#7f1d1d'} fontSize="7px" fontWeight="700">{formatVal(valR)}</text>
+                                        </>
+                                    )}
+                                </g>
+                            );
+                        })}
+                    </svg>
+                );
+            }
+
+            case 'LINE':
+            case 'LINE_MARKERS': {
+                const yBaseline = hasNegative ? 130 : 210;
+                const maxLineHeight = hasNegative ? 100 : 165;
+
+                let pathB = '';
+                let pathR = '';
+                const pointsB: { x: number, y: number, val: number }[] = [];
+                const pointsR: { x: number, y: number, val: number }[] = [];
+
+                data.forEach((m, idx) => {
+                    const valB = pctOfRevenue ? m.pctOfRevenue : m.budget;
+                    const valR = (idx + 1 <= currentMonthIdx + 1) ? (pctOfRevenue ? m.pctOfRevenue : m.realized) : 0;
+
+                    const x = 50 + idx * 62;
+                    const yB = yBaseline - (valB / maxVal) * maxLineHeight;
+                    const yR = yBaseline - (valR / maxVal) * maxLineHeight;
+
+                    if (!onlyRealized) {
+                        pointsB.push({ x, y: yB, val: valB });
+                        pathB += (pathB === '' ? 'M' : 'L') + ` ${x} ${yB}`;
+                    }
+
+                    if (idx + 1 <= currentMonthIdx + 1) {
+                        pointsR.push({ x, y: yR, val: valR });
+                        pathR += (pathR === '' ? 'M' : 'L') + ` ${x} ${yR}`;
+                    }
+                });
+
+                return (
+                    <svg viewBox="0 0 800 260" width="100%" height="220px" style={{ overflow: 'visible' }}>
+                        {hasNegative ? (
+                            <>
+                                <line x1="40" y1="130" x2="760" y2="130" stroke="#475569" strokeWidth="1.5" />
+                                <line x1="40" y1="70" x2="760" y2="70" stroke="#f1f5f9" strokeDasharray="3 3" />
+                                <line x1="40" y1="190" x2="760" y2="190" stroke="#f1f5f9" strokeDasharray="3 3" />
+                            </>
+                        ) : (
+                            <>
+                                <line x1="40" y1="210" x2="760" y2="210" stroke="#cbd5e1" strokeWidth="1" />
+                                <line x1="40" y1="130" x2="760" y2="130" stroke="#f1f5f9" strokeDasharray="3 3" />
+                                <line x1="40" y1="50" x2="760" y2="50" stroke="#f1f5f9" strokeDasharray="3 3" />
+                            </>
+                        )}
+
+                        <text x="35" y={hasNegative ? "73" : "53"} textAnchor="end" fill="#94a3b8" fontSize="8px" fontWeight="700">{formatVal(maxVal)}</text>
+                        <text x="35" y={yBaseline + 3} textAnchor="end" fill="#94a3b8" fontSize="8px" fontWeight="700">{formatVal(0)}</text>
+                        {hasNegative && (
+                            <text x="35" y="193" textAnchor="end" fill="#94a3b8" fontSize="8px" fontWeight="700">{formatVal(-maxVal)}</text>
+                        )}
+
+                        {!onlyRealized && pathB && (
+                            <path d={pathB} fill="none" stroke="#94a3b8" strokeWidth="2.5" strokeDasharray="4 4" strokeLinecap="round" strokeLinejoin="round" />
+                        )}
+                        {pathR && (
+                            <path d={pathR} fill="none" stroke="#2563eb" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
+                        )}
+
+                        {type === 'LINE_MARKERS' && (
+                            <>
+                                {!onlyRealized && pointsB.map((p, idx) => (
+                                    <g key={`b-${idx}`}>
+                                        <circle cx={p.x} cy={p.y} r="4" fill="#94a3b8" stroke="#ffffff" strokeWidth="1.5" />
+                                        <text x={p.x} y={p.y - 8} textAnchor="middle" fill="#64748b" fontSize="8px" fontWeight="700">{formatVal(p.val)}</text>
+                                    </g>
+                                ))}
+
+                                {pointsR.map((p, idx) => (
+                                    <g key={`r-${idx}`}>
+                                        <circle cx={p.x} cy={p.y} r="5" fill="#2563eb" stroke="#ffffff" strokeWidth="2" />
+                                        <text x={p.x} y={p.y - 9} textAnchor="middle" fill="#1e3a8a" fontSize="8px" fontWeight="800">{formatVal(p.val)}</text>
+                                    </g>
+                                ))}
+                            </>
+                        )}
+
+                        {data.map((m, idx) => (
+                            <text key={idx} x={50 + idx * 62} y="240" textAnchor="middle" fill="#64748b" fontSize="9px" fontWeight="700">
+                                {['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'][idx]}
+                            </text>
+                        ))}
+                    </svg>
+                );
+            }
+
+            case 'PIE':
+            case 'DONUT': {
+                const totalRealizedSum = data.reduce((acc, m, idx) => acc + (idx + 1 <= currentMonthIdx + 1 ? Math.max(0, m.realized) : 0), 0);
+                
+                if (totalRealizedSum <= 0) {
+                    return (
+                        <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '220px', background: '#f8fafc', borderRadius: '8px', border: '1px dashed #cbd5e1', fontSize: '0.8rem', fontWeight: 600, color: '#f43f5e' }}>
+                            ⚠️ Sem dados positivos de Realizado para exibir em Pizza.
+                        </div>
+                    );
+                }
+
+                const cx = 140;
+                const cy = 120;
+                const R = 85;
+                let cumulativeAngle = 0;
+                const palette = ['#2563eb', '#3b82f6', '#60a5fa', '#93c5fd', '#10b981', '#34d399', '#f59e0b', '#fbbf24', '#8b5cf6', '#a78bfa', '#ec4899', '#f472b6'];
+
+                return (
+                    <svg viewBox="0 0 420 240" width="100%" height="220px" style={{ overflow: 'visible' }}>
+                        {data.map((m, idx) => {
+                            const val = idx + 1 <= currentMonthIdx + 1 ? Math.max(0, m.realized) : 0;
+                            if (val === 0) return null;
+
+                            const percentage = (val / totalRealizedSum) * 100;
+                            const angle = (val / totalRealizedSum) * 360;
+
+                            const radStart = (cumulativeAngle - 90) * Math.PI / 180;
+                            const radEnd = (cumulativeAngle + angle - 90) * Math.PI / 180;
+
+                            const x1 = cx + R * Math.cos(radStart);
+                            const y1 = cy + R * Math.sin(radStart);
+                            const x2 = cx + R * Math.cos(radEnd);
+                            const y2 = cy + R * Math.sin(radEnd);
+
+                            const largeArc = angle > 180 ? 1 : 0;
+                            const pathData = `M ${cx} ${cy} L ${x1} ${y1} A ${R} ${R} 0 ${largeArc} 1 ${x2} ${y2} Z`;
+                            const color = palette[idx % palette.length];
+                            cumulativeAngle += angle;
+
+                            return (
+                                <path 
+                                    key={idx} 
+                                    d={pathData} 
+                                    fill={color} 
+                                    stroke="#ffffff" 
+                                    strokeWidth="1.5"
+                                    onMouseEnter={(e) => e.currentTarget.style.opacity = '0.9'}
+                                    onMouseLeave={(e) => e.currentTarget.style.opacity = '1'}
+                                    style={{ transition: 'opacity 0.2s', cursor: 'pointer' }}
+                                />
+                            );
+                        })}
+
+                        {type === 'DONUT' && (
+                            <>
+                                <circle cx={cx} cy={cy} r="52" fill="#ffffff" />
+                                <text x={cx} y={cy - 4} textAnchor="middle" fill="#64748b" fontSize="8px" fontWeight="800" textTransform="uppercase" letterSpacing="0.05em">Total Realiz.</text>
+                                <text x={cx} y={cy + 12} textAnchor="middle" fill="#0f172a" fontSize="11px" fontWeight="800">{formatVal(totalRealizedSum)}</text>
+                            </>
+                        )}
+
+                        <g transform="translate(255, 10)">
+                            {data.map((m, idx) => {
+                                const val = idx + 1 <= currentMonthIdx + 1 ? Math.max(0, m.realized) : 0;
+                                if (val === 0) return null;
+                                const percentage = (val / totalRealizedSum) * 100;
+                                const color = palette[idx % palette.length];
+                                const yPos = idx * 16;
+
+                                return (
+                                    <g key={idx} transform={`translate(0, ${yPos})`}>
+                                        <rect width="9" height="9" rx="2" fill={color} />
+                                        <text x="14" y="8" fill="#475569" fontSize="8.5px" fontWeight="700">
+                                            {['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'][idx]}: {percentage.toFixed(1)}%
+                                        </text>
+                                    </g>
+                                );
+                            })}
+                        </g>
+                    </svg>
+                );
+            }
+
+            case 'GAUGE': {
+                const mData = data[mainMonth - 1] || { atingido: 100 };
+                const atingido = mData.atingido;
+                
+                const cx = 200;
+                const cy = 175;
+                const R = 110;
+                
+                const clampedAtingido = Math.min(200, Math.max(0, atingido));
+                const needleAngleDeg = 180 - clampedAtingido * 0.9;
+                const rad = needleAngleDeg * Math.PI / 180;
+                const needleX = cx + (R - 20) * Math.cos(rad);
+                const needleY = cy + (R - 20) * Math.sin(rad);
+
+                const polarToCartesian = (x: number, y: number, r: number, angleInDegrees: number) => {
+                    const angleInRadians = (angleInDegrees - 180) * Math.PI / 180.0;
+                    return {
+                        x: x + (r * Math.cos(angleInRadians)),
+                        y: y + (r * Math.sin(angleInRadians))
+                    };
+                };
+
+                const getArcPath = (x: number, y: number, r: number, startAngle: number, endAngle: number) => {
+                    const start = polarToCartesian(x, y, r, endAngle);
+                    const end = polarToCartesian(x, y, r, startAngle);
+                    const largeArcFlag = endAngle - startAngle <= 180 ? "0" : "1";
+                    return [
+                        "M", start.x, start.y,
+                        "A", r, r, 0, largeArcFlag, 0, end.x, end.y
+                    ].join(" ");
+                };
+
+                return (
+                    <svg viewBox="0 0 400 230" width="100%" height="220px" style={{ overflow: 'visible' }}>
+                        <path d={getArcPath(cx, cy, R, 0, 63)} fill="none" stroke="#ef4444" strokeWidth="22" strokeLinecap="butt" />
+                        <path d={getArcPath(cx, cy, R, 63, 85.5)} fill="none" stroke="#f59e0b" strokeWidth="22" strokeLinecap="butt" />
+                        <path d={getArcPath(cx, cy, R, 85.5, 99)} fill="none" stroke="#10b981" strokeWidth="22" strokeLinecap="butt" />
+                        <path d={getArcPath(cx, cy, R, 99, 180)} fill="none" stroke="#3b82f6" strokeWidth="22" strokeLinecap="butt" />
+
+                        <text x={cx - R - 15} y={cy + 5} textAnchor="middle" fill="#64748b" fontSize="8.5px" fontWeight="800">0%</text>
+                        <text x={cx} y={cy - R - 10} textAnchor="middle" fill="#64748b" fontSize="8.5px" fontWeight="800">100%</text>
+                        <text x={cx + R + 18} y={cy + 5} textAnchor="middle" fill="#64748b" fontSize="8.5px" fontWeight="800">200%+</text>
+
+                        <polygon points={`${cx - 2},${cy} ${needleX},${needleY} ${cx + 2},${cy}`} fill="#0f172a" />
+                        <circle cx={cx} cy={cy} r="8.5" fill="#0f172a" stroke="#ffffff" strokeWidth="2" />
+
+                        <text x={cx} y={cy + 30} textAnchor="middle" fill="#0f172a" fontSize="13px" fontWeight="800">
+                            {atingido.toFixed(1)}% Atingido
+                        </text>
+                        <text x={cx} y={cy + 46} textAnchor="middle" fill="#64748b" fontSize="8.5px" fontWeight="700">
+                            No mês de {['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'][mainMonth - 1]}
+                        </text>
+                    </svg>
+                );
+            }
+
+            default:
+                return null;
+        }
+    };
+
     const handleRegisterCategory = async () => {
         if (!newCategoryName.trim()) {
             alert('Por favor, informe o nome da categoria.');
@@ -653,6 +1323,8 @@ export default function BudgetGrid({
         setAnalysisPerformed('');
         setAnalysisActions([]);
         setAnalysisComments([]);
+        setActiveModalTab('deviation');
+        setIsEditingChart(false);
         setIsAnalysisModalOpen(true);
     };
 
@@ -6283,6 +6955,58 @@ export default function BudgetGrid({
                             gap: '1.5rem',
                             flex: 1
                         }}>
+                            {/* Tab Switcher */}
+                            <div style={{
+                                display: 'flex',
+                                background: '#f1f5f9',
+                                padding: '0.25rem',
+                                borderRadius: '10px',
+                                gap: '0.25rem'
+                            }}>
+                                <button
+                                    onClick={() => {
+                                        setActiveModalTab('deviation');
+                                        setIsEditingChart(false);
+                                    }}
+                                    style={{
+                                        flex: 1,
+                                        padding: '0.6rem',
+                                        border: 'none',
+                                        borderRadius: '8px',
+                                        fontSize: '0.8rem',
+                                        fontWeight: 700,
+                                        cursor: 'pointer',
+                                        transition: 'all 0.2s',
+                                        background: activeModalTab === 'deviation' ? '#ffffff' : 'transparent',
+                                        color: activeModalTab === 'deviation' ? '#0f172a' : '#64748b',
+                                        boxShadow: activeModalTab === 'deviation' ? '0 1px 3px rgba(0,0,0,0.08)' : 'none'
+                                    }}
+                                >
+                                    🔍 Desvios e Ações
+                                </button>
+                                <button
+                                    onClick={() => {
+                                        setActiveModalTab('detailed');
+                                        setIsEditingChart(false);
+                                    }}
+                                    style={{
+                                        flex: 1,
+                                        padding: '0.6rem',
+                                        border: 'none',
+                                        borderRadius: '8px',
+                                        fontSize: '0.8rem',
+                                        fontWeight: 700,
+                                        cursor: 'pointer',
+                                        transition: 'all 0.2s',
+                                        background: activeModalTab === 'detailed' ? '#ffffff' : 'transparent',
+                                        color: activeModalTab === 'detailed' ? '#0f172a' : '#64748b',
+                                        boxShadow: activeModalTab === 'detailed' ? '0 1px 3px rgba(0,0,0,0.08)' : 'none'
+                                    }}
+                                >
+                                    📊 Análises Detalhadas
+                                </button>
+                            </div>
+
                             {/* Row 1: Empresa, Mês e Categoria */}
                             <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
                                 {/* Empresa */}
@@ -6530,221 +7254,620 @@ export default function BudgetGrid({
                                 </div>
                             )}
 
-                            {isAnalysisLoading ? (
-                                <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '150px' }}>
-                                    <div style={{ border: '3px solid #f3f3f3', borderTop: '3px solid #3b82f6', borderRadius: '50%', width: '30px', height: '30px', animation: 'spin 1s linear infinite' }} />
-                                </div>
-                            ) : (
-                                <>
-                                    {/* Row 2: Textareas - Relato de Desvio & Análise Realizada */}
-                                    <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
-                                        {/* Relato de Desvio */}
-                                        <div style={{ flex: 1, minWidth: '350px', display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
-                                            <label style={{ fontSize: '0.7rem', fontWeight: 800, color: '#3b82f6', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Relato do Desvio do Indicador</label>
-                                            <textarea
-                                                value={deviationReport}
-                                                onChange={(e) => setDeviationReport(e.target.value)}
-                                                placeholder="Descreva o desvio identificado em relação à meta..."
-                                                style={{ height: '100px', padding: '0.5rem', fontSize: '0.8rem', border: '1px solid #cbd5e1', borderRadius: '8px', outline: 'none', resize: 'vertical', fontFamily: 'inherit' }}
-                                            />
-                                        </div>
-
-                                        {/* Análise Realizada */}
-                                        <div style={{ flex: 1, minWidth: '350px', display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
-                                            <label style={{ fontSize: '0.7rem', fontWeight: 800, color: '#3b82f6', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Análise Realizada (Causa Raiz)</label>
-                                            <textarea
-                                                value={analysisPerformed}
-                                                onChange={(e) => setAnalysisPerformed(e.target.value)}
-                                                placeholder="Descreva os fatores que levaram a este desvio (causa raiz)..."
-                                                style={{ height: '100px', padding: '0.5rem', fontSize: '0.8rem', border: '1px solid #cbd5e1', borderRadius: '8px', outline: 'none', resize: 'vertical', fontFamily: 'inherit' }}
-                                            />
-                                        </div>
+                            {/* ABA 1: DESVIOS E AÇÕES */}
+                            {activeModalTab === 'deviation' && (
+                                isAnalysisLoading ? (
+                                    <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '150px' }}>
+                                        <div style={{ border: '3px solid #f3f3f3', borderTop: '3px solid #3b82f6', borderRadius: '50%', width: '30px', height: '30px', animation: 'spin 1s linear infinite' }} />
                                     </div>
+                                ) : (
+                                    <>
+                                        {/* Row 2: Textareas - Relato de Desvio & Análise Realizada */}
+                                        <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
+                                            {/* Relato de Desvio */}
+                                            <div style={{ flex: 1, minWidth: '350px', display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
+                                                <label style={{ fontSize: '0.7rem', fontWeight: 800, color: '#3b82f6', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Relato do Desvio do Indicador</label>
+                                                <textarea
+                                                    value={deviationReport}
+                                                    onChange={(e) => setDeviationReport(e.target.value)}
+                                                    placeholder="Descreva o desvio identificado em relação à meta..."
+                                                    style={{ height: '100px', padding: '0.5rem', fontSize: '0.8rem', border: '1px solid #cbd5e1', borderRadius: '8px', outline: 'none', resize: 'vertical', fontFamily: 'inherit' }}
+                                                />
+                                            </div>
 
-                                    {/* Row 3: Plano de Ação (Tabela de itens) */}
-                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                            <label style={{ fontSize: '0.7rem', fontWeight: 800, color: '#3b82f6', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                                                📋 Plano de Ação (Ações Corretivas)
-                                            </label>
-                                            <button
-                                                onClick={() => {
-                                                    setAnalysisActions(prev => [...prev, { description: '', dueDate: new Date().toISOString().split('T')[0], isDone: false }]);
-                                                }}
-                                                style={{
-                                                    padding: '0.3rem 0.75rem',
-                                                    background: '#10b981',
-                                                    color: '#ffffff',
-                                                    border: 'none',
-                                                    borderRadius: '6px',
-                                                    fontSize: '0.7rem',
-                                                    fontWeight: 700,
-                                                    cursor: 'pointer',
-                                                    display: 'flex',
-                                                    alignItems: 'center',
-                                                    gap: '0.25rem'
-                                                }}
-                                            >
-                                                ➕ Adicionar Ação
-                                            </button>
+                                            {/* Análise Realizada */}
+                                            <div style={{ flex: 1, minWidth: '350px', display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
+                                                <label style={{ fontSize: '0.7rem', fontWeight: 800, color: '#3b82f6', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Análise Realizada (Causa Raiz)</label>
+                                                <textarea
+                                                    value={analysisPerformed}
+                                                    onChange={(e) => setAnalysisPerformed(e.target.value)}
+                                                    placeholder="Descreva os fatores que levaram a este desvio (causa raiz)..."
+                                                    style={{ height: '100px', padding: '0.5rem', fontSize: '0.8rem', border: '1px solid #cbd5e1', borderRadius: '8px', outline: 'none', resize: 'vertical', fontFamily: 'inherit' }}
+                                                />
+                                            </div>
                                         </div>
 
-                                        <div style={{ border: '1px solid #e2e8f0', borderRadius: '8px', overflow: 'hidden' }}>
-                                            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8rem' }}>
-                                                <thead>
-                                                    <tr style={{ background: '#f8fafc', borderBottom: '1px solid #e2e8f0', fontWeight: 700, color: '#475569' }}>
-                                                        <th style={{ padding: '0.5rem', textAlign: 'center', width: '60px' }}>Status</th>
-                                                        <th style={{ padding: '0.5rem', textAlign: 'left' }}>Descrição da Ação</th>
-                                                        <th style={{ padding: '0.5rem', textAlign: 'center', width: '160px' }}>Vencimento</th>
-                                                        <th style={{ padding: '0.5rem', textAlign: 'center', width: '60px' }}>Excluir</th>
-                                                    </tr>
-                                                </thead>
-                                                <tbody>
-                                                    {analysisActions.length === 0 ? (
-                                                        <tr>
-                                                            <td colSpan={4} style={{ padding: '1rem', textAlign: 'center', color: '#64748b', fontStyle: 'italic' }}>
-                                                                Nenhuma ação cadastrada para este desvio. Clique em "Adicionar Ação" para registrar.
-                                                            </td>
+                                        {/* Row 3: Plano de Ação (Tabela de itens) */}
+                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                                <label style={{ fontSize: '0.7rem', fontWeight: 800, color: '#3b82f6', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                                                    📋 Plano de Ação (Ações Corretivas)
+                                                </label>
+                                                <button
+                                                    onClick={() => {
+                                                        setAnalysisActions(prev => [...prev, { description: '', dueDate: new Date().toISOString().split('T')[0], isDone: false }]);
+                                                    }}
+                                                    style={{
+                                                        padding: '0.3rem 0.75rem',
+                                                        background: '#10b981',
+                                                        color: '#ffffff',
+                                                        border: 'none',
+                                                        borderRadius: '6px',
+                                                        fontSize: '0.7rem',
+                                                        fontWeight: 700,
+                                                        cursor: 'pointer',
+                                                        display: 'flex',
+                                                        alignItems: 'center',
+                                                        gap: '0.25rem'
+                                                    }}
+                                                >
+                                                    ➕ Adicionar Ação
+                                                </button>
+                                            </div>
+
+                                            <div style={{ border: '1px solid #e2e8f0', borderRadius: '8px', overflow: 'hidden' }}>
+                                                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8rem' }}>
+                                                    <thead>
+                                                        <tr style={{ background: '#f8fafc', borderBottom: '1px solid #e2e8f0', fontWeight: 700, color: '#475569' }}>
+                                                            <th style={{ padding: '0.5rem', textAlign: 'center', width: '60px' }}>Status</th>
+                                                            <th style={{ padding: '0.5rem', textAlign: 'left' }}>Descrição da Ação</th>
+                                                            <th style={{ padding: '0.5rem', textAlign: 'center', width: '160px' }}>Vencimento</th>
+                                                            <th style={{ padding: '0.5rem', textAlign: 'center', width: '60px' }}>Excluir</th>
                                                         </tr>
-                                                    ) : (
-                                                        analysisActions.map((action, idx) => (
-                                                            <tr key={idx} style={{ borderBottom: '1px solid #f1f5f9' }}>
-                                                                <td style={{ padding: '0.4rem', textAlign: 'center' }}>
-                                                                    <input
-                                                                        type="checkbox"
-                                                                        checked={!!action.isDone}
-                                                                        onChange={(e) => {
-                                                                            const updated = [...analysisActions];
-                                                                            updated[idx].isDone = e.target.checked;
-                                                                            setAnalysisActions(updated);
-                                                                        }}
-                                                                        style={{ accentColor: '#10b981', cursor: 'pointer' }}
-                                                                    />
-                                                                </td>
-                                                                <td style={{ padding: '0.4rem' }}>
-                                                                    <input
-                                                                        type="text"
-                                                                        value={action.description}
-                                                                        onChange={(e) => {
-                                                                            const updated = [...analysisActions];
-                                                                            updated[idx].description = e.target.value;
-                                                                            setAnalysisActions(updated);
-                                                                        }}
-                                                                        placeholder="Descreva a ação de forma clara..."
-                                                                        style={{ width: '100%', height: '30px', padding: '0 0.4rem', fontSize: '0.75rem', border: '1px solid #cbd5e1', borderRadius: '4px', outline: 'none' }}
-                                                                    />
-                                                                </td>
-                                                                <td style={{ padding: '0.4rem', textAlign: 'center' }}>
-                                                                    <input
-                                                                        type="date"
-                                                                        value={action.dueDate ? action.dueDate.split('T')[0] : ''}
-                                                                        onChange={(e) => {
-                                                                            const updated = [...analysisActions];
-                                                                            updated[idx].dueDate = e.target.value;
-                                                                            setAnalysisActions(updated);
-                                                                        }}
-                                                                        style={{ height: '30px', padding: '0 0.4rem', fontSize: '0.75rem', border: '1px solid #cbd5e1', borderRadius: '4px', outline: 'none', cursor: 'pointer' }}
-                                                                    />
-                                                                </td>
-                                                                <td style={{ padding: '0.4rem', textAlign: 'center' }}>
-                                                                    <button
-                                                                        onClick={() => {
-                                                                            setAnalysisActions(prev => prev.filter((_, i) => i !== idx));
-                                                                        }}
-                                                                        style={{ background: 'none', border: 'none', color: '#ef4444', fontWeight: 800, fontSize: '0.9rem', cursor: 'pointer' }}
-                                                                    >
-                                                                        🗑️
-                                                                    </button>
+                                                    </thead>
+                                                    <tbody>
+                                                        {analysisActions.length === 0 ? (
+                                                            <tr>
+                                                                <td colSpan={4} style={{ padding: '1rem', textAlign: 'center', color: '#64748b', fontStyle: 'italic' }}>
+                                                                    Nenhuma ação cadastrada para este desvio. Clique em "Adicionar Ação" para registrar.
                                                                 </td>
                                                             </tr>
-                                                        ))
-                                                    )}
-                                                </tbody>
-                                            </table>
+                                                        ) : (
+                                                            analysisActions.map((action, idx) => (
+                                                                <tr key={idx} style={{ borderBottom: '1px solid #f1f5f9' }}>
+                                                                    <td style={{ padding: '0.4rem', textAlign: 'center' }}>
+                                                                        <input
+                                                                            type="checkbox"
+                                                                            checked={!!action.isDone}
+                                                                            onChange={(e) => {
+                                                                                const updated = [...analysisActions];
+                                                                                updated[idx].isDone = e.target.checked;
+                                                                                setAnalysisActions(updated);
+                                                                            }}
+                                                                            style={{ accentColor: '#10b981', cursor: 'pointer' }}
+                                                                        />
+                                                                    </td>
+                                                                    <td style={{ padding: '0.4rem' }}>
+                                                                        <input
+                                                                            type="text"
+                                                                            value={action.description}
+                                                                            onChange={(e) => {
+                                                                                const updated = [...analysisActions];
+                                                                                updated[idx].description = e.target.value;
+                                                                                setAnalysisActions(updated);
+                                                                            }}
+                                                                            placeholder="Descreva a ação de forma clara..."
+                                                                            style={{ width: '100%', height: '30px', padding: '0 0.4rem', fontSize: '0.75rem', border: '1px solid #cbd5e1', borderRadius: '4px', outline: 'none' }}
+                                                                        />
+                                                                    </td>
+                                                                    <td style={{ padding: '0.4rem', textAlign: 'center' }}>
+                                                                        <input
+                                                                            type="date"
+                                                                            value={action.dueDate ? action.dueDate.split('T')[0] : ''}
+                                                                            onChange={(e) => {
+                                                                                const updated = [...analysisActions];
+                                                                                updated[idx].dueDate = e.target.value;
+                                                                                setAnalysisActions(updated);
+                                                                            }}
+                                                                            style={{ height: '30px', padding: '0 0.4rem', fontSize: '0.75rem', border: '1px solid #cbd5e1', borderRadius: '4px', outline: 'none', cursor: 'pointer' }}
+                                                                        />
+                                                                    </td>
+                                                                    <td style={{ padding: '0.4rem', textAlign: 'center' }}>
+                                                                        <button
+                                                                            onClick={() => {
+                                                                                setAnalysisActions(prev => prev.filter((_, i) => i !== idx));
+                                                                            }}
+                                                                            style={{ background: 'none', border: 'none', color: '#ef4444', fontWeight: 800, fontSize: '0.9rem', cursor: 'pointer' }}
+                                                                        >
+                                                                            🗑️
+                                                                        </button>
+                                                                    </td>
+                                                                </tr>
+                                                            ))
+                                                        )}
+                                                    </tbody>
+                                                </table>
+                                            </div>
                                         </div>
-                                    </div>
 
-                                    {/* Row 4: Feed de Comentários */}
-                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', borderTop: '1px solid #e2e8f0', paddingTop: '1.25rem', marginTop: '0.5rem' }}>
-                                        <label style={{ fontSize: '0.7rem', fontWeight: 800, color: '#3b82f6', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                                            💬 Discussão e Feed de Comentários
-                                        </label>
+                                        {/* Row 4: Feed de Comentários */}
+                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', borderTop: '1px solid #e2e8f0', paddingTop: '1.25rem', marginTop: '0.5rem' }}>
+                                            <label style={{ fontSize: '0.7rem', fontWeight: 800, color: '#3b82f6', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                                                💬 Discussão e Feed de Comentários
+                                            </label>
 
-                                        {/* Feed List */}
-                                        <div style={{
-                                            maxHeight: '180px',
-                                            overflowY: 'auto',
-                                            display: 'flex',
-                                            flexDirection: 'column',
-                                            gap: '0.75rem',
-                                            background: '#f8fafc',
-                                            padding: '1rem',
-                                            borderRadius: '8px',
-                                            border: '1px solid #e2e8f0'
-                                        }}>
-                                            {analysisComments.length === 0 ? (
-                                                <div style={{ fontSize: '0.75rem', color: '#64748b', textAlign: 'center', fontStyle: 'italic' }}>
-                                                    Nenhum comentário publicado. Seja o primeiro a comentar abaixo!
-                                                </div>
-                                            ) : (
-                                                analysisComments.map((comment) => (
-                                                    <div key={comment.id} style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-                                                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.7rem', fontWeight: 700, color: '#475569' }}>
-                                                            <span>👤 {comment.userName}</span>
-                                                            <span style={{ color: '#94a3b8' }}>
-                                                                {new Date(comment.createdAt).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' })}
-                                                            </span>
-                                                        </div>
-                                                        <div style={{ fontSize: '0.75rem', color: '#1e293b', paddingLeft: '1rem', borderLeft: '2px solid #cbd5e1' }}>
-                                                            {comment.content}
-                                                        </div>
+                                            {/* Feed List */}
+                                            <div style={{
+                                                maxHeight: '180px',
+                                                overflowY: 'auto',
+                                                display: 'flex',
+                                                flexDirection: 'column',
+                                                gap: '0.75rem',
+                                                background: '#f8fafc',
+                                                padding: '1rem',
+                                                borderRadius: '8px',
+                                                border: '1px solid #e2e8f0'
+                                            }}>
+                                                {analysisComments.length === 0 ? (
+                                                    <div style={{ fontSize: '0.75rem', color: '#64748b', textAlign: 'center', fontStyle: 'italic' }}>
+                                                        Nenhum comentário publicado. Seja o primeiro a comentar abaixo!
                                                     </div>
-                                                ))
+                                                ) : (
+                                                    analysisComments.map((comment) => (
+                                                        <div key={comment.id} style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                                                            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.7rem', fontWeight: 700, color: '#475569' }}>
+                                                                <span>👤 {comment.userName}</span>
+                                                                <span style={{ color: '#94a3b8' }}>
+                                                                    {new Date(comment.createdAt).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' })}
+                                                                </span>
+                                                            </div>
+                                                            <div style={{ fontSize: '0.75rem', color: '#1e293b', paddingLeft: '1rem', borderLeft: '2px solid #cbd5e1' }}>
+                                                                {comment.content}
+                                                            </div>
+                                                        </div>
+                                                    ))
+                                                )}
+                                            </div>
+
+                                            {/* Add Comment Input */}
+                                            <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.25rem' }}>
+                                                <input
+                                                    type="text"
+                                                    placeholder="Seu nome..."
+                                                    value={newCommentUser}
+                                                    onChange={(e) => setNewCommentUser(e.target.value)}
+                                                    style={{ width: '130px', height: '32px', padding: '0 0.5rem', fontSize: '0.75rem', border: '1px solid #cbd5e1', borderRadius: '6px', outline: 'none' }}
+                                                />
+                                                <input
+                                                    type="text"
+                                                    placeholder="Escreva uma mensagem..."
+                                                    value={newCommentText}
+                                                    onChange={(e) => setNewCommentText(e.target.value)}
+                                                    onKeyDown={(e) => e.key === 'Enter' && postComment()}
+                                                    style={{ flex: 1, height: '32px', padding: '0 0.5rem', fontSize: '0.75rem', border: '1px solid #cbd5e1', borderRadius: '6px', outline: 'none' }}
+                                                />
+                                                <button
+                                                    onClick={postComment}
+                                                    disabled={!analysisId}
+                                                    style={{
+                                                        padding: '0 0.75rem',
+                                                        background: analysisId ? '#3b82f6' : '#cbd5e1',
+                                                        color: '#ffffff',
+                                                        border: 'none',
+                                                        borderRadius: '6px',
+                                                        fontSize: '0.7rem',
+                                                        fontWeight: 700,
+                                                        cursor: analysisId ? 'pointer' : 'not-allowed',
+                                                        height: '32px'
+                                                    }}
+                                                >
+                                                    Comentar
+                                                </button>
+                                            </div>
+                                            {!analysisId && (
+                                                <span style={{ fontSize: '0.65rem', color: '#f59e0b', fontWeight: 600 }}>
+                                                    ⚠️ Salve a análise do indicador antes de poder adicionar comentários.
+                                                </span>
                                             )}
                                         </div>
+                                    </>
+                                )
+                            )}
 
-                                        {/* Add Comment Input */}
-                                        <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.25rem' }}>
-                                            <input
-                                                type="text"
-                                                placeholder="Seu nome..."
-                                                value={newCommentUser}
-                                                onChange={(e) => setNewCommentUser(e.target.value)}
-                                                style={{ width: '130px', height: '32px', padding: '0 0.5rem', fontSize: '0.75rem', border: '1px solid #cbd5e1', borderRadius: '6px', outline: 'none' }}
-                                            />
-                                            <input
-                                                type="text"
-                                                placeholder="Escreva uma mensagem..."
-                                                value={newCommentText}
-                                                onChange={(e) => setNewCommentText(e.target.value)}
-                                                onKeyDown={(e) => e.key === 'Enter' && postComment()}
-                                                style={{ flex: 1, height: '32px', padding: '0 0.5rem', fontSize: '0.75rem', border: '1px solid #cbd5e1', borderRadius: '6px', outline: 'none' }}
-                                            />
-                                            <button
-                                                onClick={postComment}
-                                                disabled={!analysisId}
-                                                style={{
-                                                    padding: '0 0.75rem',
-                                                    background: analysisId ? '#3b82f6' : '#cbd5e1',
-                                                    color: '#ffffff',
-                                                    border: 'none',
-                                                    borderRadius: '6px',
-                                                    fontSize: '0.7rem',
-                                                    fontWeight: 700,
-                                                    cursor: analysisId ? 'pointer' : 'not-allowed',
-                                                    height: '32px'
-                                                }}
-                                            >
-                                                Comentar
-                                            </button>
+                            {/* ABA 2: ANÁLISES DETALHADAS */}
+                            {activeModalTab === 'detailed' && (
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+                                    {!isEditingChart ? (
+                                        <>
+                                            {/* Header list view */}
+                                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                                <h3 style={{ fontSize: '0.9rem', fontWeight: 800, color: '#0f172a', margin: 0 }}>
+                                                    📊 Gráficos Customizados Cadastrados
+                                                </h3>
+                                                <button
+                                                    onClick={handleAddChartClick}
+                                                    style={{
+                                                        padding: '0.45rem 1rem',
+                                                        background: 'linear-gradient(135deg, #3b82f6, #2563eb)',
+                                                        color: '#ffffff',
+                                                        border: 'none',
+                                                        borderRadius: '8px',
+                                                        fontSize: '0.75rem',
+                                                        fontWeight: 700,
+                                                        cursor: 'pointer',
+                                                        display: 'flex',
+                                                        alignItems: 'center',
+                                                        gap: '0.35rem',
+                                                        boxShadow: '0 4px 6px rgba(37, 99, 235, 0.15)'
+                                                    }}
+                                                >
+                                                    ➕ Adicionar Gráfico
+                                                </button>
+                                            </div>
+
+                                            {loadingDetailed ? (
+                                                <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '180px' }}>
+                                                    <div style={{ border: '3px solid #f3f3f3', borderTop: '3px solid #3b82f6', borderRadius: '50%', width: '28px', height: '28px', animation: 'spin 1s linear infinite' }} />
+                                                </div>
+                                            ) : detailedAnalyses.length === 0 ? (
+                                                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '3rem 2rem', background: '#f8fafc', borderRadius: '12px', border: '1px dashed #cbd5e1', textAlign: 'center', gap: '0.75rem' }}>
+                                                    <div style={{ fontSize: '2.5rem' }}>📊</div>
+                                                    <div>
+                                                        <h4 style={{ margin: 0, fontSize: '0.85rem', fontWeight: 800, color: '#475569' }}>Nenhum gráfico cadastrado</h4>
+                                                        <p style={{ margin: '0.25rem 0 0 0', fontSize: '0.75rem', color: '#64748b' }}>
+                                                            Adicione gráficos para acompanhar o histórico das contas do DRE de forma gráfica e detalhada.
+                                                        </p>
+                                                    </div>
+                                                </div>
+                                            ) : (
+                                                <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                                                    {detailedAnalyses.map((chart: any) => (
+                                                        <DetailedChartCard 
+                                                            key={chart.id}
+                                                            chart={chart} 
+                                                            onEdit={handleEditChartClick} 
+                                                            onDelete={deleteDetailedAnalysis} 
+                                                            mainMonth={analysisSelectedMonth} 
+                                                            year={selectedYear} 
+                                                            viewMode={viewMode} 
+                                                            categories={categories} 
+                                                        />
+                                                    ))}
+                                                </div>
+                                            )}
+                                        </>
+                                    ) : (
+                                        /* Editor inline */
+                                        <div style={{ display: 'flex', gap: '1.5rem', flexWrap: 'wrap' }}>
+                                            {/* Form column */}
+                                            <div style={{ flex: 1, minWidth: '320px', display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+                                                <div style={{ borderBottom: '1px solid #e2e8f0', paddingBottom: '0.5rem' }}>
+                                                    <h4 style={{ margin: 0, fontSize: '0.9rem', fontWeight: 800, color: '#0f172a' }}>
+                                                        {editingChartId ? '✏️ Editar Configuração do Gráfico' : '➕ Configurar Novo Gráfico'}
+                                                    </h4>
+                                                </div>
+
+                                                {/* Chart Types selector buttons */}
+                                                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
+                                                    <label style={{ fontSize: '0.75rem', fontWeight: 700, color: '#475569' }}>Tipo de Gráfico *</label>
+                                                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(110px, 1fr))', gap: '0.4rem' }}>
+                                                        {[
+                                                            { id: 'VERTICAL_BAR', label: '📊 Vertical', icon: '📊' },
+                                                            { id: 'HORIZONTAL_BAR', label: '➖ Horizontal', icon: '➖' },
+                                                            { id: 'LINE', label: '📈 Linha', icon: '📈' },
+                                                            { id: 'LINE_MARKERS', label: '📉 Linha/Marc.', icon: '📉' },
+                                                            { id: 'PIE', label: '🍕 Pizza', icon: '🍕' },
+                                                            { id: 'DONUT', label: '🍩 Rosca', icon: '🍩' },
+                                                            { id: 'GAUGE', label: '⏱️ Velocímetro', icon: '⏱️' }
+                                                        ].map((typeItem) => (
+                                                            <button
+                                                                key={typeItem.id}
+                                                                type="button"
+                                                                onClick={() => setChartType(typeItem.id)}
+                                                                style={{
+                                                                    padding: '0.5rem',
+                                                                    fontSize: '0.75rem',
+                                                                    fontWeight: 700,
+                                                                    borderRadius: '8px',
+                                                                    border: '1px solid',
+                                                                    borderColor: chartType === typeItem.id ? '#2563eb' : '#e2e8f0',
+                                                                    background: chartType === typeItem.id ? '#eff6ff' : '#ffffff',
+                                                                    color: chartType === typeItem.id ? '#1d4ed8' : '#475569',
+                                                                    cursor: 'pointer',
+                                                                    transition: 'all 0.15s',
+                                                                    display: 'flex',
+                                                                    alignItems: 'center',
+                                                                    justifyContent: 'center',
+                                                                    gap: '0.25rem'
+                                                                }}
+                                                            >
+                                                                {typeItem.label}
+                                                            </button>
+                                                        ))}
+                                                    </div>
+                                                </div>
+
+                                                {/* Category searchable dropdown */}
+                                                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem', position: 'relative' }}>
+                                                    <label style={{ fontSize: '0.75rem', fontWeight: 700, color: '#475569' }}>Conta do DRE / Indicador *</label>
+                                                    <div
+                                                        onClick={() => {
+                                                            setIsChartCategoryDropdownOpen(!isChartCategoryDropdownOpen);
+                                                            setChartCategorySearch('');
+                                                        }}
+                                                        className="premium-input"
+                                                        style={{
+                                                            cursor: 'pointer',
+                                                            display: 'flex',
+                                                            justifyContent: 'space-between',
+                                                            alignItems: 'center',
+                                                            padding: '0 0.75rem',
+                                                            height: '36px',
+                                                            fontSize: '0.8rem',
+                                                            fontWeight: 600,
+                                                            border: '1px solid #cbd5e1',
+                                                            borderRadius: '8px',
+                                                            background: '#ffffff',
+                                                            outline: 'none',
+                                                            userSelect: 'none'
+                                                        }}
+                                                    >
+                                                        <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                                            {(() => {
+                                                                const dreLabels: Record<string, string> = {
+                                                                    vRev: '(=) Receita Bruta',
+                                                                    vTaxes: '(-) Deduções / Impostos',
+                                                                    vRecLiq: '(=) Receita Líquida',
+                                                                    vCosts: '(-) Custos Operacionais',
+                                                                    vGrossMarg: '(=) Margem Bruta',
+                                                                    vOpExp: '(-) Despesas Operacionais',
+                                                                    vContribMarg: '(=) Margem de Contribuição',
+                                                                    vAdminExp: '(-) Despesas Administrativas',
+                                                                    vEbitda: '(=) EBITDA',
+                                                                    vFin: '(-) Despesas Financeiras',
+                                                                    vNetProfit: '(=) Lucro Líquido'
+                                                                };
+                                                                if (dreLabels[chartCategory]) return dreLabels[chartCategory];
+                                                                const found = categories.find((cat: any) => cat.id === chartCategory);
+                                                                return found ? found.name : 'Selecione uma conta...';
+                                                            })()}
+                                                        </span>
+                                                        <span style={{ fontSize: '0.6rem', opacity: 0.5 }}>▼</span>
+                                                    </div>
+
+                                                    {isChartCategoryDropdownOpen && (
+                                                        <>
+                                                            <div 
+                                                                style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, zIndex: 9999 }} 
+                                                                onClick={() => setIsChartCategoryDropdownOpen(false)} 
+                                                            />
+                                                            <div 
+                                                                className="glass-card" 
+                                                                style={{ 
+                                                                    position: 'absolute', 
+                                                                    top: 'calc(100% + 4px)', 
+                                                                    left: 0, 
+                                                                    right: 0, 
+                                                                    zIndex: 10000, 
+                                                                    maxHeight: '220px', 
+                                                                    overflowY: 'auto', 
+                                                                    background: '#ffffff', 
+                                                                    border: '1px solid #cbd5e1',
+                                                                    borderRadius: '8px',
+                                                                    boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)',
+                                                                    padding: '0.25rem 0'
+                                                                }}
+                                                            >
+                                                                <div style={{ padding: '0.4rem 0.5rem', borderBottom: '1px solid #e2e8f0', position: 'sticky', top: 0, background: '#ffffff', zIndex: 10 }}>
+                                                                    <input 
+                                                                        type="text" 
+                                                                        placeholder="Pesquisar conta..." 
+                                                                        value={chartCategorySearch}
+                                                                        onChange={(e) => setChartCategorySearch(e.target.value)}
+                                                                        onClick={(e) => e.stopPropagation()}
+                                                                        autoFocus
+                                                                        style={{ 
+                                                                            width: '100%', 
+                                                                            padding: '0.4rem 0.6rem', 
+                                                                            fontSize: '0.75rem', 
+                                                                            borderRadius: '6px', 
+                                                                            border: '1px solid #cbd5e1', 
+                                                                            background: '#f8fafc', 
+                                                                            outline: 'none',
+                                                                            boxSizing: 'border-box'
+                                                                        }}
+                                                                    />
+                                                                </div>
+                                                                <div style={{ maxHeight: '160px', overflowY: 'auto' }}>
+                                                                    {/* DRE Options */}
+                                                                    {Object.entries({
+                                                                        vRev: '(=) Receita Bruta',
+                                                                        vTaxes: '(-) Deduções / Impostos',
+                                                                        vRecLiq: '(=) Receita Líquida',
+                                                                        vCosts: '(-) Custos Operacionais',
+                                                                        vGrossMarg: '(=) Margem Bruta',
+                                                                        vOpExp: '(-) Despesas Operacionais',
+                                                                        vContribMarg: '(=) Margem de Contribuição',
+                                                                        vAdminExp: '(-) Despesas Administrativas',
+                                                                        vEbitda: '(=) EBITDA',
+                                                                        vFin: '(-) Despesas Financeiras',
+                                                                        vNetProfit: '(=) Lucro Líquido'
+                                                                    })
+                                                                    .filter(([_, name]) => !chartCategorySearch || name.toLowerCase().includes(chartCategorySearch.toLowerCase()))
+                                                                    .map(([id, name]) => (
+                                                                        <div
+                                                                            key={id}
+                                                                            onClick={() => {
+                                                                                setChartCategory(id);
+                                                                                setIsChartCategoryDropdownOpen(false);
+                                                                            }}
+                                                                            style={{ 
+                                                                                padding: '0.4rem 0.75rem', 
+                                                                                cursor: 'pointer', 
+                                                                                fontSize: '0.75rem', 
+                                                                                fontWeight: 700,
+                                                                                color: '#1e3a8a',
+                                                                                background: chartCategory === id ? '#eff6ff' : 'transparent'
+                                                                            }}
+                                                                            className="premium-row"
+                                                                        >
+                                                                            ⭐ {name}
+                                                                        </div>
+                                                                    ))}
+                                                                    {/* Categories list */}
+                                                                    {categories
+                                                                        .filter(cat => !analysisSelectedTenant || cat.tenantId === analysisSelectedTenant)
+                                                                        .filter(cat => !chartCategorySearch || cat.name.toLowerCase().includes(chartCategorySearch.toLowerCase()))
+                                                                        .sort((a, b) => a.name.localeCompare(b.name))
+                                                                        .map((cat: any) => (
+                                                                            <div
+                                                                                key={cat.id}
+                                                                                onClick={() => {
+                                                                                    setChartCategory(cat.id);
+                                                                                    setIsChartCategoryDropdownOpen(false);
+                                                                                }}
+                                                                                style={{ 
+                                                                                    padding: '0.4rem 0.75rem', 
+                                                                                    cursor: 'pointer', 
+                                                                                    fontSize: '0.75rem', 
+                                                                                    fontWeight: 600,
+                                                                                    color: '#334155',
+                                                                                    background: chartCategory === cat.id ? '#eff6ff' : 'transparent'
+                                                                                }}
+                                                                                className="hover-row"
+                                                                            >
+                                                                                {cat.name}
+                                                                            </div>
+                                                                        ))
+                                                                    }
+                                                                </div>
+                                                            </div>
+                                                        </>
+                                                    )}
+                                                </div>
+
+                                                {/* Filters: Tenant & Cost Center */}
+                                                <div style={{ display: 'flex', gap: '0.75rem' }}>
+                                                    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
+                                                        <label style={{ fontSize: '0.75rem', fontWeight: 700, color: '#475569' }}>Filtro de Empresa *</label>
+                                                        <select
+                                                            value={chartTenant}
+                                                            onChange={(e) => setChartTenant(e.target.value)}
+                                                            className="premium-input"
+                                                            style={{ width: '100%', height: '36px', padding: '0 0.5rem', fontSize: '0.8rem', fontWeight: 600, border: '1px solid #cbd5e1', borderRadius: '8px', outline: 'none' }}
+                                                        >
+                                                            <option value="ALL">Todas Empresas (Consolidado)</option>
+                                                            {companies.map((c: any) => (
+                                                                <option key={c.id} value={c.id}>{c.name}</option>
+                                                            ))}
+                                                        </select>
+                                                    </div>
+                                                    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
+                                                        <label style={{ fontSize: '0.75rem', fontWeight: 700, color: '#475569' }}>Centro de Custo</label>
+                                                        <select
+                                                            value={chartCC}
+                                                            onChange={(e) => setChartCC(e.target.value)}
+                                                            className="premium-input"
+                                                            style={{ width: '100%', height: '36px', padding: '0 0.5rem', fontSize: '0.8rem', fontWeight: 600, border: '1px solid #cbd5e1', borderRadius: '8px', outline: 'none' }}
+                                                        >
+                                                            <option value="ALL">Todos Centros de Custo</option>
+                                                            {costCenters.map((cc: any) => (
+                                                                <option key={cc.id} value={cc.nome}>{cc.nome}</option>
+                                                            ))}
+                                                        </select>
+                                                    </div>
+                                                </div>
+
+                                                {/* Option switches checkboxes */}
+                                                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem', background: '#f8fafc', padding: '0.75rem', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
+                                                    <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.75rem', fontWeight: 600, color: '#334155', cursor: 'pointer' }}>
+                                                        <input
+                                                            type="checkbox"
+                                                            checked={chartOnlyRealized}
+                                                            onChange={(e) => setChartOnlyRealized(e.target.checked)}
+                                                            style={{ accentColor: '#2563eb', cursor: 'pointer' }}
+                                                        />
+                                                        Somente Realizado (oculta o Orçado/Meta)
+                                                    </label>
+                                                    <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.75rem', fontWeight: 600, color: '#334155', cursor: 'pointer' }}>
+                                                        <input
+                                                            type="checkbox"
+                                                            checked={chartShowAtingido}
+                                                            onChange={(e) => setChartShowAtingido(e.target.checked)}
+                                                            style={{ accentColor: '#2563eb', cursor: 'pointer' }}
+                                                        />
+                                                        Adicionar Linha de Atingido
+                                                    </label>
+                                                    <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.75rem', fontWeight: 600, color: '#334155', cursor: 'pointer' }}>
+                                                        <input
+                                                            type="checkbox"
+                                                            checked={chartPctOfRevenue}
+                                                            onChange={(e) => setChartPctOfRevenue(e.target.checked)}
+                                                            style={{ accentColor: '#2563eb', cursor: 'pointer' }}
+                                                        />
+                                                        Percentual sobre Receita (calculado sobre Receita Líquida)
+                                                    </label>
+                                                </div>
+
+                                                {/* Historical Analysis Textarea */}
+                                                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
+                                                    <label style={{ fontSize: '0.75rem', fontWeight: 700, color: '#475569' }}>Análise e Histórico Relacionado</label>
+                                                    <textarea
+                                                        value={chartAnalysisText}
+                                                        onChange={(e) => setChartAnalysisText(e.target.value)}
+                                                        placeholder="Registre aqui observações históricas ou análises qualitativas desse gráfico..."
+                                                        style={{ height: '80px', padding: '0.5rem', fontSize: '0.8rem', border: '1px solid #cbd5e1', borderRadius: '8px', outline: 'none', resize: 'vertical', fontFamily: 'inherit' }}
+                                                    />
+                                                </div>
+
+                                                {/* Form actions */}
+                                                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem', borderTop: '1px solid #e2e8f0', paddingTop: '1rem' }}>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => setIsEditingChart(false)}
+                                                        style={{ padding: '0.45rem 1rem', background: '#ffffff', border: '1px solid #cbd5e1', borderRadius: '6px', fontSize: '0.75rem', fontWeight: 700, color: '#475569', cursor: 'pointer' }}
+                                                    >
+                                                        Cancelar
+                                                    </button>
+                                                    <button
+                                                        type="button"
+                                                        onClick={saveDetailedAnalysis}
+                                                        disabled={savingChart}
+                                                        style={{ padding: '0.45rem 1.25rem', background: 'linear-gradient(135deg, #3b82f6, #2563eb)', color: '#ffffff', border: 'none', borderRadius: '6px', fontSize: '0.75rem', fontWeight: 700, cursor: 'pointer', boxShadow: '0 4px 6px rgba(37, 99, 235, 0.15)' }}
+                                                    >
+                                                        {savingChart ? 'Salvando...' : 'Salvar Gráfico'}
+                                                    </button>
+                                                </div>
+                                            </div>
+
+                                            {/* Preview column */}
+                                            <div style={{ flex: 1, minWidth: '320px', display: 'flex', flexDirection: 'column', gap: '1rem', background: '#f8fafc', padding: '1.25rem', borderRadius: '12px', border: '1px solid #e2e8f0', alignSelf: 'stretch', justifyContent: 'center' }}>
+                                                <div style={{ borderBottom: '1px solid #e2e8f0', paddingBottom: '0.5rem' }}>
+                                                    <h4 style={{ margin: 0, fontSize: '0.8rem', fontWeight: 800, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                                                        👁️ Pré-visualização Real-Time
+                                                    </h4>
+                                                </div>
+
+                                                <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '260px' }}>
+                                                    {loadingPreviewData ? (
+                                                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.5rem' }}>
+                                                            <div style={{ border: '3px solid #f3f3f3', borderTop: '3px solid #3b82f6', borderRadius: '50%', width: '28px', height: '28px', animation: 'spin 1s linear infinite' }} />
+                                                            <span style={{ fontSize: '0.7rem', color: '#64748b', fontWeight: 600 }}>Carregando dados...</span>
+                                                        </div>
+                                                    ) : !chartCategory ? (
+                                                        <div style={{ fontSize: '0.75rem', color: '#64748b', fontStyle: 'italic', textAlign: 'center' }}>
+                                                            Selecione uma conta para ver o gráfico.
+                                                        </div>
+                                                    ) : (
+                                                        <div style={{ width: '100%', display: 'flex', justifyContent: 'center' }}>
+                                                            {renderDetailedChart(chartType, chartPreviewData, chartOnlyRealized, chartShowAtingido, chartPctOfRevenue, analysisSelectedMonth)}
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            </div>
                                         </div>
-                                        {!analysisId && (
-                                            <span style={{ fontSize: '0.65rem', color: '#f59e0b', fontWeight: 600 }}>
-                                                ⚠️ Salve a análise do indicador antes de poder adicionar comentários.
-                                            </span>
-                                        )}
-                                    </div>
-                                </>
+                                    )}
+                                </div>
                             )}
                         </div>
 
@@ -6784,24 +7907,26 @@ export default function BudgetGrid({
                             >
                                 Fechar
                             </button>
-                            <button
-                                onClick={saveAnalysisData}
-                                disabled={isAnalysisSaving || isAnalysisLoading || !analysisSelectedCategory}
-                                style={{
-                                    padding: '0.5rem 1.25rem',
-                                    background: !analysisSelectedCategory ? '#cbd5e1' : 'linear-gradient(135deg, #3b82f6, #2563eb)',
-                                    color: '#ffffff',
-                                    border: 'none',
-                                    borderRadius: '8px',
-                                    fontSize: '0.8rem',
-                                    fontWeight: 700,
-                                    cursor: !analysisSelectedCategory ? 'not-allowed' : 'pointer',
-                                    boxShadow: !analysisSelectedCategory ? 'none' : '0 4px 6px rgba(37, 99, 235, 0.2)',
-                                    transition: 'all 0.15s'
-                                }}
-                            >
-                                {isAnalysisSaving ? 'Salvando...' : 'Salvar Análise'}
-                            </button>
+                            {activeModalTab === 'deviation' && (
+                                <button
+                                    onClick={saveAnalysisData}
+                                    disabled={isAnalysisSaving || isAnalysisLoading || !analysisSelectedCategory}
+                                    style={{
+                                        padding: '0.5rem 1.25rem',
+                                        background: !analysisSelectedCategory ? '#cbd5e1' : 'linear-gradient(135deg, #3b82f6, #2563eb)',
+                                        color: '#ffffff',
+                                        border: 'none',
+                                        borderRadius: '8px',
+                                        fontSize: '0.8rem',
+                                        fontWeight: 700,
+                                        cursor: !analysisSelectedCategory ? 'not-allowed' : 'pointer',
+                                        boxShadow: !analysisSelectedCategory ? 'none' : '0 4px 6px rgba(37, 99, 235, 0.2)',
+                                        transition: 'all 0.15s'
+                                    }}
+                                >
+                                    {isAnalysisSaving ? 'Salvando...' : 'Salvar Análise'}
+                                </button>
+                            )}
                         </div>
                     </div>
                     {/* Spin Animation Definition */}

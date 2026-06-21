@@ -991,7 +991,7 @@ export default function BudgetGrid({
                     ['line_atingido', 'line_revenue'].includes(config?.[k])
                 );
                 
-                let maxPct = 100;
+                let maxPct = 5;
                 data.forEach((m, idx) => {
                     rightKeys.forEach(k => {
                         const vals = m.breakdown?.[k] || { atingido: 0, pctOfRevenue: 0 };

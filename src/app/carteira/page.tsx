@@ -1895,7 +1895,7 @@ const renderDetailedChart = (
             });
             const scaleMaxAbs = maxAbs * 1.20;
 
-            let maxPct = 100;
+            let maxPct = 5;
             data.forEach((m, idx) => {
                 if (idx + 1 <= currentMonthIdx + 1) {
                     if (atMode !== 'none') {

@@ -1472,8 +1472,30 @@ export default function PortfolioAnalysisPage() {
                                         </div>
                                     )}
 
-                                    {/* Filters: Cost Center */}
+                                    {/* Filters: Tenant & Cost Center */}
                                     <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
+                                        <div style={{ flex: 1, minWidth: '150px', display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
+                                            <label style={{ fontSize: '0.75rem', fontWeight: 800, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Filtro de Empresa no Gráfico *</label>
+                                            <select
+                                                value={chartTenant}
+                                                onChange={(e) => {
+                                                    const val = e.target.value;
+                                                    setChartTenant(val);
+                                                    if (val === 'ALL') {
+                                                        const jvs = companies.find((c: any) => c.name.toUpperCase().includes('JVS TRAT'));
+                                                        setAnalysisSelectedTenant(jvs ? jvs.id : (companies[0]?.id || ''));
+                                                    } else {
+                                                        setAnalysisSelectedTenant(val);
+                                                    }
+                                                }}
+                                                style={{ width: '100%', height: '38px', padding: '0 0.75rem', fontSize: '0.85rem', fontWeight: 600, border: '1px solid var(--border-default)', borderRadius: '8px', outline: 'none', background: 'var(--bg-surface)', color: 'var(--text-primary)', cursor: 'pointer' }}
+                                            >
+                                                <option value="ALL">Grupo JVS</option>
+                                                {companies.map((c: any) => (
+                                                    <option key={c.id} value={c.id}>{c.name}</option>
+                                                ))}
+                                            </select>
+                                        </div>
                                         <div style={{ flex: 1, minWidth: '150px', display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
                                             <label style={{ fontSize: '0.75rem', fontWeight: 800, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Centro de Custo</label>
                                             <select

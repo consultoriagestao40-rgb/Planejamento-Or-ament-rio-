@@ -8,8 +8,15 @@ async function fetchInParallelWithLimit<T, R>(
 ): Promise<R[]> {
     const results: Promise<R>[] = [];
     const executing: Promise<any>[] = [];
+    let delay = 0;
     for (const item of items) {
-        const p = Promise.resolve().then(() => fn(item));
+        const currentDelay = delay;
+        delay += 150; // Espaçar o início de cada requisição em 150ms (máximo ~6.6 requisições por segundo)
+        
+        const p = Promise.resolve()
+            .then(() => new Promise(resolve => setTimeout(resolve, currentDelay)))
+            .then(() => fn(item));
+            
         results.push(p);
         if (limit <= items.length) {
             const e: any = p.then(() => executing.splice(executing.indexOf(e), 1));
@@ -256,7 +263,7 @@ async function collectDetailedTransactions(
 
         const parcelDetailsMap = new Map<string, any>();
         if (idsToFetch.length > 0) {
-            const details = await fetchInParallelWithLimit(idsToFetch, 10, async (id) => {
+            const details = await fetchInParallelWithLimit(idsToFetch, 4, async (id) => {
                 try {
                     const detailUrl = `https://api-v2.contaazul.com/v1/financeiro/eventos-financeiros/parcelas/${id}`;
                     const detailRes = await fetch(detailUrl, {
@@ -641,7 +648,7 @@ async function collectRetentionsFromSales(
         const salesToFetch = items.filter((item: any) => item.id && !(item.status || '').toUpperCase().includes('CANCEL'));
         const salesDetailsMap = new Map<string, any>();
         if (salesToFetch.length > 0) {
-            const details = await fetchInParallelWithLimit(salesToFetch, 10, async (item: any) => {
+            const details = await fetchInParallelWithLimit(salesToFetch, 4, async (item: any) => {
                 try {
                     const detailUrl = `https://api-v2.contaazul.com/v1/venda/${item.id}`;
                     const detailRes = await fetch(detailUrl, {
@@ -1346,7 +1353,7 @@ async function collectOpenTransactions(
             .map((item: any) => item.id);
         const parcelDetailsMap = new Map<string, any>();
         if (idsToFetch.length > 0) {
-            const details = await fetchInParallelWithLimit(idsToFetch, 10, async (id) => {
+            const details = await fetchInParallelWithLimit(idsToFetch, 4, async (id) => {
                 try {
                     const detailUrl = `https://api-v2.contaazul.com/v1/financeiro/eventos-financeiros/parcelas/${id}`;
                     const detailRes = await fetch(detailUrl, {

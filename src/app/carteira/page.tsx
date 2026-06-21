@@ -52,10 +52,16 @@ export default function PortfolioAnalysisPage() {
     const [chartPreviewData, setChartPreviewData] = useState<any[]>([]);
     const [loadingPreviewData, setLoadingPreviewData] = useState(false);
     const [savingChart, setSavingChart] = useState(false);
+    const [indicatorName, setIndicatorName] = useState<string>('');
     const [analysisSelectedTenant, setAnalysisSelectedTenant] = useState<string>('');
     const prevTenantRef = useRef<string>('');
 
-    const [seriesConfig, setSeriesConfig] = useState<Record<string, 'bar' | 'line_val' | 'diarias_bar' | 'diarias_line' | 'line_atingido' | 'line_revenue'>>({});
+    const [seriesConfig, setSeriesConfig] = useState<Record<string, string>>({
+        budget: 'bar',
+        realized: 'bar',
+        atingido: 'none',
+        pctOfRevenue: 'none'
+    });
 
     const toggleChartCategory = useCallback((id: string) => {
         setChartCategory(prev => {
@@ -63,14 +69,8 @@ export default function PortfolioAnalysisPage() {
             const index = selectedIds.indexOf(id);
             if (index === -1) {
                 selectedIds.push(id);
-                setSeriesConfig(cfg => ({ ...cfg, [id]: 'bar' }));
             } else {
                 selectedIds.splice(index, 1);
-                setSeriesConfig(cfg => {
-                    const next = { ...cfg };
-                    delete next[id];
-                    return next;
-                });
             }
             return selectedIds.join(',');
         });
@@ -101,6 +101,20 @@ export default function PortfolioAnalysisPage() {
 
         return labels.join(' + ');
     }, [categories]);
+
+    const getChartHeaderTitle = useCallback((chart: any) => {
+        if (chart.chartType && chart.chartType.startsWith('{')) {
+            try {
+                const parsed = JSON.parse(chart.chartType);
+                if (parsed.indicatorName) {
+                    return parsed.indicatorName;
+                }
+            } catch (e) {
+                // ignore
+            }
+        }
+        return getChartCategoryLabel(chart.categoryId);
+    }, [getChartCategoryLabel]);
 
     // Resolve month number for custom charts (detailed analysis API needs a specific 1-12 month)
     const activeMonthNumber = useMemo(() => {
@@ -252,6 +266,11 @@ export default function PortfolioAnalysisPage() {
             alert('Por favor, configure os campos obrigatórios do gráfico (Conta, Empresa e Tipo).');
             return;
         }
+        const categoryIdsCount = chartCategory.split(',').map(x => x.trim()).filter(Boolean).length;
+        if (categoryIdsCount > 1 && !indicatorName.trim()) {
+            alert('Por favor, defina um nome para o indicador (grupo) antes de salvar.');
+            return;
+        }
         setSavingChart(true);
         try {
             const res = await fetch('/api/kpi/detailed-analysis', {
@@ -265,8 +284,8 @@ export default function PortfolioAnalysisPage() {
                     categoryId: chartCategory,
                     filterTenantId: chartTenant,
                     filterCCId: chartCC,
-                    chartType: chartType === 'MIXED' 
-                        ? JSON.stringify({ mode: 'MIXED', config: seriesConfig }) 
+                    chartType: chartType === 'MIXED' || categoryIdsCount > 1
+                        ? JSON.stringify({ mode: chartType, config: seriesConfig, indicatorName })
                         : chartType,
                     onlyRealized: chartOnlyRealized,
                     showAtingido: chartShowAtingido,
@@ -319,20 +338,32 @@ export default function PortfolioAnalysisPage() {
         setChartPctOfRevenue(false);
         setChartColor('#6366f1');
         setChartAnalysisText('');
-        setSeriesConfig({});
+        setSeriesConfig({
+            budget: 'bar',
+            realized: 'bar',
+            atingido: 'none',
+            pctOfRevenue: 'none'
+        });
+        setIndicatorName('');
         
         let targetTenant = '';
+        let targetFilterTenant = 'ALL';
         if (companies.length > 0) {
             const cached = localStorage.getItem('selectedTenantId');
-            const hasCached = cached && companies.some(c => c.id === cached);
+            const hasCached = cached && cached !== 'ALL' && companies.some(c => c.id === cached);
             if (hasCached) {
                 targetTenant = cached!;
+                targetFilterTenant = cached!;
             } else {
                 const jvs = companies.find(c => c.name.toUpperCase().includes('JVS TRAT'));
                 targetTenant = jvs ? jvs.id : companies[0].id;
+                targetFilterTenant = 'ALL';
             }
             setAnalysisSelectedTenant(targetTenant);
+            setChartTenant(targetFilterTenant);
             prevTenantRef.current = targetTenant;
+        } else {
+            setChartTenant('ALL');
         }
         
         setChartPreviewData([]);
@@ -346,19 +377,37 @@ export default function PortfolioAnalysisPage() {
         setChartTenant(chart.filterTenantId);
         setChartCC(chart.filterCCId || 'ALL');
         
+        let nameVal = '';
         if (chart.chartType && chart.chartType.startsWith('{')) {
             try {
                 const parsed = JSON.parse(chart.chartType);
                 setChartType('MIXED');
-                setSeriesConfig(parsed.config || {});
+                setSeriesConfig(parsed.config || {
+                    budget: 'bar',
+                    realized: 'bar',
+                    atingido: 'none',
+                    pctOfRevenue: 'none'
+                });
+                nameVal = parsed.indicatorName || '';
             } catch (e) {
                 setChartType(chart.chartType);
-                setSeriesConfig({});
+                setSeriesConfig({
+                    budget: 'bar',
+                    realized: 'bar',
+                    atingido: 'none',
+                    pctOfRevenue: 'none'
+                });
             }
         } else {
             setChartType(chart.chartType || 'VERTICAL_BAR');
-            setSeriesConfig({});
+            setSeriesConfig({
+                budget: 'bar',
+                realized: 'bar',
+                atingido: 'none',
+                pctOfRevenue: 'none'
+            });
         }
+        setIndicatorName(nameVal);
 
         setChartOnlyRealized(!!chart.onlyRealized);
         setChartShowAtingido(!!chart.showAtingido);
@@ -1033,6 +1082,7 @@ export default function PortfolioAnalysisPage() {
                                                 year={selectedYear} 
                                                 viewMode={selectedViewMode} 
                                                 categories={categories} 
+                                                companies={companies}
                                             />
                                         ))}
                                     </div>
@@ -1061,7 +1111,7 @@ export default function PortfolioAnalysisPage() {
                                                 { id: 'PIE', label: '🍕 Pizza' },
                                                 { id: 'DONUT', label: '🍩 Rosca' },
                                                 { id: 'GAUGE', label: '⏱️ Velocímetro' },
-                                                ...(chartCategory.split(',').filter(Boolean).length > 1 ? [{ id: 'MIXED', label: '🔀 Eixo Duplo' }] : [])
+                                                { id: 'MIXED', label: '🔀 Eixo Duplo' }
                                             ].map((typeItem) => (
                                                 <button
                                                     key={typeItem.id}
@@ -1258,104 +1308,172 @@ export default function PortfolioAnalysisPage() {
                                         )}
                                     </div>
 
-                                    {/* Configuração de Séries Individuais (Modo Combinado/Múltiplas Contas) */}
+                                    {/* Nome do Indicador (Obrigatório se selecionadas múltiplas contas) */}
                                     {chartCategory.split(',').map(x => x.trim()).filter(Boolean).length > 1 && (
+                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem', marginTop: '0.5rem' }}>
+                                            <label style={{ fontSize: '0.75rem', fontWeight: 800, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                                                Nome do Indicador / Grupo * <span style={{ color: 'var(--accent-red)' }}>(Obrigatório para múltiplas contas)</span>
+                                            </label>
+                                            <input
+                                                type="text"
+                                                value={indicatorName}
+                                                onChange={(e) => setIndicatorName(e.target.value)}
+                                                placeholder="Ex: Total de Diárias"
+                                                style={{ width: '100%', height: '38px', padding: '0 0.75rem', fontSize: '0.85rem', fontWeight: 600, border: '1px solid var(--border-default)', borderRadius: '8px', outline: 'none', background: 'var(--bg-surface)', color: 'var(--text-primary)' }}
+                                            />
+                                        </div>
+                                    )}
+
+                                    {/* Configuração de Séries Individuais (Modo Combinado/Múltiplas Contas) */}
+                                    {chartType === 'MIXED' && (
                                         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem', padding: '0.85rem', background: 'var(--bg-elevated)', borderRadius: '8px', border: '1px solid var(--border-default)', marginTop: '0.25rem' }}>
                                             <span style={{ fontSize: '0.75rem', fontWeight: 800, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em', display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
-                                                ⚙️ Tipo de Exibição por Conta (Eixo Duplo)
+                                                ⚙️ Configuração do Eixo Duplo (Exibição por Métrica)
                                             </span>
                                             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                                                {chartCategory.split(',').map(x => x.trim()).filter(Boolean).map(id => {
-                                                    const dreLabels: Record<string, string> = {
-                                                        vRev: 'Receita Bruta',
-                                                        vTaxes: 'Deduções / Impostos',
-                                                        vRecLiq: 'Receita Líquida',
-                                                        vCosts: 'Custos Operacionais',
-                                                        vGrossMarg: 'Margem Bruta',
-                                                        vOpExp: 'Despesas Operacionais',
-                                                        vContribMarg: 'Margem de Contribuição',
-                                                        vAdminExp: 'Despesas Administrativas',
-                                                        vEbitda: 'EBITDA',
-                                                        vFin: 'Despesas Financeiras',
-                                                        vNetProfit: 'Lucro Líquido'
-                                                    };
-                                                    const name = dreLabels[id] || categories.find((c: any) => c.id === id)?.name || id;
-                                                    const currentMode = seriesConfig[id] || 'bar';
- 
-                                                    return (
-                                                        <div key={id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '1rem', padding: '0.35rem 0', borderBottom: '1px solid var(--border-subtle)' }}>
-                                                            <span style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-primary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '50%' }} title={name}>
-                                                                {name}
-                                                            </span>
-                                                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.3rem', justifyContent: 'flex-end', maxWidth: '70%' }}>
-                                                                {[
-                                                                    { key: 'bar', label: '📊 Barra (R$)' },
-                                                                    { key: 'line_val', label: '📈 Linha (R$)' },
-                                                                    { key: 'diarias_bar', label: '📅 Barra (Diárias R$/dia)' },
-                                                                    { key: 'diarias_line', label: '📅 Linha (Diárias R$/dia)' },
-                                                                    { key: 'line_atingido', label: '📈 Linha (% At.)' },
-                                                                    { key: 'line_revenue', label: '📉 Linha (% Rec.)' }
-                                                                ].map(opt => (
-                                                                    <button
-                                                                        key={opt.key}
-                                                                        type="button"
-                                                                        onClick={() => {
-                                                                            setSeriesConfig(cfg => ({ ...cfg, [id]: opt.key as any }));
-                                                                            setChartType('MIXED');
-                                                                        }}
-                                                                        style={{
-                                                                            padding: '0.35rem 0.6rem',
-                                                                            fontSize: '0.7rem',
-                                                                            fontWeight: 700,
-                                                                            borderRadius: '6px',
-                                                                            border: '1px solid',
-                                                                            borderColor: currentMode === opt.key ? 'var(--accent-indigo)' : 'var(--border-default)',
-                                                                            background: currentMode === opt.key ? 'rgba(99, 102, 241, 0.08)' : 'var(--bg-surface)',
-                                                                            color: currentMode === opt.key ? 'var(--accent-indigo)' : 'var(--text-secondary)',
-                                                                            cursor: 'pointer',
-                                                                            transition: 'all 0.15s'
-                                                                        }}
-                                                                    >
-                                                                        {opt.label}
-                                                                    </button>
-                                                                ))}
-                                                            </div>
-                                                        </div>
-                                                    );
-                                                })}
+                                                {/* Orçado */}
+                                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '1rem', padding: '0.35rem 0', borderBottom: '1px solid var(--border-subtle)' }}>
+                                                    <span style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-primary)' }}>
+                                                        Orçado (Meta)
+                                                    </span>
+                                                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.3rem', justifyContent: 'flex-end', maxWidth: '70%' }}>
+                                                        {[
+                                                            { key: 'bar', label: '📊 Barra (R$)' },
+                                                            { key: 'line_val', label: '📈 Linha (R$)' },
+                                                            { key: 'diarias_bar', label: '📅 Barra (Diárias R$/dia)' },
+                                                            { key: 'diarias_line', label: '📅 Linha (Diárias R$/dia)' },
+                                                            { key: 'none', label: '❌ Oculto' }
+                                                        ].map(opt => (
+                                                            <button
+                                                                key={opt.key}
+                                                                type="button"
+                                                                onClick={() => setSeriesConfig(cfg => ({ ...cfg, budget: opt.key as any }))}
+                                                                style={{
+                                                                    padding: '0.35rem 0.6rem',
+                                                                    fontSize: '0.7rem',
+                                                                    fontWeight: 700,
+                                                                    borderRadius: '6px',
+                                                                    border: '1px solid',
+                                                                    borderColor: (seriesConfig.budget || 'bar') === opt.key ? 'var(--accent-indigo)' : 'var(--border-default)',
+                                                                    background: (seriesConfig.budget || 'bar') === opt.key ? 'rgba(99, 102, 241, 0.08)' : 'var(--bg-surface)',
+                                                                    color: (seriesConfig.budget || 'bar') === opt.key ? 'var(--accent-indigo)' : 'var(--text-secondary)',
+                                                                    cursor: 'pointer',
+                                                                    transition: 'all 0.15s'
+                                                                }}
+                                                            >
+                                                                {opt.label}
+                                                            </button>
+                                                        ))}
+                                                    </div>
+                                                </div>
+
+                                                {/* Realizado */}
+                                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '1rem', padding: '0.35rem 0', borderBottom: '1px solid var(--border-subtle)' }}>
+                                                    <span style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-primary)' }}>
+                                                        Realizado
+                                                    </span>
+                                                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.3rem', justifyContent: 'flex-end', maxWidth: '70%' }}>
+                                                        {[
+                                                            { key: 'bar', label: '📊 Barra (R$)' },
+                                                            { key: 'line_val', label: '📈 Linha (R$)' },
+                                                            { key: 'diarias_bar', label: '📅 Barra (Diárias R$/dia)' },
+                                                            { key: 'diarias_line', label: '📅 Linha (Diárias R$/dia)' },
+                                                            { key: 'none', label: '❌ Oculto' }
+                                                        ].map(opt => (
+                                                            <button
+                                                                key={opt.key}
+                                                                type="button"
+                                                                onClick={() => setSeriesConfig(cfg => ({ ...cfg, realized: opt.key as any }))}
+                                                                style={{
+                                                                    padding: '0.35rem 0.6rem',
+                                                                    fontSize: '0.7rem',
+                                                                    fontWeight: 700,
+                                                                    borderRadius: '6px',
+                                                                    border: '1px solid',
+                                                                    borderColor: (seriesConfig.realized || 'bar') === opt.key ? 'var(--accent-indigo)' : 'var(--border-default)',
+                                                                    background: (seriesConfig.realized || 'bar') === opt.key ? 'rgba(99, 102, 241, 0.08)' : 'var(--bg-surface)',
+                                                                    color: (seriesConfig.realized || 'bar') === opt.key ? 'var(--accent-indigo)' : 'var(--text-secondary)',
+                                                                    cursor: 'pointer',
+                                                                    transition: 'all 0.15s'
+                                                                }}
+                                                            >
+                                                                {opt.label}
+                                                            </button>
+                                                        ))}
+                                                    </div>
+                                                </div>
+
+                                                {/* Atingido */}
+                                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '1rem', padding: '0.35rem 0', borderBottom: '1px solid var(--border-subtle)' }}>
+                                                    <span style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-primary)' }}>
+                                                        Atingido (% do Orçado)
+                                                    </span>
+                                                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.3rem', justifyContent: 'flex-end', maxWidth: '70%' }}>
+                                                        {[
+                                                            { key: 'line_atingido', label: '📈 Linha (% At.)' },
+                                                            { key: 'none', label: '❌ Oculto' }
+                                                        ].map(opt => (
+                                                            <button
+                                                                key={opt.key}
+                                                                type="button"
+                                                                onClick={() => setSeriesConfig(cfg => ({ ...cfg, atingido: opt.key as any }))}
+                                                                style={{
+                                                                    padding: '0.35rem 0.6rem',
+                                                                    fontSize: '0.7rem',
+                                                                    fontWeight: 700,
+                                                                    borderRadius: '6px',
+                                                                    border: '1px solid',
+                                                                    borderColor: (seriesConfig.atingido || 'none') === opt.key ? 'var(--accent-indigo)' : 'var(--border-default)',
+                                                                    background: (seriesConfig.atingido || 'none') === opt.key ? 'rgba(99, 102, 241, 0.08)' : 'var(--bg-surface)',
+                                                                    color: (seriesConfig.atingido || 'none') === opt.key ? 'var(--accent-indigo)' : 'var(--text-secondary)',
+                                                                    cursor: 'pointer',
+                                                                    transition: 'all 0.15s'
+                                                                }}
+                                                            >
+                                                                {opt.label}
+                                                            </button>
+                                                        ))}
+                                                    </div>
+                                                </div>
+
+                                                {/* Percentual sobre Receita */}
+                                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '1rem', padding: '0.35rem 0', borderBottom: '1px solid var(--border-subtle)' }}>
+                                                    <span style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-primary)' }}>
+                                                        Percentual sobre Receita
+                                                    </span>
+                                                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.3rem', justifyContent: 'flex-end', maxWidth: '70%' }}>
+                                                        {[
+                                                            { key: 'line_revenue', label: '📉 Linha (% Rec.)' },
+                                                            { key: 'none', label: '❌ Oculto' }
+                                                        ].map(opt => (
+                                                            <button
+                                                                key={opt.key}
+                                                                type="button"
+                                                                onClick={() => setSeriesConfig(cfg => ({ ...cfg, pctOfRevenue: opt.key as any }))}
+                                                                style={{
+                                                                    padding: '0.35rem 0.6rem',
+                                                                    fontSize: '0.7rem',
+                                                                    fontWeight: 700,
+                                                                    borderRadius: '6px',
+                                                                    border: '1px solid',
+                                                                    borderColor: (seriesConfig.pctOfRevenue || 'none') === opt.key ? 'var(--accent-indigo)' : 'var(--border-default)',
+                                                                    background: (seriesConfig.pctOfRevenue || 'none') === opt.key ? 'rgba(99, 102, 241, 0.08)' : 'var(--bg-surface)',
+                                                                    color: (seriesConfig.pctOfRevenue || 'none') === opt.key ? 'var(--accent-indigo)' : 'var(--text-secondary)',
+                                                                    cursor: 'pointer',
+                                                                    transition: 'all 0.15s'
+                                                                }}
+                                                            >
+                                                                {opt.label}
+                                                            </button>
+                                                        ))}
+                                                    </div>
+                                                </div>
                                             </div>
                                         </div>
                                     )}
 
-                                    {/* Tenant Context Selector */}
-                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
-                                        <label style={{ fontSize: '0.75rem', fontWeight: 800, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Salvar no Contexto da Empresa *</label>
-                                        <select
-                                            value={analysisSelectedTenant}
-                                            onChange={(e) => setAnalysisSelectedTenant(e.target.value)}
-                                            style={{ width: '100%', height: '38px', padding: '0 0.75rem', fontSize: '0.85rem', fontWeight: 600, border: '1px solid var(--border-default)', borderRadius: '8px', outline: 'none', background: 'var(--bg-surface)', color: 'var(--text-primary)', cursor: 'pointer' }}
-                                        >
-                                            {companies.map((c: any) => (
-                                                <option key={c.id} value={c.id}>{c.name}</option>
-                                            ))}
-                                        </select>
-                                    </div>
-
-                                    {/* Filters: Tenant & Cost Center */}
+                                    {/* Filters: Cost Center */}
                                     <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
-                                        <div style={{ flex: 1, minWidth: '150px', display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
-                                            <label style={{ fontSize: '0.75rem', fontWeight: 800, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Filtro de Empresa no Gráfico *</label>
-                                            <select
-                                                value={chartTenant}
-                                                onChange={(e) => setChartTenant(e.target.value)}
-                                                style={{ width: '100%', height: '38px', padding: '0 0.75rem', fontSize: '0.85rem', fontWeight: 600, border: '1px solid var(--border-default)', borderRadius: '8px', outline: 'none', background: 'var(--bg-surface)', color: 'var(--text-primary)', cursor: 'pointer' }}
-                                            >
-                                                <option value="ALL">Todas Empresas (Consolidado)</option>
-                                                {companies.map((c: any) => (
-                                                    <option key={c.id} value={c.id}>{c.name}</option>
-                                                ))}
-                                            </select>
-                                        </div>
                                         <div style={{ flex: 1, minWidth: '150px', display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
                                             <label style={{ fontSize: '0.75rem', fontWeight: 800, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Centro de Custo</label>
                                             <select
@@ -1372,35 +1490,37 @@ export default function PortfolioAnalysisPage() {
                                     </div>
 
                                     {/* Option switches checkboxes */}
-                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', background: 'var(--bg-elevated)', padding: '1rem', borderRadius: '8px', border: '1px solid var(--border-default)' }}>
-                                        <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-primary)', cursor: 'pointer' }}>
-                                            <input
-                                                type="checkbox"
-                                                checked={chartOnlyRealized}
-                                                onChange={(e) => setChartOnlyRealized(e.target.checked)}
-                                                style={{ accentColor: 'var(--accent-indigo)', cursor: 'pointer' }}
-                                            />
-                                            Somente Realizado (oculta o Orçado/Meta)
-                                        </label>
-                                        <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-primary)', cursor: 'pointer' }}>
-                                            <input
-                                                type="checkbox"
-                                                checked={chartShowAtingido}
-                                                onChange={(e) => setChartShowAtingido(e.target.checked)}
-                                                style={{ accentColor: 'var(--accent-indigo)', cursor: 'pointer' }}
-                                            />
-                                            Adicionar Linha de Atingido
-                                        </label>
-                                        <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-primary)', cursor: 'pointer' }}>
-                                            <input
-                                                type="checkbox"
-                                                checked={chartPctOfRevenue}
-                                                onChange={(e) => setChartPctOfRevenue(e.target.checked)}
-                                                style={{ accentColor: 'var(--accent-indigo)', cursor: 'pointer' }}
-                                            />
-                                            Percentual sobre Receita (calculado sobre Receita Líquida)
-                                        </label>
-                                    </div>
+                                    {chartType !== 'MIXED' && (
+                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', background: 'var(--bg-elevated)', padding: '1rem', borderRadius: '8px', border: '1px solid var(--border-default)' }}>
+                                            <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-primary)', cursor: 'pointer' }}>
+                                                <input
+                                                    type="checkbox"
+                                                    checked={chartOnlyRealized}
+                                                    onChange={(e) => setChartOnlyRealized(e.target.checked)}
+                                                    style={{ accentColor: 'var(--accent-indigo)', cursor: 'pointer' }}
+                                                />
+                                                Somente Realizado (oculta o Orçado/Meta)
+                                            </label>
+                                            <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-primary)', cursor: 'pointer' }}>
+                                                <input
+                                                    type="checkbox"
+                                                    checked={chartShowAtingido}
+                                                    onChange={(e) => setChartShowAtingido(e.target.checked)}
+                                                    style={{ accentColor: 'var(--accent-indigo)', cursor: 'pointer' }}
+                                                />
+                                                Adicionar Linha de Atingido
+                                            </label>
+                                            <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-primary)', cursor: 'pointer' }}>
+                                                <input
+                                                    type="checkbox"
+                                                    checked={chartPctOfRevenue}
+                                                    onChange={(e) => setChartPctOfRevenue(e.target.checked)}
+                                                    style={{ accentColor: 'var(--accent-indigo)', cursor: 'pointer' }}
+                                                />
+                                                Percentual sobre Receita (calculado sobre Receita Líquida)
+                                            </label>
+                                        </div>
+                                    )}
 
                                     {/* Custom Chart Color Picker */}
                                     <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
@@ -1527,7 +1647,7 @@ export default function PortfolioAnalysisPage() {
     );
 }
 
-const DetailedChartCard = ({ chart, onEdit, onDelete, mainMonth, year, viewMode, categories }: { chart: any, onEdit: (c: any) => void, onDelete: (id: string) => void, mainMonth: number, year: number, viewMode: 'caixa' | 'competencia', categories: any[] }) => {
+const DetailedChartCard = ({ chart, onEdit, onDelete, mainMonth, year, viewMode, categories, companies }: { chart: any, onEdit: (c: any) => void, onDelete: (id: string) => void, mainMonth: number, year: number, viewMode: 'caixa' | 'competencia', categories: any[], companies: any[] }) => {
     const [data, setData] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
 
@@ -1594,15 +1714,29 @@ const DetailedChartCard = ({ chart, onEdit, onDelete, mainMonth, year, viewMode,
         return chartTypeNameMap[typeStr] || typeStr;
     };
 
+    const getChartHeaderTitle = (chart: any) => {
+        if (chart.chartType && chart.chartType.startsWith('{')) {
+            try {
+                const parsed = JSON.parse(chart.chartType);
+                if (parsed.indicatorName) {
+                    return parsed.indicatorName;
+                }
+            } catch (e) {
+                // ignore
+            }
+        }
+        return getChartCategoryLabel(chart.categoryId);
+    };
+
     return (
         <div className="glass-card" style={{ padding: '1.25rem', background: 'var(--bg-surface)', borderRadius: '12px', border: '1px solid var(--border-default)', boxShadow: 'var(--shadow-card)', width: '100%', marginBottom: '1.5rem', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', borderBottom: '1px solid var(--border-subtle)', paddingBottom: '0.5rem' }}>
                 <div style={{ flex: 1, minWidth: 0, paddingRight: '1rem' }}>
                     <h4 style={{ fontSize: '0.95rem', fontWeight: 800, color: 'var(--text-primary)', margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                        📊 {getChartCategoryLabel(chart.categoryId)} ({getChartTypeName(chart.chartType)})
+                        📊 {getChartHeaderTitle(chart)} ({getChartTypeName(chart.chartType)})
                     </h4>
                     <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', fontWeight: 500, display: 'block', marginTop: '0.2rem' }}>
-                        Filtros: {chart.filterTenantId === 'ALL' ? 'Todas Empresas' : 'Empresa Única'} 
+                        Filtros: {chart.filterTenantId === 'ALL' ? 'Grupo JVS' : (companies.find(c => c.id === chart.filterTenantId)?.name || 'Empresa Única')} 
                         {chart.filterCCId && chart.filterCCId !== 'ALL' ? ` | Centro de Custo: ${chart.filterCCId}` : ' | Todos Centros de Custo'}
                         {chart.pctOfRevenue ? ' | % sobre Receita' : ''}
                         {chart.onlyRealized ? ' | Somente Realizado' : ''}
@@ -1717,19 +1851,15 @@ const renderDetailedChart = (
                 return new Date(year, mNum, 0).getDate();
             };
 
-            const getAbsValue = (m: any, k: string, field: 'budget' | 'realized', mIdx: number) => {
-                const vals = m.breakdown?.[k] || { budget: 0, realized: 0 };
-                const rawVal = vals[field] || 0;
-                const mode = config?.[k] || 'bar';
+            const getAbsValue = (val: number, mode: string, mIdx: number) => {
                 if (mode === 'diarias_bar' || mode === 'diarias_line') {
                     const days = getDaysInMonth(mIdx + 1);
-                    return rawVal / days;
+                    return val / days;
                 }
-                return rawVal;
+                return val;
             };
 
-            const isDailyKey = (k: string) => {
-                const mode = config?.[k];
+            const isDailyMode = (mode: string) => {
                 return mode === 'diarias_bar' || mode === 'diarias_line';
             };
 
@@ -1745,39 +1875,36 @@ const renderDetailedChart = (
                 return `${val < 0 ? '-' : ''}R$ ${formatted}${isDaily ? '/d' : ''}`;
             };
 
-            const leftKeys = Object.keys(config || {}).filter(k => 
-                ['bar', 'line_val', 'diarias_bar', 'diarias_line'].includes(config?.[k] || 'bar')
-            );
-            const activeLeftKeys = leftKeys.length === 0 && Object.keys(config || {}).length === 0 
-                ? Object.keys(config || {}) 
-                : leftKeys;
+            const bMode = config?.budget || 'bar';
+            const rMode = config?.realized || 'bar';
+            const atMode = config?.atingido || 'none';
+            const pctMode = config?.pctOfRevenue || 'none';
 
-            const hasDailyActive = activeLeftKeys.some(isDailyKey);
+            const hasDailyActive = isDailyMode(bMode) || isDailyMode(rMode);
 
             let maxAbs = 1;
             data.forEach((m, idx) => {
-                activeLeftKeys.forEach(k => {
-                    const rVal = (idx + 1 <= currentMonthIdx + 1) ? Math.abs(getAbsValue(m, k, 'realized', idx)) : 0;
-                    const bVal = onlyRealized ? 0 : Math.abs(getAbsValue(m, k, 'budget', idx));
-                    maxAbs = Math.max(maxAbs, rVal, bVal);
-                });
+                if (bMode !== 'none') {
+                    const bVal = getAbsValue(m.budget, bMode, idx);
+                    maxAbs = Math.max(maxAbs, Math.abs(bVal));
+                }
+                if (rMode !== 'none' && idx + 1 <= currentMonthIdx + 1) {
+                    const rVal = getAbsValue(m.realized, rMode, idx);
+                    maxAbs = Math.max(maxAbs, Math.abs(rVal));
+                }
             });
             const scaleMaxAbs = maxAbs * 1.20;
 
-            const rightKeys = Object.keys(config || {}).filter(k => 
-                ['line_atingido', 'line_revenue'].includes(config?.[k])
-            );
-            
             let maxPct = 100;
             data.forEach((m, idx) => {
-                rightKeys.forEach(k => {
-                    const vals = m.breakdown?.[k] || { atingido: 0, pctOfRevenue: 0 };
-                    const typeMode = config?.[k];
-                    const val = typeMode === 'line_atingido' ? vals.atingido : vals.pctOfRevenue;
-                    if (idx + 1 <= currentMonthIdx + 1) {
-                        maxPct = Math.max(maxPct, Math.abs(val));
+                if (idx + 1 <= currentMonthIdx + 1) {
+                    if (atMode !== 'none') {
+                        maxPct = Math.max(maxPct, Math.abs(m.atingido));
                     }
-                });
+                    if (pctMode !== 'none') {
+                        maxPct = Math.max(maxPct, Math.abs(m.pctOfRevenue));
+                    }
+                }
             });
             const scaleMaxPct = maxPct * 1.15;
 
@@ -1796,12 +1923,9 @@ const renderDetailedChart = (
             const getX = (idx: number) => startX + idx * stepX;
 
             // RENDER BARS (bar, diarias_bar)
-            const barKeys = Object.keys(config || {}).filter(k => 
-                config?.[k] === 'bar' || config?.[k] === 'diarias_bar'
-            );
-            const activeBarKeys = barKeys.length === 0 && Object.keys(config || {}).length === 0 
-                ? Object.keys(config || {}) 
-                : barKeys;
+            const activeBarKeys: ('budget' | 'realized')[] = [];
+            if (bMode === 'bar' || bMode === 'diarias_bar') activeBarKeys.push('budget');
+            if (rMode === 'bar' || rMode === 'diarias_bar') activeBarKeys.push('realized');
 
             const renderedBars = data.map((m, monthIdx) => {
                 const xCenter = getX(monthIdx);
@@ -1809,100 +1933,88 @@ const renderDetailedChart = (
                 if (numBars === 0) return null;
 
                 const groupWidth = 36;
-                const barWidth = Math.max(6, (groupWidth / numBars) - 2);
+                const barWidth = Math.max(10, (groupWidth / numBars) - 2);
                 const startBarX = xCenter - (groupWidth / 2);
 
-                return activeBarKeys.map((k, keyIdx) => {
-                    const valR = getAbsValue(m, k, 'realized', monthIdx);
-                    const valB = getAbsValue(m, k, 'budget', monthIdx);
+                return activeBarKeys.map((key, keyIdx) => {
+                    const mode = key === 'budget' ? bMode : rMode;
+                    const val = key === 'budget' ? m.budget : m.realized;
+                    const valScaled = getAbsValue(val, mode, monthIdx);
 
                     const barX = startBarX + keyIdx * (barWidth + 2);
-                    const yR = getYAbs(valR);
-                    const hR = Math.max(2, yBaseline - yR);
+                    const yVal = getYAbs(valScaled);
+                    const hVal = Math.max(2, yBaseline - yVal);
 
-                    const yB = getYAbs(valB);
-                    const hB = Math.max(2, yBaseline - yB);
-
-                    const barOpacity = 1 - (keyIdx * 0.25);
-                    const isDaily = isDailyKey(k);
-
-                    return (
-                        <g key={`${monthIdx}-${k}`}>
-                            {!onlyRealized && valB > 0 && (
+                    if (key === 'budget') {
+                        return (
+                            <rect 
+                                key={`${monthIdx}-budget`}
+                                x={barX} 
+                                y={yVal} 
+                                width={barWidth} 
+                                height={hVal} 
+                                fill="none" 
+                                stroke="var(--text-muted)" 
+                                strokeWidth="1" 
+                                strokeDasharray="2 2" 
+                                rx="2"
+                            />
+                        );
+                    } else {
+                        // realized
+                        return (
+                            <g key={`${monthIdx}-realized`}>
                                 <rect 
                                     x={barX} 
-                                    y={yB} 
+                                    y={yVal} 
                                     width={barWidth} 
-                                    height={hB} 
-                                    fill="none" 
-                                    stroke="var(--text-muted)" 
-                                    strokeWidth="1" 
-                                    strokeDasharray="2 2" 
+                                    height={hVal} 
+                                    fill={chartColor} 
                                     rx="2"
                                 />
-                            )}
-                            {monthIdx + 1 <= currentMonthIdx + 1 && valR > 0 && (
-                                <>
-                                    <rect 
-                                        x={barX} 
-                                        y={yR} 
-                                        width={barWidth} 
-                                        height={hR} 
-                                        fill={chartColor} 
-                                        fillOpacity={barOpacity}
-                                        rx="2"
-                                    />
-                                    <text 
-                                        x={barX + barWidth / 2} 
-                                        y={yR - 4} 
-                                        textAnchor="middle" 
-                                        fill="var(--text-secondary)" 
-                                        fontSize="7px" 
-                                        fontWeight="700"
-                                    >
-                                        {formatAbs(valR, isDaily)}
-                                    </text>
-                                </>
-                            )}
-                        </g>
-                    );
+                                <text 
+                                    x={barX + barWidth / 2} 
+                                    y={yVal - 4} 
+                                    textAnchor="middle" 
+                                    fill="var(--text-secondary)" 
+                                    fontSize="7px" 
+                                    fontWeight="700"
+                                >
+                                    {formatAbs(valScaled, isDailyMode(rMode))}
+                                </text>
+                            </g>
+                        );
+                    }
                 });
             });
 
             // RENDER LEFT AXIS LINES (line_val, diarias_line)
-            const leftLineKeys = Object.keys(config || {}).filter(k => 
-                config?.[k] === 'line_val' || config?.[k] === 'diarias_line'
-            );
-            const renderedLeftLines = leftLineKeys.map((k, keyIdx) => {
+            const leftLines: JSX.Element[] = [];
+
+            if (bMode === 'line_val' || bMode === 'diarias_line') {
                 const points: { x: number; y: number; val: number }[] = [];
                 data.forEach((m, monthIdx) => {
-                    const val = getAbsValue(m, k, 'realized', monthIdx);
-                    if (monthIdx + 1 <= currentMonthIdx + 1) {
-                        points.push({
-                            x: getX(monthIdx),
-                            y: getYAbs(val),
-                            val
-                        });
-                    }
+                    const valScaled = getAbsValue(m.budget, bMode, monthIdx);
+                    points.push({
+                        x: getX(monthIdx),
+                        y: getYAbs(valScaled),
+                        val: valScaled
+                    });
                 });
-
-                if (points.length === 0) return null;
-
+                
                 let pathD = `M ${points[0].x} ${points[0].y}`;
                 for (let i = 1; i < points.length; i++) {
                     pathD += ` L ${points[i].x} ${points[i].y}`;
                 }
 
-                const lineColor = keyIdx === 0 ? '#3b82f6' : '#06b6d4';
-                const isDaily = isDailyKey(k);
-
-                return (
-                    <g key={`left-line-${k}`}>
+                leftLines.push(
+                    <g key="budget-line">
                         <path 
                             d={pathD} 
                             fill="none" 
-                            stroke={lineColor} 
-                            strokeWidth="2.5" 
+                            stroke="var(--text-muted)" 
+                            strokeWidth="2" 
+                            strokeDasharray="3 3"
                             strokeLinecap="round" 
                             strokeLinejoin="round" 
                         />
@@ -1911,88 +2023,189 @@ const renderDetailedChart = (
                                 <circle 
                                     cx={p.x} 
                                     cy={p.y} 
-                                    r="4.5" 
-                                    fill={lineColor} 
+                                    r="3.5" 
+                                    fill="var(--text-muted)" 
                                     stroke="var(--bg-surface)" 
-                                    strokeWidth="1.5" 
+                                    strokeWidth="1" 
                                 />
-                                <text 
-                                    x={p.x} 
-                                    y={p.y - 7} 
-                                    textAnchor="middle" 
-                                    fill={lineColor} 
-                                    fontSize="7.5px" 
-                                    fontWeight="800"
-                                >
-                                    {formatAbs(p.val, isDaily)}
-                                </text>
                             </g>
                         ))}
                     </g>
                 );
-            });
+            }
+
+            if (rMode === 'line_val' || rMode === 'diarias_line') {
+                const points: { x: number; y: number; val: number }[] = [];
+                data.forEach((m, monthIdx) => {
+                    if (monthIdx + 1 <= currentMonthIdx + 1) {
+                        const valScaled = getAbsValue(m.realized, rMode, monthIdx);
+                        points.push({
+                            x: getX(monthIdx),
+                            y: getYAbs(valScaled),
+                            val: valScaled
+                        });
+                    }
+                });
+
+                if (points.length > 0) {
+                    let pathD = `M ${points[0].x} ${points[0].y}`;
+                    for (let i = 1; i < points.length; i++) {
+                        pathD += ` L ${points[i].x} ${points[i].y}`;
+                    }
+
+                    leftLines.push(
+                        <g key="realized-line">
+                            <path 
+                                d={pathD} 
+                                fill="none" 
+                                stroke={chartColor} 
+                                strokeWidth="2.5" 
+                                strokeLinecap="round" 
+                                strokeLinejoin="round" 
+                            />
+                            {points.map((p, idx) => (
+                                <g key={idx}>
+                                    <circle 
+                                        cx={p.x} 
+                                        cy={p.y} 
+                                        r="4.5" 
+                                        fill={chartColor} 
+                                        stroke="var(--bg-surface)" 
+                                        strokeWidth="1.5" 
+                                    />
+                                    <text 
+                                        x={p.x} 
+                                        y={p.y - 7} 
+                                        textAnchor="middle" 
+                                        fill={chartColor} 
+                                        fontSize="7.5px" 
+                                        fontWeight="800"
+                                    >
+                                        {formatAbs(p.val, isDailyMode(rMode))}
+                                    </text>
+                                </g>
+                            ))}
+                        </g>
+                    );
+                }
+            }
 
             // RENDER RIGHT AXIS LINES (% lines)
-            const renderedRightLines = rightKeys.map((k, keyIdx) => {
+            const rightLines: JSX.Element[] = [];
+
+            if (atMode === 'line_atingido') {
                 const points: { x: number; y: number; val: number }[] = [];
                 data.forEach((m, monthIdx) => {
-                    const vals = m.breakdown?.[k] || { atingido: 0, pctOfRevenue: 0 };
-                    const typeMode = config?.[k];
-                    const val = typeMode === 'line_atingido' ? vals.atingido : vals.pctOfRevenue;
-                    
                     if (monthIdx + 1 <= currentMonthIdx + 1) {
                         points.push({
                             x: getX(monthIdx),
-                            y: getYPct(val),
-                            val
+                            y: getYPct(m.atingido),
+                            val: m.atingido
                         });
                     }
                 });
 
-                if (points.length === 0) return null;
+                if (points.length > 0) {
+                    let pathD = `M ${points[0].x} ${points[0].y}`;
+                    for (let i = 1; i < points.length; i++) {
+                        pathD += ` L ${points[i].x} ${points[i].y}`;
+                    }
 
-                let pathD = `M ${points[0].x} ${points[0].y}`;
-                for (let i = 1; i < points.length; i++) {
-                    pathD += ` L ${points[i].x} ${points[i].y}`;
+                    const lineColor = '#10b981';
+
+                    rightLines.push(
+                        <g key="atingido-line">
+                            <path 
+                                d={pathD} 
+                                fill="none" 
+                                stroke={lineColor} 
+                                strokeWidth="2.5" 
+                                strokeLinecap="round" 
+                                strokeLinejoin="round" 
+                            />
+                            {points.map((p, idx) => (
+                                <g key={idx}>
+                                    <circle 
+                                        cx={p.x} 
+                                        cy={p.y} 
+                                        r="4.5" 
+                                        fill={lineColor} 
+                                        stroke="var(--bg-surface)" 
+                                        strokeWidth="1.5" 
+                                    />
+                                    <text 
+                                        x={p.x} 
+                                        y={p.y - 7} 
+                                        textAnchor="middle" 
+                                        fill={lineColor} 
+                                        fontSize="7.5px" 
+                                        fontWeight="800"
+                                    >
+                                        {p.val.toFixed(1)}%
+                                    </text>
+                                </g>
+                            ))}
+                        </g>
+                    );
                 }
+            }
 
-                const lineColor = keyIdx === 0 ? '#10b981' : '#f59e0b';
+            if (pctMode === 'line_revenue') {
+                const points: { x: number; y: number; val: number }[] = [];
+                data.forEach((m, monthIdx) => {
+                    if (monthIdx + 1 <= currentMonthIdx + 1) {
+                        points.push({
+                            x: getX(monthIdx),
+                            y: getYPct(m.pctOfRevenue),
+                            val: m.pctOfRevenue
+                        });
+                    }
+                });
 
-                return (
-                    <g key={`right-line-${k}`}>
-                        <path 
-                            d={pathD} 
-                            fill="none" 
-                            stroke={lineColor} 
-                            strokeWidth="2.5" 
-                            strokeLinecap="round" 
-                            strokeLinejoin="round" 
-                        />
-                        {points.map((p, idx) => (
-                            <g key={idx}>
-                                <circle 
-                                    cx={p.x} 
-                                    cy={p.y} 
-                                    r="4.5" 
-                                    fill={lineColor} 
-                                    stroke="var(--bg-surface)" 
-                                    strokeWidth="1.5" 
-                                />
-                                <text 
-                                    x={p.x} 
-                                    y={p.y - 7} 
-                                    textAnchor="middle" 
-                                    fill={lineColor} 
-                                    fontSize="7.5px" 
-                                    fontWeight="800"
-                                >
-                                    {p.val.toFixed(1)}%
-                                </text>
-                            </g>
-                        ))}
-                    </g>
-                );
-            });
+                if (points.length > 0) {
+                    let pathD = `M ${points[0].x} ${points[0].y}`;
+                    for (let i = 1; i < points.length; i++) {
+                        pathD += ` L ${points[i].x} ${points[i].y}`;
+                    }
+
+                    const lineColor = '#f59e0b';
+
+                    rightLines.push(
+                        <g key="revenue-line">
+                            <path 
+                                d={pathD} 
+                                fill="none" 
+                                stroke={lineColor} 
+                                strokeWidth="2.5" 
+                                strokeLinecap="round" 
+                                strokeLinejoin="round" 
+                            />
+                            {points.map((p, idx) => (
+                                <g key={idx}>
+                                    <circle 
+                                        cx={p.x} 
+                                        cy={p.y} 
+                                        r="4.5" 
+                                        fill={lineColor} 
+                                        stroke="var(--bg-surface)" 
+                                        strokeWidth="1.5" 
+                                    />
+                                    <text 
+                                        x={p.x} 
+                                        y={p.y - 7} 
+                                        textAnchor="middle" 
+                                        fill={lineColor} 
+                                        fontSize="7.5px" 
+                                        fontWeight="800"
+                                    >
+                                        {p.val.toFixed(1)}%
+                                    </text>
+                                </g>
+                            ))}
+                        </g>
+                    );
+                }
+            }
 
             return (
                 <svg viewBox="0 0 1200 260" width="100%" height="auto" style={{ overflow: 'visible' }}>
@@ -2014,8 +2227,8 @@ const renderDetailedChart = (
                     <line x1="80" y1={yBaseline} x2="1120" y2={yBaseline} stroke="var(--border-default)" strokeWidth="1" />
 
                     {renderedBars}
-                    {renderedLeftLines}
-                    {renderedRightLines}
+                    {leftLines}
+                    {rightLines}
 
                     {data.map((m, idx) => (
                         <text 

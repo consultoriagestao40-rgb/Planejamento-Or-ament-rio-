@@ -807,14 +807,34 @@ export default function BudgetGrid({
             return found ? found.name : id;
         };
 
-        const chartTypeNameMap: Record<string, string> = {
-            VERTICAL_BAR: 'Barras Vertical',
-            HORIZONTAL_BAR: 'Barras Horizontal',
-            LINE: 'Linha',
-            LINE_MARKERS: 'Linha com Marcadores',
-            PIE: 'Pizza',
-            DONUT: 'Rosca',
-            GAUGE: 'Velocímetro'
+        const getChartHeaderTitle = (chart: any) => {
+            if (chart.chartType && chart.chartType.startsWith('{')) {
+                try {
+                    const parsed = JSON.parse(chart.chartType);
+                    if (parsed.indicatorName) {
+                        return parsed.indicatorName;
+                    }
+                } catch (e) {
+                    // ignore
+                }
+            }
+            return chart.categoryId.split(',').map(x => x.trim()).filter(Boolean).map(getChartCategoryLabel).join(' + ');
+        };
+
+        const getChartTypeName = (typeStr: string) => {
+            if (typeStr && typeStr.startsWith('{')) {
+                return 'Gráfico Combinado (Eixo Duplo)';
+            }
+            const chartTypeNameMap: Record<string, string> = {
+                VERTICAL_BAR: 'Barras Vertical',
+                HORIZONTAL_BAR: 'Barras Horizontal',
+                LINE: 'Linha',
+                LINE_MARKERS: 'Linha com Marcadores',
+                PIE: 'Pizza',
+                DONUT: 'Rosca',
+                GAUGE: 'Velocímetro'
+            };
+            return chartTypeNameMap[typeStr] || typeStr;
         };
 
         return (
@@ -822,10 +842,10 @@ export default function BudgetGrid({
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', borderBottom: '1px solid #f1f5f9', paddingBottom: '0.5rem' }}>
                     <div>
                         <h4 style={{ fontSize: '0.85rem', fontWeight: 800, color: '#0f172a', margin: 0 }}>
-                            📊 {getChartCategoryLabel(chart.categoryId)} ({chartTypeNameMap[chart.chartType] || chart.chartType})
+                            📊 {getChartHeaderTitle(chart)} ({getChartTypeName(chart.chartType)})
                         </h4>
                         <span style={{ fontSize: '0.7rem', color: '#64748b', fontWeight: 500 }}>
-                            Filtros: {chart.filterTenantId === 'ALL' ? 'Todas Empresas' : 'Empresa Única'} 
+                            Filtros: {chart.filterTenantId === 'ALL' ? 'Grupo JVS' : (companies.find((c: any) => c.id === chart.filterTenantId)?.name || 'Empresa Única')} 
                             {chart.filterCCId && chart.filterCCId !== 'ALL' ? ` | Centro de Custo: ${chart.filterCCId}` : ' | Todos Centros de Custo'}
                             {chart.pctOfRevenue ? ' | % sobre Receita' : ''}
                             {chart.onlyRealized ? ' | Somente Realizado' : ''}

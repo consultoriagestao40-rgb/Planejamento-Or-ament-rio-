@@ -33,7 +33,6 @@ interface BudgetGridProps {
 
 const MONTH_ABBRS = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
 
-// Tree Node Interface
 interface CategoryNode {
     id: string;
     name: string;
@@ -45,6 +44,50 @@ interface CategoryNode {
     isSynthetic?: boolean;
     tenantId?: string;
 }
+
+const syntheticLabels: Record<string, string> = {
+    'synth-01.1': '01.1 - Receita de Serviços',
+    'synth-01.2': '01.2 - Receitas de Vendas',
+    'synth-02.1': '02.1 - Tributos',
+    'synth-03.1': '03.1 Salarios e Remuneração',
+    'synth-03.2': '03.2 Encargos Sociais',
+    'synth-03.3': '03.3 Beneficios',
+    'synth-03.4': '03.4 Diárias',
+    'synth-03.5': '03.5 SSMA',
+    'synth-03.6': '03.6 Materiais',
+    'synth-03.7': '03.7 Equipamentos',
+    'synth-03.8': '03.8 Comunicação/Sistema/Licenças',
+    'synth-03.9': '03.9 Custo com Veiculo',
+    'synth-04.1': '04.1 Salarios e Remuneração',
+    'synth-04.2': '04.2 Encargos Sociais',
+    'synth-04.3': '04.3 Beneficios',
+    'synth-04.4': '04.4 SSMA',
+    'synth-04.5': '04.5 Viagens',
+    'synth-04.6': '04.6 Custo com Veículos',
+    'synth-04.7': '04.7 Cartão Corporativo',
+    'synth-04.8': '04.8 Serviços Terceirizados',
+    'synth-05.1': '05.1 Salario e Remuneração',
+    'synth-05.2': '05.2 Encargos Sociais',
+    'synth-05.3': '05.3 Beneficios',
+    'synth-05.4': '05.4 SSMA',
+    'synth-05.5': '05.5 Viagens',
+    'synth-05.6': '05.6 Despesa com Socios',
+    'synth-05.7': '05.7 Serviços Contratados',
+    'synth-05.8': '05.8 Despesa Comercial/Marketing',
+    'synth-05.9': '05.9 Despesa com Estrutura',
+    'synth-05.10': '05.10 Despesa Copa e Cozinha',
+    'synth-05.11': '05.11 Despesa com Veículos',
+    'synth-05.12': '05.12 Despesa de Informatica',
+    'synth-05.13': '05.13 Taxas e Despesas Legais',
+    'synth-06.1': '06.1 Entradas Financeiras',
+    'synth-06.2': '06.2 Saidas Financeiras',
+    'synth-06.3': '06.3 Financiamento',
+    'synth-06.4': '06.4 Juros/Multas',
+    'synth-06.5': '06.5 Passivo Trabalhista',
+    'synth-06.6': '06.6 Depreciação',
+    'synth-06.7': '06.7 Cartão de Credito',
+    'synth-06.8': '06.8 PDD'
+};
 
 export default function BudgetGrid({
     refreshKey = 0,
@@ -737,19 +780,21 @@ export default function BudgetGrid({
         const currentIds = chartCategory.split(',').map(x => x.trim()).filter(Boolean);
         if (currentIds.length === 0) return;
 
-        const isDreKey = (id: string) => ['vRev', 'vTaxes', 'vRecLiq', 'vCosts', 'vGrossMarg', 'vOpExp', 'vContribMarg', 'vAdminExp', 'vEbitda', 'vFin', 'vNetProfit'].includes(id);
-        const hasCategoriesToTranslate = currentIds.some(id => !isDreKey(id));
+        const isTenantAgnosticKey = (id: string) => 
+            ['vRev', 'vTaxes', 'vRecLiq', 'vCosts', 'vGrossMarg', 'vOpExp', 'vContribMarg', 'vAdminExp', 'vEbitda', 'vFin', 'vNetProfit'].includes(id) ||
+            id.startsWith('synth-');
+        const hasCategoriesToTranslate = currentIds.some(id => !isTenantAgnosticKey(id));
         if (!hasCategoriesToTranslate) return;
 
         const selectedCatsInOldTenant = currentIds.map(id => {
-            if (isDreKey(id)) return { id, isDre: true };
+            if (isTenantAgnosticKey(id)) return { id, isTenantAgnostic: true };
             const cat = categories.find((c: any) => c.id === id);
-            return cat ? { id, name: cat.name, isDre: false } : null;
+            return cat ? { id, name: cat.name, isTenantAgnostic: false } : null;
         }).filter(Boolean);
 
         const normalize = (s: string) => s.toLowerCase().trim();
         const newIds = selectedCatsInOldTenant.map(item => {
-            if (item!.isDre) return item!.id;
+            if (item!.isTenantAgnostic) return item!.id;
             
             const foundInNewTenant = categories.find((c: any) => 
                 c.tenantId === analysisSelectedTenant && 
@@ -803,6 +848,7 @@ export default function BudgetGrid({
                 vNetProfit: '(=) Lucro Líquido'
             };
             if (dreLabels[id]) return dreLabels[id];
+            if (syntheticLabels[id]) return syntheticLabels[id];
             const found = categories.find((cat: any) => cat.id === id);
             return found ? found.name : id;
         };
@@ -1983,24 +2029,17 @@ export default function BudgetGrid({
         let defaultCatId = '';
         const tenantCats = categories.filter((c: any) => c.tenantId === defaultTenant);
         
-        if (indicatorType === 'receita' || indicatorType === 'vRev') {
-            const found = tenantCats.find((c: any) => c.type === 'REVENUE' || c.entradaDre?.includes('RECEITA'));
-            if (found) defaultCatId = found.id;
+        const dreKeys = ['vRev', 'vTaxes', 'vRecLiq', 'vCosts', 'vGrossMarg', 'vOpExp', 'vContribMarg', 'vAdminExp', 'vEbitda', 'vFin', 'vNetProfit'];
+        if (dreKeys.includes(indicatorType)) {
+            defaultCatId = indicatorType;
+        } else if (indicatorType === 'receita') {
+            defaultCatId = 'vRev';
         } else if (indicatorType === 'faturamento') {
-            const found = tenantCats.find((c: any) => c.type === 'REVENUE' || c.entradaDre?.includes('RECEITA'));
-            if (found) defaultCatId = found.id;
-        } else if (indicatorType === 'vTaxes') {
-            const found = tenantCats.find((c: any) => c.entradaDre?.includes('DEDUCOES') || c.entradaDre?.includes('IMPOSTOS'));
-            if (found) defaultCatId = found.id;
-        } else if (indicatorType === 'vCosts' || indicatorType === 'margem_bruta' || indicatorType === 'vGrossMarg') {
-            const found = tenantCats.find((c: any) => c.entradaDre?.includes('CUSTOS'));
-            if (found) defaultCatId = found.id;
-        } else if (indicatorType === 'vOpExp' || indicatorType === 'vAdminExp' || indicatorType === 'vEbitda' || indicatorType === 'vNetProfit' || indicatorType === 'margem_contribuicao' || indicatorType === 'vContribMarg') {
-            const found = tenantCats.find((c: any) => c.entradaDre?.includes('DESPESAS'));
-            if (found) defaultCatId = found.id;
-        } else if (indicatorType === 'vFin') {
-            const found = tenantCats.find((c: any) => c.entradaDre?.includes('FINANCEIRAS'));
-            if (found) defaultCatId = found.id;
+            defaultCatId = 'vRev';
+        } else if (indicatorType === 'margem_bruta') {
+            defaultCatId = 'vGrossMarg';
+        } else if (indicatorType === 'margem_contribuicao') {
+            defaultCatId = 'vContribMarg';
         } else if (indicatorType === 'contratos') {
             const found = tenantCats.find((c: any) => c.type === 'REVENUE' || c.entradaDre?.includes('CUSTOS') || c.entradaDre?.includes('DESPESAS'));
             if (found) defaultCatId = found.id;
@@ -8400,6 +8439,29 @@ export default function BudgetGrid({
                                                                             className="premium-row"
                                                                         >
                                                                             ⭐ {name}
+                                                                        </div>
+                                                                    ))}
+                                                                    {/* Synthetic Parents Options */}
+                                                                    {Object.entries(syntheticLabels)
+                                                                    .filter(([_, name]) => !chartCategorySearch || name.toLowerCase().includes(chartCategorySearch.toLowerCase()))
+                                                                    .map(([id, name]) => (
+                                                                        <div
+                                                                            key={id}
+                                                                            onClick={() => {
+                                                                                setChartCategory(id);
+                                                                                setIsChartCategoryDropdownOpen(false);
+                                                                            }}
+                                                                            style={{ 
+                                                                                padding: '0.4rem 0.75rem', 
+                                                                                cursor: 'pointer', 
+                                                                                fontSize: '0.75rem', 
+                                                                                fontWeight: 700,
+                                                                                color: '#1e3a8a',
+                                                                                background: chartCategory === id ? '#eff6ff' : 'transparent'
+                                                                            }}
+                                                                            className="premium-row"
+                                                                        >
+                                                                            📁 {name} (Consolidado)
                                                                         </div>
                                                                     ))}
                                                                     {/* Categories list */}

@@ -1095,7 +1095,7 @@ async function addRetentionsFromSales(accessToken: string, tenantId: string, yea
 export async function syncBankAccounts(tenantId: string, accessToken: string) {
     console.log(`[Sync Bank Accounts] Sincronizando contas financeiras para tenant ${tenantId}...`);
     try {
-        const res = await fetch('https://api-v2.contaazul.com/v1/contas-financeiras', {
+        const res = await fetch('https://api-v2.contaazul.com/v1/financeiro/contas-financeiras', {
             headers: { 'Authorization': `Bearer ${accessToken}` },
             cache: 'no-store'
         });
@@ -1221,7 +1221,7 @@ async function collectOpenTransactions(
             break;
         }
         const data = await res.json();
-        const items = data.itens || [];
+        const items = Array.isArray(data) ? data : (data.itens || data.vendas || []);
         if (items.length === 0) break;
 
         for (const item of items) {

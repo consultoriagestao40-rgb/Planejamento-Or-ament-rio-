@@ -3176,10 +3176,10 @@ export default function BudgetGrid({
         })) || 100;
 
         // Y Layout parameters:
-        // hasNegative: baseline Y=170, max height 115px
-        // positive-only: baseline Y=300, max height 210px
-        const yBaseline = hasNegative ? 170 : 300;
-        const maxBarHeight = hasNegative ? 115 : 210;
+        // hasNegative: baseline Y=220, max height 180px
+        // positive-only: baseline Y=380, max height 320px
+        const yBaseline = hasNegative ? 220 : 380;
+        const maxBarHeight = hasNegative ? 180 : 320;
 
         // Helper to calculate target achievement percentage for negative/positive budget
         const getPctAtingido = (b: number, r: number) => {
@@ -3208,8 +3208,8 @@ export default function BudgetGrid({
                 const bRate = bRev > 0 ? (bVal / bRev) * 100 : 0;
                 // Scale dynamically based on maxRate
                 const bRateY = hasNegative
-                    ? Math.max(30, Math.min(290, 170 - (bRate / maxRate) * 120))
-                    : Math.max(30, Math.min(290, 300 - (bRate / maxRate) * 250));
+                    ? Math.max(30, Math.min(390, 220 - (bRate / maxRate) * 170))
+                    : Math.max(30, Math.min(390, 380 - (bRate / maxRate) * 320));
                 pointsBudgetRate.push({ x: pctX, y: bRateY, rate: bRate });
                 if (pathBudgetRate === '') {
                     pathBudgetRate = `M ${pctX} ${bRateY}`;
@@ -3224,8 +3224,8 @@ export default function BudgetGrid({
                 if (showRateLines && visible.realizedRate) {
                     const rRate = rRev > 0 ? (rVal / rRev) * 100 : 0;
                     const rRateY = hasNegative
-                        ? Math.max(30, Math.min(290, 170 - (rRate / maxRate) * 120))
-                        : Math.max(30, Math.min(290, 300 - (rRate / maxRate) * 250));
+                        ? Math.max(30, Math.min(390, 220 - (rRate / maxRate) * 170))
+                        : Math.max(30, Math.min(390, 380 - (rRate / maxRate) * 320));
                     pointsRealizedRate.push({ x: pctX, y: rRateY, rate: rRate });
                     if (pathRealizedRate === '') {
                         pathRealizedRate = `M ${pctX} ${rRateY}`;
@@ -3238,8 +3238,8 @@ export default function BudgetGrid({
                 if (visible.atingido) {
                     const pctAtingido = getPctAtingido(bVal, rVal);
                     const pctAtingidoY = hasNegative
-                        ? Math.max(30, Math.min(290, 170 - (pctAtingido / 100) * 60))
-                        : Math.max(30, Math.min(290, 280 - (pctAtingido / 100) * 150));
+                        ? Math.max(30, Math.min(390, 220 - (pctAtingido / 100) * 100))
+                        : Math.max(30, Math.min(390, 360 - (pctAtingido / 100) * 220));
                     pointsAtingido.push({ x: pctX, y: pctAtingidoY, pct: pctAtingido });
                     if (pathAtingido === '') {
                         pathAtingido = `M ${pctX} ${pctAtingidoY}`;
@@ -3304,23 +3304,23 @@ export default function BudgetGrid({
 
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', width: '100%' }}>
                     <div style={{ width: '100%', overflowX: 'auto' }}>
-                        <svg viewBox="0 0 1200 350" width="100%" height="350px" style={{ minWidth: '800px', display: 'block' }}>
+                        <svg viewBox="0 0 1200 450" width="100%" height="450px" style={{ minWidth: '800px', display: 'block' }}>
                             {/* Grid Lines */}
                             {hasNegative ? (
                                 <>
-                                    <line x1="40" y1="170" x2="1160" y2="170" stroke="#475569" strokeWidth="2" /> {/* Center Baseline */}
-                                    <line x1="40" y1="230" x2="1160" y2="230" stroke="#f1f5f9" strokeWidth="1" strokeDasharray="4 4" />
-                                    <line x1="40" y1="290" x2="1160" y2="290" stroke="#cbd5e1" strokeWidth="1" strokeDasharray="4 4" />
-                                    <line x1="40" y1="110" x2="1160" y2="110" stroke="#f1f5f9" strokeWidth="1" strokeDasharray="4 4" />
-                                    <line x1="40" y1="50" x2="1160" y2="50" stroke="#cbd5e1" strokeWidth="1" strokeDasharray="4 4" />
+                                    <line x1="40" y1="220" x2="1160" y2="220" stroke="#475569" strokeWidth="2" /> {/* Center Baseline */}
+                                    <line x1="40" y1="310" x2="1160" y2="310" stroke="#f1f5f9" strokeWidth="1" strokeDasharray="4 4" />
+                                    <line x1="40" y1="400" x2="1160" y2="400" stroke="#cbd5e1" strokeWidth="1" strokeDasharray="4 4" />
+                                    <line x1="40" y1="130" x2="1160" y2="130" stroke="#f1f5f9" strokeWidth="1" strokeDasharray="4 4" />
+                                    <line x1="40" y1="40" x2="1160" y2="40" stroke="#cbd5e1" strokeWidth="1" strokeDasharray="4 4" />
                                 </>
                             ) : (
                                 <>
-                                    <line x1="40" y1="300" x2="1160" y2="300" stroke="#cbd5e1" strokeWidth="1" /> {/* Bottom Baseline */}
-                                    <line x1="40" y1="236" x2="1160" y2="236" stroke="#f1f5f9" strokeWidth="1" strokeDasharray="4 4" />
-                                    <line x1="40" y1="172" x2="1160" y2="172" stroke="#e2e8f0" strokeWidth="1" strokeDasharray="4 4" />
-                                    <line x1="40" y1="108" x2="1160" y2="108" stroke="#f1f5f9" strokeWidth="1" strokeDasharray="4 4" />
-                                    <line x1="40" y1="44" x2="1160" y2="44" stroke="#cbd5e1" strokeWidth="1" strokeDasharray="4 4" />
+                                    <line x1="40" y1="380" x2="1160" y2="380" stroke="#cbd5e1" strokeWidth="1" /> {/* Bottom Baseline */}
+                                    <line x1="40" y1="300" x2="1160" y2="300" stroke="#f1f5f9" strokeWidth="1" strokeDasharray="4 4" />
+                                    <line x1="40" y1="220" x2="1160" y2="220" stroke="#e2e8f0" strokeWidth="1" strokeDasharray="4 4" />
+                                    <line x1="40" y1="140" x2="1160" y2="140" stroke="#f1f5f9" strokeWidth="1" strokeDasharray="4 4" />
+                                    <line x1="40" y1="60" x2="1160" y2="60" stroke="#cbd5e1" strokeWidth="1" strokeDasharray="4 4" />
                                 </>
                             )}
 
@@ -3401,7 +3401,7 @@ export default function BudgetGrid({
                                         {/* Month Label */}
                                         <text 
                                             x={xBase + 44} 
-                                            y={hasNegative ? "330" : "325"} 
+                                            y={hasNegative ? "430" : "420"} 
                                             textAnchor="middle" 
                                             fill="#64748b" 
                                             fontSize="11px" 

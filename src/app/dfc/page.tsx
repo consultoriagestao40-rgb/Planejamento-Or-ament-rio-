@@ -884,49 +884,151 @@ export default function DFCPage() {
                             {renderChart()}
 
                             {/* Tabela de Próximos Eventos */}
-                            <div style={{ backgroundColor: '#ffffff', borderRadius: '12px', padding: '1.5rem', border: '1px solid #e2e8f0', boxShadow: '0 1px 3px rgba(0,0,0,0.05)', width: '100%', boxSizing: 'border-box' }}>
-                                <h3 style={{ fontSize: '1rem', fontWeight: 700, color: '#0f172a', margin: '0 0 1rem' }}>Contas a Receber e Pagar Previstas</h3>
-                                <div style={{ overflowX: 'auto', width: '100%', boxSizing: 'border-box' }}>
-                                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.875rem', textAlign: 'left' }}>
-                                        <thead>
-                                            <tr style={{ borderBottom: '2px solid #f1f5f9', color: '#475569' }}>
-                                                <th style={{ padding: '0.75rem 1rem' }}>Data</th>
-                                                <th style={{ padding: '0.75rem 1rem' }}>Tipo</th>
-                                                <th style={{ padding: '0.75rem 1rem' }}>Descrição</th>
-                                                <th style={{ padding: '0.75rem 1rem' }}>Cliente/Fornecedor</th>
-                                                <th style={{ padding: '0.75rem 1rem' }}>Categoria</th>
-                                                <th style={{ padding: '0.75rem 1rem', textAnchor: 'end' }}>Valor</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody>
-                                            {data && data.monthlyData.flatMap(m => m.details).filter(d => !d.isRealized).sort((a, b) => a.date.localeCompare(b.date)).slice(0, 30).map((item, idx) => (
-                                                <tr key={idx} style={{ borderBottom: '1px solid #f1f5f9', backgroundColor: idx % 2 === 0 ? '#f8fafc' : '#ffffff' }}>
-                                                    <td style={{ padding: '0.75rem 1rem', fontWeight: 500 }}>
-                                                        {new Date(item.date).toLocaleDateString('pt-BR')}
-                                                        {item.isOverdue && <span style={{ display: 'inline-block', marginLeft: '0.5rem', padding: '0.1rem 0.4rem', backgroundColor: '#fef2f2', color: '#dc2626', borderRadius: '4px', fontSize: '0.7rem', fontWeight: 600 }}>ATRASADO</span>}
-                                                    </td>
-                                                    <td style={{ padding: '0.75rem 1rem' }}>
-                                                        <span style={{ display: 'inline-block', padding: '0.2rem 0.5rem', borderRadius: '6px', fontSize: '0.75rem', fontWeight: 600, backgroundColor: item.isRevenue ? '#f0fdf4' : '#fef2f2', color: item.isRevenue ? '#16a34a' : '#dc2626' }}>
-                                                            {item.isRevenue ? 'ENTRADA' : 'SAÍDA'}
-                                                        </span>
-                                                    </td>
-                                                    <td style={{ padding: '0.75rem 1rem', color: '#1e293b' }}>{item.description || 'Lançamento previsto'}</td>
-                                                    <td style={{ padding: '0.75rem 1rem', color: '#64748b' }}>{item.customer || '-'}</td>
-                                                    <td style={{ padding: '0.75rem 1rem', color: '#64748b' }}>{item.category}</td>
-                                                    <td style={{ padding: '0.75rem 1rem', fontWeight: 600, color: item.isRevenue ? '#16a34a' : '#dc2626', textAlign: 'right' }}>
-                                                        {formatCurrency(item.amount)}
-                                                    </td>
-                                                </tr>
-                                            ))}
-                                            {(!data || data.monthlyData.flatMap(m => m.details).filter(d => !d.isRealized).length === 0) && (
-                                                <tr>
-                                                    <td colSpan={6} style={{ padding: '2rem', textAlign: 'center', color: '#94a3b8' }}>Não há lançamentos previstos no ano selecionado.</td>
-                                                </tr>
+                            {(() => {
+                                const today = new Date();
+                                const curYear = today.getFullYear();
+                                const curMonthIdx = today.getMonth();
+
+                                const pendingItems = data
+                                    ? data.monthlyData
+                                        .filter(m => selectedYear < curYear || (selectedYear === curYear && (m.month - 1) <= curMonthIdx))
+                                        .flatMap(m => m.details)
+                                        .filter(d => !d.isRealized)
+                                    : [];
+
+                                // Agrupar por empresa
+                                const grouped = pendingItems.reduce((acc, item) => {
+                                    const tName = item.tenantName || 'Empresa Desconhecida';
+                                    if (!acc[tName]) {
+                                        acc[tName] = {
+                                            name: tName,
+                                            items: [],
+                                            totalInflow: 0,
+                                            totalOutflow: 0
+                                        };
+                                    }
+                                    acc[tName].items.push(item);
+                                    if (item.isRevenue) {
+                                        acc[tName].totalInflow += item.amount;
+                                    } else {
+                                        acc[tName].totalOutflow += item.amount;
+                                    }
+                                    return acc;
+                                }, {} as Record<string, { name: string; items: any[]; totalInflow: number; totalOutflow: number }>);
+
+                                const tenantGroups = Object.values(grouped).sort((a, b) => a.name.localeCompare(b.name));
+
+                                return (
+                                    <div style={{ backgroundColor: '#ffffff', borderRadius: '12px', padding: '1.5rem', border: '1px solid #e2e8f0', boxShadow: '0 1px 3px rgba(0,0,0,0.05)', width: '100%', boxSizing: 'border-box' }}>
+                                        <h3 style={{ fontSize: '1rem', fontWeight: 700, color: '#0f172a', margin: '0 0 1.25rem' }}>Contas a Receber e Pagar Previstas</h3>
+                                        
+                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                                            {tenantGroups.map((group) => {
+                                                const isExpanded = !!expandedTenants[`projection-${group.name}`];
+                                                return (
+                                                    <div key={group.name} style={{ backgroundColor: '#ffffff', borderRadius: '12px', border: '1px solid #e2e8f0', boxShadow: '0 1px 3px rgba(0,0,0,0.02)', overflow: 'hidden' }}>
+                                                        {/* Header do Accordion */}
+                                                        <div 
+                                                            onClick={() => toggleTenant(`projection-${group.name}`)}
+                                                            style={{ 
+                                                                padding: '1.25rem 1.5rem', 
+                                                                display: 'flex', 
+                                                                justifyContent: 'space-between', 
+                                                                alignItems: 'center', 
+                                                                cursor: 'pointer', 
+                                                                backgroundColor: '#f8fafc',
+                                                                borderBottom: isExpanded ? '1px solid #e2e8f0' : 'none',
+                                                                userSelect: 'none',
+                                                                transition: 'background-color 0.2s',
+                                                                flexWrap: 'wrap',
+                                                                gap: '1rem'
+                                                            }}
+                                                        >
+                                                            {/* Lado Esquerdo */}
+                                                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                                                                <svg 
+                                                                    width="16" 
+                                                                    height="16" 
+                                                                    viewBox="0 0 24 24" 
+                                                                    fill="none" 
+                                                                    stroke="#475569" 
+                                                                    strokeWidth="2.5" 
+                                                                    style={{ 
+                                                                        transform: isExpanded ? 'rotate(90deg)' : 'rotate(0deg)', 
+                                                                        transition: 'transform 0.2s' 
+                                                                    }}
+                                                                >
+                                                                    <polyline points="9 18 15 12 9 6" />
+                                                                </svg>
+                                                                <span style={{ fontSize: '0.95rem', fontWeight: 700, color: '#0f172a' }}>{group.name}</span>
+                                                                <span style={{ fontSize: '0.75rem', fontWeight: 600, backgroundColor: '#e2e8f0', color: '#475569', padding: '0.15rem 0.5rem', borderRadius: '12px' }}>
+                                                                    {group.items.length} {group.items.length === 1 ? 'título' : 'títulos'}
+                                                                </span>
+                                                            </div>
+
+                                                            {/* Lado Direito */}
+                                                            <div style={{ display: 'flex', alignItems: 'center', gap: '1.5rem', flexWrap: 'wrap' }}>
+                                                                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end' }}>
+                                                                    <span style={{ fontSize: '0.7rem', color: '#64748b', fontWeight: 600, textTransform: 'uppercase' }}>Entradas</span>
+                                                                    <span style={{ fontSize: '0.9rem', fontWeight: 700, color: '#16a34a' }}>{formatCurrency(group.totalInflow)}</span>
+                                                                </div>
+                                                                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end' }}>
+                                                                    <span style={{ fontSize: '0.7rem', color: '#64748b', fontWeight: 600, textTransform: 'uppercase' }}>Saídas</span>
+                                                                    <span style={{ fontSize: '0.9rem', fontWeight: 700, color: '#dc2626' }}>{formatCurrency(group.totalOutflow)}</span>
+                                                                </div>
+                                                            </div>
+                                                        </div>
+
+                                                        {/* Detalhamento */}
+                                                        {isExpanded && (
+                                                            <div style={{ overflowX: 'auto', width: '100%' }}>
+                                                                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.875rem', textAlign: 'left' }}>
+                                                                    <thead>
+                                                                        <tr style={{ borderBottom: '2px solid #f1f5f9', color: '#475569', backgroundColor: '#ffffff' }}>
+                                                                            <th style={{ padding: '0.75rem 1.5rem' }}>Data</th>
+                                                                            <th style={{ padding: '0.75rem 1.5rem' }}>Tipo</th>
+                                                                            <th style={{ padding: '0.75rem 1.5rem' }}>Descrição</th>
+                                                                            <th style={{ padding: '0.75rem 1.5rem' }}>Cliente/Fornecedor</th>
+                                                                            <th style={{ padding: '0.75rem 1.5rem' }}>Categoria</th>
+                                                                            <th style={{ padding: '0.75rem 1.5rem', textAlign: 'right' }}>Valor</th>
+                                                                        </tr>
+                                                                    </thead>
+                                                                    <tbody>
+                                                                        {group.items.sort((a, b) => a.date.localeCompare(b.date)).map((item, idx) => (
+                                                                            <tr key={item.id || idx} style={{ borderBottom: '1px solid #f1f5f9', backgroundColor: idx % 2 === 0 ? '#f8fafc' : '#ffffff' }}>
+                                                                                <td style={{ padding: '0.75rem 1.5rem', fontWeight: 500 }}>
+                                                                                    {new Date(item.originalDate || item.date).toLocaleDateString('pt-BR')}
+                                                                                    {item.isOverdue && <span style={{ display: 'inline-block', marginLeft: '0.5rem', padding: '0.1rem 0.4rem', backgroundColor: '#fef2f2', color: '#dc2626', borderRadius: '4px', fontSize: '0.7rem', fontWeight: 600 }}>ATRASADO</span>}
+                                                                                </td>
+                                                                                <td style={{ padding: '0.75rem 1.5rem' }}>
+                                                                                    <span style={{ display: 'inline-block', padding: '0.2rem 0.5rem', borderRadius: '6px', fontSize: '0.75rem', fontWeight: 600, backgroundColor: item.isRevenue ? '#f0fdf4' : '#fef2f2', color: item.isRevenue ? '#16a34a' : '#dc2626' }}>
+                                                                                        {item.isRevenue ? 'ENTRADA' : 'SAÍDA'}
+                                                                                    </span>
+                                                                                </td>
+                                                                                <td style={{ padding: '0.75rem 1.5rem', color: '#1e293b' }}>{item.description || 'Lançamento previsto'}</td>
+                                                                                <td style={{ padding: '0.75rem 1.5rem', color: '#64748b' }}>{item.customer || '-'}</td>
+                                                                                <td style={{ padding: '0.75rem 1.5rem', color: '#64748b' }}>{item.category}</td>
+                                                                                <td style={{ padding: '0.75rem 1.5rem', fontWeight: 700, color: item.isRevenue ? '#16a34a' : '#dc2626', textAlign: 'right' }}>
+                                                                                    {formatCurrency(item.amount)}
+                                                                                </td>
+                                                                            </tr>
+                                                                        ))}
+                                                                    </tbody>
+                                                                </table>
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                );
+                                            })}
+                                            {tenantGroups.length === 0 && (
+                                                <div style={{ backgroundColor: '#ffffff', borderRadius: '12px', padding: '3rem', border: '1px solid #e2e8f0', textAlign: 'center', color: '#94a3b8' }}>
+                                                    Não há lançamentos previstos no ano selecionado.
+                                                </div>
                                             )}
-                                        </tbody>
-                                    </table>
-                                </div>
-                            </div>
+                                        </div>
+                                    </div>
+                                );
+                            })()}
                         </div>
                     )}
 

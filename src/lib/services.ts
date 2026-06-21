@@ -1,5 +1,27 @@
 import { prisma } from './prisma';
 
+// Helper para execução paralela com limite de concorrência
+async function fetchInParallelWithLimit<T, R>(
+    items: T[],
+    limit: number,
+    fn: (item: T) => Promise<R>
+): Promise<R[]> {
+    const results: Promise<R>[] = [];
+    const executing: Promise<any>[] = [];
+    for (const item of items) {
+        const p = Promise.resolve().then(() => fn(item));
+        results.push(p);
+        if (limit <= items.length) {
+            const e: any = p.then(() => executing.splice(executing.indexOf(e), 1));
+            executing.push(e);
+            if (executing.length >= limit) {
+                await Promise.race(executing);
+            }
+        }
+    }
+    return Promise.all(results);
+}
+
 // Helper de Autenticação
 export async function getValidAccessToken(tenantId?: string) {
     const tenant = tenantId
@@ -221,6 +243,41 @@ async function collectDetailedTransactions(
         const items = Array.isArray(data) ? data : (data.itens || data.vendas || []);
         if (items.length === 0) break;
 
+        // --- PRE-FETCH PARCEL DETAILS IN PARALLEL WITH LIMIT ---
+        const idsToFetch = items
+            .filter((item: any) => {
+                if (!item.id) return false;
+                const isLoss = item.status === 'LOST' || item.status === 'PERDIDO';
+                const cats = item.categorias || (item.categoria ? [item.categoria] : []);
+                const hasMultipleCats = cats.length > 1;
+                return isLoss || hasMultipleCats;
+            })
+            .map((item: any) => item.id);
+
+        const parcelDetailsMap = new Map<string, any>();
+        if (idsToFetch.length > 0) {
+            const details = await fetchInParallelWithLimit(idsToFetch, 10, async (id) => {
+                try {
+                    const detailUrl = `https://api-v2.contaazul.com/v1/financeiro/eventos-financeiros/parcelas/${id}`;
+                    const detailRes = await fetch(detailUrl, {
+                        headers: { 'Authorization': `Bearer ${accessToken}` },
+                        cache: 'no-store'
+                    });
+                    if (detailRes.ok) {
+                        return { id, data: await detailRes.json() };
+                    }
+                } catch (err) {
+                    console.warn(`[Sync] Falha ao pré-buscar parcelas para ${id}:`, err);
+                }
+                return { id, data: null };
+            });
+            for (const d of details) {
+                if (d.data) {
+                    parcelDetailsMap.set(d.id, d.data);
+                }
+            }
+        }
+
         for (const item of items) {
             const categories = item.categorias || (item.categoria ? [item.categoria] : []);
             
@@ -243,14 +300,8 @@ async function collectDetailedTransactions(
             // Tratamento especial para itens de perda (PDD)
             if (isLossItem) {
                 try {
-                    // Para buscar os dados de perda, consultamos o detalhe da parcela no endpoint de parcelas
-                    const detailUrl = `https://api-v2.contaazul.com/v1/financeiro/eventos-financeiros/parcelas/${item.id}`;
-                    const detailRes = await fetch(detailUrl, {
-                        headers: { 'Authorization': `Bearer ${accessToken}` },
-                        cache: 'no-store'
-                    });
-                    if (detailRes.ok) {
-                        const detailData = await detailRes.json();
+                    const detailData = parcelDetailsMap.get(item.id);
+                    if (detailData) {
                         const lossInfo = detailData.perda || detailData.evento?.perda || null;
                         
                         if (lossInfo && lossInfo.data) {
@@ -319,13 +370,8 @@ async function collectDetailedTransactions(
                 let processedSplits = false;
                 if (categories.length > 1 && item.id) {
                     try {
-                        const detailUrl = `https://api-v2.contaazul.com/v1/financeiro/eventos-financeiros/parcelas/${item.id}`;
-                        const detailRes = await fetch(detailUrl, {
-                            headers: { 'Authorization': `Bearer ${accessToken}` },
-                            cache: 'no-store'
-                        });
-                        if (detailRes.ok) {
-                            const detailData = await detailRes.json();
+                        const detailData = parcelDetailsMap.get(item.id);
+                        if (detailData) {
                             const rateios = detailData.evento?.rateio || detailData.rateio || [];
                             if (rateios.length > 0) {
                                 let ratIdx = 0;
@@ -591,23 +637,37 @@ async function collectRetentionsFromSales(
         const items = data.vendas || data.itens || data || [];
         if (items.length === 0) break;
 
+        // --- PRE-FETCH SALES DETAILS IN PARALLEL WITH LIMIT ---
+        const salesToFetch = items.filter((item: any) => item.id && !(item.status || '').toUpperCase().includes('CANCEL'));
+        const salesDetailsMap = new Map<string, any>();
+        if (salesToFetch.length > 0) {
+            const details = await fetchInParallelWithLimit(salesToFetch, 10, async (item: any) => {
+                try {
+                    const detailUrl = `https://api-v2.contaazul.com/v1/venda/${item.id}`;
+                    const detailRes = await fetch(detailUrl, {
+                        headers: { 'Authorization': `Bearer ${accessToken}` },
+                        cache: 'no-store'
+                    });
+                    if (detailRes.ok) {
+                        return { id: item.id, data: await detailRes.json() };
+                    }
+                } catch (err) {
+                    console.warn(`[Sync] Falha ao pré-buscar venda ${item.id}:`, err);
+                }
+                return { id: item.id, data: null };
+            });
+            for (const d of details) {
+                if (d.data) {
+                    salesDetailsMap.set(d.id, d.data);
+                }
+            }
+        }
+
         for (const item of items) {
             if ((item.status || '').toUpperCase().includes('CANCEL')) continue;
             
-            // Fetch detailed sale info to get the composicao_valor and exact taxes/retentions
-            const detailUrl = `https://api-v2.contaazul.com/v1/venda/${item.id}`;
-            const detailRes = await fetch(detailUrl, {
-                headers: { 'Authorization': `Bearer ${accessToken}` },
-                cache: 'no-store'
-            });
-
-            if (!detailRes.ok) {
-                console.warn(`[Conta Azul API] Falha ao buscar detalhes da venda ${item.id}: status ${detailRes.status}`);
-                continue;
-            }
-
-            const detailData = await detailRes.json();
-            const sale = detailData.venda || detailData;
+            const detailData = salesDetailsMap.get(item.id);
+            const sale = detailData ? (detailData.venda || detailData) : null;
             if (!sale) continue;
 
             const compVal = sale.composicao_valor || {};
@@ -1095,9 +1155,8 @@ async function addRetentionsFromSales(accessToken: string, tenantId: string, yea
 export async function syncBankAccounts(tenantId: string, accessToken: string) {
     console.log(`[Sync Bank Accounts] Sincronizando contas financeiras para tenant ${tenantId}...`);
     try {
-        // Tentar consultar o saldo inicial via API da Conta Azul
-        const todayStr = new Date().toISOString().split('T')[0];
-        const res = await fetch(`https://api-v2.contaazul.com/v1/financeiro/eventos-financeiros/saldo-inicial?data_inicio=${todayStr}T00:00:00&data_fim=${todayStr}T23:59:59`, {
+        // Tentar obter a lista de contas financeiras da API v2
+        const res = await fetch(`https://api-v2.contaazul.com/v1/conta-financeira`, {
             headers: { 'Authorization': `Bearer ${accessToken}` },
             cache: 'no-store'
         });
@@ -1105,29 +1164,53 @@ export async function syncBankAccounts(tenantId: string, accessToken: string) {
         let items: any[] = [];
         if (res.ok) {
             const data = await res.json();
-            items = data.itens || [];
+            items = data.itens || data || [];
         } else {
-            console.warn(`[Sync Bank Accounts] API retornou status ${res.status}. Usando fallback para contas financeiras.`);
+            console.warn(`[Sync Bank Accounts] Falha ao obter contas financeiras: status ${res.status}. Usando fallback.`);
         }
 
         if (items.length > 0) {
-            for (const item of items) {
-                const balance = item.saldo_atual !== undefined ? item.saldo_atual : (item.saldo !== undefined ? item.saldo : 0);
+            // Filtrar apenas contas ativas para consultar o saldo
+            const activeItems = items.filter((item: any) => item.ativo);
+            
+            // Consultar saldo de cada conta ativa em paralelo (limite de concorrência 5)
+            const accountsWithBalance = await fetchInParallelWithLimit(activeItems, 5, async (item: any) => {
+                let balance = 0;
+                try {
+                    const balanceRes = await fetch(`https://api-v2.contaazul.com/v1/conta-financeira/${item.id}/saldo-atual`, {
+                        headers: { 'Authorization': `Bearer ${accessToken}` },
+                        cache: 'no-store'
+                    });
+                    if (balanceRes.ok) {
+                        const balanceData = await balanceRes.json();
+                        balance = balanceData.saldo_atual !== undefined ? balanceData.saldo_atual : (balanceData.saldo || 0);
+                    }
+                } catch (e: any) {
+                    console.warn(`[Sync Bank Accounts] Erro ao buscar saldo da conta ${item.name} (${item.id}): ${e.message}`);
+                }
+                return {
+                    id: item.id,
+                    name: item.nome || item.name || 'Conta Bancária',
+                    balance: parseFloat(balance.toString())
+                };
+            });
+
+            for (const acc of accountsWithBalance) {
                 await (prisma.bankAccount as any).upsert({
-                    where: { id: item.id },
+                    where: { id: acc.id },
                     update: {
-                        name: item.name || 'Conta Bancária',
-                        balance: parseFloat(balance.toString()),
+                        name: acc.name,
+                        balance: acc.balance,
                     },
                     create: {
-                        id: item.id,
-                        name: item.name || 'Conta Bancária',
-                        balance: parseFloat(balance.toString()),
+                        id: acc.id,
+                        name: acc.name,
+                        balance: acc.balance,
                         tenantId
                     }
                 });
             }
-            console.log(`[Sync Bank Accounts] Sincronizadas ${items.length} contas financeiras via API.`);
+            console.log(`[Sync Bank Accounts] Sincronizadas ${accountsWithBalance.length} contas financeiras ativas com saldos reais.`);
         } else {
             // Fallback: verificar se já existem contas no banco
             const existingAccounts = await (prisma.bankAccount as any).findMany({
@@ -1140,7 +1223,6 @@ export async function syncBankAccounts(tenantId: string, accessToken: string) {
                 let fallbackName = 'Conta Principal';
                 
                 if (tenantId === 'dc2b6eed-a38a-43c3-9465-ce854bfda90f') {
-                    // ID real da conta Bradesco Facilities encontrado nas transações
                     fallbackId = '4dd329df-b400-46ec-a509-eb27d543c7d1';
                     fallbackName = 'Bradesco Facilities';
                 }
@@ -1258,6 +1340,34 @@ async function collectOpenTransactions(
         const items = Array.isArray(data) ? data : (data.itens || data.vendas || []);
         if (items.length === 0) break;
 
+        // --- PRE-FETCH PARCEL DETAILS IN PARALLEL WITH LIMIT ---
+        const idsToFetch = items
+            .filter((item: any) => item.id && (item.categorias || (item.categoria ? [item.categoria] : [])).length > 1)
+            .map((item: any) => item.id);
+        const parcelDetailsMap = new Map<string, any>();
+        if (idsToFetch.length > 0) {
+            const details = await fetchInParallelWithLimit(idsToFetch, 10, async (id) => {
+                try {
+                    const detailUrl = `https://api-v2.contaazul.com/v1/financeiro/eventos-financeiros/parcelas/${id}`;
+                    const detailRes = await fetch(detailUrl, {
+                        headers: { 'Authorization': `Bearer ${accessToken}` },
+                        cache: 'no-store'
+                    });
+                    if (detailRes.ok) {
+                        return { id, data: await detailRes.json() };
+                    }
+                } catch (err) {
+                    console.warn(`[Sync] Falha ao pré-buscar parcelas previstas para ${id}:`, err);
+                }
+                return { id, data: null };
+            });
+            for (const d of details) {
+                if (d.data) {
+                    parcelDetailsMap.set(d.id, d.data);
+                }
+            }
+        }
+
         for (const item of items) {
             const categories = item.categorias || (item.categoria ? [item.categoria] : []);
             const amount = item.valor_total || item.total || item.valor || 0;
@@ -1273,13 +1383,8 @@ async function collectOpenTransactions(
             // Tratamento de Rateio
             if (categories.length > 1 && item.id) {
                 try {
-                    const detailUrl = `https://api-v2.contaazul.com/v1/financeiro/eventos-financeiros/parcelas/${item.id}`;
-                    const detailRes = await fetch(detailUrl, {
-                        headers: { 'Authorization': `Bearer ${accessToken}` },
-                        cache: 'no-store'
-                    });
-                    if (detailRes.ok) {
-                        const detailData = await detailRes.json();
+                    const detailData = parcelDetailsMap.get(item.id);
+                    if (detailData) {
                         const rateios = detailData.evento?.rateio || detailData.rateio || [];
                         if (rateios.length > 0) {
                             let ratIdx = 0;

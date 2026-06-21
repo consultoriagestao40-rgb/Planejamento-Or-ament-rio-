@@ -203,15 +203,7 @@ export default function DFCPage() {
         ).sort((a, b) => a.name.localeCompare(b.name));
     };
 
-    // Alternar colapso de categorias na tabela DFC
-    const toggleCategory = (catId: string) => {
-        setExpandedCategories(prev => {
-            const next = new Set(prev);
-            if (next.has(catId)) next.delete(catId);
-            else next.add(catId);
-            return next;
-        });
-    };
+
 
     // Renderização do gráfico SVG de projeção diária
     const renderChart = () => {
@@ -655,6 +647,8 @@ export default function DFCPage() {
                                         ))}
                                         <th style={{ padding: '0.75rem 1rem', textAlign: 'right', minWidth: '110px' }}>TOTAL</th>
                                     </tr>
+                                </thead>
+                                <tbody>
                                                 {/* 1. Saldo Inicial */}
                                     <tr style={{ borderBottom: '1px solid #e2e8f0', backgroundColor: '#f8fafc', fontWeight: 600 }}>
                                         <td style={{ padding: '0.75rem 1rem', color: '#334155' }}>Saldo Inicial de Caixa</td>

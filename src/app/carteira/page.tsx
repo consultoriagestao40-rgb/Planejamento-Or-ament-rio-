@@ -25,6 +25,720 @@ export default function PortfolioAnalysisPage() {
     const [selectedSource, setSelectedSource] = useState<'realized' | 'budget'>('realized');
     const [selectedViewMode, setSelectedViewMode] = useState<'competencia' | 'caixa'>('competencia');
     const [expandedTenants, setExpandedTenants] = useState<Set<string>>(new Set());
+    // --- Detailed Analysis Custom Charts State ---
+    const [activeAnalysisTab, setActiveAnalysisTab] = useState<'carteira' | 'detailed'>('carteira');
+    const [companies, setCompanies] = useState<any[]>([]);
+    const [categories, setCategories] = useState<any[]>([]);
+    const [costCenters, setCostCenters] = useState<any[]>([]);
+    const [detailedAnalyses, setDetailedAnalyses] = useState<any[]>([]);
+    const [loadingDetailed, setLoadingDetailed] = useState(false);
+    const [isEditingChart, setIsEditingChart] = useState(false);
+    const [editingChartId, setEditingChartId] = useState<string | null>(null);
+
+    // Chart editor form states
+    const [chartCategory, setChartCategory] = useState<string>('');
+    const [chartCategorySearch, setChartCategorySearch] = useState<string>('');
+    const [isChartCategoryDropdownOpen, setIsChartCategoryDropdownOpen] = useState(false);
+    const [chartTenant, setChartTenant] = useState<string>('');
+    const [chartCC, setChartCC] = useState<string>('ALL');
+    const [chartType, setChartType] = useState<string>('VERTICAL_BAR');
+    const [chartOnlyRealized, setChartOnlyRealized] = useState<boolean>(false);
+    const [chartShowAtingido, setChartShowAtingido] = useState<boolean>(false);
+    const [chartPctOfRevenue, setChartPctOfRevenue] = useState<boolean>(false);
+    const [chartAnalysisText, setChartAnalysisText] = useState<string>('');
+
+    // Preview data states
+    const [chartPreviewData, setChartPreviewData] = useState<any[]>([]);
+    const [loadingPreviewData, setLoadingPreviewData] = useState(false);
+    const [savingChart, setSavingChart] = useState(false);
+    const [analysisSelectedTenant, setAnalysisSelectedTenant] = useState<string>('');
+
+    // Resolve month number for custom charts (detailed analysis API needs a specific 1-12 month)
+    const activeMonthNumber = useMemo(() => {
+        const parsed = Number(selectedMonth);
+        if (!isNaN(parsed) && parsed >= 1 && parsed <= 12) return parsed;
+        return new Date().getMonth() + 1;
+    }, [selectedMonth]);
+
+    // Fetch setup data (companies, categories, cost centers)
+    useEffect(() => {
+        const fetchSetup = async () => {
+            try {
+                // Fetch companies
+                const compRes = await fetch('/api/companies');
+                const compData = await compRes.json();
+                if (compData.success) {
+                    setCompanies(compData.companies || []);
+                    if (compData.companies?.length > 0) {
+                        setAnalysisSelectedTenant(compData.companies[0].id);
+                    }
+                }
+                
+                // Fetch categories and cost centers
+                const setupRes = await fetch(`/api/setup?year=${selectedYear}&t=${Date.now()}`);
+                const setupData = await setupRes.json();
+                if (setupData.success) {
+                    setCategories(setupData.categories || []);
+                    setCostCenters(setupData.costCenters || []);
+                }
+            } catch (err) {
+                console.error('Setup Fetch Error:', err);
+            }
+        };
+        fetchSetup();
+    }, [selectedYear]);
+
+    // Fetch detailed analyses (charts) for all companies
+    const fetchDetailedAnalyses = useCallback(async () => {
+        if (companies.length === 0) return;
+        setLoadingDetailed(true);
+        try {
+            const promises = companies.map(async (company) => {
+                const res = await fetch(`/api/kpi/detailed-analysis?tenantId=${company.id}&month=${activeMonthNumber}&year=${selectedYear}`);
+                const json = await res.json();
+                return json.success ? json.data || [] : [];
+            });
+            const results = await Promise.all(promises);
+            setDetailedAnalyses(results.flat());
+        } catch (err) {
+            console.error('Error fetching detailed analyses:', err);
+        } finally {
+            setLoadingDetailed(false);
+        }
+    }, [companies, activeMonthNumber, selectedYear]);
+
+    // Fetch chart preview data
+    const fetchChartData = useCallback(async (catId: string, tenId: string, ccId: string) => {
+        if (!catId || !tenId) return;
+        setLoadingPreviewData(true);
+        try {
+            const res = await fetch(`/api/kpi/detailed-chart-data?categoryId=${catId}&filterTenantId=${tenId}&filterCCId=${ccId}&year=${selectedYear}&viewMode=${selectedViewMode}`);
+            const json = await res.json();
+            if (json.success) {
+                setChartPreviewData(json.data || []);
+            }
+        } catch (err) {
+            console.error('Error fetching chart preview data:', err);
+        } finally {
+            setLoadingPreviewData(false);
+        }
+    }, [selectedYear, selectedViewMode]);
+
+    // Reactively fetch detailed analysis list when active tab changes
+    useEffect(() => {
+        if (activeAnalysisTab === 'detailed') {
+            fetchDetailedAnalyses();
+        }
+    }, [activeAnalysisTab, fetchDetailedAnalyses]);
+
+    // Reactively fetch preview chart data during editing
+    useEffect(() => {
+        if (isEditingChart && chartCategory && chartTenant) {
+            fetchChartData(chartCategory, chartTenant, chartCC);
+        }
+    }, [isEditingChart, chartCategory, chartTenant, chartCC, fetchChartData]);
+
+    const saveDetailedAnalysis = async () => {
+        if (!analysisSelectedTenant || !activeMonthNumber || !selectedYear) {
+            alert('Parâmetros de contexto ausentes.');
+            return;
+        }
+        if (!chartCategory || !chartTenant || !chartType) {
+            alert('Por favor, configure os campos obrigatórios do gráfico (Conta, Empresa e Tipo).');
+            return;
+        }
+        setSavingChart(true);
+        try {
+            const res = await fetch('/api/kpi/detailed-analysis', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    id: editingChartId || undefined,
+                    tenantId: analysisSelectedTenant,
+                    month: activeMonthNumber,
+                    year: selectedYear,
+                    categoryId: chartCategory,
+                    filterTenantId: chartTenant,
+                    filterCCId: chartCC,
+                    chartType,
+                    onlyRealized: chartOnlyRealized,
+                    showAtingido: chartShowAtingido,
+                    pctOfRevenue: chartPctOfRevenue,
+                    analysisText: chartAnalysisText
+                })
+            });
+            const json = await res.json();
+            if (json.success) {
+                alert('Gráfico e análise detalhada salvos com sucesso!');
+                setIsEditingChart(false);
+                setEditingChartId(null);
+                fetchDetailedAnalyses();
+            } else {
+                alert(`Erro ao salvar gráfico: ${json.error}`);
+            }
+        } catch (err) {
+            console.error('Error saving detailed analysis:', err);
+            alert('Erro de conexão ao salvar.');
+        } finally {
+            setSavingChart(false);
+        }
+    };
+
+    const deleteDetailedAnalysis = async (id: string) => {
+        if (!confirm('Deseja realmente excluir este gráfico e sua análise detalhada?')) return;
+        try {
+            const res = await fetch(`/api/kpi/detailed-analysis?id=${id}`, { method: 'DELETE' });
+            const json = await res.json();
+            if (json.success) {
+                fetchDetailedAnalyses();
+            } else {
+                alert(`Erro ao excluir: ${json.error}`);
+            }
+        } catch (err) {
+            console.error('Error deleting detailed analysis:', err);
+        }
+    };
+
+    const handleAddChartClick = () => {
+        setEditingChartId(null);
+        setChartCategory('');
+        setChartCategorySearch('');
+        setChartTenant(analysisSelectedTenant || (companies[0]?.id || 'ALL'));
+        setChartCC('ALL');
+        setChartType('VERTICAL_BAR');
+        setChartOnlyRealized(false);
+        setChartShowAtingido(false);
+        setChartPctOfRevenue(false);
+        setChartAnalysisText('');
+        setChartPreviewData([]);
+        setIsEditingChart(true);
+    };
+
+    const handleEditChartClick = (chart: any) => {
+        setEditingChartId(chart.id);
+        setChartCategory(chart.categoryId);
+        setChartCategorySearch('');
+        setChartTenant(chart.filterTenantId);
+        setChartCC(chart.filterCCId || 'ALL');
+        setChartType(chart.chartType);
+        setChartOnlyRealized(!!chart.onlyRealized);
+        setChartShowAtingido(!!chart.showAtingido);
+        setChartPctOfRevenue(!!chart.pctOfRevenue);
+        setChartAnalysisText(chart.analysisText || '');
+        setChartPreviewData([]);
+        setIsEditingChart(true);
+    };
+
+    const DetailedChartCard = ({ chart, onEdit, onDelete, mainMonth, year, viewMode, categories }: { chart: any, onEdit: (c: any) => void, onDelete: (id: string) => void, mainMonth: number, year: number, viewMode: 'caixa' | 'competencia', categories: any[] }) => {
+        const [data, setData] = useState<any[]>([]);
+        const [loading, setLoading] = useState(true);
+
+        useEffect(() => {
+            let active = true;
+            const load = async () => {
+                setLoading(true);
+                try {
+                    const res = await fetch(`/api/kpi/detailed-chart-data?categoryId=${chart.categoryId}&filterTenantId=${chart.filterTenantId}&filterCCId=${chart.filterCCId || 'ALL'}&year=${year}&viewMode=${viewMode}`);
+                    const json = await res.json();
+                    if (json.success && active) {
+                        setData(json.data || []);
+                    }
+                } catch (err) {
+                    console.error(err);
+                } finally {
+                    if (active) setLoading(false);
+                }
+            };
+            load();
+            return () => { active = false; };
+        }, [chart.categoryId, chart.filterTenantId, chart.filterCCId, year, viewMode]);
+
+        const getChartCategoryLabel = (id: string) => {
+            const dreLabels: Record<string, string> = {
+                vRev: '(=) Receita Bruta',
+                vTaxes: '(-) Deduções / Impostos',
+                vRecLiq: '(=) Receita Líquida',
+                vCosts: '(-) Custos Operacionais',
+                vGrossMarg: '(=) Margem Bruta',
+                vOpExp: '(-) Despesas Operacionais',
+                vContribMarg: '(=) Margem de Contribuição',
+                vAdminExp: '(-) Despesas Administrativas',
+                vEbitda: '(=) EBITDA',
+                vFin: '(-) Despesas Financeiras',
+                vNetProfit: '(=) Lucro Líquido'
+            };
+            if (dreLabels[id]) return dreLabels[id];
+            const found = categories.find((cat: any) => cat.id === id);
+            return found ? found.name : id;
+        };
+
+        const chartTypeNameMap: Record<string, string> = {
+            VERTICAL_BAR: 'Barras Vertical',
+            HORIZONTAL_BAR: 'Barras Horizontal',
+            LINE: 'Linha',
+            LINE_MARKERS: 'Linha com Marcadores',
+            PIE: 'Pizza',
+            DONUT: 'Rosca',
+            GAUGE: 'Velocímetro'
+        };
+
+        return (
+            <div className="glass-card" style={{ padding: '1.25rem', background: 'var(--bg-surface)', borderRadius: '12px', border: '1px solid var(--border-default)', boxShadow: 'var(--shadow-card)', width: '100%', marginBottom: '1.5rem', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', borderBottom: '1px solid var(--border-subtle)', paddingBottom: '0.5rem' }}>
+                    <div>
+                        <h4 style={{ fontSize: '0.95rem', fontWeight: 800, color: 'var(--text-primary)', margin: 0 }}>
+                            📊 {getChartCategoryLabel(chart.categoryId)} ({chartTypeNameMap[chart.chartType] || chart.chartType})
+                        </h4>
+                        <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', fontWeight: 500 }}>
+                            Filtros: {chart.filterTenantId === 'ALL' ? 'Todas Empresas' : 'Empresa Única'} 
+                            {chart.filterCCId && chart.filterCCId !== 'ALL' ? ` | Centro de Custo: ${chart.filterCCId}` : ' | Todos Centros de Custo'}
+                            {chart.pctOfRevenue ? ' | % sobre Receita' : ''}
+                            {chart.onlyRealized ? ' | Somente Realizado' : ''}
+                        </span>
+                    </div>
+                    <div style={{ display: 'flex', gap: '0.5rem' }}>
+                        <button 
+                            onClick={() => onEdit(chart)}
+                            style={{ background: '#eff6ff', border: 'none', borderRadius: '6px', padding: '0.3rem 0.6rem', fontSize: '0.75rem', fontWeight: 700, color: '#2563eb', cursor: 'pointer' }}
+                        >
+                            ✏️ Editar
+                        </button>
+                        <button 
+                            onClick={() => onDelete(chart.id)}
+                            style={{ background: '#fef2f2', border: 'none', borderRadius: '6px', padding: '0.3rem 0.6rem', fontSize: '0.75rem', fontWeight: 700, color: '#ef4444', cursor: 'pointer' }}
+                        >
+                            🗑️ Excluir
+                        </button>
+                    </div>
+                </div>
+
+                <div style={{ width: '100%', display: 'flex', justifyContent: 'center' }}>
+                    {loading ? (
+                        <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '180px', width: '100%' }}>
+                            <div style={{ border: '2.5px solid #f3f3f3', borderTop: '2.5px solid #3b82f6', borderRadius: '50%', width: '22px', height: '22px', animation: 'spin 1s linear infinite' }} />
+                        </div>
+                    ) : (
+                        renderDetailedChart(chart.chartType, data, !!chart.onlyRealized, !!chart.showAtingido, !!chart.pctOfRevenue, mainMonth)
+                    )}
+                </div>
+
+                {chart.analysisText && (
+                    <div style={{ padding: '0.75rem 1rem', background: 'var(--bg-elevated)', borderLeft: '3.5px solid #3b82f6', borderRadius: '4px', fontSize: '0.8rem', color: 'var(--text-secondary)', fontStyle: 'italic', whiteSpace: 'pre-wrap' }}>
+                        <strong>Análise Histórica:</strong> {chart.analysisText}
+                    </div>
+                )}
+            </div>
+        );
+    };
+
+    const renderDetailedChart = (
+        type: string,
+        data: any[],
+        onlyRealized: boolean,
+        showAtingido: boolean,
+        pctOfRevenue: boolean,
+        mainMonth: number
+    ) => {
+        if (!data || data.length === 0) {
+            return (
+                <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '220px', background: 'var(--bg-elevated)', borderRadius: '8px', border: '1px dashed var(--border-default)', fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-muted)' }}>
+                    Carregando dados do gráfico...
+                </div>
+            );
+        }
+
+        const formatVal = (val: number) => {
+            if (pctOfRevenue) return `${val.toFixed(1)}%`;
+            if (val === 0) return 'R$ 0';
+            const absVal = Math.abs(val);
+            const formatted = (absVal / 1000).toFixed(1);
+            return `${val < 0 ? '-' : ''}R$ ${formatted}k`;
+        };
+
+        const currentMonthIdx = new Date().getMonth();
+        const hasNegative = data.some(m => m.budget < 0 || m.realized < 0);
+        
+        const maxVal = Math.max(...data.map((m, idx) => Math.max(
+            onlyRealized ? 0 : Math.abs(pctOfRevenue ? m.pctOfRevenue : m.budget),
+            (idx + 1 <= currentMonthIdx + 1) ? Math.abs(pctOfRevenue ? m.pctOfRevenue : m.realized) : 0
+        ))) || 1;
+
+        switch (type) {
+            case 'VERTICAL_BAR': {
+                const yBaseline = hasNegative ? 130 : 210;
+                const maxBarHeight = hasNegative ? 100 : 165;
+
+                return (
+                    <svg viewBox="0 0 800 260" width="100%" height="220px" style={{ overflow: 'visible' }}>
+                        {hasNegative ? (
+                            <>
+                                <line x1="40" y1="130" x2="760" y2="130" stroke="var(--border-strong)" strokeWidth="1.5" />
+                                <line x1="40" y1="70" x2="760" y2="70" stroke="var(--border-subtle)" strokeDasharray="3 3" />
+                                <line x1="40" y1="190" x2="760" y2="190" stroke="var(--border-subtle)" strokeDasharray="3 3" />
+                            </>
+                        ) : (
+                            <>
+                                <line x1="40" y1="210" x2="760" y2="210" stroke="var(--border-default)" strokeWidth="1" />
+                                <line x1="40" y1="130" x2="760" y2="130" stroke="var(--border-subtle)" strokeDasharray="3 3" />
+                                <line x1="40" y1="50" x2="760" y2="50" stroke="var(--border-subtle)" strokeDasharray="3 3" />
+                            </>
+                        )}
+
+                        <text x="35" y={hasNegative ? "73" : "53"} textAnchor="end" fill="var(--text-muted)" fontSize="8px" fontWeight="700">{formatVal(maxVal)}</text>
+                        <text x="35" y={yBaseline + 3} textAnchor="end" fill="var(--text-muted)" fontSize="8px" fontWeight="700">{formatVal(0)}</text>
+                        {hasNegative && (
+                            <text x="35" y="193" textAnchor="end" fill="var(--text-muted)" fontSize="8px" fontWeight="700">{formatVal(-maxVal)}</text>
+                        )}
+
+                        {data.map((m, idx) => {
+                            const valB = pctOfRevenue ? m.pctOfRevenue : m.budget;
+                            const valR = (idx + 1 <= currentMonthIdx + 1) ? (pctOfRevenue ? m.pctOfRevenue : m.realized) : 0;
+                            
+                            const bHeight = onlyRealized ? 0 : (Math.abs(valB) / maxVal) * maxBarHeight;
+                            const rHeight = (idx + 1 <= currentMonthIdx + 1) ? (Math.abs(valR) / maxVal) * maxBarHeight : 0;
+                            
+                            const xBase = 50 + idx * 58;
+                            const isClose = !onlyRealized && (idx + 1 <= currentMonthIdx + 1) && Math.abs(bHeight - rHeight) < 14 && (valB >= 0 === valR >= 0);
+
+                            const bLabelY = valB >= 0 ? yBaseline - bHeight - 5 : yBaseline + bHeight + 11;
+                            let rLabelY = valR >= 0 ? yBaseline - rHeight - 5 : yBaseline + rHeight + 11;
+                            if (isClose) {
+                                rLabelY = valR >= 0 ? yBaseline - rHeight - 15 : yBaseline + rHeight + 21;
+                            }
+
+                            return (
+                                <g key={idx}>
+                                    {!onlyRealized && valB !== 0 && (
+                                        <>
+                                            <rect 
+                                                x={xBase + 8} 
+                                                y={valB >= 0 ? yBaseline - bHeight : yBaseline} 
+                                                width="14" 
+                                                height={bHeight} 
+                                                fill="var(--border-strong)" 
+                                                rx="2" 
+                                            />
+                                            <text x={xBase + 15} y={bLabelY} textAnchor="middle" fill="var(--text-secondary)" fontSize="8px" fontWeight="700">{formatVal(valB)}</text>
+                                        </>
+                                    )}
+
+                                    {idx + 1 <= currentMonthIdx + 1 && valR !== 0 && (
+                                        <>
+                                            <rect 
+                                                x={xBase + 24} 
+                                                y={valR >= 0 ? yBaseline - rHeight : yBaseline} 
+                                                width="14" 
+                                                height={rHeight} 
+                                                fill={valR >= 0 ? 'var(--accent-indigo)' : 'var(--accent-red)'} 
+                                                rx="2" 
+                                            />
+                                            <text x={xBase + 31} y={rLabelY} textAnchor="middle" fill={valR >= 0 ? '#1e3a8a' : '#7f1d1d'} fontSize="8px" fontWeight="700">{formatVal(valR)}</text>
+                                        </>
+                                    )}
+
+                                    <text x={xBase + 22} y="240" textAnchor="middle" fill="var(--text-muted)" fontSize="9px" fontWeight="700">
+                                        {['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'][idx]}
+                                    </text>
+                                </g>
+                            );
+                        })}
+                    </svg>
+                );
+            }
+
+            case 'HORIZONTAL_BAR': {
+                const xBaseline = 100;
+                const maxBarWidth = 630;
+
+                return (
+                    <svg viewBox="0 0 800 320" width="100%" height="280px" style={{ overflow: 'visible' }}>
+                        <line x1={xBaseline} y1="10" x2={xBaseline} y2="295" stroke="var(--border-default)" strokeWidth="1.5" />
+                        <line x1={xBaseline + maxBarWidth / 2} y1="10" x2={xBaseline + maxBarWidth / 2} y2="295" stroke="var(--border-subtle)" strokeDasharray="3 3" />
+                        <line x1={xBaseline + maxBarWidth} y1="10" x2={xBaseline + maxBarWidth} y2="295" stroke="var(--border-default)" strokeDasharray="3 3" />
+
+                        <text x={xBaseline} y="310" textAnchor="middle" fill="var(--text-muted)" fontSize="8px" fontWeight="700">{formatVal(0)}</text>
+                        <text x={xBaseline + maxBarWidth / 2} y="310" textAnchor="middle" fill="var(--text-muted)" fontSize="8px" fontWeight="700">{formatVal(maxVal / 2)}</text>
+                        <text x={xBaseline + maxBarWidth} y="310" textAnchor="middle" fill="var(--text-muted)" fontSize="8px" fontWeight="700">{formatVal(maxVal)}</text>
+
+                        {data.map((m, idx) => {
+                            const valB = pctOfRevenue ? m.pctOfRevenue : m.budget;
+                            const valR = (idx + 1 <= currentMonthIdx + 1) ? (pctOfRevenue ? m.pctOfRevenue : m.realized) : 0;
+
+                            const bWidth = onlyRealized ? 0 : (Math.abs(valB) / maxVal) * maxBarWidth;
+                            const rWidth = (idx + 1 <= currentMonthIdx + 1) ? (Math.abs(valR) / maxVal) * maxBarWidth : 0;
+                            
+                            const yBase = 15 + idx * 23;
+
+                            return (
+                                <g key={idx}>
+                                    <text x={xBaseline - 10} y={yBase + 12} textAnchor="end" fill="var(--text-secondary)" fontSize="9px" fontWeight="700">
+                                        {['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'][idx]}
+                                    </text>
+
+                                    {!onlyRealized && valB !== 0 && (
+                                        <>
+                                            <rect 
+                                                x={xBaseline} 
+                                                y={yBase} 
+                                                height="7" 
+                                                width={bWidth} 
+                                                fill="var(--border-strong)" 
+                                                rx="1.5" 
+                                            />
+                                            <text x={xBaseline + bWidth + 5} y={yBase + 7} textAnchor="start" fill="var(--text-secondary)" fontSize="7px" fontWeight="700">{formatVal(valB)}</text>
+                                        </>
+                                    )}
+
+                                    {idx + 1 <= currentMonthIdx + 1 && valR !== 0 && (
+                                        <>
+                                            <rect 
+                                                x={xBaseline} 
+                                                y={yBase + 9} 
+                                                height="7" 
+                                                width={rWidth} 
+                                                fill={valR >= 0 ? 'var(--accent-indigo)' : 'var(--accent-red)'} 
+                                                rx="1.5" 
+                                            />
+                                            <text x={xBaseline + rWidth + 5} y={yBase + 16} textAnchor="start" fill={valR >= 0 ? '#1e3a8a' : '#7f1d1d'} fontSize="7px" fontWeight="700">{formatVal(valR)}</text>
+                                        </>
+                                    )}
+                                </g>
+                            );
+                        })}
+                    </svg>
+                );
+            }
+
+            case 'LINE':
+            case 'LINE_MARKERS': {
+                const yBaseline = hasNegative ? 130 : 210;
+                const maxLineHeight = hasNegative ? 100 : 165;
+
+                let pathB = '';
+                let pathR = '';
+                const pointsB: { x: number, y: number, val: number }[] = [];
+                const pointsR: { x: number, y: number, val: number }[] = [];
+
+                data.forEach((m, idx) => {
+                    const valB = pctOfRevenue ? m.pctOfRevenue : m.budget;
+                    const valR = (idx + 1 <= currentMonthIdx + 1) ? (pctOfRevenue ? m.pctOfRevenue : m.realized) : 0;
+
+                    const x = 50 + idx * 62;
+                    const yB = yBaseline - (valB / maxVal) * maxLineHeight;
+                    const yR = yBaseline - (valR / maxVal) * maxLineHeight;
+
+                    if (!onlyRealized) {
+                        pointsB.push({ x, y: yB, val: valB });
+                        pathB += (pathB === '' ? 'M' : 'L') + ` ${x} ${yB}`;
+                    }
+
+                    if (idx + 1 <= currentMonthIdx + 1) {
+                        pointsR.push({ x, y: yR, val: valR });
+                        pathR += (pathR === '' ? 'M' : 'L') + ` ${x} ${yR}`;
+                    }
+                });
+
+                return (
+                    <svg viewBox="0 0 800 260" width="100%" height="220px" style={{ overflow: 'visible' }}>
+                        {hasNegative ? (
+                            <>
+                                <line x1="40" y1="130" x2="760" y2="130" stroke="var(--border-strong)" strokeWidth="1.5" />
+                                <line x1="40" y1="70" x2="760" y2="70" stroke="var(--border-subtle)" strokeDasharray="3 3" />
+                                <line x1="40" y1="190" x2="760" y2="190" stroke="var(--border-subtle)" strokeDasharray="3 3" />
+                            </>
+                        ) : (
+                            <>
+                                <line x1="40" y1="210" x2="760" y2="210" stroke="var(--border-default)" strokeWidth="1" />
+                                <line x1="40" y1="130" x2="760" y2="130" stroke="var(--border-subtle)" strokeDasharray="3 3" />
+                                <line x1="40" y1="50" x2="760" y2="50" stroke="var(--border-subtle)" strokeDasharray="3 3" />
+                            </>
+                        )}
+
+                        <text x="35" y={hasNegative ? "73" : "53"} textAnchor="end" fill="var(--text-muted)" fontSize="8px" fontWeight="700">{formatVal(maxVal)}</text>
+                        <text x="35" y={yBaseline + 3} textAnchor="end" fill="var(--text-muted)" fontSize="8px" fontWeight="700">{formatVal(0)}</text>
+                        {hasNegative && (
+                            <text x="35" y="193" textAnchor="end" fill="var(--text-muted)" fontSize="8px" fontWeight="700">{formatVal(-maxVal)}</text>
+                        )}
+
+                        {!onlyRealized && pathB && (
+                            <path d={pathB} fill="none" stroke="var(--text-muted)" strokeWidth="2.5" strokeDasharray="4 4" strokeLinecap="round" strokeLinejoin="round" />
+                        )}
+                        {pathR && (
+                            <path d={pathR} fill="none" stroke="var(--accent-indigo)" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
+                        )}
+
+                        {type === 'LINE_MARKERS' && (
+                            <>
+                                {!onlyRealized && pointsB.map((p, idx) => (
+                                    <g key={`b-${idx}`}>
+                                        <circle cx={p.x} cy={p.y} r="4" fill="var(--text-muted)" stroke="var(--bg-surface)" strokeWidth="1.5" />
+                                        <text x={p.x} y={p.y - 8} textAnchor="middle" fill="var(--text-secondary)" fontSize="8px" fontWeight="700">{formatVal(p.val)}</text>
+                                    </g>
+                                ))}
+
+                                {pointsR.map((p, idx) => (
+                                    <g key={`r-${idx}`}>
+                                        <circle cx={p.x} cy={p.y} r="5" fill="var(--accent-indigo)" stroke="var(--bg-surface)" strokeWidth="2" />
+                                        <text x={p.x} y={p.y - 9} textAnchor="middle" fill="#1e3a8a" fontSize="8px" fontWeight="800">{formatVal(p.val)}</text>
+                                    </g>
+                                ))}
+                            </>
+                        )}
+
+                        {data.map((m, idx) => (
+                            <text key={idx} x={50 + idx * 62} y="240" textAnchor="middle" fill="var(--text-muted)" fontSize="9px" fontWeight="700">
+                                {['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'][idx]}
+                            </text>
+                        ))}
+                    </svg>
+                );
+            }
+
+            case 'PIE':
+            case 'DONUT': {
+                const totalRealizedSum = data.reduce((acc, m, idx) => acc + (idx + 1 <= currentMonthIdx + 1 ? Math.max(0, m.realized) : 0), 0);
+                
+                if (totalRealizedSum <= 0) {
+                    return (
+                        <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '220px', background: 'var(--bg-elevated)', borderRadius: '8px', border: '1px dashed var(--border-default)', fontSize: '0.8rem', fontWeight: 600, color: 'var(--accent-red)' }}>
+                            ⚠️ Sem dados positivos de Realizado para exibir em Pizza.
+                        </div>
+                    );
+                }
+
+                const cx = 140;
+                const cy = 120;
+                const R = 85;
+                let cumulativeAngle = 0;
+                const palette = ['#2563eb', '#3b82f6', '#60a5fa', '#93c5fd', '#10b981', '#34d399', '#f59e0b', '#fbbf24', '#8b5cf6', '#a78bfa', '#ec4899', '#f472b6'];
+
+                return (
+                    <svg viewBox="0 0 420 240" width="100%" height="220px" style={{ overflow: 'visible' }}>
+                        {data.map((m, idx) => {
+                            const val = idx + 1 <= currentMonthIdx + 1 ? Math.max(0, m.realized) : 0;
+                            if (val === 0) return null;
+
+                            const percentage = (val / totalRealizedSum) * 100;
+                            const angle = (val / totalRealizedSum) * 360;
+
+                            const radStart = (cumulativeAngle - 90) * Math.PI / 180;
+                            const radEnd = (cumulativeAngle + angle - 90) * Math.PI / 180;
+
+                            const x1 = cx + R * Math.cos(radStart);
+                            const y1 = cy + R * Math.sin(radStart);
+                            const x2 = cx + R * Math.cos(radEnd);
+                            const y2 = cy + R * Math.sin(radEnd);
+
+                            const largeArc = angle > 180 ? 1 : 0;
+                            const pathData = `M ${cx} ${cy} L ${x1} ${y1} A ${R} ${R} 0 ${largeArc} 1 ${x2} ${y2} Z`;
+                            const color = palette[idx % palette.length];
+                            cumulativeAngle += angle;
+
+                            return (
+                                <path 
+                                    key={idx} 
+                                    d={pathData} 
+                                    fill={color} 
+                                    stroke="var(--bg-surface)" 
+                                    strokeWidth="1.5"
+                                    onMouseEnter={(e) => e.currentTarget.style.opacity = '0.9'}
+                                    onMouseLeave={(e) => e.currentTarget.style.opacity = '1'}
+                                    style={{ transition: 'opacity 0.2s', cursor: 'pointer' }}
+                                />
+                            );
+                        })}
+
+                        {type === 'DONUT' && (
+                            <>
+                                <circle cx={cx} cy={cy} r="52" fill="var(--bg-surface)" />
+                                <text x={cx} y={cy - 4} textAnchor="middle" fill="var(--text-muted)" fontSize="8px" fontWeight="800" textTransform="uppercase" letterSpacing="0.05em">Total Realiz.</text>
+                                <text x={cx} y={cy + 12} textAnchor="middle" fill="var(--text-primary)" fontSize="11px" fontWeight="800">{formatVal(totalRealizedSum)}</text>
+                            </>
+                        )}
+
+                        <g transform="translate(255, 10)">
+                            {data.map((m, idx) => {
+                                const val = idx + 1 <= currentMonthIdx + 1 ? Math.max(0, m.realized) : 0;
+                                if (val === 0) return null;
+                                const percentage = (val / totalRealizedSum) * 100;
+                                const color = palette[idx % palette.length];
+                                const yPos = idx * 16;
+
+                                return (
+                                    <g key={idx} transform={`translate(0, ${yPos})`}>
+                                        <rect width="9" height="9" rx="2" fill={color} />
+                                        <text x="14" y="8" fill="var(--text-secondary)" fontSize="8.5px" fontWeight="700">
+                                            {['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'][idx]}: {percentage.toFixed(1)}%
+                                        </text>
+                                    </g>
+                                );
+                            })}
+                        </g>
+                    </svg>
+                );
+            }
+
+            case 'GAUGE': {
+                const mData = data[mainMonth - 1] || { atingido: 100 };
+                const atingido = mData.atingido;
+                
+                const cx = 200;
+                const cy = 175;
+                const R = 110;
+                
+                const clampedAtingido = Math.min(200, Math.max(0, atingido));
+                const needleAngleDeg = 180 - clampedAtingido * 0.9;
+                const rad = needleAngleDeg * Math.PI / 180;
+                const needleX = cx + (R - 20) * Math.cos(rad);
+                const needleY = cy + (R - 20) * Math.sin(rad);
+
+                const polarToCartesian = (x: number, y: number, r: number, angleInDegrees: number) => {
+                    const angleInRadians = (angleInDegrees - 180) * Math.PI / 180.0;
+                    return {
+                        x: x + (r * Math.cos(angleInRadians)),
+                        y: y + (r * Math.sin(angleInRadians))
+                    };
+                };
+
+                const getArcPath = (x: number, y: number, r: number, startAngle: number, endAngle: number) => {
+                    const start = polarToCartesian(x, y, r, endAngle);
+                    const end = polarToCartesian(x, y, r, startAngle);
+                    const largeArcFlag = endAngle - startAngle <= 180 ? "0" : "1";
+                    return [
+                        "M", start.x, start.y,
+                        "A", r, r, 0, largeArcFlag, 0, end.x, end.y
+                    ].join(" ");
+                };
+
+                return (
+                    <svg viewBox="0 0 400 230" width="100%" height="220px" style={{ overflow: 'visible' }}>
+                        <path d={getArcPath(cx, cy, R, 0, 63)} fill="none" stroke="var(--accent-red)" strokeWidth="22" strokeLinecap="butt" />
+                        <path d={getArcPath(cx, cy, R, 63, 85.5)} fill="none" stroke="#f59e0b" strokeWidth="22" strokeLinecap="butt" />
+                        <path d={getArcPath(cx, cy, R, 85.5, 99)} fill="none" stroke="var(--accent-green)" strokeWidth="22" strokeLinecap="butt" />
+                        <path d={getArcPath(cx, cy, R, 99, 180)} fill="none" stroke="var(--accent-blue)" strokeWidth="22" strokeLinecap="butt" />
+
+                        <text x={cx - R - 15} y={cy + 5} textAnchor="middle" fill="var(--text-muted)" fontSize="8.5px" fontWeight="800">0%</text>
+                        <text x={cx} y={cy - R - 10} textAnchor="middle" fill="var(--text-muted)" fontSize="8.5px" fontWeight="800">100%</text>
+                        <text x={cx + R + 18} y={cy + 5} textAnchor="middle" fill="var(--text-muted)" fontSize="8.5px" fontWeight="800">200%+</text>
+
+                        <polygon points={`${cx - 2},${cy} ${needleX},${needleY} ${cx + 2},${cy}`} fill="var(--text-primary)" />
+                        <circle cx={cx} cy={cy} r="8.5" fill="var(--text-primary)" stroke="var(--bg-surface)" strokeWidth="2" />
+
+                        <text x={cx} y={cy + 30} textAnchor="middle" fill="var(--text-primary)" fontSize="13px" fontWeight="800">
+                            {atingido.toFixed(1)}% Atingido
+                        </text>
+                        <text x={cx} y={cy + 46} textAnchor="middle" fill="var(--text-secondary)" fontSize="8.5px" fontWeight="700">
+                            No mês de {['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'][mainMonth - 1]}
+                        </text>
+                    </svg>
+                );
+            }
+
+            default:
+                return null;
+        }
+    };
+
 
     const fetchData = useCallback(async () => {
         setLoading(true);
@@ -213,6 +927,59 @@ export default function PortfolioAnalysisPage() {
                         <p style={{ color: 'var(--text-secondary)', fontSize: '1rem' }}>Visão detalhada de rentabilidade e margens por centro de custo.</p>
                     </div>
                 </div>
+
+
+                {/* Tab Switcher */}
+                <div style={{
+                    display: 'flex',
+                    background: 'var(--bg-surface)',
+                    padding: '0.3rem',
+                    borderRadius: '10px',
+                    border: '1px solid var(--border-default)',
+                    marginBottom: '2rem',
+                    maxWidth: '450px',
+                    gap: '0.3rem'
+                }}>
+                    <button
+                        onClick={() => setActiveAnalysisTab('carteira')}
+                        style={{
+                            flex: 1,
+                            padding: '0.6rem',
+                            border: 'none',
+                            borderRadius: '8px',
+                            fontSize: '0.85rem',
+                            fontWeight: 700,
+                            cursor: 'pointer',
+                            transition: 'all 0.2s',
+                            background: activeAnalysisTab === 'carteira' ? 'var(--gradient-brand)' : 'transparent',
+                            color: activeAnalysisTab === 'carteira' ? '#ffffff' : 'var(--text-secondary)',
+                            boxShadow: activeAnalysisTab === 'carteira' ? 'var(--shadow-button)' : 'none'
+                        }}
+                    >
+                        💼 Análise de Carteira
+                    </button>
+                    <button
+                        onClick={() => setActiveAnalysisTab('detailed')}
+                        style={{
+                            flex: 1,
+                            padding: '0.6rem',
+                            border: 'none',
+                            borderRadius: '8px',
+                            fontSize: '0.85rem',
+                            fontWeight: 700,
+                            cursor: 'pointer',
+                            transition: 'all 0.2s',
+                            background: activeAnalysisTab === 'detailed' ? 'var(--gradient-brand)' : 'transparent',
+                            color: activeAnalysisTab === 'detailed' ? '#ffffff' : 'var(--text-secondary)',
+                            boxShadow: activeAnalysisTab === 'detailed' ? 'var(--shadow-button)' : 'none'
+                        }}
+                    >
+                        📊 Análises Detalhadas
+                    </button>
+                </div>
+
+                {activeAnalysisTab === 'carteira' && (
+                    <>
 
                 {/* Filtros */}
                 <div style={{ 
@@ -562,6 +1329,422 @@ export default function PortfolioAnalysisPage() {
                                 </tr>
                             </tfoot>
                         </table>
+
+                    </>
+                )}
+
+                {/* ABA 2: ANÁLISES DETALHADAS */}
+                {activeAnalysisTab === 'detailed' && (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', backgroundColor: 'var(--bg-surface)', padding: '1.5rem', borderRadius: 'var(--radius)', border: '1px solid var(--border-default)', boxShadow: 'var(--shadow-card)' }}>
+                        {!isEditingChart ? (
+                            <>
+                                {/* Header list view */}
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid var(--border-subtle)', paddingBottom: '1rem', marginBottom: '1rem' }}>
+                                    <div>
+                                        <h3 style={{ fontSize: '1.1rem', fontWeight: 800, color: 'var(--text-primary)', margin: 0 }}>
+                                            📊 Gráficos Customizados Cadastrados
+                                        </h3>
+                                        <p style={{ margin: '0.25rem 0 0 0', fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
+                                            Analise qualquer conta DRE do período de {['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'][activeMonthNumber - 1]} de {selectedYear}.
+                                        </p>
+                                    </div>
+                                    <button
+                                        onClick={handleAddChartClick}
+                                        style={{
+                                            padding: '0.55rem 1.25rem',
+                                            background: 'var(--gradient-brand)',
+                                            color: '#ffffff',
+                                            border: 'none',
+                                            borderRadius: '8px',
+                                            fontSize: '0.85rem',
+                                            fontWeight: 700,
+                                            cursor: 'pointer',
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            gap: '0.35rem',
+                                            boxShadow: 'var(--shadow-button)'
+                                        }}
+                                    >
+                                        ➕ Adicionar Gráfico
+                                    </button>
+                                </div>
+
+                                {loadingDetailed ? (
+                                    <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '220px' }}>
+                                        <div style={{ border: '3px solid var(--border-default)', borderTopColor: 'var(--accent-blue)', borderRadius: '50%', width: '32px', height: '32px', animation: 'spin 1s linear infinite' }} />
+                                    </div>
+                                ) : detailedAnalyses.length === 0 ? (
+                                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '4rem 2rem', textAlign: 'center', gap: '1rem' }}>
+                                        <div style={{ fontSize: '3rem' }}>📊</div>
+                                        <div>
+                                            <h4 style={{ margin: 0, fontSize: '1rem', fontWeight: 800, color: 'var(--text-primary)' }}>Nenhum gráfico cadastrado para este mês</h4>
+                                            <p style={{ margin: '0.35rem 0 0 0', fontSize: '0.85rem', color: 'var(--text-secondary)', maxWidth: '450px' }}>
+                                                Não há gráficos ou relatos históricos registrados para este período. Clique em "Adicionar Gráfico" para configurar a primeira análise.
+                                            </p>
+                                        </div>
+                                    </div>
+                                ) : (
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                                        {detailedAnalyses.map((chart: any) => (
+                                            <DetailedChartCard 
+                                                key={chart.id}
+                                                chart={chart} 
+                                                onEdit={handleEditChartClick} 
+                                                onDelete={deleteDetailedAnalysis} 
+                                                mainMonth={activeMonthNumber} 
+                                                year={selectedYear} 
+                                                viewMode={selectedViewMode} 
+                                                categories={categories} 
+                                            />
+                                        ))}
+                                    </div>
+                                )}
+                            </>
+                        ) : (
+                            /* Editor inline */
+                            <div style={{ display: 'flex', gap: '2rem', flexWrap: 'wrap' }}>
+                                {/* Form column */}
+                                <div style={{ flex: 1.2, minWidth: '320px', display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+                                    <div style={{ borderBottom: '1px solid var(--border-subtle)', paddingBottom: '0.5rem' }}>
+                                        <h4 style={{ margin: 0, fontSize: '1rem', fontWeight: 800, color: 'var(--text-primary)' }}>
+                                            {editingChartId ? '✏️ Editar Configuração do Gráfico' : '➕ Configurar Novo Gráfico'}
+                                        </h4>
+                                    </div>
+
+                                    {/* Chart Types selector buttons */}
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
+                                        <label style={{ fontSize: '0.75rem', fontWeight: 800, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Tipo de Gráfico *</label>
+                                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(120px, 1fr))', gap: '0.5rem' }}>
+                                            {[
+                                                { id: 'VERTICAL_BAR', label: '📊 Vertical' },
+                                                { id: 'HORIZONTAL_BAR', label: '➖ Horizontal' },
+                                                { id: 'LINE', label: '📈 Linha' },
+                                                { id: 'LINE_MARKERS', label: '📉 Linha/Marc.' },
+                                                { id: 'PIE', label: '🍕 Pizza' },
+                                                { id: 'DONUT', label: '🍩 Rosca' },
+                                                { id: 'GAUGE', label: '⏱️ Velocímetro' }
+                                            ].map((typeItem) => (
+                                                <button
+                                                    key={typeItem.id}
+                                                    type="button"
+                                                    onClick={() => setChartType(typeItem.id)}
+                                                    style={{
+                                                        padding: '0.6rem',
+                                                        fontSize: '0.8rem',
+                                                        fontWeight: 700,
+                                                        borderRadius: '8px',
+                                                        border: '1px solid',
+                                                        borderColor: chartType === typeItem.id ? 'var(--accent-indigo)' : 'var(--border-default)',
+                                                        background: chartType === typeItem.id ? 'rgba(99, 102, 241, 0.05)' : 'var(--bg-surface)',
+                                                        color: chartType === typeItem.id ? 'var(--accent-indigo)' : 'var(--text-secondary)',
+                                                        cursor: 'pointer',
+                                                        transition: 'all 0.15s',
+                                                        display: 'flex',
+                                                        alignItems: 'center',
+                                                        justifyContent: 'center',
+                                                        gap: '0.25rem'
+                                                    }}
+                                                >
+                                                    {typeItem.label}
+                                                </button>
+                                            ))}
+                                        </div>
+                                    </div>
+
+                                    {/* Category DRE searchable dropdown */}
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem', position: 'relative' }}>
+                                        <label style={{ fontSize: '0.75rem', fontWeight: 800, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Conta do DRE / Indicador *</label>
+                                        <div
+                                            onClick={() => {
+                                                setIsChartCategoryDropdownOpen(!isChartCategoryDropdownOpen);
+                                                setChartCategorySearch('');
+                                            }}
+                                            style={{
+                                                cursor: 'pointer',
+                                                display: 'flex',
+                                                justifyContent: 'space-between',
+                                                alignItems: 'center',
+                                                padding: '0 0.85rem',
+                                                height: '38px',
+                                                fontSize: '0.85rem',
+                                                fontWeight: 600,
+                                                border: '1px solid var(--border-default)',
+                                                borderRadius: '8px',
+                                                background: 'var(--bg-surface)',
+                                                outline: 'none',
+                                                userSelect: 'none',
+                                                color: 'var(--text-primary)'
+                                            }}
+                                        >
+                                            <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                                {(() => {
+                                                    const dreLabels: Record<string, string> = {
+                                                        vRev: '(=) Receita Bruta',
+                                                        vTaxes: '(-) Deduções / Impostos',
+                                                        vRecLiq: '(=) Receita Líquida',
+                                                        vCosts: '(-) Custos Operacionais',
+                                                        vGrossMarg: '(=) Margem Bruta',
+                                                        vOpExp: '(-) Despesas Operacionais',
+                                                        vContribMarg: '(=) Margem de Contribuição',
+                                                        vAdminExp: '(-) Despesas Administrativas',
+                                                        vEbitda: '(=) EBITDA',
+                                                        vFin: '(-) Despesas Financeiras',
+                                                        vNetProfit: '(=) Lucro Líquido'
+                                                    };
+                                                    if (dreLabels[chartCategory]) return dreLabels[chartCategory];
+                                                    const found = categories.find((cat: any) => cat.id === chartCategory);
+                                                    return found ? found.name : 'Selecione uma conta...';
+                                                })()}
+                                            </span>
+                                            <span style={{ fontSize: '0.6rem', opacity: 0.5 }}>▼</span>
+                                        </div>
+
+                                        {isChartCategoryDropdownOpen && (
+                                            <>
+                                                <div 
+                                                    style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, zIndex: 9999 }} 
+                                                    onClick={() => setIsChartCategoryDropdownOpen(false)} 
+                                                />
+                                                <div 
+                                                    className="glass-card" 
+                                                    style={{ 
+                                                        position: 'absolute', 
+                                                        top: 'calc(100% + 4px)', 
+                                                        left: 0, 
+                                                        right: 0, 
+                                                        zIndex: 10000, 
+                                                        maxHeight: '220px', 
+                                                        overflowY: 'auto', 
+                                                        background: 'var(--bg-surface)', 
+                                                        border: '1px solid var(--border-default)',
+                                                        borderRadius: '8px',
+                                                        boxShadow: 'var(--shadow-card)',
+                                                        padding: '0.25rem 0'
+                                                    }}
+                                                >
+                                                    <div style={{ padding: '0.4rem 0.5rem', borderBottom: '1px solid var(--border-subtle)', position: 'sticky', top: 0, background: 'var(--bg-surface)', zIndex: 10 }}>
+                                                        <input 
+                                                            type="text" 
+                                                            placeholder="Pesquisar conta..." 
+                                                            value={chartCategorySearch}
+                                                            onChange={(e) => setChartCategorySearch(e.target.value)}
+                                                            onClick={(e) => e.stopPropagation()}
+                                                            autoFocus
+                                                            style={{ 
+                                                                width: '100%', 
+                                                                padding: '0.45rem 0.6rem', 
+                                                                fontSize: '0.8rem', 
+                                                                borderRadius: '6px', 
+                                                                border: '1px solid var(--border-default)', 
+                                                                background: 'var(--bg-elevated)', 
+                                                                outline: 'none',
+                                                                color: 'var(--text-primary)',
+                                                                boxSizing: 'border-box'
+                                                            }}
+                                                        />
+                                                    </div>
+                                                    <div style={{ maxHeight: '160px', overflowY: 'auto' }}>
+                                                        {/* DRE Options */}
+                                                        {Object.entries({
+                                                            vRev: '(=) Receita Bruta',
+                                                            vTaxes: '(-) Deduções / Impostos',
+                                                            vRecLiq: '(=) Receita Líquida',
+                                                            vCosts: '(-) Custos Operacionais',
+                                                            vGrossMarg: '(=) Margem Bruta',
+                                                            vOpExp: '(-) Despesas Operacionais',
+                                                            vContribMarg: '(=) Margem de Contribuição',
+                                                            vAdminExp: '(-) Despesas Administrativas',
+                                                            vEbitda: '(=) EBITDA',
+                                                            vFin: '(-) Despesas Financeiras',
+                                                            vNetProfit: '(=) Lucro Líquido'
+                                                        })
+                                                        .filter(([_, name]) => !chartCategorySearch || name.toLowerCase().includes(chartCategorySearch.toLowerCase()))
+                                                        .map(([id, name]) => (
+                                                            <div
+                                                                key={id}
+                                                                onClick={() => {
+                                                                    setChartCategory(id);
+                                                                    setIsChartCategoryDropdownOpen(false);
+                                                                }}
+                                                                style={{ 
+                                                                    padding: '0.45rem 0.75rem', 
+                                                                    cursor: 'pointer', 
+                                                                    fontSize: '0.8rem', 
+                                                                    fontWeight: 700,
+                                                                    color: 'var(--accent-indigo)',
+                                                                    background: chartCategory === id ? 'rgba(99, 102, 241, 0.05)' : 'transparent'
+                                                                }}
+                                                            >
+                                                                ⭐ {name}
+                                                            </div>
+                                                        ))}
+                                                        {/* Categories list */}
+                                                        {categories
+                                                            .filter(cat => !analysisSelectedTenant || cat.tenantId === analysisSelectedTenant)
+                                                            .filter(cat => !chartCategorySearch || cat.name.toLowerCase().includes(chartCategorySearch.toLowerCase()))
+                                                            .sort((a, b) => a.name.localeCompare(b.name))
+                                                            .map((cat: any) => (
+                                                                <div
+                                                                    key={cat.id}
+                                                                    onClick={() => {
+                                                                        setChartCategory(cat.id);
+                                                                        setIsChartCategoryDropdownOpen(false);
+                                                                    }}
+                                                                    style={{ 
+                                                                        padding: '0.45rem 0.75rem', 
+                                                                        cursor: 'pointer', 
+                                                                        fontSize: '0.8rem', 
+                                                                        fontWeight: 600,
+                                                                        color: 'var(--text-primary)',
+                                                                        background: chartCategory === cat.id ? 'rgba(99, 102, 241, 0.05)' : 'transparent'
+                                                                    }}
+                                                                >
+                                                                    {cat.name}
+                                                                </div>
+                                                            ))
+                                                        }
+                                                    </div>
+                                                </div>
+                                            </>
+                                        )}
+                                    </div>
+
+                                    {/* Tenant Context Selector */}
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
+                                        <label style={{ fontSize: '0.75rem', fontWeight: 800, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Salvar no Contexto da Empresa *</label>
+                                        <select
+                                            value={analysisSelectedTenant}
+                                            onChange={(e) => setAnalysisSelectedTenant(e.target.value)}
+                                            style={{ width: '100%', height: '38px', padding: '0 0.75rem', fontSize: '0.85rem', fontWeight: 600, border: '1px solid var(--border-default)', borderRadius: '8px', outline: 'none', background: 'var(--bg-surface)', color: 'var(--text-primary)', cursor: 'pointer' }}
+                                        >
+                                            {companies.map((c: any) => (
+                                                <option key={c.id} value={c.id}>{c.name}</option>
+                                            ))}
+                                        </select>
+                                    </div>
+
+                                    {/* Filters: Tenant & Cost Center */}
+                                    <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
+                                        <div style={{ flex: 1, minWidth: '150px', display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
+                                            <label style={{ fontSize: '0.75rem', fontWeight: 800, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Filtro de Empresa no Gráfico *</label>
+                                            <select
+                                                value={chartTenant}
+                                                onChange={(e) => setChartTenant(e.target.value)}
+                                                style={{ width: '100%', height: '38px', padding: '0 0.75rem', fontSize: '0.85rem', fontWeight: 600, border: '1px solid var(--border-default)', borderRadius: '8px', outline: 'none', background: 'var(--bg-surface)', color: 'var(--text-primary)', cursor: 'pointer' }}
+                                            >
+                                                <option value="ALL">Todas Empresas (Consolidado)</option>
+                                                {companies.map((c: any) => (
+                                                    <option key={c.id} value={c.id}>{c.name}</option>
+                                                ))}
+                                            </select>
+                                        </div>
+                                        <div style={{ flex: 1, minWidth: '150px', display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
+                                            <label style={{ fontSize: '0.75rem', fontWeight: 800, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Centro de Custo</label>
+                                            <select
+                                                value={chartCC}
+                                                onChange={(e) => setChartCC(e.target.value)}
+                                                style={{ width: '100%', height: '38px', padding: '0 0.75rem', fontSize: '0.85rem', fontWeight: 600, border: '1px solid var(--border-default)', borderRadius: '8px', outline: 'none', background: 'var(--bg-surface)', color: 'var(--text-primary)', cursor: 'pointer' }}
+                                            >
+                                                <option value="ALL">Todos Centros de Custo</option>
+                                                {costCenters.map((cc: any) => (
+                                                    <option key={cc.id} value={cc.nome}>{cc.nome}</option>
+                                                ))}
+                                            </select>
+                                        </div>
+                                    </div>
+
+                                    {/* Option switches checkboxes */}
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', background: 'var(--bg-elevated)', padding: '1rem', borderRadius: '8px', border: '1px solid var(--border-default)' }}>
+                                        <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-primary)', cursor: 'pointer' }}>
+                                            <input
+                                                type="checkbox"
+                                                checked={chartOnlyRealized}
+                                                onChange={(e) => setChartOnlyRealized(e.target.checked)}
+                                                style={{ accentColor: 'var(--accent-indigo)', cursor: 'pointer' }}
+                                            />
+                                            Somente Realizado (oculta o Orçado/Meta)
+                                        </label>
+                                        <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-primary)', cursor: 'pointer' }}>
+                                            <input
+                                                type="checkbox"
+                                                checked={chartShowAtingido}
+                                                onChange={(e) => setChartShowAtingido(e.target.checked)}
+                                                style={{ accentColor: 'var(--accent-indigo)', cursor: 'pointer' }}
+                                            />
+                                            Adicionar Linha de Atingido
+                                        </label>
+                                        <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-primary)', cursor: 'pointer' }}>
+                                            <input
+                                                type="checkbox"
+                                                checked={chartPctOfRevenue}
+                                                onChange={(e) => setChartPctOfRevenue(e.target.checked)}
+                                                style={{ accentColor: 'var(--accent-indigo)', cursor: 'pointer' }}
+                                            />
+                                            Percentual sobre Receita (calculado sobre Receita Líquida)
+                                        </label>
+                                    </div>
+
+                                    {/* Historical Analysis Textarea */}
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
+                                        <label style={{ fontSize: '0.75rem', fontWeight: 800, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Análise e Histórico Relacionado</label>
+                                        <textarea
+                                            value={chartAnalysisText}
+                                            onChange={(e) => setChartAnalysisText(e.target.value)}
+                                            placeholder="Registre aqui observações históricas ou análises qualitativas desse gráfico..."
+                                            style={{ height: '90px', padding: '0.6rem', fontSize: '0.85rem', border: '1px solid var(--border-default)', borderRadius: '8px', outline: 'none', resize: 'vertical', fontFamily: 'inherit', background: 'var(--bg-surface)', color: 'var(--text-primary)' }}
+                                        />
+                                    </div>
+
+                                    {/* Form actions */}
+                                    <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem', borderTop: '1px solid var(--border-subtle)', paddingTop: '1rem' }}>
+                                        <button
+                                            type="button"
+                                            onClick={() => setIsEditingChart(false)}
+                                            style={{ padding: '0.5rem 1.25rem', background: 'var(--bg-surface)', border: '1px solid var(--border-default)', borderRadius: '8px', fontSize: '0.85rem', fontWeight: 700, color: 'var(--text-secondary)', cursor: 'pointer' }}
+                                        >
+                                            Cancelar
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={saveDetailedAnalysis}
+                                            disabled={savingChart}
+                                            style={{ padding: '0.5rem 1.5rem', background: 'var(--gradient-brand)', color: '#ffffff', border: 'none', borderRadius: '8px', fontSize: '0.85rem', fontWeight: 700, cursor: 'pointer', boxShadow: 'var(--shadow-button)' }}
+                                        >
+                                            {savingChart ? 'Salvando...' : 'Salvar Gráfico'}
+                                        </button>
+                                    </div>
+                                </div>
+
+                                {/* Preview column */}
+                                <div style={{ flex: 1, minWidth: '320px', display: 'flex', flexDirection: 'column', gap: '1rem', background: 'var(--bg-elevated)', padding: '1.5rem', borderRadius: '12px', border: '1px solid var(--border-default)', alignSelf: 'stretch', justifyContent: 'center' }}>
+                                    <div style={{ borderBottom: '1px solid var(--border-subtle)', paddingBottom: '0.5rem' }}>
+                                        <h4 style={{ margin: 0, fontSize: '0.8rem', fontWeight: 800, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                                            👁️ Pré-visualização Real-Time
+                                        </h4>
+                                    </div>
+
+                                    <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '260px' }}>
+                                        {loadingPreviewData ? (
+                                            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.5rem' }}>
+                                                <div style={{ border: '3px solid var(--border-default)', borderTopColor: 'var(--accent-blue)', borderRadius: '50%', width: '32px', height: '32px', animation: 'spin 1s linear infinite' }} />
+                                                <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', fontWeight: 600 }}>Carregando dados...</span>
+                                            </div>
+                                        ) : !chartCategory ? (
+                                            <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontStyle: 'italic', textAlign: 'center' }}>
+                                                Selecione uma conta para ver o gráfico.
+                                            </div>
+                                        ) : (
+                                            <div style={{ width: '100%', display: 'flex', justifyContent: 'center' }}>
+                                                {renderDetailedChart(chartType, chartPreviewData, chartOnlyRealized, chartShowAtingido, chartPctOfRevenue, activeMonthNumber)}
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                )}
+
                         <style jsx global>{`
                             .hover-row:hover {
                                 background-color: rgba(37, 99, 235, 0.02) !important;

@@ -1278,7 +1278,7 @@ export default function PortfolioAnalysisPage() {
                                                 Selecione uma conta para ver o gráfico.
                                             </div>
                                         ) : (
-                                            <div style={{ width: '100%', display: 'flex', justifyContent: 'center' }}>
+            <div style={{ width: '100%' }}>
                                                 {renderDetailedChart(chartType, chartPreviewData, chartOnlyRealized, chartShowAtingido, chartPctOfRevenue, activeMonthNumber)}
                                             </div>
                                         )}
@@ -1385,7 +1385,7 @@ const DetailedChartCard = ({ chart, onEdit, onDelete, mainMonth, year, viewMode,
                 </div>
             </div>
 
-            <div style={{ width: '100%', display: 'flex', justifyContent: 'center' }}>
+            <div style={{ width: '100%' }}>
                 {loading ? (
                     <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '180px', width: '100%' }}>
                         <div style={{ border: '2.5px solid #f3f3f3', borderTop: '2.5px solid #3b82f6', borderRadius: '50%', width: '22px', height: '22px', animation: 'spin 1s linear infinite' }} />
@@ -1462,18 +1462,18 @@ const renderDetailedChart = (
             const scaleMaxVal = maxVal * 1.20; // 20% respiro vertical para rótulos de valores
 
             return (
-                <svg viewBox="0 0 920 260" width="100%" height="220px" style={{ overflow: 'visible' }}>
+                <svg viewBox="0 0 1200 260" width="100%" height="auto" style={{ overflow: 'visible', maxHeight: '250px' }}>
                     {hasNegative ? (
                         <>
-                            <line x1="80" y1="130" x2="870" y2="130" stroke="var(--border-strong)" strokeWidth="1.5" />
-                            <line x1="80" y1="70" x2="870" y2="70" stroke="var(--border-subtle)" strokeDasharray="3 3" />
-                            <line x1="80" y1="190" x2="870" y2="190" stroke="var(--border-subtle)" strokeDasharray="3 3" />
+                            <line x1="80" y1="130" x2="1140" y2="130" stroke="var(--border-strong)" strokeWidth="1.5" />
+                            <line x1="80" y1="70" x2="1140" y2="70" stroke="var(--border-subtle)" strokeDasharray="3 3" />
+                            <line x1="80" y1="190" x2="1140" y2="190" stroke="var(--border-subtle)" strokeDasharray="3 3" />
                         </>
                     ) : (
                         <>
-                            <line x1="80" y1="210" x2="870" y2="210" stroke="var(--border-default)" strokeWidth="1" />
-                            <line x1="80" y1="130" x2="870" y2="130" stroke="var(--border-subtle)" strokeDasharray="3 3" />
-                            <line x1="80" y1="50" x2="870" y2="50" stroke="var(--border-subtle)" strokeDasharray="3 3" />
+                            <line x1="80" y1="210" x2="1140" y2="210" stroke="var(--border-default)" strokeWidth="1" />
+                            <line x1="80" y1="130" x2="1140" y2="130" stroke="var(--border-subtle)" strokeDasharray="3 3" />
+                            <line x1="80" y1="50" x2="1140" y2="50" stroke="var(--border-subtle)" strokeDasharray="3 3" />
                         </>
                     )}
 
@@ -1490,10 +1490,10 @@ const renderDetailedChart = (
                         const bHeight = onlyRealized ? 0 : (Math.abs(valB) / scaleMaxVal) * maxBarHeight;
                         const rHeight = (idx + 1 <= currentMonthIdx + 1) ? (Math.abs(valR) / scaleMaxVal) * maxBarHeight : 0;
                         
-                        const xBase = 80 + idx * 70;
-                        const barWidth = onlyRealized ? 28 : 22;
-                        const xB = xBase + 6;
-                        const xR = onlyRealized ? xBase + 18 : xBase + 32;
+                        const xBase = 80 + idx * 94;
+                        const barWidth = onlyRealized ? 38 : 30;
+                        const xB = xBase + 10;
+                        const xR = onlyRealized ? xBase + 28 : xBase + 44;
 
                         const isClose = !onlyRealized && (idx + 1 <= currentMonthIdx + 1) && Math.abs(bHeight - rHeight) < 14 && (valB >= 0 === valR >= 0);
 
@@ -1503,7 +1503,7 @@ const renderDetailedChart = (
                             rLabelY = valR >= 0 ? yBaseline - rHeight - 15 : yBaseline + rHeight + 21;
                         }
 
-                        const xMonthText = xBase + 30;
+                        const xMonthText = xBase + 42;
 
                         return (
                             <g key={idx}>
@@ -1515,7 +1515,7 @@ const renderDetailedChart = (
                                             width={barWidth} 
                                             height={bHeight} 
                                             fill="var(--border-strong)" 
-                                            rx="2" 
+                                            rx="3" 
                                         />
                                         <text x={xB + barWidth / 2} y={bLabelY} textAnchor="middle" fill="var(--text-secondary)" fontSize="8px" fontWeight="700">{formatVal(valB)}</text>
                                     </>
@@ -1529,7 +1529,7 @@ const renderDetailedChart = (
                                             width={barWidth} 
                                             height={rHeight} 
                                             fill={valR >= 0 ? 'var(--accent-indigo)' : 'var(--accent-red)'} 
-                                            rx="2" 
+                                            rx="3" 
                                         />
                                         <text x={xR + barWidth / 2} y={rLabelY} textAnchor="middle" fill={valR >= 0 ? '#1e3a8a' : '#7f1d1d'} fontSize="8px" fontWeight="700">{formatVal(valR)}</text>
                                     </>
@@ -1546,12 +1546,12 @@ const renderDetailedChart = (
         }
 
         case 'HORIZONTAL_BAR': {
-            const xBaseline = 100;
-            const maxBarWidth = 630;
+            const xBaseline = 120;
+            const maxBarWidth = 980;
             const scaleMaxVal = maxVal * 1.15; // 15% respiro horizontal para rótulos de valores
 
             return (
-                <svg viewBox="0 0 820 320" width="100%" height="280px" style={{ overflow: 'visible' }}>
+                <svg viewBox="0 0 1200 320" width="100%" height="auto" style={{ overflow: 'visible', maxHeight: '280px' }}>
                     <line x1={xBaseline} y1="10" x2={xBaseline} y2="295" stroke="var(--border-default)" strokeWidth="1.5" />
                     <line x1={xBaseline + maxBarWidth / 2} y1="10" x2={xBaseline + maxBarWidth / 2} y2="295" stroke="var(--border-subtle)" strokeDasharray="3 3" />
                     <line x1={xBaseline + maxBarWidth} y1="10" x2={xBaseline + maxBarWidth} y2="295" stroke="var(--border-default)" strokeDasharray="3 3" />
@@ -1627,7 +1627,7 @@ const renderDetailedChart = (
                 const valB = pctOfRevenue ? m.pctOfRevenue : m.budget;
                 const valR = (idx + 1 <= currentMonthIdx + 1) ? (pctOfRevenue ? m.pctOfRevenue : m.realized) : 0;
 
-                const x = 80 + idx * 70;
+                const x = 80 + idx * 94;
                 const yB = yBaseline - (valB / scaleMaxVal) * maxLineHeight;
                 const yR = yBaseline - (valR / scaleMaxVal) * maxLineHeight;
 
@@ -1643,18 +1643,18 @@ const renderDetailedChart = (
             });
 
             return (
-                <svg viewBox="0 0 920 260" width="100%" height="220px" style={{ overflow: 'visible' }}>
+                <svg viewBox="0 0 1200 260" width="100%" height="auto" style={{ overflow: 'visible', maxHeight: '250px' }}>
                     {hasNegative ? (
                         <>
-                            <line x1="80" y1="130" x2="870" y2="130" stroke="var(--border-strong)" strokeWidth="1.5" />
-                            <line x1="80" y1="70" x2="870" y2="70" stroke="var(--border-subtle)" strokeDasharray="3 3" />
-                            <line x1="80" y1="190" x2="870" y2="190" stroke="var(--border-subtle)" strokeDasharray="3 3" />
+                            <line x1="80" y1="130" x2="1140" y2="130" stroke="var(--border-strong)" strokeWidth="1.5" />
+                            <line x1="80" y1="70" x2="1140" y2="70" stroke="var(--border-subtle)" strokeDasharray="3 3" />
+                            <line x1="80" y1="190" x2="1140" y2="190" stroke="var(--border-subtle)" strokeDasharray="3 3" />
                         </>
                     ) : (
                         <>
-                            <line x1="80" y1="210" x2="870" y2="210" stroke="var(--border-default)" strokeWidth="1" />
-                            <line x1="80" y1="130" x2="870" y2="130" stroke="var(--border-subtle)" strokeDasharray="3 3" />
-                            <line x1="80" y1="50" x2="870" y2="50" stroke="var(--border-subtle)" strokeDasharray="3 3" />
+                            <line x1="80" y1="210" x2="1140" y2="210" stroke="var(--border-default)" strokeWidth="1" />
+                            <line x1="80" y1="130" x2="1140" y2="130" stroke="var(--border-subtle)" strokeDasharray="3 3" />
+                            <line x1="80" y1="50" x2="1140" y2="50" stroke="var(--border-subtle)" strokeDasharray="3 3" />
                         </>
                     )}
 
@@ -1690,7 +1690,7 @@ const renderDetailedChart = (
                     )}
 
                     {data.map((m, idx) => (
-                        <text key={idx} x={80 + idx * 70} y="240" textAnchor="middle" fill="var(--text-muted)" fontSize="9px" fontWeight="700">
+                        <text key={idx} x={80 + idx * 94} y="240" textAnchor="middle" fill="var(--text-muted)" fontSize="9px" fontWeight="700">
                             {['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'][idx]}
                         </text>
                     ))}

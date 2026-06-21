@@ -283,8 +283,7 @@ export async function GET(request: Request) {
                     budgetRev: budgetRevThous
                 };
             })
-            .filter(c => Math.abs(c.realizedRev) > 0 || Math.abs(c.budgetRev) > 0 || Math.abs(c.realizedValue) > 0 || Math.abs(c.budgetValue) > 0)
-            .filter(c => c.id !== 'DEFAULT' || Math.abs(c.realizedRev) > 0)
+            .filter(c => c.budgetRev > 0)
             .sort((a, b) => b.realizedValue - a.realizedValue);
 
         return NextResponse.json({

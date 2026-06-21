@@ -1112,76 +1112,195 @@ export default function DFCPage() {
                     )}
 
                     {/* ABA: AUDITORIA E CONCILIAÇÃO */}
-                    {activeTab === 'audit' && data && (
-                        <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '2rem' }}>
-                            {/* Listagem de Contas e Saldos */}
-                            <div style={{ backgroundColor: '#ffffff', borderRadius: '12px', padding: '1.5rem', border: '1px solid #e2e8f0', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
-                                <h3 style={{ fontSize: '1rem', fontWeight: 700, color: '#0f172a', margin: '0 0 1rem' }}>Auditoria de Contas Financeiras</h3>
-                                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '1rem' }}>
-                                    {data.bankAccounts.map((acc) => (
-                                        <div key={acc.id} style={{ border: '1px solid #e2e8f0', padding: '1rem', borderRadius: '8px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                            <div>
-                                                <h4 style={{ margin: 0, fontSize: '0.9rem', fontWeight: 600, color: '#1e293b' }}>{acc.name}</h4>
-                                                <span style={{ fontSize: '0.75rem', color: '#64748b' }}>
-                                                    {acc.tenant?.name || 'Sincronizado da API'}
-                                                </span>
-                                            </div>
-                                            <span style={{ fontSize: '1.1rem', fontWeight: 700, color: acc.balance >= 0 ? '#1e293b' : '#ef4444' }}>
-                                                {formatCurrency(acc.balance)}
-                                            </span>
-                                        </div>
-                                    ))}
-                                    {data.bankAccounts.length === 0 && (
-                                        <div style={{ gridColumn: '1/-1', textAlign: 'center', padding: '2rem', color: '#94a3b8' }}>Nenhuma conta financeira vinculada encontrada. Clique em Sincronizar.</div>
-                                    )}
-                                </div>
-                            </div>
+                    {activeTab === 'audit' && data && (() => {
+                        const today = new Date();
+                        const curYear = today.getFullYear();
+                        const curMonthIdx = today.getMonth();
 
-                            {/* Listagem de Inadimplência e Títulos em Aberto */}
-                            <div style={{ backgroundColor: '#ffffff', borderRadius: '12px', padding: '1.5rem', border: '1px solid #e2e8f0', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
-                                <h3 style={{ fontSize: '1rem', fontWeight: 700, color: '#0f172a', margin: '0 0 1rem' }}>Auditoria de Conciliação e Pendências</h3>
-                                <div style={{ overflowX: 'auto' }}>
-                                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.875rem', textAlign: 'left' }}>
-                                        <thead>
-                                            <tr style={{ borderBottom: '2px solid #f1f5f9', color: '#475569' }}>
-                                                <th style={{ padding: '0.75rem 1rem' }}>Data Vencimento</th>
-                                                <th style={{ padding: '0.75rem 1rem' }}>Cliente/Fornecedor</th>
-                                                <th style={{ padding: '0.75rem 1rem' }}>Descrição</th>
-                                                <th style={{ padding: '0.75rem 1rem' }}>Categoria</th>
-                                                <th style={{ padding: '0.75rem 1rem' }}>Status</th>
-                                                <th style={{ padding: '0.75rem 1rem', textAnchor: 'end', textAlign: 'right' }}>Valor</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody>
-                                            {data.monthlyData.flatMap(m => m.details).filter(d => !d.isRealized).sort((a, b) => a.date.localeCompare(b.date)).map((item, idx) => (
-                                                <tr key={idx} style={{ borderBottom: '1px solid #f1f5f9' }}>
-                                                    <td style={{ padding: '0.75rem 1rem' }}>{new Date(item.originalDate || item.date).toLocaleDateString('pt-BR')}</td>
-                                                    <td style={{ padding: '0.75rem 1rem', color: '#1e293b', fontWeight: 500 }}>{item.customer || '-'}</td>
-                                                    <td style={{ padding: '0.75rem 1rem', color: '#475569' }}>{item.description}</td>
-                                                    <td style={{ padding: '0.75rem 1rem', color: '#64748b' }}>{item.category}</td>
-                                                    <td style={{ padding: '0.75rem 1rem' }}>
-                                                        {item.isOverdue ? (
-                                                            <span style={{ padding: '0.2rem 0.5rem', backgroundColor: '#fef2f2', color: '#ef4444', borderRadius: '4px', fontSize: '0.75rem', fontWeight: 600 }}>Atrasado (Inadimplente)</span>
-                                                        ) : (
-                                                            <span style={{ padding: '0.2rem 0.5rem', backgroundColor: '#f0fdf4', color: '#16a34a', borderRadius: '4px', fontSize: '0.75rem', fontWeight: 600 }}>No Prazo</span>
-                                                        )}
-                                                    </td>
-                                                    <td style={{ padding: '0.75rem 1rem', textAlign: 'right', fontWeight: 600, color: item.isRevenue ? '#16a34a' : '#dc2626' }}>
-                                                        {formatCurrency(item.amount)}
-                                                    </td>
-                                                </tr>
-                                            ))}
-                                            {data.monthlyData.flatMap(m => m.details).filter(d => !d.isRealized).length === 0 && (
-                                                <tr>
-                                                    <td colSpan={6} style={{ padding: '2rem', textAlign: 'center', color: '#94a3b8' }}>Não há pendências de conciliação encontradas.</td>
-                                                </tr>
-                                            )}
-                                        </tbody>
-                                    </table>
+                        // Contas bancárias agrupadas por empresa
+                        const groupedAccounts = data.bankAccounts.reduce((acc, accItem) => {
+                            const tName = accItem.tenant?.name || 'Empresa Desconhecida';
+                            if (!acc[tName]) {
+                                acc[tName] = [];
+                            }
+                            acc[tName].push(accItem);
+                            return acc;
+                        }, {} as Record<string, typeof data.bankAccounts>);
+
+                        // Filtrar pendências de acordo com o limite do mês corrente
+                        const pendingItems = data.monthlyData
+                            .filter(m => selectedYear < curYear || (selectedYear === curYear && (m.month - 1) <= curMonthIdx))
+                            .flatMap(m => m.details)
+                            .filter(d => !d.isRealized);
+
+                        // Pendências agrupadas por empresa
+                        const groupedPending = pendingItems.reduce((acc, item) => {
+                            const tName = item.tenantName || 'Empresa Desconhecida';
+                            if (!acc[tName]) {
+                                acc[tName] = {
+                                    name: tName,
+                                    items: [],
+                                    totalInflow: 0,
+                                    totalOutflow: 0
+                                };
+                            }
+                            acc[tName].items.push(item);
+                            if (item.isRevenue) {
+                                acc[tName].totalInflow += item.amount;
+                            } else {
+                                acc[tName].totalOutflow += item.amount;
+                            }
+                            return acc;
+                        }, {} as Record<string, { name: string; items: any[]; totalInflow: number; totalOutflow: number }>);
+
+                        const pendingGroups = Object.values(groupedPending).sort((a, b) => a.name.localeCompare(b.name));
+
+                        return (
+                            <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '2rem' }}>
+                                {/* Listagem de Contas e Saldos Agrupados */}
+                                <div style={{ backgroundColor: '#ffffff', borderRadius: '12px', padding: '1.5rem', border: '1px solid #e2e8f0', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
+                                    <h3 style={{ fontSize: '1rem', fontWeight: 700, color: '#0f172a', margin: '0 0 1.25rem' }}>Auditoria de Contas Financeiras</h3>
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+                                        {Object.entries(groupedAccounts).sort((a, b) => a[0].localeCompare(b[0])).map(([tName, accounts]) => (
+                                            <div key={tName}>
+                                                <h4 style={{ fontSize: '0.8rem', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', marginBottom: '0.75rem', borderBottom: '1px solid #f1f5f9', paddingBottom: '0.25rem', letterSpacing: '0.05em' }}>
+                                                    {tName}
+                                                </h4>
+                                                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '1rem' }}>
+                                                    {accounts.map((acc) => (
+                                                        <div key={acc.id} style={{ border: '1px solid #e2e8f0', padding: '1rem', borderRadius: '8px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#f8fafc' }}>
+                                                            <h5 style={{ margin: 0, fontSize: '0.875rem', fontWeight: 600, color: '#1e293b' }}>{acc.name}</h5>
+                                                            <span style={{ fontSize: '1.05rem', fontWeight: 700, color: acc.balance >= 0 ? '#1e293b' : '#ef4444' }}>
+                                                                {formatCurrency(acc.balance)}
+                                                            </span>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        ))}
+                                        {data.bankAccounts.length === 0 && (
+                                            <div style={{ textAlign: 'center', padding: '2rem', color: '#94a3b8' }}>Nenhuma conta financeira vinculada encontrada. Clique em Sincronizar.</div>
+                                        )}
+                                    </div>
+                                </div>
+
+                                {/* Listagem de Inadimplência e Títulos em Aberto Agrupados */}
+                                <div style={{ backgroundColor: '#ffffff', borderRadius: '12px', padding: '1.5rem', border: '1px solid #e2e8f0', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
+                                    <h3 style={{ fontSize: '1rem', fontWeight: 700, color: '#0f172a', margin: '0 0 1.25rem' }}>Auditoria de Conciliação e Pendências</h3>
+                                    
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                                        {pendingGroups.map((group) => {
+                                            const isExpanded = !!expandedTenants[`audit-${group.name}`];
+                                            return (
+                                                <div key={group.name} style={{ backgroundColor: '#ffffff', borderRadius: '12px', border: '1px solid #e2e8f0', boxShadow: '0 1px 3px rgba(0,0,0,0.02)', overflow: 'hidden' }}>
+                                                    {/* Header do Accordion */}
+                                                    <div 
+                                                        onClick={() => toggleTenant(`audit-${group.name}`)}
+                                                        style={{ 
+                                                            padding: '1.25rem 1.5rem', 
+                                                            display: 'flex', 
+                                                            justifyContent: 'space-between', 
+                                                            alignItems: 'center', 
+                                                            cursor: 'pointer', 
+                                                            backgroundColor: '#f8fafc',
+                                                            borderBottom: isExpanded ? '1px solid #e2e8f0' : 'none',
+                                                            userSelect: 'none',
+                                                            transition: 'background-color 0.2s',
+                                                            flexWrap: 'wrap',
+                                                            gap: '1rem'
+                                                        }}
+                                                    >
+                                                        {/* Lado Esquerdo */}
+                                                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                                                            <svg 
+                                                                width="16" 
+                                                                height="16" 
+                                                                viewBox="0 0 24 24" 
+                                                                fill="none" 
+                                                                stroke="#475569" 
+                                                                strokeWidth="2.5" 
+                                                                style={{ 
+                                                                    transform: isExpanded ? 'rotate(90deg)' : 'rotate(0deg)', 
+                                                                    transition: 'transform 0.2s' 
+                                                                }}
+                                                            >
+                                                                <polyline points="9 18 15 12 9 6" />
+                                                            </svg>
+                                                            <span style={{ fontSize: '0.95rem', fontWeight: 700, color: '#0f172a' }}>{group.name}</span>
+                                                            <span style={{ fontSize: '0.75rem', fontWeight: 600, backgroundColor: '#e2e8f0', color: '#475569', padding: '0.15rem 0.5rem', borderRadius: '12px' }}>
+                                                                {group.items.length} {group.items.length === 1 ? 'pendência' : 'pendências'}
+                                                            </span>
+                                                        </div>
+
+                                                        {/* Lado Direito */}
+                                                        <div style={{ display: 'flex', alignItems: 'center', gap: '1.5rem', flexWrap: 'wrap' }}>
+                                                            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end' }}>
+                                                                <span style={{ fontSize: '0.7rem', color: '#64748b', fontWeight: 600, textTransform: 'uppercase' }}>A Receber</span>
+                                                                <span style={{ fontSize: '0.9rem', fontWeight: 700, color: '#16a34a' }}>{formatCurrency(group.totalInflow)}</span>
+                                                            </div>
+                                                            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end' }}>
+                                                                <span style={{ fontSize: '0.7rem', color: '#64748b', fontWeight: 600, textTransform: 'uppercase' }}>A Pagar</span>
+                                                                <span style={{ fontSize: '0.9rem', fontWeight: 700, color: '#dc2626' }}>{formatCurrency(group.totalOutflow)}</span>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+
+                                                    {/* Tabela do Accordion */}
+                                                    {isExpanded && (
+                                                        <div style={{ overflowX: 'auto', width: '100%' }}>
+                                                            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.875rem', textAlign: 'left' }}>
+                                                                <thead>
+                                                                    <tr style={{ borderBottom: '2px solid #f1f5f9', color: '#475569', backgroundColor: '#ffffff' }}>
+                                                                        <th style={{ padding: '0.75rem 1.5rem' }}>Data Vencimento</th>
+                                                                        <th style={{ padding: '0.75rem 1.5rem' }}>Cliente/Fornecedor</th>
+                                                                        <th style={{ padding: '0.75rem 1.5rem' }}>Descrição</th>
+                                                                        <th style={{ padding: '0.75rem 1.5rem' }}>Categoria</th>
+                                                                        <th style={{ padding: '0.75rem 1.5rem' }}>Status</th>
+                                                                        <th style={{ padding: '0.75rem 1.5rem', textAlign: 'right' }}>Valor</th>
+                                                                    </tr>
+                                                                </thead>
+                                                                <tbody>
+                                                                    {group.items.sort((a, b) => a.date.localeCompare(b.date)).map((item, idx) => (
+                                                                        <tr key={item.id || idx} style={{ borderBottom: '1px solid #f1f5f9', backgroundColor: idx % 2 === 0 ? '#f8fafc' : '#ffffff' }}>
+                                                                            <td style={{ padding: '0.75rem 1.5rem', fontWeight: 500 }}>
+                                                                                {new Date(item.originalDate || item.date).toLocaleDateString('pt-BR')}
+                                                                            </td>
+                                                                            <td style={{ padding: '0.75rem 1.5rem', color: '#1e293b', fontWeight: 500 }}>{item.customer || '-'}</td>
+                                                                            <td style={{ padding: '0.75rem 1.5rem', color: '#475569' }}>{item.description}</td>
+                                                                            <td style={{ padding: '0.75rem 1.5rem', color: '#64748b' }}>{item.category}</td>
+                                                                            <td style={{ padding: '0.75rem 1.5rem' }}>
+                                                                                {item.isOverdue ? (
+                                                                                    <span style={{ display: 'inline-block', padding: '0.2rem 0.5rem', borderRadius: '6px', fontSize: '0.75rem', fontWeight: 600, backgroundColor: '#fef2f2', color: '#dc2626' }}>
+                                                                                        ATRASADO
+                                                                                    </span>
+                                                                                ) : (
+                                                                                    <span style={{ display: 'inline-block', padding: '0.2rem 0.5rem', borderRadius: '6px', fontSize: '0.75rem', fontWeight: 600, backgroundColor: '#f0fdf4', color: '#16a34a' }}>
+                                                                                        NO PRAZO
+                                                                                    </span>
+                                                                                )}
+                                                                            </td>
+                                                                            <td style={{ padding: '0.75rem 1.5rem', fontWeight: 700, color: item.isRevenue ? '#16a34a' : '#dc2626', textAlign: 'right' }}>
+                                                                                {item.isRevenue ? '+' : '-'}{formatCurrency(item.amount)}
+                                                                            </td>
+                                                                        </tr>
+                                                                    ))}
+                                                                </tbody>
+                                                            </table>
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            );
+                                        })}
+                                        {pendingGroups.length === 0 && (
+                                            <div style={{ backgroundColor: '#ffffff', borderRadius: '12px', padding: '3rem', border: '1px solid #e2e8f0', textAlign: 'center', color: '#94a3b8' }}>
+                                                Não há pendências de conciliação encontradas para os filtros ativos.
+                                            </div>
+                                        )}
+                                    </div>
                                 </div>
                             </div>
-                        </div>
-                    )}
+                        );
+                    })()}
 
                     {/* ABA: CONTAS A RECEBER (CAR) */}
                     {activeTab === 'car' && data && (() => {

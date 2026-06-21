@@ -68,8 +68,7 @@ export async function GET(request: Request) {
         const isConsolidated = tenantId.toUpperCase() === 'ALL';
         const tenantFilter = isConsolidated ? {} : { tenantId };
 
-        const paramYear = searchParams.get('year');
-        const year = paramYear ? parseInt(paramYear, 10) : new Date().getFullYear();
+        const year = 2026;
         const costCenterId = searchParams.get('costCenterId') || undefined;
         
         // Controles de Projeção

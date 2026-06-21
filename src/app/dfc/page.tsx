@@ -42,7 +42,7 @@ export default function DFCPage() {
     const [costCenters, setCostCenters] = useState<any[]>([]);
     const [selectedTenant, setSelectedTenant] = useState<string>('all');
     const [selectedCostCenter, setSelectedCostCenter] = useState<string>('');
-    const [selectedYear, setSelectedYear] = useState<number>(new Date().getFullYear());
+    const [selectedYear, setSelectedYear] = useState<number>(2026);
     
     // Controles de projeção
     const [defaultRate, setDefaultRate] = useState<number>(0); // Inadimplência
@@ -458,7 +458,7 @@ export default function DFCPage() {
                             onChange={(e) => setSelectedYear(parseInt(e.target.value, 10))}
                             style={{ width: '100%', padding: '0.625rem', borderRadius: '8px', border: '1px solid #cbd5e1', outline: 'none', fontSize: '0.875rem', color: '#1e293b', fontWeight: 500 }}
                         >
-                            {[2025, 2026, 2027].map((y) => (
+                            {[2026].map((y) => (
                                 <option key={y} value={y}>{y}</option>
                             ))}
                         </select>

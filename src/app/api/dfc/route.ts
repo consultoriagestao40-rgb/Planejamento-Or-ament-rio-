@@ -99,7 +99,10 @@ export async function GET(request: Request) {
                 year: 2026, // Filtrar estritamente apenas dados do ano de 2026!
                 ...(costCenterId ? { costCenterId } : {})
             },
-            include: { category: true }
+            include: { 
+                category: true,
+                tenant: { select: { name: true } }
+            }
         });
 
         // 3. Buscar lançamentos Previstos (A Receber e A Pagar)
@@ -110,7 +113,10 @@ export async function GET(request: Request) {
                 year: 2026, // Filtrar estritamente apenas previstos originais do ano de 2026!
                 ...(costCenterId ? { costCenterId } : {})
             },
-            include: { category: true }
+            include: { 
+                category: true,
+                tenant: { select: { name: true } }
+            }
         });
 
         // 4. Calcular o Saldo Inicial do Ano (Jan 1st)
@@ -195,6 +201,8 @@ export async function GET(request: Request) {
 
                         monthlyData[monthIdx].details.push({
                             id: entry.id,
+                            tenantId: entry.tenantId,
+                            tenantName: entry.tenant?.name || 'Empresa Desconhecida',
                             date: dateObj.toISOString().split('T')[0],
                             description: entry.description,
                             customer: entry.customer,
@@ -268,6 +276,8 @@ export async function GET(request: Request) {
 
                     monthlyData[monthIdx].details.push({
                         id: entry.id,
+                        tenantId: entry.tenantId,
+                        tenantName: entry.tenant?.name || 'Empresa Desconhecida',
                         date: projDate.toISOString().split('T')[0],
                         originalDate: origDate.toISOString().split('T')[0],
                         description: entry.description,

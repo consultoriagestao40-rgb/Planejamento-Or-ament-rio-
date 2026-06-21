@@ -3154,23 +3154,26 @@ export default function BudgetGrid({
         const dataToUse = viewMode === 'acumulado' ? accumulatedDreTotals : precomputedDreTotals;
 
         // Detect if any data value is negative to switch layout dynamically
-        const hasNegative = dataToUse.some(m => m[dataKey].b < 0 || (m[dataKey].r !== undefined && m[dataKey].r < 0));
+        const hasNegative = dataToUse.some((m, idx) => 
+            m[dataKey].b < 0 || 
+            (idx <= currentMonthIdx && m[dataKey].r !== undefined && m[dataKey].r < 0)
+        );
 
         // Max absolute value across all 12 months for scale calculation
-        const maxVal = Math.max(...dataToUse.map(m => Math.max(
+        const maxVal = Math.max(...dataToUse.map((m, idx) => Math.max(
             visible.budget ? Math.abs(m[dataKey].b) : 0, 
-            visible.realized ? Math.abs(m[dataKey].r || 0) : 0
+            (visible.realized && idx <= currentMonthIdx) ? Math.abs(m[dataKey].r || 0) : 0
         ))) || 1;
 
         // Find the maximum rate to define the Y scale for percentages, default to 100
-        const maxRate = Math.max(1, ...dataToUse.map(month => {
+        const maxRate = Math.max(1, ...dataToUse.map((month, idx) => {
             const bRev = month.vRev.b;
             const bVal = month[dataKey].b;
             const bRate = bRev > 0 ? (bVal / bRev) * 100 : 0;
             
             const rRev = month.vRev.r;
             const rVal = month[dataKey].r || 0;
-            const rRate = rRev > 0 ? (rVal / rRev) * 100 : 0;
+            const rRate = (rRev > 0 && idx <= currentMonthIdx) ? (rVal / rRev) * 100 : 0;
             
             return Math.max(Math.abs(bRate), Math.abs(rRate));
         })) || 100;

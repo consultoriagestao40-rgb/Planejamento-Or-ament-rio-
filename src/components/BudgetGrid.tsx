@@ -3486,7 +3486,7 @@ export default function BudgetGrid({
         const sortedData = [...companyGrossMarginData].sort((a, b) => b.margin - a.margin);
 
         return (
-            <div className="glass-card" style={{ padding: '2rem', background: '#ffffff', borderRadius: '12px', border: '1px solid #e2e8f0', boxShadow: '0 4px 6px rgba(0,0,0,0.02)', width: '100%' }}>
+            <div className="glass-card" style={{ padding: '2rem', background: '#ffffff', borderRadius: '12px', border: '1px solid #e2e8f0', boxShadow: '0 4px 6px rgba(0,0,0,0.02)', width: '100%', height: '100%', display: 'flex', flexDirection: 'column' }}>
                 <h3 style={{ fontSize: '1rem', fontWeight: 800, color: '#0f172a', marginBottom: '1.5rem' }}>
                     Margem Bruta (MB) por Empresa (Período Selecionado)
                     <span style={{ fontSize: '0.75rem', color: '#64748b', fontWeight: 500, display: 'block', marginTop: '0.25rem' }}>
@@ -3539,7 +3539,7 @@ export default function BudgetGrid({
         const sortedData = [...companyContributionMarginData].sort((a, b) => b.margin - a.margin);
 
         return (
-            <div className="glass-card" style={{ padding: '2rem', background: '#ffffff', borderRadius: '12px', border: '1px solid #e2e8f0', boxShadow: '0 4px 6px rgba(0,0,0,0.02)', width: '100%' }}>
+            <div className="glass-card" style={{ padding: '2rem', background: '#ffffff', borderRadius: '12px', border: '1px solid #e2e8f0', boxShadow: '0 4px 6px rgba(0,0,0,0.02)', width: '100%', height: '100%', display: 'flex', flexDirection: 'column' }}>
                 <h3 style={{ fontSize: '1rem', fontWeight: 800, color: '#0f172a', marginBottom: '1.5rem' }}>
                     Margem de Contribuição (MC) por Empresa (Período Selecionado)
                     <span style={{ fontSize: '0.75rem', color: '#64748b', fontWeight: 500, display: 'block', marginTop: '0.25rem' }}>
@@ -3626,7 +3626,7 @@ export default function BudgetGrid({
         };
 
         return (
-            <div className="glass-card" style={{ padding: '1.5rem', background: '#ffffff', borderRadius: '12px', border: '1px solid #e2e8f0', boxShadow: '0 4px 6px rgba(0,0,0,0.02)', width: '100%' }}>
+            <div className="glass-card" style={{ padding: '1.5rem', background: '#ffffff', borderRadius: '12px', border: '1px solid #e2e8f0', boxShadow: '0 4px 6px rgba(0,0,0,0.02)', width: '100%', height: '100%', display: 'flex', flexDirection: 'column' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '0.5rem', marginBottom: '1.5rem' }}>
                     <div>
                         <h3 style={{ fontSize: '0.95rem', fontWeight: 800, color: '#0f172a', margin: 0 }}>
@@ -3657,11 +3657,14 @@ export default function BudgetGrid({
                     display: 'flex', 
                     gap: '0.4rem', // Espaço reduzido entre centros de custo
                     overflowX: 'auto', 
+                    overflowY: 'hidden',
                     paddingBottom: '0.75rem', 
                     paddingTop: '0.5rem',
                     width: '100%', 
                     scrollBehavior: 'smooth',
-                    WebkitOverflowScrolling: 'touch'
+                    WebkitOverflowScrolling: 'touch',
+                    flex: 1,
+                    alignItems: 'flex-end'
                 }}>
                     {contractsMarginData.map((item, idx) => {
                         const bHeight = (Math.abs(item.budgetValue) / maxAbs) * (item.budgetValue >= 0 ? heightUpper : heightLower);
@@ -3862,12 +3865,12 @@ export default function BudgetGrid({
         const maxVal = maxP + buffer;
 
         const colWidth = 50;     
-        const svgHeight = 220;    
+        const svgHeight = 310;    // Aumentado de 220 para 310 para equiparar à altura visual do gráfico de barras
         const paddingTop = 30;
         const paddingBottom = 25;
         const chartHeight = svgHeight - paddingTop - paddingBottom;
 
-        //getY com limitador interno (clamp) para garantir que pontos de percentuais extremos
+        // getY com limitador interno (clamp) para garantir que pontos de percentuais extremos
         // (como -2400%) fiquem plotados na borda inferior do gráfico em vez de disparar para fora do SVG
         const getY = (v: number) => {
             const clamped = Math.max(minVal, Math.min(maxVal, v));
@@ -3887,7 +3890,7 @@ export default function BudgetGrid({
         const realizedPath = `M ${realizedPoints}`;
 
         return (
-            <div className="glass-card" style={{ padding: '1.5rem', background: '#ffffff', borderRadius: '12px', border: '1px solid #e2e8f0', boxShadow: '0 4px 6px rgba(0,0,0,0.02)', width: '100%' }}>
+            <div className="glass-card" style={{ padding: '1.5rem', background: '#ffffff', borderRadius: '12px', border: '1px solid #e2e8f0', boxShadow: '0 4px 6px rgba(0,0,0,0.02)', width: '100%', height: '100%', display: 'flex', flexDirection: 'column' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '0.5rem', marginBottom: '1.5rem' }}>
                     <div>
                         <h3 style={{ fontSize: '0.95rem', fontWeight: 800, color: '#0f172a', margin: 0 }}>
@@ -3920,8 +3923,11 @@ export default function BudgetGrid({
                     display: 'flex', 
                     flexDirection: 'column',
                     overflowX: 'auto', 
+                    overflowY: 'hidden',
                     width: '100%',
-                    WebkitOverflowScrolling: 'touch'
+                    WebkitOverflowScrolling: 'touch',
+                    flex: 1,
+                    justifyContent: 'flex-end'
                 }}>
                     {/* Linha do SVG */}
                     <div style={{ width: `${totalWidth}px`, height: `${svgHeight}px`, position: 'relative' }}>
@@ -4590,26 +4596,26 @@ export default function BudgetGrid({
             {activeTab === 'kpi' ? (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', marginTop: '1rem', width: '100%' }}>
                     <div style={{ display: 'flex', flexDirection: 'row', gap: '1.5rem', width: '100%', flexWrap: 'wrap', alignItems: 'stretch' }}>
-                        <div style={{ flex: 1, minWidth: '350px' }}>
+                        <div style={{ flex: 1, minWidth: '350px', display: 'flex', flexDirection: 'column' }}>
                             {renderCompanyRevenueDonut()}
                         </div>
-                        <div style={{ flex: 1, minWidth: '350px' }}>
+                        <div style={{ flex: 1, minWidth: '350px', display: 'flex', flexDirection: 'column' }}>
                             {renderContractsBarChart()}
                         </div>
                     </div>
                     <div style={{ display: 'flex', flexDirection: 'row', gap: '1.5rem', width: '100%', flexWrap: 'wrap', alignItems: 'stretch' }}>
-                        <div style={{ flex: 1, minWidth: '350px' }}>
+                        <div style={{ flex: 1, minWidth: '350px', display: 'flex', flexDirection: 'column' }}>
                             {renderCompanyGrossMargin()}
                         </div>
-                        <div style={{ flex: 1, minWidth: '350px' }}>
+                        <div style={{ flex: 1, minWidth: '350px', display: 'flex', flexDirection: 'column' }}>
                             {renderCompanyContributionMargin()}
                         </div>
                     </div>
                     <div style={{ display: 'flex', flexDirection: 'row', gap: '1.5rem', width: '100%', flexWrap: 'wrap', alignItems: 'stretch' }}>
-                        <div style={{ flex: 1, minWidth: '350px' }}>
+                        <div style={{ flex: 1, minWidth: '350px', display: 'flex', flexDirection: 'column' }}>
                             {renderContractsMarginValueChart()}
                         </div>
-                        <div style={{ flex: 1, minWidth: '350px' }}>
+                        <div style={{ flex: 1, minWidth: '350px', display: 'flex', flexDirection: 'column' }}>
                             {renderContractsMarginPercentChart()}
                         </div>
                     </div>

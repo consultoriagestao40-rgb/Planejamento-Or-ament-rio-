@@ -163,13 +163,35 @@ export default function DFCPage() {
         setSyncing(true);
         setSyncLog('Iniciando sincronização com Conta Azul...');
         try {
+            const today = new Date();
+            const curMonth = today.getMonth() + 1;
+            // Se for consolidado (all), sincroniza apenas os últimos 2 meses para evitar timeout na Vercel.
+            // Se for empresa única, sincroniza de Janeiro até o mês atual.
+            const startMonth = selectedTenant === 'all' ? Math.max(1, curMonth - 1) : 1;
+            const endMonth = curMonth;
+
             const res = await fetch(
-                `/api/cron/sync?tenantId=${selectedTenant}&year=${selectedYear}&startMonth=1&endMonth=12`
+                `/api/cron/sync?tenantId=${selectedTenant}&year=${selectedYear}&startMonth=${startMonth}&endMonth=${endMonth}`
             );
+            
+            const contentType = res.headers.get("content-type");
+            if (!contentType || !contentType.includes("application/json")) {
+                const text = await res.text();
+                console.error("Non-JSON response from sync API:", text);
+                throw new Error("O servidor demorou muito para responder (Timeout) ou ocorreu um erro interno. Tente sincronizar uma empresa de cada vez.");
+            }
+
             const result = await res.json();
             if (result.success) {
-                setSyncLog('✅ Sincronização concluída com sucesso!');
-                setTimeout(() => setSyncLog(''), 4000);
+                // Verificar se alguma empresa reportou erro de rate limit ou expiração
+                const errors = result.report?.filter((r: any) => r.error) || [];
+                if (errors.length > 0) {
+                    const firstErr = errors[0];
+                    setSyncLog(`⚠️ Sincronizado com avisos. ${firstErr.tenant}: ${firstErr.error.includes('429') ? 'Limite de requisições excedido no Conta Azul. Tente novamente em instantes.' : firstErr.error}`);
+                } else {
+                    setSyncLog('✅ Sincronização concluída com sucesso!');
+                    setTimeout(() => setSyncLog(''), 4000);
+                }
                 fetchDFC(); // Recarregar dados
             } else {
                 setSyncLog(`❌ Erro: ${result.error || 'Falha na sincronização'}`);

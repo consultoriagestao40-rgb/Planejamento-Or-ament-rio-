@@ -819,8 +819,10 @@ export default function PortfolioAnalysisPage() {
                             </tfoot>
                         </table>
 
-                    </>
+                    </div>
                 )}
+            </>
+        )}
 
                 {/* ABA 2: ANÁLISES DETALHADAS */}
                 {activeAnalysisTab === 'detailed' && (

@@ -1459,37 +1459,42 @@ const renderDetailedChart = (
         case 'VERTICAL_BAR': {
             const yBaseline = hasNegative ? 130 : 210;
             const maxBarHeight = hasNegative ? 100 : 165;
+            const scaleMaxVal = maxVal * 1.20; // 20% respiro vertical para rótulos de valores
 
             return (
-                <svg viewBox="0 0 800 260" width="100%" height="220px" style={{ overflow: 'visible' }}>
+                <svg viewBox="0 0 920 260" width="100%" height="220px" style={{ overflow: 'visible' }}>
                     {hasNegative ? (
                         <>
-                            <line x1="40" y1="130" x2="760" y2="130" stroke="var(--border-strong)" strokeWidth="1.5" />
-                            <line x1="40" y1="70" x2="760" y2="70" stroke="var(--border-subtle)" strokeDasharray="3 3" />
-                            <line x1="40" y1="190" x2="760" y2="190" stroke="var(--border-subtle)" strokeDasharray="3 3" />
+                            <line x1="80" y1="130" x2="870" y2="130" stroke="var(--border-strong)" strokeWidth="1.5" />
+                            <line x1="80" y1="70" x2="870" y2="70" stroke="var(--border-subtle)" strokeDasharray="3 3" />
+                            <line x1="80" y1="190" x2="870" y2="190" stroke="var(--border-subtle)" strokeDasharray="3 3" />
                         </>
                     ) : (
                         <>
-                            <line x1="40" y1="210" x2="760" y2="210" stroke="var(--border-default)" strokeWidth="1" />
-                            <line x1="40" y1="130" x2="760" y2="130" stroke="var(--border-subtle)" strokeDasharray="3 3" />
-                            <line x1="40" y1="50" x2="760" y2="50" stroke="var(--border-subtle)" strokeDasharray="3 3" />
+                            <line x1="80" y1="210" x2="870" y2="210" stroke="var(--border-default)" strokeWidth="1" />
+                            <line x1="80" y1="130" x2="870" y2="130" stroke="var(--border-subtle)" strokeDasharray="3 3" />
+                            <line x1="80" y1="50" x2="870" y2="50" stroke="var(--border-subtle)" strokeDasharray="3 3" />
                         </>
                     )}
 
-                    <text x="35" y={hasNegative ? "73" : "53"} textAnchor="end" fill="var(--text-muted)" fontSize="8px" fontWeight="700">{formatVal(maxVal)}</text>
-                    <text x="35" y={yBaseline + 3} textAnchor="end" fill="var(--text-muted)" fontSize="8px" fontWeight="700">{formatVal(0)}</text>
+                    <text x="75" y={hasNegative ? "73" : "53"} textAnchor="end" fill="var(--text-muted)" fontSize="8px" fontWeight="700">{formatVal(scaleMaxVal)}</text>
+                    <text x="75" y={yBaseline + 3} textAnchor="end" fill="var(--text-muted)" fontSize="8px" fontWeight="700">{formatVal(0)}</text>
                     {hasNegative && (
-                        <text x="35" y="193" textAnchor="end" fill="var(--text-muted)" fontSize="8px" fontWeight="700">{formatVal(-maxVal)}</text>
+                        <text x="75" y="193" textAnchor="end" fill="var(--text-muted)" fontSize="8px" fontWeight="700">{formatVal(-scaleMaxVal)}</text>
                     )}
 
                     {data.map((m, idx) => {
                         const valB = pctOfRevenue ? m.pctOfRevenue : m.budget;
                         const valR = (idx + 1 <= currentMonthIdx + 1) ? (pctOfRevenue ? m.pctOfRevenue : m.realized) : 0;
                         
-                        const bHeight = onlyRealized ? 0 : (Math.abs(valB) / maxVal) * maxBarHeight;
-                        const rHeight = (idx + 1 <= currentMonthIdx + 1) ? (Math.abs(valR) / maxVal) * maxBarHeight : 0;
+                        const bHeight = onlyRealized ? 0 : (Math.abs(valB) / scaleMaxVal) * maxBarHeight;
+                        const rHeight = (idx + 1 <= currentMonthIdx + 1) ? (Math.abs(valR) / scaleMaxVal) * maxBarHeight : 0;
                         
-                        const xBase = 50 + idx * 58;
+                        const xBase = 80 + idx * 70;
+                        const barWidth = onlyRealized ? 28 : 22;
+                        const xB = xBase + 6;
+                        const xR = onlyRealized ? xBase + 18 : xBase + 32;
+
                         const isClose = !onlyRealized && (idx + 1 <= currentMonthIdx + 1) && Math.abs(bHeight - rHeight) < 14 && (valB >= 0 === valR >= 0);
 
                         const bLabelY = valB >= 0 ? yBaseline - bHeight - 5 : yBaseline + bHeight + 11;
@@ -1498,37 +1503,39 @@ const renderDetailedChart = (
                             rLabelY = valR >= 0 ? yBaseline - rHeight - 15 : yBaseline + rHeight + 21;
                         }
 
+                        const xMonthText = xBase + 30;
+
                         return (
                             <g key={idx}>
                                 {!onlyRealized && valB !== 0 && (
                                     <>
                                         <rect 
-                                            x={xBase + 8} 
+                                            x={xB} 
                                             y={valB >= 0 ? yBaseline - bHeight : yBaseline} 
-                                            width="14" 
+                                            width={barWidth} 
                                             height={bHeight} 
                                             fill="var(--border-strong)" 
                                             rx="2" 
                                         />
-                                        <text x={xBase + 15} y={bLabelY} textAnchor="middle" fill="var(--text-secondary)" fontSize="8px" fontWeight="700">{formatVal(valB)}</text>
+                                        <text x={xB + barWidth / 2} y={bLabelY} textAnchor="middle" fill="var(--text-secondary)" fontSize="8px" fontWeight="700">{formatVal(valB)}</text>
                                     </>
                                 )}
 
                                 {idx + 1 <= currentMonthIdx + 1 && valR !== 0 && (
                                     <>
                                         <rect 
-                                            x={xBase + 24} 
+                                            x={xR} 
                                             y={valR >= 0 ? yBaseline - rHeight : yBaseline} 
-                                            width="14" 
+                                            width={barWidth} 
                                             height={rHeight} 
                                             fill={valR >= 0 ? 'var(--accent-indigo)' : 'var(--accent-red)'} 
                                             rx="2" 
                                         />
-                                        <text x={xBase + 31} y={rLabelY} textAnchor="middle" fill={valR >= 0 ? '#1e3a8a' : '#7f1d1d'} fontSize="8px" fontWeight="700">{formatVal(valR)}</text>
+                                        <text x={xR + barWidth / 2} y={rLabelY} textAnchor="middle" fill={valR >= 0 ? '#1e3a8a' : '#7f1d1d'} fontSize="8px" fontWeight="700">{formatVal(valR)}</text>
                                     </>
                                 )}
 
-                                <text x={xBase + 22} y="240" textAnchor="middle" fill="var(--text-muted)" fontSize="9px" fontWeight="700">
+                                <text x={xMonthText} y="240" textAnchor="middle" fill="var(--text-muted)" fontSize="9px" fontWeight="700">
                                     {['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'][idx]}
                                 </text>
                             </g>
@@ -1541,25 +1548,29 @@ const renderDetailedChart = (
         case 'HORIZONTAL_BAR': {
             const xBaseline = 100;
             const maxBarWidth = 630;
+            const scaleMaxVal = maxVal * 1.15; // 15% respiro horizontal para rótulos de valores
 
             return (
-                <svg viewBox="0 0 800 320" width="100%" height="280px" style={{ overflow: 'visible' }}>
+                <svg viewBox="0 0 820 320" width="100%" height="280px" style={{ overflow: 'visible' }}>
                     <line x1={xBaseline} y1="10" x2={xBaseline} y2="295" stroke="var(--border-default)" strokeWidth="1.5" />
                     <line x1={xBaseline + maxBarWidth / 2} y1="10" x2={xBaseline + maxBarWidth / 2} y2="295" stroke="var(--border-subtle)" strokeDasharray="3 3" />
                     <line x1={xBaseline + maxBarWidth} y1="10" x2={xBaseline + maxBarWidth} y2="295" stroke="var(--border-default)" strokeDasharray="3 3" />
 
                     <text x={xBaseline} y="310" textAnchor="middle" fill="var(--text-muted)" fontSize="8px" fontWeight="700">{formatVal(0)}</text>
-                    <text x={xBaseline + maxBarWidth / 2} y="310" textAnchor="middle" fill="var(--text-muted)" fontSize="8px" fontWeight="700">{formatVal(maxVal / 2)}</text>
-                    <text x={xBaseline + maxBarWidth} y="310" textAnchor="middle" fill="var(--text-muted)" fontSize="8px" fontWeight="700">{formatVal(maxVal)}</text>
+                    <text x={xBaseline + maxBarWidth / 2} y="310" textAnchor="middle" fill="var(--text-muted)" fontSize="8px" fontWeight="700">{formatVal(scaleMaxVal / 2)}</text>
+                    <text x={xBaseline + maxBarWidth} y="310" textAnchor="middle" fill="var(--text-muted)" fontSize="8px" fontWeight="700">{formatVal(scaleMaxVal)}</text>
 
                     {data.map((m, idx) => {
                         const valB = pctOfRevenue ? m.pctOfRevenue : m.budget;
                         const valR = (idx + 1 <= currentMonthIdx + 1) ? (pctOfRevenue ? m.pctOfRevenue : m.realized) : 0;
 
-                        const bWidth = onlyRealized ? 0 : (Math.abs(valB) / maxVal) * maxBarWidth;
-                        const rWidth = (idx + 1 <= currentMonthIdx + 1) ? (Math.abs(valR) / maxVal) * maxBarWidth : 0;
+                        const bWidth = onlyRealized ? 0 : (Math.abs(valB) / scaleMaxVal) * maxBarWidth;
+                        const rWidth = (idx + 1 <= currentMonthIdx + 1) ? (Math.abs(valR) / scaleMaxVal) * maxBarWidth : 0;
                         
-                        const yBase = 15 + idx * 23;
+                        const yBase = 15 + idx * 24;
+                        const barHeight = onlyRealized ? 12 : 9;
+                        const yB = yBase;
+                        const yR = onlyRealized ? yBase + 3 : yBase + 10;
 
                         return (
                             <g key={idx}>
@@ -1571,13 +1582,13 @@ const renderDetailedChart = (
                                     <>
                                         <rect 
                                             x={xBaseline} 
-                                            y={yBase} 
-                                            height="7" 
+                                            y={yB} 
+                                            height={barHeight} 
                                             width={bWidth} 
                                             fill="var(--border-strong)" 
                                             rx="1.5" 
                                         />
-                                        <text x={xBaseline + bWidth + 5} y={yBase + 7} textAnchor="start" fill="var(--text-secondary)" fontSize="7px" fontWeight="700">{formatVal(valB)}</text>
+                                        <text x={xBaseline + bWidth + 5} y={yB + 7} textAnchor="start" fill="var(--text-secondary)" fontSize="7px" fontWeight="700">{formatVal(valB)}</text>
                                     </>
                                 )}
 
@@ -1585,13 +1596,13 @@ const renderDetailedChart = (
                                     <>
                                         <rect 
                                             x={xBaseline} 
-                                            y={yBase + 9} 
-                                            height="7" 
+                                            y={yR} 
+                                            height={barHeight} 
                                             width={rWidth} 
                                             fill={valR >= 0 ? 'var(--accent-indigo)' : 'var(--accent-red)'} 
                                             rx="1.5" 
                                         />
-                                        <text x={xBaseline + rWidth + 5} y={yBase + 16} textAnchor="start" fill={valR >= 0 ? '#1e3a8a' : '#7f1d1d'} fontSize="7px" fontWeight="700">{formatVal(valR)}</text>
+                                        <text x={xBaseline + rWidth + 5} y={yR + 7} textAnchor="start" fill={valR >= 0 ? '#1e3a8a' : '#7f1d1d'} fontSize="7px" fontWeight="700">{formatVal(valR)}</text>
                                     </>
                                 )}
                             </g>
@@ -1605,6 +1616,7 @@ const renderDetailedChart = (
         case 'LINE_MARKERS': {
             const yBaseline = hasNegative ? 130 : 210;
             const maxLineHeight = hasNegative ? 100 : 165;
+            const scaleMaxVal = maxVal * 1.20; // 20% respiro vertical para rótulos de valores
 
             let pathB = '';
             let pathR = '';
@@ -1615,9 +1627,9 @@ const renderDetailedChart = (
                 const valB = pctOfRevenue ? m.pctOfRevenue : m.budget;
                 const valR = (idx + 1 <= currentMonthIdx + 1) ? (pctOfRevenue ? m.pctOfRevenue : m.realized) : 0;
 
-                const x = 50 + idx * 62;
-                const yB = yBaseline - (valB / maxVal) * maxLineHeight;
-                const yR = yBaseline - (valR / maxVal) * maxLineHeight;
+                const x = 80 + idx * 70;
+                const yB = yBaseline - (valB / scaleMaxVal) * maxLineHeight;
+                const yR = yBaseline - (valR / scaleMaxVal) * maxLineHeight;
 
                 if (!onlyRealized) {
                     pointsB.push({ x, y: yB, val: valB });
@@ -1631,25 +1643,25 @@ const renderDetailedChart = (
             });
 
             return (
-                <svg viewBox="0 0 800 260" width="100%" height="220px" style={{ overflow: 'visible' }}>
+                <svg viewBox="0 0 920 260" width="100%" height="220px" style={{ overflow: 'visible' }}>
                     {hasNegative ? (
                         <>
-                            <line x1="40" y1="130" x2="760" y2="130" stroke="var(--border-strong)" strokeWidth="1.5" />
-                            <line x1="40" y1="70" x2="760" y2="70" stroke="var(--border-subtle)" strokeDasharray="3 3" />
-                            <line x1="40" y1="190" x2="760" y2="190" stroke="var(--border-subtle)" strokeDasharray="3 3" />
+                            <line x1="80" y1="130" x2="870" y2="130" stroke="var(--border-strong)" strokeWidth="1.5" />
+                            <line x1="80" y1="70" x2="870" y2="70" stroke="var(--border-subtle)" strokeDasharray="3 3" />
+                            <line x1="80" y1="190" x2="870" y2="190" stroke="var(--border-subtle)" strokeDasharray="3 3" />
                         </>
                     ) : (
                         <>
-                            <line x1="40" y1="210" x2="760" y2="210" stroke="var(--border-default)" strokeWidth="1" />
-                            <line x1="40" y1="130" x2="760" y2="130" stroke="var(--border-subtle)" strokeDasharray="3 3" />
-                            <line x1="40" y1="50" x2="760" y2="50" stroke="var(--border-subtle)" strokeDasharray="3 3" />
+                            <line x1="80" y1="210" x2="870" y2="210" stroke="var(--border-default)" strokeWidth="1" />
+                            <line x1="80" y1="130" x2="870" y2="130" stroke="var(--border-subtle)" strokeDasharray="3 3" />
+                            <line x1="80" y1="50" x2="870" y2="50" stroke="var(--border-subtle)" strokeDasharray="3 3" />
                         </>
                     )}
 
-                    <text x="35" y={hasNegative ? "73" : "53"} textAnchor="end" fill="var(--text-muted)" fontSize="8px" fontWeight="700">{formatVal(maxVal)}</text>
-                    <text x="35" y={yBaseline + 3} textAnchor="end" fill="var(--text-muted)" fontSize="8px" fontWeight="700">{formatVal(0)}</text>
+                    <text x="75" y={hasNegative ? "73" : "53"} textAnchor="end" fill="var(--text-muted)" fontSize="8px" fontWeight="700">{formatVal(scaleMaxVal)}</text>
+                    <text x="75" y={yBaseline + 3} textAnchor="end" fill="var(--text-muted)" fontSize="8px" fontWeight="700">{formatVal(0)}</text>
                     {hasNegative && (
-                        <text x="35" y="193" textAnchor="end" fill="var(--text-muted)" fontSize="8px" fontWeight="700">{formatVal(-maxVal)}</text>
+                        <text x="75" y="193" textAnchor="end" fill="var(--text-muted)" fontSize="8px" fontWeight="700">{formatVal(-scaleMaxVal)}</text>
                     )}
 
                     {!onlyRealized && pathB && (
@@ -1678,7 +1690,7 @@ const renderDetailedChart = (
                     )}
 
                     {data.map((m, idx) => (
-                        <text key={idx} x={50 + idx * 62} y="240" textAnchor="middle" fill="var(--text-muted)" fontSize="9px" fontWeight="700">
+                        <text key={idx} x={80 + idx * 70} y="240" textAnchor="middle" fill="var(--text-muted)" fontSize="9px" fontWeight="700">
                             {['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'][idx]}
                         </text>
                     ))}

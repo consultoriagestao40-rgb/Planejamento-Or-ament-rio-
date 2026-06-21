@@ -72,6 +72,7 @@ export default function BudgetGrid({
     const [radarLocks, setRadarLocks] = useState<any[]>([]);
     const [realizedValues, setRealizedValues] = useState<Record<string, number>>({});
     const [contractsData, setContractsData] = useState<{ name: string; value: number; percentage: number; monthlyValues?: Record<number, number> }[]>([]);
+    const [contractsMarginData, setContractsMarginData] = useState<{ id: string; name: string; realizedValue: number; budgetValue: number; realizedPercent: number; budgetPercent: number }[]>([]);
     const [contractsLoading, setContractsLoading] = useState(false);
     const [selectedContractsMonth, setSelectedContractsMonth] = useState<string>('accumulated');
     const [monthlyBudgets, setMonthlyBudgets] = useState<Record<number, number>>({});
@@ -519,6 +520,7 @@ export default function BudgetGrid({
                 const data = await res.json();
                 if (data.success) {
                     setContractsData(data.contracts || []);
+                    setContractsMarginData(data.contractsMargin || []);
                     setMonthlyBudgets(data.monthlyBudgets || {});
                     setContractsAnnualTotal(data.totalAnnualRealized || 0);
                     setSelectedContractsMonth('accumulated');
@@ -3586,6 +3588,186 @@ export default function BudgetGrid({
         );
     };
 
+    const renderContractsMarginValueChart = () => {
+        if (contractsLoading) {
+            return (
+                <div className="glass-card" style={{ padding: '2rem', background: '#ffffff', borderRadius: '12px', border: '1px solid #e2e8f0', boxShadow: '0 4px 6px rgba(0,0,0,0.02)', width: '100%', minHeight: '300px', display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center' }}>
+                    <div style={{ border: '3px solid #f3f3f3', borderTop: '3px solid #3b82f6', borderRadius: '50%', width: '30px', height: '30px', animation: 'spin 1s linear infinite' }} />
+                </div>
+            );
+        }
+
+        if (contractsMarginData.length === 0) {
+            return (
+                <div className="glass-card" style={{ padding: '2rem', background: '#ffffff', borderRadius: '12px', border: '1px solid #e2e8f0', boxShadow: '0 4px 6px rgba(0,0,0,0.02)', width: '100%', minHeight: '200px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#64748b', fontSize: '0.85rem' }}>
+                    Nenhum contrato/centro de custo com movimentação no período.
+                </div>
+            );
+        }
+
+        return (
+            <div className="glass-card" style={{ padding: '2rem', background: '#ffffff', borderRadius: '12px', border: '1px solid #e2e8f0', boxShadow: '0 4px 6px rgba(0,0,0,0.02)', width: '100%' }}>
+                <h3 style={{ fontSize: '1rem', fontWeight: 800, color: '#0f172a', marginBottom: '1.5rem' }}>
+                    Margem por Contrato (Orçado x Realizado)
+                    <span style={{ fontSize: '0.75rem', color: '#64748b', fontWeight: 500, display: 'block', marginTop: '0.25rem' }}>
+                        Valores Absolutos em Mil R$ (Receita - Impostos - Custos - Despesas Operacionais)
+                    </span>
+                </h3>
+
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+                    {contractsMarginData.map((item, idx) => {
+                        const maxAbs = Math.max(...contractsMarginData.flatMap(d => [Math.abs(d.realizedValue), Math.abs(d.budgetValue)]), 1);
+                        
+                        const realizedWidth = `${Math.min((Math.abs(item.realizedValue) / maxAbs) * 100, 100)}%`;
+                        const budgetWidth = `${Math.min((Math.abs(item.budgetValue) / maxAbs) * 100, 100)}%`;
+
+                        const realPositive = item.realizedValue >= 0;
+                        const budgPositive = item.budgetValue >= 0;
+
+                        return (
+                            <div key={idx} style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.85rem' }}>
+                                    <span style={{ color: '#334155', fontWeight: 700 }}>{item.name}</span>
+                                    <div style={{ display: 'flex', gap: '0.75rem', fontSize: '0.8rem', fontWeight: 600 }}>
+                                        <span style={{ color: '#64748b' }}>
+                                            Orçado: <strong style={{ color: budgPositive ? '#475569' : '#ef4444' }}>R$ {item.budgetValue.toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })} Mil</strong>
+                                        </span>
+                                        <span style={{ color: '#64748b' }}>|</span>
+                                        <span style={{ color: '#64748b' }}>
+                                            Realizado: <strong style={{ color: realPositive ? '#6366f1' : '#dc2626' }}>R$ {item.realizedValue.toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })} Mil</strong>
+                                        </span>
+                                    </div>
+                                </div>
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                                    {/* Linha do Orçado */}
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                        <span style={{ width: '45px', fontSize: '0.65rem', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase' }}>Orçado</span>
+                                        <div style={{ flex: 1, height: '6px', background: '#f1f5f9', borderRadius: '3px', overflow: 'hidden', position: 'relative' }}>
+                                            <div style={{
+                                                position: 'absolute',
+                                                left: budgPositive ? '0' : 'auto',
+                                                right: budgPositive ? 'auto' : '0',
+                                                width: budgetWidth,
+                                                height: '100%',
+                                                background: '#cbd5e1',
+                                                borderRadius: '3px'
+                                            }} />
+                                        </div>
+                                    </div>
+                                    {/* Linha do Realizado */}
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                        <span style={{ width: '45px', fontSize: '0.65rem', fontWeight: 700, color: '#64748b', textTransform: 'uppercase' }}>Realiz.</span>
+                                        <div style={{ flex: 1, height: '6px', background: '#f1f5f9', borderRadius: '3px', overflow: 'hidden', position: 'relative' }}>
+                                            <div style={{
+                                                position: 'absolute',
+                                                left: realPositive ? '0' : 'auto',
+                                                right: realPositive ? 'auto' : '0',
+                                                width: realizedWidth,
+                                                height: '100%',
+                                                background: realPositive ? 'linear-gradient(90deg, #6366f1, #8b5cf6)' : 'linear-gradient(90deg, #f87171, #ef4444)',
+                                                borderRadius: '3px'
+                                            }} />
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        );
+                    })}
+                </div>
+            </div>
+        );
+    };
+
+    const renderContractsMarginPercentChart = () => {
+        if (contractsLoading) {
+            return (
+                <div className="glass-card" style={{ padding: '2rem', background: '#ffffff', borderRadius: '12px', border: '1px solid #e2e8f0', boxShadow: '0 4px 6px rgba(0,0,0,0.02)', width: '100%', minHeight: '300px', display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center' }}>
+                    <div style={{ border: '3px solid #f3f3f3', borderTop: '3px solid #3b82f6', borderRadius: '50%', width: '30px', height: '30px', animation: 'spin 1s linear infinite' }} />
+                </div>
+            );
+        }
+
+        if (contractsMarginData.length === 0) {
+            return (
+                <div className="glass-card" style={{ padding: '2rem', background: '#ffffff', borderRadius: '12px', border: '1px solid #e2e8f0', boxShadow: '0 4px 6px rgba(0,0,0,0.02)', width: '100%', minHeight: '200px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#64748b', fontSize: '0.85rem' }}>
+                    Nenhum contrato/centro de custo com movimentação no período.
+                </div>
+            );
+        }
+
+        return (
+            <div className="glass-card" style={{ padding: '2rem', background: '#ffffff', borderRadius: '12px', border: '1px solid #e2e8f0', boxShadow: '0 4px 6px rgba(0,0,0,0.02)', width: '100%' }}>
+                <h3 style={{ fontSize: '1rem', fontWeight: 800, color: '#0f172a', marginBottom: '1.5rem' }}>
+                    Margem por Contrato em % (Orçado x Realizado)
+                    <span style={{ fontSize: '0.75rem', color: '#64748b', fontWeight: 500, display: 'block', marginTop: '0.25rem' }}>
+                        Rentabilidade Relativa em % (Margem de Contribuição / Receita do Contrato)
+                    </span>
+                </h3>
+
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+                    {contractsMarginData.map((item, idx) => {
+                        const maxAbs = Math.max(...contractsMarginData.flatMap(d => [Math.abs(d.realizedPercent), Math.abs(d.budgetPercent)]), 1);
+                        
+                        const realizedWidth = `${Math.min((Math.abs(item.realizedPercent) / maxAbs) * 100, 100)}%`;
+                        const budgetWidth = `${Math.min((Math.abs(item.budgetPercent) / maxAbs) * 100, 100)}%`;
+
+                        const realPositive = item.realizedPercent >= 0;
+                        const budgPositive = item.budgetPercent >= 0;
+
+                        return (
+                            <div key={idx} style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.85rem' }}>
+                                    <span style={{ color: '#334155', fontWeight: 700 }}>{item.name}</span>
+                                    <div style={{ display: 'flex', gap: '0.75rem', fontSize: '0.8rem', fontWeight: 600 }}>
+                                        <span style={{ color: '#64748b' }}>
+                                            Orçado: <strong style={{ color: budgPositive ? '#475569' : '#ef4444' }}>{item.budgetPercent.toFixed(1)}%</strong>
+                                        </span>
+                                        <span style={{ color: '#64748b' }}>|</span>
+                                        <span style={{ color: '#64748b' }}>
+                                            Realizado: <strong style={{ color: realPositive ? '#10b981' : '#dc2626' }}>{item.realizedPercent.toFixed(1)}%</strong>
+                                        </span>
+                                    </div>
+                                </div>
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                                    {/* Linha do Orçado */}
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                        <span style={{ width: '45px', fontSize: '0.65rem', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase' }}>Orçado</span>
+                                        <div style={{ flex: 1, height: '6px', background: '#f1f5f9', borderRadius: '3px', overflow: 'hidden', position: 'relative' }}>
+                                            <div style={{
+                                                position: 'absolute',
+                                                left: budgPositive ? '0' : 'auto',
+                                                right: budgPositive ? 'auto' : '0',
+                                                width: budgetWidth,
+                                                height: '100%',
+                                                background: '#cbd5e1',
+                                                borderRadius: '3px'
+                                            }} />
+                                        </div>
+                                    </div>
+                                    {/* Linha do Realizado */}
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                        <span style={{ width: '45px', fontSize: '0.65rem', fontWeight: 700, color: '#64748b', textTransform: 'uppercase' }}>Realiz.</span>
+                                        <div style={{ flex: 1, height: '6px', background: '#f1f5f9', borderRadius: '3px', overflow: 'hidden', position: 'relative' }}>
+                                            <div style={{
+                                                position: 'absolute',
+                                                left: realPositive ? '0' : 'auto',
+                                                right: realPositive ? 'auto' : '0',
+                                                width: realizedWidth,
+                                                height: '100%',
+                                                background: realPositive ? 'linear-gradient(90deg, #10b981, #059669)' : 'linear-gradient(90deg, #f87171, #ef4444)',
+                                                borderRadius: '3px'
+                                            }} />
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        );
+                    })}
+                </div>
+            </div>
+        );
+    };
+
     const renderContractsBarChart = () => {
         if (contractsLoading) {
             return (
@@ -4123,6 +4305,14 @@ export default function BudgetGrid({
                         </div>
                         <div style={{ flex: 1, minWidth: '350px' }}>
                             {renderCompanyContributionMargin()}
+                        </div>
+                    </div>
+                    <div style={{ display: 'flex', flexDirection: 'row', gap: '1.5rem', width: '100%', flexWrap: 'wrap', alignItems: 'stretch' }}>
+                        <div style={{ flex: 1, minWidth: '350px' }}>
+                            {renderContractsMarginValueChart()}
+                        </div>
+                        <div style={{ flex: 1, minWidth: '350px' }}>
+                            {renderContractsMarginPercentChart()}
                         </div>
                     </div>
                 </div>

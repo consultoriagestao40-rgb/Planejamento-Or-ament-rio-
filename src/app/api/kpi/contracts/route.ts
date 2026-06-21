@@ -11,9 +11,13 @@ function normalizeCustomerName(name: string): string {
         .trim();
 }
 
-const isRevenueCategory = (name: string) => {
+const getCategoryType = (name: string): 'rev' | 'tax' | 'cost' | 'opExp' | 'other' => {
     const cleanCode = (name.match(/^(\d{1,2}(?:\.\d+)*)/) || [])[1] || '';
-    return cleanCode.startsWith('01') || cleanCode.startsWith('1');
+    if (cleanCode.startsWith('01') || cleanCode.startsWith('1')) return 'rev';
+    if (cleanCode.startsWith('02') || cleanCode.startsWith('2')) return 'tax';
+    if (cleanCode.startsWith('3') || cleanCode.startsWith('03')) return 'cost';
+    if (cleanCode.startsWith('4') || cleanCode.startsWith('04')) return 'opExp';
+    return 'other';
 };
 
 export async function GET(request: Request) {
@@ -43,29 +47,48 @@ export async function GET(request: Request) {
             targetCostCenterIds = costCenterIdParam.split(',').map(id => id.trim()).filter(Boolean);
         }
 
-        // 3. Resolve revenue category IDs
+        // 3. Resolve category IDs and their DRE types
         const categories = await prisma.category.findMany({
             where: { tenantId: { in: targetTenantIds } },
             select: { id: true, name: true }
         });
-        const revenueCategoryIds = categories
-            .filter(c => isRevenueCategory(c.name))
-            .flatMap(c => {
-                const parts = c.id.split(':');
-                const cleanId = parts.length > 1 ? parts[1] : c.id;
-                return [c.id, cleanId];
-            });
 
-        if (revenueCategoryIds.length === 0) {
-            return NextResponse.json({ success: true, contracts: [], totalBudget: 0, totalRealized: 0, totalAnnualRealized: 0, monthlyBudgets: {} });
+        const categoryTypeMap = new Map<string, 'rev' | 'tax' | 'cost' | 'opExp'>();
+        categories.forEach(c => {
+            const parts = c.id.split(':');
+            const cleanId = parts.length > 1 ? parts[1] : c.id;
+            const type = getCategoryType(c.name);
+            if (type !== 'other') {
+                categoryTypeMap.set(c.id, type);
+                categoryTypeMap.set(cleanId, type);
+            }
+        });
+
+        const targetCategoryIds = Array.from(categoryTypeMap.keys());
+
+        if (targetCategoryIds.length === 0) {
+            return NextResponse.json({ 
+                success: true, 
+                contracts: [], 
+                contractsMargin: [],
+                totalBudget: 0, 
+                totalRealized: 0, 
+                totalAnnualRealized: 0, 
+                monthlyBudgets: {} 
+            });
         }
 
-        // 4. Query DB for active period and annual faturamento
-        const [realizedRaw, realizedAnnualRaw, budgetRaw] = await Promise.all([
+        // Resolve revenue-only category IDs for legacy contract faturamento
+        const revenueCategoryIds = Array.from(categoryTypeMap.entries())
+            .filter(([_, type]) => type === 'rev')
+            .map(([id]) => id);
+
+        // 4. Query DB for active period and annual data
+        const [realizedRaw, realizedAnnualRaw, budgetRaw, costCenters] = await Promise.all([
             prisma.realizedEntry.findMany({
                 where: {
                     tenantId: { in: targetTenantIds },
-                    categoryId: { in: revenueCategoryIds },
+                    categoryId: { in: targetCategoryIds },
                     year,
                     month: { gte: startMonth + 1, lte: endMonth + 1 },
                     viewMode,
@@ -84,11 +107,14 @@ export async function GET(request: Request) {
             prisma.budgetEntry.findMany({
                 where: {
                     tenantId: { in: targetTenantIds },
-                    categoryId: { in: revenueCategoryIds },
+                    categoryId: { in: targetCategoryIds },
                     year,
                     month: { gte: startMonth + 1, lte: endMonth + 1 },
                     ...(targetCostCenterIds.length > 0 ? { costCenterId: { in: targetCostCenterIds } } : {})
                 }
+            }),
+            prisma.costCenter.findMany({
+                where: { tenantId: { in: targetTenantIds } }
             })
         ]);
 
@@ -108,7 +134,7 @@ export async function GET(request: Request) {
             return true;
         });
 
-        // 5b. Deduplicate realized data for annual total
+        // 5b. Deduplicate realized data for annual faturamento
         const syncedAnnualMonths = new Set<string>();
         realizedAnnualRaw.forEach(e => {
             if (e.externalId && e.externalId.startsWith('sync-')) {
@@ -124,14 +150,17 @@ export async function GET(request: Request) {
             return true;
         });
 
-        // 6. Aggregate values
-        let totalBudget = budgetRaw.reduce((sum, b) => sum + b.amount, 0);
-        let totalRealized = realizedEntries.reduce((sum, r) => sum + r.amount, 0);
+        // 6. Aggregate faturamento por contrato (Clientes)
+        const revenueRealizedEntries = realizedEntries.filter(r => categoryTypeMap.get(r.categoryId) === 'rev');
+        const revenueBudgetEntries = budgetRaw.filter(b => categoryTypeMap.get(b.categoryId) === 'rev');
+
+        let totalBudget = revenueBudgetEntries.reduce((sum, b) => sum + b.amount, 0);
+        let totalRealized = revenueRealizedEntries.reduce((sum, r) => sum + r.amount, 0);
         let totalAnnualRealized = realizedAnnualEntries.reduce((sum, r) => sum + r.amount, 0);
 
         const customerMap = new Map<string, { total: number; monthly: Record<number, number> }>();
 
-        realizedEntries.forEach(r => {
+        revenueRealizedEntries.forEach(r => {
             const customerName = normalizeCustomerName(r.customer || r.description || 'Sem Cliente/Outros');
             const monthIdx = r.month - 1; // 0-indexed month
             
@@ -144,14 +173,13 @@ export async function GET(request: Request) {
             data.monthly[monthIdx] = (data.monthly[monthIdx] || 0) + r.amount;
         });
 
-        // Calculate monthly budgets
+        // Calculate monthly budgets (Revenue only)
         const monthlyBudgets: Record<number, number> = {};
-        budgetRaw.forEach(b => {
+        revenueBudgetEntries.forEach(b => {
             const m = b.month - 1;
             monthlyBudgets[m] = (monthlyBudgets[m] || 0) + b.amount / 1000;
         });
 
-        // Convert to array and format
         const contracts = Array.from(customerMap.entries())
             .map(([name, data]) => {
                 const totalInThousands = data.total / 1000;
@@ -169,12 +197,100 @@ export async function GET(request: Request) {
                     monthlyValues: monthlyInThousands
                 };
             })
-            .filter(c => c.value > 0) // Only return positive values
-            .sort((a, b) => b.value - a.value); // Sort descending (largest at top)
+            .filter(c => c.value > 0)
+            .sort((a, b) => b.value - a.value);
+
+        // 7. Calculate Margem por Contrato (Centro de Custo)
+        const costCenterMap = new Map<string, {
+            name: string;
+            budgetRev: number;
+            budgetTax: number;
+            budgetCost: number;
+            budgetOpExp: number;
+            realizedRev: number;
+            realizedTax: number;
+            realizedCost: number;
+            realizedOpExp: number;
+        }>();
+
+        costCenters.forEach(cc => {
+            costCenterMap.set(cc.id, {
+                name: cc.name,
+                budgetRev: 0, budgetTax: 0, budgetCost: 0, budgetOpExp: 0,
+                realizedRev: 0, realizedTax: 0, realizedCost: 0, realizedOpExp: 0
+            });
+        });
+
+        costCenterMap.set('DEFAULT', {
+            name: 'Geral / Sem Centro de Custo',
+            budgetRev: 0, budgetTax: 0, budgetCost: 0, budgetOpExp: 0,
+            realizedRev: 0, realizedTax: 0, realizedCost: 0, realizedOpExp: 0
+        });
+
+        realizedEntries.forEach(r => {
+            const ccId = r.costCenterId || 'DEFAULT';
+            if (!costCenterMap.has(ccId)) {
+                costCenterMap.set(ccId, {
+                    name: 'Outros / Não Identificado',
+                    budgetRev: 0, budgetTax: 0, budgetCost: 0, budgetOpExp: 0,
+                    realizedRev: 0, realizedTax: 0, realizedCost: 0, realizedOpExp: 0
+                });
+            }
+            const data = costCenterMap.get(ccId)!;
+            const type = categoryTypeMap.get(r.categoryId);
+            if (type === 'rev') data.realizedRev += r.amount;
+            else if (type === 'tax') data.realizedTax += r.amount;
+            else if (type === 'cost') data.realizedCost += r.amount;
+            else if (type === 'opExp') data.realizedOpExp += r.amount;
+        });
+
+        budgetRaw.forEach(b => {
+            const ccId = b.costCenterId || 'DEFAULT';
+            if (!costCenterMap.has(ccId)) {
+                costCenterMap.set(ccId, {
+                    name: 'Outros / Não Identificado',
+                    budgetRev: 0, budgetTax: 0, budgetCost: 0, budgetOpExp: 0,
+                    realizedRev: 0, realizedTax: 0, realizedCost: 0, realizedOpExp: 0
+                });
+            }
+            const data = costCenterMap.get(ccId)!;
+            const type = categoryTypeMap.get(b.categoryId);
+            if (type === 'rev') data.budgetRev += b.amount;
+            else if (type === 'tax') data.budgetTax += b.amount;
+            else if (type === 'cost') data.budgetCost += b.amount;
+            else if (type === 'opExp') data.budgetOpExp += b.amount;
+        });
+
+        const contractsMargin = Array.from(costCenterMap.entries())
+            .map(([id, data]) => {
+                const realizedMargin = (data.realizedRev - data.realizedTax - data.realizedCost - data.realizedOpExp) / 1000;
+                const budgetMargin = (data.budgetRev - data.budgetTax - data.budgetCost - data.budgetOpExp) / 1000;
+
+                const realizedPercent = data.realizedRev > 0 ? ((data.realizedRev - data.realizedTax - data.realizedCost - data.realizedOpExp) / data.realizedRev) * 100 : 0;
+                const budgetPercent = data.budgetRev > 0 ? ((data.budgetRev - data.budgetTax - data.budgetCost - data.budgetOpExp) / data.budgetRev) * 100 : 0;
+
+                const realizedRevThous = data.realizedRev / 1000;
+                const budgetRevThous = data.budgetRev / 1000;
+
+                return {
+                    id,
+                    name: data.name,
+                    realizedValue: realizedMargin,
+                    budgetValue: budgetMargin,
+                    realizedPercent,
+                    budgetPercent,
+                    realizedRev: realizedRevThous,
+                    budgetRev: budgetRevThous
+                };
+            })
+            .filter(c => Math.abs(c.realizedRev) > 0 || Math.abs(c.budgetRev) > 0 || Math.abs(c.realizedValue) > 0 || Math.abs(c.budgetValue) > 0)
+            .filter(c => c.id !== 'DEFAULT' || Math.abs(c.realizedRev) > 0)
+            .sort((a, b) => b.realizedValue - a.realizedValue);
 
         return NextResponse.json({
             success: true,
             contracts,
+            contractsMargin,
             totalBudget: totalBudget / 1000,
             totalRealized: totalRealized / 1000,
             totalAnnualRealized,

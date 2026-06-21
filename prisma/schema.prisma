@@ -29,6 +29,7 @@ model Tenant {
   justifications RealizedJustification[]
   bankAccounts BankAccount[]
   indicatorAnalyses IndicatorAnalysis[]
+  detailedAnalyses  DetailedAnalysis[]
 }
 
 model RadarLock {
@@ -275,4 +276,26 @@ model IndicatorComment {
   createdAt    DateTime          @default(now())
 
   analysis     IndicatorAnalysis @relation(fields: [analysisId], references: [id], onDelete: Cascade)
+}
+
+model DetailedAnalysis {
+  id              String   @id @default(uuid())
+  tenantId        String   
+  month           Int      
+  year            Int      
+  
+  categoryId      String   
+  filterTenantId  String   
+  filterCCId      String?  
+  chartType       String   
+  onlyRealized    Boolean  @default(false)
+  showAtingido    Boolean  @default(false)
+  pctOfRevenue    Boolean  @default(false)
+  
+  analysisText    String   @default("")
+  
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  tenant          Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 }

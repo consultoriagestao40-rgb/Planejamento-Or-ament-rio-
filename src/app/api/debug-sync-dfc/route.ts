@@ -11,10 +11,11 @@ export async function GET(request: Request) {
         const { token } = await getValidAccessToken(tenantId);
 
         // Formato ISO 8601 exato exigido pela API da Conta Azul (ex: 2025-10-20T07:59:59)
-        const dataInicio = '2026-01-01T00:00:00';
-        const dataFim = '2026-01-01T23:59:59';
+        const dataInicio = searchParams.get('data_inicio') || '2026-01-01T00:00:00';
+        const dataFim = searchParams.get('data_fim') || '2026-01-01T23:59:59';
+        const customPath = searchParams.get('path');
         
-        const path = `/v1/financeiro/eventos-financeiros/saldo-inicial?data_inicio=${dataInicio}&data_fim=${dataFim}`;
+        const path = customPath || `/v1/financeiro/eventos-financeiros/saldo-inicial?data_inicio=${dataInicio}&data_fim=${dataFim}`;
         const url = `https://api-v2.contaazul.com${path}`;
         
         const res = await fetch(url, {

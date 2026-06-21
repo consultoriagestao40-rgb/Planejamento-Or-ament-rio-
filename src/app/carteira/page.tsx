@@ -55,14 +55,22 @@ export default function PortfolioAnalysisPage() {
     const [analysisSelectedTenant, setAnalysisSelectedTenant] = useState<string>('');
     const prevTenantRef = useRef<string>('');
 
+    const [seriesConfig, setSeriesConfig] = useState<Record<string, 'bar' | 'line_atingido' | 'line_revenue'>>({});
+
     const toggleChartCategory = useCallback((id: string) => {
         setChartCategory(prev => {
             const selectedIds = prev ? prev.split(',').map(x => x.trim()).filter(Boolean) : [];
             const index = selectedIds.indexOf(id);
             if (index === -1) {
                 selectedIds.push(id);
+                setSeriesConfig(cfg => ({ ...cfg, [id]: 'bar' }));
             } else {
                 selectedIds.splice(index, 1);
+                setSeriesConfig(cfg => {
+                    const next = { ...cfg };
+                    delete next[id];
+                    return next;
+                });
             }
             return selectedIds.join(',');
         });
@@ -257,7 +265,9 @@ export default function PortfolioAnalysisPage() {
                     categoryId: chartCategory,
                     filterTenantId: chartTenant,
                     filterCCId: chartCC,
-                    chartType,
+                    chartType: chartType === 'MIXED' 
+                        ? JSON.stringify({ mode: 'MIXED', config: seriesConfig }) 
+                        : chartType,
                     onlyRealized: chartOnlyRealized,
                     showAtingido: chartShowAtingido,
                     pctOfRevenue: chartPctOfRevenue,
@@ -309,6 +319,7 @@ export default function PortfolioAnalysisPage() {
         setChartPctOfRevenue(false);
         setChartColor('#6366f1');
         setChartAnalysisText('');
+        setSeriesConfig({});
         
         let targetTenant = '';
         if (companies.length > 0) {
@@ -334,7 +345,21 @@ export default function PortfolioAnalysisPage() {
         setChartCategorySearch('');
         setChartTenant(chart.filterTenantId);
         setChartCC(chart.filterCCId || 'ALL');
-        setChartType(chart.chartType);
+        
+        if (chart.chartType && chart.chartType.startsWith('{')) {
+            try {
+                const parsed = JSON.parse(chart.chartType);
+                setChartType('MIXED');
+                setSeriesConfig(parsed.config || {});
+            } catch (e) {
+                setChartType(chart.chartType);
+                setSeriesConfig({});
+            }
+        } else {
+            setChartType(chart.chartType || 'VERTICAL_BAR');
+            setSeriesConfig({});
+        }
+
         setChartOnlyRealized(!!chart.onlyRealized);
         setChartShowAtingido(!!chart.showAtingido);
         setChartPctOfRevenue(!!chart.pctOfRevenue);
@@ -1035,7 +1060,8 @@ export default function PortfolioAnalysisPage() {
                                                 { id: 'LINE_MARKERS', label: '📉 Linha/Marc.' },
                                                 { id: 'PIE', label: '🍕 Pizza' },
                                                 { id: 'DONUT', label: '🍩 Rosca' },
-                                                { id: 'GAUGE', label: '⏱️ Velocímetro' }
+                                                { id: 'GAUGE', label: '⏱️ Velocímetro' },
+                                                ...(chartCategory.split(',').filter(Boolean).length > 1 ? [{ id: 'MIXED', label: '🔀 Eixo Duplo' }] : [])
                                             ].map((typeItem) => (
                                                 <button
                                                     key={typeItem.id}
@@ -1232,6 +1258,72 @@ export default function PortfolioAnalysisPage() {
                                         )}
                                     </div>
 
+                                    {/* Configuração de Séries Individuais (Modo Combinado/Múltiplas Contas) */}
+                                    {chartCategory.split(',').map(x => x.trim()).filter(Boolean).length > 1 && (
+                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem', padding: '0.85rem', background: 'var(--bg-elevated)', borderRadius: '8px', border: '1px solid var(--border-default)', marginTop: '0.25rem' }}>
+                                            <span style={{ fontSize: '0.75rem', fontWeight: 800, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em', display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
+                                                ⚙️ Tipo de Exibição por Conta (Eixo Duplo)
+                                            </span>
+                                            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                                                {chartCategory.split(',').map(x => x.trim()).filter(Boolean).map(id => {
+                                                    const dreLabels: Record<string, string> = {
+                                                        vRev: 'Receita Bruta',
+                                                        vTaxes: 'Deduções / Impostos',
+                                                        vRecLiq: 'Receita Líquida',
+                                                        vCosts: 'Custos Operacionais',
+                                                        vGrossMarg: 'Margem Bruta',
+                                                        vOpExp: 'Despesas Operacionais',
+                                                        vContribMarg: 'Margem de Contribuição',
+                                                        vAdminExp: 'Despesas Administrativas',
+                                                        vEbitda: 'EBITDA',
+                                                        vFin: 'Despesas Financeiras',
+                                                        vNetProfit: 'Lucro Líquido'
+                                                    };
+                                                    const name = dreLabels[id] || categories.find((c: any) => c.id === id)?.name || id;
+                                                    const currentMode = seriesConfig[id] || 'bar';
+ 
+                                                    return (
+                                                        <div key={id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '1rem', padding: '0.35rem 0', borderBottom: '1px solid var(--border-subtle)' }}>
+                                                            <span style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-primary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '50%' }} title={name}>
+                                                                {name}
+                                                            </span>
+                                                            <div style={{ display: 'flex', gap: '0.25rem' }}>
+                                                                {[
+                                                                    { key: 'bar', label: '📊 Barra (R$)' },
+                                                                    { key: 'line_atingido', label: '📈 Linha (% At.)' },
+                                                                    { key: 'line_revenue', label: '📉 Linha (% Rec.)' }
+                                                                ].map(opt => (
+                                                                    <button
+                                                                        key={opt.key}
+                                                                        type="button"
+                                                                        onClick={() => {
+                                                                            setSeriesConfig(cfg => ({ ...cfg, [id]: opt.key as any }));
+                                                                            setChartType('MIXED');
+                                                                        }}
+                                                                        style={{
+                                                                            padding: '0.35rem 0.6rem',
+                                                                            fontSize: '0.7rem',
+                                                                            fontWeight: 700,
+                                                                            borderRadius: '6px',
+                                                                            border: '1px solid',
+                                                                            borderColor: currentMode === opt.key ? 'var(--accent-indigo)' : 'var(--border-default)',
+                                                                            background: currentMode === opt.key ? 'rgba(99, 102, 241, 0.08)' : 'var(--bg-surface)',
+                                                                            color: currentMode === opt.key ? 'var(--accent-indigo)' : 'var(--text-secondary)',
+                                                                            cursor: 'pointer',
+                                                                            transition: 'all 0.15s'
+                                                                        }}
+                                                                    >
+                                                                        {opt.label}
+                                                                    </button>
+                                                                ))}
+                                                            </div>
+                                                        </div>
+                                                    );
+                                                })}
+                                            </div>
+                                        </div>
+                                    )}
+
                                     {/* Tenant Context Selector */}
                                     <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
                                         <label style={{ fontSize: '0.75rem', fontWeight: 800, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Salvar no Contexto da Empresa *</label>
@@ -1416,7 +1508,7 @@ export default function PortfolioAnalysisPage() {
                                             </div>
                                         ) : (
             <div style={{ width: '100%' }}>
-                                                {renderDetailedChart(chartType, chartPreviewData, chartOnlyRealized, chartShowAtingido, chartPctOfRevenue, activeMonthNumber, chartColor)}
+                                                {renderDetailedChart(chartType, chartPreviewData, chartOnlyRealized, chartShowAtingido, chartPctOfRevenue, activeMonthNumber, chartColor, seriesConfig)}
                                             </div>
                                         )}
                                     </div>
@@ -1492,12 +1584,19 @@ const DetailedChartCard = ({ chart, onEdit, onDelete, mainMonth, year, viewMode,
         GAUGE: 'Velocímetro'
     };
 
+    const getChartTypeName = (typeStr: string) => {
+        if (typeStr && typeStr.startsWith('{')) {
+            return 'Gráfico Combinado (Eixo Duplo)';
+        }
+        return chartTypeNameMap[typeStr] || typeStr;
+    };
+
     return (
         <div className="glass-card" style={{ padding: '1.25rem', background: 'var(--bg-surface)', borderRadius: '12px', border: '1px solid var(--border-default)', boxShadow: 'var(--shadow-card)', width: '100%', marginBottom: '1.5rem', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', borderBottom: '1px solid var(--border-subtle)', paddingBottom: '0.5rem' }}>
                 <div style={{ flex: 1, minWidth: 0, paddingRight: '1rem' }}>
                     <h4 style={{ fontSize: '0.95rem', fontWeight: 800, color: 'var(--text-primary)', margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                        📊 {getChartCategoryLabel(chart.categoryId)} ({chartTypeNameMap[chart.chartType] || chart.chartType})
+                        📊 {getChartCategoryLabel(chart.categoryId)} ({getChartTypeName(chart.chartType)})
                     </h4>
                     <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', fontWeight: 500, display: 'block', marginTop: '0.2rem' }}>
                         Filtros: {chart.filterTenantId === 'ALL' ? 'Todas Empresas' : 'Empresa Única'} 
@@ -1567,7 +1666,8 @@ const renderDetailedChart = (
     showAtingido: boolean,
     pctOfRevenue: boolean,
     mainMonth: number,
-    chartColor: string = '#6366f1'
+    chartColor: string = '#6366f1',
+    mixedConfig?: Record<string, 'bar' | 'line_atingido' | 'line_revenue'>
 ) => {
     if (!data || data.length === 0) {
         return (
@@ -1575,6 +1675,18 @@ const renderDetailedChart = (
                 Carregando dados do gráfico...
             </div>
         );
+    }
+
+    let chartMode = type;
+    let config = mixedConfig;
+    if (type && type.startsWith('{')) {
+        try {
+            const parsed = JSON.parse(type);
+            chartMode = parsed.mode || 'MIXED';
+            config = parsed.config;
+        } catch (e) {
+            chartMode = 'VERTICAL_BAR';
+        }
     }
 
     const formatVal = (val: number) => {
@@ -1593,7 +1705,226 @@ const renderDetailedChart = (
         (idx + 1 <= currentMonthIdx + 1) ? Math.abs(pctOfRevenue ? m.pctOfRevenue : m.realized) : 0
     ))) || 1;
 
-    switch (type) {
+    switch (chartMode) {
+        case 'MIXED': {
+            const yBaseline = 210;
+            const formatAbs = (val: number) => {
+                if (val === 0) return 'R$ 0';
+                const absVal = Math.abs(val);
+                const formatted = (absVal / 1000).toFixed(1);
+                return `${val < 0 ? '-' : ''}R$ ${formatted}k`;
+            };
+
+            const barKeys = Object.keys(config || {}).filter(k => (config || {})[k] === 'bar');
+            const lineKeys = Object.keys(config || {}).filter(k => (config || {})[k] === 'line_atingido' || (config || {})[k] === 'line_revenue');
+            
+            const activeBarKeys = barKeys.length === 0 && lineKeys.length === 0 ? Object.keys(config || {}) : barKeys;
+            const activeLineKeys = lineKeys;
+
+            let maxAbs = 1;
+            data.forEach((m, idx) => {
+                activeBarKeys.forEach(k => {
+                    const vals = m.breakdown?.[k] || { budget: 0, realized: 0 };
+                    const rVal = (idx + 1 <= currentMonthIdx + 1) ? Math.abs(vals.realized) : 0;
+                    const bVal = onlyRealized ? 0 : Math.abs(vals.budget);
+                    maxAbs = Math.max(maxAbs, rVal, bVal);
+                });
+            });
+            const scaleMaxAbs = maxAbs * 1.20;
+
+            let maxPct = 100;
+            data.forEach((m, idx) => {
+                activeLineKeys.forEach(k => {
+                    const vals = m.breakdown?.[k] || { atingido: 0, pctOfRevenue: 0 };
+                    const typeMode = config?.[k];
+                    const val = typeMode === 'line_atingido' ? vals.atingido : vals.pctOfRevenue;
+                    if (idx + 1 <= currentMonthIdx + 1) {
+                        maxPct = Math.max(maxPct, Math.abs(val));
+                    }
+                });
+            });
+            const scaleMaxPct = maxPct * 1.15;
+
+            const getYAbs = (val: number) => {
+                const ratio = val / scaleMaxAbs;
+                return yBaseline - ratio * 170;
+            };
+
+            const getYPct = (val: number) => {
+                const ratio = val / scaleMaxPct;
+                return yBaseline - ratio * 170;
+            };
+
+            const startX = 80;
+            const stepX = 94;
+            const getX = (idx: number) => startX + idx * stepX;
+
+            const renderedBars = data.map((m, monthIdx) => {
+                const xCenter = getX(monthIdx);
+                const numBars = activeBarKeys.length;
+                if (numBars === 0) return null;
+
+                const groupWidth = 36;
+                const barWidth = Math.max(6, (groupWidth / numBars) - 2);
+                const startBarX = xCenter - (groupWidth / 2);
+
+                return activeBarKeys.map((k, keyIdx) => {
+                    const vals = m.breakdown?.[k] || { budget: 0, realized: 0 };
+                    const valR = vals.realized;
+                    const valB = vals.budget;
+
+                    const barX = startBarX + keyIdx * (barWidth + 2);
+                    const yR = getYAbs(valR);
+                    const hR = Math.max(2, yBaseline - yR);
+
+                    const yB = getYAbs(valB);
+                    const hB = Math.max(2, yBaseline - yB);
+
+                    const barOpacity = 1 - (keyIdx * 0.25);
+
+                    return (
+                        <g key={`${monthIdx}-${k}`}>
+                            {!onlyRealized && valB > 0 && (
+                                <rect 
+                                    x={barX} 
+                                    y={yB} 
+                                    width={barWidth} 
+                                    height={hB} 
+                                    fill="none" 
+                                    stroke="var(--text-muted)" 
+                                    strokeWidth="1" 
+                                    strokeDasharray="2 2" 
+                                    rx="2"
+                                />
+                            )}
+                            {monthIdx + 1 <= currentMonthIdx + 1 && valR > 0 && (
+                                <>
+                                    <rect 
+                                        x={barX} 
+                                        y={yR} 
+                                        width={barWidth} 
+                                        height={hR} 
+                                        fill={chartColor} 
+                                        fillOpacity={barOpacity}
+                                        rx="2"
+                                    />
+                                    <text 
+                                        x={barX + barWidth / 2} 
+                                        y={yR - 4} 
+                                        textAnchor="middle" 
+                                        fill="var(--text-secondary)" 
+                                        fontSize="7px" 
+                                        fontWeight="700"
+                                    >
+                                        {formatAbs(valR)}
+                                    </text>
+                                </>
+                            )}
+                        </g>
+                    );
+                });
+            });
+
+            const renderedLines = activeLineKeys.map((k, keyIdx) => {
+                const points: { x: number; y: number; val: number }[] = [];
+                data.forEach((m, monthIdx) => {
+                    const vals = m.breakdown?.[k] || { atingido: 0, pctOfRevenue: 0 };
+                    const typeMode = config?.[k];
+                    const val = typeMode === 'line_atingido' ? vals.atingido : vals.pctOfRevenue;
+                    
+                    if (monthIdx + 1 <= currentMonthIdx + 1) {
+                        points.push({
+                            x: getX(monthIdx),
+                            y: getYPct(val),
+                            val
+                        });
+                    }
+                });
+
+                if (points.length === 0) return null;
+
+                let pathD = `M ${points[0].x} ${points[0].y}`;
+                for (let i = 1; i < points.length; i++) {
+                    pathD += ` L ${points[i].x} ${points[i].y}`;
+                }
+
+                const lineColor = keyIdx === 0 ? '#10b981' : '#f59e0b';
+
+                return (
+                    <g key={k}>
+                        <path 
+                            d={pathD} 
+                            fill="none" 
+                            stroke={lineColor} 
+                            strokeWidth="2.5" 
+                            strokeLinecap="round" 
+                            strokeLinejoin="round" 
+                        />
+                        {points.map((p, idx) => (
+                            <g key={idx}>
+                                <circle 
+                                    cx={p.x} 
+                                    cy={p.y} 
+                                    r="4.5" 
+                                    fill={lineColor} 
+                                    stroke="var(--bg-surface)" 
+                                    strokeWidth="1.5" 
+                                />
+                                <text 
+                                    x={p.x} 
+                                    y={p.y - 7} 
+                                    textAnchor="middle" 
+                                    fill={lineColor} 
+                                    fontSize="7.5px" 
+                                    fontWeight="800"
+                                >
+                                    {p.val.toFixed(1)}%
+                                </text>
+                            </g>
+                        ))}
+                    </g>
+                );
+            });
+
+            return (
+                <svg viewBox="0 0 1200 260" width="100%" height="auto" style={{ overflow: 'visible' }}>
+                    {[0, 0.25, 0.5, 0.75, 1.0].map((ratio, gridIdx) => {
+                        const yGrid = yBaseline - ratio * 170;
+                        return (
+                            <g key={gridIdx}>
+                                <line x1="80" y1={yGrid} x2="1120" y2={yGrid} stroke="var(--border-subtle)" strokeWidth="0.5" strokeDasharray="3 3" />
+                                <text x="70" y={yGrid + 3} textAnchor="end" fill="var(--text-muted)" fontSize="7.5px" fontWeight="600">
+                                    {formatAbs(ratio * scaleMaxAbs)}
+                                </text>
+                                <text x="1130" y={yGrid + 3} textAnchor="start" fill="var(--text-muted)" fontSize="7.5px" fontWeight="600">
+                                    {(ratio * scaleMaxPct).toFixed(0)}%
+                                </text>
+                            </g>
+                        );
+                    })}
+
+                    <line x1="80" y1={yBaseline} x2="1120" y2={yBaseline} stroke="var(--border-default)" strokeWidth="1" />
+
+                    {renderedBars}
+                    {renderedLines}
+
+                    {data.map((m, idx) => (
+                        <text 
+                            key={idx} 
+                            x={getX(idx)} 
+                            y={yBaseline + 18} 
+                            textAnchor="middle" 
+                            fill="var(--text-secondary)" 
+                            fontSize="8px" 
+                            fontWeight="800"
+                        >
+                            {['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'][idx]}
+                        </text>
+                    ))}
+                </svg>
+            );
+        }
+
         case 'VERTICAL_BAR': {
             const yBaseline = hasNegative ? 130 : 210;
             const maxBarHeight = hasNegative ? 100 : 165;

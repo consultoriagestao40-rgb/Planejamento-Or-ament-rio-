@@ -873,7 +873,8 @@ export default function BudgetGrid({
         showAtingido: boolean,
         pctOfRevenue: boolean,
         mainMonth: number,
-        chartColor: string = '#3b82f6'
+        chartColor: string = '#3b82f6',
+        mixedConfig?: Record<string, 'bar' | 'line_atingido' | 'line_revenue'>
     ) => {
         if (!data || data.length === 0) {
             return (
@@ -881,6 +882,18 @@ export default function BudgetGrid({
                     Carregando dados do gráfico...
                 </div>
             );
+        }
+
+        let chartMode = type;
+        let config = mixedConfig;
+        if (type && type.startsWith('{')) {
+            try {
+                const parsed = JSON.parse(type);
+                chartMode = parsed.mode || 'MIXED';
+                config = parsed.config;
+            } catch (e) {
+                chartMode = 'VERTICAL_BAR';
+            }
         }
 
         const formatVal = (val: number) => {
@@ -898,7 +911,226 @@ export default function BudgetGrid({
             (idx + 1 <= currentMonthIdx + 1) ? Math.abs(pctOfRevenue ? m.pctOfRevenue : m.realized) : 0
         ))) || 1;
 
-        switch (type) {
+        switch (chartMode) {
+            case 'MIXED': {
+                const yBaseline = 210;
+                const formatAbs = (val: number) => {
+                    if (val === 0) return 'R$ 0';
+                    const absVal = Math.abs(val);
+                    const formatted = (absVal / 1000).toFixed(1);
+                    return `${val < 0 ? '-' : ''}R$ ${formatted}k`;
+                };
+
+                const barKeys = Object.keys(config || {}).filter(k => (config || {})[k] === 'bar');
+                const lineKeys = Object.keys(config || {}).filter(k => (config || {})[k] === 'line_atingido' || (config || {})[k] === 'line_revenue');
+                
+                const activeBarKeys = barKeys.length === 0 && lineKeys.length === 0 ? Object.keys(config || {}) : barKeys;
+                const activeLineKeys = lineKeys;
+
+                let maxAbs = 1;
+                data.forEach((m, idx) => {
+                    activeBarKeys.forEach(k => {
+                        const vals = m.breakdown?.[k] || { budget: 0, realized: 0 };
+                        const rVal = (idx + 1 <= currentMonthIdx + 1) ? Math.abs(vals.realized) : 0;
+                        const bVal = onlyRealized ? 0 : Math.abs(vals.budget);
+                        maxAbs = Math.max(maxAbs, rVal, bVal);
+                    });
+                });
+                const scaleMaxAbs = maxAbs * 1.20;
+
+                let maxPct = 100;
+                data.forEach((m, idx) => {
+                    activeLineKeys.forEach(k => {
+                        const vals = m.breakdown?.[k] || { atingido: 0, pctOfRevenue: 0 };
+                        const typeMode = config?.[k];
+                        const val = typeMode === 'line_atingido' ? vals.atingido : vals.pctOfRevenue;
+                        if (idx + 1 <= currentMonthIdx + 1) {
+                            maxPct = Math.max(maxPct, Math.abs(val));
+                        }
+                    });
+                });
+                const scaleMaxPct = maxPct * 1.15;
+
+                const getYAbs = (val: number) => {
+                    const ratio = val / scaleMaxAbs;
+                    return yBaseline - ratio * 170;
+                };
+
+                const getYPct = (val: number) => {
+                    const ratio = val / scaleMaxPct;
+                    return yBaseline - ratio * 170;
+                };
+
+                const startX = 80;
+                const stepX = 94;
+                const getX = (idx: number) => startX + idx * stepX;
+
+                const renderedBars = data.map((m, monthIdx) => {
+                    const xCenter = getX(monthIdx);
+                    const numBars = activeBarKeys.length;
+                    if (numBars === 0) return null;
+
+                    const groupWidth = 36;
+                    const barWidth = Math.max(6, (groupWidth / numBars) - 2);
+                    const startBarX = xCenter - (groupWidth / 2);
+
+                    return activeBarKeys.map((k, keyIdx) => {
+                        const vals = m.breakdown?.[k] || { budget: 0, realized: 0 };
+                        const valR = vals.realized;
+                        const valB = vals.budget;
+
+                        const barX = startBarX + keyIdx * (barWidth + 2);
+                        const yR = getYAbs(valR);
+                        const hR = Math.max(2, yBaseline - yR);
+
+                        const yB = getYAbs(valB);
+                        const hB = Math.max(2, yBaseline - yB);
+
+                        const barOpacity = 1 - (keyIdx * 0.25);
+
+                        return (
+                            <g key={`${monthIdx}-${k}`}>
+                                {!onlyRealized && valB > 0 && (
+                                    <rect 
+                                        x={barX} 
+                                        y={yB} 
+                                        width={barWidth} 
+                                        height={hB} 
+                                        fill="none" 
+                                        stroke="#94a3b8" 
+                                        strokeWidth="1" 
+                                        strokeDasharray="2 2" 
+                                        rx="2"
+                                    />
+                                )}
+                                {monthIdx + 1 <= currentMonthIdx + 1 && valR > 0 && (
+                                    <>
+                                        <rect 
+                                            x={barX} 
+                                            y={yR} 
+                                            width={barWidth} 
+                                            height={hR} 
+                                            fill={chartColor} 
+                                            fillOpacity={barOpacity}
+                                            rx="2"
+                                        />
+                                        <text 
+                                            x={barX + barWidth / 2} 
+                                            y={yR - 4} 
+                                            textAnchor="middle" 
+                                            fill="#475569" 
+                                            fontSize="7px" 
+                                            fontWeight="700"
+                                        >
+                                            {formatAbs(valR)}
+                                        </text>
+                                    </>
+                                )}
+                            </g>
+                        );
+                    });
+                });
+
+                const renderedLines = activeLineKeys.map((k, keyIdx) => {
+                    const points: { x: number; y: number; val: number }[] = [];
+                    data.forEach((m, monthIdx) => {
+                        const vals = m.breakdown?.[k] || { atingido: 0, pctOfRevenue: 0 };
+                        const typeMode = config?.[k];
+                        const val = typeMode === 'line_atingido' ? vals.atingido : vals.pctOfRevenue;
+                        
+                        if (monthIdx + 1 <= currentMonthIdx + 1) {
+                            points.push({
+                                x: getX(monthIdx),
+                                y: getYPct(val),
+                                val
+                            });
+                        }
+                    });
+
+                    if (points.length === 0) return null;
+
+                    let pathD = `M ${points[0].x} ${points[0].y}`;
+                    for (let i = 1; i < points.length; i++) {
+                        pathD += ` L ${points[i].x} ${points[i].y}`;
+                    }
+
+                    const lineColor = keyIdx === 0 ? '#10b981' : '#f59e0b';
+
+                    return (
+                        <g key={k}>
+                            <path 
+                                d={pathD} 
+                                fill="none" 
+                                stroke={lineColor} 
+                                strokeWidth="2.5" 
+                                strokeLinecap="round" 
+                                strokeLinejoin="round" 
+                            />
+                            {points.map((p, idx) => (
+                                <g key={idx}>
+                                    <circle 
+                                        cx={p.x} 
+                                        cy={p.y} 
+                                        r="4.5" 
+                                        fill={lineColor} 
+                                        stroke="#ffffff" 
+                                        strokeWidth="1.5" 
+                                    />
+                                    <text 
+                                        x={p.x} 
+                                        y={p.y - 7} 
+                                        textAnchor="middle" 
+                                        fill={lineColor} 
+                                        fontSize="7.5px" 
+                                        fontWeight="800"
+                                    >
+                                        {p.val.toFixed(1)}%
+                                    </text>
+                                </g>
+                            ))}
+                        </g>
+                    );
+                });
+
+                return (
+                    <svg viewBox="0 0 1200 260" width="100%" height="auto" style={{ overflow: 'visible' }}>
+                        {[0, 0.25, 0.5, 0.75, 1.0].map((ratio, gridIdx) => {
+                            const yGrid = yBaseline - ratio * 170;
+                            return (
+                                <g key={gridIdx}>
+                                    <line x1="80" y1={yGrid} x2="1120" y2={yGrid} stroke="#f1f5f9" strokeWidth="0.5" strokeDasharray="3 3" />
+                                    <text x="70" y={yGrid + 3} textAnchor="end" fill="#94a3b8" fontSize="7.5px" fontWeight="600">
+                                        {formatAbs(ratio * scaleMaxAbs)}
+                                    </text>
+                                    <text x="1130" y={yGrid + 3} textAnchor="start" fill="#94a3b8" fontSize="7.5px" fontWeight="600">
+                                        {(ratio * scaleMaxPct).toFixed(0)}%
+                                    </text>
+                                </g>
+                            );
+                        })}
+
+                        <line x1="80" y1={yBaseline} x2="1120" y2={yBaseline} stroke="#cbd5e1" strokeWidth="1" />
+
+                        {renderedBars}
+                        {renderedLines}
+
+                        {data.map((m, idx) => (
+                            <text 
+                                key={idx} 
+                                x={getX(idx)} 
+                                y={yBaseline + 18} 
+                                textAnchor="middle" 
+                                fill="#475569" 
+                                fontSize="8px" 
+                                fontWeight="800"
+                            >
+                                {['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'][idx]}
+                            </text>
+                        ))}
+                    </svg>
+                );
+            }
+
             case 'VERTICAL_BAR': {
                 const yBaseline = hasNegative ? 130 : 210;
                 const maxBarHeight = hasNegative ? 100 : 165;

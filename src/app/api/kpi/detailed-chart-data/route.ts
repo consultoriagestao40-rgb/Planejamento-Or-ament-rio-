@@ -391,30 +391,59 @@ export async function GET(request: Request) {
         const series = Array.from({ length: 12 }, (_, m) => {
             let budgetVal = 0;
             let realizedVal = 0;
+            const breakdown: Record<string, { budget: number; realized: number; atingido: number; pctOfRevenue: number }> = {};
 
-            resolvedKeys.forEach(key => {
+            resolvedKeys.forEach((key, idx) => {
+                const originalKey = keys[idx];
                 const isDreKey = ['vRev', 'vTaxes', 'vRecLiq', 'vCosts', 'vGrossMarg', 'vOpExp', 'vContribMarg', 'vAdminExp', 'vEbitda', 'vFin', 'vNetProfit'].includes(key);
+
+                let bVal = 0;
+                let rVal = 0;
 
                 if (isDreKey) {
                     const dreKey = key as keyof typeof dreTotals[0];
-                    budgetVal += dreTotals[m][dreKey].b;
-                    realizedVal += dreTotals[m][dreKey].r;
+                    bVal = dreTotals[m][dreKey].b;
+                    rVal = dreTotals[m][dreKey].r;
                 } else {
                     const t = totalsMap.get(key);
                     if (t) {
-                        budgetVal += t.budget[m];
-                        realizedVal += t.realized[m];
+                        bVal = t.budget[m];
+                        rVal = t.realized[m];
                     } else {
                         const node = codeMap.get(key);
                         if (node) {
                             const tNode = totalsMap.get(node.id);
                             if (tNode) {
-                                budgetVal += tNode.budget[m];
-                                realizedVal += tNode.realized[m];
+                                bVal = tNode.budget[m];
+                                rVal = tNode.realized[m];
                             }
                         }
                     }
                 }
+
+                budgetVal += bVal;
+                realizedVal += rVal;
+
+                // Individual account target achievement percentage
+                let at = 0;
+                if (bVal > 0) {
+                    at = (rVal / bVal) * 100;
+                } else if (bVal < 0) {
+                    at = (1 + (bVal - rVal) / bVal) * 100;
+                } else {
+                    at = rVal >= 0 ? 100 : 0;
+                }
+
+                // Individual percentage of revenue
+                const revVal = dreTotals[m].vRev.r || 1;
+                const pct = (rVal / revVal) * 100;
+
+                breakdown[originalKey] = {
+                    budget: bVal,
+                    realized: rVal,
+                    atingido: at,
+                    pctOfRevenue: pct
+                };
             });
 
             // Target achievement percentage (atingido)
@@ -436,7 +465,8 @@ export async function GET(request: Request) {
                 budget: budgetVal,
                 realized: realizedVal,
                 atingido,
-                pctOfRevenue
+                pctOfRevenue,
+                breakdown
             };
         });
 

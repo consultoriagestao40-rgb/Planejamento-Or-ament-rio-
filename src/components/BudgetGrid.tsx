@@ -3602,13 +3602,7 @@ export default function BudgetGrid({
                         );
                     })}
                 </div>
-            </div>
-        );
-    };
-
-    // renderContractsMarginValueChart removido por unificação no gráfico de percentual
-
-    const renderContractsMarginPercentChart = () => {
+                const renderContractsMarginPercentChart = () => {
         if (contractsLoading) {
             return (
                 <div className="glass-card" style={{ padding: '2rem', background: '#ffffff', borderRadius: '12px', border: '1px solid #e2e8f0', boxShadow: '0 4px 6px rgba(0,0,0,0.02)', width: '100%', minHeight: '300px', display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center' }}>
@@ -3630,13 +3624,35 @@ export default function BudgetGrid({
             ? `${MONTH_ABBR[startMonth]} / ${selectedYear}`
             : `${MONTH_ABBR[startMonth]} a ${MONTH_ABBR[endMonth]} de ${selectedYear}`;
 
-        // Lógica de cálculo dos limites do gráfico
+        const maxAbs = Math.max(...contractsMarginData.flatMap(d => [Math.abs(d.realizedValue), Math.abs(d.budgetValue)]), 1);
+        
+        // Parâmetros de layout vertical
+        const heightUpper = 200; // Região superior (positiva) de 200px
+        const heightLower = 80;  // Região inferior (negativa) de 80px
+        const yZero = 230;       // Linha de base zero a 230px do topo (paddingTop = 30px)
+        const svgHeight = 330;   // Altura total do SVG (paddingTop: 30 + 200 + 80 + paddingBottom: 20)
+        const colWidth = 60;     // Largura de cada coluna para acomodar as duas barras + ponto central
+
+        const getYAbs = (v: number) => {
+            if (v >= 0) {
+                return yZero - (v / maxAbs) * heightUpper;
+            } else {
+                return yZero + (Math.abs(v) / maxAbs) * heightLower;
+            }
+        };
+
+        const drawBar = (v: number, xOffset: number, fill: string) => {
+            const yVal = getYAbs(v);
+            const y = Math.min(yZero, yVal);
+            const h = Math.abs(yVal - yZero);
+            if (h <= 1) return null;
+            return <rect x={xOffset} y={y} width={12} height={h} fill={fill} rx={2} />;
+        };
+
+        // Lógica de cálculo dos limites do gráfico de linhas (percentual)
         let minP = Math.min(...contractsMarginData.flatMap(d => [d.realizedPercent, d.budgetPercent]), 0);
         let maxP = Math.max(...contractsMarginData.flatMap(d => [d.realizedPercent, d.budgetPercent]), 0);
         
-        // LIMITAR A ESCALA VISUAL: para evitar distorções de CCs corporativos sem receita/despesa ou erros de divisão,
-        // limitamos a escala Y visual a uma faixa realística entre -100% e 150%. Os valores fora disso serão limitados graficamente (getY)
-        // mas mantêm seus rótulos corretos, permitindo que a variação normal da maioria dos contratos seja visível.
         if (minP < -100) minP = -100;
         if (maxP > 150) maxP = 150;
         if (minP === 0 && maxP === 0) {
@@ -3644,34 +3660,25 @@ export default function BudgetGrid({
             maxP = 100;
         }
 
-        const range = maxP - minP;
-        const buffer = range * 0.1; // respiro menor nas bordas para abrir espaço
-        const minVal = minP - buffer;
-        const maxVal = maxP + buffer;
+        const maxPosPercent = Math.max(maxP, 1);
+        const maxNegPercent = Math.max(Math.abs(minP), 1);
 
-        const colWidth = 50;     
-        const svgHeight = 310;    // Aumentado de 220 para 310 para equiparar à altura visual do gráfico de barras
-        const paddingTop = 30;
-        const paddingBottom = 25;
-        const chartHeight = svgHeight - paddingTop - paddingBottom;
-
-        // getY com limitador interno (clamp) para garantir que pontos de percentuais extremos
-        // (como -2400%) fiquem plotados na borda inferior do gráfico em vez de disparar para fora do SVG
-        const getY = (v: number) => {
-            const clamped = Math.max(minVal, Math.min(maxVal, v));
-            const ratio = (clamped - minVal) / (maxVal - minVal);
-            return svgHeight - paddingBottom - (ratio * chartHeight);
+        const getYPercent = (v: number) => {
+            if (v >= 0) {
+                return yZero - (v / maxPosPercent) * heightUpper;
+            } else {
+                return yZero + (Math.abs(v) / maxNegPercent) * heightLower;
+            }
         };
 
-        const yZero = getY(0);
         const totalWidth = contractsMarginData.length * colWidth;
 
-        // Path do Orçado
-        const budgetPoints = contractsMarginData.map((d, idx) => `${idx * colWidth + colWidth/2},${getY(d.budgetPercent)}`).join(' L ');
+        // Path do Orçado %
+        const budgetPoints = contractsMarginData.map((d, idx) => `${idx * colWidth + colWidth/2},${getYPercent(d.budgetPercent)}`).join(' L ');
         const budgetPath = `M ${budgetPoints}`;
 
-        // Path do Realizado
-        const realizedPoints = contractsMarginData.map((d, idx) => `${idx * colWidth + colWidth/2},${getY(d.realizedPercent)}`).join(' L ');
+        // Path do Realizado %
+        const realizedPoints = contractsMarginData.map((d, idx) => `${idx * colWidth + colWidth/2},${getYPercent(d.realizedPercent)}`).join(' L ');
         const realizedPath = `M ${realizedPoints}`;
 
         return (
@@ -3682,23 +3689,29 @@ export default function BudgetGrid({
                             Margem por Contrato (Orçado x Realizado)
                         </h3>
                         <span style={{ fontSize: '0.72rem', color: '#64748b', fontWeight: 500, display: 'block', marginTop: '0.25rem' }}>
-                            Rentabilidade em % (Margem de Contribuição / Receita) — Valores absolutos no card ao apontar
+                            Rentabilidade Combinada: Valores Absolutos (Barras em R$ Mil) & Percentuais (Linhas em %)
                         </span>
                         <span style={{ fontSize: '0.75rem', color: '#3b82f6', fontWeight: 700, display: 'block', marginTop: '0.25rem' }}>
-                            Período: {periodLabel} (Acumulado)
+                            Período: {periodLabel} (Acumulado) — Valores detalhados no card ao apontar
                         </span>
                     </div>
-                    {/* Legenda de Linhas */}
-                    <div style={{ display: 'flex', gap: '1rem', fontSize: '0.75rem', fontWeight: 600 }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                            <div style={{ width: '12px', height: '3px', backgroundColor: '#cbd5e1' }} />
-                            <div style={{ width: '6px', height: '6px', backgroundColor: '#ffffff', stroke: '#cbd5e1', strokeWidth: '1.5px', borderRadius: '50%', marginLeft: '-9px' }} />
-                            <span style={{ color: '#64748b' }}>Orçado</span>
+                    {/* Legenda Combinada */}
+                    <div style={{ display: 'flex', gap: '1.25rem', fontSize: '0.75rem', fontWeight: 600 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                            <div style={{ width: '10px', height: '10px', backgroundColor: '#cbd5e1', borderRadius: '2px' }} />
+                            <div style={{ display: 'flex', alignItems: 'center', marginLeft: '4px' }}>
+                                <div style={{ width: '10px', height: '2px', backgroundColor: '#94a3b8' }} />
+                                <div style={{ width: '5px', height: '5px', backgroundColor: '#ffffff', stroke: '#94a3b8', strokeWidth: '1.5px', borderRadius: '50%', marginLeft: '-8px' }} />
+                            </div>
+                            <span style={{ color: '#64748b', marginLeft: '2px' }}>Orçado (Valor & %)</span>
                         </div>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                            <div style={{ width: '12px', height: '3px', backgroundColor: '#10b981' }} />
-                            <div style={{ width: '6px', height: '6px', backgroundColor: '#ffffff', stroke: '#10b981', strokeWidth: '1.5px', borderRadius: '50%', marginLeft: '-9px' }} />
-                            <span style={{ color: '#059669' }}>Realizado</span>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                            <div style={{ width: '10px', height: '10px', background: 'linear-gradient(180deg, #818cf8, #4f46e5)', borderRadius: '2px' }} />
+                            <div style={{ display: 'flex', alignItems: 'center', marginLeft: '4px' }}>
+                                <div style={{ width: '10px', height: '2px', backgroundColor: '#10b981' }} />
+                                <div style={{ width: '5px', height: '5px', backgroundColor: '#ffffff', stroke: '#10b981', strokeWidth: '1.5px', borderRadius: '50%', marginLeft: '-8px' }} />
+                            </div>
+                            <span style={{ color: '#4f46e5', marginLeft: '2px' }}>Realizado (Valor & %)</span>
                         </div>
                     </div>
                 </div>
@@ -3717,6 +3730,21 @@ export default function BudgetGrid({
                     {/* Linha do SVG */}
                     <div style={{ width: `${totalWidth}px`, height: `${svgHeight}px`, position: 'relative' }}>
                         <svg width={totalWidth} height={svgHeight} style={{ overflow: 'visible' }}>
+                            <defs>
+                                <linearGradient id="realizedPosGrad" x1="0" y1="0" x2="0" y2="1">
+                                    <stop offset="0%" stopColor="#818cf8" stopOpacity="0.85" />
+                                    <stop offset="100%" stopColor="#4f46e5" stopOpacity="0.85" />
+                                </linearGradient>
+                                <linearGradient id="realizedNegGrad" x1="0" y1="0" x2="0" y2="1">
+                                    <stop offset="0%" stopColor="#f87171" stopOpacity="0.85" />
+                                    <stop offset="100%" stopColor="#ef4444" stopOpacity="0.85" />
+                                </linearGradient>
+                                <linearGradient id="budgetGrad" x1="0" y1="0" x2="0" y2="1">
+                                    <stop offset="0%" stopColor="#cbd5e1" stopOpacity="0.75" />
+                                    <stop offset="100%" stopColor="#94a3b8" stopOpacity="0.75" />
+                                </linearGradient>
+                            </defs>
+
                             {/* Guideline de Hover */}
                             {contractsMarginHoveredIndex !== null && contractsMarginHoveredChart === 'percentage' && (
                                 <line
@@ -3744,15 +3772,27 @@ export default function BudgetGrid({
                                 />
                             )}
 
-                            {/* Linha Orçado */}
+                            {/* LAYER 2: Barras de Valores Absolutos */}
+                            {contractsMarginData.map((item, idx) => {
+                                const x = idx * colWidth + colWidth / 2;
+                                return (
+                                    <g key={`bars-${idx}`}>
+                                        {drawBar(item.budgetValue, x - 14, 'url(#budgetGrad)')}
+                                        {drawBar(item.realizedValue, x + 2, item.realizedValue >= 0 ? 'url(#realizedPosGrad)' : 'url(#realizedNegGrad)')}
+                                    </g>
+                                );
+                            })}
+
+                            {/* LAYER 3: Linhas Orçado e Realizado */}
                             {contractsMarginData.length > 1 && (
                                 <path 
                                     d={budgetPath} 
                                     fill="none" 
-                                    stroke="#cbd5e1" 
+                                    stroke="#94a3b8" 
                                     strokeWidth={2} 
                                     strokeLinecap="round" 
                                     strokeLinejoin="round" 
+                                    opacity="0.8"
                                  />
                             )}
 
@@ -3768,20 +3808,18 @@ export default function BudgetGrid({
                                  />
                             )}
 
-                            {/* Círculos e Rótulos */}
+                            {/* LAYER 4: Círculos e Rótulos das Linhas */}
                             {contractsMarginData.map((item, idx) => {
                                 const x = idx * colWidth + colWidth / 2;
-                                const yB = getY(item.budgetPercent);
-                                const yR = getY(item.realizedPercent);
+                                const yB = getYPercent(item.budgetPercent);
+                                const yR = getYPercent(item.realizedPercent);
 
-                                // Evitar sobreposição de textos: 
-                                // O valor maior fica por cima (y - 12), o valor menor fica por baixo (y + 14)
                                 const isRealGreater = item.realizedPercent >= item.budgetPercent;
                                 const rTextY = isRealGreater ? yR - 10 : yR + 14;
                                 const bTextY = isRealGreater ? yB + 14 : yB - 10;
 
                                 return (
-                                    <g key={idx}>
+                                    <g key={`points-${idx}`}>
                                         {/* Pontos do Orçado */}
                                         <circle 
                                             cx={x} 
@@ -3825,7 +3863,7 @@ export default function BudgetGrid({
                                 );
                             })}
 
-                            {/* Hover Detector Slices */}
+                            {/* LAYER 5: Hover Detector Slices */}
                             {contractsMarginData.map((item, idx) => (
                                 <rect
                                     key={`hover-percent-${idx}`}

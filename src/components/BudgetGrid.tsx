@@ -86,6 +86,163 @@ export default function BudgetGrid({
     const [contractsMarginHoveredIndex, setContractsMarginHoveredIndex] = useState<number | null>(null);
     const [contractsMarginHoveredChart, setContractsMarginHoveredChart] = useState<'absolute' | 'percentage' | null>(null);
 
+    // --- Indicator Analysis State ---
+    const [isAnalysisModalOpen, setIsAnalysisModalOpen] = useState(false);
+    const [analysisId, setAnalysisId] = useState<string | null>(null);
+    const [analysisSelectedTenant, setAnalysisSelectedTenant] = useState<string>('');
+    const [analysisSelectedMonth, setAnalysisSelectedMonth] = useState<number>(new Date().getMonth() + 1); // 1-12
+    const [analysisSelectedCategory, setAnalysisSelectedCategory] = useState<string>('');
+    const [deviationReport, setDeviationReport] = useState<string>('');
+    const [analysisPerformed, setAnalysisPerformed] = useState<string>('');
+    const [analysisActions, setAnalysisActions] = useState<{ id?: string; description: string; dueDate: string; isDone?: boolean }[]>([]);
+    const [analysisComments, setAnalysisComments] = useState<{ id: string; userName: string; content: string; createdAt: string }[]>([]);
+    const [newCommentText, setNewCommentText] = useState<string>('');
+    const [newCommentUser, setNewCommentUser] = useState<string>('Gestor');
+    const [isAnalysisLoading, setIsAnalysisLoading] = useState(false);
+    const [isAnalysisSaving, setIsAnalysisSaving] = useState(false);
+
+    // Quick Category State
+    const [isQuickCategoryFormOpen, setIsQuickCategoryFormOpen] = useState(false);
+    const [newCategoryName, setNewCategoryName] = useState('');
+    const [newCategoryType, setNewCategoryType] = useState('EXPENSE');
+    const [newCategoryGroup, setNewCategoryGroup] = useState('04. DESPESAS');
+    const [isCategoryRegistering, setIsCategoryRegistering] = useState(false);
+
+    const loadAnalysisData = async (tenantId: string, categoryId: string, month: number, year: number) => {
+        if (!tenantId || !categoryId || !month || !year) return;
+        setIsAnalysisLoading(true);
+        try {
+            const res = await fetch(`/api/kpi/analysis?tenantId=${tenantId}&categoryId=${categoryId}&month=${month}&year=${year}`);
+            const result = await res.json();
+            if (result.success && result.data) {
+                const data = result.data;
+                setAnalysisId(data.id);
+                setDeviationReport(data.deviationReport || '');
+                setAnalysisPerformed(data.analysisPerformed || '');
+                setAnalysisActions(data.actions || []);
+                setAnalysisComments(data.comments || []);
+            } else {
+                setAnalysisId(null);
+                setDeviationReport('');
+                setAnalysisPerformed('');
+                setAnalysisActions([]);
+                setAnalysisComments([]);
+            }
+        } catch (e) {
+            console.error("Error loading analysis data:", e);
+        } finally {
+            setIsAnalysisLoading(false);
+        }
+    };
+
+    useEffect(() => {
+        if (isAnalysisModalOpen && analysisSelectedTenant && analysisSelectedCategory) {
+            loadAnalysisData(analysisSelectedTenant, analysisSelectedCategory, analysisSelectedMonth, selectedYear);
+        }
+    }, [isAnalysisModalOpen, analysisSelectedTenant, analysisSelectedCategory, analysisSelectedMonth, selectedYear]);
+
+    const saveAnalysisData = async () => {
+        if (!analysisSelectedTenant || !analysisSelectedCategory || !analysisSelectedMonth) {
+            alert('Por favor, selecione a empresa, a categoria e o mês.');
+            return;
+        }
+        setIsAnalysisSaving(true);
+        try {
+            const res = await fetch('/api/kpi/analysis', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    tenantId: analysisSelectedTenant,
+                    categoryId: analysisSelectedCategory,
+                    month: analysisSelectedMonth,
+                    year: selectedYear,
+                    deviationReport,
+                    analysisPerformed,
+                    actions: analysisActions
+                })
+            });
+            const result = await res.json();
+            if (result.success) {
+                triggerRefresh();
+                setAnalysisId(result.data.id);
+                setAnalysisActions(result.data.actions || []);
+                alert('Análise do indicador salva com sucesso!');
+            } else {
+                alert(`Erro ao salvar análise: ${result.error}`);
+            }
+        } catch (e) {
+            alert('Erro ao conectar ao servidor para salvar a análise.');
+        } finally {
+            setIsAnalysisSaving(false);
+        }
+    };
+
+    const postComment = async () => {
+        if (!analysisId) {
+            alert('Por favor, salve a análise primeiro para poder adicionar comentários.');
+            return;
+        }
+        if (!newCommentText.trim()) return;
+        try {
+            const res = await fetch('/api/kpi/analysis/comments', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    analysisId,
+                    userName: newCommentUser.trim() || 'Gestor',
+                    content: newCommentText.trim()
+                })
+            });
+            const result = await res.json();
+            if (result.success) {
+                setAnalysisComments(prev => [...prev, result.data]);
+                setNewCommentText('');
+            } else {
+                alert(`Erro ao adicionar comentário: ${result.error}`);
+            }
+        } catch (e) {
+            alert('Erro ao conectar ao servidor para adicionar comentário.');
+        }
+    };
+
+    const handleRegisterCategory = async () => {
+        if (!newCategoryName.trim()) {
+            alert('Por favor, informe o nome da categoria.');
+            return;
+        }
+        if (!analysisSelectedTenant) {
+            alert('Por favor, selecione a empresa associada.');
+            return;
+        }
+        setIsCategoryRegistering(true);
+        try {
+            const res = await fetch('/api/kpi/analysis/categories', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    name: newCategoryName.trim(),
+                    type: newCategoryType,
+                    entradaDre: newCategoryGroup,
+                    tenantId: analysisSelectedTenant
+                })
+            });
+            const result = await res.json();
+            if (result.success) {
+                setCategories(prev => [...prev, result.data]);
+                setAnalysisSelectedCategory(result.data.id);
+                setNewCategoryName('');
+                setIsQuickCategoryFormOpen(false);
+                alert('Categoria cadastrada e selecionada com sucesso!');
+            } else {
+                alert(`Erro ao cadastrar categoria: ${result.error}`);
+            }
+        } catch (e) {
+            alert('Erro ao conectar ao servidor para cadastrar categoria.');
+        } finally {
+            setIsCategoryRegistering(false);
+        }
+    };
+
     const calculateAtingimento = (budget: number, realized: number) => {
         if (budget > 0) return `${((realized / budget) * 100).toFixed(0)}%`;
         if (budget < 0) return `${((1 + (budget - realized) / budget) * 100).toFixed(0)}%`;
@@ -4344,6 +4501,40 @@ export default function BudgetGrid({
                 {/* RIGHT: Análises & Toggles / Período de Análise */}
                 {activeTab === 'graficos' || activeTab === 'kpi' ? (
                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                        {/* BOTÃO ANÁLISE DO INDICADOR */}
+                        <button
+                            onClick={() => {
+                                const defaultTenant = selectedCompany.includes('DEFAULT') ? (companies[0]?.id || '') : selectedCompany[0];
+                                setAnalysisSelectedTenant(defaultTenant);
+                                setAnalysisSelectedMonth(startMonth + 1);
+                                setAnalysisSelectedCategory('');
+                                setDeviationReport('');
+                                setAnalysisPerformed('');
+                                setAnalysisActions([]);
+                                setAnalysisComments([]);
+                                setIsAnalysisModalOpen(true);
+                            }}
+                            style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '0.4rem',
+                                padding: '0 0.75rem',
+                                height: '32px',
+                                background: 'linear-gradient(135deg, #3b82f6, #2563eb)',
+                                color: '#ffffff',
+                                border: 'none',
+                                borderRadius: '8px',
+                                fontSize: '0.75rem',
+                                fontWeight: 700,
+                                cursor: 'pointer',
+                                boxShadow: '0 2px 4px rgba(37, 99, 235, 0.2)',
+                                transition: 'all 0.15s ease'
+                            }}
+                            onMouseEnter={(e) => e.currentTarget.style.transform = 'translateY(-1px)'}
+                            onMouseLeave={(e) => e.currentTarget.style.transform = 'none'}
+                        >
+                            📊 Análise do Indicador
+                        </button>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                             <span style={{ fontSize: '0.65rem', fontWeight: 800, color: 'var(--accent-blue)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Período</span>
                             <select
@@ -5954,6 +6145,510 @@ export default function BudgetGrid({
                     </div>
                 );
             })()}
+
+            {/* Indicator Analysis Modal */}
+            {isAnalysisModalOpen && (
+                <div style={{
+                    position: 'fixed',
+                    top: 0, left: 0, right: 0, bottom: 0,
+                    backgroundColor: 'rgba(15, 23, 42, 0.4)',
+                    backdropFilter: 'blur(8px)',
+                    zIndex: 9999,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    padding: '2rem'
+                }}>
+                    <div className="glass-card" style={{
+                        background: '#ffffff',
+                        border: '1px solid #e2e8f0',
+                        borderRadius: '16px',
+                        boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)',
+                        width: '100%',
+                        maxWidth: '900px',
+                        maxHeight: '90vh',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        overflow: 'hidden',
+                        animation: 'modalSlideIn 0.3s cubic-bezier(0.16, 1, 0.3, 1)'
+                    }}>
+                        {/* Modal Header */}
+                        <div style={{
+                            padding: '1.25rem 1.5rem',
+                            borderBottom: '1px solid #e2e8f0',
+                            display: 'flex',
+                            justifyContent: 'space-between',
+                            alignItems: 'center',
+                            background: 'linear-gradient(135deg, #f8fafc, #f1f5f9)'
+                        }}>
+                            <div>
+                                <h3 style={{ fontSize: '1.1rem', fontWeight: 800, color: '#0f172a', margin: 0 }}>
+                                    📝 Análise e Plano de Ação do Indicador
+                                </h3>
+                                <span style={{ fontSize: '0.75rem', color: '#64748b', fontWeight: 500 }}>
+                                    Registre desvios, crie ações corretivas e discuta soluções.
+                                </span>
+                            </div>
+                            <button
+                                onClick={() => {
+                                    setIsAnalysisModalOpen(false);
+                                    setIsQuickCategoryFormOpen(false);
+                                }}
+                                style={{
+                                    background: '#f1f5f9',
+                                    border: 'none',
+                                    borderRadius: '50%',
+                                    width: '30px',
+                                    height: '30px',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    cursor: 'pointer',
+                                    color: '#64748b',
+                                    fontWeight: 700,
+                                    fontSize: '0.8rem',
+                                    transition: 'background 0.2s'
+                                }}
+                                onMouseEnter={(e) => e.currentTarget.style.background = '#e2e8f0'}
+                                onMouseLeave={(e) => e.currentTarget.style.background = '#f1f5f9'}
+                            >
+                                ✕
+                            </button>
+                        </div>
+
+                        {/* Modal Body */}
+                        <div style={{
+                            padding: '1.5rem',
+                            overflowY: 'auto',
+                            display: 'flex',
+                            flexDirection: 'column',
+                            gap: '1.5rem',
+                            flex: 1
+                        }}>
+                            {/* Row 1: Empresa, Mês e Categoria */}
+                            <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
+                                {/* Empresa */}
+                                <div style={{ flex: 1, minWidth: '200px', display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
+                                    <label style={{ fontSize: '0.7rem', fontWeight: 800, color: '#3b82f6', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Empresa</label>
+                                    <select
+                                        value={analysisSelectedTenant}
+                                        onChange={(e) => {
+                                            setAnalysisSelectedTenant(e.target.value);
+                                            setAnalysisSelectedCategory('');
+                                        }}
+                                        className="premium-input"
+                                        style={{ width: '100%', height: '36px', padding: '0 0.5rem', fontSize: '0.8rem', fontWeight: 600, border: '1px solid #cbd5e1', borderRadius: '8px', outline: 'none' }}
+                                    >
+                                        <option value="">Selecione uma empresa...</option>
+                                        {companies.map((c: any) => (
+                                            <option key={c.id} value={c.id}>{c.name}</option>
+                                        ))}
+                                    </select>
+                                </div>
+
+                                {/* Mês */}
+                                <div style={{ width: '140px', display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
+                                    <label style={{ fontSize: '0.7rem', fontWeight: 800, color: '#3b82f6', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Mês</label>
+                                    <select
+                                        value={analysisSelectedMonth}
+                                        onChange={(e) => setAnalysisSelectedMonth(Number(e.target.value))}
+                                        className="premium-input"
+                                        style={{ width: '100%', height: '36px', padding: '0 0.5rem', fontSize: '0.8rem', fontWeight: 600, border: '1px solid #cbd5e1', borderRadius: '8px', outline: 'none' }}
+                                    >
+                                        {['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'].map((m, idx) => (
+                                            <option key={idx} value={idx + 1}>{m}</option>
+                                        ))}
+                                    </select>
+                                </div>
+
+                                {/* Categoria (Conta DRE) */}
+                                <div style={{ flex: 2, minWidth: '300px', display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
+                                    <label style={{ fontSize: '0.7rem', fontWeight: 800, color: '#3b82f6', textTransform: 'uppercase', letterSpacing: '0.05em', display: 'flex', justifyContent: 'space-between' }}>
+                                        <span>Conta do DRE / Indicador</span>
+                                        <button
+                                            onClick={() => setIsQuickCategoryFormOpen(!isQuickCategoryFormOpen)}
+                                            style={{ background: 'none', border: 'none', color: '#2563eb', fontSize: '0.7rem', fontWeight: 700, cursor: 'pointer', padding: 0 }}
+                                        >
+                                            {isQuickCategoryFormOpen ? '✕ Fechar Cadastro' : '➕ Cadastro Rápido'}
+                                        </button>
+                                    </label>
+                                    <select
+                                        value={analysisSelectedCategory}
+                                        onChange={(e) => setAnalysisSelectedCategory(e.target.value)}
+                                        className="premium-input"
+                                        style={{ width: '100%', height: '36px', padding: '0 0.5rem', fontSize: '0.8rem', fontWeight: 600, border: '1px solid #cbd5e1', borderRadius: '8px', outline: 'none' }}
+                                    >
+                                        <option value="">Selecione uma conta...</option>
+                                        {categories
+                                            .filter(cat => !analysisSelectedTenant || cat.tenantId === analysisSelectedTenant)
+                                            .sort((a,b) => a.name.localeCompare(b.name))
+                                            .map((cat: any) => (
+                                                <option key={cat.id} value={cat.id}>{cat.name}</option>
+                                            ))}
+                                    </select>
+                                </div>
+                            </div>
+
+                            {/* Inline Form: Cadastro Rápido de Categoria */}
+                            {isQuickCategoryFormOpen && (
+                                <div style={{
+                                    padding: '1rem',
+                                    background: '#f8fafc',
+                                    borderRadius: '10px',
+                                    border: '1px solid #e2e8f0',
+                                    display: 'flex',
+                                    flexDirection: 'column',
+                                    gap: '0.75rem',
+                                    animation: 'fadeIn 0.2s ease-out'
+                                }}>
+                                    <h4 style={{ fontSize: '0.8rem', fontWeight: 800, color: '#1e293b', margin: 0 }}>
+                                        ➕ Cadastro Rápido de Categoria DRE
+                                    </h4>
+                                    <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
+                                        {/* Nome */}
+                                        <div style={{ flex: 2, minWidth: '200px', display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                                            <span style={{ fontSize: '0.65rem', fontWeight: 700, color: '#64748b' }}>Nome da Categoria</span>
+                                            <input
+                                                type="text"
+                                                placeholder="Ex: 04.1.2 Energia Elétrica"
+                                                value={newCategoryName}
+                                                onChange={(e) => setNewCategoryName(e.target.value)}
+                                                style={{ height: '32px', padding: '0 0.5rem', fontSize: '0.75rem', border: '1px solid #cbd5e1', borderRadius: '6px', outline: 'none' }}
+                                            />
+                                        </div>
+                                        {/* Tipo */}
+                                        <div style={{ width: '120px', display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                                            <span style={{ fontSize: '0.65rem', fontWeight: 700, color: '#64748b' }}>Tipo</span>
+                                            <select
+                                                value={newCategoryType}
+                                                onChange={(e) => setNewCategoryType(e.target.value)}
+                                                style={{ height: '32px', padding: '0 0.5rem', fontSize: '0.75rem', border: '1px solid #cbd5e1', borderRadius: '6px', outline: 'none', cursor: 'pointer' }}
+                                            >
+                                                <option value="EXPENSE">Despesa</option>
+                                                <option value="REVENUE">Receita</option>
+                                            </select>
+                                        </div>
+                                        {/* Grupo DRE */}
+                                        <div style={{ flex: 1.5, minWidth: '180px', display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                                            <span style={{ fontSize: '0.65rem', fontWeight: 700, color: '#64748b' }}>Grupo DRE (entradaDre)</span>
+                                            <select
+                                                value={newCategoryGroup}
+                                                onChange={(e) => setNewCategoryGroup(e.target.value)}
+                                                style={{ height: '32px', padding: '0 0.5rem', fontSize: '0.75rem', border: '1px solid #cbd5e1', borderRadius: '6px', outline: 'none', cursor: 'pointer' }}
+                                            >
+                                                <option value="01. RECEITA BRUTA">01. Receita Bruta</option>
+                                                <option value="02. DEDUCOES">02. Deduções / Impostos</option>
+                                                <option value="03. CUSTOS">03. Custos Operacionais</option>
+                                                <option value="04. DESPESAS">04. Despesas Operacionais</option>
+                                                <option value="06. DESPESAS FINANCEIRAS">06. Despesas Financeiras</option>
+                                            </select>
+                                        </div>
+                                    </div>
+                                    <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.5rem' }}>
+                                        <button
+                                            onClick={() => setIsQuickCategoryFormOpen(false)}
+                                            style={{ padding: '0.4rem 0.75rem', fontSize: '0.7rem', fontWeight: 700, border: '1px solid #cbd5e1', borderRadius: '6px', background: '#ffffff', cursor: 'pointer' }}
+                                        >
+                                            Cancelar
+                                        </button>
+                                        <button
+                                            onClick={handleRegisterCategory}
+                                            disabled={isCategoryRegistering}
+                                            style={{ padding: '0.4rem 0.75rem', fontSize: '0.7rem', fontWeight: 700, border: 'none', borderRadius: '6px', background: '#2563eb', color: '#ffffff', cursor: 'pointer' }}
+                                        >
+                                            {isCategoryRegistering ? 'Cadastrando...' : 'Confirmar Cadastro'}
+                                        </button>
+                                    </div>
+                                </div>
+                            )}
+
+                            {isAnalysisLoading ? (
+                                <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '150px' }}>
+                                    <div style={{ border: '3px solid #f3f3f3', borderTop: '3px solid #3b82f6', borderRadius: '50%', width: '30px', height: '30px', animation: 'spin 1s linear infinite' }} />
+                                </div>
+                            ) : (
+                                <>
+                                    {/* Row 2: Textareas - Relato de Desvio & Análise Realizada */}
+                                    <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
+                                        {/* Relato de Desvio */}
+                                        <div style={{ flex: 1, minWidth: '350px', display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
+                                            <label style={{ fontSize: '0.7rem', fontWeight: 800, color: '#3b82f6', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Relato do Desvio do Indicador</label>
+                                            <textarea
+                                                value={deviationReport}
+                                                onChange={(e) => setDeviationReport(e.target.value)}
+                                                placeholder="Descreva o desvio identificado em relação à meta..."
+                                                style={{ height: '100px', padding: '0.5rem', fontSize: '0.8rem', border: '1px solid #cbd5e1', borderRadius: '8px', outline: 'none', resize: 'vertical', fontFamily: 'inherit' }}
+                                            />
+                                        </div>
+
+                                        {/* Análise Realizada */}
+                                        <div style={{ flex: 1, minWidth: '350px', display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
+                                            <label style={{ fontSize: '0.7rem', fontWeight: 800, color: '#3b82f6', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Análise Realizada (Causa Raiz)</label>
+                                            <textarea
+                                                value={analysisPerformed}
+                                                onChange={(e) => setAnalysisPerformed(e.target.value)}
+                                                placeholder="Descreva os fatores que levaram a este desvio (causa raiz)..."
+                                                style={{ height: '100px', padding: '0.5rem', fontSize: '0.8rem', border: '1px solid #cbd5e1', borderRadius: '8px', outline: 'none', resize: 'vertical', fontFamily: 'inherit' }}
+                                            />
+                                        </div>
+                                    </div>
+
+                                    {/* Row 3: Plano de Ação (Tabela de itens) */}
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                            <label style={{ fontSize: '0.7rem', fontWeight: 800, color: '#3b82f6', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                                                📋 Plano de Ação (Ações Corretivas)
+                                            </label>
+                                            <button
+                                                onClick={() => {
+                                                    setAnalysisActions(prev => [...prev, { description: '', dueDate: new Date().toISOString().split('T')[0], isDone: false }]);
+                                                }}
+                                                style={{
+                                                    padding: '0.3rem 0.75rem',
+                                                    background: '#10b981',
+                                                    color: '#ffffff',
+                                                    border: 'none',
+                                                    borderRadius: '6px',
+                                                    fontSize: '0.7rem',
+                                                    fontWeight: 700,
+                                                    cursor: 'pointer',
+                                                    display: 'flex',
+                                                    alignItems: 'center',
+                                                    gap: '0.25rem'
+                                                }}
+                                            >
+                                                ➕ Adicionar Ação
+                                            </button>
+                                        </div>
+
+                                        <div style={{ border: '1px solid #e2e8f0', borderRadius: '8px', overflow: 'hidden' }}>
+                                            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8rem' }}>
+                                                <thead>
+                                                    <tr style={{ background: '#f8fafc', borderBottom: '1px solid #e2e8f0', fontWeight: 700, color: '#475569' }}>
+                                                        <th style={{ padding: '0.5rem', textAlign: 'center', width: '60px' }}>Status</th>
+                                                        <th style={{ padding: '0.5rem', textAlign: 'left' }}>Descrição da Ação</th>
+                                                        <th style={{ padding: '0.5rem', textAlign: 'center', width: '160px' }}>Vencimento</th>
+                                                        <th style={{ padding: '0.5rem', textAlign: 'center', width: '60px' }}>Excluir</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody>
+                                                    {analysisActions.length === 0 ? (
+                                                        <tr>
+                                                            <td colSpan={4} style={{ padding: '1rem', textAlign: 'center', color: '#64748b', fontStyle: 'italic' }}>
+                                                                Nenhuma ação cadastrada para este desvio. Clique em "Adicionar Ação" para registrar.
+                                                            </td>
+                                                        </tr>
+                                                    ) : (
+                                                        analysisActions.map((action, idx) => (
+                                                            <tr key={idx} style={{ borderBottom: '1px solid #f1f5f9' }}>
+                                                                <td style={{ padding: '0.4rem', textAlign: 'center' }}>
+                                                                    <input
+                                                                        type="checkbox"
+                                                                        checked={!!action.isDone}
+                                                                        onChange={(e) => {
+                                                                            const updated = [...analysisActions];
+                                                                            updated[idx].isDone = e.target.checked;
+                                                                            setAnalysisActions(updated);
+                                                                        }}
+                                                                        style={{ accentColor: '#10b981', cursor: 'pointer' }}
+                                                                    />
+                                                                </td>
+                                                                <td style={{ padding: '0.4rem' }}>
+                                                                    <input
+                                                                        type="text"
+                                                                        value={action.description}
+                                                                        onChange={(e) => {
+                                                                            const updated = [...analysisActions];
+                                                                            updated[idx].description = e.target.value;
+                                                                            setAnalysisActions(updated);
+                                                                        }}
+                                                                        placeholder="Descreva a ação de forma clara..."
+                                                                        style={{ width: '100%', height: '30px', padding: '0 0.4rem', fontSize: '0.75rem', border: '1px solid #cbd5e1', borderRadius: '4px', outline: 'none' }}
+                                                                    />
+                                                                </td>
+                                                                <td style={{ padding: '0.4rem', textAlign: 'center' }}>
+                                                                    <input
+                                                                        type="date"
+                                                                        value={action.dueDate ? action.dueDate.split('T')[0] : ''}
+                                                                        onChange={(e) => {
+                                                                            const updated = [...analysisActions];
+                                                                            updated[idx].dueDate = e.target.value;
+                                                                            setAnalysisActions(updated);
+                                                                        }}
+                                                                        style={{ height: '30px', padding: '0 0.4rem', fontSize: '0.75rem', border: '1px solid #cbd5e1', borderRadius: '4px', outline: 'none', cursor: 'pointer' }}
+                                                                    />
+                                                                </td>
+                                                                <td style={{ padding: '0.4rem', textAlign: 'center' }}>
+                                                                    <button
+                                                                        onClick={() => {
+                                                                            setAnalysisActions(prev => prev.filter((_, i) => i !== idx));
+                                                                        }}
+                                                                        style={{ background: 'none', border: 'none', color: '#ef4444', fontWeight: 800, fontSize: '0.9rem', cursor: 'pointer' }}
+                                                                    >
+                                                                        🗑️
+                                                                    </button>
+                                                                </td>
+                                                            </tr>
+                                                        ))
+                                                    )}
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    </div>
+
+                                    {/* Row 4: Feed de Comentários */}
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', borderTop: '1px solid #e2e8f0', paddingTop: '1.25rem', marginTop: '0.5rem' }}>
+                                        <label style={{ fontSize: '0.7rem', fontWeight: 800, color: '#3b82f6', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                                            💬 Discussão e Feed de Comentários
+                                        </label>
+
+                                        {/* Feed List */}
+                                        <div style={{
+                                            maxHeight: '180px',
+                                            overflowY: 'auto',
+                                            display: 'flex',
+                                            flexDirection: 'column',
+                                            gap: '0.75rem',
+                                            background: '#f8fafc',
+                                            padding: '1rem',
+                                            borderRadius: '8px',
+                                            border: '1px solid #e2e8f0'
+                                        }}>
+                                            {analysisComments.length === 0 ? (
+                                                <div style={{ fontSize: '0.75rem', color: '#64748b', textAlign: 'center', fontStyle: 'italic' }}>
+                                                    Nenhum comentário publicado. Seja o primeiro a comentar abaixo!
+                                                </div>
+                                            ) : (
+                                                analysisComments.map((comment) => (
+                                                    <div key={comment.id} style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                                                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.7rem', fontWeight: 700, color: '#475569' }}>
+                                                            <span>👤 {comment.userName}</span>
+                                                            <span style={{ color: '#94a3b8' }}>
+                                                                {new Date(comment.createdAt).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' })}
+                                                            </span>
+                                                        </div>
+                                                        <div style={{ fontSize: '0.75rem', color: '#1e293b', paddingLeft: '1rem', borderLeft: '2px solid #cbd5e1' }}>
+                                                            {comment.content}
+                                                        </div>
+                                                    </div>
+                                                ))
+                                            )}
+                                        </div>
+
+                                        {/* Add Comment Input */}
+                                        <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.25rem' }}>
+                                            <input
+                                                type="text"
+                                                placeholder="Seu nome..."
+                                                value={newCommentUser}
+                                                onChange={(e) => setNewCommentUser(e.target.value)}
+                                                style={{ width: '130px', height: '32px', padding: '0 0.5rem', fontSize: '0.75rem', border: '1px solid #cbd5e1', borderRadius: '6px', outline: 'none' }}
+                                            />
+                                            <input
+                                                type="text"
+                                                placeholder="Escreva uma mensagem..."
+                                                value={newCommentText}
+                                                onChange={(e) => setNewCommentText(e.target.value)}
+                                                onKeyDown={(e) => e.key === 'Enter' && postComment()}
+                                                style={{ flex: 1, height: '32px', padding: '0 0.5rem', fontSize: '0.75rem', border: '1px solid #cbd5e1', borderRadius: '6px', outline: 'none' }}
+                                            />
+                                            <button
+                                                onClick={postComment}
+                                                disabled={!analysisId}
+                                                style={{
+                                                    padding: '0 0.75rem',
+                                                    background: analysisId ? '#3b82f6' : '#cbd5e1',
+                                                    color: '#ffffff',
+                                                    border: 'none',
+                                                    borderRadius: '6px',
+                                                    fontSize: '0.7rem',
+                                                    fontWeight: 700,
+                                                    cursor: analysisId ? 'pointer' : 'not-allowed',
+                                                    height: '32px'
+                                                }}
+                                            >
+                                                Comentar
+                                            </button>
+                                        </div>
+                                        {!analysisId && (
+                                            <span style={{ fontSize: '0.65rem', color: '#f59e0b', fontWeight: 600 }}>
+                                                ⚠️ Salve a análise do indicador antes de poder adicionar comentários.
+                                            </span>
+                                        )}
+                                    </div>
+                                </>
+                            )}
+                        </div>
+
+                        {/* Modal Footer */}
+                        <div style={{
+                            padding: '1rem 1.5rem',
+                            borderTop: '1px solid #e2e8f0',
+                            display: 'flex',
+                            justifyContent: 'flex-end',
+                            gap: '0.75rem',
+                            background: '#f8fafc'
+                        }}>
+                            <button
+                                onClick={() => {
+                                    setIsAnalysisModalOpen(false);
+                                    setIsQuickCategoryFormOpen(false);
+                                }}
+                                style={{
+                                    padding: '0.5rem 1.25rem',
+                                    background: '#ffffff',
+                                    border: '1px solid #cbd5e1',
+                                    borderRadius: '8px',
+                                    fontSize: '0.8rem',
+                                    fontWeight: 700,
+                                    color: '#475569',
+                                    cursor: 'pointer',
+                                    transition: 'all 0.15s'
+                                }}
+                                onMouseEnter={(e) => {
+                                    e.currentTarget.style.background = '#f1f5f9';
+                                    e.currentTarget.style.borderColor = '#94a3b8';
+                                }}
+                                onMouseLeave={(e) => {
+                                    e.currentTarget.style.background = '#ffffff';
+                                    e.currentTarget.style.borderColor = '#cbd5e1';
+                                }}
+                            >
+                                Fechar
+                            </button>
+                            <button
+                                onClick={saveAnalysisData}
+                                disabled={isAnalysisSaving || isAnalysisLoading || !analysisSelectedCategory}
+                                style={{
+                                    padding: '0.5rem 1.25rem',
+                                    background: !analysisSelectedCategory ? '#cbd5e1' : 'linear-gradient(135deg, #3b82f6, #2563eb)',
+                                    color: '#ffffff',
+                                    border: 'none',
+                                    borderRadius: '8px',
+                                    fontSize: '0.8rem',
+                                    fontWeight: 700,
+                                    cursor: !analysisSelectedCategory ? 'not-allowed' : 'pointer',
+                                    boxShadow: !analysisSelectedCategory ? 'none' : '0 4px 6px rgba(37, 99, 235, 0.2)',
+                                    transition: 'all 0.15s'
+                                }}
+                            >
+                                {isAnalysisSaving ? 'Salvando...' : 'Salvar Análise'}
+                            </button>
+                        </div>
+                    </div>
+                    {/* Spin Animation Definition */}
+                    <style>{`
+                        @keyframes spin {
+                            0% { transform: rotate(0deg); }
+                            100% { transform: rotate(360deg); }
+                        }
+                        @keyframes modalSlideIn {
+                            from { transform: translateY(30px); opacity: 0; }
+                            to { transform: translateY(0); opacity: 1; }
+                        }
+                    `}</style>
+                </div>
+            )}
         </>
     );
 }

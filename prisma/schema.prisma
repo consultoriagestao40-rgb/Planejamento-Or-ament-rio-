@@ -28,6 +28,7 @@ model Tenant {
   radarLocks   RadarLock[]
   justifications RealizedJustification[]
   bankAccounts BankAccount[]
+  indicatorAnalyses IndicatorAnalysis[]
 }
 
 model RadarLock {
@@ -59,6 +60,7 @@ model Category {
   budgets    BudgetEntry[]
   realized   RealizedEntry[]
   justifications RealizedJustification[]
+  indicatorAnalyses IndicatorAnalysis[]
 }
 
 model CostCenter {
@@ -232,4 +234,45 @@ model BankAccount {
   updatedAt DateTime @updatedAt
   
   tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+}
+
+model IndicatorAnalysis {
+  id                 String             @id @default(uuid())
+  tenantId           String
+  month              Int                // 1-12
+  year               Int
+  categoryId         String
+  deviationReport    String
+  analysisPerformed  String
+  createdAt          DateTime           @default(now())
+  updatedAt          DateTime           @updatedAt
+
+  tenant             Tenant             @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  category           Category           @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  actions            IndicatorAction[]
+  comments           IndicatorComment[]
+
+  @@unique([tenantId, categoryId, month, year])
+}
+
+model IndicatorAction {
+  id           String            @id @default(uuid())
+  analysisId   String
+  description  String
+  dueDate      DateTime
+  isDone       Boolean           @default(false)
+  createdAt    DateTime          @default(now())
+  updatedAt    DateTime          @updatedAt
+
+  analysis     IndicatorAnalysis @relation(fields: [analysisId], references: [id], onDelete: Cascade)
+}
+
+model IndicatorComment {
+  id           String            @id @default(uuid())
+  analysisId   String
+  userName     String
+  content      String
+  createdAt    DateTime          @default(now())
+
+  analysis     IndicatorAnalysis @relation(fields: [analysisId], references: [id], onDelete: Cascade)
 }

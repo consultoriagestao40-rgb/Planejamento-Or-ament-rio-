@@ -853,7 +853,7 @@ export default function BudgetGrid({
                         <div style={{ border: '2.5px solid #f3f3f3', borderTop: '2.5px solid #3b82f6', borderRadius: '50%', width: '22px', height: '22px', animation: 'spin 1s linear infinite' }} />
                     </div>
                 ) : (
-                    renderDetailedChart(chart.chartType, data, !!chart.onlyRealized, !!chart.showAtingido, !!chart.pctOfRevenue, mainMonth, chart.chartColor)
+                    renderDetailedChart(chart.chartType, data, !!chart.onlyRealized, !!chart.showAtingido, !!chart.pctOfRevenue, mainMonth, chart.chartColor, undefined, chart.year)
                 )}
             </div>
 
@@ -874,7 +874,8 @@ export default function BudgetGrid({
         pctOfRevenue: boolean,
         mainMonth: number,
         chartColor: string = '#3b82f6',
-        mixedConfig?: Record<string, 'bar' | 'line_atingido' | 'line_revenue'>
+        mixedConfig?: Record<string, 'bar' | 'line_val' | 'diarias_bar' | 'diarias_line' | 'line_atingido' | 'line_revenue'>,
+        year: number = 2026
     ) => {
         if (!data || data.length === 0) {
             return (
@@ -914,33 +915,65 @@ export default function BudgetGrid({
         switch (chartMode) {
             case 'MIXED': {
                 const yBaseline = 210;
-                const formatAbs = (val: number) => {
-                    if (val === 0) return 'R$ 0';
-                    const absVal = Math.abs(val);
-                    const formatted = (absVal / 1000).toFixed(1);
-                    return `${val < 0 ? '-' : ''}R$ ${formatted}k`;
+
+                const getDaysInMonth = (mNum: number) => {
+                    return new Date(year, mNum, 0).getDate();
                 };
 
-                const barKeys = Object.keys(config || {}).filter(k => (config || {})[k] === 'bar');
-                const lineKeys = Object.keys(config || {}).filter(k => (config || {})[k] === 'line_atingido' || (config || {})[k] === 'line_revenue');
-                
-                const activeBarKeys = barKeys.length === 0 && lineKeys.length === 0 ? Object.keys(config || {}) : barKeys;
-                const activeLineKeys = lineKeys;
+                const getAbsValue = (m: any, k: string, field: 'budget' | 'realized', mIdx: number) => {
+                    const vals = m.breakdown?.[k] || { budget: 0, realized: 0 };
+                    const rawVal = vals[field] || 0;
+                    const mode = config?.[k] || 'bar';
+                    if (mode === 'diarias_bar' || mode === 'diarias_line') {
+                        const days = getDaysInMonth(mIdx + 1);
+                        return rawVal / days;
+                    }
+                    return rawVal;
+                };
+
+                const isDailyKey = (k: string) => {
+                    const mode = config?.[k];
+                    return mode === 'diarias_bar' || mode === 'diarias_line';
+                };
+
+                const formatAbs = (val: number, isDaily: boolean = false) => {
+                    if (val === 0) return 'R$ 0';
+                    const absVal = Math.abs(val);
+                    let formatted = '';
+                    if (absVal < 1000) {
+                        formatted = absVal.toFixed(0);
+                    } else {
+                        formatted = (absVal / 1000).toFixed(1) + 'k';
+                    }
+                    return `${val < 0 ? '-' : ''}R$ ${formatted}${isDaily ? '/d' : ''}`;
+                };
+
+                const leftKeys = Object.keys(config || {}).filter(k => 
+                    ['bar', 'line_val', 'diarias_bar', 'diarias_line'].includes(config?.[k] || 'bar')
+                );
+                const activeLeftKeys = leftKeys.length === 0 && Object.keys(config || {}).length === 0 
+                    ? Object.keys(config || {}) 
+                    : leftKeys;
+
+                const hasDailyActive = activeLeftKeys.some(isDailyKey);
 
                 let maxAbs = 1;
                 data.forEach((m, idx) => {
-                    activeBarKeys.forEach(k => {
-                        const vals = m.breakdown?.[k] || { budget: 0, realized: 0 };
-                        const rVal = (idx + 1 <= currentMonthIdx + 1) ? Math.abs(vals.realized) : 0;
-                        const bVal = onlyRealized ? 0 : Math.abs(vals.budget);
+                    activeLeftKeys.forEach(k => {
+                        const rVal = (idx + 1 <= currentMonthIdx + 1) ? Math.abs(getAbsValue(m, k, 'realized', idx)) : 0;
+                        const bVal = onlyRealized ? 0 : Math.abs(getAbsValue(m, k, 'budget', idx));
                         maxAbs = Math.max(maxAbs, rVal, bVal);
                     });
                 });
                 const scaleMaxAbs = maxAbs * 1.20;
 
+                const rightKeys = Object.keys(config || {}).filter(k => 
+                    ['line_atingido', 'line_revenue'].includes(config?.[k])
+                );
+                
                 let maxPct = 100;
                 data.forEach((m, idx) => {
-                    activeLineKeys.forEach(k => {
+                    rightKeys.forEach(k => {
                         const vals = m.breakdown?.[k] || { atingido: 0, pctOfRevenue: 0 };
                         const typeMode = config?.[k];
                         const val = typeMode === 'line_atingido' ? vals.atingido : vals.pctOfRevenue;
@@ -965,6 +998,14 @@ export default function BudgetGrid({
                 const stepX = 94;
                 const getX = (idx: number) => startX + idx * stepX;
 
+                // RENDER BARS (bar, diarias_bar)
+                const barKeys = Object.keys(config || {}).filter(k => 
+                    config?.[k] === 'bar' || config?.[k] === 'diarias_bar'
+                );
+                const activeBarKeys = barKeys.length === 0 && Object.keys(config || {}).length === 0 
+                    ? Object.keys(config || {}) 
+                    : barKeys;
+
                 const renderedBars = data.map((m, monthIdx) => {
                     const xCenter = getX(monthIdx);
                     const numBars = activeBarKeys.length;
@@ -975,9 +1016,8 @@ export default function BudgetGrid({
                     const startBarX = xCenter - (groupWidth / 2);
 
                     return activeBarKeys.map((k, keyIdx) => {
-                        const vals = m.breakdown?.[k] || { budget: 0, realized: 0 };
-                        const valR = vals.realized;
-                        const valB = vals.budget;
+                        const valR = getAbsValue(m, k, 'realized', monthIdx);
+                        const valB = getAbsValue(m, k, 'budget', monthIdx);
 
                         const barX = startBarX + keyIdx * (barWidth + 2);
                         const yR = getYAbs(valR);
@@ -987,6 +1027,7 @@ export default function BudgetGrid({
                         const hB = Math.max(2, yBaseline - yB);
 
                         const barOpacity = 1 - (keyIdx * 0.25);
+                        const isDaily = isDailyKey(k);
 
                         return (
                             <g key={`${monthIdx}-${k}`}>
@@ -1022,7 +1063,7 @@ export default function BudgetGrid({
                                             fontSize="7px" 
                                             fontWeight="700"
                                         >
-                                            {formatAbs(valR)}
+                                            {formatAbs(valR, isDaily)}
                                         </text>
                                     </>
                                 )}
@@ -1031,7 +1072,71 @@ export default function BudgetGrid({
                     });
                 });
 
-                const renderedLines = activeLineKeys.map((k, keyIdx) => {
+                // RENDER LEFT AXIS LINES (line_val, diarias_line)
+                const leftLineKeys = Object.keys(config || {}).filter(k => 
+                    config?.[k] === 'line_val' || config?.[k] === 'diarias_line'
+                );
+                const renderedLeftLines = leftLineKeys.map((k, keyIdx) => {
+                    const points: { x: number; y: number; val: number }[] = [];
+                    data.forEach((m, monthIdx) => {
+                        const val = getAbsValue(m, k, 'realized', monthIdx);
+                        if (monthIdx + 1 <= currentMonthIdx + 1) {
+                            points.push({
+                                x: getX(monthIdx),
+                                y: getYAbs(val),
+                                val
+                            });
+                        }
+                    });
+
+                    if (points.length === 0) return null;
+
+                    let pathD = `M ${points[0].x} ${points[0].y}`;
+                    for (let i = 1; i < points.length; i++) {
+                        pathD += ` L ${points[i].x} ${points[i].y}`;
+                    }
+
+                    const lineColor = keyIdx === 0 ? '#3b82f6' : '#06b6d4';
+                    const isDaily = isDailyKey(k);
+
+                    return (
+                        <g key={`left-line-${k}`}>
+                            <path 
+                                d={pathD} 
+                                fill="none" 
+                                stroke={lineColor} 
+                                strokeWidth="2.5" 
+                                strokeLinecap="round" 
+                                strokeLinejoin="round" 
+                            />
+                            {points.map((p, idx) => (
+                                <g key={idx}>
+                                    <circle 
+                                        cx={p.x} 
+                                        cy={p.y} 
+                                        r="4.5" 
+                                        fill={lineColor} 
+                                        stroke="#ffffff" 
+                                        strokeWidth="1.5" 
+                                    />
+                                    <text 
+                                        x={p.x} 
+                                        y={p.y - 7} 
+                                        textAnchor="middle" 
+                                        fill={lineColor} 
+                                        fontSize="7.5px" 
+                                        fontWeight="800"
+                                    >
+                                        {formatAbs(p.val, isDaily)}
+                                    </text>
+                                </g>
+                            ))}
+                        </g>
+                    );
+                });
+
+                // RENDER RIGHT AXIS LINES (% lines)
+                const renderedRightLines = rightKeys.map((k, keyIdx) => {
                     const points: { x: number; y: number; val: number }[] = [];
                     data.forEach((m, monthIdx) => {
                         const vals = m.breakdown?.[k] || { atingido: 0, pctOfRevenue: 0 };
@@ -1057,7 +1162,7 @@ export default function BudgetGrid({
                     const lineColor = keyIdx === 0 ? '#10b981' : '#f59e0b';
 
                     return (
-                        <g key={k}>
+                        <g key={`right-line-${k}`}>
                             <path 
                                 d={pathD} 
                                 fill="none" 
@@ -1100,7 +1205,7 @@ export default function BudgetGrid({
                                 <g key={gridIdx}>
                                     <line x1="80" y1={yGrid} x2="1120" y2={yGrid} stroke="#f1f5f9" strokeWidth="0.5" strokeDasharray="3 3" />
                                     <text x="70" y={yGrid + 3} textAnchor="end" fill="#94a3b8" fontSize="7.5px" fontWeight="600">
-                                        {formatAbs(ratio * scaleMaxAbs)}
+                                        {formatAbs(ratio * scaleMaxAbs, hasDailyActive)}
                                     </text>
                                     <text x="1130" y={yGrid + 3} textAnchor="start" fill="#94a3b8" fontSize="7.5px" fontWeight="600">
                                         {(ratio * scaleMaxPct).toFixed(0)}%
@@ -1112,7 +1217,8 @@ export default function BudgetGrid({
                         <line x1="80" y1={yBaseline} x2="1120" y2={yBaseline} stroke="#cbd5e1" strokeWidth="1" />
 
                         {renderedBars}
-                        {renderedLines}
+                        {renderedLeftLines}
+                        {renderedRightLines}
 
                         {data.map((m, idx) => (
                             <text 
@@ -8137,7 +8243,7 @@ export default function BudgetGrid({
                                                         </div>
                                                     ) : (
                                                         <div style={{ width: '100%', display: 'flex', justifyContent: 'center' }}>
-                                                            {renderDetailedChart(chartType, chartPreviewData, chartOnlyRealized, chartShowAtingido, chartPctOfRevenue, analysisSelectedMonth, chartColor)}
+                                                            {renderDetailedChart(chartType, chartPreviewData, chartOnlyRealized, chartShowAtingido, chartPctOfRevenue, analysisSelectedMonth, chartColor, undefined, externalYear)}
                                                         </div>
                                                     )}
                                                 </div>

@@ -3606,252 +3606,7 @@ export default function BudgetGrid({
         );
     };
 
-    const renderContractsMarginValueChart = () => {
-        if (contractsLoading) {
-            return (
-                <div className="glass-card" style={{ padding: '2rem', background: '#ffffff', borderRadius: '12px', border: '1px solid #e2e8f0', boxShadow: '0 4px 6px rgba(0,0,0,0.02)', width: '100%', minHeight: '300px', display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center' }}>
-                    <div style={{ border: '3px solid #f3f3f3', borderTop: '3px solid #3b82f6', borderRadius: '50%', width: '30px', height: '30px', animation: 'spin 1s linear infinite' }} />
-                </div>
-            );
-        }
-
-        if (contractsMarginData.length === 0) {
-            return (
-                <div className="glass-card" style={{ padding: '2rem', background: '#ffffff', borderRadius: '12px', border: '1px solid #e2e8f0', boxShadow: '0 4px 6px rgba(0,0,0,0.02)', width: '100%', minHeight: '200px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#64748b', fontSize: '0.85rem' }}>
-                    Nenhum contrato/centro de custo com movimentação no período.
-                </div>
-            );
-        }
-
-        const MONTH_ABBR = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
-        const periodLabel = startMonth === endMonth 
-            ? `${MONTH_ABBR[startMonth]} / ${selectedYear}`
-            : `${MONTH_ABBR[startMonth]} a ${MONTH_ABBR[endMonth]} de ${selectedYear}`;
-
-        const maxAbs = Math.max(...contractsMarginData.flatMap(d => [Math.abs(d.realizedValue), Math.abs(d.budgetValue)]), 1);
-        const heightUpper = 220; // Barras mais altas
-        const heightLower = 90;  // Negativas mais altas
-        const colWidth = 46;     // Menos espaço horizontal
-
-        // Estilo unificado para garantir que 100% dos rótulos de dados fiquem na vertical
-        const verticalLabelStyle = {
-            fontSize: '0.55rem',
-            fontWeight: 800,
-            writingMode: 'vertical-rl' as const,
-            transform: 'rotate(180deg)',
-            whiteSpace: 'nowrap' as const,
-            display: 'inline-block'
-        };
-
-        return (
-            <div className="glass-card" style={{ padding: '1.5rem', background: '#ffffff', borderRadius: '12px', border: '1px solid #e2e8f0', boxShadow: '0 4px 6px rgba(0,0,0,0.02)', width: '100%', height: '100%', display: 'flex', flexDirection: 'column' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '0.5rem', marginBottom: '1.5rem' }}>
-                    <div>
-                        <h3 style={{ fontSize: '0.95rem', fontWeight: 800, color: '#0f172a', margin: 0 }}>
-                            Margem por Contrato (Orçado x Realizado)
-                        </h3>
-                        <span style={{ fontSize: '0.72rem', color: '#64748b', fontWeight: 500, display: 'block', marginTop: '0.25rem' }}>
-                            Valores Absolutos em Mil R$ (Receita - Impostos - Custos - Despesas)
-                        </span>
-                        <span style={{ fontSize: '0.75rem', color: '#3b82f6', fontWeight: 700, display: 'block', marginTop: '0.25rem' }}>
-                            Período: {periodLabel} (Acumulado)
-                        </span>
-                    </div>
-                    {/* Legenda */}
-                    <div style={{ display: 'flex', gap: '1rem', fontSize: '0.75rem', fontWeight: 600 }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                            <div style={{ width: '10px', height: '10px', backgroundColor: '#cbd5e1', borderRadius: '2px' }} />
-                            <span style={{ color: '#64748b' }}>Orçado</span>
-                        </div>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                            <div style={{ width: '10px', height: '10px', background: 'linear-gradient(180deg, #6366f1, #4f46e5)', borderRadius: '2px' }} />
-                            <span style={{ color: '#4f46e5' }}>Realizado</span>
-                        </div>
-                    </div>
-                </div>
-
-                {/* Container de rolagem horizontal */}
-                <div style={{ 
-                    display: 'flex', 
-                    gap: '0.4rem', // Espaço reduzido entre centros de custo
-                    overflowX: 'auto', 
-                    overflowY: 'hidden',
-                    paddingBottom: '0.75rem', 
-                    paddingTop: '0.5rem',
-                    width: '100%', 
-                    scrollBehavior: 'smooth',
-                    WebkitOverflowScrolling: 'touch',
-                    flex: 1,
-                    alignItems: 'flex-end'
-                }}>
-                    {contractsMarginData.map((item, idx) => {
-                        const bHeight = (Math.abs(item.budgetValue) / maxAbs) * (item.budgetValue >= 0 ? heightUpper : heightLower);
-                        const rHeight = (Math.abs(item.realizedValue) / maxAbs) * (item.realizedValue >= 0 ? heightUpper : heightLower);
-
-                        const isBudgTall = bHeight > 45;
-                        const isRealTall = rHeight > 45;
-
-                        return (
-                            <div 
-                                key={idx} 
-                                style={{ 
-                                    display: 'flex', 
-                                    flexDirection: 'column', 
-                                    alignItems: 'center', 
-                                    width: `${colWidth}px`, 
-                                    flexShrink: 0,
-                                    position: 'relative',
-                                    cursor: 'pointer',
-                                    backgroundColor: (contractsMarginHoveredIndex === idx && contractsMarginHoveredChart === 'absolute') ? '#f1f5f9' : 'transparent',
-                                    borderRadius: '6px',
-                                    transition: 'background-color 0.2s ease',
-                                    padding: '4px 0'
-                                }}
-                                onMouseEnter={(e) => {
-                                    setContractsMarginHoveredIndex(idx);
-                                    setContractsMarginHoveredChart('absolute');
-                                    setContractsMarginTooltip({
-                                        x: e.clientX,
-                                        y: e.clientY,
-                                        title: item.name,
-                                        budget: `R$ ${item.budgetValue.toLocaleString('pt-BR', { minimumFractionDigits: 0, maximumFractionDigits: 1 })}k`,
-                                        realized: `R$ ${item.realizedValue.toLocaleString('pt-BR', { minimumFractionDigits: 0, maximumFractionDigits: 1 })}k`,
-                                        achievement: calculateAtingimento(item.budgetValue, item.realizedValue),
-                                        type: 'absolute'
-                                    });
-                                }}
-                                onMouseMove={(e) => {
-                                    setContractsMarginTooltip(prev => prev ? { ...prev, x: e.clientX, y: e.clientY } : null);
-                                }}
-                                onMouseLeave={() => {
-                                    setContractsMarginHoveredIndex(null);
-                                    setContractsMarginHoveredChart(null);
-                                    setContractsMarginTooltip(null);
-                                }}
-                            >
-                                {/* Bloco Superior (Positivos) */}
-                                <div style={{ display: 'flex', height: `${heightUpper}px`, alignItems: 'flex-end', gap: '4px', position: 'relative', width: '100%', justifyContent: 'center' }}>
-                                    {/* Orçado Superior */}
-                                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', height: '100%', justifyContent: 'flex-end', width: '18px' }}>
-                                        {item.budgetValue > 0 && !isBudgTall && (
-                                            <span style={{ ...verticalLabelStyle, color: '#64748b', marginBottom: '4px' }}>
-                                                {item.budgetValue.toFixed(0)}k
-                                            </span>
-                                        )}
-                                        <div style={{ 
-                                            width: '100%', 
-                                            height: `${item.budgetValue > 0 ? bHeight : 0}px`, 
-                                            backgroundColor: '#cbd5e1', 
-                                            borderRadius: '2px 2px 0 0',
-                                            transition: 'height 0.3s ease',
-                                            display: 'flex',
-                                            flexDirection: 'column',
-                                            justifyContent: 'flex-end',
-                                            alignItems: 'center',
-                                            overflow: 'hidden'
-                                        }}>
-                                            {item.budgetValue > 0 && isBudgTall && (
-                                                <span style={{ ...verticalLabelStyle, color: '#475569', marginBottom: '4px' }}>
-                                                    {item.budgetValue.toFixed(0)}k
-                                                </span>
-                                            )}
-                                        </div>
-                                    </div>
-                                    
-                                    {/* Realizado Superior */}
-                                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', height: '100%', justifyContent: 'flex-end', width: '18px' }}>
-                                        {item.realizedValue > 0 && !isRealTall && (
-                                            <span style={{ ...verticalLabelStyle, color: '#4f46e5', marginBottom: '4px' }}>
-                                                {item.realizedValue.toFixed(0)}k
-                                            </span>
-                                        )}
-                                        <div style={{ 
-                                            width: '100%', 
-                                            height: `${item.realizedValue > 0 ? rHeight : 0}px`, 
-                                            background: 'linear-gradient(180deg, #6366f1, #4f46e5)', 
-                                            borderRadius: '2px 2px 0 0',
-                                            transition: 'height 0.3s ease',
-                                            display: 'flex',
-                                            flexDirection: 'column',
-                                            justifyContent: 'flex-end',
-                                            alignItems: 'center',
-                                            overflow: 'hidden'
-                                        }}>
-                                            {item.realizedValue > 0 && isRealTall && (
-                                                <span style={{ ...verticalLabelStyle, color: '#ffffff', marginBottom: '4px' }}>
-                                                    {item.realizedValue.toFixed(0)}k
-                                                </span>
-                                            )}
-                                        </div>
-                                    </div>
-                                </div>
-
-                                {/* Linha de Base */}
-                                <div style={{ width: '100%', height: '1.5px', backgroundColor: '#cbd5e1', margin: '4px 0' }} />
-
-                                {/* Bloco Inferior (Negativos) */}
-                                <div style={{ display: 'flex', height: `${heightLower}px`, alignItems: 'flex-start', gap: '4px', position: 'relative', width: '100%', justifyContent: 'center' }}>
-                                    {/* Orçado Inferior */}
-                                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', height: '100%', justifyContent: 'flex-start', width: '18px' }}>
-                                        <div style={{ 
-                                            width: '100%', 
-                                            height: `${item.budgetValue < 0 ? bHeight : 0}px`, 
-                                            backgroundColor: '#cbd5e1', 
-                                            borderRadius: '0 0 2px 2px',
-                                            transition: 'height 0.3s ease',
-                                            display: 'flex',
-                                            flexDirection: 'column',
-                                            justifyContent: 'flex-start',
-                                            alignItems: 'center',
-                                            overflow: 'hidden'
-                                        }}>
-                                            {item.budgetValue < 0 && isBudgTall && (
-                                                <span style={{ ...verticalLabelStyle, color: '#475569', marginTop: '4px' }}>
-                                                    {item.budgetValue.toFixed(0)}k
-                                                </span>
-                                            )}
-                                        </div>
-                                        {item.budgetValue < 0 && !isBudgTall && (
-                                            <span style={{ ...verticalLabelStyle, color: '#ef4444', marginTop: '4px' }}>
-                                                {item.budgetValue.toFixed(0)}k
-                                            </span>
-                                        )}
-                                    </div>
-
-                                    {/* Realizado Inferior */}
-                                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', height: '100%', justifyContent: 'flex-start', width: '18px' }}>
-                                        <div style={{ 
-                                            width: '100%', 
-                                            height: `${item.realizedValue < 0 ? rHeight : 0}px`, 
-                                            background: 'linear-gradient(180deg, #f87171, #ef4444)', 
-                                            borderRadius: '0 0 2px 2px',
-                                            transition: 'height 0.3s ease',
-                                            display: 'flex',
-                                            flexDirection: 'column',
-                                            justifyContent: 'flex-start',
-                                            alignItems: 'center',
-                                            overflow: 'hidden'
-                                        }}>
-                                            {item.realizedValue < 0 && isRealTall && (
-                                                <span style={{ ...verticalLabelStyle, color: '#ffffff', marginTop: '4px' }}>
-                                                    {item.realizedValue.toFixed(0)}k
-                                                </span>
-                                            )}
-                                        </div>
-                                        {item.realizedValue < 0 && !isRealTall && (
-                                            <span style={{ ...verticalLabelStyle, color: '#ef4444', marginTop: '4px' }}>
-                                                {item.realizedValue.toFixed(0)}k
-                                            </span>
-                                        )}
-                                    </div>
-                                </div>
-                            </div>
-                        );
-                    })}
-                </div>
-            </div>
-        );
-    };
+    // renderContractsMarginValueChart removido por unificação no gráfico de percentual
 
     const renderContractsMarginPercentChart = () => {
         if (contractsLoading) {
@@ -3924,10 +3679,10 @@ export default function BudgetGrid({
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '0.5rem', marginBottom: '1.5rem' }}>
                     <div>
                         <h3 style={{ fontSize: '0.95rem', fontWeight: 800, color: '#0f172a', margin: 0 }}>
-                            Margem por Contrato em % (Orçado x Realizado)
+                            Margem por Contrato (Orçado x Realizado)
                         </h3>
                         <span style={{ fontSize: '0.72rem', color: '#64748b', fontWeight: 500, display: 'block', marginTop: '0.25rem' }}>
-                            Rentabilidade Relativa em % (Margem de Contribuição / Receita)
+                            Rentabilidade em % (Margem de Contribuição / Receita) — Valores absolutos no card ao apontar
                         </span>
                         <span style={{ fontSize: '0.75rem', color: '#3b82f6', fontWeight: 700, display: 'block', marginTop: '0.25rem' }}>
                             Período: {periodLabel} (Acumulado)
@@ -4087,9 +3842,9 @@ export default function BudgetGrid({
                                             x: e.clientX,
                                             y: e.clientY,
                                             title: item.name,
-                                            budget: `${item.budgetPercent.toFixed(1)}%`,
-                                            realized: `${item.realizedPercent.toFixed(1)}%`,
-                                            achievement: calculateAtingimento(item.budgetPercent, item.realizedPercent),
+                                            budget: `R$ ${item.budgetValue.toLocaleString('pt-BR', { minimumFractionDigits: 0, maximumFractionDigits: 1 })}k (${item.budgetPercent.toFixed(1)}%)`,
+                                            realized: `R$ ${item.realizedValue.toLocaleString('pt-BR', { minimumFractionDigits: 0, maximumFractionDigits: 1 })}k (${item.realizedPercent.toFixed(1)}%)`,
+                                            achievement: calculateAtingimento(item.budgetValue, item.realizedValue),
                                             type: 'percentage'
                                         });
                                     }}
@@ -4649,11 +4404,8 @@ export default function BudgetGrid({
                             {renderCompanyContributionMargin()}
                         </div>
                     </div>
-                    <div style={{ display: 'flex', flexDirection: 'row', gap: '1.5rem', width: '100%', flexWrap: 'wrap', alignItems: 'stretch' }}>
-                        <div style={{ flex: 1, minWidth: '350px', display: 'flex', flexDirection: 'column' }}>
-                            {renderContractsMarginValueChart()}
-                        </div>
-                        <div style={{ flex: 1, minWidth: '350px', display: 'flex', flexDirection: 'column' }}>
+                    <div style={{ display: 'flex', flexDirection: 'row', gap: '1.5rem', width: '100%', alignItems: 'stretch' }}>
+                        <div style={{ flex: 1, width: '100%', display: 'flex', flexDirection: 'column' }}>
                             {renderContractsMarginPercentChart()}
                         </div>
                     </div>

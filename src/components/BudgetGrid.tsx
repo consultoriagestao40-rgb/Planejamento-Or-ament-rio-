@@ -86,163 +86,6 @@ export default function BudgetGrid({
     const [contractsMarginHoveredIndex, setContractsMarginHoveredIndex] = useState<number | null>(null);
     const [contractsMarginHoveredChart, setContractsMarginHoveredChart] = useState<'absolute' | 'percentage' | null>(null);
 
-    // --- Indicator Analysis State ---
-    const [isAnalysisModalOpen, setIsAnalysisModalOpen] = useState(false);
-    const [analysisId, setAnalysisId] = useState<string | null>(null);
-    const [analysisSelectedTenant, setAnalysisSelectedTenant] = useState<string>('');
-    const [analysisSelectedMonth, setAnalysisSelectedMonth] = useState<number>(new Date().getMonth() + 1); // 1-12
-    const [analysisSelectedCategory, setAnalysisSelectedCategory] = useState<string>('');
-    const [deviationReport, setDeviationReport] = useState<string>('');
-    const [analysisPerformed, setAnalysisPerformed] = useState<string>('');
-    const [analysisActions, setAnalysisActions] = useState<{ id?: string; description: string; dueDate: string; isDone?: boolean }[]>([]);
-    const [analysisComments, setAnalysisComments] = useState<{ id: string; userName: string; content: string; createdAt: string }[]>([]);
-    const [newCommentText, setNewCommentText] = useState<string>('');
-    const [newCommentUser, setNewCommentUser] = useState<string>('Gestor');
-    const [isAnalysisLoading, setIsAnalysisLoading] = useState(false);
-    const [isAnalysisSaving, setIsAnalysisSaving] = useState(false);
-
-    // Quick Category State
-    const [isQuickCategoryFormOpen, setIsQuickCategoryFormOpen] = useState(false);
-    const [newCategoryName, setNewCategoryName] = useState('');
-    const [newCategoryType, setNewCategoryType] = useState('EXPENSE');
-    const [newCategoryGroup, setNewCategoryGroup] = useState('04. DESPESAS');
-    const [isCategoryRegistering, setIsCategoryRegistering] = useState(false);
-
-    const loadAnalysisData = async (tenantId: string, categoryId: string, month: number, year: number) => {
-        if (!tenantId || !categoryId || !month || !year) return;
-        setIsAnalysisLoading(true);
-        try {
-            const res = await fetch(`/api/kpi/analysis?tenantId=${tenantId}&categoryId=${categoryId}&month=${month}&year=${year}`);
-            const result = await res.json();
-            if (result.success && result.data) {
-                const data = result.data;
-                setAnalysisId(data.id);
-                setDeviationReport(data.deviationReport || '');
-                setAnalysisPerformed(data.analysisPerformed || '');
-                setAnalysisActions(data.actions || []);
-                setAnalysisComments(data.comments || []);
-            } else {
-                setAnalysisId(null);
-                setDeviationReport('');
-                setAnalysisPerformed('');
-                setAnalysisActions([]);
-                setAnalysisComments([]);
-            }
-        } catch (e) {
-            console.error("Error loading analysis data:", e);
-        } finally {
-            setIsAnalysisLoading(false);
-        }
-    };
-
-    useEffect(() => {
-        if (isAnalysisModalOpen && analysisSelectedTenant && analysisSelectedCategory) {
-            loadAnalysisData(analysisSelectedTenant, analysisSelectedCategory, analysisSelectedMonth, selectedYear);
-        }
-    }, [isAnalysisModalOpen, analysisSelectedTenant, analysisSelectedCategory, analysisSelectedMonth, selectedYear]);
-
-    const saveAnalysisData = async () => {
-        if (!analysisSelectedTenant || !analysisSelectedCategory || !analysisSelectedMonth) {
-            alert('Por favor, selecione a empresa, a categoria e o mês.');
-            return;
-        }
-        setIsAnalysisSaving(true);
-        try {
-            const res = await fetch('/api/kpi/analysis', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    tenantId: analysisSelectedTenant,
-                    categoryId: analysisSelectedCategory,
-                    month: analysisSelectedMonth,
-                    year: selectedYear,
-                    deviationReport,
-                    analysisPerformed,
-                    actions: analysisActions
-                })
-            });
-            const result = await res.json();
-            if (result.success) {
-                triggerRefresh();
-                setAnalysisId(result.data.id);
-                setAnalysisActions(result.data.actions || []);
-                alert('Análise do indicador salva com sucesso!');
-            } else {
-                alert(`Erro ao salvar análise: ${result.error}`);
-            }
-        } catch (e) {
-            alert('Erro ao conectar ao servidor para salvar a análise.');
-        } finally {
-            setIsAnalysisSaving(false);
-        }
-    };
-
-    const postComment = async () => {
-        if (!analysisId) {
-            alert('Por favor, salve a análise primeiro para poder adicionar comentários.');
-            return;
-        }
-        if (!newCommentText.trim()) return;
-        try {
-            const res = await fetch('/api/kpi/analysis/comments', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    analysisId,
-                    userName: newCommentUser.trim() || 'Gestor',
-                    content: newCommentText.trim()
-                })
-            });
-            const result = await res.json();
-            if (result.success) {
-                setAnalysisComments(prev => [...prev, result.data]);
-                setNewCommentText('');
-            } else {
-                alert(`Erro ao adicionar comentário: ${result.error}`);
-            }
-        } catch (e) {
-            alert('Erro ao conectar ao servidor para adicionar comentário.');
-        }
-    };
-
-    const handleRegisterCategory = async () => {
-        if (!newCategoryName.trim()) {
-            alert('Por favor, informe o nome da categoria.');
-            return;
-        }
-        if (!analysisSelectedTenant) {
-            alert('Por favor, selecione a empresa associada.');
-            return;
-        }
-        setIsCategoryRegistering(true);
-        try {
-            const res = await fetch('/api/kpi/analysis/categories', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    name: newCategoryName.trim(),
-                    type: newCategoryType,
-                    entradaDre: newCategoryGroup,
-                    tenantId: analysisSelectedTenant
-                })
-            });
-            const result = await res.json();
-            if (result.success) {
-                setCategories(prev => [...prev, result.data]);
-                setAnalysisSelectedCategory(result.data.id);
-                setNewCategoryName('');
-                setIsQuickCategoryFormOpen(false);
-                alert('Categoria cadastrada e selecionada com sucesso!');
-            } else {
-                alert(`Erro ao cadastrar categoria: ${result.error}`);
-            }
-        } catch (e) {
-            alert('Erro ao conectar ao servidor para cadastrar categoria.');
-        } finally {
-            setIsCategoryRegistering(false);
-        }
-    };
-
     const calculateAtingimento = (budget: number, realized: number) => {
         if (budget > 0) return `${((realized / budget) * 100).toFixed(0)}%`;
         if (budget < 0) return `${((1 + (budget - realized) / budget) * 100).toFixed(0)}%`;
@@ -589,6 +432,164 @@ export default function BudgetGrid({
     const [categories, setCategories] = useState<any[]>([]);
     const [costCenters, setCostCenters] = useState<any[]>(MOCK_COST_CENTERS);
     const [error, setError] = useState<string | null>(null);
+
+    // --- Indicator Analysis State ---
+    const [isAnalysisModalOpen, setIsAnalysisModalOpen] = useState(false);
+    const [analysisId, setAnalysisId] = useState<string | null>(null);
+    const [analysisSelectedTenant, setAnalysisSelectedTenant] = useState<string>('');
+    const [analysisSelectedMonth, setAnalysisSelectedMonth] = useState<number>(new Date().getMonth() + 1); // 1-12
+    const [analysisSelectedCategory, setAnalysisSelectedCategory] = useState<string>('');
+    const [deviationReport, setDeviationReport] = useState<string>('');
+    const [analysisPerformed, setAnalysisPerformed] = useState<string>('');
+    const [analysisActions, setAnalysisActions] = useState<{ id?: string; description: string; dueDate: string; isDone?: boolean }[]>([]);
+    const [analysisComments, setAnalysisComments] = useState<{ id: string; userName: string; content: string; createdAt: string }[]>([]);
+    const [newCommentText, setNewCommentText] = useState<string>('');
+    const [newCommentUser, setNewCommentUser] = useState<string>('Gestor');
+    const [isAnalysisLoading, setIsAnalysisLoading] = useState(false);
+    const [isAnalysisSaving, setIsAnalysisSaving] = useState(false);
+
+    // Quick Category State
+    const [isQuickCategoryFormOpen, setIsQuickCategoryFormOpen] = useState(false);
+    const [newCategoryName, setNewCategoryName] = useState('');
+    const [newCategoryType, setNewCategoryType] = useState('EXPENSE');
+    const [newCategoryGroup, setNewCategoryGroup] = useState('04. DESPESAS');
+    const [isCategoryRegistering, setIsCategoryRegistering] = useState(false);
+
+    const loadAnalysisData = async (tenantId: string, categoryId: string, month: number, year: number) => {
+        if (!tenantId || !categoryId || !month || !year) return;
+        setIsAnalysisLoading(true);
+        try {
+            const res = await fetch(`/api/kpi/analysis?tenantId=${tenantId}&categoryId=${categoryId}&month=${month}&year=${year}`);
+            const result = await res.json();
+            if (result.success && result.data) {
+                const data = result.data;
+                setAnalysisId(data.id);
+                setDeviationReport(data.deviationReport || '');
+                setAnalysisPerformed(data.analysisPerformed || '');
+                setAnalysisActions(data.actions || []);
+                setAnalysisComments(data.comments || []);
+            } else {
+                setAnalysisId(null);
+                setDeviationReport('');
+                setAnalysisPerformed('');
+                setAnalysisActions([]);
+                setAnalysisComments([]);
+            }
+        } catch (e) {
+            console.error("Error loading analysis data:", e);
+        } finally {
+            setIsAnalysisLoading(false);
+        }
+    };
+
+    useEffect(() => {
+        if (isAnalysisModalOpen && analysisSelectedTenant && analysisSelectedCategory) {
+            loadAnalysisData(analysisSelectedTenant, analysisSelectedCategory, analysisSelectedMonth, selectedYear);
+        }
+    }, [isAnalysisModalOpen, analysisSelectedTenant, analysisSelectedCategory, analysisSelectedMonth, selectedYear]);
+
+    const saveAnalysisData = async () => {
+        if (!analysisSelectedTenant || !analysisSelectedCategory || !analysisSelectedMonth) {
+            alert('Por favor, selecione a empresa, a categoria e o mês.');
+            return;
+        }
+        setIsAnalysisSaving(true);
+        try {
+            const res = await fetch('/api/kpi/analysis', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    tenantId: analysisSelectedTenant,
+                    categoryId: analysisSelectedCategory,
+                    month: analysisSelectedMonth,
+                    year: selectedYear,
+                    deviationReport,
+                    analysisPerformed,
+                    actions: analysisActions
+                })
+            });
+            const result = await res.json();
+            if (result.success) {
+                triggerRefresh();
+                setAnalysisId(result.data.id);
+                setAnalysisActions(result.data.actions || []);
+                alert('Análise do indicador salva com sucesso!');
+            } else {
+                alert(`Erro ao salvar análise: ${result.error}`);
+            }
+        } catch (e) {
+            alert('Erro ao conectar ao servidor para salvar a análise.');
+        } finally {
+            setIsAnalysisSaving(false);
+        }
+    };
+
+    const postComment = async () => {
+        if (!analysisId) {
+            alert('Por favor, salve a análise primeiro para poder adicionar comentários.');
+            return;
+        }
+        if (!newCommentText.trim()) return;
+        try {
+            const res = await fetch('/api/kpi/analysis/comments', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    analysisId,
+                    userName: newCommentUser.trim() || 'Gestor',
+                    content: newCommentText.trim()
+                })
+            });
+            const result = await res.json();
+            if (result.success) {
+                setAnalysisComments(prev => [...prev, result.data]);
+                setNewCommentText('');
+            } else {
+                alert(`Erro ao adicionar comentário: ${result.error}`);
+            }
+        } catch (e) {
+            alert('Erro ao conectar ao servidor para adicionar comentário.');
+        }
+    };
+
+    const handleRegisterCategory = async () => {
+        if (!newCategoryName.trim()) {
+            alert('Por favor, informe o nome da categoria.');
+            return;
+        }
+        if (!analysisSelectedTenant) {
+            alert('Por favor, selecione a empresa associada.');
+            return;
+        }
+        setIsCategoryRegistering(true);
+        try {
+            const res = await fetch('/api/kpi/analysis/categories', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    name: newCategoryName.trim(),
+                    type: newCategoryType,
+                    entradaDre: newCategoryGroup,
+                    tenantId: analysisSelectedTenant
+                })
+            });
+            const result = await res.json();
+            if (result.success) {
+                setCategories(prev => [...prev, result.data]);
+                setAnalysisSelectedCategory(result.data.id);
+                setNewCategoryName('');
+                setIsQuickCategoryFormOpen(false);
+                alert('Categoria cadastrada e selecionada com sucesso!');
+            } else {
+                alert(`Erro ao cadastrar categoria: ${result.error}`);
+            }
+        } catch (e) {
+            alert('Erro ao conectar ao servidor para cadastrar categoria.');
+        } finally {
+            setIsCategoryRegistering(false);
+        }
+    };
+
 
     // --- Dynamic Filters ---
     // React to pendingCompany so the CC dropdown updates IMMEDIATELY as the user picks a company,

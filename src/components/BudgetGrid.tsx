@@ -453,6 +453,7 @@ export default function BudgetGrid({
     const [chartShowAtingido, setChartShowAtingido] = useState<boolean>(false);
     const [chartPctOfRevenue, setChartPctOfRevenue] = useState<boolean>(false);
     const [chartAnalysisText, setChartAnalysisText] = useState<string>('');
+    const [chartColor, setChartColor] = useState<string>('#6366f1');
 
     // Preview data states
     const [chartPreviewData, setChartPreviewData] = useState<any[]>([]);
@@ -641,6 +642,7 @@ export default function BudgetGrid({
                     onlyRealized: chartOnlyRealized,
                     showAtingido: chartShowAtingido,
                     pctOfRevenue: chartPctOfRevenue,
+                    chartColor,
                     analysisText: chartAnalysisText
                 })
             });
@@ -680,13 +682,19 @@ export default function BudgetGrid({
         setEditingChartId(null);
         setChartCategory(analysisSelectedCategory);
         setChartCategorySearch('');
-        setChartTenant(analysisSelectedTenant);
+        setChartTenant(analysisSelectedTenant || 'ALL');
         setChartCC('ALL');
         setChartType('VERTICAL_BAR');
         setChartOnlyRealized(false);
         setChartShowAtingido(false);
         setChartPctOfRevenue(false);
+        setChartColor('#6366f1');
         setChartAnalysisText('');
+        
+        if (!analysisSelectedTenant && tenants.length > 0) {
+            setAnalysisSelectedTenant(tenants[0].id);
+        }
+        
         setChartPreviewData([]);
         setIsEditingChart(true);
     };
@@ -701,6 +709,8 @@ export default function BudgetGrid({
         setChartOnlyRealized(!!chart.onlyRealized);
         setChartShowAtingido(!!chart.showAtingido);
         setChartPctOfRevenue(!!chart.pctOfRevenue);
+        setChartColor(chart.chartColor || '#6366f1');
+        setAnalysisSelectedTenant(chart.tenantId);
         setChartAnalysisText(chart.analysisText || '');
         setChartPreviewData([]);
         setIsEditingChart(true);
@@ -719,6 +729,40 @@ export default function BudgetGrid({
             fetchChartData(chartCategory, chartTenant, chartCC);
         }
     }, [isEditingChart, chartCategory, chartTenant, chartCC, selectedYear, viewMode]);
+
+    // Mapear seleção de categorias se o Tenant de contexto for alterado
+    useEffect(() => {
+        if (!analysisSelectedTenant || !categories.length || !chartCategory) return;
+        
+        const currentIds = chartCategory.split(',').map(x => x.trim()).filter(Boolean);
+        if (currentIds.length === 0) return;
+
+        const isDreKey = (id: string) => ['vRev', 'vTaxes', 'vRecLiq', 'vCosts', 'vGrossMarg', 'vOpExp', 'vContribMarg', 'vAdminExp', 'vEbitda', 'vFin', 'vNetProfit'].includes(id);
+        const hasCategoriesToTranslate = currentIds.some(id => !isDreKey(id));
+        if (!hasCategoriesToTranslate) return;
+
+        const selectedCatsInOldTenant = currentIds.map(id => {
+            if (isDreKey(id)) return { id, isDre: true };
+            const cat = categories.find((c: any) => c.id === id);
+            return cat ? { id, name: cat.name, isDre: false } : null;
+        }).filter(Boolean);
+
+        const normalize = (s: string) => s.toLowerCase().trim();
+        const newIds = selectedCatsInOldTenant.map(item => {
+            if (item!.isDre) return item!.id;
+            
+            const foundInNewTenant = categories.find((c: any) => 
+                c.tenantId === analysisSelectedTenant && 
+                normalize(c.name) === normalize(item!.name)
+            );
+            return foundInNewTenant ? foundInNewTenant.id : null;
+        }).filter(Boolean);
+
+        const joined = newIds.join(',');
+        if (joined !== chartCategory) {
+            setChartCategory(joined);
+        }
+    }, [analysisSelectedTenant, categories, chartCategory]);
 
     const DetailedChartCard = ({ chart, onEdit, onDelete, mainMonth, year, viewMode, categories }: { chart: any, onEdit: (c: any) => void, onDelete: (id: string) => void, mainMonth: number, year: number, viewMode: 'caixa' | 'competencia', categories: any[] }) => {
         const [data, setData] = useState<any[]>([]);
@@ -788,36 +832,36 @@ export default function BudgetGrid({
                         </span>
                     </div>
                     <div style={{ display: 'flex', gap: '0.5rem' }}>
-                        <button 
-                            onClick={() => onEdit(chart)}
-                            style={{ background: '#eff6ff', border: 'none', borderRadius: '6px', padding: '0.25rem 0.5rem', fontSize: '0.7rem', fontWeight: 700, color: '#2563eb', cursor: 'pointer' }}
-                        >
-                            ✏️ Editar
-                        </button>
-                        <button 
-                            onClick={() => onDelete(chart.id)}
-                            style={{ background: '#fef2f2', border: 'none', borderRadius: '6px', padding: '0.25rem 0.5rem', fontSize: '0.7rem', fontWeight: 700, color: '#ef4444', cursor: 'pointer' }}
-                        >
-                            🗑️ Excluir
-                        </button>
-                    </div>
+                    <button 
+                        onClick={() => onEdit(chart)}
+                        style={{ background: (chart.chartColor || '#2563eb') + '15', border: 'none', borderRadius: '6px', padding: '0.25rem 0.5rem', fontSize: '0.7rem', fontWeight: 700, color: chart.chartColor || '#2563eb', cursor: 'pointer' }}
+                    >
+                        ✏️ Editar
+                    </button>
+                    <button 
+                        onClick={() => onDelete(chart.id)}
+                        style={{ background: '#fef2f2', border: 'none', borderRadius: '6px', padding: '0.25rem 0.5rem', fontSize: '0.7rem', fontWeight: 700, color: '#ef4444', cursor: 'pointer' }}
+                    >
+                        🗑️ Excluir
+                    </button>
                 </div>
+            </div>
 
-                <div style={{ width: '100%', display: 'flex', justifyContent: 'center' }}>
-                    {loading ? (
-                        <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '180px', width: '100%' }}>
-                            <div style={{ border: '2.5px solid #f3f3f3', borderTop: '2.5px solid #3b82f6', borderRadius: '50%', width: '22px', height: '22px', animation: 'spin 1s linear infinite' }} />
-                        </div>
-                    ) : (
-                        renderDetailedChart(chart.chartType, data, !!chart.onlyRealized, !!chart.showAtingido, !!chart.pctOfRevenue, mainMonth)
-                    )}
-                </div>
-
-                {chart.analysisText && (
-                    <div style={{ padding: '0.75rem 1rem', background: '#f8fafc', borderLeft: '3.5px solid #3b82f6', borderRadius: '4px', fontSize: '0.75rem', color: '#334155', fontStyle: 'italic', whiteSpace: 'pre-wrap' }}>
-                        <strong>Análise Histórica:</strong> {chart.analysisText}
+            <div style={{ width: '100%', display: 'flex', justifyContent: 'center' }}>
+                {loading ? (
+                    <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '180px', width: '100%' }}>
+                        <div style={{ border: '2.5px solid #f3f3f3', borderTop: '2.5px solid #3b82f6', borderRadius: '50%', width: '22px', height: '22px', animation: 'spin 1s linear infinite' }} />
                     </div>
+                ) : (
+                    renderDetailedChart(chart.chartType, data, !!chart.onlyRealized, !!chart.showAtingido, !!chart.pctOfRevenue, mainMonth, chart.chartColor)
                 )}
+            </div>
+
+            {chart.analysisText && (
+                <div style={{ padding: '0.75rem 1rem', background: '#f8fafc', borderLeft: `3.5px solid ${chart.chartColor || '#3b82f6'}`, borderRadius: '4px', fontSize: '0.75rem', color: '#334155', fontStyle: 'italic', whiteSpace: 'pre-wrap' }}>
+                    <strong>Análise Histórica:</strong> {chart.analysisText}
+                </div>
+            )}
             </div>
         );
     };
@@ -828,7 +872,8 @@ export default function BudgetGrid({
         onlyRealized: boolean,
         showAtingido: boolean,
         pctOfRevenue: boolean,
-        mainMonth: number
+        mainMonth: number,
+        chartColor: string = '#3b82f6'
     ) => {
         if (!data || data.length === 0) {
             return (
@@ -919,10 +964,10 @@ export default function BudgetGrid({
                                                 y={valR >= 0 ? yBaseline - rHeight : yBaseline} 
                                                 width="14" 
                                                 height={rHeight} 
-                                                fill={valR >= 0 ? '#3b82f6' : '#ef4444'} 
+                                                fill={valR >= 0 ? chartColor : '#ef4444'} 
                                                 rx="2" 
                                             />
-                                            <text x={xBase + 31} y={rLabelY} textAnchor="middle" fill={valR >= 0 ? '#1e3a8a' : '#7f1d1d'} fontSize="8px" fontWeight="700">{formatVal(valR)}</text>
+                                            <text x={xBase + 31} y={rLabelY} textAnchor="middle" fill={valR >= 0 ? '#ffffff' : '#7f1d1d'} fontSize="8px" fontWeight="700">{formatVal(valR)}</text>
                                         </>
                                     )}
 
@@ -986,10 +1031,10 @@ export default function BudgetGrid({
                                                 y={yBase + 9} 
                                                 height="7" 
                                                 width={rWidth} 
-                                                fill={valR >= 0 ? '#3b82f6' : '#ef4444'} 
+                                                fill={valR >= 0 ? chartColor : '#ef4444'} 
                                                 rx="1.5" 
                                             />
-                                            <text x={xBaseline + rWidth + 5} y={yBase + 16} textAnchor="start" fill={valR >= 0 ? '#1e3a8a' : '#7f1d1d'} fontSize="7px" fontWeight="700">{formatVal(valR)}</text>
+                                            <text x={xBaseline + rWidth + 5} y={yBase + 16} textAnchor="start" fill={valR >= 0 ? chartColor : '#7f1d1d'} fontSize="7px" fontWeight="700">{formatVal(valR)}</text>
                                         </>
                                     )}
                                 </g>
@@ -1054,7 +1099,7 @@ export default function BudgetGrid({
                             <path d={pathB} fill="none" stroke="#94a3b8" strokeWidth="2.5" strokeDasharray="4 4" strokeLinecap="round" strokeLinejoin="round" />
                         )}
                         {pathR && (
-                            <path d={pathR} fill="none" stroke="#2563eb" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
+                            <path d={pathR} fill="none" stroke={chartColor} strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
                         )}
 
                         {type === 'LINE_MARKERS' && (
@@ -1068,8 +1113,8 @@ export default function BudgetGrid({
 
                                 {pointsR.map((p, idx) => (
                                     <g key={`r-${idx}`}>
-                                        <circle cx={p.x} cy={p.y} r="5" fill="#2563eb" stroke="#ffffff" strokeWidth="2" />
-                                        <text x={p.x} y={p.y - 9} textAnchor="middle" fill="#1e3a8a" fontSize="8px" fontWeight="800">{formatVal(p.val)}</text>
+                                        <circle cx={p.x} cy={p.y} r="5" fill={chartColor} stroke="#ffffff" strokeWidth="2" />
+                                        <text x={p.x} y={p.y - 9} textAnchor="middle" fill={chartColor} fontSize="8px" fontWeight="800">{formatVal(p.val)}</text>
                                     </g>
                                 ))}
                             </>
@@ -1100,7 +1145,6 @@ export default function BudgetGrid({
                 const cy = 120;
                 const R = 85;
                 let cumulativeAngle = 0;
-                const palette = ['#2563eb', '#3b82f6', '#60a5fa', '#93c5fd', '#10b981', '#34d399', '#f59e0b', '#fbbf24', '#8b5cf6', '#a78bfa', '#ec4899', '#f472b6'];
 
                 return (
                     <svg viewBox="0 0 420 240" width="100%" height="220px" style={{ overflow: 'visible' }}>
@@ -1121,19 +1165,20 @@ export default function BudgetGrid({
 
                             const largeArc = angle > 180 ? 1 : 0;
                             const pathData = `M ${cx} ${cy} L ${x1} ${y1} A ${R} ${R} 0 ${largeArc} 1 ${x2} ${y2} Z`;
-                            const color = palette[idx % palette.length];
                             cumulativeAngle += angle;
+                            const sliceOpacity = 1 - (idx * 0.065);
 
                             return (
                                 <path 
                                     key={idx} 
                                     d={pathData} 
-                                    fill={color} 
+                                    fill={chartColor} 
+                                    fillOpacity={sliceOpacity}
                                     stroke="#ffffff" 
                                     strokeWidth="1.5"
-                                    onMouseEnter={(e) => e.currentTarget.style.opacity = '0.9'}
-                                    onMouseLeave={(e) => e.currentTarget.style.opacity = '1'}
-                                    style={{ transition: 'opacity 0.2s', cursor: 'pointer' }}
+                                    onMouseEnter={(e) => e.currentTarget.style.fillOpacity = String(Math.max(0.2, sliceOpacity - 0.15))}
+                                    onMouseLeave={(e) => e.currentTarget.style.fillOpacity = String(sliceOpacity)}
+                                    style={{ transition: 'fill-opacity 0.2s', cursor: 'pointer' }}
                                 />
                             );
                         })}
@@ -1151,12 +1196,12 @@ export default function BudgetGrid({
                                 const val = idx + 1 <= currentMonthIdx + 1 ? Math.max(0, m.realized) : 0;
                                 if (val === 0) return null;
                                 const percentage = (val / totalRealizedSum) * 100;
-                                const color = palette[idx % palette.length];
                                 const yPos = idx * 16;
+                                const sliceOpacity = 1 - (idx * 0.065);
 
                                 return (
                                     <g key={idx} transform={`translate(0, ${yPos})`}>
-                                        <rect width="9" height="9" rx="2" fill={color} />
+                                        <rect width="9" height="9" rx="2" fill={chartColor} fillOpacity={sliceOpacity} />
                                         <text x="14" y="8" fill="#475569" fontSize="8.5px" fontWeight="700">
                                             {['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'][idx]}: {percentage.toFixed(1)}%
                                         </text>
@@ -1214,7 +1259,7 @@ export default function BudgetGrid({
                         <polygon points={`${cx - 2},${cy} ${needleX},${needleY} ${cx + 2},${cy}`} fill="#0f172a" />
                         <circle cx={cx} cy={cy} r="8.5" fill="#0f172a" stroke="#ffffff" strokeWidth="2" />
 
-                        <text x={cx} y={cy + 30} textAnchor="middle" fill="#0f172a" fontSize="13px" fontWeight="800">
+                        <text x={cx} y={cy + 30} textAnchor="middle" fill={chartColor} fontSize="13px" fontWeight="800">
                             {atingido.toFixed(1)}% Atingido
                         </text>
                         <text x={cx} y={cy + 46} textAnchor="middle" fill="#64748b" fontSize="8.5px" fontWeight="700">
@@ -7860,7 +7905,7 @@ export default function BudgetGrid({
                                                         </div>
                                                     ) : (
                                                         <div style={{ width: '100%', display: 'flex', justifyContent: 'center' }}>
-                                                            {renderDetailedChart(chartType, chartPreviewData, chartOnlyRealized, chartShowAtingido, chartPctOfRevenue, analysisSelectedMonth)}
+                                                            {renderDetailedChart(chartType, chartPreviewData, chartOnlyRealized, chartShowAtingido, chartPctOfRevenue, analysisSelectedMonth, chartColor)}
                                                         </div>
                                                     )}
                                                 </div>

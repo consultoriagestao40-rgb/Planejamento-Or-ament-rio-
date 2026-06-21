@@ -47,6 +47,7 @@ export async function POST(request: Request) {
             onlyRealized = false,
             showAtingido = false,
             pctOfRevenue = false,
+            chartColor = '#6366f1',
             analysisText = ''
         } = body;
 
@@ -67,6 +68,7 @@ export async function POST(request: Request) {
                     onlyRealized: !!onlyRealized,
                     showAtingido: !!showAtingido,
                     pctOfRevenue: !!pctOfRevenue,
+                    chartColor: chartColor || '#6366f1',
                     analysisText: analysisText || ''
                 }
             });
@@ -83,6 +85,7 @@ export async function POST(request: Request) {
                     onlyRealized: !!onlyRealized,
                     showAtingido: !!showAtingido,
                     pctOfRevenue: !!pctOfRevenue,
+                    chartColor: chartColor || '#6366f1',
                     analysisText: analysisText || ''
                 }
             });

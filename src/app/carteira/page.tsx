@@ -46,6 +46,7 @@ export default function PortfolioAnalysisPage() {
     const [chartShowAtingido, setChartShowAtingido] = useState<boolean>(false);
     const [chartPctOfRevenue, setChartPctOfRevenue] = useState<boolean>(false);
     const [chartAnalysisText, setChartAnalysisText] = useState<string>('');
+    const [chartColor, setChartColor] = useState<string>('#6366f1');
 
     // Preview data states
     const [chartPreviewData, setChartPreviewData] = useState<any[]>([]);
@@ -177,6 +178,40 @@ export default function PortfolioAnalysisPage() {
         }
     }, [isEditingChart, chartCategory, chartTenant, chartCC, fetchChartData]);
 
+    // Mapear seleção de categorias se o Tenant de contexto for alterado
+    useEffect(() => {
+        if (!analysisSelectedTenant || !categories.length || !chartCategory) return;
+        
+        const currentIds = chartCategory.split(',').map(x => x.trim()).filter(Boolean);
+        if (currentIds.length === 0) return;
+
+        const isDreKey = (id: string) => ['vRev', 'vTaxes', 'vRecLiq', 'vCosts', 'vGrossMarg', 'vOpExp', 'vContribMarg', 'vAdminExp', 'vEbitda', 'vFin', 'vNetProfit'].includes(id);
+        const hasCategoriesToTranslate = currentIds.some(id => !isDreKey(id));
+        if (!hasCategoriesToTranslate) return;
+
+        const selectedCatsInOldTenant = currentIds.map(id => {
+            if (isDreKey(id)) return { id, isDre: true };
+            const cat = categories.find((c: any) => c.id === id);
+            return cat ? { id, name: cat.name, isDre: false } : null;
+        }).filter(Boolean);
+
+        const normalize = (s: string) => s.toLowerCase().trim();
+        const newIds = selectedCatsInOldTenant.map(item => {
+            if (item!.isDre) return item!.id;
+            
+            const foundInNewTenant = categories.find((c: any) => 
+                c.tenantId === analysisSelectedTenant && 
+                normalize(c.name) === normalize(item!.name)
+            );
+            return foundInNewTenant ? foundInNewTenant.id : null;
+        }).filter(Boolean);
+
+        const joined = newIds.join(',');
+        if (joined !== chartCategory) {
+            setChartCategory(joined);
+        }
+    }, [analysisSelectedTenant, categories, chartCategory]);
+
     const saveDetailedAnalysis = async () => {
         if (!analysisSelectedTenant || !activeMonthNumber || !selectedYear) {
             alert('Parâmetros de contexto ausentes.');
@@ -203,6 +238,7 @@ export default function PortfolioAnalysisPage() {
                     onlyRealized: chartOnlyRealized,
                     showAtingido: chartShowAtingido,
                     pctOfRevenue: chartPctOfRevenue,
+                    chartColor,
                     analysisText: chartAnalysisText
                 })
             });
@@ -248,7 +284,13 @@ export default function PortfolioAnalysisPage() {
         setChartOnlyRealized(false);
         setChartShowAtingido(false);
         setChartPctOfRevenue(false);
+        setChartColor('#6366f1');
         setChartAnalysisText('');
+        
+        if (!analysisSelectedTenant && companies.length > 0) {
+            setAnalysisSelectedTenant(companies[0].id);
+        }
+        
         setChartPreviewData([]);
         setIsEditingChart(true);
     };
@@ -263,6 +305,8 @@ export default function PortfolioAnalysisPage() {
         setChartOnlyRealized(!!chart.onlyRealized);
         setChartShowAtingido(!!chart.showAtingido);
         setChartPctOfRevenue(!!chart.pctOfRevenue);
+        setChartColor(chart.chartColor || '#6366f1');
+        setAnalysisSelectedTenant(chart.tenantId);
         setChartAnalysisText(chart.analysisText || '');
         setChartPreviewData([]);
         setIsEditingChart(true);
@@ -1111,7 +1155,10 @@ export default function PortfolioAnalysisPage() {
                                                         })}
                                                         {/* Categories list */}
                                                         {categories
-                                                            .filter(cat => !analysisSelectedTenant || cat.tenantId === analysisSelectedTenant)
+                                                            .filter(cat => {
+                                                                const activeTenant = analysisSelectedTenant || (companies.length > 0 ? companies[0].id : '');
+                                                                return cat.tenantId === activeTenant;
+                                                            })
                                                             .filter(cat => !chartCategorySearch || cat.name.toLowerCase().includes(chartCategorySearch.toLowerCase()))
                                                             .sort((a, b) => a.name.localeCompare(b.name))
                                                             .map((cat: any) => {
@@ -1228,6 +1275,64 @@ export default function PortfolioAnalysisPage() {
                                         </label>
                                     </div>
 
+                                    {/* Custom Chart Color Picker */}
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
+                                        <label style={{ fontSize: '0.75rem', fontWeight: 800, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Cor Personalizada do Gráfico</label>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', background: 'var(--bg-elevated)', padding: '0.75rem', borderRadius: '8px', border: '1px solid var(--border-default)', flexWrap: 'wrap' }}>
+                                            {/* Preset colors */}
+                                            <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', flex: 1, minWidth: '150px' }}>
+                                                {[
+                                                    { name: 'Indigo', value: '#6366f1' },
+                                                    { name: 'Azul', value: '#3b82f6' },
+                                                    { name: 'Esmeralda', value: '#10b981' },
+                                                    { name: 'Âmbar', value: '#f59e0b' },
+                                                    { name: 'Rosa', value: '#f43f5e' },
+                                                    { name: 'Violeta', value: '#8b5cf6' },
+                                                    { name: 'Menta', value: '#14b8a6' }
+                                                ].map(preset => (
+                                                    <button
+                                                        key={preset.value}
+                                                        type="button"
+                                                        title={preset.name}
+                                                        onClick={() => setChartColor(preset.value)}
+                                                        style={{
+                                                            width: '24px',
+                                                            height: '24px',
+                                                            borderRadius: '50%',
+                                                            backgroundColor: preset.value,
+                                                            border: chartColor === preset.value ? '2px solid var(--text-primary)' : '1.5px solid var(--border-default)',
+                                                            cursor: 'pointer',
+                                                            transform: chartColor === preset.value ? 'scale(1.15)' : 'scale(1)',
+                                                            transition: 'transform 0.15s, border 0.15s',
+                                                            boxShadow: chartColor === preset.value ? '0 0 8px ' + preset.value : 'none'
+                                                        }}
+                                                    />
+                                                ))}
+                                            </div>
+                                            
+                                            {/* Custom color picker */}
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', borderLeft: '1px solid var(--border-subtle)', paddingLeft: '0.75rem' }}>
+                                                <span style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-secondary)' }}>Personalizada:</span>
+                                                <div style={{ position: 'relative', width: '28px', height: '28px', borderRadius: '6px', overflow: 'hidden', border: '1px solid var(--border-default)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                                    <input
+                                                        type="color"
+                                                        value={chartColor}
+                                                        onChange={(e) => setChartColor(e.target.value)}
+                                                        style={{
+                                                            position: 'absolute',
+                                                            opacity: 0,
+                                                            width: '100%',
+                                                            height: '100%',
+                                                            cursor: 'pointer'
+                                                        }}
+                                                    />
+                                                    <div style={{ width: '100%', height: '100%', backgroundColor: chartColor }} />
+                                                </div>
+                                                <span style={{ fontSize: '0.75rem', fontFamily: 'monospace', fontWeight: 700, color: 'var(--text-primary)' }}>{chartColor.toUpperCase()}</span>
+                                            </div>
+                                        </div>
+                                    </div>
+
                                     {/* Historical Analysis Textarea */}
                                     <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
                                         <label style={{ fontSize: '0.75rem', fontWeight: 800, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Análise e Histórico Relacionado</label>
@@ -1279,7 +1384,7 @@ export default function PortfolioAnalysisPage() {
                                             </div>
                                         ) : (
             <div style={{ width: '100%' }}>
-                                                {renderDetailedChart(chartType, chartPreviewData, chartOnlyRealized, chartShowAtingido, chartPctOfRevenue, activeMonthNumber)}
+                                                {renderDetailedChart(chartType, chartPreviewData, chartOnlyRealized, chartShowAtingido, chartPctOfRevenue, activeMonthNumber, chartColor)}
                                             </div>
                                         )}
                                     </div>
@@ -1391,19 +1496,19 @@ const DetailedChartCard = ({ chart, onEdit, onDelete, mainMonth, year, viewMode,
                         <div style={{ border: '2.5px solid #f3f3f3', borderTop: '2.5px solid #3b82f6', borderRadius: '50%', width: '22px', height: '22px', animation: 'spin 1s linear infinite' }} />
                     </div>
                 ) : (
-                    renderDetailedChart(chart.chartType, data, !!chart.onlyRealized, !!chart.showAtingido, !!chart.pctOfRevenue, mainMonth)
+                    renderDetailedChart(chart.chartType, data, !!chart.onlyRealized, !!chart.showAtingido, !!chart.pctOfRevenue, mainMonth, chart.chartColor)
                 )}
             </div>
 
             {chart.analysisText ? (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', padding: '0.75rem 1rem', background: 'var(--bg-elevated)', borderLeft: '3.5px solid var(--accent-indigo)', borderRadius: '4px' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', padding: '0.75rem 1rem', background: 'var(--bg-elevated)', borderLeft: `3.5px solid ${chart.chartColor || 'var(--accent-indigo)'}`, borderRadius: '4px' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '1rem' }}>
                         <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', fontStyle: 'italic', whiteSpace: 'pre-wrap', flex: 1 }}>
                             <strong>Análise Histórica:</strong> {chart.analysisText}
                         </span>
                         <button
                             onClick={() => onEdit(chart)}
-                            style={{ background: 'none', border: 'none', color: 'var(--accent-indigo)', fontSize: '0.75rem', fontWeight: 700, cursor: 'pointer', padding: '2px 6px', display: 'flex', alignItems: 'center', gap: '2px', alignSelf: 'flex-start', flexShrink: 0 }}
+                            style={{ background: 'none', border: 'none', color: chart.chartColor || 'var(--accent-indigo)', fontSize: '0.75rem', fontWeight: 700, cursor: 'pointer', padding: '2px 6px', display: 'flex', alignItems: 'center', gap: '2px', alignSelf: 'flex-start', flexShrink: 0 }}
                         >
                             📝 Editar Análise
                         </button>
@@ -1413,7 +1518,7 @@ const DetailedChartCard = ({ chart, onEdit, onDelete, mainMonth, year, viewMode,
                 <div style={{ display: 'flex', justifyContent: 'center', padding: '0.5rem', background: 'var(--bg-elevated)', borderRadius: '6px', border: '1px dashed var(--border-default)' }}>
                     <button
                         onClick={() => onEdit(chart)}
-                        style={{ background: 'none', border: 'none', color: 'var(--accent-indigo)', fontSize: '0.8rem', fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.25rem' }}
+                        style={{ background: 'none', border: 'none', color: chart.chartColor || 'var(--accent-indigo)', fontSize: '0.8rem', fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.25rem' }}
                     >
                         📝 Escrever Análise Histórica
                     </button>
@@ -1429,7 +1534,8 @@ const renderDetailedChart = (
     onlyRealized: boolean,
     showAtingido: boolean,
     pctOfRevenue: boolean,
-    mainMonth: number
+    mainMonth: number,
+    chartColor: string = '#6366f1'
 ) => {
     if (!data || data.length === 0) {
         return (
@@ -1528,10 +1634,10 @@ const renderDetailedChart = (
                                             y={valR >= 0 ? yBaseline - rHeight : yBaseline} 
                                             width={barWidth} 
                                             height={rHeight} 
-                                            fill={valR >= 0 ? 'var(--accent-indigo)' : 'var(--accent-red)'} 
+                                            fill={valR >= 0 ? chartColor : 'var(--accent-red)'} 
                                             rx="3" 
                                         />
-                                        <text x={xR + barWidth / 2} y={rLabelY} textAnchor="middle" fill={valR >= 0 ? '#1e3a8a' : '#7f1d1d'} fontSize="8px" fontWeight="700">{formatVal(valR)}</text>
+                                        <text x={xR + barWidth / 2} y={rLabelY} textAnchor="middle" fill={valR >= 0 ? '#ffffff' : '#7f1d1d'} fontSize="8px" fontWeight="700">{formatVal(valR)}</text>
                                     </>
                                 )}
 
@@ -1599,10 +1705,10 @@ const renderDetailedChart = (
                                             y={yR} 
                                             height={barHeight} 
                                             width={rWidth} 
-                                            fill={valR >= 0 ? 'var(--accent-indigo)' : 'var(--accent-red)'} 
+                                            fill={valR >= 0 ? chartColor : 'var(--accent-red)'} 
                                             rx="1.5" 
                                         />
-                                        <text x={xBaseline + rWidth + 5} y={yR + 7} textAnchor="start" fill={valR >= 0 ? '#1e3a8a' : '#7f1d1d'} fontSize="7px" fontWeight="700">{formatVal(valR)}</text>
+                                        <text x={xBaseline + rWidth + 5} y={yR + 7} textAnchor="start" fill={valR >= 0 ? chartColor : '#7f1d1d'} fontSize="7px" fontWeight="700">{formatVal(valR)}</text>
                                     </>
                                 )}
                             </g>
@@ -1668,7 +1774,7 @@ const renderDetailedChart = (
                         <path d={pathB} fill="none" stroke="var(--text-muted)" strokeWidth="2.5" strokeDasharray="4 4" strokeLinecap="round" strokeLinejoin="round" />
                     )}
                     {pathR && (
-                        <path d={pathR} fill="none" stroke="var(--accent-indigo)" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
+                        <path d={pathR} fill="none" stroke={chartColor} strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
                     )}
 
                     {type === 'LINE_MARKERS' && (
@@ -1682,8 +1788,8 @@ const renderDetailedChart = (
 
                             {pointsR.map((p, idx) => (
                                 <g key={`r-${idx}`}>
-                                    <circle cx={p.x} cy={p.y} r="5" fill="var(--accent-indigo)" stroke="var(--bg-surface)" strokeWidth="2" />
-                                    <text x={p.x} y={p.y - 9} textAnchor="middle" fill="#1e3a8a" fontSize="8px" fontWeight="800">{formatVal(p.val)}</text>
+                                    <circle cx={p.x} cy={p.y} r="5" fill={chartColor} stroke="var(--bg-surface)" strokeWidth="2" />
+                                    <text x={p.x} y={p.y - 9} textAnchor="middle" fill={chartColor} fontSize="8px" fontWeight="800">{formatVal(p.val)}</text>
                                 </g>
                             ))}
                         </>
@@ -1714,7 +1820,6 @@ const renderDetailedChart = (
             const cy = 120;
             const R = 85;
             let cumulativeAngle = 0;
-            const palette = ['#2563eb', '#3b82f6', '#60a5fa', '#93c5fd', '#10b981', '#34d399', '#f59e0b', '#fbbf24', '#8b5cf6', '#a78bfa', '#ec4899', '#f472b6'];
 
             return (
                 <svg viewBox="0 0 420 240" width="100%" height="220px" style={{ overflow: 'visible' }}>
@@ -1735,19 +1840,20 @@ const renderDetailedChart = (
 
                         const largeArc = angle > 180 ? 1 : 0;
                         const pathData = `M ${cx} ${cy} L ${x1} ${y1} A ${R} ${R} 0 ${largeArc} 1 ${x2} ${y2} Z`;
-                        const color = palette[idx % palette.length];
                         cumulativeAngle += angle;
+                        const sliceOpacity = 1 - (idx * 0.065);
 
                         return (
                             <path 
                                 key={idx} 
                                 d={pathData} 
-                                fill={color} 
+                                fill={chartColor} 
+                                fillOpacity={sliceOpacity}
                                 stroke="var(--bg-surface)" 
                                 strokeWidth="1.5"
-                                onMouseEnter={(e) => e.currentTarget.style.opacity = '0.9'}
-                                onMouseLeave={(e) => e.currentTarget.style.opacity = '1'}
-                                style={{ transition: 'opacity 0.2s', cursor: 'pointer' }}
+                                onMouseEnter={(e) => e.currentTarget.style.fillOpacity = String(Math.max(0.2, sliceOpacity - 0.15))}
+                                onMouseLeave={(e) => e.currentTarget.style.fillOpacity = String(sliceOpacity)}
+                                style={{ transition: 'fill-opacity 0.2s', cursor: 'pointer' }}
                             />
                         );
                     })}
@@ -1765,12 +1871,12 @@ const renderDetailedChart = (
                             const val = idx + 1 <= currentMonthIdx + 1 ? Math.max(0, m.realized) : 0;
                             if (val === 0) return null;
                             const percentage = (val / totalRealizedSum) * 100;
-                            const color = palette[idx % palette.length];
                             const yPos = idx * 16;
+                            const sliceOpacity = 1 - (idx * 0.065);
 
                             return (
                                 <g key={idx} transform={`translate(0, ${yPos})`}>
-                                    <rect width="9" height="9" rx="2" fill={color} />
+                                    <rect width="9" height="9" rx="2" fill={chartColor} fillOpacity={sliceOpacity} />
                                     <text x="14" y="8" fill="var(--text-secondary)" fontSize="8.5px" fontWeight="700">
                                         {['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'][idx]}: {percentage.toFixed(1)}%
                                     </text>
@@ -1828,7 +1934,7 @@ const renderDetailedChart = (
                     <polygon points={`${cx - 2},${cy} ${needleX},${needleY} ${cx + 2},${cy}`} fill="var(--text-primary)" />
                     <circle cx={cx} cy={cy} r="8.5" fill="var(--text-primary)" stroke="var(--bg-surface)" strokeWidth="2" />
 
-                    <text x={cx} y={cy + 30} textAnchor="middle" fill="var(--text-primary)" fontSize="13px" fontWeight="800">
+                    <text x={cx} y={cy + 30} textAnchor="middle" fill={chartColor} fontSize="13px" fontWeight="800">
                         {atingido.toFixed(1)}% Atingido
                     </text>
                     <text x={cx} y={cy + 46} textAnchor="middle" fill="var(--text-secondary)" fontSize="8.5px" fontWeight="700">

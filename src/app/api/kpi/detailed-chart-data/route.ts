@@ -355,11 +355,44 @@ export async function GET(request: Request) {
         // 5. Build final series
         const keys = categoryId.split(',').map(k => k.trim()).filter(Boolean);
 
+        // Fetch original categories for UUID keys that are not DRE keys
+        const dbKeys = keys.filter(k => !['vRev', 'vTaxes', 'vRecLiq', 'vCosts', 'vGrossMarg', 'vOpExp', 'vContribMarg', 'vAdminExp', 'vEbitda', 'vFin', 'vNetProfit'].includes(k));
+        const originalCategories = dbKeys.length > 0 ? await prisma.category.findMany({
+            where: { id: { in: dbKeys } }
+        }) : [];
+
+        // Map any UUID from another tenant to the corresponding UUID in the current targets
+        const resolvedKeys = keys.map(key => {
+            const isDreKey = ['vRev', 'vTaxes', 'vRecLiq', 'vCosts', 'vGrossMarg', 'vOpExp', 'vContribMarg', 'vAdminExp', 'vEbitda', 'vFin', 'vNetProfit'].includes(key);
+            if (isDreKey) return key;
+            if (totalsMap.has(key)) return key;
+
+            const origCat = originalCategories.find(c => c.id === key);
+            if (!origCat) return key;
+
+            const cleanCode = (origCat.name.match(/^(\d{1,2}(?:\.\d+)*)/) || [])[1] || '';
+            const normalize = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, '').trim();
+            const origNormName = normalize(origCat.name);
+
+            if (cleanCode) {
+                const match = categories.find(c => {
+                    const cCode = (c.name.match(/^(\d{1,2}(?:\.\d+)*)/) || [])[1] || '';
+                    return cCode === cleanCode;
+                });
+                if (match) return match.id;
+            }
+
+            const matchByName = categories.find(c => normalize(c.name) === origNormName);
+            if (matchByName) return matchByName.id;
+
+            return key;
+        });
+
         const series = Array.from({ length: 12 }, (_, m) => {
             let budgetVal = 0;
             let realizedVal = 0;
 
-            keys.forEach(key => {
+            resolvedKeys.forEach(key => {
                 const isDreKey = ['vRev', 'vTaxes', 'vRecLiq', 'vCosts', 'vGrossMarg', 'vOpExp', 'vContribMarg', 'vAdminExp', 'vEbitda', 'vFin', 'vNetProfit'].includes(key);
 
                 if (isDreKey) {

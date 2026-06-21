@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import Link from 'next/link';
 
 interface PortfolioItem {
@@ -53,6 +53,7 @@ export default function PortfolioAnalysisPage() {
     const [loadingPreviewData, setLoadingPreviewData] = useState(false);
     const [savingChart, setSavingChart] = useState(false);
     const [analysisSelectedTenant, setAnalysisSelectedTenant] = useState<string>('');
+    const prevTenantRef = useRef<string>('');
 
     const toggleChartCategory = useCallback((id: string) => {
         setChartCategory(prev => {
@@ -110,7 +111,17 @@ export default function PortfolioAnalysisPage() {
                 if (compData.success) {
                     setCompanies(compData.companies || []);
                     if (compData.companies?.length > 0) {
-                        setAnalysisSelectedTenant(compData.companies[0].id);
+                        const cached = localStorage.getItem('selectedTenantId');
+                        const hasCached = cached && compData.companies.some((c: any) => c.id === cached);
+                        let target = compData.companies[0].id;
+                        if (hasCached) {
+                            target = cached!;
+                        } else {
+                            const jvs = compData.companies.find((c: any) => c.name.toUpperCase().includes('JVS TRAT'));
+                            if (jvs) target = jvs.id;
+                        }
+                        setAnalysisSelectedTenant(target);
+                        prevTenantRef.current = target;
                     }
                 }
                 
@@ -180,6 +191,11 @@ export default function PortfolioAnalysisPage() {
 
     // Mapear seleção de categorias se o Tenant de contexto for alterado
     useEffect(() => {
+        if (prevTenantRef.current === analysisSelectedTenant) {
+            return;
+        }
+        prevTenantRef.current = analysisSelectedTenant;
+
         if (!analysisSelectedTenant || !categories.length || !chartCategory) return;
         
         const currentIds = chartCategory.split(',').map(x => x.trim()).filter(Boolean);
@@ -199,6 +215,12 @@ export default function PortfolioAnalysisPage() {
         const newIds = selectedCatsInOldTenant.map(item => {
             if (item!.isDre) return item!.id;
             
+            // Se a categoria com esse ID já pertence ao tenant de destino, mantém ela!
+            const currentCat = categories.find((c: any) => c.id === item!.id);
+            if (currentCat && currentCat.tenantId === analysisSelectedTenant) {
+                return item!.id;
+            }
+            
             const foundInNewTenant = categories.find((c: any) => 
                 c.tenantId === analysisSelectedTenant && 
                 normalize(c.name) === normalize(item!.name)
@@ -206,7 +228,8 @@ export default function PortfolioAnalysisPage() {
             return foundInNewTenant ? foundInNewTenant.id : null;
         }).filter(Boolean);
 
-        const joined = newIds.join(',');
+        const uniqueNewIds = Array.from(new Set(newIds));
+        const joined = uniqueNewIds.join(',');
         if (joined !== chartCategory) {
             setChartCategory(joined);
         }
@@ -287,8 +310,18 @@ export default function PortfolioAnalysisPage() {
         setChartColor('#6366f1');
         setChartAnalysisText('');
         
-        if (!analysisSelectedTenant && companies.length > 0) {
-            setAnalysisSelectedTenant(companies[0].id);
+        let targetTenant = '';
+        if (companies.length > 0) {
+            const cached = localStorage.getItem('selectedTenantId');
+            const hasCached = cached && companies.some(c => c.id === cached);
+            if (hasCached) {
+                targetTenant = cached!;
+            } else {
+                const jvs = companies.find(c => c.name.toUpperCase().includes('JVS TRAT'));
+                targetTenant = jvs ? jvs.id : companies[0].id;
+            }
+            setAnalysisSelectedTenant(targetTenant);
+            prevTenantRef.current = targetTenant;
         }
         
         setChartPreviewData([]);
@@ -307,6 +340,7 @@ export default function PortfolioAnalysisPage() {
         setChartPctOfRevenue(!!chart.pctOfRevenue);
         setChartColor(chart.chartColor || '#6366f1');
         setAnalysisSelectedTenant(chart.tenantId);
+        prevTenantRef.current = chart.tenantId;
         setChartAnalysisText(chart.analysisText || '');
         setChartPreviewData([]);
         setIsEditingChart(true);

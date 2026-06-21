@@ -3635,7 +3635,7 @@ export default function BudgetGrid({
         const heightLower = 80;  // Região inferior (negativa) de 80px
         const yZero = 230;       // Linha de base zero a 230px do topo (paddingTop = 30px)
         const svgHeight = 330;   // Altura total do SVG (paddingTop: 30 + 200 + 80 + paddingBottom: 20)
-        const colWidth = 60;     // Largura de cada coluna para acomodar as duas barras + ponto central
+        const colWidth = 50;     // Largura reduzida para colunas quase coladas (gap de 4px)
 
         const getYAbs = (v: number) => {
             if (v >= 0) {
@@ -3645,12 +3645,62 @@ export default function BudgetGrid({
             }
         };
 
-        const drawBar = (v: number, xOffset: number, fill: string) => {
+        const drawBar = (v: number, xOffset: number, fill: string, labelColor: string) => {
             const yVal = getYAbs(v);
             const y = Math.min(yZero, yVal);
             const h = Math.abs(yVal - yZero);
             if (h <= 1) return null;
-            return <rect x={xOffset} y={y} width={12} height={h} fill={fill} rx={2} />;
+
+            const barWidth = 22;
+            const xCenter = xOffset + barWidth / 2;
+            const labelText = `${v.toFixed(0)}k`;
+            
+            // Se a barra for alta o suficiente (>= 25px), renderiza o texto na vertical centralizado dentro da barra
+            const showLabelInside = h >= 25;
+            let labelElement = null;
+
+            if (showLabelInside) {
+                const yText = v >= 0 ? yZero - h / 2 : yZero + h / 2;
+                labelElement = (
+                    <text
+                        x={xCenter}
+                        y={yText}
+                        fill={labelColor}
+                        fontSize="9px"
+                        fontWeight="800"
+                        textAnchor="middle"
+                        dominantBaseline="central"
+                        transform={`rotate(-90, ${xCenter}, ${yText})`}
+                        pointerEvents="none"
+                    >
+                        {labelText}
+                    </text>
+                );
+            } else if (h > 4) {
+                // Se for muito curta, desenha acima (para positivo) ou abaixo (para negativo)
+                const yText = v >= 0 ? y - 6 : y + h + 10;
+                labelElement = (
+                    <text
+                        x={xCenter}
+                        y={yText}
+                        fill="#475569"
+                        fontSize="8px"
+                        fontWeight="700"
+                        textAnchor="middle"
+                        transform={`rotate(-90, ${xCenter}, ${yText})`}
+                        pointerEvents="none"
+                    >
+                        {labelText}
+                    </text>
+                );
+            }
+
+            return (
+                <g>
+                    <rect x={xOffset} y={y} width={barWidth} height={h} fill={fill} rx={2} />
+                    {labelElement}
+                </g>
+            );
         };
 
         // Lógica de cálculo dos limites do gráfico de linhas (percentual)
@@ -3781,8 +3831,8 @@ export default function BudgetGrid({
                                 const x = idx * colWidth + colWidth / 2;
                                 return (
                                     <g key={`bars-${idx}`}>
-                                        {drawBar(item.budgetValue, x - 14, 'url(#budgetGrad)')}
-                                        {drawBar(item.realizedValue, x + 2, item.realizedValue >= 0 ? 'url(#realizedPosGrad)' : 'url(#realizedNegGrad)')}
+                                        {drawBar(item.budgetValue, x - 23, 'url(#budgetGrad)', '#1e293b')}
+                                        {drawBar(item.realizedValue, x + 1, item.realizedValue >= 0 ? 'url(#realizedPosGrad)' : 'url(#realizedNegGrad)', '#ffffff')}
                                     </g>
                                 );
                             })}

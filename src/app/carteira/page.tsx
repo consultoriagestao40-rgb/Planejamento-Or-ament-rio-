@@ -53,6 +53,45 @@ export default function PortfolioAnalysisPage() {
     const [savingChart, setSavingChart] = useState(false);
     const [analysisSelectedTenant, setAnalysisSelectedTenant] = useState<string>('');
 
+    const toggleChartCategory = useCallback((id: string) => {
+        setChartCategory(prev => {
+            const selectedIds = prev ? prev.split(',').map(x => x.trim()).filter(Boolean) : [];
+            const index = selectedIds.indexOf(id);
+            if (index === -1) {
+                selectedIds.push(id);
+            } else {
+                selectedIds.splice(index, 1);
+            }
+            return selectedIds.join(',');
+        });
+    }, []);
+
+    const getChartCategoryLabel = useCallback((categoriesStr: string) => {
+        if (!categoriesStr) return 'Selecione as contas...';
+        const selectedIds = categoriesStr.split(',').map(x => x.trim()).filter(Boolean);
+        const dreLabels: Record<string, string> = {
+            vRev: 'Receita Bruta',
+            vTaxes: 'Deduções / Impostos',
+            vRecLiq: 'Receita Líquida',
+            vCosts: 'Custos Operacionais',
+            vGrossMarg: 'Margem Bruta',
+            vOpExp: 'Despesas Operacionais',
+            vContribMarg: 'Margem de Contribuição',
+            vAdminExp: 'Despesas Administrativas',
+            vEbitda: 'EBITDA',
+            vFin: 'Despesas Financeiras',
+            vNetProfit: 'Lucro Líquido'
+        };
+        
+        const labels = selectedIds.map(id => {
+            if (dreLabels[id]) return dreLabels[id];
+            const found = categories.find((cat: any) => cat.id === id);
+            return found ? found.name : id;
+        });
+
+        return labels.join(' + ');
+    }, [categories]);
+
     // Resolve month number for custom charts (detailed analysis API needs a specific 1-12 month)
     const activeMonthNumber = useMemo(() => {
         const parsed = Number(selectedMonth);
@@ -203,7 +242,7 @@ export default function PortfolioAnalysisPage() {
         setEditingChartId(null);
         setChartCategory('');
         setChartCategorySearch('');
-        setChartTenant(analysisSelectedTenant || (companies[0]?.id || 'ALL'));
+        setChartTenant('ALL');
         setChartCC('ALL');
         setChartType('VERTICAL_BAR');
         setChartOnlyRealized(false);
@@ -973,24 +1012,7 @@ export default function PortfolioAnalysisPage() {
                                             }}
                                         >
                                             <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                                                {(() => {
-                                                    const dreLabels: Record<string, string> = {
-                                                        vRev: '(=) Receita Bruta',
-                                                        vTaxes: '(-) Deduções / Impostos',
-                                                        vRecLiq: '(=) Receita Líquida',
-                                                        vCosts: '(-) Custos Operacionais',
-                                                        vGrossMarg: '(=) Margem Bruta',
-                                                        vOpExp: '(-) Despesas Operacionais',
-                                                        vContribMarg: '(=) Margem de Contribuição',
-                                                        vAdminExp: '(-) Despesas Administrativas',
-                                                        vEbitda: '(=) EBITDA',
-                                                        vFin: '(-) Despesas Financeiras',
-                                                        vNetProfit: '(=) Lucro Líquido'
-                                                    };
-                                                    if (dreLabels[chartCategory]) return dreLabels[chartCategory];
-                                                    const found = categories.find((cat: any) => cat.id === chartCategory);
-                                                    return found ? found.name : 'Selecione uma conta...';
-                                                })()}
+                                                {getChartCategoryLabel(chartCategory)}
                                             </span>
                                             <span style={{ fontSize: '0.6rem', opacity: 0.5 }}>▼</span>
                                         </div>
@@ -1055,49 +1077,75 @@ export default function PortfolioAnalysisPage() {
                                                             vNetProfit: '(=) Lucro Líquido'
                                                         })
                                                         .filter(([_, name]) => !chartCategorySearch || name.toLowerCase().includes(chartCategorySearch.toLowerCase()))
-                                                        .map(([id, name]) => (
-                                                            <div
-                                                                key={id}
-                                                                onClick={() => {
-                                                                    setChartCategory(id);
-                                                                    setIsChartCategoryDropdownOpen(false);
-                                                                }}
-                                                                style={{ 
-                                                                    padding: '0.45rem 0.75rem', 
-                                                                    cursor: 'pointer', 
-                                                                    fontSize: '0.8rem', 
-                                                                    fontWeight: 700,
-                                                                    color: 'var(--accent-indigo)',
-                                                                    background: chartCategory === id ? 'rgba(99, 102, 241, 0.05)' : 'transparent'
-                                                                }}
-                                                            >
-                                                                ⭐ {name}
-                                                            </div>
-                                                        ))}
-                                                        {/* Categories list */}
-                                                        {categories
-                                                            .filter(cat => !analysisSelectedTenant || cat.tenantId === analysisSelectedTenant)
-                                                            .filter(cat => !chartCategorySearch || cat.name.toLowerCase().includes(chartCategorySearch.toLowerCase()))
-                                                            .sort((a, b) => a.name.localeCompare(b.name))
-                                                            .map((cat: any) => (
+                                                        .map(([id, name]) => {
+                                                            const isSelected = chartCategory.split(',').map(x => x.trim()).filter(Boolean).includes(id);
+                                                            return (
                                                                 <div
-                                                                    key={cat.id}
-                                                                    onClick={() => {
-                                                                        setChartCategory(cat.id);
-                                                                        setIsChartCategoryDropdownOpen(false);
+                                                                    key={id}
+                                                                    onClick={(e) => {
+                                                                        e.stopPropagation();
+                                                                        toggleChartCategory(id);
                                                                     }}
                                                                     style={{ 
                                                                         padding: '0.45rem 0.75rem', 
                                                                         cursor: 'pointer', 
                                                                         fontSize: '0.8rem', 
-                                                                        fontWeight: 600,
-                                                                        color: 'var(--text-primary)',
-                                                                        background: chartCategory === cat.id ? 'rgba(99, 102, 241, 0.05)' : 'transparent'
+                                                                        fontWeight: 700,
+                                                                        color: 'var(--accent-indigo)',
+                                                                        background: isSelected ? 'rgba(99, 102, 241, 0.05)' : 'transparent',
+                                                                        display: 'flex',
+                                                                        alignItems: 'center',
+                                                                        gap: '0.5rem'
                                                                     }}
                                                                 >
-                                                                    {cat.name}
+                                                                    <input 
+                                                                        type="checkbox" 
+                                                                        checked={isSelected}
+                                                                        onChange={() => {}}
+                                                                        onClick={(e) => e.stopPropagation()}
+                                                                        style={{ accentColor: 'var(--accent-indigo)', cursor: 'pointer' }}
+                                                                    />
+                                                                    <span>⭐ {name}</span>
                                                                 </div>
-                                                            ))
+                                                            );
+                                                        })}
+                                                        {/* Categories list */}
+                                                        {categories
+                                                            .filter(cat => !analysisSelectedTenant || cat.tenantId === analysisSelectedTenant)
+                                                            .filter(cat => !chartCategorySearch || cat.name.toLowerCase().includes(chartCategorySearch.toLowerCase()))
+                                                            .sort((a, b) => a.name.localeCompare(b.name))
+                                                            .map((cat: any) => {
+                                                                const isSelected = chartCategory.split(',').map(x => x.trim()).filter(Boolean).includes(cat.id);
+                                                                return (
+                                                                    <div
+                                                                        key={cat.id}
+                                                                        onClick={(e) => {
+                                                                            e.stopPropagation();
+                                                                            toggleChartCategory(cat.id);
+                                                                        }}
+                                                                        style={{ 
+                                                                            padding: '0.45rem 0.75rem', 
+                                                                            cursor: 'pointer', 
+                                                                            fontSize: '0.8rem', 
+                                                                            fontWeight: 600,
+                                                                            color: 'var(--text-primary)',
+                                                                            background: isSelected ? 'rgba(99, 102, 241, 0.05)' : 'transparent',
+                                                                            display: 'flex',
+                                                                            alignItems: 'center',
+                                                                            gap: '0.5rem'
+                                                                        }}
+                                                                    >
+                                                                        <input 
+                                                                            type="checkbox" 
+                                                                            checked={isSelected}
+                                                                            onChange={() => {}}
+                                                                            onClick={(e) => e.stopPropagation()}
+                                                                            style={{ accentColor: 'var(--accent-indigo)', cursor: 'pointer' }}
+                                                                        />
+                                                                        <span>{cat.name}</span>
+                                                                    </div>
+                                                                );
+                                                            })
                                                         }
                                                     </div>
                                                 </div>
@@ -1271,23 +1319,30 @@ const DetailedChartCard = ({ chart, onEdit, onDelete, mainMonth, year, viewMode,
         return () => { active = false; };
     }, [chart.categoryId, chart.filterTenantId, chart.filterCCId, year, viewMode]);
 
-    const getChartCategoryLabel = (id: string) => {
+    const getChartCategoryLabel = (categoriesStr: string) => {
+        if (!categoriesStr) return 'Sem contas';
+        const selectedIds = categoriesStr.split(',').map(x => x.trim()).filter(Boolean);
         const dreLabels: Record<string, string> = {
-            vRev: '(=) Receita Bruta',
-            vTaxes: '(-) Deduções / Impostos',
-            vRecLiq: '(=) Receita Líquida',
-            vCosts: '(-) Custos Operacionais',
-            vGrossMarg: '(=) Margem Bruta',
-            vOpExp: '(-) Despesas Operacionais',
-            vContribMarg: '(=) Margem de Contribuição',
-            vAdminExp: '(-) Despesas Administrativas',
-            vEbitda: '(=) EBITDA',
-            vFin: '(-) Despesas Financeiras',
-            vNetProfit: '(=) Lucro Líquido'
+            vRev: 'Receita Bruta',
+            vTaxes: 'Deduções / Impostos',
+            vRecLiq: 'Receita Líquida',
+            vCosts: 'Custos Operacionais',
+            vGrossMarg: 'Margem Bruta',
+            vOpExp: 'Despesas Operacionais',
+            vContribMarg: 'Margem de Contribuição',
+            vAdminExp: 'Despesas Administrativas',
+            vEbitda: 'EBITDA',
+            vFin: 'Despesas Financeiras',
+            vNetProfit: 'Lucro Líquido'
         };
-        if (dreLabels[id]) return dreLabels[id];
-        const found = categories.find((cat: any) => cat.id === id);
-        return found ? found.name : id;
+        
+        const labels = selectedIds.map(id => {
+            if (dreLabels[id]) return dreLabels[id];
+            const found = categories.find((cat: any) => cat.id === id);
+            return found ? found.name : id;
+        });
+
+        return labels.join(' + ');
     };
 
     const chartTypeNameMap: Record<string, string> = {
@@ -1303,23 +1358,23 @@ const DetailedChartCard = ({ chart, onEdit, onDelete, mainMonth, year, viewMode,
     return (
         <div className="glass-card" style={{ padding: '1.25rem', background: 'var(--bg-surface)', borderRadius: '12px', border: '1px solid var(--border-default)', boxShadow: 'var(--shadow-card)', width: '100%', marginBottom: '1.5rem', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', borderBottom: '1px solid var(--border-subtle)', paddingBottom: '0.5rem' }}>
-                <div>
-                    <h4 style={{ fontSize: '0.95rem', fontWeight: 800, color: 'var(--text-primary)', margin: 0 }}>
+                <div style={{ flex: 1, minWidth: 0, paddingRight: '1rem' }}>
+                    <h4 style={{ fontSize: '0.95rem', fontWeight: 800, color: 'var(--text-primary)', margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                         📊 {getChartCategoryLabel(chart.categoryId)} ({chartTypeNameMap[chart.chartType] || chart.chartType})
                     </h4>
-                    <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', fontWeight: 500 }}>
+                    <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', fontWeight: 500, display: 'block', marginTop: '0.2rem' }}>
                         Filtros: {chart.filterTenantId === 'ALL' ? 'Todas Empresas' : 'Empresa Única'} 
                         {chart.filterCCId && chart.filterCCId !== 'ALL' ? ` | Centro de Custo: ${chart.filterCCId}` : ' | Todos Centros de Custo'}
                         {chart.pctOfRevenue ? ' | % sobre Receita' : ''}
                         {chart.onlyRealized ? ' | Somente Realizado' : ''}
                     </span>
                 </div>
-                <div style={{ display: 'flex', gap: '0.5rem' }}>
+                <div style={{ display: 'flex', gap: '0.5rem', flexShrink: 0 }}>
                     <button 
                         onClick={() => onEdit(chart)}
-                        style={{ background: '#eff6ff', border: 'none', borderRadius: '6px', padding: '0.3rem 0.6rem', fontSize: '0.75rem', fontWeight: 700, color: '#2563eb', cursor: 'pointer' }}
+                        style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border-default)', borderRadius: '6px', padding: '0.3rem 0.6rem', fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-secondary)', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '3px' }}
                     >
-                        ✏️ Editar
+                        ⚙️ Configurar Gráfico
                     </button>
                     <button 
                         onClick={() => onDelete(chart.id)}
@@ -1340,9 +1395,28 @@ const DetailedChartCard = ({ chart, onEdit, onDelete, mainMonth, year, viewMode,
                 )}
             </div>
 
-            {chart.analysisText && (
-                <div style={{ padding: '0.75rem 1rem', background: 'var(--bg-elevated)', borderLeft: '3.5px solid #3b82f6', borderRadius: '4px', fontSize: '0.8rem', color: 'var(--text-secondary)', fontStyle: 'italic', whiteSpace: 'pre-wrap' }}>
-                    <strong>Análise Histórica:</strong> {chart.analysisText}
+            {chart.analysisText ? (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', padding: '0.75rem 1rem', background: 'var(--bg-elevated)', borderLeft: '3.5px solid var(--accent-indigo)', borderRadius: '4px' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '1rem' }}>
+                        <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', fontStyle: 'italic', whiteSpace: 'pre-wrap', flex: 1 }}>
+                            <strong>Análise Histórica:</strong> {chart.analysisText}
+                        </span>
+                        <button
+                            onClick={() => onEdit(chart)}
+                            style={{ background: 'none', border: 'none', color: 'var(--accent-indigo)', fontSize: '0.75rem', fontWeight: 700, cursor: 'pointer', padding: '2px 6px', display: 'flex', alignItems: 'center', gap: '2px', alignSelf: 'flex-start', flexShrink: 0 }}
+                        >
+                            📝 Editar Análise
+                        </button>
+                    </div>
+                </div>
+            ) : (
+                <div style={{ display: 'flex', justifyContent: 'center', padding: '0.5rem', background: 'var(--bg-elevated)', borderRadius: '6px', border: '1px dashed var(--border-default)' }}>
+                    <button
+                        onClick={() => onEdit(chart)}
+                        style={{ background: 'none', border: 'none', color: 'var(--accent-indigo)', fontSize: '0.8rem', fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.25rem' }}
+                    >
+                        📝 Escrever Análise Histórica
+                    </button>
                 </div>
             )}
         </div>

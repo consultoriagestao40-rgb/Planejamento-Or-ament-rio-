@@ -353,23 +353,36 @@ export async function GET(request: Request) {
         const dreTotals = Array.from({ length: 12 }, (_, i) => getDreTotalsForMonth(i));
 
         // 5. Build final series
-        const isDreKey = ['vRev', 'vTaxes', 'vRecLiq', 'vCosts', 'vGrossMarg', 'vOpExp', 'vContribMarg', 'vAdminExp', 'vEbitda', 'vFin', 'vNetProfit'].includes(categoryId);
+        const keys = categoryId.split(',').map(k => k.trim()).filter(Boolean);
 
         const series = Array.from({ length: 12 }, (_, m) => {
             let budgetVal = 0;
             let realizedVal = 0;
 
-            if (isDreKey) {
-                const key = categoryId as keyof typeof dreTotals[0];
-                budgetVal = dreTotals[m][key].b;
-                realizedVal = dreTotals[m][key].r;
-            } else {
-                const t = totalsMap.get(categoryId);
-                if (t) {
-                    budgetVal = t.budget[m];
-                    realizedVal = t.realized[m];
+            keys.forEach(key => {
+                const isDreKey = ['vRev', 'vTaxes', 'vRecLiq', 'vCosts', 'vGrossMarg', 'vOpExp', 'vContribMarg', 'vAdminExp', 'vEbitda', 'vFin', 'vNetProfit'].includes(key);
+
+                if (isDreKey) {
+                    const dreKey = key as keyof typeof dreTotals[0];
+                    budgetVal += dreTotals[m][dreKey].b;
+                    realizedVal += dreTotals[m][dreKey].r;
+                } else {
+                    const t = totalsMap.get(key);
+                    if (t) {
+                        budgetVal += t.budget[m];
+                        realizedVal += t.realized[m];
+                    } else {
+                        const node = codeMap.get(key);
+                        if (node) {
+                            const tNode = totalsMap.get(node.id);
+                            if (tNode) {
+                                budgetVal += tNode.budget[m];
+                                realizedVal += tNode.realized[m];
+                            }
+                        }
+                    }
                 }
-            }
+            });
 
             // Target achievement percentage (atingido)
             let atingido = 0;

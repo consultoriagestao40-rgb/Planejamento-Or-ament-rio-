@@ -1052,10 +1052,10 @@ export default function BudgetGrid({
                                                 />
                                                 <text 
                                                     x={barX + barWidth / 2} 
-                                                    y={yVal - 4} 
+                                                    y={yVal - 7} 
                                                     textAnchor="middle" 
                                                     fill="#64748b" 
-                                                    fontSize="7px" 
+                                                    fontSize="11.5px" 
                                                     fontWeight="700"
                                                 >
                                                     {formatAbs(valScaled, isDailyMode(bMode))}
@@ -1079,10 +1079,10 @@ export default function BudgetGrid({
                                                 />
                                                 <text 
                                                     x={barX + barWidth / 2} 
-                                                    y={yVal - 4} 
+                                                    y={yVal - 7} 
                                                     textAnchor="middle" 
                                                     fill="#475569" 
-                                                    fontSize="7px" 
+                                                    fontSize="11.5px" 
                                                     fontWeight="700"
                                                 >
                                                     {formatAbs(valScaled, isDailyMode(rMode))}
@@ -1131,7 +1131,7 @@ export default function BudgetGrid({
                                     {points.map((p, idx) => (
                                         <g key={idx}>
                                             <circle cx={p.x} cy={p.y} r="4.5" fill={chartColor} stroke="#ffffff" strokeWidth="1.5" />
-                                            <text x={p.x} y={p.y - 7} textAnchor="middle" fill={chartColor} fontSize="7.5px" fontWeight="800">
+                                            <text x={p.x} y={p.y - 11} textAnchor="middle" fill={chartColor} fontSize="12px" fontWeight="800">
                                                 {formatAbs(p.val, isDailyMode(rMode))}
                                             </text>
                                         </g>
@@ -1159,7 +1159,7 @@ export default function BudgetGrid({
                                     {points.map((p, idx) => (
                                         <g key={idx}>
                                             <circle cx={p.x} cy={p.y} r="4.5" fill={lineColor} stroke="#ffffff" strokeWidth="1.5" />
-                                            <text x={p.x} y={p.y - 7} textAnchor="middle" fill={lineColor} fontSize="7.5px" fontWeight="800">
+                                            <text x={p.x} y={p.y - 11} textAnchor="middle" fill={lineColor} fontSize="12px" fontWeight="800">
                                                 {p.val.toFixed(1)}%
                                             </text>
                                         </g>
@@ -1185,7 +1185,7 @@ export default function BudgetGrid({
                                     {points.map((p, idx) => (
                                         <g key={idx}>
                                             <circle cx={p.x} cy={p.y} r="4.5" fill={lineColor} stroke="#ffffff" strokeWidth="1.5" />
-                                            <text x={p.x} y={p.y - 7} textAnchor="middle" fill={lineColor} fontSize="7.5px" fontWeight="800">
+                                            <text x={p.x} y={p.y - 11} textAnchor="middle" fill={lineColor} fontSize="12px" fontWeight="800">
                                                 {p.val.toFixed(1)}%
                                             </text>
                                         </g>
@@ -1202,10 +1202,10 @@ export default function BudgetGrid({
                                 return (
                                     <g key={gridIdx}>
                                         <line x1="80" y1={yGrid} x2="1120" y2={yGrid} stroke="#f1f5f9" strokeWidth="0.5" strokeDasharray="3 3" />
-                                        <text x="70" y={yGrid + 3} textAnchor="end" fill="#94a3b8" fontSize="7.5px" fontWeight="600">
+                                        <text x="70" y={yGrid + 4} textAnchor="end" fill="#94a3b8" fontSize="12px" fontWeight="600">
                                             {formatAbs(ratio * scaleMaxAbs, hasDailyActive)}
                                         </text>
-                                        <text x="1130" y={yGrid + 3} textAnchor="start" fill="#94a3b8" fontSize="7.5px" fontWeight="600">
+                                        <text x="1130" y={yGrid + 4} textAnchor="start" fill="#94a3b8" fontSize="12px" fontWeight="600">
                                             {(ratio * scaleMaxPct).toFixed(0)}%
                                         </text>
                                     </g>
@@ -1219,7 +1219,7 @@ export default function BudgetGrid({
                             {rightLines}
 
                             {data.map((m, idx) => (
-                                <text key={idx} x={getX(idx)} y={yBaseline + 18} textAnchor="middle" fill="#475569" fontSize="8px" fontWeight="800">
+                                <text key={idx} x={getX(idx)} y={yBaseline + 20} textAnchor="middle" fill="#475569" fontSize="13px" fontWeight="800">
                                     {['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'][idx]}
                                 </text>
                             ))}
@@ -1352,10 +1352,10 @@ export default function BudgetGrid({
                                         />
                                         <text 
                                             x={barX + barWidth / 2} 
-                                            y={yR - 4} 
+                                            y={yR - 7} 
                                             textAnchor="middle" 
                                             fill="#475569" 
-                                            fontSize="7px" 
+                                            fontSize="11.5px" 
                                             fontWeight="700"
                                         >
                                             {formatAbs(valR, isDaily)}
@@ -1416,10 +1416,10 @@ export default function BudgetGrid({
                                     />
                                     <text 
                                         x={p.x} 
-                                        y={p.y - 7} 
+                                        y={p.y - 11} 
                                         textAnchor="middle" 
                                         fill={lineColor} 
-                                        fontSize="7.5px" 
+                                        fontSize="12px" 
                                         fontWeight="800"
                                     >
                                         {formatAbs(p.val, isDaily)}
@@ -1552,10 +1552,10 @@ export default function BudgetGrid({
                             </>
                         )}
 
-                        <text x="75" y={hasNegative ? "73" : "53"} textAnchor="end" fill="#94a3b8" fontSize="8px" fontWeight="700">{formatVal(maxVal)}</text>
-                        <text x="75" y={yBaseline + 3} textAnchor="end" fill="#94a3b8" fontSize="8px" fontWeight="700">{formatVal(0)}</text>
+                        <text x="75" y={hasNegative ? 74 : 54} textAnchor="end" fill="#94a3b8" fontSize="12px" fontWeight="700">{formatVal(maxVal)}</text>
+                        <text x="75" y={yBaseline + 4} textAnchor="end" fill="#94a3b8" fontSize="12px" fontWeight="700">{formatVal(0)}</text>
                         {hasNegative && (
-                            <text x="75" y="193" textAnchor="end" fill="#94a3b8" fontSize="8px" fontWeight="700">{formatVal(-maxVal)}</text>
+                            <text x="75" y="194" textAnchor="end" fill="#94a3b8" fontSize="12px" fontWeight="700">{formatVal(-maxVal)}</text>
                         )}
 
                         {data.map((m, idx) => {
@@ -1572,10 +1572,10 @@ export default function BudgetGrid({
                             
                             const isClose = !onlyRealized && (idx + 1 <= currentMonthIdx + 1) && Math.abs(bHeight - rHeight) < 14 && (valB >= 0 === valR >= 0);
 
-                            const bLabelY = valB >= 0 ? yBaseline - bHeight - 5 : yBaseline + bHeight + 11;
-                            let rLabelY = valR >= 0 ? yBaseline - rHeight - 5 : yBaseline + rHeight + 11;
+                            const bLabelY = valB >= 0 ? yBaseline - bHeight - 8 : yBaseline + bHeight + 17;
+                            let rLabelY = valR >= 0 ? yBaseline - rHeight - 8 : yBaseline + rHeight + 17;
                             if (isClose) {
-                                rLabelY = valR >= 0 ? yBaseline - rHeight - 15 : yBaseline + rHeight + 21;
+                                rLabelY = valR >= 0 ? yBaseline - rHeight - 24 : yBaseline + rHeight + 33;
                             }
 
                             const xMonthText = xBase + 44;
@@ -1592,7 +1592,7 @@ export default function BudgetGrid({
                                                 fill="#cbd5e1" 
                                                 rx="3" 
                                             />
-                                            <text x={xB + barWidth / 2} y={bLabelY} textAnchor="middle" fill="#64748b" fontSize="8px" fontWeight="700">{formatVal(valB)}</text>
+                                            <text x={xB + barWidth / 2} y={bLabelY} textAnchor="middle" fill="#64748b" fontSize="12px" fontWeight="700">{formatVal(valB)}</text>
                                         </>
                                     )}
 
@@ -1606,11 +1606,11 @@ export default function BudgetGrid({
                                                 fill={valR >= 0 ? chartColor : '#ef4444'} 
                                                 rx="3" 
                                             />
-                                            <text x={xR + barWidth / 2} y={rLabelY} textAnchor="middle" fill={valR >= 0 ? '#ffffff' : '#7f1d1d'} fontSize="8px" fontWeight="700">{formatVal(valR)}</text>
+                                            <text x={xR + barWidth / 2} y={rLabelY} textAnchor="middle" fill={valR >= 0 ? '#ffffff' : '#7f1d1d'} fontSize="12px" fontWeight="700">{formatVal(valR)}</text>
                                         </>
                                     )}
 
-                                    <text x={xMonthText} y="240" textAnchor="middle" fill="#64748b" fontSize="9px" fontWeight="700">
+                                    <text x={xMonthText} y="242" textAnchor="middle" fill="#64748b" fontSize="13px" fontWeight="700">
                                         {['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'][idx]}
                                     </text>
                                 </g>
@@ -1631,9 +1631,9 @@ export default function BudgetGrid({
                         <line x1={xBaseline + maxBarWidth / 2} y1="10" x2={xBaseline + maxBarWidth / 2} y2="295" stroke="#f1f5f9" strokeDasharray="3 3" />
                         <line x1={xBaseline + maxBarWidth} y1="10" x2={xBaseline + maxBarWidth} y2="295" stroke="#cbd5e1" strokeDasharray="3 3" />
 
-                        <text x={xBaseline} y="310" textAnchor="middle" fill="#94a3b8" fontSize="8px" fontWeight="700">{formatVal(0)}</text>
-                        <text x={xBaseline + maxBarWidth / 2} y="310" textAnchor="middle" fill="#94a3b8" fontSize="8px" fontWeight="700">{formatVal(scaleMaxVal / 2)}</text>
-                        <text x={xBaseline + maxBarWidth} y="310" textAnchor="middle" fill="#94a3b8" fontSize="8px" fontWeight="700">{formatVal(scaleMaxVal)}</text>
+                        <text x={xBaseline} y="312" textAnchor="middle" fill="#94a3b8" fontSize="12px" fontWeight="700">{formatVal(0)}</text>
+                        <text x={xBaseline + maxBarWidth / 2} y="312" textAnchor="middle" fill="#94a3b8" fontSize="12px" fontWeight="700">{formatVal(scaleMaxVal / 2)}</text>
+                        <text x={xBaseline + maxBarWidth} y="312" textAnchor="middle" fill="#94a3b8" fontSize="12px" fontWeight="700">{formatVal(scaleMaxVal)}</text>
 
                         {data.map((m, idx) => {
                             const valB = pctOfRevenue ? m.pctOfRevenue : m.budget;
@@ -1649,7 +1649,7 @@ export default function BudgetGrid({
 
                             return (
                                 <g key={idx}>
-                                    <text x={xBaseline - 10} y={yBase + 12} textAnchor="end" fill="#64748b" fontSize="9px" fontWeight="700">
+                                    <text x={xBaseline - 10} y={yBase + 14} textAnchor="end" fill="#64748b" fontSize="13px" fontWeight="700">
                                         {['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'][idx]}
                                     </text>
 
@@ -1663,7 +1663,7 @@ export default function BudgetGrid({
                                                 fill="#cbd5e1" 
                                                 rx="1.5" 
                                             />
-                                            <text x={xBaseline + bWidth + 5} y={yB + 7} textAnchor="start" fill="#64748b" fontSize="7px" fontWeight="700">{formatVal(valB)}</text>
+                                            <text x={xBaseline + bWidth + 5} y={yB + 8.5} textAnchor="start" fill="#64748b" fontSize="11.5px" fontWeight="700">{formatVal(valB)}</text>
                                         </>
                                     )}
 
@@ -1677,7 +1677,7 @@ export default function BudgetGrid({
                                                 fill={valR >= 0 ? chartColor : '#ef4444'} 
                                                 rx="1.5" 
                                             />
-                                            <text x={xBaseline + rWidth + 5} y={yR + 7} textAnchor="start" fill={valR >= 0 ? chartColor : '#7f1d1d'} fontSize="7px" fontWeight="700">{formatVal(valR)}</text>
+                                            <text x={xBaseline + rWidth + 5} y={yR + 8.5} textAnchor="start" fill={valR >= 0 ? chartColor : '#7f1d1d'} fontSize="11.5px" fontWeight="700">{formatVal(valR)}</text>
                                         </>
                                     )}
                                 </g>
@@ -1732,10 +1732,10 @@ export default function BudgetGrid({
                             </>
                         )}
 
-                        <text x="35" y={hasNegative ? "73" : "53"} textAnchor="end" fill="#94a3b8" fontSize="8px" fontWeight="700">{formatVal(maxVal)}</text>
-                        <text x="35" y={yBaseline + 3} textAnchor="end" fill="#94a3b8" fontSize="8px" fontWeight="700">{formatVal(0)}</text>
+                        <text x="35" y={hasNegative ? 74 : 54} textAnchor="end" fill="#94a3b8" fontSize="12px" fontWeight="700">{formatVal(maxVal)}</text>
+                        <text x="35" y={yBaseline + 4} textAnchor="end" fill="#94a3b8" fontSize="12px" fontWeight="700">{formatVal(0)}</text>
                         {hasNegative && (
-                            <text x="35" y="193" textAnchor="end" fill="#94a3b8" fontSize="8px" fontWeight="700">{formatVal(-maxVal)}</text>
+                            <text x="35" y="194" textAnchor="end" fill="#94a3b8" fontSize="12px" fontWeight="700">{formatVal(-maxVal)}</text>
                         )}
 
                         {!onlyRealized && pathB && (
@@ -1750,21 +1750,21 @@ export default function BudgetGrid({
                                 {!onlyRealized && pointsB.map((p, idx) => (
                                     <g key={`b-${idx}`}>
                                         <circle cx={p.x} cy={p.y} r="4" fill="#94a3b8" stroke="#ffffff" strokeWidth="1.5" />
-                                        <text x={p.x} y={p.y - 8} textAnchor="middle" fill="#64748b" fontSize="8px" fontWeight="700">{formatVal(p.val)}</text>
+                                        <text x={p.x} y={p.y - 12} textAnchor="middle" fill="#64748b" fontSize="12px" fontWeight="700">{formatVal(p.val)}</text>
                                     </g>
                                 ))}
 
                                 {pointsR.map((p, idx) => (
                                     <g key={`r-${idx}`}>
                                         <circle cx={p.x} cy={p.y} r="5" fill={chartColor} stroke="#ffffff" strokeWidth="2" />
-                                        <text x={p.x} y={p.y - 9} textAnchor="middle" fill={chartColor} fontSize="8px" fontWeight="800">{formatVal(p.val)}</text>
+                                        <text x={p.x} y={p.y - 13} textAnchor="middle" fill={chartColor} fontSize="12px" fontWeight="800">{formatVal(p.val)}</text>
                                     </g>
                                 ))}
                             </>
                         )}
 
                         {data.map((m, idx) => (
-                            <text key={idx} x={50 + idx * 62} y="240" textAnchor="middle" fill="#64748b" fontSize="9px" fontWeight="700">
+                            <text key={idx} x={50 + idx * 62} y="242" textAnchor="middle" fill="#64748b" fontSize="13px" fontWeight="700">
                                 {['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'][idx]}
                             </text>
                         ))}
@@ -1829,8 +1829,8 @@ export default function BudgetGrid({
                         {type === 'DONUT' && (
                             <>
                                 <circle cx={cx} cy={cy} r="52" fill="#ffffff" />
-                                <text x={cx} y={cy - 4} textAnchor="middle" fill="#64748b" fontSize="8px" fontWeight="800" textTransform="uppercase" letterSpacing="0.05em">Total Realiz.</text>
-                                <text x={cx} y={cy + 12} textAnchor="middle" fill="#0f172a" fontSize="11px" fontWeight="800">{formatVal(totalRealizedSum)}</text>
+                                <text x={cx} y={cy - 6} textAnchor="middle" fill="#64748b" fontSize="12px" fontWeight="800" textTransform="uppercase" letterSpacing="0.05em">Total Realiz.</text>
+                                <text x={cx} y={cy + 14} textAnchor="middle" fill="#0f172a" fontSize="15px" fontWeight="800">{formatVal(totalRealizedSum)}</text>
                             </>
                         )}
 
@@ -1839,13 +1839,13 @@ export default function BudgetGrid({
                                 const val = idx + 1 <= currentMonthIdx + 1 ? Math.max(0, m.realized) : 0;
                                 if (val === 0) return null;
                                 const percentage = (val / totalRealizedSum) * 100;
-                                const yPos = idx * 16;
+                                const yPos = idx * 20;
                                 const sliceOpacity = 1 - (idx * 0.065);
 
                                 return (
                                     <g key={idx} transform={`translate(0, ${yPos})`}>
                                         <rect width="9" height="9" rx="2" fill={chartColor} fillOpacity={sliceOpacity} />
-                                        <text x="14" y="8" fill="#475569" fontSize="8.5px" fontWeight="700">
+                                        <text x="14" y="9" fill="#475569" fontSize="12.5px" fontWeight="700">
                                             {['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'][idx]}: {percentage.toFixed(1)}%
                                         </text>
                                     </g>
@@ -1895,17 +1895,17 @@ export default function BudgetGrid({
                         <path d={getArcPath(cx, cy, R, 85.5, 99)} fill="none" stroke="#10b981" strokeWidth="22" strokeLinecap="butt" />
                         <path d={getArcPath(cx, cy, R, 99, 180)} fill="none" stroke="#3b82f6" strokeWidth="22" strokeLinecap="butt" />
 
-                        <text x={cx - R - 15} y={cy + 5} textAnchor="middle" fill="#64748b" fontSize="8.5px" fontWeight="800">0%</text>
-                        <text x={cx} y={cy - R - 10} textAnchor="middle" fill="#64748b" fontSize="8.5px" fontWeight="800">100%</text>
-                        <text x={cx + R + 18} y={cy + 5} textAnchor="middle" fill="#64748b" fontSize="8.5px" fontWeight="800">200%+</text>
+                        <text x={cx - R - 15} y={cy + 6} textAnchor="middle" fill="#64748b" fontSize="12.5px" fontWeight="800">0%</text>
+                        <text x={cx} y={cy - R - 12} textAnchor="middle" fill="#64748b" fontSize="12.5px" fontWeight="800">100%</text>
+                        <text x={cx + R + 18} y={cy + 6} textAnchor="middle" fill="#64748b" fontSize="12.5px" fontWeight="800">200%+</text>
 
                         <polygon points={`${cx - 2},${cy} ${needleX},${needleY} ${cx + 2},${cy}`} fill="#0f172a" />
                         <circle cx={cx} cy={cy} r="8.5" fill="#0f172a" stroke="#ffffff" strokeWidth="2" />
 
-                        <text x={cx} y={cy + 30} textAnchor="middle" fill={chartColor} fontSize="13px" fontWeight="800">
+                        <text x={cx} y={cy + 32} textAnchor="middle" fill={chartColor} fontSize="18px" fontWeight="800">
                             {atingido.toFixed(1)}% Atingido
                         </text>
-                        <text x={cx} y={cy + 46} textAnchor="middle" fill="#64748b" fontSize="8.5px" fontWeight="700">
+                        <text x={cx} y={cy + 52} textAnchor="middle" fill="#64748b" fontSize="12.5px" fontWeight="700">
                             No mês de {['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'][mainMonth - 1]}
                         </text>
                     </svg>

@@ -440,6 +440,7 @@ export default function BudgetGrid({
     const [analysisSelectedMonth, setAnalysisSelectedMonth] = useState<number>(new Date().getMonth() + 1); // 1-12
     const [analysisSelectedCategory, setAnalysisSelectedCategory] = useState<string>('');
     const [analysisCategorySearch, setAnalysisCategorySearch] = useState<string>('');
+    const [isCategoryDropdownOpen, setIsCategoryDropdownOpen] = useState(false);
     const [deviationReport, setDeviationReport] = useState<string>('');
     const [analysisPerformed, setAnalysisPerformed] = useState<string>('');
     const [analysisActions, setAnalysisActions] = useState<{ id?: string; description: string; dueDate: string; isDone?: boolean }[]>([]);
@@ -455,6 +456,11 @@ export default function BudgetGrid({
     const [newCategoryType, setNewCategoryType] = useState('EXPENSE');
     const [newCategoryGroup, setNewCategoryGroup] = useState('04. DESPESAS');
     const [isCategoryRegistering, setIsCategoryRegistering] = useState(false);
+
+    const selectedCategoryName = useMemo(() => {
+        const found = categories.find((cat: any) => cat.id === analysisSelectedCategory);
+        return found ? found.name : 'Selecione uma conta...';
+    }, [categories, analysisSelectedCategory]);
 
     const loadAnalysisData = async (tenantId: string, categoryId: string, month: number, year: number) => {
         if (!tenantId || !categoryId || !month || !year) return;
@@ -613,6 +619,7 @@ export default function BudgetGrid({
         setAnalysisSelectedTenant(defaultTenant);
         setAnalysisSelectedMonth(startMonth + 1);
         setAnalysisCategorySearch('');
+        setIsCategoryDropdownOpen(false);
         
         // Find matching category for default tenant
         let defaultCatId = '';
@@ -6321,55 +6328,129 @@ export default function BudgetGrid({
                                         </button>
                                     </label>
                                     <div style={{ position: 'relative', width: '100%' }}>
-                                        <input
-                                            type="text"
-                                            placeholder="🔍 Filtrar contas..."
-                                            value={analysisCategorySearch}
-                                            onChange={(e) => setAnalysisCategorySearch(e.target.value)}
-                                            style={{
-                                                width: '100%',
-                                                height: '30px',
-                                                padding: '0 0.5rem 0 1.6rem',
-                                                fontSize: '0.75rem',
-                                                fontWeight: 600,
-                                                border: '1px solid #cbd5e1',
-                                                borderRadius: '6px',
-                                                outline: 'none',
-                                                marginBottom: '0.35rem',
-                                                background: '#f8fafc',
-                                                boxSizing: 'border-box'
-                                            }}
-                                        />
-                                        <svg
-                                            width="12"
-                                            height="12"
-                                            viewBox="0 0 24 24"
-                                            fill="none"
-                                            stroke="#64748b"
-                                            strokeWidth="2.5"
-                                            strokeLinecap="round"
-                                            strokeLinejoin="round"
-                                            style={{ position: 'absolute', left: '0.5rem', top: '9px', pointerEvents: 'none' }}
-                                        >
-                                            <circle cx="11" cy="11" r="8"></circle>
-                                            <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
-                                        </svg>
-                                    </div>
-                                    <select
-                                        value={analysisSelectedCategory}
-                                        onChange={(e) => setAnalysisSelectedCategory(e.target.value)}
-                                        className="premium-input"
-                                        style={{ width: '100%', height: '36px', padding: '0 0.5rem', fontSize: '0.8rem', fontWeight: 600, border: '1px solid #cbd5e1', borderRadius: '8px', outline: 'none' }}
-                                    >
-                                        <option value="">Selecione uma conta...</option>
-                                        {categories
-                                            .filter(cat => !analysisSelectedTenant || cat.tenantId === analysisSelectedTenant)
-                                            .filter(cat => !analysisCategorySearch || cat.name.toLowerCase().includes(analysisCategorySearch.toLowerCase()))
-                                            .sort((a,b) => a.name.localeCompare(b.name))
-                                            .map((cat: any) => (
-                                                <option key={cat.id} value={cat.id}>{cat.name}</option>
-                                            ))}
-                                    </select>
+                                         {/* Dropdown Toggle trigger */}
+                                         <div
+                                             onClick={() => {
+                                                 setIsCategoryDropdownOpen(!isCategoryDropdownOpen);
+                                                 setAnalysisCategorySearch('');
+                                             }}
+                                             className="premium-input"
+                                             style={{
+                                                 cursor: 'pointer',
+                                                 display: 'flex',
+                                                 justifyContent: 'space-between',
+                                                 alignItems: 'center',
+                                                 padding: '0 0.75rem',
+                                                 height: '36px',
+                                                 fontSize: '0.8rem',
+                                                 fontWeight: 600,
+                                                 border: '1px solid #cbd5e1',
+                                                 borderRadius: '8px',
+                                                 background: '#ffffff',
+                                                 outline: 'none',
+                                                 userSelect: 'none'
+                                             }}
+                                         >
+                                             <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                                 {selectedCategoryName}
+                                             </span>
+                                             <span style={{ fontSize: '0.6rem', opacity: 0.5 }}>▼</span>
+                                         </div>
+
+                                         {/* Dropdown Floating Panel */}
+                                         {isCategoryDropdownOpen && (
+                                             <>
+                                                 <div 
+                                                     style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, zIndex: 9999 }} 
+                                                     onClick={() => setIsCategoryDropdownOpen(false)} 
+                                                 />
+                                                 <div 
+                                                     className="glass-card" 
+                                                     style={{ 
+                                                         position: 'absolute', 
+                                                         top: 'calc(100% + 4px)', 
+                                                         left: 0, 
+                                                         right: 0, 
+                                                         zIndex: 10000, 
+                                                         maxHeight: '260px', 
+                                                         overflowY: 'auto', 
+                                                         background: '#ffffff', 
+                                                         border: '1px solid #cbd5e1',
+                                                         borderRadius: '8px',
+                                                         boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)',
+                                                         padding: '0.25rem 0'
+                                                     }}
+                                                 >
+                                                     {/* Search Bar inside popover */}
+                                                     <div style={{ padding: '0.4rem 0.5rem', borderBottom: '1px solid #e2e8f0', position: 'sticky', top: 0, background: '#ffffff', zIndex: 10 }}>
+                                                         <input 
+                                                             type="text" 
+                                                             placeholder="Pesquisar conta..." 
+                                                             value={analysisCategorySearch}
+                                                             onChange={(e) => setAnalysisCategorySearch(e.target.value)}
+                                                             onClick={(e) => e.stopPropagation()}
+                                                             autoFocus
+                                                             style={{ 
+                                                                 width: '100%', 
+                                                                 padding: '0.4rem 0.6rem', 
+                                                                 fontSize: '0.75rem', 
+                                                                 borderRadius: '6px', 
+                                                                 border: '1px solid #cbd5e1', 
+                                                                 background: '#f8fafc', 
+                                                                 outline: 'none',
+                                                                 boxSizing: 'border-box'
+                                                             }}
+                                                         />
+                                                     </div>
+                                                     {/* Category list items */}
+                                                     <div style={{ maxHeight: '200px', overflowY: 'auto' }}>
+                                                         <div
+                                                             onClick={() => {
+                                                                 setAnalysisSelectedCategory('');
+                                                                 setIsCategoryDropdownOpen(false);
+                                                             }}
+                                                             style={{ 
+                                                                 padding: '0.5rem 0.75rem', 
+                                                                 cursor: 'pointer', 
+                                                                 fontSize: '0.75rem', 
+                                                                 fontWeight: 500,
+                                                                 color: '#64748b',
+                                                                 background: analysisSelectedCategory === '' ? '#f1f5f9' : 'transparent'
+                                                             }}
+                                                             className="hover-row"
+                                                         >
+                                                             Selecione uma conta...
+                                                         </div>
+                                                         {categories
+                                                             .filter(cat => !analysisSelectedTenant || cat.tenantId === analysisSelectedTenant)
+                                                             .filter(cat => !analysisCategorySearch || cat.name.toLowerCase().includes(analysisCategorySearch.toLowerCase()))
+                                                             .sort((a, b) => a.name.localeCompare(b.name))
+                                                             .map((cat: any) => (
+                                                                 <div
+                                                                     key={cat.id}
+                                                                     onClick={() => {
+                                                                         setAnalysisSelectedCategory(cat.id);
+                                                                         setIsCategoryDropdownOpen(false);
+                                                                     }}
+                                                                     style={{ 
+                                                                         padding: '0.5rem 0.75rem', 
+                                                                         cursor: 'pointer', 
+                                                                         fontSize: '0.75rem', 
+                                                                         fontWeight: 600,
+                                                                         color: '#1e293b',
+                                                                         background: analysisSelectedCategory === cat.id ? '#eff6ff' : 'transparent'
+                                                                     }}
+                                                                     className="hover-row"
+                                                                 >
+                                                                     {cat.name}
+                                                                 </div>
+                                                             ))
+                                                         }
+                                                     </div>
+                                                 </div>
+                                             </>
+                                         )}
+                                     </div>
                                 </div>
                             </div>
 

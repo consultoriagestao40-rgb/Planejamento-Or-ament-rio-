@@ -616,17 +616,23 @@ export default function BudgetGrid({
         let defaultCatId = '';
         const tenantCats = categories.filter((c: any) => c.tenantId === defaultTenant);
         
-        if (indicatorType === 'receita') {
+        if (indicatorType === 'receita' || indicatorType === 'vRev') {
             const found = tenantCats.find((c: any) => c.type === 'REVENUE' || c.entradaDre?.includes('RECEITA'));
             if (found) defaultCatId = found.id;
         } else if (indicatorType === 'faturamento') {
             const found = tenantCats.find((c: any) => c.type === 'REVENUE' || c.entradaDre?.includes('RECEITA'));
             if (found) defaultCatId = found.id;
-        } else if (indicatorType === 'margem_bruta') {
+        } else if (indicatorType === 'vTaxes') {
+            const found = tenantCats.find((c: any) => c.entradaDre?.includes('DEDUCOES') || c.entradaDre?.includes('IMPOSTOS'));
+            if (found) defaultCatId = found.id;
+        } else if (indicatorType === 'vCosts' || indicatorType === 'margem_bruta' || indicatorType === 'vGrossMarg') {
             const found = tenantCats.find((c: any) => c.entradaDre?.includes('CUSTOS'));
             if (found) defaultCatId = found.id;
-        } else if (indicatorType === 'margem_contribuicao') {
+        } else if (indicatorType === 'vOpExp' || indicatorType === 'vAdminExp' || indicatorType === 'vEbitda' || indicatorType === 'vNetProfit' || indicatorType === 'margem_contribuicao' || indicatorType === 'vContribMarg') {
             const found = tenantCats.find((c: any) => c.entradaDre?.includes('DESPESAS'));
+            if (found) defaultCatId = found.id;
+        } else if (indicatorType === 'vFin') {
+            const found = tenantCats.find((c: any) => c.entradaDre?.includes('FINANCEIRAS'));
             if (found) defaultCatId = found.id;
         } else if (indicatorType === 'contratos') {
             const found = tenantCats.find((c: any) => c.type === 'REVENUE' || c.entradaDre?.includes('CUSTOS') || c.entradaDre?.includes('DESPESAS'));
@@ -3271,9 +3277,19 @@ export default function BudgetGrid({
                         {viewMode === 'acumulado' ? `${title} Acumulado` : title}
                         <span style={{ fontSize: '0.7rem', color: '#64748b', fontWeight: 500, marginLeft: '0.4rem' }}>(Valores em Mil R$)</span>
                     </h3>
-                    <div className="toggle-group" style={{ height: '30px', padding: '2px' }}>
-                        <button onClick={() => setViewMode('mensal')} className={`toggle-btn ${viewMode === 'mensal' ? 'active' : ''}`} style={{ padding: '0 0.75rem', fontSize: '0.7rem' }}>Mensal</button>
-                        <button onClick={() => setViewMode('acumulado')} className={`toggle-btn ${viewMode === 'acumulado' ? 'active' : ''}`} style={{ padding: '0 0.75rem', fontSize: '0.7rem' }}>Acumulado</button>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                        <button
+                            onClick={() => openAnalysisForChart(dataKey)}
+                            style={chartButtonStyle}
+                            onMouseEnter={(e) => e.currentTarget.style.transform = 'translateY(-1px)'}
+                            onMouseLeave={(e) => e.currentTarget.style.transform = 'none'}
+                        >
+                            📊 Análise do Indicador
+                        </button>
+                        <div className="toggle-group" style={{ height: '30px', padding: '2px' }}>
+                            <button onClick={() => setViewMode('mensal')} className={`toggle-btn ${viewMode === 'mensal' ? 'active' : ''}`} style={{ padding: '0 0.75rem', fontSize: '0.7rem' }}>Mensal</button>
+                            <button onClick={() => setViewMode('acumulado')} className={`toggle-btn ${viewMode === 'acumulado' ? 'active' : ''}`} style={{ padding: '0 0.75rem', fontSize: '0.7rem' }}>Acumulado</button>
+                        </div>
                     </div>
                 </div>
 
@@ -3582,14 +3598,6 @@ export default function BudgetGrid({
                             Valores em Mil R$
                         </span>
                     </h3>
-                    <button
-                        onClick={() => openAnalysisForChart('receita')}
-                        style={chartButtonStyle}
-                        onMouseEnter={(e) => e.currentTarget.style.transform = 'translateY(-1px)'}
-                        onMouseLeave={(e) => e.currentTarget.style.transform = 'none'}
-                    >
-                        📊 Análise do Indicador
-                    </button>
                 </div>
 
                 {activeRevenueData.length === 0 || totalRevenue === 0 ? (
@@ -3732,14 +3740,6 @@ export default function BudgetGrid({
                             Valores Absolutos em Mil R$ e Margem Percentual (%)
                         </span>
                     </h3>
-                    <button
-                        onClick={() => openAnalysisForChart('margem_bruta')}
-                        style={chartButtonStyle}
-                        onMouseEnter={(e) => e.currentTarget.style.transform = 'translateY(-1px)'}
-                        onMouseLeave={(e) => e.currentTarget.style.transform = 'none'}
-                    >
-                        📊 Análise do Indicador
-                    </button>
                 </div>
 
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
@@ -3795,14 +3795,6 @@ export default function BudgetGrid({
                             Valores Absolutos em Mil R$ e Margem Percentual (%)
                         </span>
                     </h3>
-                    <button
-                        onClick={() => openAnalysisForChart('margem_contribuicao')}
-                        style={chartButtonStyle}
-                        onMouseEnter={(e) => e.currentTarget.style.transform = 'translateY(-1px)'}
-                        onMouseLeave={(e) => e.currentTarget.style.transform = 'none'}
-                    >
-                        📊 Análise do Indicador
-                    </button>
                 </div>
 
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
@@ -3989,14 +3981,6 @@ export default function BudgetGrid({
                             Período: {periodLabel} (Acumulado) — Valores detalhados no card ao apontar
                         </span>
                     </div>
-                    <button
-                        onClick={() => openAnalysisForChart('contratos')}
-                        style={chartButtonStyle}
-                        onMouseEnter={(e) => e.currentTarget.style.transform = 'translateY(-1px)'}
-                        onMouseLeave={(e) => e.currentTarget.style.transform = 'none'}
-                    >
-                        📊 Análise do Indicador
-                    </button>
                     {/* Legenda Combinada */}
                     <div style={{ display: 'flex', gap: '1.25rem', fontSize: '0.75rem', fontWeight: 600 }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
@@ -4236,14 +4220,6 @@ export default function BudgetGrid({
                                 Receita Anual Total: <span style={{ color: '#10b981', fontWeight: 800 }}>{contractsAnnualTotal.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</span>
                             </span>
                         </h3>
-                        <button
-                            onClick={() => openAnalysisForChart('faturamento')}
-                            style={chartButtonStyle}
-                            onMouseEnter={(e) => e.currentTarget.style.transform = 'translateY(-1px)'}
-                            onMouseLeave={(e) => e.currentTarget.style.transform = 'none'}
-                        >
-                            📊 Análise do Indicador
-                        </button>
                     </div>
                     <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#64748b', fontSize: '0.85rem', fontWeight: 600, minHeight: '150px' }}>
                         Nenhum contrato com faturamento realizado no período selecionado.
@@ -4293,14 +4269,6 @@ export default function BudgetGrid({
                             </span>
                         </h3>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                            <button
-                                onClick={() => openAnalysisForChart('faturamento')}
-                                style={chartButtonStyle}
-                                onMouseEnter={(e) => e.currentTarget.style.transform = 'translateY(-1px)'}
-                                onMouseLeave={(e) => e.currentTarget.style.transform = 'none'}
-                            >
-                                📊 Análise do Indicador
-                            </button>
                             <select 
                                 value={selectedContractsMonth} 
                                 onChange={(e) => setSelectedContractsMonth(e.target.value)}
@@ -4337,14 +4305,6 @@ export default function BudgetGrid({
                         </span>
                     </h3>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                        <button
-                            onClick={() => openAnalysisForChart('faturamento')}
-                            style={chartButtonStyle}
-                            onMouseEnter={(e) => e.currentTarget.style.transform = 'translateY(-1px)'}
-                            onMouseLeave={(e) => e.currentTarget.style.transform = 'none'}
-                        >
-                            📊 Análise do Indicador
-                        </button>
                         <select 
                             value={selectedContractsMonth} 
                             onChange={(e) => setSelectedContractsMonth(e.target.value)}

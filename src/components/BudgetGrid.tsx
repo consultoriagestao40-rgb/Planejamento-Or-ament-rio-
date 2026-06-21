@@ -3615,6 +3615,16 @@ export default function BudgetGrid({
         const heightLower = 90;  // Negativas mais altas
         const colWidth = 46;     // Menos espaço horizontal
 
+        // Estilo unificado para garantir que 100% dos rótulos de dados fiquem na vertical
+        const verticalLabelStyle = {
+            fontSize: '0.55rem',
+            fontWeight: 800,
+            writingMode: 'vertical-rl' as const,
+            transform: 'rotate(180deg)',
+            whiteSpace: 'nowrap' as const,
+            display: 'inline-block'
+        };
+
         return (
             <div className="glass-card" style={{ padding: '1.5rem', background: '#ffffff', borderRadius: '12px', border: '1px solid #e2e8f0', boxShadow: '0 4px 6px rgba(0,0,0,0.02)', width: '100%' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '0.5rem', marginBottom: '1.5rem' }}>
@@ -3667,7 +3677,7 @@ export default function BudgetGrid({
                                     {/* Orçado Superior */}
                                     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', height: '100%', justifyContent: 'flex-end', width: '18px' }}>
                                         {item.budgetValue > 0 && !isBudgTall && (
-                                            <span style={{ fontSize: '0.55rem', fontWeight: 700, color: '#64748b', marginBottom: '2px', whiteSpace: 'nowrap' }}>
+                                            <span style={{ ...verticalLabelStyle, color: '#64748b', marginBottom: '4px' }}>
                                                 {item.budgetValue.toFixed(0)}k
                                             </span>
                                         )}
@@ -3684,7 +3694,7 @@ export default function BudgetGrid({
                                             overflow: 'hidden'
                                         }}>
                                             {item.budgetValue > 0 && isBudgTall && (
-                                                <span style={{ fontSize: '0.55rem', fontWeight: 800, color: '#475569', writingMode: 'vertical-rl', transform: 'rotate(180deg)', whiteSpace: 'nowrap', marginBottom: '4px' }}>
+                                                <span style={{ ...verticalLabelStyle, color: '#475569', marginBottom: '4px' }}>
                                                     {item.budgetValue.toFixed(0)}k
                                                 </span>
                                             )}
@@ -3694,7 +3704,7 @@ export default function BudgetGrid({
                                     {/* Realizado Superior */}
                                     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', height: '100%', justifyContent: 'flex-end', width: '18px' }}>
                                         {item.realizedValue > 0 && !isRealTall && (
-                                            <span style={{ fontSize: '0.55rem', fontWeight: 800, color: '#4f46e5', marginBottom: '2px', whiteSpace: 'nowrap' }}>
+                                            <span style={{ ...verticalLabelStyle, color: '#4f46e5', marginBottom: '4px' }}>
                                                 {item.realizedValue.toFixed(0)}k
                                             </span>
                                         )}
@@ -3711,7 +3721,7 @@ export default function BudgetGrid({
                                             overflow: 'hidden'
                                         }}>
                                             {item.realizedValue > 0 && isRealTall && (
-                                                <span style={{ fontSize: '0.55rem', fontWeight: 800, color: '#ffffff', writingMode: 'vertical-rl', transform: 'rotate(180deg)', whiteSpace: 'nowrap', marginBottom: '4px' }}>
+                                                <span style={{ ...verticalLabelStyle, color: '#ffffff', marginBottom: '4px' }}>
                                                     {item.realizedValue.toFixed(0)}k
                                                 </span>
                                             )}
@@ -3739,13 +3749,13 @@ export default function BudgetGrid({
                                             overflow: 'hidden'
                                         }}>
                                             {item.budgetValue < 0 && isBudgTall && (
-                                                <span style={{ fontSize: '0.55rem', fontWeight: 800, color: '#475569', writingMode: 'vertical-rl', transform: 'rotate(180deg)', whiteSpace: 'nowrap', marginTop: '4px' }}>
+                                                <span style={{ ...verticalLabelStyle, color: '#475569', marginTop: '4px' }}>
                                                     {item.budgetValue.toFixed(0)}k
                                                 </span>
                                             )}
                                         </div>
                                         {item.budgetValue < 0 && !isBudgTall && (
-                                            <span style={{ fontSize: '0.55rem', fontWeight: 700, color: '#ef4444', marginTop: '2px', whiteSpace: 'nowrap' }}>
+                                            <span style={{ ...verticalLabelStyle, color: '#ef4444', marginTop: '4px' }}>
                                                 {item.budgetValue.toFixed(0)}k
                                             </span>
                                         )}
@@ -3766,13 +3776,13 @@ export default function BudgetGrid({
                                             overflow: 'hidden'
                                         }}>
                                             {item.realizedValue < 0 && isRealTall && (
-                                                <span style={{ fontSize: '0.55rem', fontWeight: 800, color: '#ffffff', writingMode: 'vertical-rl', transform: 'rotate(180deg)', whiteSpace: 'nowrap', marginTop: '4px' }}>
+                                                <span style={{ ...verticalLabelStyle, color: '#ffffff', marginTop: '4px' }}>
                                                     {item.realizedValue.toFixed(0)}k
                                                 </span>
                                             )}
                                         </div>
                                         {item.realizedValue < 0 && !isRealTall && (
-                                            <span style={{ fontSize: '0.55rem', fontWeight: 800, color: '#ef4444', marginTop: '2px', whiteSpace: 'nowrap' }}>
+                                            <span style={{ ...verticalLabelStyle, color: '#ef4444', marginTop: '4px' }}>
                                                 {item.realizedValue.toFixed(0)}k
                                             </span>
                                         )}
@@ -3836,25 +3846,32 @@ export default function BudgetGrid({
         let minP = Math.min(...contractsMarginData.flatMap(d => [d.realizedPercent, d.budgetPercent]), 0);
         let maxP = Math.max(...contractsMarginData.flatMap(d => [d.realizedPercent, d.budgetPercent]), 0);
         
-        // Se as porcentagens forem todas zero, coloca um limite razoável
+        // LIMITAR A ESCALA VISUAL: para evitar distorções de CCs corporativos sem receita/despesa ou erros de divisão,
+        // limitamos a escala Y visual a uma faixa realística entre -100% e 150%. Os valores fora disso serão limitados graficamente (getY)
+        // mas mantêm seus rótulos corretos, permitindo que a variação normal da maioria dos contratos seja visível.
+        if (minP < -100) minP = -100;
+        if (maxP > 150) maxP = 150;
         if (minP === 0 && maxP === 0) {
             minP = -10;
             maxP = 100;
         }
 
         const range = maxP - minP;
-        const buffer = range * 0.15; // respiro nas bordas superior e inferior
+        const buffer = range * 0.1; // respiro menor nas bordas para abrir espaço
         const minVal = minP - buffer;
         const maxVal = maxP + buffer;
 
-        const colWidth = 50;     // Largura reduzida para alinhar com o outro gráfico
-        const svgHeight = 220;    // Altura do gráfico de linhas
+        const colWidth = 50;     
+        const svgHeight = 220;    
         const paddingTop = 30;
         const paddingBottom = 25;
         const chartHeight = svgHeight - paddingTop - paddingBottom;
 
+        //getY com limitador interno (clamp) para garantir que pontos de percentuais extremos
+        // (como -2400%) fiquem plotados na borda inferior do gráfico em vez de disparar para fora do SVG
         const getY = (v: number) => {
-            const ratio = (v - minVal) / (maxVal - minVal);
+            const clamped = Math.max(minVal, Math.min(maxVal, v));
+            const ratio = (clamped - minVal) / (maxVal - minVal);
             return svgHeight - paddingBottom - (ratio * chartHeight);
         };
 

@@ -6684,7 +6684,7 @@ export default function BudgetGrid({
                             onClick={() => scrollGrid('left')}
                             style={{
                                 position: 'absolute',
-                                left: '376px', // Centered on the 400px boundary (400 - 48/2 = 376px)
+                                left: '12px', // extreme left side
                                 top: '250px',
                                 transform: 'translateY(-50%)',
                                 zIndex: 45,
@@ -6701,14 +6701,17 @@ export default function BudgetGrid({
                                 transition: 'all 0.2s ease',
                                 boxShadow: '0 4px 12px rgba(0, 0, 0, 0.25)',
                                 backdropFilter: 'blur(4px)',
+                                opacity: 0.15, // almost invisible
                             }}
                             onMouseEnter={(e) => {
                                 e.currentTarget.style.backgroundColor = 'rgba(15, 23, 42, 0.85)';
                                 e.currentTarget.style.transform = 'translateY(-50%) scale(1.08)';
+                                e.currentTarget.style.opacity = '0.9';
                             }}
                             onMouseLeave={(e) => {
                                 e.currentTarget.style.backgroundColor = 'rgba(15, 23, 42, 0.65)';
                                 e.currentTarget.style.transform = 'translateY(-50%) scale(1)';
+                                e.currentTarget.style.opacity = '0.15';
                             }}
                         >
                             <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
@@ -6738,14 +6741,17 @@ export default function BudgetGrid({
                                 transition: 'all 0.2s ease',
                                 boxShadow: '0 4px 12px rgba(0, 0, 0, 0.25)',
                                 backdropFilter: 'blur(4px)',
+                                opacity: 0.15, // almost invisible
                             }}
                             onMouseEnter={(e) => {
                                 e.currentTarget.style.backgroundColor = 'rgba(15, 23, 42, 0.85)';
                                 e.currentTarget.style.transform = 'translateY(-50%) scale(1.08)';
+                                e.currentTarget.style.opacity = '0.9';
                             }}
                             onMouseLeave={(e) => {
                                 e.currentTarget.style.backgroundColor = 'rgba(15, 23, 42, 0.65)';
                                 e.currentTarget.style.transform = 'translateY(-50%) scale(1)';
+                                e.currentTarget.style.opacity = '0.15';
                             }}
                         >
                             <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">

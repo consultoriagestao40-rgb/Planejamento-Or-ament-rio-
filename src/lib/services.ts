@@ -84,8 +84,7 @@ export async function fetchRealizedValues(accessToken: string, targetYear: numbe
     
     const urls = [
         `https://api-v2.contaazul.com/v1/financeiro/eventos-financeiros/contas-a-receber/buscar?data_vencimento_de=${targetYear-3}-01-01&data_vencimento_ate=${targetYear+3}-12-31&${dateParam}_de=${startStr}&${dateParam}_ate=${endStr}&tamanho_pagina=100`,
-        `https://api-v2.contaazul.com/v1/financeiro/eventos-financeiros/contas-a-pagar/buscar?data_vencimento_de=${targetYear-3}-01-01&data_vencimento_ate=${targetYear+3}-12-31&${dateParam}_de=${startStr}&${dateParam}_ate=${endStr}&tamanho_pagina=100`,
-        `https://api-v2.contaazul.com/v1/venda/busca?data_inicio=${startStr}&data_fim=${endStr}&tamanho_pagina=100`
+        `https://api-v2.contaazul.com/v1/financeiro/eventos-financeiros/contas-a-pagar/buscar?data_vencimento_de=${targetYear-3}-01-01&data_vencimento_ate=${targetYear+3}-12-31&${dateParam}_de=${startStr}&${dateParam}_ate=${endStr}&tamanho_pagina=100`
     ];
 
     for (const url of urls) {
@@ -124,8 +123,7 @@ export async function syncRealizedEntries(
 
         const urls = [
             `https://api-v2.contaazul.com/v1/financeiro/eventos-financeiros/contas-a-receber/buscar?data_vencimento_de=${year-3}-01-01&data_vencimento_ate=${year+3}-12-31&${dateParam}_de=${startStr}&${dateParam}_ate=${endStr}&tamanho_pagina=100`,
-            `https://api-v2.contaazul.com/v1/financeiro/eventos-financeiros/contas-a-pagar/buscar?data_vencimento_de=${year-3}-01-01&data_vencimento_ate=${year+3}-12-31&${dateParam}_de=${startStr}&${dateParam}_ate=${endStr}&tamanho_pagina=100`,
-            `https://api-v2.contaazul.com/v1/venda/busca?data_inicio=${startStr}&data_fim=${endStr}&tamanho_pagina=100`
+            `https://api-v2.contaazul.com/v1/financeiro/eventos-financeiros/contas-a-pagar/buscar?data_vencimento_de=${year-3}-01-01&data_vencimento_ate=${year+3}-12-31&${dateParam}_de=${startStr}&${dateParam}_ate=${endStr}&tamanho_pagina=100`
         ];
 
         if (viewMode === 'competencia') {
@@ -139,10 +137,9 @@ export async function syncRealizedEntries(
         }
 
         // --- NEW LOGIC: Dynamic tax retentions from Vendas module ---
-        // Desativado para manter equivalência exata com o DRE do Conta Azul
-        // if (viewMode === 'competencia' && (tenantId === 'dc2b6eed-a38a-43c3-9465-ce854bfda90f' || tenantId === '413f88a7-ce4a-4620-b044-43ef909b7b26')) {
-        //     await collectRetentionsFromSales(token, tenantId, year, month, monthEntries, viewMode);
-        // }
+        if (viewMode === 'competencia' && (tenantId === 'dc2b6eed-a38a-43c3-9465-ce854bfda90f' || tenantId === '413f88a7-ce4a-4620-b044-43ef909b7b26')) {
+            await collectRetentionsFromSales(token, tenantId, year, month, monthEntries, viewMode);
+        }
 
         entriesToSave.push(...monthEntries);
     }

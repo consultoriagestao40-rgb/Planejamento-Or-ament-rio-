@@ -88,6 +88,7 @@ export default function BudgetEntryGrid({ costCenterId, year, taxRate = 0 }: Bud
                     });
                 }
             }
+        }
     }, [budgetModal]);
 
     const [canScrollLeft, setCanScrollLeft] = useState(false);

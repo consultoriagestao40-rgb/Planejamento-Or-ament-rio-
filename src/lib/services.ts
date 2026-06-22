@@ -139,9 +139,10 @@ export async function syncRealizedEntries(
         }
 
         // --- NEW LOGIC: Dynamic tax retentions from Vendas module ---
-        if (viewMode === 'competencia' && (tenantId === 'dc2b6eed-a38a-43c3-9465-ce854bfda90f' || tenantId === '413f88a7-ce4a-4620-b044-43ef909b7b26')) {
-            await collectRetentionsFromSales(token, tenantId, year, month, monthEntries, viewMode);
-        }
+        // Desativado para manter equivalência exata com o DRE do Conta Azul
+        // if (viewMode === 'competencia' && (tenantId === 'dc2b6eed-a38a-43c3-9465-ce854bfda90f' || tenantId === '413f88a7-ce4a-4620-b044-43ef909b7b26')) {
+        //     await collectRetentionsFromSales(token, tenantId, year, month, monthEntries, viewMode);
+        // }
 
         entriesToSave.push(...monthEntries);
     }
@@ -359,7 +360,9 @@ async function collectDetailedTransactions(
                 }
             }
 
-            const amount = item.valor_total || item.total || item.valor || item.pago || 0;
+            const amount = (item.pago !== undefined && item.nao_pago !== undefined)
+                ? (item.pago + item.nao_pago)
+                : (item.valor_total || item.total || item.valor || item.pago || 0);
             
             // Para PDD, a data que define o reconhecimento contábil na competência é a data da baixa/pagamento da perda
             const dateStr = hasPDD

@@ -525,6 +525,7 @@ select.premium-select:focus {
   z-index: 40;
   background-color: #e6f2fd !important;
   top: 0;
+  box-shadow: 1px 0 0 0 #e6f2fd, 2px 0 4px -2px rgba(0,0,0,0.1);
 }
 
 .spreadsheet-table thead th {
@@ -546,26 +547,37 @@ select.premium-select:focus {
 /* Ensure sticky columns in even rows also get the zebra color */
 .spreadsheet-table tbody tr:nth-child(even) .sticky-col {
   background-color: #f8fafc !important;
+  box-shadow: 1px 0 0 0 #f8fafc, 2px 0 4px -2px rgba(0,0,0,0.1);
 }
 
 /* Base sticky-col background for odd rows */
 .spreadsheet-table tbody tr:nth-child(odd) .sticky-col {
   background-color: #ffffff !important;
+  box-shadow: 1px 0 0 0 #ffffff, 2px 0 4px -2px rgba(0,0,0,0.1);
 }
 
 .spreadsheet-table tbody tr.spreadsheet-summary-row,
 .spreadsheet-table tbody tr.spreadsheet-summary-row .sticky-col {
   background-color: #eff6ff !important; /* Light blue for summaries */
 }
+.spreadsheet-table tbody tr.spreadsheet-summary-row .sticky-col {
+  box-shadow: 1px 0 0 0 #eff6ff, 2px 0 4px -2px rgba(0,0,0,0.1);
+}
 
 .spreadsheet-table tbody tr.spreadsheet-group-header,
 .spreadsheet-table tbody tr.spreadsheet-group-header .sticky-col {
   background-color: #e6f2fd !important; /* Blue background for group headers */
 }
+.spreadsheet-table tbody tr.spreadsheet-group-header .sticky-col {
+  box-shadow: 1px 0 0 0 #e6f2fd, 2px 0 4px -2px rgba(0,0,0,0.1);
+}
 
 .spreadsheet-table tbody tr:hover,
 .spreadsheet-table tbody tr:hover .sticky-col {
   background-color: #f1f5f9 !important;
+}
+.spreadsheet-table tbody tr:hover .sticky-col {
+  box-shadow: 1px 0 0 0 #f1f5f9, 2px 0 4px -2px rgba(0,0,0,0.1);
 }
 
 .spreadsheet-value {
@@ -598,6 +610,9 @@ select.premium-select:focus {
   background-color: #2563eb !important;
   color: #ffffff !important;
   font-weight: 800;
+}
+.spreadsheet-table tr.spreadsheet-net-profit-row .sticky-col {
+  box-shadow: 1px 0 0 0 #2563eb, 2px 0 4px -2px rgba(0,0,0,0.1);
 }
 
 .spreadsheet-table tr.spreadsheet-net-profit-row .spreadsheet-value {

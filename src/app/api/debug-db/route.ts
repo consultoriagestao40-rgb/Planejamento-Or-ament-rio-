@@ -46,6 +46,34 @@ export async function GET(request: Request) {
             return NextResponse.json({ success: true, result });
         }
 
+        if (action === 'run-prisma-test') {
+            const tenantIdParam = 'ALL';
+            const month = 1; // Feb
+            const year = 2026;
+            const viewMode = 'competencia';
+
+            const allTenants = await prisma.tenant.findMany({ select: { id: true } });
+            const targetTenantIds = allTenants.map(t => t.id);
+
+            const syncedTenants = await prisma.realizedEntry.findMany({
+                where: {
+                    tenantId: { in: targetTenantIds },
+                    year,
+                    month: month + 1,
+                    viewMode,
+                    externalId: { startsWith: 'sync-' }
+                },
+                select: { tenantId: true },
+                distinct: ['tenantId']
+            });
+
+            return NextResponse.json({
+                success: true,
+                syncedTenants,
+                targetTenantIds
+            });
+        }
+
         return NextResponse.json({ success: false, error: 'Invalid action' }, { status: 400 });
     } catch (e: any) {
         return NextResponse.json({ success: false, error: e.message }, { status: 500 });

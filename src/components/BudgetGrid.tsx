@@ -280,82 +280,60 @@ export default function BudgetGrid({
         }
     };
 
-    // --- Auto-scroll grid on edge hover ---
+    const [canScrollLeft, setCanScrollLeft] = useState(false);
+    const [canScrollRight, setCanScrollRight] = useState(false);
+
+    const updateScrollButtonsState = () => {
+        const container = bodyScrollRef.current;
+        if (container) {
+            const { scrollLeft, scrollWidth, clientWidth } = container;
+            setCanScrollLeft(scrollLeft > 2);
+            setCanScrollRight(scrollLeft + clientWidth < scrollWidth - 2);
+        }
+    };
+
+    const handleScrollSync = () => {
+        if (bodyScrollRef.current && headerScrollRef.current) {
+            headerScrollRef.current.scrollLeft = bodyScrollRef.current.scrollLeft;
+        }
+        updateScrollButtonsState();
+    };
+
+    // Initialize and listen for resize and content changes
     useEffect(() => {
-        let animationFrameId: number | null = null;
-        let speed = 0;
+        // Run check initially and with small delay to ensure rendering finished
+        updateScrollButtonsState();
+        const timer = setTimeout(updateScrollButtonsState, 200);
+        
+        let observer: MutationObserver | null = null;
+        if (bodyScrollRef.current) {
+            observer = new MutationObserver(() => {
+                updateScrollButtonsState();
+            });
+            observer.observe(bodyScrollRef.current, { childList: true, subtree: true, attributes: true });
+        }
 
-        const handleMouseMove = (e: MouseEvent) => {
-            const body = bodyScrollRef.current;
-            if (!body) return;
-
-            const headerRect = headerScrollRef.current?.getBoundingClientRect();
-            const bodyRect = body.getBoundingClientRect();
-
-            const top = headerRect ? headerRect.top : bodyRect.top;
-            const bottom = bodyRect.bottom;
-            const left = bodyRect.left;
-            const right = bodyRect.right;
-
-            const isInsideY = e.clientY >= top && e.clientY <= bottom;
-            const isInsideX = e.clientX >= left && e.clientX <= right;
-
-            if (isInsideY && isInsideX) {
-                const EDGE_ZONE = 120; // zone size in pixels from edge
-                const maxSpeed = 15; // max scroll speed in pixels per frame
-
-                if (e.clientX < left + EDGE_ZONE) {
-                    const distance = (left + EDGE_ZONE) - e.clientX;
-                    speed = -1 * Math.min(maxSpeed, (distance / EDGE_ZONE) * maxSpeed);
-                } else if (e.clientX > right - EDGE_ZONE) {
-                    const distance = e.clientX - (right - EDGE_ZONE);
-                    speed = Math.min(maxSpeed, (distance / EDGE_ZONE) * maxSpeed);
-                } else {
-                    speed = 0;
-                }
-            } else {
-                speed = 0;
-            }
-
-            if (speed !== 0) {
-                if (animationFrameId === null) {
-                    const scroll = () => {
-                        if (speed !== 0 && bodyScrollRef.current) {
-                            bodyScrollRef.current.scrollLeft += speed;
-                            animationFrameId = requestAnimationFrame(scroll);
-                        } else {
-                            animationFrameId = null;
-                        }
-                    };
-                    animationFrameId = requestAnimationFrame(scroll);
-                }
-            } else {
-                if (animationFrameId !== null) {
-                    cancelAnimationFrame(animationFrameId);
-                    animationFrameId = null;
-                }
-            }
-        };
-
-        const handleMouseLeave = () => {
-            speed = 0;
-            if (animationFrameId !== null) {
-                cancelAnimationFrame(animationFrameId);
-                animationFrameId = null;
-            }
-        };
-
-        window.addEventListener('mousemove', handleMouseMove);
-        document.addEventListener('mouseleave', handleMouseLeave);
-
+        window.addEventListener('resize', updateScrollButtonsState);
         return () => {
-            window.removeEventListener('mousemove', handleMouseMove);
-            document.removeEventListener('mouseleave', handleMouseLeave);
-            if (animationFrameId !== null) {
-                cancelAnimationFrame(animationFrameId);
+            clearTimeout(timer);
+            window.removeEventListener('resize', updateScrollButtonsState);
+            if (observer) {
+                observer.disconnect();
             }
         };
-    }, []);
+    }, [loading, isExternalLoading]);
+
+    const scrollGrid = (direction: 'left' | 'right') => {
+        const container = bodyScrollRef.current;
+        if (container) {
+            const scrollAmount = 400; // Scroll 400px per click
+            const target = container.scrollLeft + (direction === 'left' ? -scrollAmount : scrollAmount);
+            container.scrollTo({
+                left: target,
+                behavior: 'smooth'
+            });
+        }
+    };
 
     // --- Realized Justification State ---
     const [justificationModal, setJustificationModal] = useState<{ categoryId: string, month: number, categoryName: string, tenantId: string, costCenterId: string | null } | null>(null);
@@ -6704,6 +6682,82 @@ export default function BudgetGrid({
                 </div>
             ) : (
                 <div style={{ position: 'relative', width: '100%' }}>
+                    {/* Botões de Rolagem Horizontal */}
+                    {canScrollLeft && (
+                        <button
+                            onClick={() => scrollGrid('left')}
+                            style={{
+                                position: 'absolute',
+                                left: '376px', // Centered on the 400px boundary (400 - 48/2 = 376px)
+                                top: '250px',
+                                transform: 'translateY(-50%)',
+                                zIndex: 45,
+                                width: '48px',
+                                height: '48px',
+                                borderRadius: '50%',
+                                backgroundColor: 'rgba(15, 23, 42, 0.65)',
+                                color: '#ffffff',
+                                border: '1px solid rgba(255, 255, 255, 0.15)',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                cursor: 'pointer',
+                                transition: 'all 0.2s ease',
+                                boxShadow: '0 4px 12px rgba(0, 0, 0, 0.25)',
+                                backdropFilter: 'blur(4px)',
+                            }}
+                            onMouseEnter={(e) => {
+                                e.currentTarget.style.backgroundColor = 'rgba(15, 23, 42, 0.85)';
+                                e.currentTarget.style.transform = 'translateY(-50%) scale(1.08)';
+                            }}
+                            onMouseLeave={(e) => {
+                                e.currentTarget.style.backgroundColor = 'rgba(15, 23, 42, 0.65)';
+                                e.currentTarget.style.transform = 'translateY(-50%) scale(1)';
+                            }}
+                        >
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                                <polyline points="15 18 9 12 15 6"></polyline>
+                            </svg>
+                        </button>
+                    )}
+                    {canScrollRight && (
+                        <button
+                            onClick={() => scrollGrid('right')}
+                            style={{
+                                position: 'absolute',
+                                right: '12px',
+                                top: '250px',
+                                transform: 'translateY(-50%)',
+                                zIndex: 45,
+                                width: '48px',
+                                height: '48px',
+                                borderRadius: '50%',
+                                backgroundColor: 'rgba(15, 23, 42, 0.65)',
+                                color: '#ffffff',
+                                border: '1px solid rgba(255, 255, 255, 0.15)',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                cursor: 'pointer',
+                                transition: 'all 0.2s ease',
+                                boxShadow: '0 4px 12px rgba(0, 0, 0, 0.25)',
+                                backdropFilter: 'blur(4px)',
+                            }}
+                            onMouseEnter={(e) => {
+                                e.currentTarget.style.backgroundColor = 'rgba(15, 23, 42, 0.85)';
+                                e.currentTarget.style.transform = 'translateY(-50%) scale(1.08)';
+                            }}
+                            onMouseLeave={(e) => {
+                                e.currentTarget.style.backgroundColor = 'rgba(15, 23, 42, 0.65)';
+                                e.currentTarget.style.transform = 'translateY(-50%) scale(1)';
+                            }}
+                        >
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                                <polyline points="9 18 15 12 9 6"></polyline>
+                            </svg>
+                        </button>
+                    )}
+
                     {/* Filtro de Período Personalizado */}
                     <div className="glass-card" style={{ 
                         padding: '0.85rem 1.25rem', 

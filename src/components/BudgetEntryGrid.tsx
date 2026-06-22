@@ -88,8 +88,58 @@ export default function BudgetEntryGrid({ costCenterId, year, taxRate = 0 }: Bud
                     });
                 }
             }
-        }
     }, [budgetModal]);
+
+    const [canScrollLeft, setCanScrollLeft] = useState(false);
+    const [canScrollRight, setCanScrollRight] = useState(false);
+
+    const updateScrollButtonsState = () => {
+        const container = bodyScrollRef.current;
+        if (container) {
+            const { scrollLeft, scrollWidth, clientWidth } = container;
+            setCanScrollLeft(scrollLeft > 2);
+            setCanScrollRight(scrollLeft + clientWidth < scrollWidth - 2);
+        }
+    };
+
+    const handleScroll = () => {
+        updateScrollButtonsState();
+    };
+
+    // Initialize and listen for resize and content changes
+    useEffect(() => {
+        updateScrollButtonsState();
+        const timer = setTimeout(updateScrollButtonsState, 200);
+
+        let observer: MutationObserver | null = null;
+        if (bodyScrollRef.current) {
+            observer = new MutationObserver(() => {
+                updateScrollButtonsState();
+            });
+            observer.observe(bodyScrollRef.current, { childList: true, subtree: true, attributes: true });
+        }
+
+        window.addEventListener('resize', updateScrollButtonsState);
+        return () => {
+            clearTimeout(timer);
+            window.removeEventListener('resize', updateScrollButtonsState);
+            if (observer) {
+                observer.disconnect();
+            }
+        };
+    }, []);
+
+    const scrollGrid = (direction: 'left' | 'right') => {
+        const container = bodyScrollRef.current;
+        if (container) {
+            const scrollAmount = 400; // Scroll 400px per click
+            const target = container.scrollLeft + (direction === 'left' ? -scrollAmount : scrollAmount);
+            container.scrollTo({
+                left: target,
+                behavior: 'smooth'
+            });
+        }
+    };
 
     // Approval state
     const [approvalStatus, setApprovalStatus] = useState<string>('PENDING');
@@ -898,6 +948,7 @@ export default function BudgetEntryGrid({ costCenterId, year, taxRate = 0 }: Bud
                         padding: '0.85rem 1rem',
                         position: 'sticky', left: 0,
                         background: node.level === 0 ? 'var(--bg-surface)' : 'var(--bg-base)',
+                        boxShadow: '1px 0 0 0 ' + (node.level === 0 ? 'var(--bg-surface)' : 'var(--bg-base)'),
                         zIndex: 10,
                         fontSize: '0.8rem',
                         minWidth: '380px', width: '380px',
@@ -979,7 +1030,7 @@ export default function BudgetEntryGrid({ costCenterId, year, taxRate = 0 }: Bud
 
         return (
             <tr onClick={() => groupId && toggleGroup(groupId)} style={{ background: bgColor, borderBottom: '1px solid var(--border-default)', fontWeight: isBold ? 800 : 600, cursor: groupId ? 'pointer' : 'default' }}>
-                <td style={{ padding: '0.85rem 1rem', position: 'sticky', left: 0, background: bgColor.includes('gradient') ? '#2563eb' : bgColor, zIndex: 10, color: textColor, fontSize: '0.85rem', minWidth: '380px', width: '380px', borderRight: '1px solid var(--border-default)', textTransform: 'uppercase', letterSpacing: '0.02em' }}>
+                <td style={{ padding: '0.85rem 1rem', position: 'sticky', left: 0, background: bgColor.includes('gradient') ? '#2563eb' : bgColor, boxShadow: '1px 0 0 0 ' + (bgColor.includes('gradient') ? '#2563eb' : bgColor), zIndex: 10, color: textColor, fontSize: '0.85rem', minWidth: '380px', width: '380px', borderRight: '1px solid var(--border-default)', textTransform: 'uppercase', letterSpacing: '0.02em' }}>
                     <div style={{ display: 'flex', alignItems: 'center' }}>
                         {groupId && <span style={{ marginRight: '0.75rem', fontSize: '0.9rem', width: '1rem', color: textColor, opacity: 0.6 }}>{isExpanded ? '▼' : '▶'}</span>}
                         {!groupId && <span style={{ width: '1.75rem' }}></span>}
@@ -1091,13 +1142,94 @@ export default function BudgetEntryGrid({ costCenterId, year, taxRate = 0 }: Bud
             </div>
 
             {/* Main Table */}
-            <div ref={bodyScrollRef} style={{ overflowX: 'auto', borderRadius: 'var(--radius)', border: '1px solid var(--border-default)', background: 'var(--bg-card)', boxShadow: 'var(--shadow-card)' }}>
-                <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: '1200px' }}>
-                    <thead>
-                        <tr style={{ background: 'var(--bg-surface)' }}>
-                            <th style={{ padding: '0.75rem 1rem', textAlign: 'left', fontSize: '0.65rem', fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.07em', position: 'sticky', left: 0, background: 'var(--bg-surface)', zIndex: 20, minWidth: '380px', borderRight: '1px solid var(--border-subtle)', borderBottom: '2px solid var(--border-default)' }}>
-                                ▸ Estrutura DRE
-                            </th>
+            <div style={{ position: 'relative', width: '100%' }}>
+                {/* Botões de Rolagem Horizontal */}
+                {canScrollLeft && (
+                    <button
+                        onClick={() => scrollGrid('left')}
+                        style={{
+                            position: 'absolute',
+                            left: '356px', // Centered on 380px boundary (380 - 48/2 = 356px)
+                            top: '150px',
+                            transform: 'translateY(-50%)',
+                            zIndex: 45,
+                            width: '48px',
+                            height: '48px',
+                            borderRadius: '50%',
+                            backgroundColor: 'rgba(15, 23, 42, 0.65)',
+                            color: '#ffffff',
+                            border: '1px solid rgba(255, 255, 255, 0.15)',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            cursor: 'pointer',
+                            transition: 'all 0.2s ease',
+                            boxShadow: '0 4px 12px rgba(0, 0, 0, 0.25)',
+                            backdropFilter: 'blur(4px)',
+                        }}
+                        onMouseEnter={(e) => {
+                            e.currentTarget.style.backgroundColor = 'rgba(15, 23, 42, 0.85)';
+                            e.currentTarget.style.transform = 'translateY(-50%) scale(1.08)';
+                        }}
+                        onMouseLeave={(e) => {
+                            e.currentTarget.style.backgroundColor = 'rgba(15, 23, 42, 0.65)';
+                            e.currentTarget.style.transform = 'translateY(-50%) scale(1)';
+                        }}
+                    >
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                            <polyline points="15 18 9 12 15 6"></polyline>
+                        </svg>
+                    </button>
+                )}
+                {canScrollRight && (
+                    <button
+                        onClick={() => scrollGrid('right')}
+                        style={{
+                            position: 'absolute',
+                            right: '12px',
+                            top: '150px',
+                            transform: 'translateY(-50%)',
+                            zIndex: 45,
+                            width: '48px',
+                            height: '48px',
+                            borderRadius: '50%',
+                            backgroundColor: 'rgba(15, 23, 42, 0.65)',
+                            color: '#ffffff',
+                            border: '1px solid rgba(255, 255, 255, 0.15)',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            cursor: 'pointer',
+                            transition: 'all 0.2s ease',
+                            boxShadow: '0 4px 12px rgba(0, 0, 0, 0.25)',
+                            backdropFilter: 'blur(4px)',
+                        }}
+                        onMouseEnter={(e) => {
+                            e.currentTarget.style.backgroundColor = 'rgba(15, 23, 42, 0.85)';
+                            e.currentTarget.style.transform = 'translateY(-50%) scale(1.08)';
+                        }}
+                        onMouseLeave={(e) => {
+                            e.currentTarget.style.backgroundColor = 'rgba(15, 23, 42, 0.65)';
+                            e.currentTarget.style.transform = 'translateY(-50%) scale(1)';
+                        }}
+                    >
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                            <polyline points="9 18 15 12 9 6"></polyline>
+                        </svg>
+                    </button>
+                )}
+
+                <div 
+                    ref={bodyScrollRef} 
+                    onScroll={handleScroll}
+                    style={{ overflowX: 'auto', borderRadius: 'var(--radius)', border: '1px solid var(--border-default)', background: 'var(--bg-card)', boxShadow: 'var(--shadow-card)' }}
+                >
+                    <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: '1200px' }}>
+                        <thead>
+                            <tr style={{ background: 'var(--bg-surface)' }}>
+                                <th style={{ padding: '0.75rem 1rem', textAlign: 'left', fontSize: '0.65rem', fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.07em', position: 'sticky', left: 0, background: 'var(--bg-surface)', boxShadow: '1px 0 0 0 var(--bg-surface)', zIndex: 20, minWidth: '380px', borderRight: '1px solid var(--border-subtle)', borderBottom: '2px solid var(--border-default)' }}>
+                                    ▸ Estrutura DRE
+                                </th>
                             {MONTHS.map((m, i) => (
                                 <th key={i} style={{ padding: '0.85rem 1rem', textAlign: 'right', fontSize: '0.65rem', fontWeight: 800, borderRight: '1px solid var(--border-subtle)', borderBottom: '2px solid var(--border-default)', minWidth: '120px', color: 'var(--text-muted)' }}>
                                     <div style={{ textTransform: 'uppercase' }}>{m}</div>
@@ -1145,6 +1277,7 @@ export default function BudgetEntryGrid({ costCenterId, year, taxRate = 0 }: Bud
                     </tbody>
                 </table>
             </div>
+        </div>
 
             {/* ─── BUDGET MODAL ─────────────────────────────────────────────── */}
             {budgetModal && (

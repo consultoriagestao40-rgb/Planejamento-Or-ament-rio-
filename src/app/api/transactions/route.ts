@@ -66,7 +66,7 @@ export async function GET(request: Request) {
         }
 
         // 3. Query DB for transactions (using realizedEntry)
-        const entries = await prisma.realizedEntry.findMany({
+        const entriesRaw = await prisma.realizedEntry.findMany({
             where: {
                 tenantId: { in: targetTenantIds },
                 categoryId: { in: Array.from(allCategoryIds) },
@@ -80,6 +80,28 @@ export async function GET(request: Request) {
                 tenant: true,
                 costCenter: true
             }
+        });
+
+        // 4. Determine which tenants have synced data for this month/year/viewMode
+        const syncedTenants = await prisma.realizedEntry.findMany({
+            where: {
+                tenantId: { in: targetTenantIds },
+                year,
+                month: month + 1,
+                viewMode,
+                externalId: { startsWith: 'sync-' }
+            },
+            select: { tenantId: true },
+            distinct: ['tenantId']
+        });
+        const syncedTenantIds = new Set(syncedTenants.map(t => t.tenantId));
+
+        // Deduplicate entries: if a tenant is synced, only return entries with 'sync-' prefix
+        const entries = entriesRaw.filter(e => {
+            if (syncedTenantIds.has(e.tenantId)) {
+                return e.externalId && e.externalId.startsWith('sync-');
+            }
+            return true;
         });
 
         const transactions = entries.map(e => ({

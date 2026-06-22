@@ -274,11 +274,7 @@ export default function BudgetGrid({
     const headerScrollRef = useRef<HTMLDivElement>(null);
     const bodyScrollRef = useRef<HTMLDivElement>(null);
 
-    const handleScrollSync = () => {
-        if (bodyScrollRef.current && headerScrollRef.current) {
-            headerScrollRef.current.scrollLeft = bodyScrollRef.current.scrollLeft;
-        }
-    };
+
 
     const [canScrollLeft, setCanScrollLeft] = useState(false);
     const [canScrollRight, setCanScrollRight] = useState(false);

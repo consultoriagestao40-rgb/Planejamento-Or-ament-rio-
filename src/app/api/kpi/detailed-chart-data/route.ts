@@ -100,7 +100,7 @@ export async function GET(request: Request) {
                 syncedMonths.add(`${e.year}|${e.month}`);
             }
         });
-        const realizedEntries = realizedRaw.filter(e => {
+        const realizedEntriesRaw = realizedRaw.filter(e => {
             const key = `${e.year}|${e.month}`;
             if (syncedMonths.has(key)) {
                 return e.externalId && e.externalId.startsWith('sync-');
@@ -122,6 +122,30 @@ export async function GET(request: Request) {
                     categoryNameMap.set(code, c.name);
                 }
             }
+        });
+
+        const requestedTenantIds = filterTenantId.split(',').map(id => id.trim()).filter(Boolean);
+        const isConsolidated = filterTenantId === 'ALL' || filterTenantId === 'DEFAULT' || requestedTenantIds.length > 1;
+
+        const getCleanCode = (name: string) => {
+            const match = name.match(/^(\d{1,2}(?:\.\d+)*)/);
+            return match ? match[1] : '';
+        };
+
+        const realizedEntries = realizedEntriesRaw.filter(e => {
+            const catName = categoryNameMap.get(e.categoryId) || '';
+            const code = getCleanCode(catName);
+            if (code === '06.1.2' || code === '06.2.2') return false;
+            if (isConsolidated && (code === '06.1.1' || code === '06.2.1')) return false;
+            return true;
+        });
+
+        const budgetEntries = budgetRaw.filter(e => {
+            const catName = categoryNameMap.get(e.categoryId) || '';
+            const code = getCleanCode(catName);
+            if (code === '06.1.2' || code === '06.2.2') return false;
+            if (isConsolidated && (code === '06.1.1' || code === '06.2.1')) return false;
+            return true;
         });
 
         // Aggregate realized and budgets like `/api/sync`
@@ -150,7 +174,7 @@ export async function GET(request: Request) {
             }
         });
 
-        budgetRaw.forEach((e: any) => {
+        budgetEntries.forEach((e: any) => {
             const idKey = `${e.categoryId}-${e.month - 1}`;
             budgetValues[idKey] = { amount: (budgetValues[idKey]?.amount || 0) + e.amount };
 

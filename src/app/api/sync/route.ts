@@ -109,14 +109,13 @@ export async function GET(request: Request) {
             }
         });
 
-        const realizedEntries = realizedRaw.filter(e => {
+        const realizedEntriesRaw = realizedRaw.filter(e => {
             const key = `${e.year}|${e.month}`;
             if (syncedMonths.has(key)) {
                 return e.externalId && e.externalId.startsWith('sync-');
             }
             return true;
         });
-        const budgetEntries = budgetRaw;
 
         const categories = await prisma.category.findMany({
             select: { id: true, name: true }
@@ -132,6 +131,32 @@ export async function GET(request: Request) {
                 }
             }
         });
+
+        const requestedTenantIds = tenantIdParam.split(',').map(id => id.trim()).filter(Boolean);
+        const isConsolidated = tenantIdParam === 'ALL' || tenantIdParam === 'DEFAULT' || requestedTenantIds.length > 1;
+
+        const getCleanCode = (name: string) => {
+            const match = name.match(/^(\d{1,2}(?:\.\d+)*)/);
+            return match ? match[1] : '';
+        };
+
+        const realizedEntries = realizedEntriesRaw.filter(e => {
+            const catName = categoryNameMap.get(e.categoryId) || '';
+            const code = getCleanCode(catName);
+            if (code === '06.1.2' || code === '06.2.2') return false;
+            if (isConsolidated && (code === '06.1.1' || code === '06.2.1')) return false;
+            return true;
+        });
+
+        const budgetEntries = budgetRaw.filter(e => {
+            const catName = categoryNameMap.get(e.categoryId) || '';
+            const code = getCleanCode(catName);
+            if (code === '06.1.2' || code === '06.2.2') return false;
+            if (isConsolidated && (code === '06.1.1' || code === '06.2.1')) return false;
+            return true;
+        });
+
+
 
         const values: Record<string, number> = {};
         

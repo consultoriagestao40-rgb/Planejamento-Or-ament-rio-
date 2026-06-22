@@ -97,10 +97,26 @@ export async function GET(request: Request) {
         const syncedTenantIds = new Set(syncedTenants.map(t => t.tenantId));
 
         // Deduplicate entries: if a tenant is synced, only return entries with 'sync-' prefix
-        const entries = entriesRaw.filter(e => {
+        const entriesSyncFiltered = entriesRaw.filter(e => {
             if (syncedTenantIds.has(e.tenantId)) {
                 return e.externalId && e.externalId.startsWith('sync-');
             }
+            return true;
+        });
+
+        const requestedTenantIds = tenantIdParam.split(',').map(id => id.trim()).filter(Boolean);
+        const isConsolidated = tenantIdParam === 'ALL' || tenantIdParam === 'DEFAULT' || requestedTenantIds.length > 1;
+
+        const getCleanCode = (name: string) => {
+            const match = name.match(/^(\d{1,2}(?:\.\d+)*)/);
+            return match ? match[1] : '';
+        };
+
+        const entries = entriesSyncFiltered.filter(e => {
+            const catName = e.category?.name || '';
+            const code = getCleanCode(catName);
+            if (code === '06.1.2' || code === '06.2.2') return false;
+            if (isConsolidated && (code === '06.1.1' || code === '06.2.1')) return false;
             return true;
         });
 

@@ -280,6 +280,83 @@ export default function BudgetGrid({
         }
     };
 
+    // --- Auto-scroll grid on edge hover ---
+    useEffect(() => {
+        let animationFrameId: number | null = null;
+        let speed = 0;
+
+        const handleMouseMove = (e: MouseEvent) => {
+            const body = bodyScrollRef.current;
+            if (!body) return;
+
+            const headerRect = headerScrollRef.current?.getBoundingClientRect();
+            const bodyRect = body.getBoundingClientRect();
+
+            const top = headerRect ? headerRect.top : bodyRect.top;
+            const bottom = bodyRect.bottom;
+            const left = bodyRect.left;
+            const right = bodyRect.right;
+
+            const isInsideY = e.clientY >= top && e.clientY <= bottom;
+            const isInsideX = e.clientX >= left && e.clientX <= right;
+
+            if (isInsideY && isInsideX) {
+                const EDGE_ZONE = 120; // zone size in pixels from edge
+                const maxSpeed = 15; // max scroll speed in pixels per frame
+
+                if (e.clientX < left + EDGE_ZONE) {
+                    const distance = (left + EDGE_ZONE) - e.clientX;
+                    speed = -1 * Math.min(maxSpeed, (distance / EDGE_ZONE) * maxSpeed);
+                } else if (e.clientX > right - EDGE_ZONE) {
+                    const distance = e.clientX - (right - EDGE_ZONE);
+                    speed = Math.min(maxSpeed, (distance / EDGE_ZONE) * maxSpeed);
+                } else {
+                    speed = 0;
+                }
+            } else {
+                speed = 0;
+            }
+
+            if (speed !== 0) {
+                if (animationFrameId === null) {
+                    const scroll = () => {
+                        if (speed !== 0 && bodyScrollRef.current) {
+                            bodyScrollRef.current.scrollLeft += speed;
+                            animationFrameId = requestAnimationFrame(scroll);
+                        } else {
+                            animationFrameId = null;
+                        }
+                    };
+                    animationFrameId = requestAnimationFrame(scroll);
+                }
+            } else {
+                if (animationFrameId !== null) {
+                    cancelAnimationFrame(animationFrameId);
+                    animationFrameId = null;
+                }
+            }
+        };
+
+        const handleMouseLeave = () => {
+            speed = 0;
+            if (animationFrameId !== null) {
+                cancelAnimationFrame(animationFrameId);
+                animationFrameId = null;
+            }
+        };
+
+        window.addEventListener('mousemove', handleMouseMove);
+        document.addEventListener('mouseleave', handleMouseLeave);
+
+        return () => {
+            window.removeEventListener('mousemove', handleMouseMove);
+            document.removeEventListener('mouseleave', handleMouseLeave);
+            if (animationFrameId !== null) {
+                cancelAnimationFrame(animationFrameId);
+            }
+        };
+    }, []);
+
     // --- Realized Justification State ---
     const [justificationModal, setJustificationModal] = useState<{ categoryId: string, month: number, categoryName: string, tenantId: string, costCenterId: string | null } | null>(null);
     const [justificationHistory, setJustificationHistory] = useState<any[]>([]);

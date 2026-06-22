@@ -2,7 +2,7 @@
 // BudgetEntryGrid - Tela exclusiva de lançamento de orçamento por CC
 // Versão limpa: apenas coluna ORÇADO, sem Radar, sem Realizado, sem filtros AH/AV
 
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { MONTHS } from '@/lib/mock-data';
 
 // Constante de módulo — fora do componente para evitar redeclaração
@@ -63,6 +63,33 @@ export default function BudgetEntryGrid({ costCenterId, year, taxRate = 0 }: Bud
     const [modalObservation, setModalObservation] = useState<string>('');
     const [modalCompositionRows, setModalCompositionRows] = useState<Array<{ id: string, description: string, values: string[] }>>([]);
     const [initialCompositionRows, setInitialCompositionRows] = useState<Array<{ id: string, description: string, values: string[] }>>([]);
+
+    const bodyScrollRef = useRef<HTMLDivElement>(null);
+
+    // Auto-scroll logic for budgetModal when opened
+    useEffect(() => {
+        if (budgetModal && bodyScrollRef.current) {
+            const startMonth = budgetModal.startMonth ?? 0;
+            const container = bodyScrollRef.current;
+            const scrollWidth = container.scrollWidth;
+            const clientWidth = container.clientWidth;
+            if (scrollWidth > clientWidth) {
+                const columnLeft = 380 + startMonth * 120;
+                const columnRight = columnLeft + 120;
+                if (columnRight > container.scrollLeft + clientWidth) {
+                    container.scrollTo({
+                        left: columnRight - clientWidth + 40,
+                        behavior: 'smooth'
+                    });
+                } else if (columnLeft < container.scrollLeft + 380) {
+                    container.scrollTo({
+                        left: columnLeft - 380 - 40,
+                        behavior: 'smooth'
+                    });
+                }
+            }
+        }
+    }, [budgetModal]);
 
     // Approval state
     const [approvalStatus, setApprovalStatus] = useState<string>('PENDING');
@@ -1064,7 +1091,7 @@ export default function BudgetEntryGrid({ costCenterId, year, taxRate = 0 }: Bud
             </div>
 
             {/* Main Table */}
-            <div style={{ overflowX: 'auto', borderRadius: 'var(--radius)', border: '1px solid var(--border-default)', background: 'var(--bg-card)', boxShadow: 'var(--shadow-card)' }}>
+            <div ref={bodyScrollRef} style={{ overflowX: 'auto', borderRadius: 'var(--radius)', border: '1px solid var(--border-default)', background: 'var(--bg-card)', boxShadow: 'var(--shadow-card)' }}>
                 <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: '1200px' }}>
                     <thead>
                         <tr style={{ background: 'var(--bg-surface)' }}>

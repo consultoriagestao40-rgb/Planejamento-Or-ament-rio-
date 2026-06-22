@@ -2428,11 +2428,18 @@ export default function BudgetGrid({
         });
 
         // 7. FIX LEVELS & SORT
+        const getCleanCode = (name: string) => {
+            const match = name.match(/^(\d{1,2}(?:\.\d+)*)/);
+            return match ? match[1] : '';
+        };
+
         const recalculateLevels = (nodes: CategoryNode[], lvl: number) => {
             nodes.sort((a, b) => (a.code || a.name).localeCompare(b.code || b.name, undefined, { numeric: true }));
             nodes.forEach(n => {
-                n.level = lvl;
-                recalculateLevels(n.children, lvl + 1);
+                const code = n.code || getCleanCode(n.name);
+                const dots = (code.match(/\./g) || []).length;
+                n.level = code ? dots : lvl;
+                recalculateLevels(n.children, n.level + 1);
             });
         };
         recalculateLevels(finalRoots, 0);

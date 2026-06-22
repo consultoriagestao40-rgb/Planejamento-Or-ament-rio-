@@ -312,15 +312,22 @@ export default function BudgetEntryGrid({ costCenterId, year, taxRate = 0 }: Bud
 
         const finalRoots = Array.from(uniqueRootsMap.values());
 
+        const getCleanCode = (name: string) => {
+            const match = name.match(/^(\d{1,2}(?:\.\d+)*)/);
+            return match ? match[1] : '';
+        };
+
         const recalculateLevels = (nodes: CategoryNode[], lvl: number) => {
             nodes.sort((a, b) => (a.code || a.name).localeCompare(b.code || b.name, undefined, { numeric: true }));
             nodes.forEach(n => {
-                n.level = lvl;
+                const code = n.code || getCleanCode(n.name);
+                const dots = (code.match(/\./g) || []).length;
+                n.level = code ? dots : lvl;
                 // Clear duplicate children
                 const uniqueChildren = new Map<string, CategoryNode>();
                 n.children.forEach(c => uniqueChildren.set(c.id, c));
                 n.children = Array.from(uniqueChildren.values());
-                recalculateLevels(n.children, lvl + 1);
+                recalculateLevels(n.children, n.level + 1);
             });
         };
         recalculateLevels(finalRoots, 0);

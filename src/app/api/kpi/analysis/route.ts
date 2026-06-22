@@ -15,6 +15,21 @@ export async function GET(request: Request) {
             return NextResponse.json({ success: false, error: 'Parâmetros ausentes' }, { status: 400 });
         }
 
+        // Ensure category exists for virtual/DRE/synthetic keys
+        const categoryExists = await prisma.category.findUnique({
+            where: { id: categoryId }
+        });
+        if (!categoryExists) {
+            await prisma.category.create({
+                data: {
+                    id: categoryId,
+                    name: categoryId,
+                    tenantId,
+                    type: 'REVENUE'
+                }
+            });
+        }
+
         const analysis = await prisma.indicatorAnalysis.findUnique({
             where: {
                 tenantId_categoryId_month_year: {
@@ -52,6 +67,21 @@ export async function POST(request: Request) {
 
         if (!tenantId || !categoryId || !month || !year) {
             return NextResponse.json({ success: false, error: 'Parâmetros obrigatórios ausentes' }, { status: 400 });
+        }
+
+        // Ensure category exists for virtual/DRE/synthetic keys
+        const categoryExists = await prisma.category.findUnique({
+            where: { id: categoryId }
+        });
+        if (!categoryExists) {
+            await prisma.category.create({
+                data: {
+                    id: categoryId,
+                    name: categoryId,
+                    tenantId,
+                    type: 'REVENUE'
+                }
+            });
         }
 
         // Upsert the main analysis record

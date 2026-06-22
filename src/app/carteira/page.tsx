@@ -100,6 +100,26 @@ export default function PortfolioAnalysisPage() {
     const [analysisSelectedTenant, setAnalysisSelectedTenant] = useState<string>('');
     const prevTenantRef = useRef<string>('');
 
+    // State hooks for individual detailed analysis modal
+    const [isAnalysisModalOpen, setIsAnalysisModalOpen] = useState(false);
+    const [analysisChart, setAnalysisChart] = useState<any | null>(null);
+    const [analysisMonth, setAnalysisMonth] = useState<number>(1);
+    const [analysisTenant, setAnalysisTenant] = useState<string>('');
+    const [analysisId, setAnalysisId] = useState<string | null>(null);
+    const [deviationReport, setDeviationReport] = useState('');
+    const [analysisPerformed, setAnalysisPerformed] = useState('');
+    const [analysisActions, setAnalysisActions] = useState<any[]>([]);
+    const [analysisComments, setAnalysisComments] = useState<any[]>([]);
+    const [newCommentUser, setNewCommentUser] = useState('Cristiano Silva');
+    const [newCommentText, setNewCommentText] = useState('');
+    const [isAnalysisLoading, setIsAnalysisLoading] = useState(false);
+    const [isAnalysisSaving, setIsAnalysisSaving] = useState(false);
+    const [newActionDesc, setNewActionDesc] = useState('');
+    const [newActionResp, setNewActionResp] = useState('');
+    const [newActionDate, setNewActionDate] = useState('');
+    const [activeModalTab, setActiveModalTab] = useState<'deviation' | 'actions' | 'comments'>('deviation');
+
+
     const [seriesConfig, setSeriesConfig] = useState<Record<string, string>>({
         budget: 'bar',
         realized: 'bar',
@@ -482,6 +502,115 @@ export default function PortfolioAnalysisPage() {
         setChartPreviewData([]);
         setIsEditingChart(true);
     };
+
+    const handleOpenAnalysis = (chart: any) => {
+        setAnalysisChart(chart);
+        const defaultTenant = chart.filterTenantId === 'ALL' ? (companies?.[0]?.id || '') : chart.filterTenantId;
+        setAnalysisTenant(defaultTenant);
+        setAnalysisMonth(activeMonthNumber);
+        setDeviationReport('');
+        setAnalysisPerformed('');
+        setAnalysisActions([]);
+        setAnalysisComments([]);
+        setNewCommentText('');
+        setActiveModalTab('deviation');
+        setIsAnalysisModalOpen(true);
+    };
+
+    useEffect(() => {
+        if (isAnalysisModalOpen && analysisTenant && analysisChart?.categoryId && analysisMonth) {
+            const loadAnalysis = async () => {
+                setIsAnalysisLoading(true);
+                try {
+                    const res = await fetch(`/api/kpi/analysis?tenantId=${analysisTenant}&categoryId=${analysisChart.categoryId}&month=${analysisMonth}&year=${selectedYear}`);
+                    const result = await res.json();
+                    if (result.success && result.data) {
+                        const data = result.data;
+                        setAnalysisId(data.id);
+                        setDeviationReport(data.deviationReport || '');
+                        setAnalysisPerformed(data.analysisPerformed || '');
+                        setAnalysisActions(data.actions || []);
+                        setAnalysisComments(data.comments || []);
+                    } else {
+                        setAnalysisId(null);
+                        setDeviationReport('');
+                        setAnalysisPerformed('');
+                        setAnalysisActions([]);
+                        setAnalysisComments([]);
+                    }
+                } catch (e) {
+                    console.error("Error loading analysis data:", e);
+                } finally {
+                    setIsAnalysisLoading(false);
+                }
+            };
+            loadAnalysis();
+        }
+    }, [isAnalysisModalOpen, analysisTenant, analysisChart?.categoryId, analysisMonth, selectedYear]);
+
+    const saveAnalysisData = async () => {
+        if (!analysisTenant || !analysisChart || !analysisMonth) {
+            alert('Parâmetros obrigatórios ausentes.');
+            return;
+        }
+        setIsAnalysisSaving(true);
+        try {
+            const res = await fetch('/api/kpi/analysis', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    tenantId: analysisTenant,
+                    categoryId: analysisChart.categoryId,
+                    month: analysisMonth,
+                    year: selectedYear,
+                    deviationReport,
+                    analysisPerformed,
+                    actions: analysisActions
+                })
+            });
+            const result = await res.json();
+            if (result.success) {
+                alert('Análise salva com sucesso!');
+                setIsAnalysisModalOpen(false);
+                fetchDetailedAnalyses();
+            } else {
+                alert('Erro ao salvar análise: ' + result.error);
+            }
+        } catch (e) {
+            console.error("Error saving analysis:", e);
+            alert('Erro de conexão ao salvar.');
+        } finally {
+            setIsAnalysisSaving(false);
+        }
+    };
+
+    const postComment = async () => {
+        if (!newCommentText.trim() || !analysisChart || !analysisTenant) return;
+        try {
+            const res = await fetch('/api/kpi/analysis/comments', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    tenantId: analysisTenant,
+                    categoryId: analysisChart.categoryId,
+                    month: analysisMonth,
+                    year: selectedYear,
+                    userName: newCommentUser || 'Cristiano Silva',
+                    content: newCommentText
+                })
+            });
+            const result = await res.json();
+            if (result.success) {
+                setAnalysisComments(prev => [...prev, result.data]);
+                setNewCommentText('');
+            } else {
+                alert('Erro ao enviar comentário: ' + result.error);
+            }
+        } catch (e) {
+            console.error(e);
+        }
+    };
+
 
     const fetchData = useCallback(async () => {
         setLoading(true);
@@ -1141,6 +1270,7 @@ export default function PortfolioAnalysisPage() {
                                                 chart={chart} 
                                                 onEdit={handleEditChartClick} 
                                                 onDelete={deleteDetailedAnalysis} 
+                                                onOpenAnalysis={handleOpenAnalysis}
                                                 mainMonth={activeMonthNumber} 
                                                 year={selectedYear} 
                                                 viewMode={selectedViewMode} 
@@ -1782,14 +1912,610 @@ export default function PortfolioAnalysisPage() {
                 )}
 
 
+            {/* Modal de Análise Detalhada / Justificativa de Desvio */}
+            {isAnalysisModalOpen && (
+                <div style={{
+                    position: 'fixed',
+                    top: 0,
+                    left: 0,
+                    right: 0,
+                    bottom: 0,
+                    background: 'rgba(15, 23, 42, 0.75)',
+                    backdropFilter: 'blur(12px)',
+                    WebkitBackdropFilter: 'blur(12px)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    zIndex: 9999,
+                    padding: '1.5rem',
+                }}>
+                    <div style={{
+                        background: 'var(--bg-elevated)',
+                        border: '1px solid var(--border-default)',
+                        borderRadius: '16px',
+                        width: '100%',
+                        maxWidth: '900px',
+                        maxHeight: '90vh',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.5)',
+                        overflow: 'hidden',
+                    }}>
+                        {/* Header */}
+                        <div style={{
+                            padding: '1.5rem',
+                            borderBottom: '1px solid var(--border-subtle)',
+                            display: 'flex',
+                            justifyContent: 'space-between',
+                            alignItems: 'center',
+                            background: 'var(--bg-surface)',
+                        }}>
+                            <div>
+                                <h3 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 800, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                    <span>📝 Analisar Desvio:</span>
+                                    <span style={{ color: 'var(--accent-blue)' }}>{analysisChart ? getChartHeaderTitle(analysisChart) : ''}</span>
+                                </h3>
+                                <p style={{ margin: '0.25rem 0 0 0', fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
+                                    Justificativas, plano de ação e comentários sobre o indicador.
+                                </p>
+                            </div>
+                            <button
+                                onClick={() => setIsAnalysisModalOpen(false)}
+                                style={{
+                                    background: 'none',
+                                    border: 'none',
+                                    color: 'var(--text-secondary)',
+                                    fontSize: '1.5rem',
+                                    cursor: 'pointer',
+                                    padding: '0.25rem',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    lineHeight: 1,
+                                }}
+                            >
+                                &times;
+                            </button>
+                        </div>
+
+                        {/* Controls Bar */}
+                        <div style={{
+                            padding: '1rem 1.5rem',
+                            background: 'var(--bg-elevated)',
+                            borderBottom: '1px solid var(--border-subtle)',
+                            display: 'flex',
+                            gap: '1rem',
+                            flexWrap: 'wrap',
+                            alignItems: 'center',
+                        }}>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                                <label style={{ fontSize: '0.7rem', fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase' }}>Empresa</label>
+                                <select
+                                    value={analysisTenant}
+                                    onChange={(e) => setAnalysisTenant(e.target.value)}
+                                    disabled={analysisChart?.filterTenantId !== 'ALL'}
+                                    style={{
+                                        padding: '0.4rem 0.75rem',
+                                        background: 'var(--bg-surface)',
+                                        border: '1px solid var(--border-default)',
+                                        borderRadius: '6px',
+                                        fontSize: '0.85rem',
+                                        color: 'var(--text-primary)',
+                                        fontWeight: 600,
+                                        minWidth: '200px',
+                                    }}
+                                >
+                                    {companies.map(c => (
+                                        <option key={c.id} value={c.id}>{c.name}</option>
+                                    ))}
+                                </select>
+                            </div>
+
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                                <label style={{ fontSize: '0.7rem', fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase' }}>Mês de Referência</label>
+                                <select
+                                    value={analysisMonth}
+                                    onChange={(e) => setAnalysisMonth(Number(e.target.value))}
+                                    style={{
+                                        padding: '0.4rem 0.75rem',
+                                        background: 'var(--bg-surface)',
+                                        border: '1px solid var(--border-default)',
+                                        borderRadius: '6px',
+                                        fontSize: '0.85rem',
+                                        color: 'var(--text-primary)',
+                                        fontWeight: 600,
+                                        minWidth: '150px',
+                                    }}
+                                >
+                                    {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map(m => (
+                                        <option key={m} value={m}>
+                                            {['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'][m - 1]}
+                                        </option>
+                                    ))}
+                                </select>
+                            </div>
+                        </div>
+
+                        {/* Modal Navigation Tabs */}
+                        <div style={{
+                            display: 'flex',
+                            background: 'var(--bg-surface)',
+                            borderBottom: '1px solid var(--border-subtle)',
+                            padding: '0 1.5rem',
+                        }}>
+                            {[
+                                { id: 'deviation', label: 'Relato de Desvio', icon: '📝' },
+                                { id: 'actions', label: 'Plano de Ação', icon: '🎯' },
+                                { id: 'comments', label: 'Discussão', icon: '💬' }
+                            ].map(tab => (
+                                <button
+                                    key={tab.id}
+                                    onClick={() => setActiveModalTab(tab.id as any)}
+                                    style={{
+                                        padding: '1rem 1.25rem',
+                                        background: 'none',
+                                        border: 'none',
+                                        borderBottom: activeModalTab === tab.id ? '2px solid var(--accent-blue)' : '2px solid transparent',
+                                        color: activeModalTab === tab.id ? 'var(--accent-blue)' : 'var(--text-secondary)',
+                                        fontWeight: activeModalTab === tab.id ? 700 : 500,
+                                        fontSize: '0.85rem',
+                                        cursor: 'pointer',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        gap: '0.5rem',
+                                        transition: 'all 0.2s ease',
+                                    }}
+                                >
+                                    <span>{tab.icon}</span>
+                                    <span>{tab.label}</span>
+                                </button>
+                            ))}
+                        </div>
+
+                        {/* Modal Body Container */}
+                        <div style={{
+                            flex: 1,
+                            overflowY: 'auto',
+                            padding: '1.5rem',
+                            background: 'var(--bg-elevated)',
+                            position: 'relative',
+                        }}>
+                            {isAnalysisLoading ? (
+                                <div style={{
+                                    display: 'flex',
+                                    flexDirection: 'column',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    height: '250px',
+                                    gap: '0.75rem',
+                                }}>
+                                    <div style={{ border: '3px solid var(--border-default)', borderTopColor: 'var(--accent-blue)', borderRadius: '50%', width: '40px', height: '40px', animation: 'spin 1s linear infinite' }} />
+                                    <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', fontWeight: 600 }}>Carregando dados da análise...</span>
+                                </div>
+                            ) : (
+                                <>
+                                    {/* Relato de Desvio Tab */}
+                                    {activeModalTab === 'deviation' && (
+                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+                                            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                                                <label style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--text-primary)' }}>
+                                                    Justificativa do Desvio (Orçado vs Realizado)
+                                                </label>
+                                                <textarea
+                                                    value={deviationReport}
+                                                    onChange={(e) => setDeviationReport(e.target.value)}
+                                                    placeholder="Descreva as causas do desvio de valor entre o orçado e o realizado..."
+                                                    style={{
+                                                        width: '100%',
+                                                        minHeight: '120px',
+                                                        padding: '0.75rem',
+                                                        background: 'var(--bg-surface)',
+                                                        border: '1px solid var(--border-default)',
+                                                        borderRadius: '8px',
+                                                        color: 'var(--text-primary)',
+                                                        fontSize: '0.85rem',
+                                                        lineHeight: 1.5,
+                                                        resize: 'vertical',
+                                                    }}
+                                                />
+                                            </div>
+
+                                            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                                                <label style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--text-primary)' }}>
+                                                    Análise Realizada / Explicação Geral
+                                                </label>
+                                                <textarea
+                                                    value={analysisPerformed}
+                                                    onChange={(e) => setAnalysisPerformed(e.target.value)}
+                                                    placeholder="Detalhe a análise técnica executada sobre este indicador..."
+                                                    style={{
+                                                        width: '100%',
+                                                        minHeight: '120px',
+                                                        padding: '0.75rem',
+                                                        background: 'var(--bg-surface)',
+                                                        border: '1px solid var(--border-default)',
+                                                        borderRadius: '8px',
+                                                        color: 'var(--text-primary)',
+                                                        fontSize: '0.85rem',
+                                                        lineHeight: 1.5,
+                                                        resize: 'vertical',
+                                                    }}
+                                                />
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {/* Plano de Ação Tab */}
+                                    {activeModalTab === 'actions' && (
+                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+                                            {/* Action Items List */}
+                                            <div>
+                                                <h4 style={{ margin: '0 0 0.75rem 0', fontSize: '0.9rem', fontWeight: 700, color: 'var(--text-primary)' }}>
+                                                    Ações Cadastradas ({analysisActions.length})
+                                                </h4>
+                                                {analysisActions.length === 0 ? (
+                                                    <div style={{
+                                                        padding: '2rem',
+                                                        border: '1px dashed var(--border-default)',
+                                                        borderRadius: '8px',
+                                                        textAlign: 'center',
+                                                        color: 'var(--text-secondary)',
+                                                        fontSize: '0.85rem',
+                                                    }}>
+                                                        Nenhuma ação cadastrada para esta análise. Preencha o formulário abaixo para adicionar.
+                                                    </div>
+                                                ) : (
+                                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                                                        {analysisActions.map((action, idx) => (
+                                                            <div
+                                                                key={idx}
+                                                                style={{
+                                                                    display: 'flex',
+                                                                    alignItems: 'center',
+                                                                    justifyContent: 'space-between',
+                                                                    padding: '0.75rem 1rem',
+                                                                    background: 'var(--bg-surface)',
+                                                                    border: '1px solid var(--border-default)',
+                                                                    borderRadius: '8px',
+                                                                    gap: '1rem',
+                                                                }}
+                                                            >
+                                                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flex: 1 }}>
+                                                                    <input
+                                                                        type="checkbox"
+                                                                        checked={action.status === 'done'}
+                                                                        onChange={(e) => {
+                                                                            const updated = [...analysisActions];
+                                                                            updated[idx] = { ...action, status: e.target.checked ? 'done' : 'pending' };
+                                                                            setAnalysisActions(updated);
+                                                                        }}
+                                                                        style={{ cursor: 'pointer', width: '16px', height: '16px' }}
+                                                                    />
+                                                                    <div style={{ display: 'flex', flexDirection: 'column' }}>
+                                                                        <span style={{
+                                                                            fontSize: '0.85rem',
+                                                                            fontWeight: 600,
+                                                                            color: 'var(--text-primary)',
+                                                                            textDecoration: action.status === 'done' ? 'line-through' : 'none',
+                                                                            opacity: action.status === 'done' ? 0.6 : 1,
+                                                                        }}>
+                                                                            {action.description}
+                                                                        </span>
+                                                                        <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
+                                                                            Responsável: {action.responsable} | Prazo: {action.deadline}
+                                                                        </span>
+                                                                    </div>
+                                                                </div>
+                                                                <button
+                                                                    onClick={() => {
+                                                                        setAnalysisActions(analysisActions.filter((_, i) => i !== idx));
+                                                                    }}
+                                                                    style={{
+                                                                        background: 'none',
+                                                                        border: 'none',
+                                                                        color: '#ef4444',
+                                                                        fontSize: '0.8rem',
+                                                                        fontWeight: 600,
+                                                                        cursor: 'pointer',
+                                                                    }}
+                                                                >
+                                                                    Excluir
+                                                                </button>
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                )}
+                                            </div>
+
+                                            {/* Add Action Item Form */}
+                                            <div style={{
+                                                padding: '1.25rem',
+                                                background: 'var(--bg-surface)',
+                                                border: '1px solid var(--border-default)',
+                                                borderRadius: '8px',
+                                                display: 'flex',
+                                                flexDirection: 'column',
+                                                gap: '1rem',
+                                            }}>
+                                                <h5 style={{ margin: 0, fontSize: '0.85rem', fontWeight: 700, color: 'var(--text-primary)' }}>
+                                                    ➕ Nova Ação Corretiva
+                                                </h5>
+                                                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                                                    <label style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-secondary)' }}>Descrição da Ação</label>
+                                                    <input
+                                                        type="text"
+                                                        value={newActionDesc}
+                                                        onChange={(e) => setNewActionDesc(e.target.value)}
+                                                        placeholder="Ex: Renegociar contrato de terceirizados..."
+                                                        style={{
+                                                            padding: '0.5rem 0.75rem',
+                                                            background: 'var(--bg-elevated)',
+                                                            border: '1px solid var(--border-default)',
+                                                            borderRadius: '6px',
+                                                            color: 'var(--text-primary)',
+                                                            fontSize: '0.85rem',
+                                                        }}
+                                                    />
+                                                </div>
+
+                                                <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
+                                                    <div style={{ flex: 1, minWidth: '150px', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                                                        <label style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-secondary)' }}>Responsável</label>
+                                                        <input
+                                                            type="text"
+                                                            value={newActionResp}
+                                                            onChange={(e) => setNewActionResp(e.target.value)}
+                                                            placeholder="Ex: João Silva"
+                                                            style={{
+                                                                padding: '0.5rem 0.75rem',
+                                                                background: 'var(--bg-elevated)',
+                                                                border: '1px solid var(--border-default)',
+                                                                borderRadius: '6px',
+                                                                color: 'var(--text-primary)',
+                                                                fontSize: '0.85rem',
+                                                            }}
+                                                        />
+                                                    </div>
+
+                                                    <div style={{ flex: 1, minWidth: '150px', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                                                        <label style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-secondary)' }}>Prazo</label>
+                                                        <input
+                                                            type="text"
+                                                            value={newActionDate}
+                                                            onChange={(e) => setNewActionDate(e.target.value)}
+                                                            placeholder="Ex: 30/06/2026"
+                                                            style={{
+                                                                padding: '0.5rem 0.75rem',
+                                                                background: 'var(--bg-elevated)',
+                                                                border: '1px solid var(--border-default)',
+                                                                borderRadius: '6px',
+                                                                color: 'var(--text-primary)',
+                                                                fontSize: '0.85rem',
+                                                            }}
+                                                        />
+                                                    </div>
+                                                </div>
+
+                                                <button
+                                                    onClick={() => {
+                                                        if (!newActionDesc.trim()) return;
+                                                        const newAction = {
+                                                            description: newActionDesc,
+                                                            responsable: newActionResp || 'N/A',
+                                                            deadline: newActionDate || 'N/A',
+                                                            status: 'pending'
+                                                        };
+                                                        setAnalysisActions([...analysisActions, newAction]);
+                                                        setNewActionDesc('');
+                                                        setNewActionResp('');
+                                                        setNewActionDate('');
+                                                    }}
+                                                    style={{
+                                                        alignSelf: 'flex-start',
+                                                        padding: '0.4rem 1rem',
+                                                        background: 'var(--bg-elevated)',
+                                                        border: '1px solid var(--border-default)',
+                                                        borderRadius: '6px',
+                                                        fontSize: '0.8rem',
+                                                        fontWeight: 700,
+                                                        color: 'var(--text-primary)',
+                                                        cursor: 'pointer',
+                                                    }}
+                                                >
+                                                    Adicionar Ação
+                                                </button>
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {/* Comentários Tab */}
+                                    {activeModalTab === 'comments' && (
+                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', height: '100%', minHeight: '300px' }}>
+                                            {/* List of comments */}
+                                            <div style={{
+                                                flex: 1,
+                                                display: 'flex',
+                                                flexDirection: 'column',
+                                                gap: '0.75rem',
+                                                maxHeight: '300px',
+                                                overflowY: 'auto',
+                                                paddingRight: '0.5rem',
+                                            }}>
+                                                {analysisComments.length === 0 ? (
+                                                    <div style={{
+                                                        padding: '2rem',
+                                                        textAlign: 'center',
+                                                        color: 'var(--text-secondary)',
+                                                        fontSize: '0.85rem',
+                                                        fontStyle: 'italic',
+                                                    }}>
+                                                        Nenhum comentário registrado ainda. Comece a discussão!
+                                                    </div>
+                                                ) : (
+                                                    analysisComments.map((comment, idx) => (
+                                                        <div
+                                                            key={idx}
+                                                            style={{
+                                                                padding: '0.75rem 1rem',
+                                                                background: 'var(--bg-surface)',
+                                                                border: '1px solid var(--border-default)',
+                                                                borderRadius: '8px',
+                                                                display: 'flex',
+                                                                flexDirection: 'column',
+                                                                gap: '0.25rem',
+                                                            }}
+                                                        >
+                                                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                                                <span style={{ fontSize: '0.8rem', fontWeight: 800, color: 'var(--text-primary)' }}>
+                                                                    {comment.userName}
+                                                                </span>
+                                                                <span style={{ fontSize: '0.7rem', color: 'var(--text-secondary)' }}>
+                                                                    {new Date(comment.createdAt).toLocaleString('pt-BR')}
+                                                                </span>
+                                                            </div>
+                                                            <p style={{ margin: 0, fontSize: '0.85rem', color: 'var(--text-primary)', lineHeight: 1.4 }}>
+                                                                {comment.content}
+                                                            </p>
+                                                        </div>
+                                                    ))
+                                                )}
+                                            </div>
+
+                                            {/* Post comment form */}
+                                            <div style={{
+                                                padding: '1rem',
+                                                background: 'var(--bg-surface)',
+                                                border: '1px solid var(--border-default)',
+                                                borderRadius: '8px',
+                                                display: 'flex',
+                                                flexDirection: 'column',
+                                                gap: '0.75rem',
+                                            }}>
+                                                <div style={{ display: 'flex', gap: '1rem' }}>
+                                                    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                                                        <label style={{ fontSize: '0.7rem', fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase' }}>Usuário</label>
+                                                        <input
+                                                            type="text"
+                                                            value={newCommentUser}
+                                                            onChange={(e) => setNewCommentUser(e.target.value)}
+                                                            placeholder="Nome..."
+                                                            style={{
+                                                                padding: '0.4rem 0.75rem',
+                                                                background: 'var(--bg-elevated)',
+                                                                border: '1px solid var(--border-default)',
+                                                                borderRadius: '6px',
+                                                                color: 'var(--text-primary)',
+                                                                fontSize: '0.85rem',
+                                                                maxWidth: '200px',
+                                                            }}
+                                                        />
+                                                    </div>
+                                                </div>
+
+                                                <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'flex-end' }}>
+                                                    <textarea
+                                                        value={newCommentText}
+                                                        onChange={(e) => setNewCommentText(e.target.value)}
+                                                        placeholder="Digite uma mensagem ou observação..."
+                                                        style={{
+                                                            flex: 1,
+                                                            minHeight: '60px',
+                                                            padding: '0.5rem 0.75rem',
+                                                            background: 'var(--bg-elevated)',
+                                                            border: '1px solid var(--border-default)',
+                                                            borderRadius: '6px',
+                                                            color: 'var(--text-primary)',
+                                                            fontSize: '0.85rem',
+                                                            lineHeight: 1.4,
+                                                            resize: 'vertical',
+                                                        }}
+                                                    />
+                                                    <button
+                                                        onClick={postComment}
+                                                        style={{
+                                                            padding: '0.5rem 1.25rem',
+                                                            background: 'var(--gradient-brand)',
+                                                            color: '#ffffff',
+                                                            border: 'none',
+                                                            borderRadius: '6px',
+                                                            fontSize: '0.85rem',
+                                                            fontWeight: 700,
+                                                            cursor: 'pointer',
+                                                            height: '38px',
+                                                        }}
+                                                    >
+                                                        Enviar
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    )}
+                                </>
+                            )}
+                        </div>
+
+                        {/* Modal Footer */}
+                        <div style={{
+                            padding: '1.25rem 1.5rem',
+                            borderTop: '1px solid var(--border-subtle)',
+                            display: 'flex',
+                            justifyContent: 'flex-end',
+                            gap: '0.75rem',
+                            background: 'var(--bg-surface)',
+                        }}>
+                            <button
+                                onClick={() => setIsAnalysisModalOpen(false)}
+                                style={{
+                                    padding: '0.5rem 1.25rem',
+                                    background: 'var(--bg-elevated)',
+                                    border: '1px solid var(--border-default)',
+                                    borderRadius: '8px',
+                                    fontSize: '0.85rem',
+                                    fontWeight: 700,
+                                    color: 'var(--text-secondary)',
+                                    cursor: 'pointer',
+                                }}
+                            >
+                                Fechar
+                            </button>
+                            <button
+                                onClick={saveAnalysisData}
+                                disabled={isAnalysisSaving}
+                                style={{
+                                    padding: '0.5rem 1.5rem',
+                                    background: 'var(--gradient-brand)',
+                                    color: '#ffffff',
+                                    border: 'none',
+                                    borderRadius: '8px',
+                                    fontSize: '0.85rem',
+                                    fontWeight: 700,
+                                    cursor: 'pointer',
+                                    boxShadow: 'var(--shadow-button)',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: '0.5rem',
+                                }}
+                            >
+                                {isAnalysisSaving ? 'Salvando...' : 'Salvar Análise'}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+
             </div>
         </div>
     );
 }
 
-const DetailedChartCard = ({ chart, onEdit, onDelete, mainMonth, year, viewMode, categories, companies }: { chart: any, onEdit: (c: any) => void, onDelete: (id: string) => void, mainMonth: number, year: number, viewMode: 'caixa' | 'competencia', categories: any[], companies: any[] }) => {
+const DetailedChartCard = ({ chart, onEdit, onDelete, onOpenAnalysis, mainMonth, year, viewMode, categories, companies }: { chart: any, onEdit: (c: any) => void, onDelete: (id: string) => void, onOpenAnalysis: (c: any) => void, mainMonth: number, year: number, viewMode: 'caixa' | 'competencia', categories: any[], companies: any[] }) => {
     const [data, setData] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
+    const [chartViewMode, setChartViewMode] = useState<'monthly' | 'accumulated'>('monthly');
+    const [activeAnalysis, setActiveAnalysis] = useState<any | null>(null);
+    const [tooltip, setTooltip] = useState<{ x: number; y: number; title: string; items: { label: string; value: string; color?: string }[] } | null>(null);
+    const [hiddenSeries, setHiddenSeries] = useState<Record<string, boolean>>({});
 
     useEffect(() => {
         let active = true;
@@ -1810,6 +2536,60 @@ const DetailedChartCard = ({ chart, onEdit, onDelete, mainMonth, year, viewMode,
         load();
         return () => { active = false; };
     }, [chart.categoryId, chart.filterTenantId, chart.filterCCId, year, viewMode]);
+
+    useEffect(() => {
+        let active = true;
+        const loadAnalysis = async () => {
+            const tenantId = chart.filterTenantId === 'ALL' ? (companies?.[0]?.id || '') : chart.filterTenantId;
+            if (!tenantId || !chart.categoryId) return;
+            try {
+                const res = await fetch(`/api/kpi/analysis?tenantId=${tenantId}&categoryId=${chart.categoryId}&month=${mainMonth}&year=${year}`);
+                const json = await res.json();
+                if (json.success && active) {
+                    setActiveAnalysis(json.data || null);
+                }
+            } catch (err) {
+                console.error(err);
+            }
+        };
+        loadAnalysis();
+        return () => { active = false; };
+    }, [chart.filterTenantId, chart.categoryId, mainMonth, year, companies]);
+
+    const processedData = useMemo(() => {
+        if (chartViewMode === 'monthly') return data;
+
+        let accBudget = 0;
+        let accRealized = 0;
+        let accRevenue = 0;
+
+        return data.map((m) => {
+            accBudget += m.budget;
+            accRealized += m.realized;
+            
+            const mRevenue = m.pctOfRevenue > 0 ? (m.realized / (m.pctOfRevenue / 100)) : 0;
+            accRevenue += mRevenue;
+
+            let accAtingido = 0;
+            if (accBudget > 0) {
+                accAtingido = (accRealized / accBudget) * 100;
+            } else if (accBudget < 0) {
+                accAtingido = (1 + (accBudget - accRealized) / accBudget) * 100;
+            } else {
+                accAtingido = accRealized >= 0 ? 100 : 0;
+            }
+
+            const accPctOfRevenue = accRevenue > 0 ? (accRealized / accRevenue) * 100 : 0;
+
+            return {
+                ...m,
+                budget: accBudget,
+                realized: accRealized,
+                atingido: accAtingido,
+                pctOfRevenue: accPctOfRevenue
+            };
+        });
+    }, [data, chartViewMode]);
 
     const getChartCategoryLabel = (categoriesStr: string) => {
         if (!categoriesStr) return 'Sem contas';
@@ -1869,8 +2649,37 @@ const DetailedChartCard = ({ chart, onEdit, onDelete, mainMonth, year, viewMode,
         return getChartCategoryLabel(chart.categoryId);
     };
 
+    // Define legend items
+    const legendItems: { key: string; label: string; color: string }[] = [];
+    let isMixed = false;
+    let bMode = 'bar';
+    let rMode = 'bar';
+    let atMode = 'none';
+    let pctMode = 'none';
+
+    if (chart.chartType && chart.chartType.startsWith('{')) {
+        try {
+            const parsed = JSON.parse(chart.chartType);
+            isMixed = parsed.mode === 'MIXED';
+            bMode = parsed.config?.budget || 'bar';
+            rMode = parsed.config?.realized || 'bar';
+            atMode = parsed.config?.atingido || 'none';
+            pctMode = parsed.config?.pctOfRevenue || 'none';
+        } catch (e) {}
+    }
+
+    if (isMixed) {
+        if (bMode !== 'none' && !chart.onlyRealized) legendItems.push({ key: 'budget', label: 'Orçado', color: '#cbd5e1' });
+        if (rMode !== 'none') legendItems.push({ key: 'realized', label: 'Realizado', color: chart.chartColor || '#6366f1' });
+        if (atMode !== 'none') legendItems.push({ key: 'atingido', label: 'Atingido', color: '#10b981' });
+        if (pctMode !== 'none') legendItems.push({ key: 'pctOfRevenue', label: '% s/ Receita', color: '#f59e0b' });
+    } else {
+        if (!chart.onlyRealized) legendItems.push({ key: 'budget', label: 'Orçado', color: 'var(--border-strong)' });
+        legendItems.push({ key: 'realized', label: 'Realizado', color: chart.chartColor || '#6366f1' });
+    }
+
     return (
-        <div className="glass-card" style={{ padding: '1.25rem', background: 'var(--bg-surface)', borderRadius: '12px', border: '1px solid var(--border-default)', boxShadow: 'var(--shadow-card)', width: '100%', marginBottom: '1.5rem', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+        <div className="glass-card" style={{ padding: '1.25rem', background: 'var(--bg-surface)', borderRadius: '12px', border: '1px solid var(--border-default)', boxShadow: 'var(--shadow-card)', width: '100%', marginBottom: '1.5rem', display: 'flex', flexDirection: 'column', gap: '0.75rem', position: 'relative' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', borderBottom: '1px solid var(--border-subtle)', paddingBottom: '0.5rem' }}>
                 <div style={{ flex: 1, minWidth: 0, paddingRight: '1rem' }}>
                     <h4 style={{ fontSize: '0.95rem', fontWeight: 800, color: 'var(--text-primary)', margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
@@ -1883,54 +2692,182 @@ const DetailedChartCard = ({ chart, onEdit, onDelete, mainMonth, year, viewMode,
                         {chart.onlyRealized ? ' | Somente Realizado' : ''}
                     </span>
                 </div>
-                <div style={{ display: 'flex', gap: '0.5rem', flexShrink: 0 }}>
+                <div style={{ display: 'flex', gap: '0.5rem', flexShrink: 0, alignItems: 'center' }}>
+                    {/* Mensal / Acumulado Toggle */}
+                    <div style={{ display: 'flex', background: 'var(--bg-elevated)', border: '1px solid var(--border-default)', padding: '2px', borderRadius: '6px' }}>
+                        <button
+                            onClick={() => setChartViewMode('monthly')}
+                            style={{
+                                padding: '0.25rem 0.55rem',
+                                border: 'none',
+                                borderRadius: '4px',
+                                fontSize: '0.7rem',
+                                fontWeight: 700,
+                                cursor: 'pointer',
+                                background: chartViewMode === 'monthly' ? 'var(--accent-indigo)' : 'transparent',
+                                color: chartViewMode === 'monthly' ? '#ffffff' : 'var(--text-secondary)',
+                                transition: 'all 0.15s ease'
+                            }}
+                        >
+                            Mensal
+                        </button>
+                        <button
+                            onClick={() => setChartViewMode('accumulated')}
+                            style={{
+                                padding: '0.25rem 0.55rem',
+                                border: 'none',
+                                borderRadius: '4px',
+                                fontSize: '0.7rem',
+                                fontWeight: 700,
+                                cursor: 'pointer',
+                                background: chartViewMode === 'accumulated' ? 'var(--accent-indigo)' : 'transparent',
+                                color: chartViewMode === 'accumulated' ? '#ffffff' : 'var(--text-secondary)',
+                                transition: 'all 0.15s ease'
+                            }}
+                        >
+                            Acumulado
+                        </button>
+                    </div>
+
+                    <button 
+                        onClick={() => onOpenAnalysis(chart)}
+                        style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border-default)', borderRadius: '6px', padding: '0.35rem 0.65rem', fontSize: '0.75rem', fontWeight: 700, color: 'var(--accent-indigo)', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '3px' }}
+                    >
+                        📝 Analisar Desvio
+                    </button>
                     <button 
                         onClick={() => onEdit(chart)}
-                        style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border-default)', borderRadius: '6px', padding: '0.3rem 0.6rem', fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-secondary)', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '3px' }}
+                        style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border-default)', borderRadius: '6px', padding: '0.35rem 0.65rem', fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-secondary)', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '3px' }}
                     >
-                        ⚙️ Configurar Gráfico
+                        ⚙️ Configurar
                     </button>
                     <button 
                         onClick={() => onDelete(chart.id)}
-                        style={{ background: '#fef2f2', border: 'none', borderRadius: '6px', padding: '0.3rem 0.6rem', fontSize: '0.75rem', fontWeight: 700, color: '#ef4444', cursor: 'pointer' }}
+                        style={{ background: '#fef2f2', border: 'none', borderRadius: '6px', padding: '0.35rem 0.65rem', fontSize: '0.75rem', fontWeight: 700, color: '#ef4444', cursor: 'pointer' }}
                     >
                         🗑️ Excluir
                     </button>
                 </div>
             </div>
 
-            <div style={{ width: '100%' }}>
+            {/* Interactive Legend */}
+            <div style={{ display: 'flex', gap: '1rem', justifyContent: 'center', margin: '0.2rem 0', flexWrap: 'wrap' }}>
+                {legendItems.map(item => {
+                    const isHidden = hiddenSeries[item.key];
+                    return (
+                        <div 
+                            key={item.key}
+                            onClick={() => setHiddenSeries(prev => ({ ...prev, [item.key]: !prev[item.key] }))}
+                            style={{ 
+                                display: 'flex', 
+                                alignItems: 'center', 
+                                gap: '0.35rem', 
+                                cursor: 'pointer', 
+                                fontSize: '0.75rem', 
+                                fontWeight: 700,
+                                userSelect: 'none',
+                                opacity: isHidden ? 0.4 : 1,
+                                transition: 'opacity 0.2s'
+                            }}
+                        >
+                            <span style={{ 
+                                display: 'inline-block', 
+                                width: '12px', 
+                                height: '12px', 
+                                borderRadius: '3px', 
+                                backgroundColor: item.color,
+                                border: '1px solid rgba(0,0,0,0.1)'
+                            }} />
+                            <span style={{ color: 'var(--text-secondary)' }}>{item.label}</span>
+                        </div>
+                    );
+                })}
+            </div>
+
+            <div style={{ width: '100%', position: 'relative' }}>
                 {loading ? (
                     <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '180px', width: '100%' }}>
                         <div style={{ border: '2.5px solid #f3f3f3', borderTop: '2.5px solid #3b82f6', borderRadius: '50%', width: '22px', height: '22px', animation: 'spin 1s linear infinite' }} />
                     </div>
                 ) : (
-                    renderDetailedChart(chart.chartType, data, !!chart.onlyRealized, !!chart.showAtingido, !!chart.pctOfRevenue, mainMonth, chart.chartColor, undefined, chart.year)
+                    renderDetailedChart(
+                        chart.chartType, 
+                        processedData, 
+                        !!chart.onlyRealized, 
+                        !!chart.showAtingido, 
+                        !!chart.pctOfRevenue, 
+                        mainMonth, 
+                        chart.chartColor, 
+                        undefined, 
+                        chart.year, 
+                        setTooltip, 
+                        hiddenSeries
+                    )
                 )}
             </div>
 
-            {chart.analysisText ? (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', padding: '0.75rem 1rem', background: 'var(--bg-elevated)', borderLeft: `3.5px solid ${chart.chartColor || 'var(--accent-indigo)'}`, borderRadius: '4px' }}>
+            {/* Display Monthly Analysis Text */}
+            {activeAnalysis && (activeAnalysis.deviationReport || activeAnalysis.analysisPerformed) ? (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem', padding: '0.75rem 1.0rem', background: 'var(--bg-elevated)', borderLeft: `4px solid ${chart.chartColor || '#6366f1'}`, borderRadius: '6px' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '1rem' }}>
-                        <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', fontStyle: 'italic', whiteSpace: 'pre-wrap', flex: 1 }}>
-                            <strong>Análise Histórica:</strong> {chart.analysisText}
-                        </span>
+                        <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', whiteSpace: 'pre-wrap', flex: 1, lineHeight: '1.4' }}>
+                            {activeAnalysis.deviationReport && (
+                                <div style={{ marginBottom: '0.4rem' }}>
+                                    <strong>⚠️ Relato de Desvio ({['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'][mainMonth - 1]}):</strong> {activeAnalysis.deviationReport}
+                                </div>
+                            )}
+                            {activeAnalysis.analysisPerformed && (
+                                <div>
+                                    <strong>🔍 Análise Causa Raiz:</strong> {activeAnalysis.analysisPerformed}
+                                </div>
+                            )}
+                        </div>
                         <button
-                            onClick={() => onEdit(chart)}
-                            style={{ background: 'none', border: 'none', color: chart.chartColor || 'var(--accent-indigo)', fontSize: '0.75rem', fontWeight: 700, cursor: 'pointer', padding: '2px 6px', display: 'flex', alignItems: 'center', gap: '2px', alignSelf: 'flex-start', flexShrink: 0 }}
+                            onClick={() => onOpenAnalysis(chart)}
+                            style={{ background: 'none', border: 'none', color: chart.chartColor || '#6366f1', fontSize: '0.75rem', fontWeight: 800, cursor: 'pointer', padding: '2px 6px', display: 'flex', alignItems: 'center', gap: '2px', alignSelf: 'flex-start', flexShrink: 0 }}
                         >
-                            📝 Editar Análise
+                            ✏️ Editar Análise
                         </button>
                     </div>
                 </div>
             ) : (
-                <div style={{ display: 'flex', justifyContent: 'center', padding: '0.5rem', background: 'var(--bg-elevated)', borderRadius: '6px', border: '1px dashed var(--border-default)' }}>
+                <div style={{ display: 'flex', justifyContent: 'center', padding: '0.5rem', background: 'var(--bg-elevated)', borderRadius: '8px', border: '1px dashed var(--border-default)' }}>
                     <button
-                        onClick={() => onEdit(chart)}
-                        style={{ background: 'none', border: 'none', color: chart.chartColor || 'var(--accent-indigo)', fontSize: '0.8rem', fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.25rem' }}
+                        onClick={() => onOpenAnalysis(chart)}
+                        style={{ background: 'none', border: 'none', color: chart.chartColor || '#6366f1', fontSize: '0.8rem', fontWeight: 800, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.35rem' }}
                     >
-                        📝 Escrever Análise Histórica
+                        📝 Escrever Análise de Desvio do Mês
                     </button>
+                </div>
+            )}
+
+            {/* Custom Fixed Tooltip Rendering */}
+            {tooltip && tooltip.items.length > 0 && (
+                <div style={{
+                    position: 'fixed',
+                    left: tooltip.x + 15,
+                    top: tooltip.y + 15,
+                    backgroundColor: 'rgba(15, 23, 42, 0.95)',
+                    border: '1px solid #334155',
+                    borderRadius: '8px',
+                    padding: '0.55rem 0.75rem',
+                    boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.3), 0 4px 6px -2px rgba(0, 0, 0, 0.05)',
+                    zIndex: 99999,
+                    pointerEvents: 'none',
+                    color: '#f8fafc',
+                    fontSize: '0.75rem',
+                    minWidth: '150px',
+                    fontFamily: 'inherit'
+                }}>
+                    <div style={{ fontWeight: 800, borderBottom: '1px solid rgba(255, 255, 255, 0.15)', paddingBottom: '4px', marginBottom: '4px', color: '#cbd5e1' }}>
+                        {tooltip.title}
+                    </div>
+                    {tooltip.items.map((item, idx) => (
+                        <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', gap: '1.25rem', marginTop: '3px', alignItems: 'center' }}>
+                            <span style={{ color: 'rgba(241, 245, 249, 0.8)', fontWeight: 500 }}>{item.label}</span>
+                            <span style={{ fontWeight: 800, color: item.color || '#fff' }}>{item.value}</span>
+                        </div>
+                    ))}
                 </div>
             )}
         </div>
@@ -1946,7 +2883,9 @@ const renderDetailedChart = (
     mainMonth: number,
     chartColor: string = '#6366f1',
     mixedConfig?: Record<string, 'bar' | 'line_val' | 'diarias_bar' | 'diarias_line' | 'line_atingido' | 'line_revenue'>,
-    year: number = 2026
+    year: number = 2026,
+    onHover?: (tooltipData: { x: number; y: number; title: string; items: { label: string; value: string; color?: string }[] } | null) => void,
+    hiddenSeries: Record<string, boolean> = {}
 ) => {
     if (!data || data.length === 0) {
         return (
@@ -1979,9 +2918,12 @@ const renderDetailedChart = (
     const currentMonthIdx = new Date().getMonth();
     const hasNegative = data.some(m => m.budget < 0 || m.realized < 0);
     
+    const hideBudget = !!hiddenSeries.budget || onlyRealized;
+    const hideRealized = !!hiddenSeries.realized;
+
     const maxVal = Math.max(...data.map((m, idx) => Math.max(
-        onlyRealized ? 0 : Math.abs(pctOfRevenue ? m.pctOfRevenue : m.budget),
-        (idx + 1 <= currentMonthIdx + 1) ? Math.abs(pctOfRevenue ? m.pctOfRevenue : m.realized) : 0
+        hideBudget ? 0 : Math.abs(pctOfRevenue ? m.pctOfRevenue : m.budget),
+        (!hideRealized && idx + 1 <= currentMonthIdx + 1) ? Math.abs(pctOfRevenue ? m.pctOfRevenue : m.realized) : 0
     ))) || 1;
 
     switch (chartMode) {
@@ -2016,10 +2958,10 @@ const renderDetailedChart = (
                 return `${val < 0 ? '-' : ''}R$ ${formatted}${isDaily ? '/d' : ''}`;
             };
 
-            const bMode = config?.budget || 'bar';
-            const rMode = config?.realized || 'bar';
-            const atMode = config?.atingido || 'none';
-            const pctMode = config?.pctOfRevenue || 'none';
+            const bMode = hiddenSeries.budget ? 'none' : (config?.budget || 'bar');
+            const rMode = hiddenSeries.realized ? 'none' : (config?.realized || 'bar');
+            const atMode = hiddenSeries.atingido ? 'none' : (config?.atingido || 'none');
+            const pctMode = hiddenSeries.pctOfRevenue ? 'none' : (config?.pctOfRevenue || 'none');
 
             const hasDailyActive = isDailyMode(bMode) || isDailyMode(rMode);
 
@@ -2065,8 +3007,8 @@ const renderDetailedChart = (
 
             // RENDER BARS (bar, diarias_bar)
             const activeBarKeys: ('budget' | 'realized')[] = [];
-            if (bMode === 'bar' || bMode === 'diarias_bar') activeBarKeys.push('budget');
-            if (rMode === 'bar' || rMode === 'diarias_bar') activeBarKeys.push('realized');
+            if (!hideBudget && (bMode === 'bar' || bMode === 'diarias_bar')) activeBarKeys.push('budget');
+            if (!hideRealized && (rMode === 'bar' || rMode === 'diarias_bar')) activeBarKeys.push('realized');
 
             const renderedBars = data.map((m, monthIdx) => {
                 const xCenter = getX(monthIdx);
@@ -2089,7 +3031,7 @@ const renderDetailedChart = (
                     if (key === 'budget') {
                         return (
                             <g key={`${monthIdx}-budget`}>
-                                {!onlyRealized && valScaled > 0 && (
+                                {valScaled > 0 && (
                                     <>
                                         <rect 
                                             x={barX} 
@@ -2148,7 +3090,7 @@ const renderDetailedChart = (
             // RENDER LEFT AXIS LINES (line_val, diarias_line)
             const leftLines: JSX.Element[] = [];
 
-            if (bMode === 'line_val' || bMode === 'diarias_line') {
+            if (!hideBudget && (bMode === 'line_val' || bMode === 'diarias_line')) {
                 const points: { x: number; y: number; val: number }[] = [];
                 data.forEach((m, monthIdx) => {
                     const valScaled = getAbsValue(m.budget, bMode, monthIdx);
@@ -2191,7 +3133,7 @@ const renderDetailedChart = (
                 );
             }
 
-            if (rMode === 'line_val' || rMode === 'diarias_line') {
+            if (!hideRealized && (rMode === 'line_val' || rMode === 'diarias_line')) {
                 const points: { x: number; y: number; val: number }[] = [];
                 data.forEach((m, monthIdx) => {
                     if (monthIdx + 1 <= currentMonthIdx + 1) {
@@ -2400,6 +3342,61 @@ const renderDetailedChart = (
                             {['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'][idx]}
                         </text>
                     ))}
+
+                    {/* Hover tooltip zones */}
+                    {onHover && data.map((m, idx) => {
+                        const xBase = getX(idx) - stepX / 2;
+                        return (
+                            <rect
+                                key={`hover-${idx}`}
+                                x={xBase}
+                                y={0}
+                                width={stepX}
+                                height={yBaseline + 30}
+                                fill="transparent"
+                                style={{ cursor: 'pointer' }}
+                                onMouseMove={(e) => {
+                                    const items = [];
+                                    if (bMode !== 'none') {
+                                        items.push({ 
+                                            label: 'Orçado', 
+                                            value: formatAbs(getAbsValue(m.budget, bMode, idx), isDailyMode(bMode)), 
+                                            color: '#cbd5e1' 
+                                        });
+                                    }
+                                    if (rMode !== 'none' && idx + 1 <= currentMonthIdx + 1) {
+                                        items.push({ 
+                                            label: 'Realizado', 
+                                            value: formatAbs(getAbsValue(m.realized, rMode, idx), isDailyMode(rMode)), 
+                                            color: chartColor 
+                                        });
+                                    }
+                                    if (atMode !== 'none' && idx + 1 <= currentMonthIdx + 1) {
+                                        items.push({ 
+                                            label: 'Atingido', 
+                                            value: `${m.atingido.toFixed(1)}%`, 
+                                            color: '#10b981' 
+                                        });
+                                    }
+                                    if (pctMode !== 'none' && idx + 1 <= currentMonthIdx + 1) {
+                                        items.push({ 
+                                            label: '% s/ Receita', 
+                                            value: `${m.pctOfRevenue.toFixed(1)}%`, 
+                                            color: '#f59e0b' 
+                                        });
+                                    }
+
+                                    onHover({
+                                        x: e.clientX,
+                                        y: e.clientY,
+                                        title: `${['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'][idx]} de ${year}`,
+                                        items
+                                    });
+                                }}
+                                onMouseLeave={() => onHover(null)}
+                            />
+                        );
+                    })}
                 </svg>
             );
         }
@@ -2407,7 +3404,7 @@ const renderDetailedChart = (
         case 'VERTICAL_BAR': {
             const yBaseline = hasNegative ? 130 : 210;
             const maxBarHeight = hasNegative ? 100 : 165;
-            const scaleMaxVal = maxVal * 1.20; // 20% respiro vertical para rótulos de valores
+            const scaleMaxVal = maxVal * 1.20;
 
             return (
                 <svg viewBox="0 0 1200 260" width="100%" height="auto" style={{ overflow: 'visible', maxHeight: '250px' }}>
@@ -2435,15 +3432,15 @@ const renderDetailedChart = (
                         const valB = pctOfRevenue ? m.pctOfRevenue : m.budget;
                         const valR = (idx + 1 <= currentMonthIdx + 1) ? (pctOfRevenue ? m.pctOfRevenue : m.realized) : 0;
                         
-                        const bHeight = onlyRealized ? 0 : (Math.abs(valB) / scaleMaxVal) * maxBarHeight;
-                        const rHeight = (idx + 1 <= currentMonthIdx + 1) ? (Math.abs(valR) / scaleMaxVal) * maxBarHeight : 0;
+                        const bHeight = hideBudget ? 0 : (Math.abs(valB) / scaleMaxVal) * maxBarHeight;
+                        const rHeight = (!hideRealized && idx + 1 <= currentMonthIdx + 1) ? (Math.abs(valR) / scaleMaxVal) * maxBarHeight : 0;
                         
                         const xBase = 80 + idx * 94;
-                        const barWidth = onlyRealized ? 48 : 36;
+                        const barWidth = hideBudget ? 48 : 36;
                         const xB = xBase + 6;
-                        const xR = onlyRealized ? xBase + 20 : xBase + 46;
+                        const xR = hideBudget ? xBase + 20 : xBase + 46;
 
-                        const isClose = !onlyRealized && (idx + 1 <= currentMonthIdx + 1) && Math.abs(bHeight - rHeight) < 14 && (valB >= 0 === valR >= 0);
+                        const isClose = !hideBudget && (!hideRealized && idx + 1 <= currentMonthIdx + 1) && Math.abs(bHeight - rHeight) < 14 && (valB >= 0 === valR >= 0);
 
                         const bLabelY = valB >= 0 ? yBaseline - bHeight - 8 : yBaseline + bHeight + 17;
                         let rLabelY = valR >= 0 ? yBaseline - rHeight - 8 : yBaseline + rHeight + 17;
@@ -2455,7 +3452,7 @@ const renderDetailedChart = (
 
                         return (
                             <g key={idx}>
-                                {!onlyRealized && valB !== 0 && (
+                                {!hideBudget && valB !== 0 && (
                                     <>
                                         <rect 
                                             x={xB} 
@@ -2469,7 +3466,7 @@ const renderDetailedChart = (
                                     </>
                                 )}
 
-                                {idx + 1 <= currentMonthIdx + 1 && valR !== 0 && (
+                                {!hideRealized && idx + 1 <= currentMonthIdx + 1 && valR !== 0 && (
                                     <>
                                         <rect 
                                             x={xR} 
@@ -2489,6 +3486,43 @@ const renderDetailedChart = (
                             </g>
                         );
                     })}
+
+                    {/* Hover tooltip zones */}
+                    {onHover && data.map((m, idx) => {
+                        const xBase = 80 + idx * 94;
+                        const stepWidth = 94;
+                        return (
+                            <rect
+                                key={`hover-${idx}`}
+                                x={xBase}
+                                y={0}
+                                width={stepWidth}
+                                height={yBaseline + 30}
+                                fill="transparent"
+                                style={{ cursor: 'pointer' }}
+                                onMouseMove={(e) => {
+                                    const valB = pctOfRevenue ? m.pctOfRevenue : m.budget;
+                                    const valR = (idx + 1 <= currentMonthIdx + 1) ? (pctOfRevenue ? m.pctOfRevenue : m.realized) : 0;
+
+                                    const items = [];
+                                    if (!hideBudget) {
+                                        items.push({ label: 'Orçado', value: formatVal(valB), color: '#cbd5e1' });
+                                    }
+                                    if (!hideRealized && idx + 1 <= currentMonthIdx + 1) {
+                                        items.push({ label: 'Realizado', value: formatVal(valR), color: chartColor });
+                                    }
+
+                                    onHover({
+                                        x: e.clientX,
+                                        y: e.clientY,
+                                        title: `${['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'][idx]} de ${year}`,
+                                        items
+                                    });
+                                }}
+                                onMouseLeave={() => onHover(null)}
+                            />
+                        );
+                    })}
                 </svg>
             );
         }
@@ -2496,7 +3530,7 @@ const renderDetailedChart = (
         case 'HORIZONTAL_BAR': {
             const xBaseline = 120;
             const maxBarWidth = 980;
-            const scaleMaxVal = maxVal * 1.15; // 15% respiro horizontal para rótulos de valores
+            const scaleMaxVal = maxVal * 1.15;
 
             return (
                 <svg viewBox="0 0 1200 320" width="100%" height="auto" style={{ overflow: 'visible', maxHeight: '280px' }}>
@@ -2512,13 +3546,13 @@ const renderDetailedChart = (
                         const valB = pctOfRevenue ? m.pctOfRevenue : m.budget;
                         const valR = (idx + 1 <= currentMonthIdx + 1) ? (pctOfRevenue ? m.pctOfRevenue : m.realized) : 0;
 
-                        const bWidth = onlyRealized ? 0 : (Math.abs(valB) / scaleMaxVal) * maxBarWidth;
-                        const rWidth = (idx + 1 <= currentMonthIdx + 1) ? (Math.abs(valR) / scaleMaxVal) * maxBarWidth : 0;
+                        const bWidth = hideBudget ? 0 : (Math.abs(valB) / scaleMaxVal) * maxBarWidth;
+                        const rWidth = (!hideRealized && idx + 1 <= currentMonthIdx + 1) ? (Math.abs(valR) / scaleMaxVal) * maxBarWidth : 0;
                         
                         const yBase = 15 + idx * 24;
-                        const barHeight = onlyRealized ? 16 : 10;
+                        const barHeight = hideBudget ? 16 : 10;
                         const yB = yBase;
-                        const yR = onlyRealized ? yBase + 2 : yBase + 12;
+                        const yR = hideBudget ? yBase + 2 : yBase + 12;
 
                         return (
                             <g key={idx}>
@@ -2526,7 +3560,7 @@ const renderDetailedChart = (
                                     {['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'][idx]}
                                 </text>
 
-                                {!onlyRealized && valB !== 0 && (
+                                {!hideBudget && valB !== 0 && (
                                     <>
                                         <rect 
                                             x={xBaseline} 
@@ -2540,7 +3574,7 @@ const renderDetailedChart = (
                                     </>
                                 )}
 
-                                {idx + 1 <= currentMonthIdx + 1 && valR !== 0 && (
+                                {!hideRealized && idx + 1 <= currentMonthIdx + 1 && valR !== 0 && (
                                     <>
                                         <rect 
                                             x={xBaseline} 
@@ -2556,6 +3590,42 @@ const renderDetailedChart = (
                             </g>
                         );
                     })}
+
+                    {/* Hover tooltip zones */}
+                    {onHover && data.map((m, idx) => {
+                        const yBase = 15 + idx * 24;
+                        return (
+                            <rect
+                                key={`hover-${idx}`}
+                                x={0}
+                                y={yBase}
+                                width={1200}
+                                height={24}
+                                fill="transparent"
+                                style={{ cursor: 'pointer' }}
+                                onMouseMove={(e) => {
+                                    const valB = pctOfRevenue ? m.pctOfRevenue : m.budget;
+                                    const valR = (idx + 1 <= currentMonthIdx + 1) ? (pctOfRevenue ? m.pctOfRevenue : m.realized) : 0;
+
+                                    const items = [];
+                                    if (!hideBudget) {
+                                        items.push({ label: 'Orçado', value: formatVal(valB), color: '#cbd5e1' });
+                                    }
+                                    if (!hideRealized && idx + 1 <= currentMonthIdx + 1) {
+                                        items.push({ label: 'Realizado', value: formatVal(valR), color: chartColor });
+                                    }
+
+                                    onHover({
+                                        x: e.clientX,
+                                        y: e.clientY,
+                                        title: `${['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'][idx]} de ${year}`,
+                                        items
+                                    });
+                                }}
+                                onMouseLeave={() => onHover(null)}
+                            />
+                        );
+                    })}
                 </svg>
             );
         }
@@ -2564,7 +3634,7 @@ const renderDetailedChart = (
         case 'LINE_MARKERS': {
             const yBaseline = hasNegative ? 130 : 210;
             const maxLineHeight = hasNegative ? 100 : 165;
-            const scaleMaxVal = maxVal * 1.20; // 20% respiro vertical para rótulos de valores
+            const scaleMaxVal = maxVal * 1.20;
 
             let pathB = '';
             let pathR = '';
@@ -2579,12 +3649,12 @@ const renderDetailedChart = (
                 const yB = yBaseline - (valB / scaleMaxVal) * maxLineHeight;
                 const yR = yBaseline - (valR / scaleMaxVal) * maxLineHeight;
 
-                if (!onlyRealized) {
+                if (!hideBudget) {
                     pointsB.push({ x, y: yB, val: valB });
                     pathB += (pathB === '' ? 'M' : 'L') + ` ${x} ${yB}`;
                 }
 
-                if (idx + 1 <= currentMonthIdx + 1) {
+                if (!hideRealized && idx + 1 <= currentMonthIdx + 1) {
                     pointsR.push({ x, y: yR, val: valR });
                     pathR += (pathR === '' ? 'M' : 'L') + ` ${x} ${yR}`;
                 }
@@ -2612,23 +3682,23 @@ const renderDetailedChart = (
                         <text x="75" y="194" textAnchor="end" fill="var(--text-muted)" fontSize="12px" fontWeight="700">{formatVal(-scaleMaxVal)}</text>
                     )}
 
-                    {!onlyRealized && pathB && (
+                    {!hideBudget && pathB && (
                         <path d={pathB} fill="none" stroke="var(--text-muted)" strokeWidth="2.5" strokeDasharray="4 4" strokeLinecap="round" strokeLinejoin="round" />
                     )}
-                    {pathR && (
+                    {!hideRealized && pathR && (
                         <path d={pathR} fill="none" stroke={chartColor} strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
                     )}
 
                     {type === 'LINE_MARKERS' && (
                         <>
-                            {!onlyRealized && pointsB.map((p, idx) => (
+                            {!hideBudget && pointsB.map((p, idx) => (
                                 <g key={`b-${idx}`}>
                                     <circle cx={p.x} cy={p.y} r="4" fill="var(--text-muted)" stroke="var(--bg-surface)" strokeWidth="1.5" />
                                     <text x={p.x} y={p.y - 12} textAnchor="middle" fill="var(--text-secondary)" fontSize="12px" fontWeight="700">{formatVal(p.val)}</text>
                                 </g>
                             ))}
 
-                            {pointsR.map((p, idx) => (
+                            {!hideRealized && pointsR.map((p, idx) => (
                                 <g key={`r-${idx}`}>
                                     <circle cx={p.x} cy={p.y} r="5" fill={chartColor} stroke="var(--bg-surface)" strokeWidth="2" />
                                     <text x={p.x} y={p.y - 13} textAnchor="middle" fill={chartColor} fontSize="12px" fontWeight="800">{formatVal(p.val)}</text>
@@ -2642,12 +3712,50 @@ const renderDetailedChart = (
                             {['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'][idx]}
                         </text>
                     ))}
+
+                    {/* Hover tooltip zones */}
+                    {onHover && data.map((m, idx) => {
+                        const xBase = 80 + idx * 94;
+                        const stepWidth = 94;
+                        return (
+                            <rect
+                                key={`hover-${idx}`}
+                                x={xBase}
+                                y={0}
+                                width={stepWidth}
+                                height={yBaseline + 30}
+                                fill="transparent"
+                                style={{ cursor: 'pointer' }}
+                                onMouseMove={(e) => {
+                                    const valB = pctOfRevenue ? m.pctOfRevenue : m.budget;
+                                    const valR = (idx + 1 <= currentMonthIdx + 1) ? (pctOfRevenue ? m.pctOfRevenue : m.realized) : 0;
+
+                                    const items = [];
+                                    if (!hideBudget) {
+                                        items.push({ label: 'Orçado', value: formatVal(valB), color: '#cbd5e1' });
+                                    }
+                                    if (!hideRealized && idx + 1 <= currentMonthIdx + 1) {
+                                        items.push({ label: 'Realizado', value: formatVal(valR), color: chartColor });
+                                    }
+
+                                    onHover({
+                                        x: e.clientX,
+                                        y: e.clientY,
+                                        title: `${['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'][idx]} de ${year}`,
+                                        items
+                                    });
+                                }}
+                                onMouseLeave={() => onHover(null)}
+                            />
+                        );
+                    })}
                 </svg>
             );
         }
 
         case 'PIE':
         case 'DONUT': {
+            if (hideRealized) return null;
             const totalRealizedSum = data.reduce((acc, m, idx) => acc + (idx + 1 <= currentMonthIdx + 1 ? Math.max(0, m.realized) : 0), 0);
             
             if (totalRealizedSum <= 0) {
@@ -2693,8 +3801,26 @@ const renderDetailedChart = (
                                 fillOpacity={sliceOpacity}
                                 stroke="var(--bg-surface)" 
                                 strokeWidth="1.5"
-                                onMouseEnter={(e) => e.currentTarget.style.fillOpacity = String(Math.max(0.2, sliceOpacity - 0.15))}
-                                onMouseLeave={(e) => e.currentTarget.style.fillOpacity = String(sliceOpacity)}
+                                onMouseEnter={(e) => {
+                                    e.currentTarget.style.fillOpacity = String(Math.max(0.2, sliceOpacity - 0.15));
+                                }}
+                                onMouseMove={(e) => {
+                                    if (onHover) {
+                                        onHover({
+                                            x: e.clientX,
+                                            y: e.clientY,
+                                            title: `${['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'][idx]} de ${year}`,
+                                            items: [
+                                                { label: 'Realizado', value: formatVal(val), color: chartColor },
+                                                { label: 'Proporção', value: `${percentage.toFixed(1)}%`, color: '#f59e0b' }
+                                            ]
+                                        });
+                                    }
+                                }}
+                                onMouseLeave={(e) => {
+                                    e.currentTarget.style.fillOpacity = String(sliceOpacity);
+                                    if (onHover) onHover(null);
+                                }}
                                 style={{ transition: 'fill-opacity 0.2s', cursor: 'pointer' }}
                             />
                         );
@@ -2763,7 +3889,29 @@ const renderDetailedChart = (
             };
 
             return (
-                <svg viewBox="0 0 400 230" width="100%" height="220px" style={{ overflow: 'visible' }}>
+                <svg 
+                    viewBox="0 0 400 230" 
+                    width="100%" 
+                    height="220px" 
+                    style={{ overflow: 'visible' }}
+                    onMouseMove={(e) => {
+                        if (onHover) {
+                            onHover({
+                                x: e.clientX,
+                                y: e.clientY,
+                                title: `Atingimento de Meta - ${['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'][mainMonth - 1]}`,
+                                items: [
+                                    { label: 'Atingido', value: `${atingido.toFixed(1)}%`, color: chartColor },
+                                    { label: 'Orçado', value: formatVal(pctOfRevenue ? mData.pctOfRevenue : mData.budget), color: '#cbd5e1' },
+                                    { label: 'Realizado', value: formatVal(pctOfRevenue ? mData.pctOfRevenue : mData.realized), color: chartColor }
+                                ]
+                            });
+                        }
+                    }}
+                    onMouseLeave={() => {
+                        if (onHover) onHover(null);
+                    }}
+                >
                     <path d={getArcPath(cx, cy, R, 0, 63)} fill="none" stroke="var(--accent-red)" strokeWidth="22" strokeLinecap="butt" />
                     <path d={getArcPath(cx, cy, R, 63, 85.5)} fill="none" stroke="#f59e0b" strokeWidth="22" strokeLinecap="butt" />
                     <path d={getArcPath(cx, cy, R, 85.5, 99)} fill="none" stroke="var(--accent-green)" strokeWidth="22" strokeLinecap="butt" />
@@ -2790,7 +3938,3 @@ const renderDetailedChart = (
             return null;
     }
 };
-
-
-
-

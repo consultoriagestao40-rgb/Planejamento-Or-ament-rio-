@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import Link from 'next/link';
+import { createPortal } from 'react-dom';
 
 interface PortfolioItem {
     tenantId: string;
@@ -1926,34 +1927,44 @@ export default function PortfolioAnalysisPage() {
                 )}
 
             {/* Preview Tooltip Rendering */}
-            {previewTooltip && previewTooltip.items.length > 0 && (
-                <div style={{
-                    position: 'fixed',
-                    left: previewTooltip.x + 15,
-                    top: previewTooltip.y + 15,
-                    backgroundColor: 'rgba(15, 23, 42, 0.95)',
-                    border: '1px solid #334155',
-                    borderRadius: '8px',
-                    padding: '0.55rem 0.75rem',
-                    boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.3), 0 4px 6px -2px rgba(0, 0, 0, 0.05)',
-                    zIndex: 99999,
-                    pointerEvents: 'none',
-                    color: '#f8fafc',
-                    fontSize: '0.75rem',
-                    minWidth: '150px',
-                    fontFamily: 'inherit'
-                }}>
-                    <div style={{ fontWeight: 800, borderBottom: '1px solid rgba(255, 255, 255, 0.15)', paddingBottom: '4px', marginBottom: '4px', color: '#cbd5e1' }}>
-                        {previewTooltip.title}
-                    </div>
-                    {previewTooltip.items.map((item, idx) => (
-                        <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', gap: '1.25rem', marginTop: '3px', alignItems: 'center' }}>
-                            <span style={{ color: 'rgba(241, 245, 249, 0.8)', fontWeight: 500 }}>{item.label}</span>
-                            <span style={{ fontWeight: 800, color: item.color || '#fff' }}>{item.value}</span>
+            {previewTooltip && previewTooltip.items.length > 0 && (() => {
+                const tipW = 180;
+                const tipH = 32 + previewTooltip.items.length * 22;
+                const safeLeft = Math.min(previewTooltip.x + 15, (typeof window !== 'undefined' ? window.innerWidth : 1200) - tipW - 10);
+                let safeTop = previewTooltip.y + 15;
+                if (previewTooltip.y + tipH + 20 > (typeof window !== 'undefined' ? window.innerHeight : 800)) {
+                    safeTop = previewTooltip.y - tipH - 10; // flip above cursor
+                    if (safeTop < 10) safeTop = 10;
+                }
+                return (
+                    <div style={{
+                        position: 'fixed',
+                        left: safeLeft,
+                        top: safeTop,
+                        backgroundColor: 'rgba(15, 23, 42, 0.95)',
+                        border: '1px solid #334155',
+                        borderRadius: '8px',
+                        padding: '0.55rem 0.75rem',
+                        boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.3), 0 4px 6px -2px rgba(0, 0, 0, 0.05)',
+                        zIndex: 99999,
+                        pointerEvents: 'none',
+                        color: '#f8fafc',
+                        fontSize: '0.75rem',
+                        minWidth: '150px',
+                        fontFamily: 'inherit'
+                    }}>
+                        <div style={{ fontWeight: 800, borderBottom: '1px solid rgba(255, 255, 255, 0.15)', paddingBottom: '4px', marginBottom: '4px', color: '#cbd5e1' }}>
+                            {previewTooltip.title}
                         </div>
-                    ))}
-                </div>
-            )}
+                        {previewTooltip.items.map((item, idx) => (
+                            <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', gap: '1.25rem', marginTop: '3px', alignItems: 'center' }}>
+                                <span style={{ color: 'rgba(241, 245, 249, 0.8)', fontWeight: 500 }}>{item.label}</span>
+                                <span style={{ fontWeight: 800, color: item.color || '#fff' }}>{item.value}</span>
+                            </div>
+                        ))}
+                    </div>
+                );
+            })()}
 
 
             {/* Modal de Análise Detalhada / Justificativa de Desvio */}
@@ -2560,6 +2571,11 @@ const DetailedChartCard = ({ chart, onEdit, onDelete, onOpenAnalysis, mainMonth,
     const [activeAnalysis, setActiveAnalysis] = useState<any | null>(null);
     const [tooltip, setTooltip] = useState<{ x: number; y: number; title: string; items: { label: string; value: string; color?: string }[] } | null>(null);
     const [hiddenSeries, setHiddenSeries] = useState<Record<string, boolean>>({});
+    const [mounted, setMounted] = useState(false);
+
+    useEffect(() => {
+        setMounted(true);
+    }, []);
 
     useEffect(() => {
         let active = true;
@@ -2886,42 +2902,47 @@ const DetailedChartCard = ({ chart, onEdit, onDelete, onOpenAnalysis, mainMonth,
             )}
 
             {/* Custom Fixed Tooltip Rendering */}
-            {tooltip && tooltip.items.length > 0 && (() => {
-                const tipW = 200;
-                const tipH = 32 + tooltip.items.length * 22;
-                const safeLeft = Math.min(tooltip.x + 15, (typeof window !== 'undefined' ? window.innerWidth : 1200) - tipW - 10);
-                const safeTop = tooltip.y + tipH + 20 > (typeof window !== 'undefined' ? window.innerHeight : 800)
-                    ? tooltip.y - tipH - 10  // flip above cursor
-                    : tooltip.y + 15;
-                return (
-                    <div style={{
-                        position: 'fixed',
-                        left: safeLeft,
-                        top: safeTop,
-                        backgroundColor: 'rgba(15, 23, 42, 0.97)',
-                        border: '1px solid #334155',
-                        borderRadius: '8px',
-                        padding: '0.55rem 0.75rem',
-                        boxShadow: '0 10px 20px -3px rgba(0,0,0,0.4)',
-                        zIndex: 99999,
-                        pointerEvents: 'none',
-                        color: '#f8fafc',
-                        fontSize: '0.75rem',
-                        minWidth: '160px',
-                        fontFamily: 'inherit'
-                    }}>
-                        <div style={{ fontWeight: 800, borderBottom: '1px solid rgba(255,255,255,0.15)', paddingBottom: '4px', marginBottom: '4px', color: '#cbd5e1' }}>
-                            {tooltip.title}
-                        </div>
-                        {tooltip.items.map((item, idx) => (
-                            <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', gap: '1.25rem', marginTop: '3px', alignItems: 'center' }}>
-                                <span style={{ color: 'rgba(241,245,249,0.8)', fontWeight: 500 }}>{item.label}</span>
-                                <span style={{ fontWeight: 800, color: item.color || '#fff' }}>{item.value}</span>
+            {mounted && typeof document !== 'undefined' && tooltip && tooltip.items.length > 0 && createPortal(
+                (() => {
+                    const tipW = 200;
+                    const tipH = 32 + tooltip.items.length * 22;
+                    const safeLeft = Math.min(tooltip.x + 15, window.innerWidth - tipW - 10);
+                    let safeTop = tooltip.y + 15;
+                    if (tooltip.y + tipH + 20 > window.innerHeight) {
+                        safeTop = tooltip.y - tipH - 10; // flip above cursor
+                        if (safeTop < 10) safeTop = 10; // clamp to top edge
+                    }
+                    return (
+                        <div style={{
+                            position: 'fixed',
+                            left: safeLeft,
+                            top: safeTop,
+                            backgroundColor: 'rgba(15, 23, 42, 0.97)',
+                            border: '1px solid #334155',
+                            borderRadius: '8px',
+                            padding: '0.55rem 0.75rem',
+                            boxShadow: '0 10px 20px -3px rgba(0,0,0,0.4)',
+                            zIndex: 99999,
+                            pointerEvents: 'none',
+                            color: '#f8fafc',
+                            fontSize: '0.75rem',
+                            minWidth: '160px',
+                            fontFamily: 'inherit'
+                        }}>
+                            <div style={{ fontWeight: 800, borderBottom: '1px solid rgba(255,255,255,0.15)', paddingBottom: '4px', marginBottom: '4px', color: '#cbd5e1' }}>
+                                {tooltip.title}
                             </div>
-                        ))}
-                    </div>
-                );
-            })()}
+                            {tooltip.items.map((item, idx) => (
+                                <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', gap: '1.25rem', marginTop: '3px', alignItems: 'center' }}>
+                                    <span style={{ color: 'rgba(241,245,249,0.8)', fontWeight: 500 }}>{item.label}</span>
+                                    <span style={{ fontWeight: 800, color: item.color || '#fff' }}>{item.value}</span>
+                                </div>
+                            ))}
+                        </div>
+                    );
+                })(),
+                document.body
+            )}
         </div>
     );
 };

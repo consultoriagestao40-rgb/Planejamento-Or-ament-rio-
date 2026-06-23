@@ -6,42 +6,29 @@ export const dynamic = 'force-dynamic';
 
 export async function GET() {
     try {
-        const analyses = await prisma.detailedAnalysis.findMany({
-            orderBy: { updatedAt: 'desc' }
+        const tenants = await prisma.tenant.findMany({
+            select: { id: true, name: true, cnpj: true }
         });
         
-        // Find all budget entries for 2026
+        // Summarize budget by tenant, category name and month
         const budgets = await prisma.budgetEntry.findMany({
             where: { year: 2026 },
             include: { category: true }
         });
-        
-        const realized = await prisma.realizedEntry.findMany({
-            where: { year: 2026, viewMode: 'competencia' },
-            include: { category: true }
-        });
 
-        // Let's summarize budget by category and month
-        const budgetSummary: Record<string, Record<number, number>> = {};
+        const tenantBudgets: Record<string, Record<string, Record<number, number>>> = {};
         budgets.forEach(b => {
+            const tenantName = tenants.find(t => t.id === b.tenantId)?.name || b.tenantId;
             const catName = b.category.name;
-            if (!budgetSummary[catName]) budgetSummary[catName] = {};
-            budgetSummary[catName][b.month] = (budgetSummary[catName][b.month] || 0) + b.amount;
-        });
-
-        // Summarize realized by category and month
-        const realizedSummary: Record<string, Record<number, number>> = {};
-        realized.forEach(r => {
-            const catName = r.category.name;
-            if (!realizedSummary[catName]) realizedSummary[catName] = {};
-            realizedSummary[catName][r.month] = (realizedSummary[catName][r.month] || 0) + r.amount;
+            if (!tenantBudgets[tenantName]) tenantBudgets[tenantName] = {};
+            if (!tenantBudgets[tenantName][catName]) tenantBudgets[tenantName][catName] = {};
+            tenantBudgets[tenantName][catName][b.month] = (tenantBudgets[tenantName][catName][b.month] || 0) + b.amount;
         });
 
         return NextResponse.json({
             success: true,
-            analyses,
-            budgetSummary,
-            realizedSummary
+            tenants,
+            tenantBudgets
         });
     } catch (e: any) {
         return NextResponse.json({ success: false, error: e.message });

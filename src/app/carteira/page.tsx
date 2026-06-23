@@ -2942,7 +2942,8 @@ const DetailedChartCard = ({ chart, onEdit, onDelete, onOpenAnalysis, mainMonth,
         let accRealized = 0;
         let accCompareBudget = 0;
         let accCompareRealized = 0;
-        let accRevenue = 0;
+        let accRevenueRealized = 0;
+        let accRevenueBudget = 0;
 
         return data.map((m) => {
             accBudget += m.budget;
@@ -2953,8 +2954,11 @@ const DetailedChartCard = ({ chart, onEdit, onDelete, onOpenAnalysis, mainMonth,
                 accCompareRealized += m.compareRealized || 0;
             }
 
-            const mRevenue = m.pctOfRevenue > 0 ? (m.realized / (m.pctOfRevenue / 100)) : 0;
-            accRevenue += mRevenue;
+            const mRevenueRealized = m.pctOfRevenue > 0 ? (m.realized / (m.pctOfRevenue / 100)) : 0;
+            accRevenueRealized += mRevenueRealized;
+
+            const mRevenueBudget = m.pctOfRevenueBudget > 0 ? (m.budget / (m.pctOfRevenueBudget / 100)) : 0;
+            accRevenueBudget += mRevenueBudget;
 
             let accAtingido = 0;
             if (isRatio) {
@@ -2969,14 +2973,16 @@ const DetailedChartCard = ({ chart, onEdit, onDelete, onOpenAnalysis, mainMonth,
                 }
             }
 
-            const accPctOfRevenue = accRevenue > 0 ? (accRealized / accRevenue) * 100 : 0;
+            const accPctOfRevenue = accRevenueRealized > 0 ? (accRealized / accRevenueRealized) * 100 : 0;
+            const accPctOfRevenueBudget = accRevenueBudget > 0 ? (accBudget / accRevenueBudget) * 100 : 0;
 
             const res: any = {
                 ...m,
                 budget: accBudget,
                 realized: accRealized,
                 atingido: accAtingido,
-                pctOfRevenue: accPctOfRevenue
+                pctOfRevenue: accPctOfRevenue,
+                pctOfRevenueBudget: accPctOfRevenueBudget
             };
 
             if (isRatio) {
@@ -3093,7 +3099,10 @@ const DetailedChartCard = ({ chart, onEdit, onDelete, onOpenAnalysis, mainMonth,
             if (bMode !== 'none' && !chart.onlyRealized) legendItems.push({ key: 'budget', label: 'Orçado', color: '#cbd5e1' });
             if (rMode !== 'none') legendItems.push({ key: 'realized', label: 'Realizado', color: chart.chartColor || '#6366f1' });
             if (atMode !== 'none') legendItems.push({ key: 'atingido', label: 'Atingido', color: '#10b981' });
-            if (pctMode !== 'none') legendItems.push({ key: 'pctOfRevenue', label: '% s/ Receita', color: '#f59e0b' });
+            if (pctMode !== 'none') {
+                if (!chart.onlyRealized) legendItems.push({ key: 'pctOfRevenueBudget', label: '% s/ Receita (Orçado)', color: '#fed7aa' });
+                legendItems.push({ key: 'pctOfRevenue', label: '% s/ Receita (Realizado)', color: '#f59e0b' });
+            }
         } else {
             if (!chart.onlyRealized) legendItems.push({ key: 'budget', label: 'Orçado', color: 'var(--border-strong)' });
             legendItems.push({ key: 'realized', label: 'Realizado', color: chart.chartColor || '#6366f1' });
@@ -3446,6 +3455,9 @@ const renderDetailedChart = (
                         maxPct = Math.max(maxPct, Math.abs(m.pctOfRevenue));
                     }
                 }
+                if (pctMode !== 'none' && !onlyRealized) {
+                    maxPct = Math.max(maxPct, Math.abs(m.pctOfRevenueBudget || 0));
+                }
             });
             const scaleMaxPct = maxPct * 1.15;
 
@@ -3672,13 +3684,55 @@ const renderDetailedChart = (
             }
 
             if (pctMode === 'line_revenue') {
+                if (!onlyRealized) {
+                    const pointsB: { x: number; y: number; val: number }[] = [];
+                    data.forEach((m, monthIdx) => {
+                        pointsB.push({
+                            x: getX(monthIdx),
+                            y: getYPct(m.pctOfRevenueBudget || 0),
+                            val: m.pctOfRevenueBudget || 0
+                        });
+                    });
+
+                    if (pointsB.length > 0) {
+                        let pathD = `M ${pointsB[0].x} ${pointsB[0].y}`;
+                        for (let i = 1; i < pointsB.length; i++) {
+                            pathD += ` L ${pointsB[i].x} ${pointsB[i].y}`;
+                        }
+                        const lineColor = '#fed7aa';
+                        rightLines.push(
+                            <g key="pct-revenue-budget-line">
+                                <path d={pathD} fill="none" stroke={lineColor} strokeWidth="2.5" strokeDasharray="4 4" strokeLinecap="round" strokeLinejoin="round" />
+                                {pointsB.map((p, idx) => (
+                                    <g key={idx}>
+                                        <circle cx={p.x} cy={p.y} r="4.5" fill={lineColor} stroke="var(--bg-surface)" strokeWidth="1.5" />
+                                        {config?.showPctOfRevenueLabels !== 'false' && p.val !== 0 && (
+                                            <text 
+                                                x={p.x} 
+                                                y={p.y - 10} 
+                                                textAnchor="middle" 
+                                                fill={lineColor} 
+                                                fontSize="9px" 
+                                                fontWeight="800"
+                                                style={{ paintOrder: 'stroke', stroke: 'var(--bg-surface)', strokeWidth: 3.5, strokeLinejoin: 'round' }}
+                                            >
+                                                {p.val.toFixed(1)}%
+                                            </text>
+                                        )}
+                                    </g>
+                                ))}
+                            </g>
+                        );
+                    }
+                }
+
                 const points: { x: number; y: number; val: number }[] = [];
                 data.forEach((m, monthIdx) => {
                     if (monthIdx + 1 <= currentMonthIdx + 1) {
                         points.push({
                             x: getX(monthIdx),
-                            y: getYPct(m.pctOfRevenue),
-                            val: m.pctOfRevenue
+                            y: getYPct(m.pctOfRevenue || 0),
+                            val: m.pctOfRevenue || 0
                         });
                     }
                 });
@@ -3697,7 +3751,7 @@ const renderDetailedChart = (
                             {points.map((p, idx) => (
                                 <g key={idx}>
                                     <circle cx={p.x} cy={p.y} r="4.5" fill={lineColor} stroke="var(--bg-surface)" strokeWidth="1.5" />
-                                    {config?.showPctOfRevenueLabels !== 'false' && (
+                                    {config?.showPctOfRevenueLabels !== 'false' && p.val !== 0 && (
                                         <text 
                                             x={p.x} 
                                             y={p.y - 10} 
@@ -3810,12 +3864,21 @@ const renderDetailedChart = (
                                         color: '#10b981' 
                                     });
                                 }
-                                if (pctMode !== 'none' && idx + 1 <= currentMonthIdx + 1) {
-                                    items.push({ 
-                                        label: '% s/ Receita', 
-                                        value: `${m.pctOfRevenue.toFixed(1)}%`, 
-                                        color: '#f59e0b' 
-                                    });
+                                if (pctMode !== 'none') {
+                                    if (!onlyRealized) {
+                                        items.push({ 
+                                            label: '% s/ Receita (Orçado)', 
+                                            value: `${(m.pctOfRevenueBudget || 0).toFixed(1)}%`, 
+                                            color: '#fed7aa' 
+                                        });
+                                    }
+                                    if (idx + 1 <= currentMonthIdx + 1) {
+                                        items.push({ 
+                                            label: '% s/ Receita (Realizado)', 
+                                            value: `${(m.pctOfRevenue || 0).toFixed(1)}%`, 
+                                            color: '#f59e0b' 
+                                        });
+                                    }
                                 }
 
                                 onHover({

@@ -680,12 +680,15 @@ export async function GET(request: Request) {
                     // Individual percentage of revenue
                     const revVal = dreTotals[m].vRev.r || 1;
                     const pct = (rVal / revVal) * 100;
+                    const revValB = dreTotals[m].vRev.b || 1;
+                    const pctB = (bVal / revValB) * 100;
 
                     breakdown[originalKey] = {
                         budget: bVal,
                         realized: rVal,
                         atingido: at,
-                        pctOfRevenue: pct
+                        pctOfRevenue: pct,
+                        pctOfRevenueBudget: pctB
                     };
                 });
 
@@ -702,6 +705,8 @@ export async function GET(request: Request) {
                 // Percentage of revenue (pctOfRevenue)
                 const revenueVal = dreTotals[m].vRev.r || 1;
                 const pctOfRevenue = (realizedVal / revenueVal) * 100;
+                const revenueValBudget = dreTotals[m].vRev.b || 1;
+                const pctOfRevenueBudget = (budgetVal / revenueValBudget) * 100;
 
                 return {
                     month: m + 1,
@@ -709,6 +714,7 @@ export async function GET(request: Request) {
                     realized: realizedVal,
                     atingido,
                     pctOfRevenue,
+                    pctOfRevenueBudget,
                     breakdown
                 };
             });
@@ -736,12 +742,14 @@ export async function GET(request: Request) {
                     ratioRealized: rRatio,
                     atingido: rRatio,
                     pctOfRevenue: 0,
+                    pctOfRevenueBudget: 0,
                     breakdown: {
                         ratio: {
                             budget: bRatio,
                             realized: rRatio,
                             atingido: rRatio,
-                            pctOfRevenue: 0
+                            pctOfRevenue: 0,
+                            pctOfRevenueBudget: 0
                         }
                     }
                 };

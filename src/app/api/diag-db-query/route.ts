@@ -411,23 +411,38 @@ export async function GET() {
         if (root1) calculateNode(root1);
         const chartRevTotals = root1 ? totalsMap.get(root1.id) : null;
 
-        // Compare side by side
-        const comparison: any[] = [];
-        for (let m = 0; m < 12; m++) {
-            comparison.push({
-                month: m + 1,
-                dre_realized: dreRevRealized[m],
-                dre_budget: dreRevBudget[m],
-                chart_realized: chartRevTotals ? chartRevTotals.realized[m] : 0,
-                chart_budget: chartRevTotals ? chartRevTotals.budget[m] : 0
-            });
-        }
+        // Detailed dump for Month 1 and 2
+        const detailedBudget = budgetRaw.filter(e => {
+            const catName = categoryNameMap.get(e.categoryId) || '';
+            const code = getCleanCode(catName);
+            return (code.startsWith('01') || code.startsWith('1')) && (e.month === 1 || e.month === 2);
+        }).map(e => ({
+            tenant: tenants.find(t => t.id === e.tenantId)?.name,
+            category: categoryNameMap.get(e.categoryId),
+            month: e.month,
+            amount: e.amount,
+            cc: (e as any).costCenter?.name || 'SEM CC'
+        }));
+
+        const detailedRealized = realizedRaw.filter(e => {
+            const catName = categoryNameMap.get(e.categoryId) || '';
+            const code = getCleanCode(catName);
+            return (code.startsWith('01') || code.startsWith('1')) && (e.month === 1 || e.month === 2);
+        }).map(e => ({
+            tenant: tenants.find(t => t.id === e.tenantId)?.name,
+            category: categoryNameMap.get(e.categoryId),
+            month: e.month,
+            amount: e.amount,
+            externalId: e.externalId,
+            cc: (e as any).costCenter?.name || 'SEM CC'
+        }));
 
         return NextResponse.json({
             success: true,
             comparison,
-            categoryNames: categories.map(c => c.name),
-            roots: finalRoots.map(r => ({ id: r.id, name: r.name, code: r.code }))
+            syncedMonths: Array.from(syncedMonths),
+            detailedBudget,
+            detailedRealized
         });
     } catch (e: any) {
         return NextResponse.json({ success: false, error: e.message });

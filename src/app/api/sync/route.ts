@@ -99,17 +99,20 @@ export async function GET(request: Request) {
             })
         ]);
 
-        // Deduplicate per tenant: sync- entries override manual ones within the same tenant+month
-        const syncedMonthsPerTenant = new Set<string>();
+        // Deduplicate realized: if ANY tenant has sync- entries for a year+month,
+        // drop ALL manual entries for that month across ALL tenants.
+        // This prevents variant-tenant doubling (e.g., tenant A1 has sync, tenant A2 has manual
+        // for the same data → global scope ensures only the sync version is counted).
+        const syncedMonths = new Set<string>();
         realizedRaw.forEach(e => {
             if (e.externalId && e.externalId.startsWith('sync-')) {
-                syncedMonthsPerTenant.add(`${e.tenantId}|${e.year}|${e.month}`);
+                syncedMonths.add(`${e.year}|${e.month}`);
             }
         });
 
         const realizedEntriesRaw = realizedRaw.filter(e => {
-            const key = `${e.tenantId}|${e.year}|${e.month}`;
-            if (syncedMonthsPerTenant.has(key)) {
+            const key = `${e.year}|${e.month}`;
+            if (syncedMonths.has(key)) {
                 return e.externalId && e.externalId.startsWith('sync-');
             }
             return true;

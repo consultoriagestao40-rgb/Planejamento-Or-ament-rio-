@@ -115,56 +115,23 @@ export async function GET() {
         }
 
         // ------------------ LOGIC B: DETAILED CHART API ------------------
-        // Build variant tenant groups
-        const tenantToGroup = new Map<string, string>();
-        tenants.forEach(t => {
-            const cnpjClean = (t.cnpj || '').replace(/\D/g, '');
-            const isUnknown = !t.cnpj || t.cnpj.toLowerCase().includes('unknown') || cnpjClean === '';
-            const groupKey = (!isUnknown && cnpjClean.length >= 8)
-                ? cnpjClean.substring(0, 8)
-                : (t.name || t.id).trim().toUpperCase().replace(/[^A-Z0-9]/g, '').replace(/LTDA$/, '').replace(/SA$/, '');
-            tenantToGroup.set(t.id, groupKey);
-        });
-
-        const normalizeCCNameDedup = (name: string) =>
-            (name || '')
-                .toLowerCase()
-                .replace(/^\[inativo\]\s*/i, '')
-                .replace(/^[\d. ]+-?\s*/, '')
-                .replace(/[^a-z0-9]/g, '')
-                .trim();
-
-        // realized dedup (detailed chart logic)
-        const realizedDedupMap = new Map<string, any>();
+        // Global synced months detection to prevent manual + sync overlap
+        const syncedMonths = new Set<string>();
         realizedRaw.forEach(e => {
-            const catName = (e as any).category?.name || '';
-            const normName = catName.toUpperCase().replace(/[^A-Z0-9.]/g, '');
-            const group = tenantToGroup.get(e.tenantId) || e.tenantId;
-            const ccNorm = normalizeCCNameDedup((e as any).costCenter?.name || '');
-            const key = `${normName}|${e.month}|${group}|${ccNorm}`;
-            const existing = realizedDedupMap.get(key);
-            const isSync = !!(e.externalId && e.externalId.startsWith('sync-'));
-            if (!existing) {
-                realizedDedupMap.set(key, { ...e, _isSync: isSync });
-            } else if (isSync && !existing._isSync) {
-                realizedDedupMap.set(key, { ...e, _isSync: true });
+            if (e.externalId && e.externalId.startsWith('sync-')) {
+                syncedMonths.add(`${e.year}|${e.month}`);
             }
         });
-        const chartRealizedEntries = Array.from(realizedDedupMap.values());
 
-        // budget dedup (detailed chart logic)
-        const budgetDedupMap = new Map<string, any>();
-        budgetRaw.forEach(e => {
-            const catName = (e as any).category?.name || '';
-            const normName = catName.toUpperCase().replace(/[^A-Z0-9.]/g, '');
-            const group = tenantToGroup.get(e.tenantId) || e.tenantId;
-            const ccNorm = normalizeCCNameDedup((e as any).costCenter?.name || '');
-            const key = `${normName}|${e.month}|${group}|${ccNorm}`;
-            if (!budgetDedupMap.has(key)) {
-                budgetDedupMap.set(key, { ...e });
+        const realizedEntriesRaw = realizedRaw.filter(e => {
+            const key = `${e.year}|${e.month}`;
+            if (syncedMonths.has(key)) {
+                return e.externalId && e.externalId.startsWith('sync-');
             }
+            return true;
         });
-        const chartBudgetEntries = Array.from(budgetDedupMap.values());
+
+        const budgetRawDeduped = budgetRaw;
 
         const getCleanCode = (name: string) => {
             const match = name.match(/^(\d{1,2}(?:\.\d+)*)/); 
@@ -178,7 +145,7 @@ export async function GET() {
 
         // Filter categories like 6.1.2 or 6.2.2
         const isConsolidated = true;
-        const chartRealizedFiltered = chartRealizedEntries.filter(e => {
+        const chartRealizedFiltered = realizedEntriesRaw.filter(e => {
             const catName = categoryNameMap.get(e.categoryId) || '';
             const code = normalizeCode(getCleanCode(catName));
             if (code === '6.1.2' || code === '6.2.2') return false;
@@ -186,7 +153,7 @@ export async function GET() {
             return true;
         });
 
-        const chartBudgetFiltered = chartBudgetEntries.filter(e => {
+        const chartBudgetFiltered = budgetRawDeduped.filter(e => {
             const catName = categoryNameMap.get(e.categoryId) || '';
             const code = normalizeCode(getCleanCode(catName));
             if (code === '6.1.2' || code === '6.2.2') return false;

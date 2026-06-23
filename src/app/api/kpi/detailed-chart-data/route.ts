@@ -106,61 +106,23 @@ export async function GET(request: Request) {
             })
         ]);
 
-        // Build variant-tenant groups: tenants sharing the same CNPJ root are "variants" of the same company.
-        // We must NEVER sum both variants together — only pick one entry per (category, month, company, costCenter).
-        const allTenantsForGrouping = await prisma.tenant.findMany({
-            where: { id: { in: targetTenantIds } },
-            select: { id: true, cnpj: true, name: true }
-        });
-        // Map tenantId -> groupKey (CNPJ first 8 digits, or normalized name)
-        const tenantToGroup = new Map<string, string>();
-        allTenantsForGrouping.forEach(t => {
-            const cnpjClean = (t.cnpj || '').replace(/\D/g, '');
-            const isUnknown = !t.cnpj || t.cnpj.toLowerCase().includes('unknown') || cnpjClean === '';
-            const groupKey = (!isUnknown && cnpjClean.length >= 8)
-                ? cnpjClean.substring(0, 8)
-                : (t.name || t.id).trim().toUpperCase().replace(/[^A-Z0-9]/g, '').replace(/LTDA$/, '').replace(/SA$/, '');
-            tenantToGroup.set(t.id, groupKey);
-        });
-
-        // Deduplicate realized entries by (categoryName, month, tenantGroup, normalizedCCName).
-        // Within the same slot, prefer sync- entries over manual. Otherwise keep the first.
-        // Different CCs within the same company will have different ccNorm → they sum naturally.
-        const realizedDedupMap = new Map<string, any>();
+        // Global synced months detection to prevent manual + sync overlap
+        const syncedMonths = new Set<string>();
         realizedRaw.forEach(e => {
-            const catName = (e as any).category?.name || '';
-            const normName = catName.toUpperCase().replace(/[^A-Z0-9.]/g, '');
-            const group = tenantToGroup.get(e.tenantId) || e.tenantId;
-            const ccNorm = normalizeCCNameDedup((e as any).costCenter?.name || '');
-            const key = `${normName}|${e.month}|${group}|${ccNorm}`;
-            const existing = realizedDedupMap.get(key);
-            const isSync = !!(e.externalId && e.externalId.startsWith('sync-'));
-            if (!existing) {
-                realizedDedupMap.set(key, { ...e, _isSync: isSync });
-            } else if (isSync && !existing._isSync) {
-                // sync wins over manual for same slot
-                realizedDedupMap.set(key, { ...e, _isSync: true });
+            if (e.externalId && e.externalId.startsWith('sync-')) {
+                syncedMonths.add(`${e.year}|${e.month}`);
             }
-            // Same type collision = variant tenant duplicate → keep first (skip)
         });
-        const realizedEntriesRaw = Array.from(realizedDedupMap.values());
 
-
-        // Deduplicate budget entries by (categoryName, month, tenantGroup, normalizedCCName).
-        // Entries from variant tenants for the same CC should not be double-counted.
-        const budgetDedupMap = new Map<string, any>();
-        budgetRaw.forEach(e => {
-            const catName = (e as any).category?.name || '';
-            const normName = catName.toUpperCase().replace(/[^A-Z0-9.]/g, '');
-            const group = tenantToGroup.get(e.tenantId) || e.tenantId;
-            const ccNorm = normalizeCCNameDedup((e as any).costCenter?.name || '');
-            const key = `${normName}|${e.month}|${group}|${ccNorm}`;
-            if (!budgetDedupMap.has(key)) {
-                budgetDedupMap.set(key, { ...e });
+        const realizedEntriesRaw = realizedRaw.filter(e => {
+            const key = `${e.year}|${e.month}`;
+            if (syncedMonths.has(key)) {
+                return e.externalId && e.externalId.startsWith('sync-');
             }
-            // Duplicate: same category, month, company group, cost center → skip (variant tenant dupe)
+            return true;
         });
-        const budgetRawDeduped = Array.from(budgetDedupMap.values());
+
+        const budgetRawDeduped = budgetRaw;
 
         // Get categories
         const categories = await prisma.category.findMany({

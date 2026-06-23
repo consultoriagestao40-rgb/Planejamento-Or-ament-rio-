@@ -3785,7 +3785,15 @@ const renderDetailedChart = (
         ))) || 1;
     } else {
         maxVal = Math.max(...data.map((m, idx) => Math.max(
-                    case 'MIXED': {
+            hideBudget ? 0 : Math.abs(pctOfRevenue ? (m.pctOfRevenueBudget || 0) : m.budget),
+            (!hideRealized && idx <= currentMonthIdx) ? Math.abs(pctOfRevenue ? (m.pctOfRevenue || 0) : m.realized) : 0,
+            isRatioChart && !hideCompareBudget ? Math.abs(m.compareBudget || 0) : 0,
+            isRatioChart && !hideCompareRealized && (idx <= currentMonthIdx) ? Math.abs(m.compareRealized || 0) : 0
+        ))) || 1;
+    }
+
+    switch (chartMode) {
+        case 'MIXED': {
             const yBaseline = 210;
 
             const getDaysInMonth = (mNum: number) => {

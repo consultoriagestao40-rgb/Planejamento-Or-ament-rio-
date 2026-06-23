@@ -2875,12 +2875,12 @@ const DetailedChartCard = ({ chart, onEdit, onDelete, onOpenAnalysis, mainMonth,
                     </div>
                 </div>
             ) : (
-                <div style={{ display: 'flex', justifyContent: 'center', padding: '0.5rem', background: 'var(--bg-elevated)', borderRadius: '8px', border: '1px dashed var(--border-default)' }}>
+                <div style={{ display: 'flex', justifyContent: 'flex-start', padding: '0.4rem 0.75rem', background: 'var(--bg-elevated)', borderRadius: '8px', border: '1px dashed var(--border-default)' }}>
                     <button
                         onClick={() => onOpenAnalysis(chart)}
-                        style={{ background: 'none', border: 'none', color: chart.chartColor || '#6366f1', fontSize: '0.8rem', fontWeight: 800, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.35rem' }}
+                        style={{ background: 'none', border: 'none', color: chart.chartColor || '#6366f1', fontSize: '0.78rem', fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.35rem', opacity: 0.7 }}
                     >
-                        📝 Escrever Análise de Desvio do Mês
+                        📝 Escrever Análise de Desvio
                     </button>
                 </div>
             )}
@@ -2955,8 +2955,13 @@ const renderDetailedChart = (
         if (pctOfRevenue) return `${val.toFixed(1)}%`;
         if (val === 0) return 'R$ 0';
         const absVal = Math.abs(val);
-        const formatted = (absVal / 1000).toFixed(1);
-        return `${val < 0 ? '-' : ''}R$ ${formatted}k`;
+        let formatted = '';
+        if (absVal < 1_000_000) {
+            formatted = (absVal / 1000).toFixed(1) + 'k';
+        } else {
+            formatted = (absVal / 1_000_000).toFixed(2) + 'M';
+        }
+        return `${val < 0 ? '-' : ''}R$ ${formatted}`;
     };
 
     const currentMonthIdx = new Date().getMonth();
@@ -2996,8 +3001,10 @@ const renderDetailedChart = (
                 let formatted = '';
                 if (absVal < 1000) {
                     formatted = absVal.toFixed(0);
-                } else {
+                } else if (absVal < 1_000_000) {
                     formatted = (absVal / 1000).toFixed(1) + 'k';
+                } else {
+                    formatted = (absVal / 1_000_000).toFixed(2) + 'M';
                 }
                 return `${val < 0 ? '-' : ''}R$ ${formatted}${isDaily ? '/d' : ''}`;
             };

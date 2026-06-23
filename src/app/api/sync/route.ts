@@ -11,8 +11,14 @@ export async function GET(request: Request) {
         const viewMode = (searchParams.get('viewMode') || 'competencia') as 'caixa' | 'competencia';
         const tenantIdParam = searchParams.get('tenantId') || 'ALL';
 
-        const { getAllVariantIds } = await import('@/lib/tenant-utils');
+        const { getAllVariantIds, getTenantGroups } = await import('@/lib/tenant-utils');
         let allVariantIds: string[] = [];
+
+        const allTenantGroups = await getTenantGroups();
+        const tenantToGroupKey = new Map<string, string>();
+        allTenantGroups.forEach((group) => {
+            group.forEach(tid => tenantToGroupKey.set(tid, group[0]));
+        });
 
         if (tenantIdParam === 'ALL' || tenantIdParam === 'DEFAULT') {
             const allTenants = await prisma.tenant.findMany({ select: { id: true } });
@@ -99,19 +105,17 @@ export async function GET(request: Request) {
             })
         ]);
 
-        // Deduplicar dados: se houver dados sincronizados da API (externalId começado por 'sync-') 
-        // para um determinado (year, month) em qualquer das variantes sendo exibidas, 
-        // removemos todas as entradas daquele mesmo mês vindas do Excel (externalId nulo ou sem o prefixo) para todas as variantes do conjunto.
-        const syncedMonths = new Set<string>();
+        // Deduplicate per tenant: sync- entries override manual ones within the same tenant+month
+        const syncedMonthsPerTenant = new Set<string>();
         realizedRaw.forEach(e => {
             if (e.externalId && e.externalId.startsWith('sync-')) {
-                syncedMonths.add(`${e.year}|${e.month}`);
+                syncedMonthsPerTenant.add(`${e.tenantId}|${e.year}|${e.month}`);
             }
         });
 
         const realizedEntriesRaw = realizedRaw.filter(e => {
-            const key = `${e.year}|${e.month}`;
-            if (syncedMonths.has(key)) {
+            const key = `${e.tenantId}|${e.year}|${e.month}`;
+            if (syncedMonthsPerTenant.has(key)) {
                 return e.externalId && e.externalId.startsWith('sync-');
             }
             return true;
@@ -157,9 +161,9 @@ export async function GET(request: Request) {
         });
 
 
-
         const values: Record<string, number> = {};
-        
+        const seenGroupKeys = new Set<string>(); // groupKey||nameKey to prevent variant-tenant double-counting
+
         // Helper to aggregate entries (Realized or Budget)
         const aggregate = (entries: any[], prefix: string = '') => {
             entries.forEach((e: any) => {
@@ -175,18 +179,22 @@ export async function GET(request: Request) {
 
                 if (catName) {
                     const normalizedName = catName.toUpperCase().replace(/[^A-Z0-9]/g, '');
-                    // IMPORTANT: The Dashboard expects plain name keys for Realized data.
-                    // For Budget data, we use 'budget-' prefix to avoid collision.
                     const nameKeyPrefix = prefix === 'realized-' ? '' : 'budget-';
                     const nameKey = `${nameKeyPrefix}${normalizedName}|${e.month - 1}`;
-                    
-                    values[nameKey] = (values[nameKey] || 0) + e.amount;
-                    
-                    // Aggregator for Revenue
-                    const isRevenue = normalizedName.startsWith('01');
-                    if (isRevenue && normalizedName !== '01RECEITABRUTA') {
-                        const parentKey = `${nameKeyPrefix}01RECEITABRUTA|${e.month - 1}`;
-                        values[parentKey] = (values[parentKey] || 0) + e.amount;
+
+                    // Only count each company group once per nameKey (prevents variant-tenant doubling)
+                    const groupKey = tenantToGroupKey.get(e.tenantId) || e.tenantId;
+                    const seenKey = `${groupKey}||${nameKey}`;
+                    if (!seenGroupKeys.has(seenKey)) {
+                        seenGroupKeys.add(seenKey);
+                        values[nameKey] = (values[nameKey] || 0) + e.amount;
+
+                        // Aggregator for Revenue
+                        const isRevenue = normalizedName.startsWith('01');
+                        if (isRevenue && normalizedName !== '01RECEITABRUTA') {
+                            const parentKey = `${nameKeyPrefix}01RECEITABRUTA|${e.month - 1}`;
+                            values[parentKey] = (values[parentKey] || 0) + e.amount;
+                        }
                     }
                 }
             });

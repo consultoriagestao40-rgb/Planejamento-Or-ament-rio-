@@ -3375,15 +3375,23 @@ const renderDetailedChart = (
                         return (
                             <g key={gridIdx}>
                                 <line x1="80" y1={yGrid} x2="1120" y2={yGrid} stroke="var(--border-subtle)" strokeWidth="0.5" strokeDasharray="3 3" />
-                                <text x="70" y={yGrid + 4} textAnchor="end" fill="var(--text-muted)" fontSize="12px" fontWeight="600">
-                                    {formatAbs(ratio * scaleMaxAbs, hasDailyActive)}
-                                </text>
-                                <text x="1130" y={yGrid + 4} textAnchor="start" fill="var(--text-muted)" fontSize="12px" fontWeight="600">
-                                    {(ratio * scaleMaxPct).toFixed(0)}%
-                                </text>
+                                {ratio > 0 && (
+                                    <text x="73" y={yGrid + 4} textAnchor="end" fill="var(--text-muted)" fontSize="11px" fontWeight="600">
+                                        {formatAbs(ratio * scaleMaxAbs, hasDailyActive)}
+                                    </text>
+                                )}
+                                {ratio > 0 && (
+                                    <text x="1127" y={yGrid + 4} textAnchor="start" fill="var(--text-muted)" fontSize="11px" fontWeight="600">
+                                        {(ratio * scaleMaxPct).toFixed(0)}%
+                                    </text>
+                                )}
                             </g>
                         );
                     })}
+
+                    {/* Axis lines */}
+                    <line x1="80" y1="0" x2="80" y2={yBaseline} stroke="var(--border-default)" strokeWidth="1" />
+                    <line x1="1120" y1="0" x2="1120" y2={yBaseline} stroke="var(--border-default)" strokeWidth="1" />
 
                     <line x1="80" y1={yBaseline} x2="1120" y2={yBaseline} stroke="var(--border-default)" strokeWidth="1" />
 

@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { getAllVariantIds, getTenantGroups } from '@/lib/tenant-utils';
+import { getAllVariantIds } from '@/lib/tenant-utils';
 
 export const dynamic = 'force-dynamic';
 
@@ -34,13 +34,6 @@ export async function GET(request: Request) {
 
         // 1. Resolve Variant Tenant IDs
         let targetTenantIds: string[] = [];
-        const allTenantGroups = await getTenantGroups();
-
-        // Build a tenantId -> groupKey map for deduplication
-        const tenantToGroupKey = new Map<string, string>();
-        allTenantGroups.forEach((group, groupIdx) => {
-            group.forEach(tid => tenantToGroupKey.set(tid, group[0])); // primary = first in sorted group
-        });
 
         if (filterTenantId === 'ALL' || filterTenantId === 'DEFAULT') {
             const allTenants = await prisma.tenant.findMany({ select: { id: true } });
@@ -164,10 +157,8 @@ export async function GET(request: Request) {
         });
 
         // Aggregate realized and budgets
-        // Track which (company group, nameKey) combos have been counted to avoid variant-tenant double-counting
         const realizedValues: Record<string, number> = {};
         const budgetValues: Record<string, { amount: number }> = {};
-        const seenRealizedGroupKeys = new Set<string>(); // groupKey|nameKey
 
         realizedEntries.forEach((e: any) => {
             const idKey = `realized-${e.categoryId}-${e.month - 1}`;
@@ -180,27 +171,16 @@ export async function GET(request: Request) {
             if (catName) {
                 const normalizedName = catName.toUpperCase().replace(/[^A-Z0-9]/g, '');
                 const nameKey = `${normalizedName}|${e.month - 1}`;
+                realizedValues[nameKey] = (realizedValues[nameKey] || 0) + e.amount;
 
-                // Only count each company group once per nameKey (prevents variant-tenant doubling)
-                const groupKey = tenantToGroupKey.get(e.tenantId) || e.tenantId;
-                const seenKey = `${groupKey}||${nameKey}`;
-                if (!seenRealizedGroupKeys.has(seenKey)) {
-                    seenRealizedGroupKeys.add(seenKey);
-                    realizedValues[nameKey] = (realizedValues[nameKey] || 0) + e.amount;
-
-                    // Revenue aggregator
-                    const isRevenue = normalizedName.startsWith('01') || normalizedName.startsWith('1RECEIT');
-                    if (isRevenue && normalizedName !== '01RECEITABRUTA' && normalizedName !== '1RECEITABRUTA') {
-                        const parentKey1 = `01RECEITABRUTA|${e.month - 1}`;
-                        realizedValues[parentKey1] = (realizedValues[parentKey1] || 0) + e.amount;
-                        const parentKey2 = `1RECEITABRUTA|${e.month - 1}`;
-                        realizedValues[parentKey2] = (realizedValues[parentKey2] || 0) + e.amount;
-                    }
+                // Revenue aggregator
+                const isRevenue = normalizedName.startsWith('01') || normalizedName.startsWith('1RECEIT');
+                if (isRevenue && normalizedName !== '01RECEITABRUTA' && normalizedName !== '1RECEITABRUTA') {
+                    realizedValues[`01RECEITABRUTA|${e.month - 1}`] = (realizedValues[`01RECEITABRUTA|${e.month - 1}`] || 0) + e.amount;
+                    realizedValues[`1RECEITABRUTA|${e.month - 1}`] = (realizedValues[`1RECEITABRUTA|${e.month - 1}`] || 0) + e.amount;
                 }
             }
         });
-
-        const seenBudgetGroupKeys = new Set<string>(); // groupKey|nameKey
 
         budgetEntries.forEach((e: any) => {
             const idKey = `${e.categoryId}-${e.month - 1}`;
@@ -213,22 +193,13 @@ export async function GET(request: Request) {
             if (catName) {
                 const normalizedName = catName.toUpperCase().replace(/[^A-Z0-9]/g, '');
                 const nameKey = `budget-${normalizedName}|${e.month - 1}`;
+                budgetValues[nameKey] = { amount: (budgetValues[nameKey]?.amount || 0) + e.amount };
 
-                // Only count each company group once per nameKey
-                const groupKey = tenantToGroupKey.get(e.tenantId) || e.tenantId;
-                const seenKey = `${groupKey}||${nameKey}`;
-                if (!seenBudgetGroupKeys.has(seenKey)) {
-                    seenBudgetGroupKeys.add(seenKey);
-                    budgetValues[nameKey] = { amount: (budgetValues[nameKey]?.amount || 0) + e.amount };
-
-                    // Revenue aggregator
-                    const isRevenue = normalizedName.startsWith('01') || normalizedName.startsWith('1RECEIT');
-                    if (isRevenue && normalizedName !== '01RECEITABRUTA' && normalizedName !== '1RECEITABRUTA') {
-                        const parentKey1 = `budget-01RECEITABRUTA|${e.month - 1}`;
-                        budgetValues[parentKey1] = { amount: (budgetValues[parentKey1]?.amount || 0) + e.amount };
-                        const parentKey2 = `budget-1RECEITABRUTA|${e.month - 1}`;
-                        budgetValues[parentKey2] = { amount: (budgetValues[parentKey2]?.amount || 0) + e.amount };
-                    }
+                // Revenue aggregator
+                const isRevenue = normalizedName.startsWith('01') || normalizedName.startsWith('1RECEIT');
+                if (isRevenue && normalizedName !== '01RECEITABRUTA' && normalizedName !== '1RECEITABRUTA') {
+                    budgetValues[`budget-01RECEITABRUTA|${e.month - 1}`] = { amount: (budgetValues[`budget-01RECEITABRUTA|${e.month - 1}`]?.amount || 0) + e.amount };
+                    budgetValues[`budget-1RECEITABRUTA|${e.month - 1}`] = { amount: (budgetValues[`budget-1RECEITABRUTA|${e.month - 1}`]?.amount || 0) + e.amount };
                 }
             }
         });

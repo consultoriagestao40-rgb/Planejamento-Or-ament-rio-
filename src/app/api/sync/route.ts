@@ -11,14 +11,8 @@ export async function GET(request: Request) {
         const viewMode = (searchParams.get('viewMode') || 'competencia') as 'caixa' | 'competencia';
         const tenantIdParam = searchParams.get('tenantId') || 'ALL';
 
-        const { getAllVariantIds, getTenantGroups } = await import('@/lib/tenant-utils');
+        const { getAllVariantIds } = await import('@/lib/tenant-utils');
         let allVariantIds: string[] = [];
-
-        const allTenantGroups = await getTenantGroups();
-        const tenantToGroupKey = new Map<string, string>();
-        allTenantGroups.forEach((group) => {
-            group.forEach(tid => tenantToGroupKey.set(tid, group[0]));
-        });
 
         if (tenantIdParam === 'ALL' || tenantIdParam === 'DEFAULT') {
             const allTenants = await prisma.tenant.findMany({ select: { id: true } });
@@ -162,12 +156,11 @@ export async function GET(request: Request) {
 
 
         const values: Record<string, number> = {};
-        const seenGroupKeys = new Set<string>(); // groupKey||nameKey to prevent variant-tenant double-counting
 
         // Helper to aggregate entries (Realized or Budget)
         const aggregate = (entries: any[], prefix: string = '') => {
             entries.forEach((e: any) => {
-                // 1. ID-based key for BudgetEntryGrid (unprefixed ID or 'realized-' prefixed ID)
+                // 1. ID-based key for BudgetEntryGrid
                 const idKey = prefix ? `${prefix}${e.categoryId}-${e.month - 1}` : `${e.categoryId}-${e.month - 1}`;
                 values[idKey] = (values[idKey] || 0) + e.amount;
 
@@ -179,22 +172,16 @@ export async function GET(request: Request) {
 
                 if (catName) {
                     const normalizedName = catName.toUpperCase().replace(/[^A-Z0-9]/g, '');
+                    // Realized uses no prefix; Budget uses 'budget-' prefix
                     const nameKeyPrefix = prefix === 'realized-' ? '' : 'budget-';
                     const nameKey = `${nameKeyPrefix}${normalizedName}|${e.month - 1}`;
+                    values[nameKey] = (values[nameKey] || 0) + e.amount;
 
-                    // Only count each company group once per nameKey (prevents variant-tenant doubling)
-                    const groupKey = tenantToGroupKey.get(e.tenantId) || e.tenantId;
-                    const seenKey = `${groupKey}||${nameKey}`;
-                    if (!seenGroupKeys.has(seenKey)) {
-                        seenGroupKeys.add(seenKey);
-                        values[nameKey] = (values[nameKey] || 0) + e.amount;
-
-                        // Aggregator for Revenue
-                        const isRevenue = normalizedName.startsWith('01');
-                        if (isRevenue && normalizedName !== '01RECEITABRUTA') {
-                            const parentKey = `${nameKeyPrefix}01RECEITABRUTA|${e.month - 1}`;
-                            values[parentKey] = (values[parentKey] || 0) + e.amount;
-                        }
+                    // Aggregator for Revenue parent
+                    const isRevenue = normalizedName.startsWith('01');
+                    if (isRevenue && normalizedName !== '01RECEITABRUTA') {
+                        const parentKey = `${nameKeyPrefix}01RECEITABRUTA|${e.month - 1}`;
+                        values[parentKey] = (values[parentKey] || 0) + e.amount;
                     }
                 }
             });

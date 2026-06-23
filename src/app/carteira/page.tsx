@@ -3983,86 +3983,239 @@ const renderDetailedChart = (
             const maxLineHeight = hasNegative ? 100 : 165;
             const scaleMaxVal = maxVal * 1.20;
 
-                    {!hideBudget && pathB && (
-                        <path d={pathB} fill="none" stroke="var(--text-muted)" strokeWidth="2.5" strokeDasharray="4 4" strokeLinecap="round" strokeLinejoin="round" />
-                    )}
-                    {!hideRealized && pathR && (
-                        <path d={pathR} fill="none" stroke={chartColor} strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
-                    )}
-                    {isRatioChart && !hideBudget && pathCB && (
-                        <path d={pathCB} fill="none" stroke="#fed7aa" strokeWidth="2.5" strokeDasharray="4 4" strokeLinecap="round" strokeLinejoin="round" />
-                    )}
-                    {isRatioChart && !hideRealized && pathCR && (
-                        <path d={pathCR} fill="none" stroke="#f97316" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
-                    )}
+            const compareActive = compInfo !== null;
+            const numTicks = data.length;
+            const stepX = compareActive ? (numTicks > 1 ? 1060 / (numTicks - 1) : 1060) : 94;
+            const startX = 80;
+            const getX = (idx: number) => startX + idx * stepX;
 
-                    {type === 'LINE_MARKERS' && (
+            interface LineSeries {
+                key: string;
+                strokeColor: string;
+                isDash: boolean;
+                isRealized: boolean;
+                label: string;
+                markerColor: string;
+            }
+
+            const seriesList: LineSeries[] = [];
+            if (compareActive) {
+                if (isRatioChart) {
+                    if (!hideBudget) {
+                        seriesList.push(
+                            { key: 'budget', strokeColor: 'var(--text-muted)', isDash: true, isRealized: false, label: `${baseLabel || 'Base'} (Orçado)`, markerColor: 'var(--text-muted)' },
+                            { key: 'compareBudget', strokeColor: '#fed7aa', isDash: true, isRealized: false, label: `${compareLabel || 'Comp'} (Orçado)`, markerColor: '#fed7aa' },
+                            { key: 'budgetB', strokeColor: '#fed7aa', isDash: true, isRealized: false, label: `${baseLabel || 'Base'} (Orçado) B`, markerColor: '#fed7aa' },
+                            { key: 'compareBudgetB', strokeColor: '#ffedd5', isDash: true, isRealized: false, label: `${compareLabel || 'Comp'} (Orçado) B`, markerColor: '#ffedd5' }
+                        );
+                    }
+                    if (!hideRealized) {
+                        seriesList.push(
+                            { key: 'realized', strokeColor: chartColor, isDash: false, isRealized: true, label: `${baseLabel || 'Base'} (Realizado)`, markerColor: chartColor },
+                            { key: 'compareRealized', strokeColor: '#818cf8', isDash: false, isRealized: true, label: `${compareLabel || 'Comp'} (Realizado)`, markerColor: '#818cf8' },
+                            { key: 'realizedB', strokeColor: '#10b981', isDash: true, isRealized: true, label: `${baseLabel || 'Base'} (Realizado) B`, markerColor: '#10b981' },
+                            { key: 'compareRealizedB', strokeColor: '#f97316', isDash: true, isRealized: true, label: `${compareLabel || 'Comp'} (Realizado) B`, markerColor: '#f97316' }
+                        );
+                    }
+                } else {
+                    if (!hideBudget) {
+                        seriesList.push(
+                            { key: 'budget', strokeColor: 'var(--text-muted)', isDash: true, isRealized: false, label: 'Orçado', markerColor: 'var(--text-muted)' },
+                            { key: 'budgetB', strokeColor: '#fed7aa', isDash: true, isRealized: false, label: 'Orçado B', markerColor: '#fed7aa' }
+                        );
+                    }
+                    if (!hideRealized) {
+                        seriesList.push(
+                            { key: 'realized', strokeColor: chartColor, isDash: false, isRealized: true, label: 'Realizado', markerColor: chartColor },
+                            { key: 'realizedB', strokeColor: '#10b981', isDash: true, isRealized: true, label: 'Realizado B', markerColor: '#10b981' }
+                        );
+                    }
+                }
+            } else {
+                if (isRatioChart) {
+                    if (!hideBudget) {
+                        seriesList.push(
+                            { key: 'budget', strokeColor: 'var(--text-muted)', isDash: true, isRealized: false, label: `${baseLabel || 'Base'} (Orçado)`, markerColor: 'var(--text-muted)' },
+                            { key: 'compareBudget', strokeColor: '#fed7aa', isDash: true, isRealized: false, label: `${compareLabel || 'Comp'} (Orçado)`, markerColor: '#fed7aa' }
+                        );
+                    }
+                    if (!hideRealized) {
+                        seriesList.push(
+                            { key: 'realized', strokeColor: chartColor, isDash: false, isRealized: true, label: `${baseLabel || 'Base'} (Realizado)`, markerColor: chartColor },
+                            { key: 'compareRealized', strokeColor: '#f97316', isDash: false, isRealized: true, label: `${compareLabel || 'Comp'} (Realizado)`, markerColor: '#f97316' }
+                        );
+                    }
+                } else {
+                    if (!hideBudget) {
+                        seriesList.push({ key: 'budget', strokeColor: 'var(--text-muted)', isDash: true, isRealized: false, label: 'Orçado', markerColor: 'var(--text-muted)' });
+                    }
+                    if (!hideRealized) {
+                        seriesList.push({ key: 'realized', strokeColor: chartColor, isDash: false, isRealized: true, label: 'Realizado', markerColor: chartColor });
+                    }
+                }
+            }
+
+            const pathsAndMarkers = seriesList.map((series) => {
+                const points: { x: number; y: number; val: number }[] = [];
+                let pathD = '';
+
+                data.forEach((m, idx) => {
+                    if (series.isRealized && !isRealizedVisible(series.key, idx)) {
+                        return;
+                    }
+                    const val = getLineVal(series.key, m);
+                    const x = getX(idx);
+                    const y = yBaseline - (val / scaleMaxVal) * maxLineHeight;
+                    points.push({ x, y, val });
+                    pathD += (pathD === '' ? 'M' : 'L') + ` ${x} ${y}`;
+                });
+
+                if (points.length === 0) return null;
+
+                return (
+                    <g key={series.key}>
+                        {pathD && (
+                            <path 
+                                d={pathD} 
+                                fill="none" 
+                                stroke={series.strokeColor} 
+                                strokeWidth={series.isRealized ? "3" : "2.5"} 
+                                strokeDasharray={series.isDash ? "4 4" : undefined} 
+                                strokeLinecap="round" 
+                                strokeLinejoin="round" 
+                            />
+                        )}
+                        {chartMode === 'LINE_MARKERS' && points.map((p, pIdx) => (
+                            <g key={pIdx}>
+                                <circle 
+                                    cx={p.x} 
+                                    cy={p.y} 
+                                    r={series.isRealized ? "5" : "4"} 
+                                    fill={series.markerColor} 
+                                    stroke="var(--bg-surface)" 
+                                    strokeWidth={series.isRealized ? "2" : "1.5"} 
+                                />
+                                {p.val !== 0 && (
+                                    <text 
+                                        x={p.x} 
+                                        y={p.y - 12} 
+                                        textAnchor="middle" 
+                                        fill={series.isRealized ? series.strokeColor : "var(--text-secondary)"} 
+                                        fontSize="11px" 
+                                        fontWeight={series.isRealized ? "800" : "700"}
+                                        style={{ paintOrder: 'stroke', stroke: 'var(--bg-surface)', strokeWidth: 3.5, strokeLinejoin: 'round' }}
+                                    >
+                                        {formatVal(p.val)}
+                                    </text>
+                                )}
+                            </g>
+                        ))}
+                    </g>
+                );
+            });
+
+            return (
+                <svg viewBox="-70 0 1270 260" width="100%" height="auto" style={{ overflow: 'visible', maxHeight: '250px' }}>
+                    {hasNegative ? (
                         <>
-                            {!hideBudget && pointsB.map((p, idx) => (
-                                <g key={`b-${idx}`}>
-                                    <circle cx={p.x} cy={p.y} r="4" fill="var(--text-muted)" stroke="var(--bg-surface)" strokeWidth="1.5" />
-                                    <text x={p.x} y={p.y - 12} textAnchor="middle" fill="var(--text-secondary)" fontSize="12px" fontWeight="700">{formatVal(p.val)}</text>
-                                </g>
-                            ))}
-
-                            {!hideRealized && pointsR.map((p, idx) => (
-                                <g key={`r-${idx}`}>
-                                    <circle cx={p.x} cy={p.y} r="5" fill={chartColor} stroke="var(--bg-surface)" strokeWidth="2" />
-                                    <text x={p.x} y={p.y - 13} textAnchor="middle" fill={chartColor} fontSize="12px" fontWeight="800">{formatVal(p.val)}</text>
-                                </g>
-                            ))}
-
-                            {isRatioChart && !hideBudget && pointsCB.map((p, idx) => (
-                                <g key={`cb-${idx}`}>
-                                    <circle cx={p.x} cy={p.y} r="4" fill="#fed7aa" stroke="var(--bg-surface)" strokeWidth="1.5" />
-                                    <text x={p.x} y={p.y - 12} textAnchor="middle" fill="var(--text-secondary)" fontSize="12px" fontWeight="700">{formatVal(p.val)}</text>
-                                </g>
-                            ))}
-
-                            {isRatioChart && !hideRealized && pointsCR.map((p, idx) => (
-                                <g key={`cr-${idx}`}>
-                                    <circle cx={p.x} cy={p.y} r="5" fill="#f97316" stroke="var(--bg-surface)" strokeWidth="2" />
-                                    <text x={p.x} y={p.y - 13} textAnchor="middle" fill="#f97316" fontSize="12px" fontWeight="800">{formatVal(p.val)}</text>
-                                </g>
-                            ))}
+                            <line x1="80" y1="130" x2="1140" y2="130" stroke="var(--border-strong)" strokeWidth="1.5" />
+                            <line x1="80" y1="70" x2="1140" y2="70" stroke="var(--border-subtle)" strokeDasharray="3 3" />
+                            <line x1="80" y1="190" x2="1140" y2="190" stroke="var(--border-subtle)" strokeDasharray="3 3" />
+                        </>
+                    ) : (
+                        <>
+                            <line x1="80" y1="210" x2="1140" y2="210" stroke="var(--border-default)" strokeWidth="1" />
+                            <line x1="80" y1="130" x2="1140" y2="130" stroke="var(--border-subtle)" strokeDasharray="3 3" />
+                            <line x1="80" y1="50" x2="1140" y2="50" stroke="var(--border-subtle)" strokeDasharray="3 3" />
                         </>
                     )}
 
+                    <text x="75" y={hasNegative ? 74 : 54} textAnchor="end" fill="var(--text-muted)" fontSize="12px" fontWeight="700"
+                        style={{ paintOrder: 'stroke', stroke: 'var(--bg-surface)', strokeWidth: 3, strokeLinejoin: 'round' }}>{formatVal(scaleMaxVal)}</text>
+                    <text x="75" y={yBaseline + 4} textAnchor="end" fill="var(--text-muted)" fontSize="12px" fontWeight="700"
+                        style={{ paintOrder: 'stroke', stroke: 'var(--bg-surface)', strokeWidth: 3, strokeLinejoin: 'round' }}>{formatVal(0)}</text>
+                    {hasNegative && (
+                        <text x="75" y="194" textAnchor="end" fill="var(--text-muted)" fontSize="12px" fontWeight="700"
+                            style={{ paintOrder: 'stroke', stroke: 'var(--bg-surface)', strokeWidth: 3, strokeLinejoin: 'round' }}>{formatVal(-scaleMaxVal)}</text>
+                    )}
+
+                    {pathsAndMarkers}
+
                     {data.map((m, idx) => (
-                        <text key={idx} x={80 + idx * 94} y="242" textAnchor="middle" fill="var(--text-muted)" fontSize="13px" fontWeight="700">
-                            {['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'][idx]}
+                        <text key={idx} x={getX(idx)} y="242" textAnchor="middle" fill="var(--text-muted)" fontSize="13px" fontWeight="700">
+                            {compareActive ? `${m.labelA} / ${m.labelB}` : ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'][idx]}
                         </text>
                     ))}
 
                     {/* Hover tooltip zones */}
                     {onHover && data.map((m, idx) => {
-                        const xBase = 80 + idx * 94;
-                        const stepWidth = 94;
+                        const xCenter = getX(idx);
+                        const stepWidth = compareActive ? stepX : 94;
+                        const xLeft = xCenter - stepWidth / 2;
                         return (
                             <rect
                                 key={`hover-${idx}`}
-                                x={xBase}
+                                x={xLeft}
                                 y={0}
                                 width={stepWidth}
                                 height={yBaseline + 30}
                                 fill="transparent"
                                 style={{ cursor: 'pointer' }}
                                 onMouseMove={(e) => {
-                                    const valB = pctOfRevenue ? m.pctOfRevenue : m.budget;
-                                    const valR = (idx + 1 <= currentMonthIdx + 1) ? (pctOfRevenue ? m.pctOfRevenue : m.realized) : 0;
-
                                     const items = [];
-                                    if (!hideBudget) {
-                                        items.push({ label: 'Orçado', value: formatVal(valB), color: '#cbd5e1' });
-                                    }
-                                    if (!hideRealized && idx + 1 <= currentMonthIdx + 1) {
-                                        items.push({ label: 'Realizado', value: formatVal(valR), color: chartColor });
+                                    if (compareActive) {
+                                        const { labelA, labelB } = compInfo;
+                                        // Period A
+                                        items.push({ label: `--- ${labelA} ---`, value: '', color: 'transparent' });
+                                        if (!hideBudget) {
+                                            items.push({ label: isRatioChart ? `${baseLabel || 'Base'} (Orçado)` : 'Orçado', value: formatVal(getVal('budget', m)), color: 'var(--text-muted)' });
+                                            if (isRatioChart) {
+                                                items.push({ label: `${compareLabel || 'Comp'} (Orçado)`, value: formatVal(getVal('compareBudget', m)), color: '#fed7aa' });
+                                            }
+                                        }
+                                        if (!hideRealized && isRealizedVisible('realized', idx)) {
+                                            items.push({ label: isRatioChart ? `${baseLabel || 'Base'} (Realizado)` : 'Realizado', value: formatVal(getVal('realized', m)), color: chartColor });
+                                            if (isRatioChart) {
+                                                items.push({ label: `${compareLabel || 'Comp'} (Realizado)`, value: formatVal(getVal('compareRealized', m)), color: '#818cf8' });
+                                            }
+                                        }
+                                        // Period B
+                                        items.push({ label: `--- ${labelB} ---`, value: '', color: 'transparent' });
+                                        if (!hideBudget) {
+                                            items.push({ label: isRatioChart ? `${baseLabel || 'Base'} (Orçado)` : 'Orçado', value: formatVal(getVal('budgetB', m)), color: '#fed7aa' });
+                                            if (isRatioChart) {
+                                                items.push({ label: `${compareLabel || 'Comp'} (Orçado)`, value: formatVal(getVal('compareBudgetB', m)), color: '#ffedd5' });
+                                            }
+                                        }
+                                        if (!hideRealized && isRealizedVisible('realizedB', idx)) {
+                                            items.push({ label: isRatioChart ? `${baseLabel || 'Base'} (Realizado)` : 'Realizado', value: formatVal(getVal('realizedB', m)), color: '#10b981' });
+                                            if (isRatioChart) {
+                                                items.push({ label: `${compareLabel || 'Comp'} (Realizado)`, value: formatVal(getVal('compareRealizedB', m)), color: '#f97316' });
+                                            }
+                                        }
+                                    } else {
+                                        if (!hideBudget) {
+                                            const valB = pctOfRevenue ? (m.pctOfRevenueBudget || 0) : m.budget;
+                                            items.push({ label: 'Orçado', value: formatVal(valB), color: 'var(--text-muted)' });
+                                            if (isRatioChart) {
+                                                items.push({ label: `${compareLabel || 'Comp'} (Orçado)`, value: formatVal(m.compareBudget || 0), color: '#fed7aa' });
+                                            }
+                                        }
+                                        if (!hideRealized && idx <= currentMonthIdx) {
+                                            const valR = pctOfRevenue ? (m.pctOfRevenue || 0) : m.realized;
+                                            items.push({ label: 'Realizado', value: formatVal(valR), color: chartColor });
+                                            if (isRatioChart) {
+                                                items.push({ label: `${compareLabel || 'Comp'} (Realizado)`, value: formatVal(m.compareRealized || 0), color: '#f97316' });
+                                            }
+                                        }
                                     }
 
                                     onHover({
                                         x: e.clientX,
                                         y: e.clientY,
-                                        title: `${['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'][idx]} de ${year}`,
+                                        title: compareActive
+                                            ? `${m.labelA} vs ${m.labelB} de ${year}`
+                                            : `${['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'][idx]} de ${year}`,
                                         items
                                     });
                                 }}

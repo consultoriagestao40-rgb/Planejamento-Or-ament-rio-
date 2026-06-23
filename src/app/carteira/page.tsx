@@ -3108,124 +3108,102 @@ const DetailedChartCard = ({ chart, onEdit, onDelete, onOpenAnalysis, mainMonth,
         if (comparePeriod !== 'none') {
             const compInfo = getComparisonPeriods(comparePeriod);
             if (compInfo) {
-                const { monthsA, monthsB, monthLabelsA, monthLabelsB } = compInfo;
-                const result: any[] = [];
+                const { monthsA, monthsB } = compInfo;
+                const currentMonthIdx = new Date().getMonth();
                 
-                let accBudgetA = 0, accRealizedA = 0, accCompareBudgetA = 0, accCompareRealizedA = 0, accRevenueRealizedA = 0, accRevenueBudgetA = 0;
-                let accBudgetB = 0, accRealizedB = 0, accCompareBudgetB = 0, accCompareRealizedB = 0, accRevenueRealizedB = 0, accRevenueBudgetB = 0;
-                
+                let sumBudgetA = 0;
+                let sumRealizedA = 0;
+                let sumCompareBudgetA = 0;
+                let sumCompareRealizedA = 0;
+                let sumRevenueRealizedA = 0;
+                let sumRevenueBudgetA = 0;
+
+                let sumBudgetB = 0;
+                let sumRealizedB = 0;
+                let sumCompareBudgetB = 0;
+                let sumCompareRealizedB = 0;
+                let sumRevenueRealizedB = 0;
+                let sumRevenueBudgetB = 0;
+
+                // Accumulate Period A
                 for (let i = 0; i < monthsA.length; i++) {
                     const idxA = monthsA[i];
-                    const idxB = monthsB[i];
                     const mA = data[idxA] || { budget: 0, realized: 0, compareBudget: 0, compareRealized: 0, pctOfRevenue: 0, pctOfRevenueBudget: 0 };
-                    const mB = data[idxB] || { budget: 0, realized: 0, compareBudget: 0, compareRealized: 0, pctOfRevenue: 0, pctOfRevenueBudget: 0 };
                     
-                    const revRealizedA = mA.pctOfRevenue > 0 ? (mA.realized / (mA.pctOfRevenue / 100)) : 0;
                     const revBudgetA = mA.pctOfRevenueBudget > 0 ? (mA.budget / (mA.pctOfRevenueBudget / 100)) : 0;
-                    const revRealizedB = mB.pctOfRevenue > 0 ? (mB.realized / (mB.pctOfRevenue / 100)) : 0;
-                    const revBudgetB = mB.pctOfRevenueBudget > 0 ? (mB.budget / (mB.pctOfRevenueBudget / 100)) : 0;
+                    sumBudgetA += mA.budget;
+                    sumRevenueBudgetA += revBudgetA;
+                    sumCompareBudgetA += mA.compareBudget || 0;
 
-                    if (chartViewMode === 'accumulated') {
-                        accBudgetA += mA.budget;
-                        accRealizedA += mA.realized;
-                        accCompareBudgetA += mA.compareBudget || 0;
-                        accCompareRealizedA += mA.compareRealized || 0;
-                        accRevenueRealizedA += revRealizedA;
-                        accRevenueBudgetA += revBudgetA;
-
-                        accBudgetB += mB.budget;
-                        accRealizedB += mB.realized;
-                        accCompareBudgetB += mB.compareBudget || 0;
-                        accCompareRealizedB += mB.compareRealized || 0;
-                        accRevenueRealizedB += revRealizedB;
-                        accRevenueBudgetB += revBudgetB;
-
-                        let atA = 0;
-                        if (isRatio) {
-                            atA = accRealizedA !== 0 ? (accCompareRealizedA / accRealizedA) * 100 : 0;
-                        } else {
-                            if (accBudgetA > 0) atA = (accRealizedA / accBudgetA) * 100;
-                            else if (accBudgetA < 0) atA = (1 + (accBudgetA - accRealizedA) / accBudgetA) * 100;
-                            else atA = accRealizedA >= 0 ? 100 : 0;
-                        }
-
-                        let atB = 0;
-                        if (isRatio) {
-                            atB = accRealizedB !== 0 ? (accCompareRealizedB / accRealizedB) * 100 : 0;
-                        } else {
-                            if (accBudgetB > 0) atB = (accRealizedB / accBudgetB) * 100;
-                            else if (accBudgetB < 0) atB = (1 + (accBudgetB - accRealizedB) / accBudgetB) * 100;
-                            else atB = accRealizedB >= 0 ? 100 : 0;
-                        }
-
-                        const pctA = accRevenueRealizedA > 0 ? (accRealizedA / accRevenueRealizedA) * 100 : 0;
-                        const pctBudgetA = accRevenueBudgetA > 0 ? (accBudgetA / accRevenueBudgetA) * 100 : 0;
-                        const pctB = accRevenueRealizedB > 0 ? (accRealizedB / accRevenueRealizedB) * 100 : 0;
-                        const pctBudgetB = accRevenueBudgetB > 0 ? (accBudgetB / accRevenueBudgetB) * 100 : 0;
-
-                        result.push({
-                            month: i + 1,
-                            labelA: monthLabelsA[i],
-                            labelB: monthLabelsB[i],
-                            budget: accBudgetA,
-                            realized: accRealizedA,
-                            compareBudget: accCompareBudgetA,
-                            compareRealized: accCompareRealizedA,
-                            atingido: atA,
-                            pctOfRevenue: pctA,
-                            pctOfRevenueBudget: pctBudgetA,
-                            
-                            budgetB: accBudgetB,
-                            realizedB: accRealizedB,
-                            compareBudgetB: accCompareBudgetB,
-                            compareRealizedB: accCompareRealizedB,
-                            atingidoB: atB,
-                            pctOfRevenueB: pctB,
-                            pctOfRevenueBudgetB: pctBudgetB
-                        });
-                    } else {
-                        // Monthly
-                        let atA = 0;
-                        if (isRatio) {
-                            atA = mA.realized !== 0 ? ((mA.compareRealized || 0) / mA.realized) * 100 : 0;
-                        } else {
-                            if (mA.budget > 0) atA = (mA.realized / mA.budget) * 100;
-                            else if (mA.budget < 0) atA = (1 + (mA.budget - mA.realized) / mA.budget) * 100;
-                            else atA = mA.realized >= 0 ? 100 : 0;
-                        }
-
-                        let atB = 0;
-                        if (isRatio) {
-                            atB = mB.realized !== 0 ? ((mB.compareRealized || 0) / mB.realized) * 100 : 0;
-                        } else {
-                            if (mB.budget > 0) atB = (mB.realized / mB.budget) * 100;
-                            else if (mB.budget < 0) atB = (1 + (mB.budget - mB.realized) / mB.budget) * 100;
-                            else atB = mB.realized >= 0 ? 100 : 0;
-                        }
-
-                        result.push({
-                            month: i + 1,
-                            labelA: monthLabelsA[i],
-                            labelB: monthLabelsB[i],
-                            budget: mA.budget,
-                            realized: mA.realized,
-                            compareBudget: mA.compareBudget || 0,
-                            compareRealized: mA.compareRealized || 0,
-                            atingido: atA,
-                            pctOfRevenue: mA.pctOfRevenue || 0,
-                            pctOfRevenueBudget: mA.pctOfRevenueBudget || 0,
-
-                            budgetB: mB.budget,
-                            realizedB: mB.realized,
-                            compareBudgetB: mB.compareBudget || 0,
-                            compareRealizedB: mB.compareRealized || 0,
-                            atingidoB: atB,
-                            pctOfRevenueB: mB.pctOfRevenue || 0,
-                            pctOfRevenueBudgetB: mB.pctOfRevenueBudget || 0
-                        });
+                    if (idxA <= currentMonthIdx) {
+                        const revRealizedA = mA.pctOfRevenue > 0 ? (mA.realized / (mA.pctOfRevenue / 100)) : 0;
+                        sumRealizedA += mA.realized;
+                        sumRevenueRealizedA += revRealizedA;
+                        sumCompareRealizedA += mA.compareRealized || 0;
                     }
                 }
-                return result;
+
+                // Accumulate Period B
+                for (let i = 0; i < monthsB.length; i++) {
+                    const idxB = monthsB[i];
+                    const mB = data[idxB] || { budget: 0, realized: 0, compareBudget: 0, compareRealized: 0, pctOfRevenue: 0, pctOfRevenueBudget: 0 };
+                    
+                    const revBudgetB = mB.pctOfRevenueBudget > 0 ? (mB.budget / (mB.pctOfRevenueBudget / 100)) : 0;
+                    sumBudgetB += mB.budget;
+                    sumRevenueBudgetB += revBudgetB;
+                    sumCompareBudgetB += mB.compareBudget || 0;
+
+                    if (idxB <= currentMonthIdx) {
+                        const revRealizedB = mB.pctOfRevenue > 0 ? (mB.realized / (mB.pctOfRevenue / 100)) : 0;
+                        sumRealizedB += mB.realized;
+                        sumRevenueRealizedB += revRealizedB;
+                        sumCompareRealizedB += mB.compareRealized || 0;
+                    }
+                }
+
+                let atA = 0;
+                if (isRatio) {
+                    atA = sumRealizedA !== 0 ? (sumCompareRealizedA / sumRealizedA) * 100 : 0;
+                } else {
+                    if (sumBudgetA > 0) atA = (sumRealizedA / sumBudgetA) * 100;
+                    else if (sumBudgetA < 0) atA = (1 + (sumBudgetA - sumRealizedA) / sumBudgetA) * 100;
+                    else atA = sumRealizedA >= 0 ? 100 : 0;
+                }
+
+                let atB = 0;
+                if (isRatio) {
+                    atB = sumRealizedB !== 0 ? (sumCompareRealizedB / sumRealizedB) * 100 : 0;
+                } else {
+                    if (sumBudgetB > 0) atB = (sumRealizedB / sumBudgetB) * 100;
+                    else if (sumBudgetB < 0) atB = (1 + (sumBudgetB - sumRealizedB) / sumBudgetB) * 100;
+                    else atB = sumRealizedB >= 0 ? 100 : 0;
+                }
+
+                const pctA = sumRevenueRealizedA > 0 ? (sumRealizedA / sumRevenueRealizedA) * 100 : 0;
+                const pctBudgetA = sumRevenueBudgetA > 0 ? (sumBudgetA / sumRevenueBudgetA) * 100 : 0;
+                const pctB = sumRevenueRealizedB > 0 ? (sumRealizedB / sumRevenueRealizedB) * 100 : 0;
+                const pctBudgetB = sumRevenueBudgetB > 0 ? (sumBudgetB / sumRevenueBudgetB) * 100 : 0;
+
+                return [{
+                    month: 1,
+                    labelA: compInfo.labelA,
+                    labelB: compInfo.labelB,
+                    budget: sumBudgetA,
+                    realized: sumRealizedA,
+                    compareBudget: sumCompareBudgetA,
+                    compareRealized: sumCompareRealizedA,
+                    atingido: atA,
+                    pctOfRevenue: pctA,
+                    pctOfRevenueBudget: pctBudgetA,
+                    
+                    budgetB: sumBudgetB,
+                    realizedB: sumRealizedB,
+                    compareBudgetB: sumCompareBudgetB,
+                    compareRealizedB: sumCompareRealizedB,
+                    atingidoB: atB,
+                    pctOfRevenueB: pctB,
+                    pctOfRevenueBudgetB: pctBudgetB
+                }];
             }
         }
 
@@ -3792,6 +3770,32 @@ const renderDetailedChart = (
         ))) || 1;
     }
 
+    const getGrowthIndicator = () => {
+        if (!compInfo || !data || data.length === 0) return null;
+        const m = data[0];
+        if (isRatioChart) {
+            const valA = m.atingido || 0;
+            const valB = m.atingidoB || 0;
+            const diff = valB - valA;
+            const isGrowth = diff >= 0;
+            const sign = diff >= 0 ? '+' : '';
+            const text = `${sign}${diff.toFixed(1)} p.p.`;
+            return { text, isGrowth };
+        } else {
+            const valA = m.realized || 0;
+            const valB = m.realizedB || 0;
+            if (valA === 0) {
+                if (valB === 0) return { text: '0.0%', isGrowth: true };
+                return { text: valB > 0 ? '+100.0%' : '-100.0%', isGrowth: valB > 0 };
+            }
+            const pct = ((valB - valA) / Math.abs(valA)) * 100;
+            const sign = pct >= 0 ? '+' : '';
+            const text = `${sign}${pct.toFixed(1)}%`;
+            return { text, isGrowth: pct >= 0 };
+        }
+    };
+    const growth = getGrowthIndicator();
+
     switch (chartMode) {
         case 'MIXED': {
             const yBaseline = 210;
@@ -3917,7 +3921,10 @@ const renderDetailedChart = (
             const startX = 80;
             const numTicks = data.length;
             const stepX = compareActive ? (numTicks > 1 ? (1114 - 80) / (numTicks - 1) : 1034) : 94;
-            const getX = (idx: number) => startX + idx * stepX;
+            const getX = (idx: number) => {
+                if (compareActive && data.length === 1) return 600;
+                return startX + idx * stepX;
+            };
 
             const renderLineSeries = (key: string, strokeColor: string, isDash: boolean = false) => {
                 const points: { x: number; y: number; val: number }[] = [];
@@ -4012,7 +4019,7 @@ const renderDetailedChart = (
                 const numBars = activeBarKeys.length;
                 if (numBars === 0) return null;
 
-                const groupWidth = compareActive ? (stepX * 0.75) : 76;
+                const groupWidth = compareActive ? (data.length === 1 ? 320 : stepX * 0.75) : 76;
                 const spacing = 4;
                 const barWidth = numBars > 0 
                     ? Math.min(48, Math.max(8, (groupWidth - (numBars - 1) * spacing) / numBars))
@@ -4276,6 +4283,14 @@ const renderDetailedChart = (
 
             return (
                 <svg viewBox="-70 0 1290 260" width="100%" height="auto" style={{ overflow: 'visible' }}>
+                    {growth && (
+                        <g transform="translate(600, 20)">
+                            <rect x="-60" y="-12" width="120" height="24" rx="12" fill={growth.isGrowth ? 'rgba(16, 185, 129, 0.15)' : 'rgba(239, 68, 68, 0.15)'} stroke={growth.isGrowth ? '#10b981' : '#ef4444'} strokeWidth="1" />
+                            <text textAnchor="middle" y="4" fill={growth.isGrowth ? '#10b981' : '#ef4444'} fontSize="11px" fontWeight="800">
+                                {growth.text}
+                            </text>
+                        </g>
+                    )}
                     {[0, 0.25, 0.5, 0.75, 1.0].map((ratio, gridIdx) => {
                         const yGrid = yBaseline - ratio * 170;
                         return (
@@ -4521,7 +4536,10 @@ const renderDetailedChart = (
             const numTicks = data.length;
             const stepX = compareActive ? (1060 / numTicks) : 94;
             const startX = 80;
-            const getX = (idx: number) => startX + idx * stepX;
+            const getX = (idx: number) => {
+                if (compareActive && data.length === 1) return 600 - stepX / 2;
+                return startX + idx * stepX;
+            };
 
             const activeBarKeys: string[] = [];
             if (compareActive) {
@@ -4557,7 +4575,7 @@ const renderDetailedChart = (
                 const numBars = activeBarKeys.length;
                 if (numBars === 0) return null;
 
-                const groupWidth = compareActive ? (stepX * 0.75) : 76;
+                const groupWidth = compareActive ? (data.length === 1 ? 320 : stepX * 0.75) : 76;
                 const spacing = 4;
                 const barWidth = numBars > 0 
                     ? Math.min(48, Math.max(8, (groupWidth - (numBars - 1) * spacing) / numBars))
@@ -4618,6 +4636,14 @@ const renderDetailedChart = (
 
             return (
                 <svg viewBox="-70 0 1270 260" width="100%" height="auto" style={{ overflow: 'visible', maxHeight: '250px' }}>
+                    {growth && (
+                        <g transform="translate(600, 20)">
+                            <rect x="-60" y="-12" width="120" height="24" rx="12" fill={growth.isGrowth ? 'rgba(16, 185, 129, 0.15)' : 'rgba(239, 68, 68, 0.15)'} stroke={growth.isGrowth ? '#10b981' : '#ef4444'} strokeWidth="1" />
+                            <text textAnchor="middle" y="4" fill={growth.isGrowth ? '#10b981' : '#ef4444'} fontSize="11px" fontWeight="800">
+                                {growth.text}
+                            </text>
+                        </g>
+                    )}
                     {hasNegative ? (
                         <>
                             <line x1="80" y1="130" x2="1140" y2="130" stroke="var(--border-strong)" strokeWidth="1.5" />
@@ -4737,7 +4763,10 @@ const renderDetailedChart = (
             const numTicks = data.length;
             const stepX = compareActive ? (numTicks > 1 ? 1060 / (numTicks - 1) : 1060) : 94;
             const startX = 80;
-            const getX = (idx: number) => startX + idx * stepX;
+            const getX = (idx: number) => {
+                if (compareActive && data.length === 1) return 600;
+                return startX + idx * stepX;
+            };
 
             interface LineSeries {
                 key: string;
@@ -4874,6 +4903,14 @@ const renderDetailedChart = (
 
             return (
                 <svg viewBox="-70 0 1270 260" width="100%" height="auto" style={{ overflow: 'visible', maxHeight: '250px' }}>
+                    {growth && (
+                        <g transform="translate(600, 20)">
+                            <rect x="-60" y="-12" width="120" height="24" rx="12" fill={growth.isGrowth ? 'rgba(16, 185, 129, 0.15)' : 'rgba(239, 68, 68, 0.15)'} stroke={growth.isGrowth ? '#10b981' : '#ef4444'} strokeWidth="1" />
+                            <text textAnchor="middle" y="4" fill={growth.isGrowth ? '#10b981' : '#ef4444'} fontSize="11px" fontWeight="800">
+                                {growth.text}
+                            </text>
+                        </g>
+                    )}
                     {hasNegative ? (
                         <>
                             <line x1="80" y1="130" x2="1140" y2="130" stroke="var(--border-strong)" strokeWidth="1.5" />

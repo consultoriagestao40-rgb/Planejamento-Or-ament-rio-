@@ -412,30 +412,22 @@ export async function GET() {
         const chartRevTotals = root1 ? totalsMap.get(root1.id) : null;
 
         // Detailed dump for Month 1 and 2
-        const detailedBudget = budgetRaw.filter(e => {
-            const catName = categoryNameMap.get(e.categoryId) || '';
-            const code = getCleanCode(catName);
-            return (code.startsWith('01') || code.startsWith('1')) && (e.month === 1 || e.month === 2);
-        }).map(e => ({
+        const detailedBudget = budgetRaw.filter(e => e.month === 1 || e.month === 2 || e.month === 0).map(e => ({
             tenant: tenants.find(t => t.id === e.tenantId)?.name,
             category: categoryNameMap.get(e.categoryId),
             month: e.month,
             amount: e.amount,
             cc: (e as any).costCenter?.name || 'SEM CC'
-        }));
+        })).slice(0, 50);
 
-        const detailedRealized = realizedRaw.filter(e => {
-            const catName = categoryNameMap.get(e.categoryId) || '';
-            const code = getCleanCode(catName);
-            return (code.startsWith('01') || code.startsWith('1')) && (e.month === 1 || e.month === 2);
-        }).map(e => ({
+        const detailedRealized = realizedRaw.filter(e => e.month === 1 || e.month === 2 || e.month === 0).map(e => ({
             tenant: tenants.find(t => t.id === e.tenantId)?.name,
             category: categoryNameMap.get(e.categoryId),
             month: e.month,
             amount: e.amount,
             externalId: e.externalId,
             cc: (e as any).costCenter?.name || 'SEM CC'
-        }));
+        })).slice(0, 50);
 
         return NextResponse.json({
             success: true,

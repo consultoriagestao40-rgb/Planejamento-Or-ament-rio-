@@ -129,7 +129,11 @@ export default function PortfolioAnalysisPage() {
         budget: 'bar',
         realized: 'bar',
         atingido: 'none',
-        pctOfRevenue: 'none'
+        pctOfRevenue: 'none',
+        showBudgetLabels: 'true',
+        showRealizedLabels: 'true',
+        showAtingidoLabels: 'true',
+        showPctOfRevenueLabels: 'true'
     });
 
     const toggleChartCategory = useCallback((id: string) => {
@@ -444,7 +448,11 @@ export default function PortfolioAnalysisPage() {
             budget: 'bar',
             realized: 'bar',
             atingido: 'none',
-            pctOfRevenue: 'none'
+            pctOfRevenue: 'none',
+            showBudgetLabels: 'true',
+            showRealizedLabels: 'true',
+            showAtingidoLabels: 'true',
+            showPctOfRevenueLabels: 'true'
         });
         setIndicatorName('');
         
@@ -489,11 +497,16 @@ export default function PortfolioAnalysisPage() {
             try {
                 const parsed = JSON.parse(chart.chartType);
                 setChartType('MIXED');
-                setSeriesConfig(parsed.config || {
+                setSeriesConfig({
                     budget: 'bar',
                     realized: 'bar',
                     atingido: 'none',
-                    pctOfRevenue: 'none'
+                    pctOfRevenue: 'none',
+                    showBudgetLabels: 'true',
+                    showRealizedLabels: 'true',
+                    showAtingidoLabels: 'true',
+                    showPctOfRevenueLabels: 'true',
+                    ...(parsed.config || {})
                 });
                 nameVal = parsed.indicatorName || '';
             } catch (e) {
@@ -502,7 +515,11 @@ export default function PortfolioAnalysisPage() {
                     budget: 'bar',
                     realized: 'bar',
                     atingido: 'none',
-                    pctOfRevenue: 'none'
+                    pctOfRevenue: 'none',
+                    showBudgetLabels: 'true',
+                    showRealizedLabels: 'true',
+                    showAtingidoLabels: 'true',
+                    showPctOfRevenueLabels: 'true'
                 });
             }
         } else {
@@ -511,7 +528,11 @@ export default function PortfolioAnalysisPage() {
                 budget: 'bar',
                 realized: 'bar',
                 atingido: 'none',
-                pctOfRevenue: 'none'
+                pctOfRevenue: 'none',
+                showBudgetLabels: 'true',
+                showRealizedLabels: 'true',
+                showAtingidoLabels: 'true',
+                showPctOfRevenueLabels: 'true'
             });
         }
         setIndicatorName(nameVal);
@@ -1834,9 +1855,20 @@ export default function PortfolioAnalysisPage() {
                                             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
                                                 {/* Orçado */}
                                                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '1rem', padding: '0.35rem 0', borderBottom: '1px solid var(--border-subtle)' }}>
-                                                    <span style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-primary)' }}>
-                                                        Orçado (Meta)
-                                                    </span>
+                                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
+                                                        <span style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-primary)' }}>
+                                                            Orçado (Meta)
+                                                        </span>
+                                                        <label style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', fontSize: '0.7rem', fontWeight: 600, color: 'var(--text-muted)', cursor: 'pointer' }}>
+                                                            <input 
+                                                                type="checkbox" 
+                                                                checked={(seriesConfig.showBudgetLabels || 'true') !== 'false'} 
+                                                                onChange={(e) => setSeriesConfig(cfg => ({ ...cfg, showBudgetLabels: e.target.checked ? 'true' : 'false' }))}
+                                                                style={{ cursor: 'pointer' }}
+                                                            />
+                                                            Valores no gráfico
+                                                        </label>
+                                                    </div>
                                                     <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.3rem', justifyContent: 'flex-end', maxWidth: '70%' }}>
                                                         {[
                                                             { key: 'bar', label: '📊 Barra (R$)' },
@@ -1867,12 +1899,23 @@ export default function PortfolioAnalysisPage() {
                                                         ))}
                                                     </div>
                                                 </div>
-
+ 
                                                 {/* Realizado */}
                                                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '1rem', padding: '0.35rem 0', borderBottom: '1px solid var(--border-subtle)' }}>
-                                                    <span style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-primary)' }}>
-                                                        Realizado
-                                                    </span>
+                                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
+                                                        <span style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-primary)' }}>
+                                                            Realizado
+                                                        </span>
+                                                        <label style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', fontSize: '0.7rem', fontWeight: 600, color: 'var(--text-muted)', cursor: 'pointer' }}>
+                                                            <input 
+                                                                type="checkbox" 
+                                                                checked={(seriesConfig.showRealizedLabels || 'true') !== 'false'} 
+                                                                onChange={(e) => setSeriesConfig(cfg => ({ ...cfg, showRealizedLabels: e.target.checked ? 'true' : 'false' }))}
+                                                                style={{ cursor: 'pointer' }}
+                                                            />
+                                                            Valores no gráfico
+                                                        </label>
+                                                    </div>
                                                     <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.3rem', justifyContent: 'flex-end', maxWidth: '70%' }}>
                                                         {[
                                                             { key: 'bar', label: '📊 Barra (R$)' },
@@ -1903,12 +1946,23 @@ export default function PortfolioAnalysisPage() {
                                                         ))}
                                                     </div>
                                                 </div>
-
+ 
                                                 {/* Atingido */}
                                                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '1rem', padding: '0.35rem 0', borderBottom: '1px solid var(--border-subtle)' }}>
-                                                    <span style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-primary)' }}>
-                                                        {chartComparisonCategory ? 'Razão de Comparação (% comp/base)' : 'Atingido (% do Orçado)'}
-                                                    </span>
+                                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
+                                                        <span style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-primary)' }}>
+                                                            {chartComparisonCategory ? 'Razão de Comparação (% comp/base)' : 'Atingido (% do Orçado)'}
+                                                        </span>
+                                                        <label style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', fontSize: '0.7rem', fontWeight: 600, color: 'var(--text-muted)', cursor: 'pointer' }}>
+                                                            <input 
+                                                                type="checkbox" 
+                                                                checked={(seriesConfig.showAtingidoLabels || 'true') !== 'false'} 
+                                                                onChange={(e) => setSeriesConfig(cfg => ({ ...cfg, showAtingidoLabels: e.target.checked ? 'true' : 'false' }))}
+                                                                style={{ cursor: 'pointer' }}
+                                                            />
+                                                            Valores no gráfico
+                                                        </label>
+                                                    </div>
                                                     <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.3rem', justifyContent: 'flex-end', maxWidth: '70%' }}>
                                                         {[
                                                             { key: 'line_atingido', label: chartComparisonCategory ? '📈 Linha (% Razão)' : '📈 Linha (% At.)' },
@@ -1936,12 +1990,23 @@ export default function PortfolioAnalysisPage() {
                                                         ))}
                                                     </div>
                                                 </div>
-
+ 
                                                 {/* Percentual sobre Receita */}
                                                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '1rem', padding: '0.35rem 0', borderBottom: '1px solid var(--border-subtle)' }}>
-                                                    <span style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-primary)' }}>
-                                                        Percentual sobre Receita
-                                                    </span>
+                                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
+                                                        <span style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-primary)' }}>
+                                                            Percentual sobre Receita
+                                                        </span>
+                                                        <label style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', fontSize: '0.7rem', fontWeight: 600, color: 'var(--text-muted)', cursor: 'pointer' }}>
+                                                            <input 
+                                                                type="checkbox" 
+                                                                checked={(seriesConfig.showPctOfRevenueLabels || 'true') !== 'false'} 
+                                                                onChange={(e) => setSeriesConfig(cfg => ({ ...cfg, showPctOfRevenueLabels: e.target.checked ? 'true' : 'false' }))}
+                                                                style={{ cursor: 'pointer' }}
+                                                            />
+                                                            Valores no gráfico
+                                                        </label>
+                                                    </div>
                                                     <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.3rem', justifyContent: 'flex-end', maxWidth: '70%' }}>
                                                         {[
                                                             { key: 'line_revenue', label: '📉 Linha (% Rec.)' },
@@ -3402,6 +3467,9 @@ const renderDetailedChart = (
                 const points: { x: number; y: number; val: number }[] = [];
                 const isBudget = key === 'budget' || key === 'compareBudget';
                 const mode = isBudget ? bMode : rMode;
+                const showLabel = isBudget 
+                    ? config?.showBudgetLabels !== 'false' 
+                    : config?.showRealizedLabels !== 'false';
                 
                 data.forEach((m, monthIdx) => {
                     const val = m[key] || 0;
@@ -3436,6 +3504,19 @@ const renderDetailedChart = (
                         {points.map((p, idx) => (
                             <g key={idx}>
                                 <circle cx={p.x} cy={p.y} r="4.5" fill="#ffffff" stroke={strokeColor} strokeWidth="2.5" />
+                                {showLabel && p.val !== 0 && (
+                                    <text 
+                                        x={p.x} 
+                                        y={p.y - 10} 
+                                        textAnchor="middle" 
+                                        fill="var(--text-secondary)" 
+                                        fontSize="9px" 
+                                        fontWeight="700"
+                                        style={{ paintOrder: 'stroke', stroke: 'var(--bg-surface)', strokeWidth: 3.5, strokeLinejoin: 'round' }}
+                                    >
+                                        {formatAbs(p.val, isDailyMode(mode))}
+                                    </text>
+                                )}
                             </g>
                         ))}
                     </g>
@@ -3480,17 +3561,36 @@ const renderDetailedChart = (
 
                     const shouldShow = isBudget || (monthIdx + 1 <= currentMonthIdx + 1);
 
+                    const showLabel = isBudget 
+                        ? config?.showBudgetLabels !== 'false' 
+                        : config?.showRealizedLabels !== 'false';
+
                     return (
                         <g key={`${monthIdx}-${key}`}>
                             {shouldShow && valScaled !== 0 && (
-                                <rect 
-                                    x={barX} 
-                                    y={yVal} 
-                                    width={barWidth} 
-                                    height={hVal} 
-                                    fill={fill} 
-                                    rx="3"
-                                />
+                                <>
+                                    <rect 
+                                        x={barX} 
+                                        y={yVal} 
+                                        width={barWidth} 
+                                        height={hVal} 
+                                        fill={fill} 
+                                        rx="3"
+                                    />
+                                    {showLabel && (
+                                        <text 
+                                            x={barX + barWidth / 2} 
+                                            y={isPositive ? yVal - 7 : yVal + hVal + 14} 
+                                            textAnchor="middle" 
+                                            fill="var(--text-secondary)" 
+                                            fontSize="9px" 
+                                            fontWeight="700"
+                                            style={{ paintOrder: 'stroke', stroke: 'var(--bg-surface)', strokeWidth: 3.5, strokeLinejoin: 'round' }}
+                                        >
+                                            {formatAbs(valScaled, isDailyMode(mode))}
+                                        </text>
+                                    )}
+                                </>
                             )}
                         </g>
                     );
@@ -3549,7 +3649,22 @@ const renderDetailedChart = (
                         <g key="atingido-line">
                             <path d={pathD} fill="none" stroke={lineColor} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
                             {points.map((p, idx) => (
-                                <circle key={idx} cx={p.x} cy={p.y} r="4.5" fill={lineColor} stroke="var(--bg-surface)" strokeWidth="1.5" />
+                                <g key={idx}>
+                                    <circle cx={p.x} cy={p.y} r="4.5" fill={lineColor} stroke="var(--bg-surface)" strokeWidth="1.5" />
+                                    {config?.showAtingidoLabels !== 'false' && (
+                                        <text 
+                                            x={p.x} 
+                                            y={p.y - 10} 
+                                            textAnchor="middle" 
+                                            fill={lineColor} 
+                                            fontSize="9px" 
+                                            fontWeight="800"
+                                            style={{ paintOrder: 'stroke', stroke: 'var(--bg-surface)', strokeWidth: 3.5, strokeLinejoin: 'round' }}
+                                        >
+                                            {p.val.toFixed(1)}%
+                                        </text>
+                                    )}
+                                </g>
                             ))}
                         </g>
                     );
@@ -3580,7 +3695,22 @@ const renderDetailedChart = (
                         <g key="pct-revenue-line">
                             <path d={pathD} fill="none" stroke={lineColor} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
                             {points.map((p, idx) => (
-                                <circle key={idx} cx={p.x} cy={p.y} r="4.5" fill={lineColor} stroke="var(--bg-surface)" strokeWidth="1.5" />
+                                <g key={idx}>
+                                    <circle cx={p.x} cy={p.y} r="4.5" fill={lineColor} stroke="var(--bg-surface)" strokeWidth="1.5" />
+                                    {config?.showPctOfRevenueLabels !== 'false' && (
+                                        <text 
+                                            x={p.x} 
+                                            y={p.y - 10} 
+                                            textAnchor="middle" 
+                                            fill={lineColor} 
+                                            fontSize="9px" 
+                                            fontWeight="800"
+                                            style={{ paintOrder: 'stroke', stroke: 'var(--bg-surface)', strokeWidth: 3.5, strokeLinejoin: 'round' }}
+                                        >
+                                            {p.val.toFixed(1)}%
+                                        </text>
+                                    )}
+                                </g>
                             ))}
                         </g>
                     );

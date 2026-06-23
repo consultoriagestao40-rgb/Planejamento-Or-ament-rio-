@@ -1293,16 +1293,18 @@ export default function BudgetGrid({
                     }
 
                     return (
-                        <svg viewBox="0 0 1200 260" width="100%" height="auto" style={{ overflow: 'visible' }}>
+                        <svg viewBox="-70 0 1270 260" width="100%" height="auto" style={{ overflow: 'visible' }}>
                             {[0, 0.25, 0.5, 0.75, 1.0].map((ratio, gridIdx) => {
                                 const yGrid = yBaseline - ratio * 170;
                                 return (
                                     <g key={gridIdx}>
                                         <line x1="80" y1={yGrid} x2="1120" y2={yGrid} stroke="#f1f5f9" strokeWidth="0.5" strokeDasharray="3 3" />
-                                        <text x="70" y={yGrid + 4} textAnchor="end" fill="#94a3b8" fontSize="12px" fontWeight="600">
+                                        <text x="70" y={yGrid + 4} textAnchor="end" fill="#94a3b8" fontSize="12px" fontWeight="600"
+                                            style={{ paintOrder: 'stroke', stroke: '#ffffff', strokeWidth: 3, strokeLinejoin: 'round' }}>
                                             {formatAbs(ratio * scaleMaxAbs, hasDailyActive)}
                                         </text>
-                                        <text x="1130" y={yGrid + 4} textAnchor="start" fill="#94a3b8" fontSize="12px" fontWeight="600">
+                                        <text x="1130" y={yGrid + 4} textAnchor="start" fill="#94a3b8" fontSize="12px" fontWeight="600"
+                                            style={{ paintOrder: 'stroke', stroke: '#ffffff', strokeWidth: 3, strokeLinejoin: 'round' }}>
                                             {(ratio * scaleMaxPct).toFixed(0)}%
                                         </text>
                                     </g>
@@ -1590,16 +1592,18 @@ export default function BudgetGrid({
                 });
 
                 return (
-                    <svg viewBox="0 0 1200 260" width="100%" height="auto" style={{ overflow: 'visible' }}>
+                    <svg viewBox="-70 0 1270 260" width="100%" height="auto" style={{ overflow: 'visible' }}>
                         {[0, 0.25, 0.5, 0.75, 1.0].map((ratio, gridIdx) => {
                             const yGrid = yBaseline - ratio * 170;
                             return (
                                 <g key={gridIdx}>
                                     <line x1="80" y1={yGrid} x2="1120" y2={yGrid} stroke="#f1f5f9" strokeWidth="0.5" strokeDasharray="3 3" />
-                                    <text x="70" y={yGrid + 3} textAnchor="end" fill="#94a3b8" fontSize="7.5px" fontWeight="600">
+                                    <text x="70" y={yGrid + 3} textAnchor="end" fill="#94a3b8" fontSize="7.5px" fontWeight="600"
+                                        style={{ paintOrder: 'stroke', stroke: '#ffffff', strokeWidth: 3, strokeLinejoin: 'round' }}>
                                         {formatAbs(ratio * scaleMaxAbs, hasDailyActive)}
                                     </text>
-                                    <text x="1130" y={yGrid + 3} textAnchor="start" fill="#94a3b8" fontSize="7.5px" fontWeight="600">
+                                    <text x="1130" y={yGrid + 3} textAnchor="start" fill="#94a3b8" fontSize="7.5px" fontWeight="600"
+                                        style={{ paintOrder: 'stroke', stroke: '#ffffff', strokeWidth: 3, strokeLinejoin: 'round' }}>
                                         {(ratio * scaleMaxPct).toFixed(0)}%
                                     </text>
                                 </g>
@@ -1634,7 +1638,7 @@ export default function BudgetGrid({
                 const maxBarHeight = hasNegative ? 100 : 165;
 
                 return (
-                    <svg viewBox="0 0 1200 260" width="100%" height="auto" style={{ overflow: 'visible', maxHeight: '250px' }}>
+                    <svg viewBox="-70 0 1270 260" width="100%" height="auto" style={{ overflow: 'visible', maxHeight: '250px' }}>
                         {hasNegative ? (
                             <>
                                 <line x1="80" y1="130" x2="1140" y2="130" stroke="#475569" strokeWidth="1.5" />
@@ -1649,10 +1653,13 @@ export default function BudgetGrid({
                             </>
                         )}
 
-                        <text x="75" y={hasNegative ? 74 : 54} textAnchor="end" fill="#94a3b8" fontSize="12px" fontWeight="700">{formatVal(maxVal)}</text>
-                        <text x="75" y={yBaseline + 4} textAnchor="end" fill="#94a3b8" fontSize="12px" fontWeight="700">{formatVal(0)}</text>
+                        <text x="75" y={hasNegative ? 74 : 54} textAnchor="end" fill="#94a3b8" fontSize="12px" fontWeight="700"
+                            style={{ paintOrder: 'stroke', stroke: '#ffffff', strokeWidth: 3, strokeLinejoin: 'round' }}>{formatVal(maxVal)}</text>
+                        <text x="75" y={yBaseline + 4} textAnchor="end" fill="#94a3b8" fontSize="12px" fontWeight="700"
+                            style={{ paintOrder: 'stroke', stroke: '#ffffff', strokeWidth: 3, strokeLinejoin: 'round' }}>{formatVal(0)}</text>
                         {hasNegative && (
-                            <text x="75" y="194" textAnchor="end" fill="#94a3b8" fontSize="12px" fontWeight="700">{formatVal(-maxVal)}</text>
+                            <text x="75" y="194" textAnchor="end" fill="#94a3b8" fontSize="12px" fontWeight="700"
+                                style={{ paintOrder: 'stroke', stroke: '#ffffff', strokeWidth: 3, strokeLinejoin: 'round' }}>{formatVal(-maxVal)}</text>
                         )}
 
                         {data.map((m, idx) => {
@@ -1814,7 +1821,7 @@ export default function BudgetGrid({
                 });
 
                 return (
-                    <svg viewBox="0 0 800 260" width="100%" height="220px" style={{ overflow: 'visible' }}>
+                    <svg viewBox="-60 0 860 260" width="100%" height="220px" style={{ overflow: 'visible' }}>
                         {hasNegative ? (
                             <>
                                 <line x1="40" y1="130" x2="760" y2="130" stroke="#475569" strokeWidth="1.5" />
@@ -1829,10 +1836,13 @@ export default function BudgetGrid({
                             </>
                         )}
 
-                        <text x="35" y={hasNegative ? 74 : 54} textAnchor="end" fill="#94a3b8" fontSize="12px" fontWeight="700">{formatVal(maxVal)}</text>
-                        <text x="35" y={yBaseline + 4} textAnchor="end" fill="#94a3b8" fontSize="12px" fontWeight="700">{formatVal(0)}</text>
+                        <text x="35" y={hasNegative ? 74 : 54} textAnchor="end" fill="#94a3b8" fontSize="12px" fontWeight="700"
+                            style={{ paintOrder: 'stroke', stroke: '#ffffff', strokeWidth: 3, strokeLinejoin: 'round' }}>{formatVal(maxVal)}</text>
+                        <text x="35" y={yBaseline + 4} textAnchor="end" fill="#94a3b8" fontSize="12px" fontWeight="700"
+                            style={{ paintOrder: 'stroke', stroke: '#ffffff', strokeWidth: 3, strokeLinejoin: 'round' }}>{formatVal(0)}</text>
                         {hasNegative && (
-                            <text x="35" y="194" textAnchor="end" fill="#94a3b8" fontSize="12px" fontWeight="700">{formatVal(-maxVal)}</text>
+                            <text x="35" y="194" textAnchor="end" fill="#94a3b8" fontSize="12px" fontWeight="700"
+                                style={{ paintOrder: 'stroke', stroke: '#ffffff', strokeWidth: 3, strokeLinejoin: 'round' }}>{formatVal(-maxVal)}</text>
                         )}
 
                         {!onlyRealized && pathB && (

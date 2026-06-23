@@ -459,21 +459,18 @@ export async function GET(request: Request) {
                         }
                     });
 
+                    // Budget: use name-based lookup (same as realized) to avoid double-counting
+                    // when normalization merges variant tenant categories into the same node.
+                    // ID-based lookup would sum each variant's budget separately → doubling.
                     const readBudgetNames = new Set<string>();
                     for (const rawId of idsToRead) {
-                        const bData = budgetValues[`${rawId}-${i}`] || { amount: 0 };
-                        if (bData.amount !== 0) {
-                            sumB += bData.amount;
-                        } else {
-                            const cat = categories.find(c => c.id === rawId);
-                            const nameToUse = cat ? cat.name : node.name;
-                            const normalizedName = nameToUse.toUpperCase().replace(/[^A-Z0-9]/g, '');
-                            const lookupKey = `budget-${normalizedName}|${i}`;
-                            if (!readBudgetNames.has(lookupKey)) {
-                                readBudgetNames.add(lookupKey);
-                                const nameBData = budgetValues[lookupKey] || { amount: 0 };
-                                sumB += nameBData.amount;
-                            }
+                        const cat = categories.find(c => c.id === rawId);
+                        const nameToUse = cat ? cat.name : node.name;
+                        const normalizedName = nameToUse.toUpperCase().replace(/[^A-Z0-9]/g, '');
+                        const lookupKey = `budget-${normalizedName}|${i}`;
+                        if (!readBudgetNames.has(lookupKey)) {
+                            readBudgetNames.add(lookupKey);
+                            sumB += (budgetValues[lookupKey]?.amount || 0);
                         }
                     }
 

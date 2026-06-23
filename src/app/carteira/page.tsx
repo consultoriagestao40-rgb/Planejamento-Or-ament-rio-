@@ -205,6 +205,13 @@ export default function PortfolioAnalysisPage() {
         return new Date().getMonth() + 1;
     }, [selectedMonth]);
 
+    useEffect(() => {
+        const storedTab = localStorage.getItem('activeAnalysisTab');
+        if (storedTab === 'carteira' || storedTab === 'detailed') {
+            setActiveAnalysisTab(storedTab as 'carteira' | 'detailed');
+        }
+    }, []);
+
     // Fetch setup data (companies, categories, cost centers)
     useEffect(() => {
         const fetchSetup = async () => {
@@ -814,7 +821,10 @@ export default function PortfolioAnalysisPage() {
                     gap: '0.3rem'
                 }}>
                     <button
-                        onClick={() => setActiveAnalysisTab('carteira')}
+                        onClick={() => {
+                            setActiveAnalysisTab('carteira');
+                            localStorage.setItem('activeAnalysisTab', 'carteira');
+                        }}
                         style={{
                             flex: 1,
                             padding: '0.6rem',
@@ -832,7 +842,10 @@ export default function PortfolioAnalysisPage() {
                         💼 Análise de Carteira
                     </button>
                     <button
-                        onClick={() => setActiveAnalysisTab('detailed')}
+                        onClick={() => {
+                            setActiveAnalysisTab('detailed');
+                            localStorage.setItem('activeAnalysisTab', 'detailed');
+                        }}
                         style={{
                             flex: 1,
                             padding: '0.6rem',

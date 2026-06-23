@@ -33,6 +33,13 @@ export default function FinancialDashboard({
     const [searchQuery, setSearchQuery] = useState('');
 
     useEffect(() => {
+        const storedTab = localStorage.getItem('dashboardActiveTab');
+        if (storedTab === 'visao' || storedTab === 'graficos' || storedTab === 'kpi') {
+            setActiveTab(storedTab as 'visao' | 'graficos' | 'kpi');
+        }
+    }, []);
+
+    useEffect(() => {
         if (isConnected) {
             fetch('/api/companies')
                 .then(res => res.json())
@@ -94,7 +101,10 @@ export default function FinancialDashboard({
                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '2px', background: '#e2e8f0', padding: '3px', borderRadius: '8px', height: '34px', boxSizing: 'border-box' }}>
                             <button 
-                                onClick={() => setActiveTab('visao')} 
+                                onClick={() => {
+                                    setActiveTab('visao');
+                                    localStorage.setItem('dashboardActiveTab', 'visao');
+                                }} 
                                 style={{ 
                                     padding: '0 1rem', 
                                     fontSize: '0.75rem', 
@@ -116,7 +126,10 @@ export default function FinancialDashboard({
                                 Visão Geral
                             </button>
                             <button 
-                                onClick={() => setActiveTab('graficos')} 
+                                onClick={() => {
+                                    setActiveTab('graficos');
+                                    localStorage.setItem('dashboardActiveTab', 'graficos');
+                                }} 
                                 style={{ 
                                     padding: '0 1rem', 
                                     fontSize: '0.75rem', 
@@ -138,7 +151,10 @@ export default function FinancialDashboard({
                                 Indicadores
                             </button>
                             <button 
-                                onClick={() => setActiveTab('kpi')} 
+                                onClick={() => {
+                                    setActiveTab('kpi');
+                                    localStorage.setItem('dashboardActiveTab', 'kpi');
+                                }} 
                                 style={{ 
                                     padding: '0 1rem', 
                                     fontSize: '0.75rem', 

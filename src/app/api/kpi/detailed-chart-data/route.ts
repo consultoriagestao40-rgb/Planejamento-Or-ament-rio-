@@ -4,6 +4,11 @@ import { getAllVariantIds } from '@/lib/tenant-utils';
 
 export const dynamic = 'force-dynamic';
 
+const normalizeCode = (code: string): string => {
+    if (!code) return '';
+    return code.split('.').map(part => part.replace(/^0+/, '') || '0').join('.');
+};
+
 interface CategoryNode {
     id: string;
     name: string;
@@ -134,17 +139,17 @@ export async function GET(request: Request) {
 
         const realizedEntries = realizedEntriesRaw.filter(e => {
             const catName = categoryNameMap.get(e.categoryId) || '';
-            const code = getCleanCode(catName);
-            if (code === '06.1.2' || code === '06.2.2') return false;
-            if (isConsolidated && (code === '06.1.1' || code === '06.2.1')) return false;
+            const code = normalizeCode(getCleanCode(catName));
+            if (code === '6.1.2' || code === '6.2.2') return false;
+            if (isConsolidated && (code === '6.1.1' || code === '6.2.1')) return false;
             return true;
         });
 
         const budgetEntries = budgetRaw.filter(e => {
             const catName = categoryNameMap.get(e.categoryId) || '';
-            const code = getCleanCode(catName);
-            if (code === '06.1.2' || code === '06.2.2') return false;
-            if (isConsolidated && (code === '06.1.1' || code === '06.2.1')) return false;
+            const code = normalizeCode(getCleanCode(catName));
+            if (code === '6.1.2' || code === '6.2.2') return false;
+            if (isConsolidated && (code === '6.1.1' || code === '6.2.1')) return false;
             return true;
         });
 
@@ -166,10 +171,12 @@ export async function GET(request: Request) {
                 realizedValues[nameKey] = (realizedValues[nameKey] || 0) + e.amount;
 
                 // Revenue aggregator
-                const isRevenue = normalizedName.startsWith('01');
-                if (isRevenue && normalizedName !== '01RECEITABRUTA') {
-                    const parentKey = `01RECEITABRUTA|${e.month - 1}`;
-                    realizedValues[parentKey] = (realizedValues[parentKey] || 0) + e.amount;
+                const isRevenue = normalizedName.startsWith('01') || normalizedName.startsWith('1');
+                if (isRevenue && normalizedName !== '01RECEITABRUTA' && normalizedName !== '1RECEITABRUTA') {
+                    const parentKey1 = `01RECEITABRUTA|${e.month - 1}`;
+                    realizedValues[parentKey1] = (realizedValues[parentKey1] || 0) + e.amount;
+                    const parentKey2 = `1RECEITABRUTA|${e.month - 1}`;
+                    realizedValues[parentKey2] = (realizedValues[parentKey2] || 0) + e.amount;
                 }
             }
         });
@@ -188,10 +195,12 @@ export async function GET(request: Request) {
                 budgetValues[nameKey] = { amount: (budgetValues[nameKey]?.amount || 0) + e.amount };
 
                 // Revenue aggregator
-                const isRevenue = normalizedName.startsWith('01');
-                if (isRevenue && normalizedName !== '01RECEITABRUTA') {
-                    const parentKey = `budget-01RECEITABRUTA|${e.month - 1}`;
-                    budgetValues[parentKey] = { amount: (budgetValues[parentKey]?.amount || 0) + e.amount };
+                const isRevenue = normalizedName.startsWith('01') || normalizedName.startsWith('1');
+                if (isRevenue && normalizedName !== '01RECEITABRUTA' && normalizedName !== '1RECEITABRUTA') {
+                    const parentKey1 = `budget-01RECEITABRUTA|${e.month - 1}`;
+                    budgetValues[parentKey1] = { amount: (budgetValues[parentKey1]?.amount || 0) + e.amount };
+                    const parentKey2 = `budget-1RECEITABRUTA|${e.month - 1}`;
+                    budgetValues[parentKey2] = { amount: (budgetValues[parentKey2]?.amount || 0) + e.amount };
                 }
             }
         });
@@ -203,7 +212,8 @@ export async function GET(request: Request) {
 
         categories.forEach((cat: any) => {
             const cleanCode = (cat.name.match(/^(\d{1,2}(?:\.\d+)*)/) || [])[1] || '';
-            const uniqueKey = `${cat.type}|${cleanCode || cat.name.trim()}`;
+            const normCode = normalizeCode(cleanCode);
+            const uniqueKey = `${cat.type}|${normCode || cat.name.trim()}`;
 
             if (nameMap.has(uniqueKey)) {
                 const existingNode = nameMap.get(uniqueKey)!;
@@ -217,7 +227,7 @@ export async function GET(request: Request) {
             const node: CategoryNode = {
                 ...cat,
                 name: cat.name,
-                code: cleanCode,
+                code: normCode,
                 children: [],
                 level: 0,
                 isSynthetic: false,
@@ -228,58 +238,57 @@ export async function GET(request: Request) {
                 map.set(cat.id.split(':')[1], node);
             }
             nameMap.set(uniqueKey, node);
-            if (cleanCode) {
-                codeMap.set(cleanCode, node);
-                if (!cleanCode.startsWith('0') && cleanCode.length > 0) codeMap.set(`0${cleanCode}`, node);
+            if (normCode) {
+                codeMap.set(normCode, node);
             }
         });
 
         const syntheticParents = [
-            { code: '01.1', name: '01.1 - Receita de Serviços', parentCode: '01' },
-            { code: '01.2', name: '01.2 - Receitas de Vendas', parentCode: '01' },
-            { code: '02.1', name: '02.1 - Tributos', parentCode: '02' },
-            // CUSTOS OPERACIONAIS (03.1 to 03.9)
-            { code: '03.1', name: '03.1 Salarios e Remuneração', parentCode: '03' },
-            { code: '03.2', name: '03.2 Encargos Sociais', parentCode: '03' },
-            { code: '03.3', name: '03.3 Beneficios', parentCode: '03' },
-            { code: '03.4', name: '03.4 Diárias', parentCode: '03' },
-            { code: '03.5', name: '03.5 SSMA', parentCode: '03' },
-            { code: '03.6', name: '03.6 Materiais', parentCode: '03' },
-            { code: '03.7', name: '03.7 Equipamentos', parentCode: '03' },
-            { code: '03.8', name: '03.8 Comunicação/Sistema/Licenças', parentCode: '03' },
-            { code: '03.9', name: '03.9 Custo com Veiculo', parentCode: '03' },
-            // DESPESAS OPERACIONAIS (04.1 to 04.8)
-            { code: '04.1', name: '04.1 Salarios e Remuneração', parentCode: '04' },
-            { code: '04.2', name: '04.2 Encargos Sociais', parentCode: '04' },
-            { code: '04.3', name: '04.3 Beneficios', parentCode: '04' },
-            { code: '04.4', name: '04.4 SSMA', parentCode: '04' },
-            { code: '04.5', name: '04.5 Viagens', parentCode: '04' },
-            { code: '04.6', name: '04.6 Custo com Veículos', parentCode: '04' },
-            { code: '04.7', name: '04.7 Cartão Corporativo', parentCode: '04' },
-            { code: '04.8', name: '04.8 Serviços Terceirizados', parentCode: '04' },
-            // DESPESAS ADMINISTRATIVAS (05.1 to 05.13)
-            { code: '05.1', name: '05.1 Salario e Remuneração', parentCode: '05' },
-            { code: '05.2', name: '05.2 Encargos Sociais', parentCode: '05' },
-            { code: '05.3', name: '05.3 Beneficios', parentCode: '05' },
-            { code: '05.4', name: '05.4 SSMA', parentCode: '05' },
-            { code: '05.5', name: '05.5 Viagens', parentCode: '05' },
-            { code: '05.6', name: '05.6 Despesa com Socios', parentCode: '05' },
-            { code: '05.7', name: '05.7 Serviços Contratados', parentCode: '05' },
-            { code: '05.8', name: '05.8 Despesa Comercial/Marketing', parentCode: '05' },
-            { code: '05.9', name: '05.9 Despesa com Estrutura', parentCode: '05' },
-            { code: '05.10', name: '05.10 Despesa Copa e Cozinha', parentCode: '05' },
-            { code: '05.11', name: '05.11 Despesa com Veículos', parentCode: '05' },
-            { code: '05.12', name: '05.12 Despesa de Informatica', parentCode: '05' },
-            { code: '05.13', name: '05.13 Taxas e Despesas Legais', parentCode: '05' },
-            // DESPESAS FINANCEIRAS (06.1 to 06.8)
-            { code: '06.1', name: '06.1 Entradas Financeiras', parentCode: '06' },
-            { code: '06.2', name: '06.2 Saidas Financeiras', parentCode: '06' },
-            { code: '06.3', name: '06.3 Financiamento', parentCode: '06' },
-            { code: '06.4', name: '06.4 Juros/Multas', parentCode: '06' },
-            { code: '06.5', name: '06.5 Passivo Trabalhista', parentCode: '06' },
-            { code: '06.6', name: '06.6 Depreciação', parentCode: '06' },
-            { code: '06.7', name: '06.7 Cartão de Credito', parentCode: '06' },
-            { code: '06.8', name: '06.8 PDD', parentCode: '06' },
+            { code: '1.1', name: '01.1 - Receita de Serviços', parentCode: '1' },
+            { code: '1.2', name: '01.2 - Receitas de Vendas', parentCode: '1' },
+            { code: '2.1', name: '02.1 - Tributos', parentCode: '2' },
+            // CUSTOS OPERACIONAIS (3.1 to 3.9)
+            { code: '3.1', name: '03.1 Salarios e Remuneração', parentCode: '3' },
+            { code: '3.2', name: '03.2 Encargos Sociais', parentCode: '3' },
+            { code: '3.3', name: '03.3 Beneficios', parentCode: '3' },
+            { code: '3.4', name: '03.4 Diárias', parentCode: '3' },
+            { code: '3.5', name: '03.5 SSMA', parentCode: '3' },
+            { code: '3.6', name: '03.6 Materiais', parentCode: '3' },
+            { code: '3.7', name: '03.7 Equipamentos', parentCode: '3' },
+            { code: '3.8', name: '03.8 Comunicação/Sistema/Licenças', parentCode: '3' },
+            { code: '3.9', name: '03.9 Custo com Veiculo', parentCode: '3' },
+            // DESPESAS OPERACIONAIS (4.1 to 4.8)
+            { code: '4.1', name: '04.1 Salarios e Remuneração', parentCode: '4' },
+            { code: '4.2', name: '04.2 Encargos Sociais', parentCode: '4' },
+            { code: '4.3', name: '04.3 Beneficios', parentCode: '4' },
+            { code: '4.4', name: '04.4 SSMA', parentCode: '4' },
+            { code: '4.5', name: '04.5 Viagens', parentCode: '4' },
+            { code: '4.6', name: '04.6 Custo com Veículos', parentCode: '4' },
+            { code: '4.7', name: '04.7 Cartão Corporativo', parentCode: '4' },
+            { code: '4.8', name: '04.8 Serviços Terceirizados', parentCode: '4' },
+            // DESPESAS ADMINISTRATIVAS (5.1 to 5.13)
+            { code: '5.1', name: '05.1 Salario e Remuneração', parentCode: '5' },
+            { code: '5.2', name: '05.2 Encargos Sociais', parentCode: '5' },
+            { code: '5.3', name: '05.3 Beneficios', parentCode: '5' },
+            { code: '5.4', name: '05.4 SSMA', parentCode: '5' },
+            { code: '5.5', name: '05.5 Viagens', parentCode: '5' },
+            { code: '5.6', name: '05.6 Despesa com Socios', parentCode: '5' },
+            { code: '5.7', name: '05.7 Serviços Contratados', parentCode: '5' },
+            { code: '5.8', name: '05.8 Despesa Comercial/Marketing', parentCode: '5' },
+            { code: '5.9', name: '05.9 Despesa com Estrutura', parentCode: '5' },
+            { code: '5.10', name: '05.10 Despesa Copa e Cozinha', parentCode: '5' },
+            { code: '5.11', name: '05.11 Despesa com Veículos', parentCode: '5' },
+            { code: '5.12', name: '05.12 Despesa de Informatica', parentCode: '5' },
+            { code: '5.13', name: '05.13 Taxas e Despesas Legais', parentCode: '5' },
+            // DESPESAS FINANCEIRAS (6.1 to 6.8)
+            { code: '6.1', name: '06.1 Entradas Financeiras', parentCode: '6' },
+            { code: '6.2', name: '06.2 Saidas Financeiras', parentCode: '6' },
+            { code: '6.3', name: '06.3 Financiamento', parentCode: '6' },
+            { code: '6.4', name: '06.4 Juros/Multas', parentCode: '6' },
+            { code: '6.5', name: '06.5 Passivo Trabalhista', parentCode: '6' },
+            { code: '6.6', name: '06.6 Depreciação', parentCode: '6' },
+            { code: '6.7', name: '06.7 Cartão de Credito', parentCode: '6' },
+            { code: '6.8', name: '06.8 PDD', parentCode: '6' },
         ];
 
         syntheticParents.forEach(synth => {
@@ -316,17 +325,17 @@ export async function GET(request: Request) {
                 return;
             }
 
-            if (code.startsWith('01.1.')) {
-                const parent = codeMap.get('01.1');
+            if (code.startsWith('1.1.')) {
+                const parent = codeMap.get('1.1');
                 if (parent) { parent.children.push(node); return; }
             }
-            if (code.startsWith('01.2.')) {
-                const parent = codeMap.get('01.2');
+            if (code.startsWith('1.2.')) {
+                const parent = codeMap.get('1.2');
                 if (parent) { parent.children.push(node); return; }
             }
-            if (code.startsWith('2.1')) {
-                const parent = codeMap.get('02.1');
-                if (parent) { parent.children.push(node); return; }
+            if (code.startsWith('2.1.') || code === '2.1') {
+                const parent = codeMap.get('2.1');
+                if (parent && parent.id !== node.id) { parent.children.push(node); return; }
             }
 
             let parentFound = false;
@@ -346,8 +355,8 @@ export async function GET(request: Request) {
                 }
             }
 
-            if (!parentFound && code.match(/^(0[3456])\.(\d+)\./)) {
-                const match = code.match(/^(0[3456])\.(\d+)/);
+            if (!parentFound && code.match(/^([3-6])\.(\d+)\./)) {
+                const match = code.match(/^([3-6])\.(\d+)/);
                 if (match) {
                     const synthParentCode = match[0];
                     const synthParent = codeMap.get(synthParentCode);
@@ -383,8 +392,8 @@ export async function GET(request: Request) {
                         existingRoot.children.push(child);
                     }
                 });
-                if (rootCode === '01') existingRoot.name = 'RECEITAS';
-                if (rootCode === '02') existingRoot.name = 'TRIBUTO SOBRE FATURAMENTO';
+                if (rootCode === '1') existingRoot.name = 'RECEITAS';
+                if (rootCode === '2') existingRoot.name = 'TRIBUTO SOBRE FATURAMENTO';
             } else {
                 uniqueRootsMap.set(rootCode, root);
             }
@@ -413,7 +422,10 @@ export async function GET(request: Request) {
 
         // 3. Compute Totals Map recursively
         const totalsMap = new Map<string, { budget: number[], realized: number[] }>();
-        const isNegatedCode = (code: string) => code.startsWith('06.1');
+        const isNegatedCode = (code: string) => {
+            const norm = normalizeCode(code);
+            return norm === '6.1' || norm.startsWith('6.1.');
+        };
 
         const calculateNode = (node: CategoryNode, parentNegated = false) => {
             const negated = parentNegated || isNegatedCode(node.code || '');
@@ -485,12 +497,13 @@ export async function GET(request: Request) {
         // 4. Helper to get DRE Totals
         const getDreTotalsForMonth = (m: number) => {
             const getBucket = (code: string) => {
-                if (code.startsWith('01') || code.startsWith('1')) return 'rev';
-                if (code.startsWith('02') || code.startsWith('2')) return 'taxes';
-                if (code.startsWith('3') || code.startsWith('03')) return 'costs';
-                if (code.startsWith('4') || code.startsWith('04')) return 'opExp';
-                if (code.startsWith('5') || code.startsWith('05') || code.startsWith('7') || code.startsWith('07') || code.startsWith('8') || code.startsWith('08')) return 'adminExp';
-                if (code.startsWith('6') || code.startsWith('06') || code.startsWith('9') || code.startsWith('09') || code.startsWith('10')) return 'fin';
+                const norm = normalizeCode(code);
+                if (norm === '1' || norm.startsWith('1.')) return 'rev';
+                if (norm === '2' || norm.startsWith('2.')) return 'taxes';
+                if (norm === '3' || norm.startsWith('3.')) return 'costs';
+                if (norm === '4' || norm.startsWith('4.')) return 'opExp';
+                if (norm === '5' || norm.startsWith('5.') || norm === '7' || norm.startsWith('7.') || norm === '8' || norm.startsWith('8.')) return 'adminExp';
+                if (norm === '6' || norm.startsWith('6.') || norm === '9' || norm.startsWith('9.') || norm === '10' || norm.startsWith('10.')) return 'fin';
                 return 'other';
             };
 
@@ -581,7 +594,7 @@ export async function GET(request: Request) {
             if (cleanCode) {
                 const match = categories.find(c => {
                     const cCode = (c.name.match(/^(\d{1,2}(?:\.\d+)*)/) || [])[1] || '';
-                    return cCode === cleanCode;
+                    return normalizeCode(cCode) === normalizeCode(cleanCode);
                 });
                 if (match) return match.id;
             }
@@ -623,7 +636,7 @@ export async function GET(request: Request) {
                         bVal = t.budget[m];
                         rVal = t.realized[m];
                     } else {
-                        const node = codeMap.get(key);
+                        const node = codeMap.get(key) || codeMap.get(normalizeCode(key));
                         if (node) {
                             const tNode = totalsMap.get(node.id);
                             if (tNode) {

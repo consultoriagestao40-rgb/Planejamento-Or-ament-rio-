@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { usePathname } from 'next/navigation';
 import Link from 'next/link';
 
@@ -8,6 +8,21 @@ export default function ClientLayoutWrapper({ children }: { children: React.Reac
     const pathname = usePathname();
     const isLoginPage = pathname === '/login';
     const [isCollapsed, setIsCollapsed] = useState(false);
+
+    useEffect(() => {
+        const stored = localStorage.getItem('sidebar-collapsed');
+        if (stored !== null) {
+            setIsCollapsed(stored === 'true');
+        }
+    }, []);
+
+    const toggleCollapse = () => {
+        setIsCollapsed(prev => {
+            const next = !prev;
+            localStorage.setItem('sidebar-collapsed', String(next));
+            return next;
+        });
+    };
 
     if (isLoginPage) {
         return <>{children}</>;
@@ -120,7 +135,7 @@ export default function ClientLayoutWrapper({ children }: { children: React.Reac
             >
                 {/* Floating Collapse/Expand Button */}
                 <button
-                    onClick={() => setIsCollapsed(!isCollapsed)}
+                    onClick={toggleCollapse}
                     style={{
                         position: 'absolute',
                         top: '24px',

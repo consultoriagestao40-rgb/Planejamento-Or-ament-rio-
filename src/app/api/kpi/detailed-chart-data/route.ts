@@ -448,9 +448,22 @@ export async function GET(request: Request) {
                         }
                     });
 
+                    const readBudgetNames = new Set<string>();
                     for (const rawId of idsToRead) {
                         const bData = budgetValues[`${rawId}-${i}`] || { amount: 0 };
-                        sumB += bData.amount;
+                        if (bData.amount !== 0) {
+                            sumB += bData.amount;
+                        } else {
+                            const cat = categories.find(c => c.id === rawId);
+                            const nameToUse = cat ? cat.name : node.name;
+                            const normalizedName = nameToUse.toUpperCase().replace(/[^A-Z0-9]/g, '');
+                            const lookupKey = `budget-${normalizedName}|${i}`;
+                            if (!readBudgetNames.has(lookupKey)) {
+                                readBudgetNames.add(lookupKey);
+                                const nameBData = budgetValues[lookupKey] || { amount: 0 };
+                                sumB += nameBData.amount;
+                            }
+                        }
                     }
 
                     myBudget[i] += sign * sumB;

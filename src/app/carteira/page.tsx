@@ -94,6 +94,7 @@ export default function PortfolioAnalysisPage() {
 
     // Preview data states
     const [chartPreviewData, setChartPreviewData] = useState<any[]>([]);
+    const [previewTooltip, setPreviewTooltip] = useState<{ x: number; y: number; title: string; items: { label: string; value: string; color?: string }[] } | null>(null);
     const [loadingPreviewData, setLoadingPreviewData] = useState(false);
     const [savingChart, setSavingChart] = useState(false);
     const [indicatorName, setIndicatorName] = useState<string>('');
@@ -1900,8 +1901,8 @@ export default function PortfolioAnalysisPage() {
                                                 Selecione uma conta para ver o gráfico.
                                             </div>
                                         ) : (
-            <div style={{ width: '100%' }}>
-                                                {renderDetailedChart(chartType, chartPreviewData, chartOnlyRealized, chartShowAtingido, chartPctOfRevenue, activeMonthNumber, chartColor, seriesConfig, selectedYear)}
+                                            <div style={{ width: '100%' }}>
+                                                {renderDetailedChart(chartType, chartPreviewData, chartOnlyRealized, chartShowAtingido, chartPctOfRevenue, activeMonthNumber, chartColor, seriesConfig, selectedYear, setPreviewTooltip)}
                                             </div>
                                         )}
                                     </div>
@@ -1910,6 +1911,36 @@ export default function PortfolioAnalysisPage() {
                         )}
                     </div>
                 )}
+
+            {/* Preview Tooltip Rendering */}
+            {previewTooltip && previewTooltip.items.length > 0 && (
+                <div style={{
+                    position: 'fixed',
+                    left: previewTooltip.x + 15,
+                    top: previewTooltip.y + 15,
+                    backgroundColor: 'rgba(15, 23, 42, 0.95)',
+                    border: '1px solid #334155',
+                    borderRadius: '8px',
+                    padding: '0.55rem 0.75rem',
+                    boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.3), 0 4px 6px -2px rgba(0, 0, 0, 0.05)',
+                    zIndex: 99999,
+                    pointerEvents: 'none',
+                    color: '#f8fafc',
+                    fontSize: '0.75rem',
+                    minWidth: '150px',
+                    fontFamily: 'inherit'
+                }}>
+                    <div style={{ fontWeight: 800, borderBottom: '1px solid rgba(255, 255, 255, 0.15)', paddingBottom: '4px', marginBottom: '4px', color: '#cbd5e1' }}>
+                        {previewTooltip.title}
+                    </div>
+                    {previewTooltip.items.map((item, idx) => (
+                        <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', gap: '1.25rem', marginTop: '3px', alignItems: 'center' }}>
+                            <span style={{ color: 'rgba(241, 245, 249, 0.8)', fontWeight: 500 }}>{item.label}</span>
+                            <span style={{ fontWeight: 800, color: item.color || '#fff' }}>{item.value}</span>
+                        </div>
+                    ))}
+                </div>
+            )}
 
 
             {/* Modal de Análise Detalhada / Justificativa de Desvio */}
@@ -3025,13 +3056,14 @@ const renderDetailedChart = (
                     const valScaled = getAbsValue(val, mode, monthIdx);
 
                     const barX = startBarX + keyIdx * (barWidth + 4);
-                    const yVal = getYAbs(valScaled);
-                    const hVal = Math.max(2, yBaseline - yVal);
+                    const isPositive = valScaled >= 0;
+                    const hVal = Math.max(2, Math.abs(getYAbs(valScaled) - yBaseline));
+                    const yVal = isPositive ? yBaseline - hVal : yBaseline;
 
                     if (key === 'budget') {
                         return (
                             <g key={`${monthIdx}-budget`}>
-                                {valScaled > 0 && (
+                                {valScaled !== 0 && (
                                     <>
                                         <rect 
                                             x={barX} 
@@ -3043,7 +3075,7 @@ const renderDetailedChart = (
                                         />
                                         <text 
                                             x={barX + barWidth / 2} 
-                                            y={yVal - 7} 
+                                            y={isPositive ? yVal - 7 : yVal + hVal + 14} 
                                             textAnchor="middle" 
                                             fill="var(--text-secondary)" 
                                             fontSize="11.5px" 
@@ -3059,19 +3091,19 @@ const renderDetailedChart = (
                         // realized
                         return (
                             <g key={`${monthIdx}-realized`}>
-                                {monthIdx + 1 <= currentMonthIdx + 1 && valScaled > 0 && (
+                                {monthIdx + 1 <= currentMonthIdx + 1 && valScaled !== 0 && (
                                     <>
                                         <rect 
                                             x={barX} 
                                             y={yVal} 
                                             width={barWidth} 
                                             height={hVal} 
-                                            fill={chartColor} 
+                                            fill={valScaled >= 0 ? chartColor : 'var(--accent-red)'} 
                                             rx="3"
                                         />
                                         <text 
                                             x={barX + barWidth / 2} 
-                                            y={yVal - 7} 
+                                            y={isPositive ? yVal - 7 : yVal + hVal + 14} 
                                             textAnchor="middle" 
                                             fill="var(--text-secondary)" 
                                             fontSize="11.5px" 
@@ -3127,6 +3159,16 @@ const renderDetailedChart = (
                                     stroke="var(--bg-surface)" 
                                     strokeWidth="1" 
                                 />
+                                <text 
+                                    x={p.x} 
+                                    y={p.y - 11} 
+                                    textAnchor="middle" 
+                                    fill="var(--text-muted)" 
+                                    fontSize="12px" 
+                                    fontWeight="700"
+                                >
+                                    {formatAbs(p.val, isDailyMode(bMode))}
+                                </text>
                             </g>
                         ))}
                     </g>

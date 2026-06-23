@@ -3600,8 +3600,8 @@ const renderDetailedChart = (
 
                     {/* Hover tooltip zones */}
                     {onHover && data.map((m, idx) => {
-                        const xBase = 150 + idx * 88;
-                        const stepWidth = 88;
+                        const xBase = 80 + idx * 94;
+                        const stepWidth = 94;
                         return (
                             <rect
                                 key={`hover-${idx}`}

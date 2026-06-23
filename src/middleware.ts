@@ -32,6 +32,7 @@ export function middleware(request: NextRequest) {
         pathname.startsWith('/api/run-push') ||
         pathname.startsWith('/api/clean-ghosts') ||
         pathname.startsWith('/api/diag-db-query') ||
+        pathname.startsWith('/api/debug-diarias') ||
         pathname === '/login' ||
         pathname === '/favicon.ico'
     ) {

@@ -128,7 +128,7 @@ export async function GET(request: Request) {
         const rawCategories = await prisma.category.findMany({
             where: { tenantId: { in: targetTenantIds } }
         });
-        const categories = rawCategories.filter(c => !c.id.includes(','));
+        const categories = rawCategories.filter(c => !c.id.includes(',') && !c.id.includes('|'));
 
         const categoryNameMap = new Map<string, string>();
         categories.forEach(c => {
@@ -574,152 +574,177 @@ export async function GET(request: Request) {
         // Precompute DRE Totals for all 12 months for Revenue-base / Indicator logic
         const dreTotals = Array.from({ length: 12 }, (_, i) => getDreTotalsForMonth(i));
 
-        // 5. Build final series
-        const keys = categoryId.split(',').map(k => k.trim()).filter(Boolean);
+        // 5. Build final series helper
+        const getSeriesForCategory = async (catId: string) => {
+            const keys = catId.split(',').map(k => k.trim()).filter(Boolean);
 
-        // Fetch original categories for UUID keys that are not DRE keys
-        const dbKeys = keys.filter(k => !['vRev', 'vTaxes', 'vRecLiq', 'vCosts', 'vGrossMarg', 'vOpExp', 'vContribMarg', 'vAdminExp', 'vEbitda', 'vFin', 'vNetProfit'].includes(k));
-        const originalCategories = dbKeys.length > 0 ? await prisma.category.findMany({
-            where: { id: { in: dbKeys } }
-        }) : [];
+            // Fetch original categories for UUID keys that are not DRE keys
+            const dbKeys = keys.filter(k => !['vRev', 'vTaxes', 'vRecLiq', 'vCosts', 'vGrossMarg', 'vOpExp', 'vContribMarg', 'vAdminExp', 'vEbitda', 'vFin', 'vNetProfit'].includes(k));
+            const originalCategories = dbKeys.length > 0 ? await prisma.category.findMany({
+                where: { id: { in: dbKeys } }
+            }) : [];
 
-        // DEBUG: Log received categoryId and resolution
-        console.log('[DEBUG CHART DATA] categoryId recebido:', categoryId);
-        console.log('[DEBUG CHART DATA] keys:', keys);
-        console.log('[DEBUG CHART DATA] originalCategories encontradas:', originalCategories.map(c => ({ id: c.id, name: c.name, tenantId: c.tenantId })));
-        console.log('[DEBUG CHART DATA] totalsMap tem a key direto?', keys.map(k => `${k}: ${totalsMap.has(k)}`));
-
-        // Map any UUID from another tenant to the corresponding UUID in the current targets
-        const resolvedKeys = keys.map(key => {
-            const isDreKey = ['vRev', 'vTaxes', 'vRecLiq', 'vCosts', 'vGrossMarg', 'vOpExp', 'vContribMarg', 'vAdminExp', 'vEbitda', 'vFin', 'vNetProfit'].includes(key);
-            if (isDreKey) return key;
-
-            // Normalize synthetic key if it starts with synth- (e.g. synth-03.4 -> synth-3.4)
-            let lookupKey = key;
-            if (key.startsWith('synth-')) {
-                const code = key.replace('synth-', '');
-                lookupKey = `synth-${normalizeCode(code)}`;
-            }
-
-            console.log(`[DEBUG RESOLVE] key=${key} | lookupKey=${lookupKey} | totalsMap.has=${totalsMap.has(lookupKey)}`);
-
-            if (totalsMap.has(lookupKey)) return lookupKey;
-
-            const origCat = originalCategories.find(c => c.id === key);
-            console.log(`[DEBUG RESOLVE] origCat=${origCat ? origCat.name : 'NOT FOUND'}`);
-            if (!origCat) return key;
-
-            const cleanCode = (origCat.name.match(/^(\d{1,2}(?:\.\d+)*)/) || [])[1] || '';
-            const normalize = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, '').trim();
-            const origNormName = normalize(origCat.name);
-
-            if (cleanCode) {
-                const match = categories.find(c => {
-                    const cCode = (c.name.match(/^(\d{1,2}(?:\.\d+)*)/) || [])[1] || '';
-                    return normalizeCode(cCode) === normalizeCode(cleanCode);
-                });
-                if (match) return match.id;
-            }
-
-            const matchByName = categories.find(c => normalize(c.name) === origNormName);
-            if (matchByName) return matchByName.id;
-
-            return key;
-        });
-
-        const series = Array.from({ length: 12 }, (_, m) => {
-            let budgetVal = 0;
-            let realizedVal = 0;
-            const breakdown: Record<string, { budget: number; realized: number; atingido: number; pctOfRevenue: number }> = {};
-            const addedCanonicalKeys = new Set<string>();
-
-            resolvedKeys.forEach((key, idx) => {
-                const originalKey = keys[idx];
+            // Map any UUID from another tenant to the corresponding UUID in the current targets
+            const resolvedKeys = keys.map(key => {
                 const isDreKey = ['vRev', 'vTaxes', 'vRecLiq', 'vCosts', 'vGrossMarg', 'vOpExp', 'vContribMarg', 'vAdminExp', 'vEbitda', 'vFin', 'vNetProfit'].includes(key);
+                if (isDreKey) return key;
 
-                let canonicalKey = key;
-                if (!isDreKey) {
-                    const node = map.get(key);
-                    if (node) {
-                        canonicalKey = node.id;
-                    }
+                // Normalize synthetic key if it starts with synth- (e.g. synth-03.4 -> synth-3.4)
+                let lookupKey = key;
+                if (key.startsWith('synth-')) {
+                    const code = key.replace('synth-', '');
+                    lookupKey = `synth-${normalizeCode(code)}`;
                 }
 
-                let bVal = 0;
-                let rVal = 0;
+                if (totalsMap.has(lookupKey)) return lookupKey;
 
-                if (isDreKey) {
-                    const dreKey = key as keyof typeof dreTotals[0];
-                    bVal = dreTotals[m][dreKey].b;
-                    rVal = dreTotals[m][dreKey].r;
-                } else {
-                    const t = totalsMap.get(key);
-                    if (t) {
-                        bVal = t.budget[m];
-                        rVal = t.realized[m];
-                    } else {
-                        const node = codeMap.get(key) || codeMap.get(normalizeCode(key));
+                const origCat = originalCategories.find(c => c.id === key);
+                if (!origCat) return key;
+
+                const cleanCode = (origCat.name.match(/^(\d{1,2}(?:\.\d+)*)/) || [])[1] || '';
+                const normalize = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, '').trim();
+                const origNormName = normalize(origCat.name);
+
+                if (cleanCode) {
+                    const match = categories.find(c => {
+                        const cCode = (c.name.match(/^(\d{1,2}(?:\.\d+)*)/) || [])[1] || '';
+                        return normalizeCode(cCode) === normalizeCode(cleanCode);
+                    });
+                    if (match) return match.id;
+                }
+
+                const matchByName = categories.find(c => normalize(c.name) === origNormName);
+                if (matchByName) return matchByName.id;
+
+                return key;
+            });
+
+            return Array.from({ length: 12 }, (_, m) => {
+                let budgetVal = 0;
+                let realizedVal = 0;
+                const breakdown: Record<string, { budget: number; realized: number; atingido: number; pctOfRevenue: number }> = {};
+                const addedCanonicalKeys = new Set<string>();
+
+                resolvedKeys.forEach((key, idx) => {
+                    const originalKey = keys[idx];
+                    const isDreKey = ['vRev', 'vTaxes', 'vRecLiq', 'vCosts', 'vGrossMarg', 'vOpExp', 'vContribMarg', 'vAdminExp', 'vEbitda', 'vFin', 'vNetProfit'].includes(key);
+
+                    let canonicalKey = key;
+                    if (!isDreKey) {
+                        const node = map.get(key);
                         if (node) {
-                            const tNode = totalsMap.get(node.id);
-                            if (tNode) {
-                                bVal = tNode.budget[m];
-                                rVal = tNode.realized[m];
+                            canonicalKey = node.id;
+                        }
+                    }
+
+                    let bVal = 0;
+                    let rVal = 0;
+
+                    if (isDreKey) {
+                        const dreKey = key as keyof typeof dreTotals[0];
+                        bVal = dreTotals[m][dreKey].b;
+                        rVal = dreTotals[m][dreKey].r;
+                    } else {
+                        const t = totalsMap.get(key);
+                        if (t) {
+                            bVal = t.budget[m];
+                            rVal = t.realized[m];
+                        } else {
+                            const node = codeMap.get(key) || codeMap.get(normalizeCode(key));
+                            if (node) {
+                                const tNode = totalsMap.get(node.id);
+                                if (tNode) {
+                                    bVal = tNode.budget[m];
+                                    rVal = tNode.realized[m];
+                                }
                             }
                         }
                     }
-                }
 
-                if (!addedCanonicalKeys.has(canonicalKey)) {
-                    addedCanonicalKeys.add(canonicalKey);
-                    budgetVal += bVal;
-                    realizedVal += rVal;
-                }
+                    if (!addedCanonicalKeys.has(canonicalKey)) {
+                        addedCanonicalKeys.add(canonicalKey);
+                        budgetVal += bVal;
+                        realizedVal += rVal;
+                    }
 
-                // Individual account target achievement percentage
-                let at = 0;
-                if (bVal > 0) {
-                    at = (rVal / bVal) * 100;
-                } else if (bVal < 0) {
-                    at = (1 + (bVal - rVal) / bVal) * 100;
+                    // Individual account target achievement percentage
+                    let at = 0;
+                    if (bVal > 0) {
+                        at = (rVal / bVal) * 100;
+                    } else if (bVal < 0) {
+                        at = (1 + (bVal - rVal) / bVal) * 100;
+                    } else {
+                        at = rVal >= 0 ? 100 : 0;
+                    }
+
+                    // Individual percentage of revenue
+                    const revVal = dreTotals[m].vRev.r || 1;
+                    const pct = (rVal / revVal) * 100;
+
+                    breakdown[originalKey] = {
+                        budget: bVal,
+                        realized: rVal,
+                        atingido: at,
+                        pctOfRevenue: pct
+                    };
+                });
+
+                // Target achievement percentage (atingido)
+                let atingido = 0;
+                if (budgetVal > 0) {
+                    atingido = (realizedVal / budgetVal) * 100;
+                } else if (budgetVal < 0) {
+                    atingido = (1 + (budgetVal - realizedVal) / budgetVal) * 100;
                 } else {
-                    at = rVal >= 0 ? 100 : 0;
+                    atingido = realizedVal >= 0 ? 100 : 0;
                 }
 
-                // Individual percentage of revenue
-                const revVal = dreTotals[m].vRev.r || 1;
-                const pct = (rVal / revVal) * 100;
+                // Percentage of revenue (pctOfRevenue)
+                const revenueVal = dreTotals[m].vRev.r || 1;
+                const pctOfRevenue = (realizedVal / revenueVal) * 100;
 
-                breakdown[originalKey] = {
-                    budget: bVal,
-                    realized: rVal,
-                    atingido: at,
-                    pctOfRevenue: pct
+                return {
+                    month: m + 1,
+                    budget: budgetVal,
+                    realized: realizedVal,
+                    atingido,
+                    pctOfRevenue,
+                    breakdown
                 };
             });
+        };
 
-            // Target achievement percentage (atingido)
-            let atingido = 0;
-            if (budgetVal > 0) {
-                atingido = (realizedVal / budgetVal) * 100;
-            } else if (budgetVal < 0) {
-                atingido = (1 + (budgetVal - realizedVal) / budgetVal) * 100;
-            } else {
-                atingido = realizedVal >= 0 ? 100 : 0;
-            }
+        let series;
+        if (categoryId.includes('|')) {
+            const [baseId, compareId] = categoryId.split('|');
+            const baseSeries = await getSeriesForCategory(baseId);
+            const compareSeries = await getSeriesForCategory(compareId);
 
-            // Percentage of revenue (pctOfRevenue)
-            const revenueVal = dreTotals[m].vRev.r || 1;
-            const pctOfRevenue = (realizedVal / revenueVal) * 100;
+            series = baseSeries.map((baseMonth, m) => {
+                const compareMonth = compareSeries[m];
+                
+                const rRatio = compareMonth.realized !== 0 ? (baseMonth.realized / compareMonth.realized) * 100 : 0;
+                const bRatio = compareMonth.budget !== 0 ? (baseMonth.budget / compareMonth.budget) * 100 : 0;
 
-            return {
-                month: m + 1,
-                budget: budgetVal,
-                realized: realizedVal,
-                atingido,
-                pctOfRevenue,
-                breakdown
-            };
-        });
+                return {
+                    month: m + 1,
+                    budget: bRatio,
+                    realized: rRatio,
+                    atingido: 0,
+                    pctOfRevenue: 0,
+                    breakdown: {
+                        ratio: {
+                            budget: bRatio,
+                            realized: rRatio,
+                            atingido: 0,
+                            pctOfRevenue: 0
+                        }
+                    }
+                };
+            });
+        } else {
+            series = await getSeriesForCategory(categoryId);
+        }
 
         return NextResponse.json({ success: true, data: series });
     } catch (e: any) {

@@ -84,6 +84,9 @@ export default function PortfolioAnalysisPage() {
     const [chartCategory, setChartCategory] = useState<string>('');
     const [chartCategorySearch, setChartCategorySearch] = useState<string>('');
     const [isChartCategoryDropdownOpen, setIsChartCategoryDropdownOpen] = useState(false);
+    const [chartComparisonCategory, setChartComparisonCategory] = useState<string>('');
+    const [chartComparisonCategorySearch, setChartComparisonCategorySearch] = useState<string>('');
+    const [isChartComparisonCategoryDropdownOpen, setIsChartComparisonCategoryDropdownOpen] = useState(false);
     const [chartTenant, setChartTenant] = useState<string>('');
     const [chartCC, setChartCC] = useState<string>('ALL');
     const [chartType, setChartType] = useState<string>('VERTICAL_BAR');
@@ -156,8 +159,12 @@ export default function PortfolioAnalysisPage() {
         });
     }, [categories]);
 
-    const getChartCategoryLabel = useCallback((categoriesStr: string) => {
+    const getChartCategoryLabel = useCallback((categoriesStr: string): string => {
         if (!categoriesStr) return 'Selecione as contas...';
+        if (categoriesStr.includes('|')) {
+            const [base, compare] = categoriesStr.split('|');
+            return `${getChartCategoryLabel(base)} / ${getChartCategoryLabel(compare)}`;
+        }
         const selectedIds = categoriesStr.split(',').map(x => x.trim()).filter(Boolean);
         const dreLabels: Record<string, string> = {
             vRev: 'Receita Bruta',
@@ -297,9 +304,10 @@ export default function PortfolioAnalysisPage() {
     // Reactively fetch preview chart data during editing
     useEffect(() => {
         if (isEditingChart && chartCategory && chartTenant) {
-            fetchChartData(chartCategory, chartTenant, chartCC);
+            const finalCatId = chartComparisonCategory ? `${chartCategory}|${chartComparisonCategory}` : chartCategory;
+            fetchChartData(finalCatId, chartTenant, chartCC);
         }
-    }, [isEditingChart, chartCategory, chartTenant, chartCC, fetchChartData]);
+    }, [isEditingChart, chartCategory, chartComparisonCategory, chartTenant, chartCC, fetchChartData]);
 
     // Mapear seleção de categorias se o Tenant de contexto for alterado
     useEffect(() => {
@@ -373,7 +381,7 @@ export default function PortfolioAnalysisPage() {
                     tenantId: analysisSelectedTenant,
                     month: activeMonthNumber,
                     year: selectedYear,
-                    categoryId: chartCategory,
+                    categoryId: chartComparisonCategory ? `${chartCategory}|${chartComparisonCategory}` : chartCategory,
                     filterTenantId: chartTenant,
                     filterCCId: chartCC,
                     chartType: chartType === 'MIXED' || categoryIdsCount > 1
@@ -422,6 +430,8 @@ export default function PortfolioAnalysisPage() {
         setEditingChartId(null);
         setChartCategory('');
         setChartCategorySearch('');
+        setChartComparisonCategory('');
+        setChartComparisonCategorySearch('');
         setChartTenant('ALL');
         setChartCC('ALL');
         setChartType('VERTICAL_BAR');
@@ -464,8 +474,13 @@ export default function PortfolioAnalysisPage() {
 
     const handleEditChartClick = (chart: any) => {
         setEditingChartId(chart.id);
-        setChartCategory(chart.categoryId);
+        const hasPipe = chart.categoryId && chart.categoryId.includes('|');
+        const baseCatId = hasPipe ? chart.categoryId.split('|')[0] : chart.categoryId;
+        const compareCatId = hasPipe ? chart.categoryId.split('|')[1] : '';
+        setChartCategory(baseCatId);
+        setChartComparisonCategory(compareCatId);
         setChartCategorySearch('');
+        setChartComparisonCategorySearch('');
         setChartTenant(chart.filterTenantId);
         setChartCC(chart.filterCCId || 'ALL');
         
@@ -1571,6 +1586,229 @@ export default function PortfolioAnalysisPage() {
                                         )}
                                     </div>
 
+                                    {/* Comparação Category dropdown */}
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem', position: 'relative', marginTop: '0.5rem' }}>
+                                        <label style={{ fontSize: '0.75rem', fontWeight: 800, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                                            Conta de Comparação (Opcional - para calcular razão %)
+                                        </label>
+                                        <div
+                                            onClick={() => {
+                                                setIsChartComparisonCategoryDropdownOpen(!isChartComparisonCategoryDropdownOpen);
+                                                setChartComparisonCategorySearch('');
+                                            }}
+                                            style={{
+                                                cursor: 'pointer',
+                                                display: 'flex',
+                                                justifyContent: 'space-between',
+                                                alignItems: 'center',
+                                                padding: '0 0.85rem',
+                                                height: '38px',
+                                                fontSize: '0.85rem',
+                                                fontWeight: 600,
+                                                border: '1px solid var(--border-default)',
+                                                borderRadius: '8px',
+                                                background: 'var(--bg-surface)',
+                                                outline: 'none',
+                                                userSelect: 'none',
+                                                color: chartComparisonCategory ? 'var(--text-primary)' : 'var(--text-muted)'
+                                            }}
+                                        >
+                                            <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                                {chartComparisonCategory ? getChartCategoryLabel(chartComparisonCategory) : 'Selecione uma conta para comparar (ex: Salário)...'}
+                                            </span>
+                                            <span style={{ fontSize: '0.6rem', opacity: 0.5 }}>▼</span>
+                                        </div>
+
+                                        {isChartComparisonCategoryDropdownOpen && (
+                                            <>
+                                                <div 
+                                                    style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, zIndex: 9999 }} 
+                                                    onClick={() => setIsChartComparisonCategoryDropdownOpen(false)} 
+                                                />
+                                                <div 
+                                                    className="glass-card" 
+                                                    style={{ 
+                                                        position: 'absolute', 
+                                                        top: 'calc(100% + 4px)', 
+                                                        left: 0, 
+                                                        right: 0, 
+                                                        zIndex: 10000, 
+                                                        maxHeight: '220px', 
+                                                        overflowY: 'auto', 
+                                                        background: 'var(--bg-surface)', 
+                                                        border: '1px solid var(--border-default)',
+                                                        borderRadius: '8px',
+                                                        boxShadow: 'var(--shadow-card)',
+                                                        padding: '0.25rem 0'
+                                                    }}
+                                                >
+                                                    <div style={{ padding: '0.4rem 0.5rem', borderBottom: '1px solid var(--border-subtle)', position: 'sticky', top: 0, background: 'var(--bg-surface)', zIndex: 10 }}>
+                                                        <input 
+                                                            type="text" 
+                                                            placeholder="Pesquisar conta..." 
+                                                            value={chartComparisonCategorySearch}
+                                                            onChange={(e) => setChartComparisonCategorySearch(e.target.value)}
+                                                            onClick={(e) => e.stopPropagation()}
+                                                            autoFocus
+                                                            style={{ 
+                                                                width: '100%', 
+                                                                padding: '0.45rem 0.6rem', 
+                                                                fontSize: '0.8rem', 
+                                                                borderRadius: '6px', 
+                                                                border: '1px solid var(--border-default)', 
+                                                                background: 'var(--bg-elevated)', 
+                                                                outline: 'none',
+                                                                color: 'var(--text-primary)',
+                                                                boxSizing: 'border-box'
+                                                            }}
+                                                        />
+                                                    </div>
+                                                    <div style={{ maxHeight: '160px', overflowY: 'auto' }}>
+                                                        {/* Option to clear selection */}
+                                                        <div
+                                                            onClick={(e) => {
+                                                                e.stopPropagation();
+                                                                setChartComparisonCategory('');
+                                                                setIsChartComparisonCategoryDropdownOpen(false);
+                                                            }}
+                                                            style={{ 
+                                                                padding: '0.45rem 0.75rem', 
+                                                                cursor: 'pointer', 
+                                                                fontSize: '0.8rem', 
+                                                                fontWeight: 700,
+                                                                color: 'var(--accent-red)',
+                                                                display: 'flex',
+                                                                alignItems: 'center',
+                                                                gap: '0.5rem',
+                                                                background: 'rgba(239, 68, 68, 0.05)'
+                                                            }}
+                                                        >
+                                                            <span>❌ Sem comparação (limpar)</span>
+                                                        </div>
+
+                                                        {/* DRE Options */}
+                                                        {Object.entries({
+                                                            vRev: '(=) Receita Bruta',
+                                                            vTaxes: '(-) Deduções / Impostos',
+                                                            vRecLiq: '(=) Receita Líquida',
+                                                            vCosts: '(-) Custos Operacionais',
+                                                            vGrossMarg: '(=) Margem Bruta',
+                                                            vOpExp: '(-) Despesas Operacionais',
+                                                            vContribMarg: '(=) Margem de Contribuição',
+                                                            vAdminExp: '(-) Despesas Administrativas',
+                                                            vEbitda: '(=) EBITDA',
+                                                            vFin: '(-) Despesas Financeiras',
+                                                            vNetProfit: '(=) Lucro Líquido'
+                                                        })
+                                                        .filter(([_, name]) => !chartComparisonCategorySearch || name.toLowerCase().includes(chartComparisonCategorySearch.toLowerCase()))
+                                                        .map(([id, name]) => {
+                                                            const isSelected = chartComparisonCategory === id;
+                                                            return (
+                                                                <div
+                                                                    key={id}
+                                                                    onClick={(e) => {
+                                                                        e.stopPropagation();
+                                                                        setChartComparisonCategory(id);
+                                                                        setIsChartComparisonCategoryDropdownOpen(false);
+                                                                    }}
+                                                                    style={{ 
+                                                                        padding: '0.45rem 0.75rem', 
+                                                                        cursor: 'pointer', 
+                                                                        fontSize: '0.8rem', 
+                                                                        fontWeight: 700,
+                                                                        color: 'var(--accent-indigo)',
+                                                                        background: isSelected ? 'rgba(99, 102, 241, 0.05)' : 'transparent',
+                                                                        display: 'flex',
+                                                                        alignItems: 'center',
+                                                                        gap: '0.5rem'
+                                                                    }}
+                                                                >
+                                                                    <span>⭐ {name}</span>
+                                                                </div>
+                                                            );
+                                                        })}
+                                                        {/* Synthetic Parents Options */}
+                                                        {Object.entries(syntheticLabels)
+                                                        .filter(([_, name]) => !chartComparisonCategorySearch || name.toLowerCase().includes(chartComparisonCategorySearch.toLowerCase()))
+                                                        .map(([id, name]) => {
+                                                            const isSelected = chartComparisonCategory === id;
+                                                            return (
+                                                                <div
+                                                                    key={id}
+                                                                    onClick={(e) => {
+                                                                        e.stopPropagation();
+                                                                        setChartComparisonCategory(id);
+                                                                        setIsChartComparisonCategoryDropdownOpen(false);
+                                                                    }}
+                                                                    style={{ 
+                                                                        padding: '0.45rem 0.75rem', 
+                                                                        cursor: 'pointer', 
+                                                                        fontSize: '0.8rem', 
+                                                                        fontWeight: 700,
+                                                                        color: 'var(--accent-indigo)',
+                                                                        background: isSelected ? 'rgba(99, 102, 241, 0.05)' : 'transparent',
+                                                                        display: 'flex',
+                                                                        alignItems: 'center',
+                                                                        gap: '0.5rem'
+                                                                    }}
+                                                                >
+                                                                    <span>📁 {name} (Consolidado)</span>
+                                                                </div>
+                                                            );
+                                                        })}
+                                                        {/* Categories list */}
+                                                        {(() => {
+                                                             const filtered = categories
+                                                                 .filter(cat => {
+                                                                     const activeTenant = analysisSelectedTenant || (companies.length > 0 ? companies[0].id : '');
+                                                                     return cat.tenantId === activeTenant;
+                                                                 })
+                                                                 .filter(cat => !chartComparisonCategorySearch || cat.name.toLowerCase().includes(chartComparisonCategorySearch.toLowerCase()));
+
+                                                             const uniqueMap = new Map<string, any>();
+                                                             filtered.forEach(cat => {
+                                                                 if (!uniqueMap.has(cat.name)) {
+                                                                     uniqueMap.set(cat.name, cat);
+                                                                 }
+                                                             });
+
+                                                             const uniqueCategories = Array.from(uniqueMap.values())
+                                                                 .sort((a, b) => a.name.localeCompare(b.name));
+
+                                                             return uniqueCategories.map((cat: any) => {
+                                                                 const isSelected = chartComparisonCategory === cat.id;
+
+                                                                 return (
+                                                                     <div
+                                                                         key={cat.id}
+                                                                         onClick={(e) => {
+                                                                             e.stopPropagation();
+                                                                             setChartComparisonCategory(cat.id);
+                                                                             setIsChartComparisonCategoryDropdownOpen(false);
+                                                                         }}
+                                                                         style={{ 
+                                                                             padding: '0.45rem 0.75rem', 
+                                                                             cursor: 'pointer', 
+                                                                             fontSize: '0.8rem', 
+                                                                             fontWeight: 600,
+                                                                             color: 'var(--text-primary)',
+                                                                             background: isSelected ? 'rgba(99, 102, 241, 0.05)' : 'transparent',
+                                                                             display: 'flex',
+                                                                             alignItems: 'center',
+                                                                             gap: '0.5rem'
+                                                                         }}
+                                                                     >
+                                                                         <span>{cat.name}</span>
+                                                                     </div>
+                                                                 );
+                                                             });
+                                                         })()}
+                                                    </div>
+                                                </div>
+                                            </>
+                                        )}
+                                    </div>
+
                                     {/* Nome do Indicador (Obrigatório se selecionadas múltiplas contas) */}
                                     {chartCategory.split(',').map(x => x.trim()).filter(Boolean).length > 1 && (
                                         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem', marginTop: '0.5rem' }}>
@@ -2651,8 +2889,12 @@ const DetailedChartCard = ({ chart, onEdit, onDelete, onOpenAnalysis, mainMonth,
         });
     }, [data, chartViewMode]);
 
-    const getChartCategoryLabel = (categoriesStr: string) => {
+    const getChartCategoryLabel = (categoriesStr: string): string => {
         if (!categoriesStr) return 'Sem contas';
+        if (categoriesStr.includes('|')) {
+            const [base, compare] = categoriesStr.split('|');
+            return `${getChartCategoryLabel(base)} / ${getChartCategoryLabel(compare)}`;
+        }
         const selectedIds = categoriesStr.split(',').map(x => x.trim()).filter(Boolean);
         const dreLabels: Record<string, string> = {
             vRev: 'Receita Bruta',
@@ -2968,6 +3210,8 @@ const renderDetailedChart = (
         );
     }
 
+    const isRatioChart = data && data.length > 0 && data[0]?.breakdown?.hasOwnProperty('ratio');
+
     let chartMode = type;
     let config = mixedConfig;
     if (type && type.startsWith('{')) {
@@ -2981,7 +3225,7 @@ const renderDetailedChart = (
     }
 
     const formatVal = (val: number) => {
-        if (pctOfRevenue) return `${val.toFixed(1)}%`;
+        if (pctOfRevenue || isRatioChart) return `${val.toFixed(1)}%`;
         if (val === 0) return 'R$ 0';
         const absVal = Math.abs(val);
         let formatted = '';
@@ -3025,6 +3269,7 @@ const renderDetailedChart = (
             };
 
             const formatAbs = (val: number, isDaily: boolean = false) => {
+                if (isRatioChart) return `${val.toFixed(1)}%`;
                 if (val === 0) return 'R$ 0';
                 const absVal = Math.abs(val);
                 let formatted = '';

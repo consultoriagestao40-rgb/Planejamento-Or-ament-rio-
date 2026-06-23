@@ -25,7 +25,7 @@ export async function GET() {
         ]);
 
         const rawCategories = await prisma.category.findMany();
-        const categories = rawCategories.filter(c => !c.id.includes(','));
+        const categories = rawCategories.filter(c => !c.id.includes(',') && !c.id.includes('|'));
         const categoryNameMap = new Map<string, string>();
         categories.forEach(c => {
             categoryNameMap.set(c.id, c.name);

@@ -14,7 +14,7 @@ export async function GET() {
             prisma.tenant.findMany({ select: { id: true, name: true, cnpj: true, taxRate: true } })
         ]);
 
-        const categories = rawCategories.filter((c: any) => !c.id.includes(','));
+        const categories = rawCategories.filter((c: any) => !c.id.includes(',') && !c.id.includes('|'));
 
         console.log(`[RECOVERY] Loaded ${categories.length} categories and ${costCenters.length} cost centers`);
 

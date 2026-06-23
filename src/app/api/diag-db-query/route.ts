@@ -426,12 +426,8 @@ export async function GET() {
         return NextResponse.json({
             success: true,
             comparison,
-            syncedMonths: Array.from(syncedMonths),
-            root1Found: !!root1,
-            root1Details: root1 ? { id: root1.id, name: root1.name, code: root1.code, children: root1.children.map(c => ({ id: c.id, name: c.name, code: c.code, isSynthetic: c.isSynthetic, childrenCount: c.children.length })) } : null,
-            roots: finalRoots.map(r => ({ id: r.id, name: r.name, code: r.code })),
-            chartRealizedKeysSample: Object.keys(chartRealizedValues).slice(0, 20),
-            chartBudgetKeysSample: Object.keys(chartBudgetValues).slice(0, 20)
+            categoryNames: categories.map(c => c.name),
+            roots: finalRoots.map(r => ({ id: r.id, name: r.name, code: r.code }))
         });
     } catch (e: any) {
         return NextResponse.json({ success: false, error: e.message });

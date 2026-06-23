@@ -77,8 +77,15 @@ export async function GET(request: Request) {
             }
             ccFilter.costCenterId = { in: Array.from(allSynonymousCCIds) };
         }
-
         // Query raw Budget and Realized entries
+        const normalizeCCNameDedup = (name: string) =>
+            (name || '')
+                .toLowerCase()
+                .replace(/^\[inativo\]\s*/i, '')
+                .replace(/^[\d. ]+-?\s*/, '')
+                .replace(/[^a-z0-9]/g, '')
+                .trim();
+
         const [realizedRaw, budgetRaw] = await Promise.all([
             prisma.realizedEntry.findMany({
                 where: {
@@ -87,7 +94,7 @@ export async function GET(request: Request) {
                     viewMode,
                     ...ccFilter
                 },
-                include: { category: true }
+                include: { category: true, costCenter: true }
             }),
             prisma.budgetEntry.findMany({
                 where: {
@@ -95,29 +102,65 @@ export async function GET(request: Request) {
                     year,
                     ...ccFilter
                 },
-                include: { category: true }
+                include: { category: true, costCenter: true }
             })
         ]);
 
-        // Deduplicate realized: if ANY tenant has sync- entries for a year+month,
-        // drop ALL manual entries for that month across ALL tenants.
-        // This prevents variant-tenant doubling (e.g., tenant A1 has sync, tenant A2 has manual
-        // for the same data → global scope ensures only the sync version is counted).
-        const syncedMonths = new Set<string>();
-        realizedRaw.forEach(e => {
-            if (e.externalId && e.externalId.startsWith('sync-')) {
-                syncedMonths.add(`${e.year}|${e.month}`);
-            }
+        // Build variant-tenant groups: tenants sharing the same CNPJ root are "variants" of the same company.
+        // We must NEVER sum both variants together — only pick one entry per (category, month, company, costCenter).
+        const allTenantsForGrouping = await prisma.tenant.findMany({
+            where: { id: { in: targetTenantIds } },
+            select: { id: true, cnpj: true, name: true }
         });
-        const realizedEntriesRaw = realizedRaw.filter(e => {
-            const key = `${e.year}|${e.month}`;
-            if (syncedMonths.has(key)) {
-                return e.externalId && e.externalId.startsWith('sync-');
+        // Map tenantId -> groupKey (CNPJ first 8 digits, or normalized name)
+        const tenantToGroup = new Map<string, string>();
+        allTenantsForGrouping.forEach(t => {
+            const cnpjClean = (t.cnpj || '').replace(/\D/g, '');
+            const isUnknown = !t.cnpj || t.cnpj.toLowerCase().includes('unknown') || cnpjClean === '';
+            const groupKey = (!isUnknown && cnpjClean.length >= 8)
+                ? cnpjClean.substring(0, 8)
+                : (t.name || t.id).trim().toUpperCase().replace(/[^A-Z0-9]/g, '').replace(/LTDA$/, '').replace(/SA$/, '');
+            tenantToGroup.set(t.id, groupKey);
+        });
+
+        // Deduplicate realized entries by (categoryName, month, tenantGroup, normalizedCCName).
+        // Within the same slot, prefer sync- entries over manual. Otherwise keep the first.
+        // Different CCs within the same company will have different ccNorm → they sum naturally.
+        const realizedDedupMap = new Map<string, any>();
+        realizedRaw.forEach(e => {
+            const catName = (e as any).category?.name || '';
+            const normName = catName.toUpperCase().replace(/[^A-Z0-9.]/g, '');
+            const group = tenantToGroup.get(e.tenantId) || e.tenantId;
+            const ccNorm = normalizeCCNameDedup((e as any).costCenter?.name || '');
+            const key = `${normName}|${e.month}|${group}|${ccNorm}`;
+            const existing = realizedDedupMap.get(key);
+            const isSync = !!(e.externalId && e.externalId.startsWith('sync-'));
+            if (!existing) {
+                realizedDedupMap.set(key, { ...e, _isSync: isSync });
+            } else if (isSync && !existing._isSync) {
+                // sync wins over manual for same slot
+                realizedDedupMap.set(key, { ...e, _isSync: true });
             }
-            return true;
-        });;
+            // Same type collision = variant tenant duplicate → keep first (skip)
+        });
+        const realizedEntriesRaw = Array.from(realizedDedupMap.values());
 
 
+        // Deduplicate budget entries by (categoryName, month, tenantGroup, normalizedCCName).
+        // Entries from variant tenants for the same CC should not be double-counted.
+        const budgetDedupMap = new Map<string, any>();
+        budgetRaw.forEach(e => {
+            const catName = (e as any).category?.name || '';
+            const normName = catName.toUpperCase().replace(/[^A-Z0-9.]/g, '');
+            const group = tenantToGroup.get(e.tenantId) || e.tenantId;
+            const ccNorm = normalizeCCNameDedup((e as any).costCenter?.name || '');
+            const key = `${normName}|${e.month}|${group}|${ccNorm}`;
+            if (!budgetDedupMap.has(key)) {
+                budgetDedupMap.set(key, { ...e });
+            }
+            // Duplicate: same category, month, company group, cost center → skip (variant tenant dupe)
+        });
+        const budgetRawDeduped = Array.from(budgetDedupMap.values());
 
         // Get categories
         const categories = await prisma.category.findMany({
@@ -139,7 +182,7 @@ export async function GET(request: Request) {
         const isConsolidated = filterTenantId === 'ALL' || filterTenantId === 'DEFAULT' || requestedTenantIds.length > 1;
 
         const getCleanCode = (name: string) => {
-            const match = name.match(/^(\d{1,2}(?:\.\d+)*)/);
+            const match = name.match(/^(\d{1,2}(?:\.\d+)*)/); 
             return match ? match[1] : '';
         };
 
@@ -151,7 +194,7 @@ export async function GET(request: Request) {
             return true;
         });
 
-        const budgetEntries = budgetRaw.filter(e => {
+        const budgetEntries = budgetRawDeduped.filter(e => {
             const catName = categoryNameMap.get(e.categoryId) || '';
             const code = normalizeCode(getCleanCode(catName));
             if (code === '6.1.2' || code === '6.2.2') return false;

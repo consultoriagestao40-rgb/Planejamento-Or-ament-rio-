@@ -408,8 +408,40 @@ export async function GET() {
             return finalNodeTotals;
         };
 
-        if (root1) calculateNode(root1);
-        const chartRevTotals = root1 ? totalsMap.get(root1.id) : null;
+        finalRoots.forEach(root => calculateNode(root));
+
+        const getDreTotalsForMonth = (m: number) => {
+            const getBucket = (code: string) => {
+                const norm = normalizeCode(code);
+                if (norm === '1' || norm.startsWith('1.')) return 'rev';
+                if (norm === '2' || norm.startsWith('2.')) return 'taxes';
+                if (norm === '3' || norm.startsWith('3.')) return 'costs';
+                if (norm === '4' || norm.startsWith('4.')) return 'opExp';
+                if (norm === '5' || norm.startsWith('5.') || norm === '7' || norm.startsWith('7.') || norm === '8' || norm.startsWith('8.')) return 'adminExp';
+                if (norm === '6' || norm.startsWith('6.') || norm === '9' || norm.startsWith('9.') || norm === '10' || norm.startsWith('10.')) return 'fin';
+                return 'other';
+            };
+
+            const sumGroup = (bucketName: string, type: 'budget' | 'realized') => {
+                return finalRoots.reduce((acc, root) => {
+                    const code = root.code || '';
+                    if (getBucket(code) === bucketName) {
+                        const total = totalsMap.get(root.id);
+                        return acc + (total ? total[type][m] : 0);
+                    }
+                    return acc;
+                }, 0);
+            };
+
+            const bRev = sumGroup('rev', 'budget');
+            const rRev = sumGroup('rev', 'realized');
+
+            return {
+                vRev: { b: bRev, r: rRev }
+            };
+        };
+
+        const dreTotals = Array.from({ length: 12 }, (_, i) => getDreTotalsForMonth(i));
 
         // Compare side by side
         const comparison: any[] = [];
@@ -418,8 +450,8 @@ export async function GET() {
                 month: m + 1,
                 dre_realized: dreRevRealized[m],
                 dre_budget: dreRevBudget[m],
-                chart_realized: chartRevTotals ? chartRevTotals.realized[m] : 0,
-                chart_budget: chartRevTotals ? chartRevTotals.budget[m] : 0
+                chart_realized: dreTotals[m].vRev.r,
+                chart_budget: dreTotals[m].vRev.b
             });
         }
 

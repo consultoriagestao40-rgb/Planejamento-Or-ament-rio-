@@ -947,9 +947,9 @@ export default function BudgetEntryGrid({ costCenterId, year, taxRate = 0 }: Bud
                     {/* Name cell */}
                     <td style={{
                         padding: '0.85rem 1rem',
-                        position: 'sticky', left: 0,
+                        position: 'sticky', left: '-2px',
                         background: node.level === 0 ? 'var(--bg-surface)' : 'var(--bg-base)',
-                        boxShadow: '1px 0 0 0 ' + (node.level === 0 ? 'var(--bg-surface)' : 'var(--bg-base)'),
+                        boxShadow: '3px 0 0 0 ' + (node.level === 0 ? 'var(--bg-surface)' : 'var(--bg-base)'),
                         zIndex: 10,
                         fontSize: '0.8rem',
                         minWidth: '380px', width: '380px',
@@ -1031,7 +1031,7 @@ export default function BudgetEntryGrid({ costCenterId, year, taxRate = 0 }: Bud
 
         return (
             <tr onClick={() => groupId && toggleGroup(groupId)} style={{ background: bgColor, borderBottom: '1px solid var(--border-default)', fontWeight: isBold ? 800 : 600, cursor: groupId ? 'pointer' : 'default' }}>
-                <td style={{ padding: '0.85rem 1rem', position: 'sticky', left: 0, background: bgColor.includes('gradient') ? '#2563eb' : bgColor, boxShadow: '1px 0 0 0 ' + (bgColor.includes('gradient') ? '#2563eb' : bgColor), zIndex: 10, color: textColor, fontSize: '0.85rem', minWidth: '380px', width: '380px', borderRight: '1px solid var(--border-default)', textTransform: 'uppercase', letterSpacing: '0.02em' }}>
+                <td style={{ padding: '0.85rem 1rem', position: 'sticky', left: '-2px', background: bgColor.includes('gradient') ? '#2563eb' : bgColor, boxShadow: '3px 0 0 0 ' + (bgColor.includes('gradient') ? '#2563eb' : bgColor), zIndex: 10, color: textColor, fontSize: '0.85rem', minWidth: '380px', width: '380px', borderRight: '1px solid var(--border-default)', textTransform: 'uppercase', letterSpacing: '0.02em' }}>
                     <div style={{ display: 'flex', alignItems: 'center' }}>
                         {groupId && <span style={{ marginRight: '0.75rem', fontSize: '0.9rem', width: '1rem', color: textColor, opacity: 0.6 }}>{isExpanded ? '▼' : '▶'}</span>}
                         {!groupId && <span style={{ width: '1.75rem' }}></span>}
@@ -1234,7 +1234,7 @@ export default function BudgetEntryGrid({ costCenterId, year, taxRate = 0 }: Bud
                     <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: '1200px' }}>
                         <thead>
                             <tr style={{ background: 'var(--bg-surface)' }}>
-                                <th style={{ padding: '0.75rem 1rem', textAlign: 'left', fontSize: '0.65rem', fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.07em', position: 'sticky', left: 0, background: 'var(--bg-surface)', boxShadow: '1px 0 0 0 var(--bg-surface)', zIndex: 20, minWidth: '380px', borderRight: '1px solid var(--border-subtle)', borderBottom: '2px solid var(--border-default)' }}>
+                                <th style={{ padding: '0.75rem 1rem', textAlign: 'left', fontSize: '0.65rem', fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.07em', position: 'sticky', left: '-2px', background: 'var(--bg-surface)', boxShadow: '3px 0 0 0 var(--bg-surface)', zIndex: 20, minWidth: '380px', borderRight: '1px solid var(--border-subtle)', borderBottom: '2px solid var(--border-default)' }}>
                                     ▸ Estrutura DRE
                                 </th>
                             {MONTHS.map((m, i) => (

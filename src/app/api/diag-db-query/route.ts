@@ -468,12 +468,17 @@ export async function GET() {
         };
         const treeDebug = finalRoots.map(serializeTree);
 
+        const m1ServicosVendidosDRE = cleanSyncRealized.filter(e => e.month === 1 && (categoryNameMap.get(e.categoryId) || '').includes('Serviços Vendidos')).map(e => ({ amount: e.amount, externalId: e.externalId, tenantId: e.tenantId }));
+        const m1ServicosVendidosChart = chartRealizedFiltered.filter(e => e.month === 1 && (categoryNameMap.get(e.categoryId) || '').includes('Serviços Vendidos')).map(e => ({ amount: e.amount, externalId: e.externalId, tenantId: e.tenantId }));
+
         return NextResponse.json({
             success: true,
             comparison,
             syncedMonths: Array.from(syncedMonths),
             m1DRE,
             m1ChartRaw,
+            m1ServicosVendidosDRE,
+            m1ServicosVendidosChart,
             treeDebug
         });
     } catch (e: any) {

@@ -3378,34 +3378,43 @@ const renderDetailedChart = (
 
             return (
                 <svg viewBox="0 0 1200 260" width="100%" height="auto" style={{ overflow: 'visible' }}>
+                    {/* Grid lines only — rendered first so bars draw over them */}
                     {[0, 0.25, 0.5, 0.75, 1.0].map((ratio, gridIdx) => {
                         const yGrid = yBaseline - ratio * 170;
                         return (
-                            <g key={gridIdx}>
-                                <line x1="80" y1={yGrid} x2="1120" y2={yGrid} stroke="var(--border-subtle)" strokeWidth="0.5" strokeDasharray="3 3" />
-                                {ratio > 0 && (
-                                    <text x="73" y={yGrid + 4} textAnchor="end" fill="var(--text-muted)" fontSize="11px" fontWeight="600">
-                                        {formatAbs(ratio * scaleMaxAbs, hasDailyActive)}
-                                    </text>
-                                )}
-                                {ratio > 0 && (
-                                    <text x="1127" y={yGrid + 4} textAnchor="start" fill="var(--text-muted)" fontSize="11px" fontWeight="600">
-                                        {(ratio * scaleMaxPct).toFixed(0)}%
-                                    </text>
-                                )}
-                            </g>
+                            <line key={gridIdx} x1="95" y1={yGrid} x2="1120" y2={yGrid}
+                                stroke={ratio === 0 ? 'var(--border-default)' : 'var(--border-subtle)'}
+                                strokeWidth={ratio === 0 ? 1 : 0.5}
+                                strokeDasharray={ratio === 0 ? undefined : '3 3'}
+                            />
                         );
                     })}
 
                     {/* Axis lines */}
-                    <line x1="80" y1="0" x2="80" y2={yBaseline} stroke="var(--border-default)" strokeWidth="1" />
+                    <line x1="95" y1="0" x2="95" y2={yBaseline} stroke="var(--border-default)" strokeWidth="1" />
                     <line x1="1120" y1="0" x2="1120" y2={yBaseline} stroke="var(--border-default)" strokeWidth="1" />
-
-                    <line x1="80" y1={yBaseline} x2="1120" y2={yBaseline} stroke="var(--border-default)" strokeWidth="1" />
+                    <line x1="95" y1={yBaseline} x2="1120" y2={yBaseline} stroke="var(--border-default)" strokeWidth="1" />
 
                     {renderedBars}
                     {leftLines}
                     {rightLines}
+
+                    {/* Y-axis labels rendered LAST so they appear above bars */}
+                    {[0.25, 0.5, 0.75, 1.0].map((ratio, gridIdx) => {
+                        const yGrid = yBaseline - ratio * 170;
+                        return (
+                            <g key={`label-${gridIdx}`}>
+                                <text x="88" y={yGrid + 4} textAnchor="end" fill="var(--text-muted)" fontSize="11px" fontWeight="600"
+                                    style={{ paintOrder: 'stroke', stroke: 'var(--bg-surface)', strokeWidth: 3, strokeLinejoin: 'round' }}>
+                                    {formatAbs(ratio * scaleMaxAbs, hasDailyActive)}
+                                </text>
+                                <text x="1127" y={yGrid + 4} textAnchor="start" fill="var(--text-muted)" fontSize="11px" fontWeight="600"
+                                    style={{ paintOrder: 'stroke', stroke: 'var(--bg-surface)', strokeWidth: 3, strokeLinejoin: 'round' }}>
+                                    {(ratio * scaleMaxPct).toFixed(0)}%
+                                </text>
+                            </g>
+                        );
+                    })}
 
                     {data.map((m, idx) => (
                         <text 

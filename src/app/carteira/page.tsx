@@ -3697,7 +3697,7 @@ const renderDetailedChart = (
                             }}
                             onMouseLeave={() => onHover(null)}
                         />
-                        );
+                        )
                     })}
                 </svg>
             );

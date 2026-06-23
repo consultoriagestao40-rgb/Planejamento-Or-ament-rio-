@@ -484,43 +484,56 @@ export async function GET(request: Request) {
 
         // 4. Helper to get DRE Totals
         const getDreTotalsForMonth = (m: number) => {
-            const sumGroup = (predicate: (node: CategoryNode) => boolean, type: 'budget' | 'realized') => {
-                const roots = potentialRoots.filter(predicate);
-                return roots.reduce((acc, root) => {
-                    const total = totalsMap.get(root.id);
-                    return acc + (total ? total[type][m] : 0);
+            const getBucket = (code: string) => {
+                if (code.startsWith('01') || code.startsWith('1')) return 'rev';
+                if (code.startsWith('02') || code.startsWith('2')) return 'taxes';
+                if (code.startsWith('3') || code.startsWith('03')) return 'costs';
+                if (code.startsWith('4') || code.startsWith('04')) return 'opExp';
+                if (code.startsWith('5') || code.startsWith('05') || code.startsWith('7') || code.startsWith('07') || code.startsWith('8') || code.startsWith('08')) return 'adminExp';
+                if (code.startsWith('6') || code.startsWith('06') || code.startsWith('9') || code.startsWith('09') || code.startsWith('10')) return 'fin';
+                return 'other';
+            };
+
+            const sumGroup = (bucketName: string, type: 'budget' | 'realized') => {
+                return potentialRoots.reduce((acc, root) => {
+                    const code = root.code || '';
+                    if (getBucket(code) === bucketName) {
+                        const total = totalsMap.get(root.id);
+                        return acc + (total ? total[type][m] : 0);
+                    }
+                    return acc;
                 }, 0);
             };
 
-            const bRev = sumGroup(r => (r.code || '').startsWith('01') || (r.code || '') === '1', 'budget');
-            const rRev = sumGroup(r => (r.code || '').startsWith('01') || (r.code || '') === '1', 'realized');
+            const bRev = sumGroup('rev', 'budget');
+            const rRev = sumGroup('rev', 'realized');
 
-            const bTaxes = sumGroup(r => (r.code || '').startsWith('02') || (r.code || '') === '2', 'budget');
-            const rTaxes = sumGroup(r => (r.code || '').startsWith('02') || (r.code || '') === '2', 'realized');
+            const bTaxes = sumGroup('taxes', 'budget');
+            const rTaxes = sumGroup('taxes', 'realized');
 
             const bRecLiq = bRev - bTaxes;
             const rRecLiq = rRev - rTaxes;
 
-            const bCosts = sumGroup(r => (r.code || '').startsWith('3') || (r.code || '').startsWith('03'), 'budget');
-            const rCosts = sumGroup(r => (r.code || '').startsWith('3') || (r.code || '').startsWith('03'), 'realized');
+            const bCosts = sumGroup('costs', 'budget');
+            const rCosts = sumGroup('costs', 'realized');
 
             const bGrossMarg = bRecLiq - bCosts;
             const rGrossMarg = rRecLiq - rCosts;
 
-            const bOpExp = sumGroup(r => (r.code || '').startsWith('4') || (r.code || '').startsWith('04'), 'budget');
-            const rOpExp = sumGroup(r => (r.code || '').startsWith('4') || (r.code || '').startsWith('04'), 'realized');
+            const bOpExp = sumGroup('opExp', 'budget');
+            const rOpExp = sumGroup('opExp', 'realized');
 
             const bContribMarg = bGrossMarg - bOpExp;
             const rContribMarg = rGrossMarg - rOpExp;
 
-            const bAdminExp = sumGroup(r => (r.code || '').startsWith('5') || (r.code || '').startsWith('05') || (r.code || '').startsWith('7') || (r.code || '').startsWith('07') || (r.code || '').startsWith('8') || (r.code || '').startsWith('08'), 'budget');
-            const rAdminExp = sumGroup(r => (r.code || '').startsWith('5') || (r.code || '').startsWith('05') || (r.code || '').startsWith('7') || (r.code || '').startsWith('07') || (r.code || '').startsWith('8') || (r.code || '').startsWith('08'), 'realized');
+            const bAdminExp = sumGroup('adminExp', 'budget');
+            const rAdminExp = sumGroup('adminExp', 'realized');
 
             const bEbitda = bContribMarg - bAdminExp;
             const rEbitda = rContribMarg - rAdminExp;
 
-            const bFin = sumGroup(r => (r.code || '').startsWith('6') || (r.code || '').startsWith('06') || (r.code || '').startsWith('9') || (r.code || '').startsWith('09') || (r.code || '').startsWith('10'), 'budget');
-            const rFin = sumGroup(r => (r.code || '').startsWith('6') || (r.code || '').startsWith('06') || (r.code || '').startsWith('9') || (r.code || '').startsWith('09') || (r.code || '').startsWith('10'), 'realized');
+            const bFin = sumGroup('fin', 'budget');
+            const rFin = sumGroup('fin', 'realized');
 
             const bNetProfit = bEbitda - bFin;
             const rNetProfit = rEbitda - rFin;

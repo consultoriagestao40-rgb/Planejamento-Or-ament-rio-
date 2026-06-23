@@ -96,6 +96,9 @@ export default function PortfolioAnalysisPage() {
     const [chartAnalysisText, setChartAnalysisText] = useState<string>('');
     const [chartColor, setChartColor] = useState<string>('#6366f1');
     const [chartComparePeriod, setChartComparePeriod] = useState<string>('none');
+    const [chartDimension, setChartDimension] = useState<string>('none');
+    const [chartStartMonth, setChartStartMonth] = useState<number>(0);
+    const [chartEndMonth, setChartEndMonth] = useState<number>(11);
 
     // Preview data states
     const [chartPreviewData, setChartPreviewData] = useState<any[]>([]);
@@ -338,11 +341,11 @@ export default function PortfolioAnalysisPage() {
     }, [companies, activeMonthNumber, selectedYear]);
 
     // Fetch chart preview data
-    const fetchChartData = useCallback(async (catId: string, tenId: string, ccId: string) => {
+    const fetchChartData = useCallback(async (catId: string, tenId: string, ccId: string, dimension: string = 'none', startM: number = 0, endM: number = 11) => {
         if (!catId || !tenId) return;
         setLoadingPreviewData(true);
         try {
-            const res = await fetch(`/api/kpi/detailed-chart-data?categoryId=${catId}&filterTenantId=${tenId}&filterCCId=${ccId}&year=${selectedYear}&viewMode=${selectedViewMode}`);
+            const res = await fetch(`/api/kpi/detailed-chart-data?categoryId=${catId}&filterTenantId=${tenId}&filterCCId=${ccId}&year=${selectedYear}&viewMode=${selectedViewMode}&dimension=${dimension}&startMonth=${startM}&endMonth=${endM}`);
             const json = await res.json();
             if (json.success) {
                 setChartPreviewData(json.data || []);
@@ -365,9 +368,9 @@ export default function PortfolioAnalysisPage() {
     useEffect(() => {
         if (isEditingChart && chartCategory && chartTenant) {
             const finalCatId = chartComparisonCategory ? `${chartCategory}|${chartComparisonCategory}` : chartCategory;
-            fetchChartData(finalCatId, chartTenant, chartCC);
+            fetchChartData(finalCatId, chartTenant, chartCC, chartDimension, chartStartMonth, chartEndMonth);
         }
-    }, [isEditingChart, chartCategory, chartComparisonCategory, chartTenant, chartCC, fetchChartData]);
+    }, [isEditingChart, chartCategory, chartComparisonCategory, chartTenant, chartCC, chartDimension, chartStartMonth, chartEndMonth, fetchChartData]);
 
     // Mapear seleção de categorias se o Tenant de contexto for alterado
     useEffect(() => {
@@ -444,10 +447,18 @@ export default function PortfolioAnalysisPage() {
                     categoryId: chartComparisonCategory ? `${chartCategory}|${chartComparisonCategory}` : chartCategory,
                     filterTenantId: chartTenant,
                     filterCCId: chartCC,
-                    chartType: (chartType === 'MIXED' || categoryIdsCount > 1 || chartComparePeriod !== 'none')
-                        ? JSON.stringify({ mode: chartType, config: seriesConfig, indicatorName, comparePeriod: chartComparePeriod })
+                    chartType: (chartType === 'MIXED' || categoryIdsCount > 1 || chartComparePeriod !== 'none' || ((chartType === 'PIE' || chartType === 'DONUT') && chartDimension !== 'none'))
+                        ? JSON.stringify({
+                            mode: chartType,
+                            config: seriesConfig,
+                            indicatorName,
+                            comparePeriod: chartComparePeriod,
+                            dimension: chartDimension,
+                            startMonth: chartStartMonth,
+                            endMonth: chartEndMonth
+                          })
                         : chartType,
-                    onlyRealized: chartOnlyRealized,
+                    onlyRealized: ((chartType === 'PIE' || chartType === 'DONUT') && chartDimension !== 'none') ? true : chartOnlyRealized,
                     showAtingido: chartShowAtingido,
                     pctOfRevenue: chartPctOfRevenue,
                     chartColor,
@@ -500,6 +511,9 @@ export default function PortfolioAnalysisPage() {
         setChartPctOfRevenue(false);
         setChartColor('#6366f1');
         setChartComparePeriod('none');
+        setChartDimension('none');
+        setChartStartMonth(0);
+        setChartEndMonth(11);
         setChartAnalysisText('');
         setSeriesConfig({
             budget: 'bar',
@@ -551,6 +565,9 @@ export default function PortfolioAnalysisPage() {
         
         let nameVal = '';
         let comparePeriodVal = 'none';
+        let dimensionVal = 'none';
+        let startMonthVal = 0;
+        let endMonthVal = 11;
         if (chart.chartType && chart.chartType.startsWith('{')) {
             try {
                 const parsed = JSON.parse(chart.chartType);
@@ -568,6 +585,9 @@ export default function PortfolioAnalysisPage() {
                 });
                 nameVal = parsed.indicatorName || '';
                 comparePeriodVal = parsed.comparePeriod || 'none';
+                dimensionVal = parsed.dimension || 'none';
+                startMonthVal = parsed.startMonth !== undefined ? parsed.startMonth : 0;
+                endMonthVal = parsed.endMonth !== undefined ? parsed.endMonth : 11;
             } catch (e) {
                 setChartType(chart.chartType);
                 setSeriesConfig({
@@ -596,6 +616,9 @@ export default function PortfolioAnalysisPage() {
         }
         setIndicatorName(nameVal);
         setChartComparePeriod(comparePeriodVal);
+        setChartDimension(dimensionVal);
+        setChartStartMonth(startMonthVal);
+        setChartEndMonth(endMonthVal);
 
         setChartOnlyRealized(!!chart.onlyRealized);
         setChartShowAtingido(!!chart.showAtingido);
@@ -2170,15 +2193,17 @@ export default function PortfolioAnalysisPage() {
                                     {/* Option switches checkboxes */}
                                     {chartType !== 'MIXED' && (
                                         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', background: 'var(--bg-elevated)', padding: '1rem', borderRadius: '8px', border: '1px solid var(--border-default)' }}>
-                                            <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-primary)', cursor: 'pointer' }}>
-                                                <input
-                                                    type="checkbox"
-                                                    checked={chartOnlyRealized}
-                                                    onChange={(e) => setChartOnlyRealized(e.target.checked)}
-                                                    style={{ accentColor: 'var(--accent-indigo)', cursor: 'pointer' }}
-                                                />
-                                                Somente Realizado (oculta o Orçado/Meta)
-                                            </label>
+                                            {(!((chartType === 'PIE' || chartType === 'DONUT') && chartDimension !== 'none')) && (
+                                                <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-primary)', cursor: 'pointer' }}>
+                                                    <input
+                                                        type="checkbox"
+                                                        checked={chartOnlyRealized}
+                                                        onChange={(e) => setChartOnlyRealized(e.target.checked)}
+                                                        style={{ accentColor: 'var(--accent-indigo)', cursor: 'pointer' }}
+                                                    />
+                                                    Somente Realizado (oculta o Orçado/Meta)
+                                                </label>
+                                            )}
                                             <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-primary)', cursor: 'pointer' }}>
                                                 <input
                                                     type="checkbox"
@@ -2197,6 +2222,65 @@ export default function PortfolioAnalysisPage() {
                                                 />
                                                 Percentual sobre Receita (calculado sobre Receita Líquida)
                                             </label>
+                                        </div>
+                                    )}
+
+                                    {/* Pizza / Rosca Dynamic Dimensions UI */}
+                                    {(chartType === 'PIE' || chartType === 'DONUT') && (
+                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', background: 'var(--bg-elevated)', padding: '1rem', borderRadius: '8px', border: '1px solid var(--border-default)' }}>
+                                            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
+                                                <label style={{ fontSize: '0.75rem', fontWeight: 800, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Segunda Dimensão</label>
+                                                <select
+                                                    value={chartDimension}
+                                                    onChange={(e) => {
+                                                        const d = e.target.value;
+                                                        setChartDimension(d);
+                                                        if (d !== 'none') {
+                                                            setChartOnlyRealized(true);
+                                                        }
+                                                    }}
+                                                    style={{ width: '100%', height: '38px', padding: '0 0.75rem', fontSize: '0.85rem', fontWeight: 600, border: '1px solid var(--border-default)', borderRadius: '8px', outline: 'none', background: 'var(--bg-surface)', color: 'var(--text-primary)', cursor: 'pointer' }}
+                                                >
+                                                    <option value="none">Nenhuma (Evolução Mensal)</option>
+                                                    <option value="empresa">Empresa</option>
+                                                    <option value="cc">Centro de Custo</option>
+                                                </select>
+                                            </div>
+
+                                            {chartDimension !== 'none' && (
+                                                <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
+                                                    <div style={{ flex: 1, minWidth: '120px', display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
+                                                        <label style={{ fontSize: '0.75rem', fontWeight: 800, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Mês Inicial</label>
+                                                        <select
+                                                            value={chartStartMonth}
+                                                            onChange={(e) => {
+                                                                const val = parseInt(e.target.value, 10);
+                                                                setChartStartMonth(val);
+                                                                if (chartEndMonth < val) {
+                                                                    setChartEndMonth(val);
+                                                                }
+                                                            }}
+                                                            style={{ width: '100%', height: '38px', padding: '0 0.75rem', fontSize: '0.85rem', fontWeight: 600, border: '1px solid var(--border-default)', borderRadius: '8px', outline: 'none', background: 'var(--bg-surface)', color: 'var(--text-primary)', cursor: 'pointer' }}
+                                                        >
+                                                            {['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'].map((mName, mIdx) => (
+                                                                <option key={mIdx} value={mIdx}>{mName}</option>
+                                                            ))}
+                                                        </select>
+                                                    </div>
+                                                    <div style={{ flex: 1, minWidth: '120px', display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
+                                                        <label style={{ fontSize: '0.75rem', fontWeight: 800, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Mês Final</label>
+                                                        <select
+                                                            value={chartEndMonth}
+                                                            onChange={(e) => setChartEndMonth(parseInt(e.target.value, 10))}
+                                                            style={{ width: '100%', height: '38px', padding: '0 0.75rem', fontSize: '0.85rem', fontWeight: 600, border: '1px solid var(--border-default)', borderRadius: '8px', outline: 'none', background: 'var(--bg-surface)', color: 'var(--text-primary)', cursor: 'pointer' }}
+                                                        >
+                                                            {['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'].map((mName, mIdx) => (
+                                                                <option key={mIdx} value={mIdx} disabled={mIdx < chartStartMonth}>{mName}</option>
+                                                            ))}
+                                                        </select>
+                                                    </div>
+                                                </div>
+                                            )}
                                         </div>
                                     )}
 
@@ -2309,21 +2393,26 @@ export default function PortfolioAnalysisPage() {
                                             </div>
                                         ) : (
                                             <div style={{ width: '100%' }}>
-                                                {renderDetailedChart(
-                                                    chartType, 
-                                                    processedPreviewData, 
-                                                    chartOnlyRealized, 
-                                                    chartShowAtingido, 
-                                                    chartPctOfRevenue, 
-                                                    activeMonthNumber, 
-                                                    chartColor, 
-                                                    seriesConfig, 
-                                                    selectedYear, 
-                                                    setPreviewTooltip,
-                                                    {},
-                                                    chartCategory ? getChartCategoryLabel(chartCategory) : undefined,
-                                                    chartComparisonCategory ? getChartCategoryLabel(chartComparisonCategory) : undefined
-                                                )}
+                                                {(() => {
+                                                    const resolvedPreviewType = ((chartType === 'PIE' || chartType === 'DONUT') && chartDimension !== 'none')
+                                                        ? JSON.stringify({ mode: chartType, dimension: chartDimension, startMonth: chartStartMonth, endMonth: chartEndMonth })
+                                                        : chartType;
+                                                    return renderDetailedChart(
+                                                        resolvedPreviewType, 
+                                                        processedPreviewData, 
+                                                        ((chartType === 'PIE' || chartType === 'DONUT') && chartDimension !== 'none') ? true : chartOnlyRealized, 
+                                                        chartShowAtingido, 
+                                                        chartPctOfRevenue, 
+                                                        activeMonthNumber, 
+                                                        chartColor, 
+                                                        seriesConfig, 
+                                                        selectedYear, 
+                                                        setPreviewTooltip,
+                                                        {},
+                                                        chartCategory ? getChartCategoryLabel(chartCategory) : undefined,
+                                                        chartComparisonCategory ? getChartCategoryLabel(chartComparisonCategory) : undefined
+                                                    );
+                                                })()}
                                             </div>
                                         )}
                                     </div>
@@ -3060,7 +3149,18 @@ const DetailedChartCard = ({ chart, onEdit, onDelete, onOpenAnalysis, mainMonth,
         const load = async () => {
             setLoading(true);
             try {
-                const res = await fetch(`/api/kpi/detailed-chart-data?categoryId=${chart.categoryId}&filterTenantId=${chart.filterTenantId}&filterCCId=${chart.filterCCId || 'ALL'}&year=${year}&viewMode=${viewMode}`);
+                let dimension = 'none';
+                let startM = 0;
+                let endM = 11;
+                if (chart.chartType && chart.chartType.startsWith('{')) {
+                    try {
+                        const parsed = JSON.parse(chart.chartType);
+                        dimension = parsed.dimension || 'none';
+                        startM = parsed.startMonth !== undefined ? parsed.startMonth : 0;
+                        endM = parsed.endMonth !== undefined ? parsed.endMonth : 11;
+                    } catch (e) {}
+                }
+                const res = await fetch(`/api/kpi/detailed-chart-data?categoryId=${chart.categoryId}&filterTenantId=${chart.filterTenantId}&filterCCId=${chart.filterCCId || 'ALL'}&year=${year}&viewMode=${viewMode}&dimension=${dimension}&startMonth=${startM}&endMonth=${endM}`);
                 const json = await res.json();
                 if (json.success && active) {
                     setData(json.data || []);
@@ -3073,7 +3173,7 @@ const DetailedChartCard = ({ chart, onEdit, onDelete, onOpenAnalysis, mainMonth,
         };
         load();
         return () => { active = false; };
-    }, [chart.categoryId, chart.filterTenantId, chart.filterCCId, year, viewMode]);
+    }, [chart.categoryId, chart.filterTenantId, chart.filterCCId, year, viewMode, chart.chartType]);
 
     useEffect(() => {
         let active = true;
@@ -3694,12 +3794,18 @@ const renderDetailedChart = (
     let chartMode = type;
     let config = mixedConfig;
     let comparePeriod = 'none';
+    let dimension = 'none';
+    let startMonth = 0;
+    let endMonth = 11;
     if (type && type.startsWith('{')) {
         try {
             const parsed = JSON.parse(type);
             chartMode = parsed.mode || 'MIXED';
             config = parsed.config;
             comparePeriod = parsed.comparePeriod || 'none';
+            dimension = parsed.dimension || 'none';
+            startMonth = parsed.startMonth !== undefined ? parsed.startMonth : 0;
+            endMonth = parsed.endMonth !== undefined ? parsed.endMonth : 11;
         } catch (e) {
             chartMode = 'VERTICAL_BAR';
         }
@@ -5058,7 +5164,12 @@ const renderDetailedChart = (
         case 'PIE':
         case 'DONUT': {
             if (hideRealized) return null;
-            const totalRealizedSum = data.reduce((acc, m, idx) => acc + (idx + 1 <= currentMonthIdx + 1 ? Math.max(0, m.realized) : 0), 0);
+            
+            const isDimensional = dimension !== 'none';
+            
+            const totalRealizedSum = isDimensional
+                ? data.reduce((acc, slice) => acc + Math.max(0, slice.realized || 0), 0)
+                : data.reduce((acc, m, idx) => acc + (idx + 1 <= currentMonthIdx + 1 ? Math.max(0, m.realized) : 0), 0);
             
             if (totalRealizedSum <= 0) {
                 return (
@@ -5068,15 +5179,15 @@ const renderDetailedChart = (
                 );
             }
 
-            const cx = 140;
-            const cy = 120;
+            const cx = 125;
+            const cy = 110;
             const R = 85;
             let cumulativeAngle = 0;
 
             return (
-                <svg viewBox="0 0 420 240" width="100%" height="220px" style={{ overflow: 'visible' }}>
+                <svg viewBox="0 0 420 220" width="100%" height="220px" style={{ overflow: 'visible' }}>
                     {data.map((m, idx) => {
-                        const val = idx + 1 <= currentMonthIdx + 1 ? Math.max(0, m.realized) : 0;
+                        const val = isDimensional ? Math.max(0, m.realized || 0) : (idx + 1 <= currentMonthIdx + 1 ? Math.max(0, m.realized) : 0);
                         if (val === 0) return null;
 
                         const percentage = (val / totalRealizedSum) * 100;
@@ -5093,7 +5204,9 @@ const renderDetailedChart = (
                         const largeArc = angle > 180 ? 1 : 0;
                         const pathData = `M ${cx} ${cy} L ${x1} ${y1} A ${R} ${R} 0 ${largeArc} 1 ${x2} ${y2} Z`;
                         cumulativeAngle += angle;
-                        const sliceOpacity = 1 - (idx * 0.065);
+                        const sliceOpacity = 1 - (idx * 0.05);
+
+                        const labelText = isDimensional ? m.label : ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'][idx];
 
                         return (
                             <path 
@@ -5111,7 +5224,7 @@ const renderDetailedChart = (
                                         onHover({
                                             x: e.clientX,
                                             y: e.clientY,
-                                            title: `${['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'][idx]} de ${year}`,
+                                            title: isDimensional ? `${labelText} (${['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'][startMonth]} - ${['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'][endMonth]})` : `${labelText} de ${year}`,
                                             items: [
                                                 { label: 'Realizado', value: formatVal(val), color: chartColor },
                                                 { label: 'Proporção', value: `${percentage.toFixed(1)}%`, color: '#f59e0b' }
@@ -5128,27 +5241,30 @@ const renderDetailedChart = (
                         );
                     })}
 
-                    {type === 'DONUT' && (
+                    {(chartMode === 'DONUT' || type === 'DONUT') && (
                         <>
                             <circle cx={cx} cy={cy} r="52" fill="var(--bg-surface)" />
-                            <text x={cx} y={cy - 6} textAnchor="middle" fill="var(--text-muted)" fontSize="12px" fontWeight="800" textTransform="uppercase" letterSpacing="0.05em">Total Realiz.</text>
-                            <text x={cx} y={cy + 14} textAnchor="middle" fill="var(--text-primary)" fontSize="15px" fontWeight="800">{formatVal(totalRealizedSum)}</text>
+                            <text x={cx} y={cy - 6} textAnchor="middle" fill="var(--text-muted)" fontSize="11px" fontWeight="800" textTransform="uppercase" letterSpacing="0.05em">Total Realiz.</text>
+                            <text x={cx} y={cy + 14} textAnchor="middle" fill="var(--text-primary)" fontSize="14px" fontWeight="800">{formatVal(totalRealizedSum)}</text>
                         </>
                     )}
 
-                    <g transform="translate(255, 10)">
+                    <g transform="translate(245, 10)">
                         {data.map((m, idx) => {
-                            const val = idx + 1 <= currentMonthIdx + 1 ? Math.max(0, m.realized) : 0;
+                            const val = isDimensional ? Math.max(0, m.realized || 0) : (idx + 1 <= currentMonthIdx + 1 ? Math.max(0, m.realized) : 0);
                             if (val === 0) return null;
                             const percentage = (val / totalRealizedSum) * 100;
                             const yPos = idx * 20;
-                            const sliceOpacity = 1 - (idx * 0.065);
+                            const sliceOpacity = 1 - (idx * 0.05);
+
+                            const labelText = isDimensional ? m.label : ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'][idx];
+                            const displayLabel = labelText.length > 15 ? labelText.substring(0, 13) + '..' : labelText;
 
                             return (
                                 <g key={idx} transform={`translate(0, ${yPos})`}>
                                     <rect width="9" height="9" rx="2" fill={chartColor} fillOpacity={sliceOpacity} />
-                                    <text x="14" y="9" fill="var(--text-secondary)" fontSize="12.5px" fontWeight="700">
-                                        {['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'][idx]}: {percentage.toFixed(1)}%
+                                    <text x="14" y="9" fill="var(--text-secondary)" fontSize="12px" fontWeight="700">
+                                        {displayLabel}: {percentage.toFixed(1)}%
                                     </text>
                                 </g>
                             );

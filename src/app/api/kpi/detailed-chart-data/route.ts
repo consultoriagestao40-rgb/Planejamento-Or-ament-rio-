@@ -27,6 +27,9 @@ export async function GET(request: Request) {
         const filterCCId = searchParams.get('filterCCId') || 'ALL';
         const year = parseInt(searchParams.get('year') || new Date().getFullYear().toString(), 10);
         const viewMode = (searchParams.get('viewMode') || 'competencia') as 'caixa' | 'competencia';
+        const dimension = searchParams.get('dimension') || 'none';
+        const startMonth = parseInt(searchParams.get('startMonth') || '0', 10);
+        const endMonth = parseInt(searchParams.get('endMonth') || '11', 10);
 
         if (!categoryId) {
             return NextResponse.json({ success: false, error: 'Parâmetro categoryId ausente' }, { status: 400 });
@@ -94,7 +97,7 @@ export async function GET(request: Request) {
                     viewMode,
                     ...ccFilter
                 },
-                include: { category: true, costCenter: true }
+                include: { category: true, costCenter: true, tenant: true }
             }),
             prisma.budgetEntry.findMany({
                 where: {
@@ -102,7 +105,7 @@ export async function GET(request: Request) {
                     year,
                     ...ccFilter
                 },
-                include: { category: true, costCenter: true }
+                include: { category: true, costCenter: true, tenant: true }
             })
         ]);
 
@@ -384,381 +387,520 @@ export async function GET(request: Request) {
 
         const rawRoots: CategoryNode[] = [];
         map.forEach(node => {
-            if (!allChildren.has(node.id)) {
-                rawRoots.push(node);
-            }
-        });
+        // 3. Helper to recursively calculate node totals and series for a set of entries
+        const computeCategorySeries = async (
+            filteredRealized: typeof realizedEntries,
+            filteredBudget: typeof budgetEntries,
+            targetCatId: string
+        ) => {
+            const localRealizedValues: Record<string, number> = {};
+            const localBudgetValues: Record<string, { amount: number }> = {};
 
-        // ROOT DEDUPLICATION
-        const uniqueRootsMap = new Map<string, CategoryNode>();
-        rawRoots.forEach(root => {
-            const rootCode = root.code || root.name;
-            if (uniqueRootsMap.has(rootCode)) {
-                const existingRoot = uniqueRootsMap.get(rootCode)!;
-                root.children.forEach(child => {
-                    if (!existingRoot.children.find(c => c.id === child.id)) {
-                        existingRoot.children.push(child);
+            filteredRealized.forEach((e: any) => {
+                const idKey = `realized-${e.categoryId}-${e.month - 1}`;
+                localRealizedValues[idKey] = (localRealizedValues[idKey] || 0) + e.amount;
+
+                let catName = categoryNameMap.get(e.categoryId);
+                if (!catName && e.categoryId.includes(':')) {
+                    catName = categoryNameMap.get(e.categoryId.split(':')[1]);
+                }
+                if (catName) {
+                    const normalizedName = catName.toUpperCase().replace(/[^A-Z0-9]/g, '');
+                    const nameKey = `${normalizedName}|${e.month - 1}`;
+                    localRealizedValues[nameKey] = (localRealizedValues[nameKey] || 0) + e.amount;
+
+                    // Revenue aggregator
+                    const isRevenue = normalizedName.startsWith('01') || normalizedName.startsWith('1RECEIT');
+                    if (isRevenue && normalizedName !== '01RECEITABRUTA' && normalizedName !== '1RECEITABRUTA') {
+                        localRealizedValues[`01RECEITABRUTA|${e.month - 1}`] = (localRealizedValues[`01RECEITABRUTA|${e.month - 1}`] || 0) + e.amount;
+                        localRealizedValues[`1RECEITABRUTA|${e.month - 1}`] = (localRealizedValues[`1RECEITABRUTA|${e.month - 1}`] || 0) + e.amount;
+                    }
+                }
+            });
+
+            filteredBudget.forEach((e: any) => {
+                const idKey = `${e.categoryId}-${e.month - 1}`;
+                localBudgetValues[idKey] = { amount: (localBudgetValues[idKey]?.amount || 0) + e.amount };
+
+                let catName = categoryNameMap.get(e.categoryId);
+                if (!catName && e.categoryId.includes(':')) {
+                    catName = categoryNameMap.get(e.categoryId.split(':')[1]);
+                }
+                if (catName) {
+                    const normalizedName = catName.toUpperCase().replace(/[^A-Z0-9]/g, '');
+                    const nameKey = `budget-${normalizedName}|${e.month - 1}`;
+                    localBudgetValues[nameKey] = { amount: (localBudgetValues[nameKey]?.amount || 0) + e.amount };
+
+                    // Revenue aggregator
+                    const isRevenue = normalizedName.startsWith('01') || normalizedName.startsWith('1RECEIT');
+                    if (isRevenue && normalizedName !== '01RECEITABRUTA' && normalizedName !== '1RECEITABRUTA') {
+                        localBudgetValues[`budget-01RECEITABRUTA|${e.month - 1}`] = { amount: (localBudgetValues[`budget-01RECEITABRUTA|${e.month - 1}`]?.amount || 0) + e.amount };
+                        localBudgetValues[`budget-1RECEITABRUTA|${e.month - 1}`] = { amount: (localBudgetValues[`budget-1RECEITABRUTA|${e.month - 1}`]?.amount || 0) + e.amount };
+                    }
+                }
+            });
+
+            const localTotalsMap = new Map<string, { budget: number[], realized: number[] }>();
+            const isNegatedCode = (code: string) => {
+                const norm = normalizeCode(code);
+                return norm === '6.1' || norm.startsWith('6.1.');
+            };
+
+            const calculateNode = (node: CategoryNode, parentNegated = false) => {
+                const negated = parentNegated || isNegatedCode(node.code || '');
+                const childrenTotals = node.children.map(child => calculateNode(child, negated));
+                const myBudget = new Array(12).fill(0);
+                const myRealized = new Array(12).fill(0);
+
+                childrenTotals.forEach(childTotal => {
+                    for (let i = 0; i < 12; i++) {
+                        myBudget[i] += childTotal.budget[i];
+                        myRealized[i] += childTotal.realized[i];
                     }
                 });
-                if (rootCode === '1') existingRoot.name = 'RECEITAS';
-                if (rootCode === '2') existingRoot.name = 'TRIBUTO SOBRE FATURAMENTO';
-            } else {
-                uniqueRootsMap.set(rootCode, root);
-            }
-        });
 
-        const finalRoots = Array.from(uniqueRootsMap.values());
-
-        // DEDUPLICATE CHILDREN
-        map.forEach(node => {
-            if (node.children.length > 0) {
-                const uniqueChildren = new Map<string, CategoryNode>();
-                node.children.forEach(c => uniqueChildren.set(c.id, c));
-                node.children = Array.from(uniqueChildren.values());
-            }
-        });
-
-        // Recalculate levels and sort
-        const recalculateLevels = (nodes: CategoryNode[], lvl: number) => {
-            nodes.sort((a, b) => (a.code || a.name).localeCompare(b.code || b.name, undefined, { numeric: true }));
-            nodes.forEach(n => {
-                n.level = lvl;
-                recalculateLevels(n.children, lvl + 1);
-            });
-        };
-        recalculateLevels(finalRoots, 0);
-
-        // 3. Compute Totals Map recursively
-        const totalsMap = new Map<string, { budget: number[], realized: number[] }>();
-        const isNegatedCode = (code: string) => {
-            const norm = normalizeCode(code);
-            return norm === '6.1' || norm.startsWith('6.1.');
-        };
-
-        const calculateNode = (node: CategoryNode, parentNegated = false) => {
-            const negated = parentNegated || isNegatedCode(node.code || '');
-            const childrenTotals = node.children.map(child => calculateNode(child, negated));
-            const myBudget = new Array(12).fill(0);
-            const myRealized = new Array(12).fill(0);
-
-            childrenTotals.forEach(childTotal => {
                 for (let i = 0; i < 12; i++) {
-                    myBudget[i] += childTotal.budget[i];
-                    myRealized[i] += childTotal.realized[i];
-                }
-            });
+                    const isDataPoint = !node.isSynthetic && node.children.length === 0;
 
-            for (let i = 0; i < 12; i++) {
-                const isDataPoint = !node.isSynthetic && node.children.length === 0;
+                    if (!node.isSynthetic && isDataPoint) {
+                        const sign = negated ? -1 : 1;
+                        const idsToRead = node.id.split(',');
+                        let sumB = 0, sumR = 0;
 
-                if (!node.isSynthetic && isDataPoint) {
-                    const sign = negated ? -1 : 1;
-                    const idsToRead = node.id.split(',');
-                    let sumB = 0, sumR = 0;
+                        const readNames = new Set<string>();
+                        idsToRead.forEach(rawId => {
+                            const cat = categories.find(c => c.id === rawId);
+                            const nameToUse = cat ? cat.name : node.name;
+                            const normalizedName = nameToUse.toUpperCase().replace(/[^A-Z0-9]/g, '');
+                            const lookupKey = `${normalizedName}|${i}`;
+                            if (!readNames.has(lookupKey)) {
+                                readNames.add(lookupKey);
+                                sumR += localRealizedValues[lookupKey] || 0;
+                            }
+                        });
 
-                    const readNames = new Set<string>();
-                    idsToRead.forEach(rawId => {
-                        const cat = categories.find(c => c.id === rawId);
-                        const nameToUse = cat ? cat.name : node.name;
-                        const normalizedName = nameToUse.toUpperCase().replace(/[^A-Z0-9]/g, '');
-                        const lookupKey = `${normalizedName}|${i}`;
-                        if (!readNames.has(lookupKey)) {
-                            readNames.add(lookupKey);
-                            sumR += realizedValues[lookupKey] || 0;
+                        const readBudgetNames = new Set<string>();
+                        for (const rawId of idsToRead) {
+                            const cat = categories.find(c => c.id === rawId);
+                            const nameToUse = cat ? cat.name : node.name;
+                            const normalizedName = nameToUse.toUpperCase().replace(/[^A-Z0-9]/g, '');
+                            const lookupKey = `budget-${normalizedName}|${i}`;
+                            if (!readBudgetNames.has(lookupKey)) {
+                                readBudgetNames.add(lookupKey);
+                                sumB += (localBudgetValues[lookupKey]?.amount || 0);
+                            }
                         }
-                    });
 
-                    // Budget: use name-based lookup (same as realized) to avoid double-counting
-                    // when normalization merges variant tenant categories into the same node.
-                    // ID-based lookup would sum each variant's budget separately → doubling.
-                    const readBudgetNames = new Set<string>();
-                    for (const rawId of idsToRead) {
-                        const cat = categories.find(c => c.id === rawId);
-                        const nameToUse = cat ? cat.name : node.name;
-                        const normalizedName = nameToUse.toUpperCase().replace(/[^A-Z0-9]/g, '');
-                        const lookupKey = `budget-${normalizedName}|${i}`;
-                        if (!readBudgetNames.has(lookupKey)) {
-                            readBudgetNames.add(lookupKey);
-                            sumB += (budgetValues[lookupKey]?.amount || 0);
+                        myBudget[i] += sign * sumB;
+                        myRealized[i] += sign * sumR;
+                    }
+                }
+
+                const finalNodeTotals = { budget: myBudget, realized: myRealized };
+                localTotalsMap.set(node.id, finalNodeTotals);
+                node.id.split(',').forEach(id => {
+                    localTotalsMap.set(id, finalNodeTotals);
+                });
+                return finalNodeTotals;
+            };
+
+            finalRoots.forEach(root => calculateNode(root));
+            const potentialRoots = finalRoots;
+
+            const getDreTotalsForMonth = (m: number) => {
+                const getBucket = (code: string) => {
+                    const norm = normalizeCode(code);
+                    if (norm === '1' || norm.startsWith('1.')) return 'rev';
+                    if (norm === '2' || norm.startsWith('2.')) return 'taxes';
+                    if (norm === '3' || norm.startsWith('3.')) return 'costs';
+                    if (norm === '4' || norm.startsWith('4.')) return 'opExp';
+                    if (norm === '5' || norm.startsWith('5.') || norm === '7' || norm.startsWith('7.') || norm === '8' || norm.startsWith('8.')) return 'adminExp';
+                    if (norm === '6' || norm.startsWith('6.') || norm === '9' || norm.startsWith('9.') || norm === '10' || norm.startsWith('10.')) return 'fin';
+                    return 'other';
+                };
+
+                const sumGroup = (bucketName: string, type: 'budget' | 'realized') => {
+                    return potentialRoots.reduce((acc, root) => {
+                        const code = root.code || '';
+                        if (getBucket(code) === bucketName) {
+                            const total = localTotalsMap.get(root.id);
+                            return acc + (total ? total[type][m] : 0);
                         }
-                    }
+                        return acc;
+                    }, 0);
+                };
 
-                    myBudget[i] += sign * sumB;
-                    myRealized[i] += sign * sumR;
-                }
-            }
+                const bRev = sumGroup('rev', 'budget');
+                const rRev = sumGroup('rev', 'realized');
 
-            const finalNodeTotals = { budget: myBudget, realized: myRealized };
-            totalsMap.set(node.id, finalNodeTotals);
-            node.id.split(',').forEach(id => {
-                totalsMap.set(id, finalNodeTotals);
-            });
-            return finalNodeTotals;
-        };
+                const bTaxes = sumGroup('taxes', 'budget');
+                const rTaxes = sumGroup('taxes', 'realized');
 
-        finalRoots.forEach(root => calculateNode(root));
-        const potentialRoots = finalRoots;
+                const bRecLiq = bRev - bTaxes;
+                const rRecLiq = rRev - rTaxes;
 
-        // 4. Helper to get DRE Totals
-        const getDreTotalsForMonth = (m: number) => {
-            const getBucket = (code: string) => {
-                const norm = normalizeCode(code);
-                if (norm === '1' || norm.startsWith('1.')) return 'rev';
-                if (norm === '2' || norm.startsWith('2.')) return 'taxes';
-                if (norm === '3' || norm.startsWith('3.')) return 'costs';
-                if (norm === '4' || norm.startsWith('4.')) return 'opExp';
-                if (norm === '5' || norm.startsWith('5.') || norm === '7' || norm.startsWith('7.') || norm === '8' || norm.startsWith('8.')) return 'adminExp';
-                if (norm === '6' || norm.startsWith('6.') || norm === '9' || norm.startsWith('9.') || norm === '10' || norm.startsWith('10.')) return 'fin';
-                return 'other';
+                const bCosts = sumGroup('costs', 'budget');
+                const rCosts = sumGroup('costs', 'realized');
+
+                const bGrossMarg = bRecLiq - bCosts;
+                const rGrossMarg = rRecLiq - rCosts;
+
+                const bOpExp = sumGroup('opExp', 'budget');
+                const rOpExp = sumGroup('opExp', 'realized');
+
+                const bContribMarg = bGrossMarg - bOpExp;
+                const rContribMarg = rGrossMarg - rOpExp;
+
+                const bAdminExp = sumGroup('adminExp', 'budget');
+                const rAdminExp = sumGroup('adminExp', 'realized');
+
+                const bEbitda = bContribMarg - bAdminExp;
+                const rEbitda = rContribMarg - rAdminExp;
+
+                const bFin = sumGroup('fin', 'budget');
+                const rFin = sumGroup('fin', 'realized');
+
+                const bNetProfit = bEbitda - bFin;
+                const rNetProfit = rEbitda - rFin;
+
+                return {
+                    vRev: { b: bRev, r: rRev },
+                    vTaxes: { b: bTaxes, r: rTaxes },
+                    vRecLiq: { b: bRecLiq, r: rRecLiq },
+                    vCosts: { b: bCosts, r: rCosts },
+                    vGrossMarg: { b: bGrossMarg, r: rGrossMarg },
+                    vOpExp: { b: bOpExp, r: rOpExp },
+                    vContribMarg: { b: bContribMarg, r: rContribMarg },
+                    vAdminExp: { b: bAdminExp, r: rAdminExp },
+                    vEbitda: { b: bEbitda, r: rEbitda },
+                    vFin: { b: bFin, r: rFin },
+                    vNetProfit: { b: bNetProfit, r: rNetProfit }
+                };
             };
 
-            const sumGroup = (bucketName: string, type: 'budget' | 'realized') => {
-                return potentialRoots.reduce((acc, root) => {
-                    const code = root.code || '';
-                    if (getBucket(code) === bucketName) {
-                        const total = totalsMap.get(root.id);
-                        return acc + (total ? total[type][m] : 0);
-                    }
-                    return acc;
-                }, 0);
-            };
+            const localDreTotals = Array.from({ length: 12 }, (_, i) => getDreTotalsForMonth(i));
 
-            const bRev = sumGroup('rev', 'budget');
-            const rRev = sumGroup('rev', 'realized');
+            const getSeriesForCategory = async (catId: string) => {
+                const keys = catId.split(',').map(k => k.trim()).filter(Boolean);
 
-            const bTaxes = sumGroup('taxes', 'budget');
-            const rTaxes = sumGroup('taxes', 'realized');
+                const dbKeys = keys.filter(k => !['vRev', 'vTaxes', 'vRecLiq', 'vCosts', 'vGrossMarg', 'vOpExp', 'vContribMarg', 'vAdminExp', 'vEbitda', 'vFin', 'vNetProfit'].includes(k));
+                const originalCategories = dbKeys.length > 0 ? await prisma.category.findMany({
+                    where: { id: { in: dbKeys } }
+                }) : [];
 
-            const bRecLiq = bRev - bTaxes;
-            const rRecLiq = rRev - rTaxes;
-
-            const bCosts = sumGroup('costs', 'budget');
-            const rCosts = sumGroup('costs', 'realized');
-
-            const bGrossMarg = bRecLiq - bCosts;
-            const rGrossMarg = rRecLiq - rCosts;
-
-            const bOpExp = sumGroup('opExp', 'budget');
-            const rOpExp = sumGroup('opExp', 'realized');
-
-            const bContribMarg = bGrossMarg - bOpExp;
-            const rContribMarg = rGrossMarg - rOpExp;
-
-            const bAdminExp = sumGroup('adminExp', 'budget');
-            const rAdminExp = sumGroup('adminExp', 'realized');
-
-            const bEbitda = bContribMarg - bAdminExp;
-            const rEbitda = rContribMarg - rAdminExp;
-
-            const bFin = sumGroup('fin', 'budget');
-            const rFin = sumGroup('fin', 'realized');
-
-            const bNetProfit = bEbitda - bFin;
-            const rNetProfit = rEbitda - rFin;
-
-            return {
-                vRev: { b: bRev, r: rRev },
-                vTaxes: { b: bTaxes, r: rTaxes },
-                vRecLiq: { b: bRecLiq, r: rRecLiq },
-                vCosts: { b: bCosts, r: rCosts },
-                vGrossMarg: { b: bGrossMarg, r: rGrossMarg },
-                vOpExp: { b: bOpExp, r: rOpExp },
-                vContribMarg: { b: bContribMarg, r: rContribMarg },
-                vAdminExp: { b: bAdminExp, r: rAdminExp },
-                vEbitda: { b: bEbitda, r: rEbitda },
-                vFin: { b: bFin, r: rFin },
-                vNetProfit: { b: bNetProfit, r: rNetProfit }
-            };
-        };
-
-        // Precompute DRE Totals for all 12 months for Revenue-base / Indicator logic
-        const dreTotals = Array.from({ length: 12 }, (_, i) => getDreTotalsForMonth(i));
-
-        // 5. Build final series helper
-        const getSeriesForCategory = async (catId: string) => {
-            const keys = catId.split(',').map(k => k.trim()).filter(Boolean);
-
-            // Fetch original categories for UUID keys that are not DRE keys
-            const dbKeys = keys.filter(k => !['vRev', 'vTaxes', 'vRecLiq', 'vCosts', 'vGrossMarg', 'vOpExp', 'vContribMarg', 'vAdminExp', 'vEbitda', 'vFin', 'vNetProfit'].includes(k));
-            const originalCategories = dbKeys.length > 0 ? await prisma.category.findMany({
-                where: { id: { in: dbKeys } }
-            }) : [];
-
-            // Map any UUID from another tenant to the corresponding UUID in the current targets
-            const resolvedKeys = keys.map(key => {
-                const isDreKey = ['vRev', 'vTaxes', 'vRecLiq', 'vCosts', 'vGrossMarg', 'vOpExp', 'vContribMarg', 'vAdminExp', 'vEbitda', 'vFin', 'vNetProfit'].includes(key);
-                if (isDreKey) return key;
-
-                // Normalize synthetic key if it starts with synth- (e.g. synth-03.4 -> synth-3.4)
-                let lookupKey = key;
-                if (key.startsWith('synth-')) {
-                    const code = key.replace('synth-', '');
-                    lookupKey = `synth-${normalizeCode(code)}`;
-                }
-
-                if (totalsMap.has(lookupKey)) return lookupKey;
-
-                const origCat = originalCategories.find(c => c.id === key);
-                if (!origCat) return key;
-
-                const cleanCode = (origCat.name.match(/^(\d{1,2}(?:\.\d+)*)/) || [])[1] || '';
-                const normalize = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, '').trim();
-                const origNormName = normalize(origCat.name);
-
-                if (cleanCode) {
-                    const match = categories.find(c => {
-                        const cCode = (c.name.match(/^(\d{1,2}(?:\.\d+)*)/) || [])[1] || '';
-                        return normalizeCode(cCode) === normalizeCode(cleanCode);
-                    });
-                    if (match) return match.id;
-                }
-
-                const matchByName = categories.find(c => normalize(c.name) === origNormName);
-                if (matchByName) return matchByName.id;
-
-                return key;
-            });
-
-            return Array.from({ length: 12 }, (_, m) => {
-                let budgetVal = 0;
-                let realizedVal = 0;
-                const breakdown: Record<string, { budget: number; realized: number; atingido: number; pctOfRevenue: number }> = {};
-                const addedCanonicalKeys = new Set<string>();
-
-                resolvedKeys.forEach((key, idx) => {
-                    const originalKey = keys[idx];
+                const resolvedKeys = keys.map(key => {
                     const isDreKey = ['vRev', 'vTaxes', 'vRecLiq', 'vCosts', 'vGrossMarg', 'vOpExp', 'vContribMarg', 'vAdminExp', 'vEbitda', 'vFin', 'vNetProfit'].includes(key);
+                    if (isDreKey) return key;
 
-                    let canonicalKey = key;
-                    if (!isDreKey) {
-                        const node = map.get(key);
-                        if (node) {
-                            canonicalKey = node.id;
-                        }
+                    let lookupKey = key;
+                    if (key.startsWith('synth-')) {
+                        const code = key.replace('synth-', '');
+                        lookupKey = `synth-${normalizeCode(code)}`;
                     }
 
-                    let bVal = 0;
-                    let rVal = 0;
+                    if (localTotalsMap.has(lookupKey)) return lookupKey;
 
-                    if (isDreKey) {
-                        const dreKey = key as keyof typeof dreTotals[0];
-                        bVal = dreTotals[m][dreKey].b;
-                        rVal = dreTotals[m][dreKey].r;
-                    } else {
-                        const t = totalsMap.get(key);
-                        if (t) {
-                            bVal = t.budget[m];
-                            rVal = t.realized[m];
-                        } else {
-                            const node = codeMap.get(key) || codeMap.get(normalizeCode(key));
+                    const origCat = originalCategories.find(c => c.id === key);
+                    if (!origCat) return key;
+
+                    const cleanCode = (origCat.name.match(/^(\d{1,2}(?:\.\d+)*)/) || [])[1] || '';
+                    const normalize = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, '').trim();
+                    const origNormName = normalize(origCat.name);
+
+                    if (cleanCode) {
+                        const match = categories.find(c => {
+                            const cCode = (c.name.match(/^(\d{1,2}(?:\.\d+)*)/) || [])[1] || '';
+                            return normalizeCode(cCode) === normalizeCode(cleanCode);
+                        });
+                        if (match) return match.id;
+                    }
+
+                    const matchByName = categories.find(c => normalize(c.name) === origNormName);
+                    if (matchByName) return matchByName.id;
+
+                    return key;
+                });
+
+                return Array.from({ length: 12 }, (_, m) => {
+                    let budgetVal = 0;
+                    let realizedVal = 0;
+                    const breakdown: Record<string, { budget: number; realized: number; atingido: number; pctOfRevenue: number }> = {};
+                    const addedCanonicalKeys = new Set<string>();
+
+                    resolvedKeys.forEach((key, idx) => {
+                        const originalKey = keys[idx];
+                        const isDreKey = ['vRev', 'vTaxes', 'vRecLiq', 'vCosts', 'vGrossMarg', 'vOpExp', 'vContribMarg', 'vAdminExp', 'vEbitda', 'vFin', 'vNetProfit'].includes(key);
+
+                        let canonicalKey = key;
+                        if (!isDreKey) {
+                            const node = map.get(key);
                             if (node) {
-                                const tNode = totalsMap.get(node.id);
-                                if (tNode) {
-                                    bVal = tNode.budget[m];
-                                    rVal = tNode.realized[m];
+                                canonicalKey = node.id;
+                            }
+                        }
+
+                        let bVal = 0;
+                        let rVal = 0;
+
+                        if (isDreKey) {
+                            const dreKey = key as keyof typeof localDreTotals[0];
+                            bVal = localDreTotals[m][dreKey].b;
+                            rVal = localDreTotals[m][dreKey].r;
+                        } else {
+                            const t = localTotalsMap.get(key);
+                            if (t) {
+                                bVal = t.budget[m];
+                                rVal = t.realized[m];
+                            } else {
+                                const node = codeMap.get(key) || codeMap.get(normalizeCode(key));
+                                if (node) {
+                                    const tNode = localTotalsMap.get(node.id);
+                                    if (tNode) {
+                                        bVal = tNode.budget[m];
+                                        rVal = tNode.realized[m];
+                                    }
                                 }
                             }
                         }
-                    }
 
-                    if (!addedCanonicalKeys.has(canonicalKey)) {
-                        addedCanonicalKeys.add(canonicalKey);
-                        budgetVal += bVal;
-                        realizedVal += rVal;
-                    }
+                        if (!addedCanonicalKeys.has(canonicalKey)) {
+                            addedCanonicalKeys.add(canonicalKey);
+                            budgetVal += bVal;
+                            realizedVal += rVal;
+                        }
 
-                    // Individual account target achievement percentage
-                    let at = 0;
-                    if (bVal > 0) {
-                        at = (rVal / bVal) * 100;
-                    } else if (bVal < 0) {
-                        at = (1 + (bVal - rVal) / bVal) * 100;
+                        let at = 0;
+                        if (bVal > 0) {
+                            at = (rVal / bVal) * 100;
+                        } else if (bVal < 0) {
+                            at = (1 + (bVal - rVal) / bVal) * 100;
+                        } else {
+                            at = rVal >= 0 ? 100 : 0;
+                        }
+
+                        const revVal = localDreTotals[m].vRev.r || 1;
+                        const pct = (rVal / revVal) * 100;
+                        const revValB = localDreTotals[m].vRev.b || 1;
+                        const pctB = (bVal / revValB) * 100;
+
+                        breakdown[originalKey] = {
+                            budget: bVal,
+                            realized: rVal,
+                            atingido: at,
+                            pctOfRevenue: pct,
+                            pctOfRevenueBudget: pctB
+                        };
+                    });
+
+                    let atingido = 0;
+                    if (budgetVal > 0) {
+                        atingido = (realizedVal / budgetVal) * 100;
+                    } else if (budgetVal < 0) {
+                        atingido = (1 + (budgetVal - realizedVal) / budgetVal) * 100;
                     } else {
-                        at = rVal >= 0 ? 100 : 0;
+                        atingido = realizedVal >= 0 ? 100 : 0;
                     }
 
-                    // Individual percentage of revenue
-                    const revVal = dreTotals[m].vRev.r || 1;
-                    const pct = (rVal / revVal) * 100;
-                    const revValB = dreTotals[m].vRev.b || 1;
-                    const pctB = (bVal / revValB) * 100;
+                    const revenueVal = localDreTotals[m].vRev.r || 1;
+                    const pctOfRevenue = (realizedVal / revenueVal) * 100;
+                    const revenueValBudget = localDreTotals[m].vRev.b || 1;
+                    const pctOfRevenueBudget = (budgetVal / revenueValBudget) * 100;
 
-                    breakdown[originalKey] = {
-                        budget: bVal,
-                        realized: rVal,
-                        atingido: at,
-                        pctOfRevenue: pct,
-                        pctOfRevenueBudget: pctB
+                    return {
+                        month: m + 1,
+                        budget: budgetVal,
+                        realized: realizedVal,
+                        atingido,
+                        pctOfRevenue,
+                        pctOfRevenueBudget,
+                        breakdown
                     };
                 });
+            };
 
-                // Target achievement percentage (atingido)
-                let atingido = 0;
-                if (budgetVal > 0) {
-                    atingido = (realizedVal / budgetVal) * 100;
-                } else if (budgetVal < 0) {
-                    atingido = (1 + (budgetVal - realizedVal) / budgetVal) * 100;
-                } else {
-                    atingido = realizedVal >= 0 ? 100 : 0;
-                }
+            if (targetCatId.includes('|')) {
+                const [baseId, compareId] = targetCatId.split('|');
+                const baseSeries = await getSeriesForCategory(baseId);
+                const compareSeries = await getSeriesForCategory(compareId);
 
-                // Percentage of revenue (pctOfRevenue)
-                const revenueVal = dreTotals[m].vRev.r || 1;
-                const pctOfRevenue = (realizedVal / revenueVal) * 100;
-                const revenueValBudget = dreTotals[m].vRev.b || 1;
-                const pctOfRevenueBudget = (budgetVal / revenueValBudget) * 100;
+                return baseSeries.map((baseMonth, m) => {
+                    const compareMonth = compareSeries[m];
+                    const rRatio = baseMonth.realized !== 0 ? (compareMonth.realized / baseMonth.realized) * 100 : 0;
+                    const bRatio = baseMonth.budget !== 0 ? (compareMonth.budget / baseMonth.budget) * 100 : 0;
 
-                return {
-                    month: m + 1,
-                    budget: budgetVal,
-                    realized: realizedVal,
-                    atingido,
-                    pctOfRevenue,
-                    pctOfRevenueBudget,
-                    breakdown
-                };
-            });
+                    return {
+                        month: m + 1,
+                        budget: baseMonth.budget,
+                        realized: baseMonth.realized,
+                        compareBudget: compareMonth.budget,
+                        compareRealized: compareMonth.realized,
+                        ratioBudget: bRatio,
+                        ratioRealized: rRatio,
+                        atingido: rRatio,
+                        pctOfRevenue: 0,
+                        pctOfRevenueBudget: 0,
+                        breakdown: {
+                            ratio: {
+                                budget: bRatio,
+                                realized: rRatio,
+                                atingido: rRatio,
+                                pctOfRevenue: 0,
+                                pctOfRevenueBudget: 0
+                            }
+                        }
+                    };
+                });
+            } else {
+                return await getSeriesForCategory(targetCatId);
+            }
         };
 
+        // 4. Check dimension parameter to decide output format
         let series;
-        if (categoryId.includes('|')) {
-            const [baseId, compareId] = categoryId.split('|');
-            const baseSeries = await getSeriesForCategory(baseId);
-            const compareSeries = await getSeriesForCategory(compareId);
+        if (dimension === 'empresa') {
+            const activeTenants = await prisma.tenant.findMany({
+                where: { id: { in: targetTenantIds } },
+                select: { id: true, name: true }
+            });
 
-            series = baseSeries.map((baseMonth, m) => {
-                const compareMonth = compareSeries[m];
-                
-                const rRatio = baseMonth.realized !== 0 ? (compareMonth.realized / baseMonth.realized) * 100 : 0;
-                const bRatio = baseMonth.budget !== 0 ? (compareMonth.budget / baseMonth.budget) * 100 : 0;
+            const rawSlices = [];
+            for (const tenant of activeTenants) {
+                const tenantRealized = realizedEntries.filter(e => e.tenantId === tenant.id);
+                const tenantBudget = budgetEntries.filter(e => e.tenantId === tenant.id);
 
-                return {
-                    month: m + 1,
-                    budget: baseMonth.budget,
-                    realized: baseMonth.realized,
-                    compareBudget: compareMonth.budget,
-                    compareRealized: compareMonth.realized,
-                    ratioBudget: bRatio,
-                    ratioRealized: rRatio,
-                    atingido: rRatio,
-                    pctOfRevenue: 0,
-                    pctOfRevenueBudget: 0,
-                    breakdown: {
-                        ratio: {
-                            budget: bRatio,
-                            realized: rRatio,
-                            atingido: rRatio,
-                            pctOfRevenue: 0,
-                            pctOfRevenueBudget: 0
+                const tenantSeries = await computeCategorySeries(tenantRealized, tenantBudget, categoryId);
+
+                let sumRealized = 0;
+                let sumCompareRealized = 0;
+                for (let m = startMonth; m <= endMonth; m++) {
+                    const mData = tenantSeries[m];
+                    if (mData) {
+                        sumRealized += mData.realized || 0;
+                        if (mData.compareRealized !== undefined) {
+                            sumCompareRealized += mData.compareRealized || 0;
                         }
                     }
-                };
-            });
-        } else {
-            series = await getSeriesForCategory(categoryId);
-        }
+                }
 
-        return NextResponse.json({ success: true, data: series });
+                const isRatio = categoryId.includes('|');
+                const sliceValue = isRatio
+                    ? (sumRealized !== 0 ? (sumCompareRealized / sumRealized) * 100 : 0)
+                    : sumRealized;
+
+                rawSlices.push({
+                    label: tenant.name,
+                    realized: sliceValue
+                });
+            }
+
+            // Filter non-positive, sort descending, group small slices
+            let slices = rawSlices.filter(s => s.realized > 0);
+            slices.sort((a, b) => b.realized - a.realized);
+
+            if (slices.length > 7) {
+                const topSlices = slices.slice(0, 6);
+                const remainingSlices = slices.slice(6);
+                const remainingSum = remainingSlices.reduce((acc, s) => acc + s.realized, 0);
+
+                if (remainingSum > 0) {
+                    topSlices.push({
+                        label: 'Outros',
+                        realized: remainingSum
+                    });
+                }
+                slices = topSlices;
+            }
+
+            return NextResponse.json({ success: true, data: slices });
+
+        } else if (dimension === 'cc') {
+            const normalizeCCName = (name: string) => 
+                (name || '')
+                    .toLowerCase()
+                    .replace(/^[\d. ]+-?\s*/, '')
+                    .replace(/[^a-z0-9]/g, '')
+                    .replace(/merces/g, 'meces')
+                    .trim();
+
+            const ccMap = new Map<string, { label: string; ids: Set<string> }>();
+            realizedEntries.forEach(e => {
+                if (e.costCenter) {
+                    const normName = normalizeCCName(e.costCenter.name);
+                    if (normName) {
+                        if (!ccMap.has(normName)) {
+                            ccMap.set(normName, { label: e.costCenter.name, ids: new Set() });
+                        }
+                        ccMap.get(normName)!.ids.add(e.costCenterId);
+                    }
+                }
+            });
+
+            budgetEntries.forEach(e => {
+                if (e.costCenter) {
+                    const normName = normalizeCCName(e.costCenter.name);
+                    if (normName) {
+                        if (!ccMap.has(normName)) {
+                            ccMap.set(normName, { label: e.costCenter.name, ids: new Set() });
+                        }
+                        ccMap.get(normName)!.ids.add(e.costCenterId);
+                    }
+                }
+            });
+
+            const rawSlices = [];
+            for (const [normName, ccInfo] of ccMap.entries()) {
+                const ccIds = Array.from(ccInfo.ids);
+                const ccRealized = realizedEntries.filter(e => e.costCenterId && ccIds.includes(e.costCenterId));
+                const ccBudget = budgetEntries.filter(e => e.costCenterId && ccIds.includes(e.costCenterId));
+
+                const ccSeries = await computeCategorySeries(ccRealized, ccBudget, categoryId);
+
+                let sumRealized = 0;
+                let sumCompareRealized = 0;
+                for (let m = startMonth; m <= endMonth; m++) {
+                    const mData = ccSeries[m];
+                    if (mData) {
+                        sumRealized += mData.realized || 0;
+                        if (mData.compareRealized !== undefined) {
+                            sumCompareRealized += mData.compareRealized || 0;
+                        }
+                    }
+                }
+
+                const isRatio = categoryId.includes('|');
+                const sliceValue = isRatio
+                    ? (sumRealized !== 0 ? (sumCompareRealized / sumRealized) * 100 : 0)
+                    : sumRealized;
+
+                rawSlices.push({
+                    label: ccInfo.label,
+                    realized: sliceValue
+                });
+            }
+
+            let slices = rawSlices.filter(s => s.realized > 0);
+            slices.sort((a, b) => b.realized - a.realized);
+
+            if (slices.length > 7) {
+                const topSlices = slices.slice(0, 6);
+                const remainingSlices = slices.slice(6);
+                const remainingSum = remainingSlices.reduce((acc, s) => acc + s.realized, 0);
+
+                if (remainingSum > 0) {
+                    topSlices.push({
+                        label: 'Outros',
+                        realized: remainingSum
+                    });
+                }
+                slices = topSlices;
+            }
+
+            return NextResponse.json({ success: true, data: slices });
+
+        } else {
+            series = await computeCategorySeries(realizedEntries, budgetEntries, categoryId);
+            return NextResponse.json({ success: true, data: series });
+        }
     } catch (e: any) {
         console.error('[API DETAILED CHART DATA] Error:', e.message);
         return NextResponse.json({ success: false, error: e.message }, { status: 500 });

@@ -1293,17 +1293,17 @@ export default function BudgetGrid({
                     }
 
                     return (
-                        <svg viewBox="-70 0 1270 260" width="100%" height="auto" style={{ overflow: 'visible' }}>
+                        <svg viewBox="-70 0 1290 260" width="100%" height="auto" style={{ overflow: 'visible' }}>
                             {[0, 0.25, 0.5, 0.75, 1.0].map((ratio, gridIdx) => {
                                 const yGrid = yBaseline - ratio * 170;
                                 return (
                                     <g key={gridIdx}>
-                                        <line x1="80" y1={yGrid} x2="1120" y2={yGrid} stroke="#f1f5f9" strokeWidth="0.5" strokeDasharray="3 3" />
-                                        <text x="70" y={yGrid + 4} textAnchor="end" fill="#94a3b8" fontSize="12px" fontWeight="600"
+                                        <line x1="40" y1={yGrid} x2="1160" y2={yGrid} stroke="#f1f5f9" strokeWidth="0.5" strokeDasharray="3 3" />
+                                        <text x="32" y={yGrid + 4} textAnchor="end" fill="#94a3b8" fontSize="12px" fontWeight="600"
                                             style={{ paintOrder: 'stroke', stroke: '#ffffff', strokeWidth: 3, strokeLinejoin: 'round' }}>
                                             {formatAbs(ratio * scaleMaxAbs, hasDailyActive)}
                                         </text>
-                                        <text x="1130" y={yGrid + 4} textAnchor="start" fill="#94a3b8" fontSize="12px" fontWeight="600"
+                                        <text x="1168" y={yGrid + 4} textAnchor="start" fill="#94a3b8" fontSize="12px" fontWeight="600"
                                             style={{ paintOrder: 'stroke', stroke: '#ffffff', strokeWidth: 3, strokeLinejoin: 'round' }}>
                                             {(ratio * scaleMaxPct).toFixed(0)}%
                                         </text>
@@ -1311,7 +1311,7 @@ export default function BudgetGrid({
                                 );
                             })}
 
-                            <line x1="80" y1={yBaseline} x2="1120" y2={yBaseline} stroke="#cbd5e1" strokeWidth="1" />
+                            <line x1="40" y1={yBaseline} x2="1160" y2={yBaseline} stroke="#cbd5e1" strokeWidth="1" />
 
                             {renderedBars}
                             {leftLines}
@@ -1592,17 +1592,17 @@ export default function BudgetGrid({
                 });
 
                 return (
-                    <svg viewBox="-70 0 1270 260" width="100%" height="auto" style={{ overflow: 'visible' }}>
+                    <svg viewBox="-70 0 1290 260" width="100%" height="auto" style={{ overflow: 'visible' }}>
                         {[0, 0.25, 0.5, 0.75, 1.0].map((ratio, gridIdx) => {
                             const yGrid = yBaseline - ratio * 170;
                             return (
                                 <g key={gridIdx}>
-                                    <line x1="80" y1={yGrid} x2="1120" y2={yGrid} stroke="#f1f5f9" strokeWidth="0.5" strokeDasharray="3 3" />
-                                    <text x="70" y={yGrid + 3} textAnchor="end" fill="#94a3b8" fontSize="7.5px" fontWeight="600"
+                                    <line x1="40" y1={yGrid} x2="1160" y2={yGrid} stroke="#f1f5f9" strokeWidth="0.5" strokeDasharray="3 3" />
+                                    <text x="32" y={yGrid + 3} textAnchor="end" fill="#94a3b8" fontSize="7.5px" fontWeight="600"
                                         style={{ paintOrder: 'stroke', stroke: '#ffffff', strokeWidth: 3, strokeLinejoin: 'round' }}>
                                         {formatAbs(ratio * scaleMaxAbs, hasDailyActive)}
                                     </text>
-                                    <text x="1130" y={yGrid + 3} textAnchor="start" fill="#94a3b8" fontSize="7.5px" fontWeight="600"
+                                    <text x="1168" y={yGrid + 3} textAnchor="start" fill="#94a3b8" fontSize="7.5px" fontWeight="600"
                                         style={{ paintOrder: 'stroke', stroke: '#ffffff', strokeWidth: 3, strokeLinejoin: 'round' }}>
                                         {(ratio * scaleMaxPct).toFixed(0)}%
                                     </text>
@@ -1610,7 +1610,7 @@ export default function BudgetGrid({
                             );
                         })}
 
-                        <line x1="80" y1={yBaseline} x2="1120" y2={yBaseline} stroke="#cbd5e1" strokeWidth="1" />
+                        <line x1="40" y1={yBaseline} x2="1160" y2={yBaseline} stroke="#cbd5e1" strokeWidth="1" />
 
                         {renderedBars}
                         {renderedLeftLines}

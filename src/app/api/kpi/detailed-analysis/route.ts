@@ -55,6 +55,8 @@ export async function POST(request: Request) {
             return NextResponse.json({ success: false, error: 'Parâmetros obrigatórios ausentes' }, { status: 400 });
         }
 
+        console.log('[DEBUG SAVE CHART] categoryId:', categoryId, '| filterTenantId:', filterTenantId);
+
         let detailedAnalysis;
 
         if (id) {

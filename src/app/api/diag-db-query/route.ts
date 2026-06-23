@@ -473,12 +473,41 @@ export async function GET() {
             cc: (e as any).costCenter?.name || 'SEM CC'
         })).slice(0, 50);
 
+        // Analysis of Month 1 differences
+        const m1DRE: Record<string, number> = {};
+        const m1ChartRaw: Record<string, number> = {};
+
+        cleanSyncRealized.filter(e => e.month === 1).forEach(e => {
+            const catName = categoryNameMap.get(e.categoryId) || 'Unknown';
+            m1DRE[catName] = (m1DRE[catName] || 0) + e.amount;
+        });
+
+        chartRealizedFiltered.filter(e => e.month === 1).forEach(e => {
+            const catName = categoryNameMap.get(e.categoryId) || 'Unknown';
+            m1ChartRaw[catName] = (m1ChartRaw[catName] || 0) + e.amount;
+        });
+
+        const serializeTree = (node: CategoryNode): any => {
+            const totals = totalsMap.get(node.id);
+            return {
+                id: node.id,
+                name: node.name,
+                code: node.code,
+                isSynthetic: node.isSynthetic,
+                month1Realized: totals ? totals.realized[0] : 0,
+                month1Budget: totals ? totals.budget[0] : 0,
+                children: node.children.map(serializeTree)
+            };
+        };
+        const treeDebug = finalRoots.map(serializeTree);
+
         return NextResponse.json({
             success: true,
             comparison,
             syncedMonths: Array.from(syncedMonths),
-            detailedBudget,
-            detailedRealized
+            m1DRE,
+            m1ChartRaw,
+            treeDebug
         });
     } catch (e: any) {
         return NextResponse.json({ success: false, error: e.message });

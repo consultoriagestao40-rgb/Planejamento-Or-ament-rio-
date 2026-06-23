@@ -3348,10 +3348,26 @@ const DetailedChartCard = ({ chart, onEdit, onDelete, onOpenAnalysis, mainMonth,
         } catch (e) {}
     }
 
-    const isRatioChart = chart.categoryId && chart.categoryId.includes('|');
+    const isRatioChart = !!(chart.categoryId && chart.categoryId.includes('|') && chart.categoryId.split('|')[1]);
     const compInfo = getComparisonPeriods(comparePeriod);
+    const isConsolidatedCompare = !!(compInfo && processedData && processedData.length === 1);
 
-    if (compInfo) {
+    if (isConsolidatedCompare) {
+        if (isRatioChart) {
+            const [baseId, compareId] = chart.categoryId.split('|');
+            const baseLabel = getChartCategoryLabel(baseId);
+            const compareLabel = getChartCategoryLabel(compareId);
+            if (!chart.onlyRealized) {
+                legendItems.push({ key: 'budget', label: `${baseLabel} (Orçado)`, color: '#cbd5e1' });
+                legendItems.push({ key: 'compareBudget', label: `${compareLabel} (Orçado)`, color: '#cbd5e1' });
+            }
+            legendItems.push({ key: 'realized', label: `${baseLabel} (Realizado)`, color: chart.chartColor || '#6366f1' });
+            legendItems.push({ key: 'compareRealized', label: `${compareLabel} (Realizado)`, color: '#818cf8' });
+        } else {
+            if (!chart.onlyRealized) legendItems.push({ key: 'budget', label: 'Orçado', color: '#cbd5e1' });
+            legendItems.push({ key: 'realized', label: 'Realizado', color: chart.chartColor || '#6366f1' });
+        }
+    } else if (compInfo) {
         const { labelA, labelB } = compInfo;
         if (isRatioChart) {
             const [baseId, compareId] = chart.categoryId.split('|');
@@ -3673,7 +3689,7 @@ const renderDetailedChart = (
         );
     }
 
-    const isRatioChart = data && data.length > 0 && data[0]?.hasOwnProperty('compareRealized');
+    const isRatioChart = !!(baseLabel && compareLabel);
 
     let chartMode = type;
     let config = mixedConfig;
@@ -3832,10 +3848,10 @@ const renderDetailedChart = (
 
             const compareActive = compInfo !== null;
 
-            const bMode = hideBudget ? 'none' : (config?.budget || 'bar');
-            const rMode = hideRealized ? 'none' : (config?.realized || 'bar');
-            const atMode = hiddenSeries.atingido ? 'none' : (config?.atingido || 'none');
-            const pctMode = hiddenSeries.pctOfRevenue ? 'none' : (config?.pctOfRevenue || 'none');
+            const bMode = (compareActive && data.length === 1) ? 'bar' : (hideBudget ? 'none' : (config?.budget || 'bar'));
+            const rMode = (compareActive && data.length === 1) ? 'bar' : (hideRealized ? 'none' : (config?.realized || 'bar'));
+            const atMode = (compareActive && data.length === 1) ? 'none' : (hiddenSeries.atingido ? 'none' : (config?.atingido || 'none'));
+            const pctMode = (compareActive && data.length === 1) ? 'none' : (hiddenSeries.pctOfRevenue ? 'none' : (config?.pctOfRevenue || 'none'));
 
             const hasDailyActive = isDailyMode(bMode) || isDailyMode(rMode);
 
@@ -4000,8 +4016,8 @@ const renderDetailedChart = (
                     if (!hideCompareRealizedB && (rMode === 'bar' || rMode === 'diarias_bar')) activeBarKeys.push('compareRealizedB');
                 } else {
                     if (!hideBudget && (bMode === 'bar' || bMode === 'diarias_bar')) activeBarKeys.push('budget');
-                    if (!hideBudgetB && (bMode === 'bar' || bMode === 'diarias_bar')) activeBarKeys.push('budgetB');
                     if (!hideRealized && (rMode === 'bar' || rMode === 'diarias_bar')) activeBarKeys.push('realized');
+                    if (!hideBudgetB && (bMode === 'bar' || bMode === 'diarias_bar')) activeBarKeys.push('budgetB');
                     if (!hideRealizedB && (rMode === 'bar' || rMode === 'diarias_bar')) activeBarKeys.push('realizedB');
                 }
             } else {
@@ -4024,7 +4040,9 @@ const renderDetailedChart = (
                 const barWidth = numBars > 0 
                     ? Math.min(48, Math.max(8, (groupWidth - (numBars - 1) * spacing) / numBars))
                     : 0;
-                const actualGroupWidth = numBars * barWidth + (numBars - 1) * spacing;
+                
+                const extraGroupGap = (compareActive && data.length === 1 && numBars >= 4) ? 20 : 0;
+                const actualGroupWidth = numBars * barWidth + (numBars - 1) * spacing + extraGroupGap;
                 const startBarX = xCenter - (actualGroupWidth / 2);
 
                 return activeBarKeys.map((key, keyIdx) => {
@@ -4033,20 +4051,26 @@ const renderDetailedChart = (
                     const val = m[key] || 0;
                     const valScaled = getAbsValue(val, mode, monthIdx);
 
-                    const barX = startBarX + keyIdx * (barWidth + spacing);
+                    const extraGap = (compareActive && data.length === 1 && keyIdx >= 2) ? 20 : 0;
+                    const barX = startBarX + keyIdx * (barWidth + spacing) + extraGap;
                     const isPositive = valScaled >= 0;
                     const hVal = Math.max(2, Math.abs(getYAbs(valScaled) - yBaseline));
                     const yVal = isPositive ? yBaseline - hVal : yBaseline;
 
                     let fill = '#cbd5e1';
-                    if (key === 'budget') fill = 'var(--border-strong)';
-                    else if (key === 'realized') fill = valScaled >= 0 ? chartColor : 'var(--accent-red)';
-                    else if (key === 'compareBudget') fill = '#e2e8f0';
-                    else if (key === 'compareRealized') fill = valScaled >= 0 ? '#818cf8' : 'var(--accent-red)';
-                    else if (key === 'budgetB') fill = '#fed7aa';
-                    else if (key === 'realizedB') fill = valScaled >= 0 ? '#10b981' : 'var(--accent-red)';
-                    else if (key === 'compareBudgetB') fill = '#ffedd5';
-                    else if (key === 'compareRealizedB') fill = valScaled >= 0 ? '#f97316' : 'var(--accent-red)';
+                    if (compareActive && data.length === 1 && !isRatioChart) {
+                        if (isBudget) fill = '#cbd5e1';
+                        else fill = valScaled >= 0 ? chartColor : 'var(--accent-red)';
+                    } else {
+                        if (key === 'budget') fill = 'var(--border-strong)';
+                        else if (key === 'realized') fill = valScaled >= 0 ? chartColor : 'var(--accent-red)';
+                        else if (key === 'compareBudget') fill = '#e2e8f0';
+                        else if (key === 'compareRealized') fill = valScaled >= 0 ? '#818cf8' : 'var(--accent-red)';
+                        else if (key === 'budgetB') fill = '#fed7aa';
+                        else if (key === 'realizedB') fill = valScaled >= 0 ? '#10b981' : 'var(--accent-red)';
+                        else if (key === 'compareBudgetB') fill = '#ffedd5';
+                        else if (key === 'compareRealizedB') fill = valScaled >= 0 ? '#f97316' : 'var(--accent-red)';
+                    }
 
                     const shouldShow = isBudget || isRealizedVisible(key, monthIdx);
 
@@ -4554,8 +4578,8 @@ const renderDetailedChart = (
                     if (!hideCompareRealizedB) activeBarKeys.push('compareRealizedB');
                 } else {
                     if (!hideBudget) activeBarKeys.push('budget');
-                    if (!hideBudgetB) activeBarKeys.push('budgetB');
                     if (!hideRealized) activeBarKeys.push('realized');
+                    if (!hideBudgetB) activeBarKeys.push('budgetB');
                     if (!hideRealizedB) activeBarKeys.push('realizedB');
                 }
             } else {
@@ -4580,7 +4604,9 @@ const renderDetailedChart = (
                 const barWidth = numBars > 0 
                     ? Math.min(48, Math.max(8, (groupWidth - (numBars - 1) * spacing) / numBars))
                     : 0;
-                const actualGroupWidth = numBars * barWidth + (numBars - 1) * spacing;
+                
+                const extraGroupGap = (compareActive && data.length === 1 && numBars >= 4) ? 20 : 0;
+                const actualGroupWidth = numBars * barWidth + (numBars - 1) * spacing + extraGroupGap;
                 const startBarX = xCenter + (stepX - actualGroupWidth) / 2;
 
                 return activeBarKeys.map((key, keyIdx) => {
@@ -4590,20 +4616,27 @@ const renderDetailedChart = (
                     const val = getVal(key, m);
                     if (val === 0) return null;
 
-                    const barX = startBarX + keyIdx * (barWidth + spacing);
+                    const extraGap = (compareActive && data.length === 1 && keyIdx >= 2) ? 20 : 0;
+                    const barX = startBarX + keyIdx * (barWidth + spacing) + extraGap;
                     const isPositive = val >= 0;
                     const hVal = Math.max(2, (Math.abs(val) / scaleMaxVal) * maxBarHeight);
                     const yVal = isPositive ? yBaseline - hVal : yBaseline;
 
                     let fill = '#cbd5e1';
-                    if (key === 'budget') fill = 'var(--border-strong)';
-                    else if (key === 'realized') fill = val >= 0 ? chartColor : 'var(--accent-red)';
-                    else if (key === 'compareBudget') fill = '#e2e8f0';
-                    else if (key === 'compareRealized') fill = val >= 0 ? '#818cf8' : 'var(--accent-red)';
-                    else if (key === 'budgetB') fill = '#fed7aa';
-                    else if (key === 'realizedB') fill = val >= 0 ? '#10b981' : 'var(--accent-red)';
-                    else if (key === 'compareBudgetB') fill = '#ffedd5';
-                    else if (key === 'compareRealizedB') fill = val >= 0 ? '#f97316' : 'var(--accent-red)';
+                    if (compareActive && data.length === 1 && !isRatioChart) {
+                        const isBudget = !isRealized;
+                        if (isBudget) fill = '#cbd5e1';
+                        else fill = val >= 0 ? chartColor : 'var(--accent-red)';
+                    } else {
+                        if (key === 'budget') fill = 'var(--border-strong)';
+                        else if (key === 'realized') fill = val >= 0 ? chartColor : 'var(--accent-red)';
+                        else if (key === 'compareBudget') fill = '#e2e8f0';
+                        else if (key === 'compareRealized') fill = val >= 0 ? '#818cf8' : 'var(--accent-red)';
+                        else if (key === 'budgetB') fill = '#fed7aa';
+                        else if (key === 'realizedB') fill = val >= 0 ? '#10b981' : 'var(--accent-red)';
+                        else if (key === 'compareBudgetB') fill = '#ffedd5';
+                        else if (key === 'compareRealizedB') fill = val >= 0 ? '#f97316' : 'var(--accent-red)';
+                    }
 
                     const labelY = isPositive ? yVal - 8 : yVal + hVal + 17;
                     const labelColor = isRealized ? (val >= 0 ? chartColor : '#7f1d1d') : 'var(--text-secondary)';

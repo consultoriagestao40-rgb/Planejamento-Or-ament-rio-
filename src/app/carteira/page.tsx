@@ -3785,15 +3785,7 @@ const renderDetailedChart = (
         ))) || 1;
     } else {
         maxVal = Math.max(...data.map((m, idx) => Math.max(
-            hideBudget ? 0 : Math.abs(pctOfRevenue ? (m.pctOfRevenueBudget || 0) : m.budget),
-            (!hideRealized && idx <= currentMonthIdx) ? Math.abs(pctOfRevenue ? (m.pctOfRevenue || 0) : m.realized) : 0,
-            isRatioChart && !hideCompareBudget ? Math.abs(m.compareBudget || 0) : 0,
-            isRatioChart && !hideCompareRealized && (idx <= currentMonthIdx) ? Math.abs(m.compareRealized || 0) : 0
-        ))) || 1;
-    }
-
-    switch (chartMode) {
-        case 'MIXED': {
+                    case 'MIXED': {
             const yBaseline = 210;
 
             const getDaysInMonth = (mNum: number) => {
@@ -3826,8 +3818,10 @@ const renderDetailedChart = (
                 return `${val < 0 ? '-' : ''}R$ ${formatted}${isDaily ? '/d' : ''}`;
             };
 
-            const bMode = hiddenSeries.budget ? 'none' : (config?.budget || 'bar');
-            const rMode = hiddenSeries.realized ? 'none' : (config?.realized || 'bar');
+            const compareActive = compInfo !== null;
+
+            const bMode = hideBudget ? 'none' : (config?.budget || 'bar');
+            const rMode = hideRealized ? 'none' : (config?.realized || 'bar');
             const atMode = hiddenSeries.atingido ? 'none' : (config?.atingido || 'none');
             const pctMode = hiddenSeries.pctOfRevenue ? 'none' : (config?.pctOfRevenue || 'none');
 
@@ -3836,19 +3830,39 @@ const renderDetailedChart = (
             let maxAbs = 1;
             data.forEach((m, idx) => {
                 if (bMode !== 'none') {
-                    const bVal = getAbsValue(m.budget, bMode, idx);
-                    maxAbs = Math.max(maxAbs, Math.abs(bVal));
+                    const bValA = getAbsValue(m.budget, bMode, idx);
+                    maxAbs = Math.max(maxAbs, Math.abs(bValA));
+                    if (compareActive) {
+                        const bValB = getAbsValue(m.budgetB || 0, bMode, idx);
+                        maxAbs = Math.max(maxAbs, Math.abs(bValB));
+                    }
                     if (isRatioChart) {
-                        const cbVal = getAbsValue(m.compareBudget || 0, bMode, idx);
-                        maxAbs = Math.max(maxAbs, Math.abs(cbVal));
+                        const cbValA = getAbsValue(m.compareBudget || 0, bMode, idx);
+                        maxAbs = Math.max(maxAbs, Math.abs(cbValA));
+                        if (compareActive) {
+                            const cbValB = getAbsValue(m.compareBudgetB || 0, bMode, idx);
+                            maxAbs = Math.max(maxAbs, Math.abs(cbValB));
+                        }
                     }
                 }
-                if (rMode !== 'none' && idx + 1 <= currentMonthIdx + 1) {
-                    const rVal = getAbsValue(m.realized, rMode, idx);
-                    maxAbs = Math.max(maxAbs, Math.abs(rVal));
+                if (rMode !== 'none') {
+                    if (isRealizedVisible('realized', idx)) {
+                        const rValA = getAbsValue(m.realized, rMode, idx);
+                        maxAbs = Math.max(maxAbs, Math.abs(rValA));
+                    }
+                    if (compareActive && isRealizedVisible('realizedB', idx)) {
+                        const rValB = getAbsValue(m.realizedB || 0, rMode, idx);
+                        maxAbs = Math.max(maxAbs, Math.abs(rValB));
+                    }
                     if (isRatioChart) {
-                        const crVal = getAbsValue(m.compareRealized || 0, rMode, idx);
-                        maxAbs = Math.max(maxAbs, Math.abs(crVal));
+                        if (isRealizedVisible('compareRealized', idx)) {
+                            const crValA = getAbsValue(m.compareRealized || 0, rMode, idx);
+                            maxAbs = Math.max(maxAbs, Math.abs(crValA));
+                        }
+                        if (compareActive && isRealizedVisible('compareRealizedB', idx)) {
+                            const crValB = getAbsValue(m.compareRealizedB || 0, rMode, idx);
+                            maxAbs = Math.max(maxAbs, Math.abs(crValB));
+                        }
                     }
                 }
             });
@@ -3856,16 +3870,28 @@ const renderDetailedChart = (
 
             let maxPct = 5;
             data.forEach((m, idx) => {
-                if (idx + 1 <= currentMonthIdx + 1) {
-                    if (atMode !== 'none') {
+                if (atMode !== 'none') {
+                    if (isRealizedVisible('realized', idx)) {
                         maxPct = Math.max(maxPct, Math.abs(m.atingido));
                     }
-                    if (pctMode !== 'none') {
-                        maxPct = Math.max(maxPct, Math.abs(m.pctOfRevenue));
+                    if (compareActive && isRealizedVisible('realizedB', idx)) {
+                        maxPct = Math.max(maxPct, Math.abs(m.atingidoB || 0));
                     }
                 }
-                if (pctMode !== 'none' && !onlyRealized) {
-                    maxPct = Math.max(maxPct, Math.abs(m.pctOfRevenueBudget || 0));
+                if (pctMode !== 'none') {
+                    if (isRealizedVisible('realized', idx)) {
+                        maxPct = Math.max(maxPct, Math.abs(m.pctOfRevenue || 0));
+                    }
+                    if (compareActive && isRealizedVisible('realizedB', idx)) {
+                        maxPct = Math.max(maxPct, Math.abs(m.pctOfRevenueB || 0));
+                    }
+                    if (!onlyRealized) {
+                        maxPct = Math.max(
+                            maxPct, 
+                            Math.abs(m.pctOfRevenueBudget || 0),
+                            compareActive ? Math.abs(m.pctOfRevenueBudgetB || 0) : 0
+                        );
+                    }
                 }
             });
             const scaleMaxPct = maxPct * 1.15;
@@ -3881,12 +3907,13 @@ const renderDetailedChart = (
             };
 
             const startX = 80;
-            const stepX = 94;
+            const numTicks = data.length;
+            const stepX = compareActive ? (numTicks > 1 ? (1114 - 80) / (numTicks - 1) : 1034) : 94;
             const getX = (idx: number) => startX + idx * stepX;
 
             const renderLineSeries = (key: string, strokeColor: string, isDash: boolean = false) => {
                 const points: { x: number; y: number; val: number }[] = [];
-                const isBudget = key === 'budget' || key === 'compareBudget';
+                const isBudget = key.toLowerCase().includes('budget');
                 const mode = isBudget ? bMode : rMode;
                 const showLabel = isBudget 
                     ? config?.showBudgetLabels !== 'false' 
@@ -3894,7 +3921,7 @@ const renderDetailedChart = (
                 
                 data.forEach((m, monthIdx) => {
                     const val = m[key] || 0;
-                    if (isBudget || (monthIdx + 1 <= currentMonthIdx + 1)) {
+                    if (isBudget || isRealizedVisible(key, monthIdx)) {
                         const valScaled = getAbsValue(val, mode, monthIdx);
                         points.push({
                             x: getX(monthIdx),
@@ -3946,12 +3973,30 @@ const renderDetailedChart = (
 
             // RENDER BARS (bar, diarias_bar)
             const activeBarKeys: string[] = [];
-            if (isRatioChart) {
-                if (!hideBudget && (bMode === 'bar' || bMode === 'diarias_bar')) activeBarKeys.push('budget', 'compareBudget');
-                if (!hideRealized && (rMode === 'bar' || rMode === 'diarias_bar')) activeBarKeys.push('realized', 'compareRealized');
+            if (compareActive) {
+                if (isRatioChart) {
+                    if (!hideBudget && (bMode === 'bar' || bMode === 'diarias_bar')) activeBarKeys.push('budget');
+                    if (!hideCompareBudget && (bMode === 'bar' || bMode === 'diarias_bar')) activeBarKeys.push('compareBudget');
+                    if (!hideBudgetB && (bMode === 'bar' || bMode === 'diarias_bar')) activeBarKeys.push('budgetB');
+                    if (!hideCompareBudgetB && (bMode === 'bar' || bMode === 'diarias_bar')) activeBarKeys.push('compareBudgetB');
+                    if (!hideRealized && (rMode === 'bar' || rMode === 'diarias_bar')) activeBarKeys.push('realized');
+                    if (!hideCompareRealized && (rMode === 'bar' || rMode === 'diarias_bar')) activeBarKeys.push('compareRealized');
+                    if (!hideRealizedB && (rMode === 'bar' || rMode === 'diarias_bar')) activeBarKeys.push('realizedB');
+                    if (!hideCompareRealizedB && (rMode === 'bar' || rMode === 'diarias_bar')) activeBarKeys.push('compareRealizedB');
+                } else {
+                    if (!hideBudget && (bMode === 'bar' || bMode === 'diarias_bar')) activeBarKeys.push('budget');
+                    if (!hideBudgetB && (bMode === 'bar' || bMode === 'diarias_bar')) activeBarKeys.push('budgetB');
+                    if (!hideRealized && (rMode === 'bar' || rMode === 'diarias_bar')) activeBarKeys.push('realized');
+                    if (!hideRealizedB && (rMode === 'bar' || rMode === 'diarias_bar')) activeBarKeys.push('realizedB');
+                }
             } else {
-                if (!hideBudget && (bMode === 'bar' || bMode === 'diarias_bar')) activeBarKeys.push('budget');
-                if (!hideRealized && (rMode === 'bar' || rMode === 'diarias_bar')) activeBarKeys.push('realized');
+                if (isRatioChart) {
+                    if (!hideBudget && (bMode === 'bar' || bMode === 'diarias_bar')) activeBarKeys.push('budget', 'compareBudget');
+                    if (!hideRealized && (rMode === 'bar' || rMode === 'diarias_bar')) activeBarKeys.push('realized', 'compareRealized');
+                } else {
+                    if (!hideBudget && (bMode === 'bar' || bMode === 'diarias_bar')) activeBarKeys.push('budget');
+                    if (!hideRealized && (rMode === 'bar' || rMode === 'diarias_bar')) activeBarKeys.push('realized');
+                }
             }
 
             const renderedBars = data.map((m, monthIdx) => {
@@ -3959,28 +4004,36 @@ const renderDetailedChart = (
                 const numBars = activeBarKeys.length;
                 if (numBars === 0) return null;
 
-                const groupWidth = 76;
-                const barWidth = Math.max(16, (groupWidth / numBars) - 4);
-                const startBarX = xCenter - (groupWidth / 2);
+                const groupWidth = compareActive ? (stepX * 0.75) : 76;
+                const spacing = 4;
+                const barWidth = numBars > 0 
+                    ? Math.min(48, Math.max(8, (groupWidth - (numBars - 1) * spacing) / numBars))
+                    : 0;
+                const actualGroupWidth = numBars * barWidth + (numBars - 1) * spacing;
+                const startBarX = xCenter - (actualGroupWidth / 2);
 
                 return activeBarKeys.map((key, keyIdx) => {
-                    const isBudget = key === 'budget' || key === 'compareBudget';
+                    const isBudget = key.toLowerCase().includes('budget');
                     const mode = isBudget ? bMode : rMode;
                     const val = m[key] || 0;
                     const valScaled = getAbsValue(val, mode, monthIdx);
 
-                    const barX = startBarX + keyIdx * (barWidth + 4);
+                    const barX = startBarX + keyIdx * (barWidth + spacing);
                     const isPositive = valScaled >= 0;
                     const hVal = Math.max(2, Math.abs(getYAbs(valScaled) - yBaseline));
                     const yVal = isPositive ? yBaseline - hVal : yBaseline;
 
                     let fill = '#cbd5e1';
-                    if (key === 'budget') fill = '#cbd5e1';
+                    if (key === 'budget') fill = 'var(--border-strong)';
                     else if (key === 'realized') fill = valScaled >= 0 ? chartColor : 'var(--accent-red)';
-                    else if (key === 'compareBudget') fill = '#fed7aa';
-                    else if (key === 'compareRealized') fill = valScaled >= 0 ? '#f97316' : 'var(--accent-red)';
+                    else if (key === 'compareBudget') fill = '#e2e8f0';
+                    else if (key === 'compareRealized') fill = valScaled >= 0 ? '#818cf8' : 'var(--accent-red)';
+                    else if (key === 'budgetB') fill = '#fed7aa';
+                    else if (key === 'realizedB') fill = valScaled >= 0 ? '#10b981' : 'var(--accent-red)';
+                    else if (key === 'compareBudgetB') fill = '#ffedd5';
+                    else if (key === 'compareRealizedB') fill = valScaled >= 0 ? '#f97316' : 'var(--accent-red)';
 
-                    const shouldShow = isBudget || (monthIdx + 1 <= currentMonthIdx + 1);
+                    const shouldShow = isBudget || isRealizedVisible(key, monthIdx);
 
                     const showLabel = isBudget 
                         ? config?.showBudgetLabels !== 'false' 
@@ -4021,27 +4074,67 @@ const renderDetailedChart = (
             // RENDER LEFT AXIS LINES (line_val, diarias_line)
             const leftLines: JSX.Element[] = [];
 
-            if (isRatioChart) {
-                if (!hideBudget && (bMode === 'line_val' || bMode === 'diarias_line')) {
-                    const l = renderLineSeries('budget', '#94a3b8', true);
-                    if (l) leftLines.push(l);
-                    const lc = renderLineSeries('compareBudget', '#fed7aa', true);
-                    if (lc) leftLines.push(lc);
-                }
-                if (!hideRealized && (rMode === 'line_val' || rMode === 'diarias_line')) {
-                    const l = renderLineSeries('realized', chartColor);
-                    if (l) leftLines.push(l);
-                    const lc = renderLineSeries('compareRealized', '#f97316');
-                    if (lc) leftLines.push(lc);
+            if (compareActive) {
+                if (isRatioChart) {
+                    if (!hideBudget && (bMode === 'line_val' || bMode === 'diarias_line')) {
+                        const l = renderLineSeries('budget', 'var(--text-muted)', true);
+                        if (l) leftLines.push(l);
+                        const lc = renderLineSeries('compareBudget', '#fed7aa', true);
+                        if (lc) leftLines.push(lc);
+                        
+                        const lb = renderLineSeries('budgetB', '#fed7aa', true);
+                        if (lb) leftLines.push(lb);
+                        const lbc = renderLineSeries('compareBudgetB', '#ffedd5', true);
+                        if (lbc) leftLines.push(lbc);
+                    }
+                    if (!hideRealized && (rMode === 'line_val' || rMode === 'diarias_line')) {
+                        const l = renderLineSeries('realized', chartColor, false);
+                        if (l) leftLines.push(l);
+                        const lc = renderLineSeries('compareRealized', '#818cf8', false);
+                        if (lc) leftLines.push(lc);
+                        
+                        const lb = renderLineSeries('realizedB', '#10b981', true);
+                        if (lb) leftLines.push(lb);
+                        const lbc = renderLineSeries('compareRealizedB', '#f97316', true);
+                        if (lbc) leftLines.push(lbc);
+                    }
+                } else {
+                    if (!hideBudget && (bMode === 'line_val' || bMode === 'diarias_line')) {
+                        const l = renderLineSeries('budget', 'var(--text-muted)', true);
+                        if (l) leftLines.push(l);
+                        const lb = renderLineSeries('budgetB', '#fed7aa', true);
+                        if (lb) leftLines.push(lb);
+                    }
+                    if (!hideRealized && (rMode === 'line_val' || rMode === 'diarias_line')) {
+                        const l = renderLineSeries('realized', chartColor, false);
+                        if (l) leftLines.push(l);
+                        const lb = renderLineSeries('realizedB', '#10b981', true);
+                        if (lb) leftLines.push(lb);
+                    }
                 }
             } else {
-                if (!hideBudget && (bMode === 'line_val' || bMode === 'diarias_line')) {
-                    const l = renderLineSeries('budget', '#94a3b8', true);
-                    if (l) leftLines.push(l);
-                }
-                if (!hideRealized && (rMode === 'line_val' || rMode === 'diarias_line')) {
-                    const l = renderLineSeries('realized', chartColor);
-                    if (l) leftLines.push(l);
+                if (isRatioChart) {
+                    if (!hideBudget && (bMode === 'line_val' || bMode === 'diarias_line')) {
+                        const l = renderLineSeries('budget', 'var(--text-muted)', true);
+                        if (l) leftLines.push(l);
+                        const lc = renderLineSeries('compareBudget', '#fed7aa', true);
+                        if (lc) leftLines.push(lc);
+                    }
+                    if (!hideRealized && (rMode === 'line_val' || rMode === 'diarias_line')) {
+                        const l = renderLineSeries('realized', chartColor);
+                        if (l) leftLines.push(l);
+                        const lc = renderLineSeries('compareRealized', '#f97316');
+                        if (lc) leftLines.push(lc);
+                    }
+                } else {
+                    if (!hideBudget && (bMode === 'line_val' || bMode === 'diarias_line')) {
+                        const l = renderLineSeries('budget', 'var(--text-muted)', true);
+                        if (l) leftLines.push(l);
+                    }
+                    if (!hideRealized && (rMode === 'line_val' || rMode === 'diarias_line')) {
+                        const l = renderLineSeries('realized', chartColor);
+                        if (l) leftLines.push(l);
+                    }
                 }
             }
 
@@ -4049,35 +4142,37 @@ const renderDetailedChart = (
             const rightLines: JSX.Element[] = [];
 
             if (atMode === 'line_atingido') {
-                const points: { x: number; y: number; val: number }[] = [];
-                data.forEach((m, monthIdx) => {
-                    if (monthIdx + 1 <= currentMonthIdx + 1) {
-                        points.push({
-                            x: getX(monthIdx),
-                            y: getYPct(m.atingido),
-                            val: m.atingido
-                        });
-                    }
-                });
+                const renderAtingidoLine = (key: string, strokeColor: string, isB: boolean) => {
+                    const points: { x: number; y: number; val: number }[] = [];
+                    data.forEach((m, monthIdx) => {
+                        if (isRealizedVisible(isB ? 'realizedB' : 'realized', monthIdx)) {
+                            points.push({
+                                x: getX(monthIdx),
+                                y: getYPct(m[key]),
+                                val: m[key]
+                            });
+                        }
+                    });
 
-                if (points.length > 0) {
+                    if (points.length === 0) return null;
+
                     let pathD = `M ${points[0].x} ${points[0].y}`;
                     for (let i = 1; i < points.length; i++) {
                         pathD += ` L ${points[i].x} ${points[i].y}`;
                     }
-                    const lineColor = '#10b981';
-                    rightLines.push(
-                        <g key="atingido-line">
-                            <path d={pathD} fill="none" stroke={lineColor} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
+
+                    return (
+                        <g key={`${key}-line`}>
+                            <path d={pathD} fill="none" stroke={strokeColor} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" strokeDasharray={isB ? '4 4' : undefined} />
                             {points.map((p, idx) => (
                                 <g key={idx}>
-                                    <circle cx={p.x} cy={p.y} r="4.5" fill={lineColor} stroke="var(--bg-surface)" strokeWidth="1.5" />
+                                    <circle cx={p.x} cy={p.y} r="4.5" fill={strokeColor} stroke="var(--bg-surface)" strokeWidth="1.5" />
                                     {config?.showAtingidoLabels !== 'false' && (
                                         <text 
                                             x={p.x} 
                                             y={p.y - 10} 
                                             textAnchor="middle" 
-                                            fill={lineColor} 
+                                            fill={strokeColor} 
                                             fontSize="9px" 
                                             fontWeight="800"
                                             style={{ paintOrder: 'stroke', stroke: 'var(--bg-surface)', strokeWidth: 3.5, strokeLinejoin: 'round' }}
@@ -4089,83 +4184,49 @@ const renderDetailedChart = (
                             ))}
                         </g>
                     );
+                };
+
+                const lA = renderAtingidoLine('atingido', '#10b981', false);
+                if (lA) rightLines.push(lA);
+                if (compareActive) {
+                    const lB = renderAtingidoLine('atingidoB', '#ec4899', true);
+                    if (lB) rightLines.push(lB);
                 }
             }
 
             if (pctMode === 'line_revenue') {
-                if (!onlyRealized) {
-                    const pointsB: { x: number; y: number; val: number }[] = [];
+                const renderPctRevenueLine = (key: string, strokeColor: string, isDash: boolean, isB: boolean, isBudget: boolean) => {
+                    const points: { x: number; y: number; val: number }[] = [];
                     data.forEach((m, monthIdx) => {
-                        pointsB.push({
-                            x: getX(monthIdx),
-                            y: getYPct(m.pctOfRevenueBudget || 0),
-                            val: m.pctOfRevenueBudget || 0
-                        });
+                        const checkKey = isB ? (isBudget ? 'budgetB' : 'realizedB') : (isBudget ? 'budget' : 'realized');
+                        if (isBudget || isRealizedVisible(checkKey, monthIdx)) {
+                            points.push({
+                                x: getX(monthIdx),
+                                y: getYPct(m[key] || 0),
+                                val: m[key] || 0
+                            });
+                        }
                     });
 
-                    if (pointsB.length > 0) {
-                        let pathD = `M ${pointsB[0].x} ${pointsB[0].y}`;
-                        for (let i = 1; i < pointsB.length; i++) {
-                            pathD += ` L ${pointsB[i].x} ${pointsB[i].y}`;
-                        }
-                        const lineColor = '#fed7aa';
-                        rightLines.push(
-                            <g key="pct-revenue-budget-line">
-                                <path d={pathD} fill="none" stroke={lineColor} strokeWidth="2.5" strokeDasharray="4 4" strokeLinecap="round" strokeLinejoin="round" />
-                                {pointsB.map((p, idx) => (
-                                    <g key={idx}>
-                                        <circle cx={p.x} cy={p.y} r="4.5" fill={lineColor} stroke="var(--bg-surface)" strokeWidth="1.5" />
-                                        {config?.showPctOfRevenueLabels !== 'false' && p.val !== 0 && (
-                                            <text 
-                                                x={p.x} 
-                                                y={p.y - 10} 
-                                                textAnchor="middle" 
-                                                fill={lineColor} 
-                                                fontSize="9px" 
-                                                fontWeight="800"
-                                                style={{ paintOrder: 'stroke', stroke: 'var(--bg-surface)', strokeWidth: 3.5, strokeLinejoin: 'round' }}
-                                            >
-                                                {p.val.toFixed(1)}%
-                                            </text>
-                                        )}
-                                    </g>
-                                ))}
-                            </g>
-                        );
-                    }
-                }
+                    if (points.length === 0) return null;
 
-                const points: { x: number; y: number; val: number }[] = [];
-                data.forEach((m, monthIdx) => {
-                    if (monthIdx + 1 <= currentMonthIdx + 1) {
-                        points.push({
-                            x: getX(monthIdx),
-                            y: getYPct(m.pctOfRevenue || 0),
-                            val: m.pctOfRevenue || 0
-                        });
-                    }
-                });
-
-                if (points.length > 0) {
                     let pathD = `M ${points[0].x} ${points[0].y}`;
                     for (let i = 1; i < points.length; i++) {
                         pathD += ` L ${points[i].x} ${points[i].y}`;
                     }
 
-                    const lineColor = '#f59e0b';
-
-                    rightLines.push(
-                        <g key="pct-revenue-line">
-                            <path d={pathD} fill="none" stroke={lineColor} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
+                    return (
+                        <g key={`${key}-line`}>
+                            <path d={pathD} fill="none" stroke={strokeColor} strokeWidth="2.5" strokeDasharray={isDash ? "4 4" : undefined} strokeLinecap="round" strokeLinejoin="round" />
                             {points.map((p, idx) => (
                                 <g key={idx}>
-                                    <circle cx={p.x} cy={p.y} r="4.5" fill={lineColor} stroke="var(--bg-surface)" strokeWidth="1.5" />
+                                    <circle cx={p.x} cy={p.y} r="4.5" fill={strokeColor} stroke="var(--bg-surface)" strokeWidth="1.5" />
                                     {config?.showPctOfRevenueLabels !== 'false' && p.val !== 0 && (
                                         <text 
                                             x={p.x} 
                                             y={p.y - 10} 
                                             textAnchor="middle" 
-                                            fill={lineColor} 
+                                            fill={strokeColor} 
                                             fontSize="9px" 
                                             fontWeight="800"
                                             style={{ paintOrder: 'stroke', stroke: 'var(--bg-surface)', strokeWidth: 3.5, strokeLinejoin: 'round' }}
@@ -4177,6 +4238,31 @@ const renderDetailedChart = (
                             ))}
                         </g>
                     );
+                };
+
+                if (compareActive) {
+                    // Period A
+                    if (!onlyRealized) {
+                        const lA_B = renderPctRevenueLine('pctOfRevenueBudget', '#fed7aa', true, false, true);
+                        if (lA_B) rightLines.push(lA_B);
+                    }
+                    const lA_R = renderPctRevenueLine('pctOfRevenue', '#f59e0b', false, false, false);
+                    if (lA_R) rightLines.push(lA_R);
+                    
+                    // Period B
+                    if (!onlyRealized) {
+                        const lB_B = renderPctRevenueLine('pctOfRevenueBudgetB', '#a7f3d0', true, true, true);
+                        if (lB_B) rightLines.push(lB_B);
+                    }
+                    const lB_R = renderPctRevenueLine('pctOfRevenueB', '#34d399', true, true, false);
+                    if (lB_R) rightLines.push(lB_R);
+                } else {
+                    if (!onlyRealized) {
+                        const l = renderPctRevenueLine('pctOfRevenueBudget', '#fed7aa', true, false, true);
+                        if (l) rightLines.push(l);
+                    }
+                    const l = renderPctRevenueLine('pctOfRevenue', '#f59e0b', false, false, false);
+                    if (l) rightLines.push(l);
                 }
             }
 
@@ -4219,7 +4305,7 @@ const renderDetailedChart = (
 
                     {data.map((m, idx) => (
                         <text key={idx} x={getX(idx)} y={yBaseline + 20} textAnchor="middle" fill="var(--text-secondary)" fontSize="13px" fontWeight="800">
-                            {['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'][idx]}
+                            {compareActive ? `${m.labelA} / ${m.labelB}` : ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'][idx]}
                         </text>
                     ))}
 
@@ -4234,66 +4320,179 @@ const renderDetailedChart = (
                             style={{ cursor: 'pointer' }}
                             onMouseMove={(e) => {
                                 const items = [];
-                                if (bMode !== 'none') {
-                                    const label = isRatioChart ? `${baseLabel || 'Base'} (Orçado)` : 'Orçado';
-                                    items.push({ 
-                                        label, 
-                                        value: formatAbs(getAbsValue(m.budget, bMode, idx), isDailyMode(bMode)), 
-                                        color: '#cbd5e1' 
-                                    });
-                                }
-                                if (rMode !== 'none' && idx + 1 <= currentMonthIdx + 1) {
-                                    const label = isRatioChart ? `${baseLabel || 'Base'} (Realizado)` : 'Realizado';
-                                    items.push({ 
-                                        label, 
-                                        value: formatAbs(getAbsValue(m.realized, rMode, idx), isDailyMode(rMode)), 
-                                        color: chartColor 
-                                    });
-                                }
-                                if (isRatioChart) {
-                                    if (bMode !== 'none') {
+                                if (compareActive) {
+                                    const { labelA, labelB } = compInfo;
+                                    // Period A
+                                    items.push({ label: `--- ${labelA} ---`, value: '', color: 'transparent' });
+                                    if (bMode !== 'none' && !hideBudget) {
                                         items.push({ 
-                                            label: `${compareLabel || 'Comp'} (Orçado)`, 
-                                            value: formatAbs(getAbsValue(m.compareBudget, bMode, idx), isDailyMode(bMode)), 
+                                            label: isRatioChart ? `${baseLabel || 'Base'} (Orçado)` : 'Orçado', 
+                                            value: formatAbs(getAbsValue(m.budget, bMode, idx), isDailyMode(bMode)), 
+                                            color: 'var(--text-muted)' 
+                                        });
+                                        if (isRatioChart && !hideCompareBudget) {
+                                            items.push({ 
+                                                label: `${compareLabel || 'Comp'} (Orçado)`, 
+                                                value: formatAbs(getAbsValue(m.compareBudget, bMode, idx), isDailyMode(bMode)), 
+                                                color: '#fed7aa' 
+                                            });
+                                        }
+                                    }
+                                    if (rMode !== 'none' && !hideRealized && isRealizedVisible('realized', idx)) {
+                                        items.push({ 
+                                            label: isRatioChart ? `${baseLabel || 'Base'} (Realizado)` : 'Realizado', 
+                                            value: formatAbs(getAbsValue(m.realized, rMode, idx), isDailyMode(rMode)), 
+                                            color: chartColor 
+                                        });
+                                        if (isRatioChart && !hideCompareRealized && isRealizedVisible('compareRealized', idx)) {
+                                            items.push({ 
+                                                label: `${compareLabel || 'Comp'} (Realizado)`, 
+                                                value: formatAbs(getAbsValue(m.compareRealized, rMode, idx), isDailyMode(rMode)), 
+                                                color: '#818cf8' 
+                                            });
+                                        }
+                                    }
+                                    if (atMode !== 'none' && isRealizedVisible('realized', idx)) {
+                                        items.push({ 
+                                            label: isRatioChart ? 'Razão %' : 'Atingido', 
+                                            value: `${m.atingido.toFixed(1)}%`, 
+                                            color: '#10b981' 
+                                        });
+                                    }
+                                    if (pctMode !== 'none') {
+                                        if (!onlyRealized) {
+                                            items.push({ 
+                                                label: '% s/ Receita (Orçado)', 
+                                                value: `${(m.pctOfRevenueBudget || 0).toFixed(1)}%`, 
+                                                color: '#fed7aa' 
+                                            });
+                                        }
+                                        if (isRealizedVisible('realized', idx)) {
+                                            items.push({ 
+                                                label: '% s/ Receita (Realizado)', 
+                                                value: `${(m.pctOfRevenue || 0).toFixed(1)}%`, 
+                                                color: '#f59e0b' 
+                                            });
+                                        }
+                                    }
+
+                                    // Period B
+                                    items.push({ label: `--- ${labelB} ---`, value: '', color: 'transparent' });
+                                    if (bMode !== 'none' && !hideBudgetB) {
+                                        items.push({ 
+                                            label: isRatioChart ? `${baseLabel || 'Base'} (Orçado)` : 'Orçado', 
+                                            value: formatAbs(getAbsValue(m.budgetB, bMode, idx), isDailyMode(bMode)), 
                                             color: '#fed7aa' 
                                         });
+                                        if (isRatioChart && !hideCompareBudgetB) {
+                                            items.push({ 
+                                                label: `${compareLabel || 'Comp'} (Orçado)`, 
+                                                value: formatAbs(getAbsValue(m.compareBudgetB, bMode, idx), isDailyMode(bMode)), 
+                                                color: '#ffedd5' 
+                                            });
+                                        }
                                     }
-                                    if (rMode !== 'none' && idx + 1 <= currentMonthIdx + 1) {
+                                    if (rMode !== 'none' && !hideRealizedB && isRealizedVisible('realizedB', idx)) {
                                         items.push({ 
-                                            label: `${compareLabel || 'Comp'} (Realizado)`, 
-                                            value: formatAbs(getAbsValue(m.compareRealized, rMode, idx), isDailyMode(rMode)), 
-                                            color: '#f97316' 
+                                            label: isRatioChart ? `${baseLabel || 'Base'} (Realizado)` : 'Realizado', 
+                                            value: formatAbs(getAbsValue(m.realizedB, rMode, idx), isDailyMode(rMode)), 
+                                            color: '#10b981' 
+                                        });
+                                        if (isRatioChart && !hideCompareRealizedB && isRealizedVisible('compareRealizedB', idx)) {
+                                            items.push({ 
+                                                label: `${compareLabel || 'Comp'} (Realizado)`, 
+                                                value: formatAbs(getAbsValue(m.compareRealizedB, rMode, idx), isDailyMode(rMode)), 
+                                                color: '#f97316' 
+                                            });
+                                        }
+                                    }
+                                    if (atMode !== 'none' && isRealizedVisible('realizedB', idx)) {
+                                        items.push({ 
+                                            label: isRatioChart ? 'Razão %' : 'Atingido', 
+                                            value: `${(m.atingidoB || 0).toFixed(1)}%`, 
+                                            color: '#ec4899' 
                                         });
                                     }
-                                }
-                                if (atMode !== 'none' && idx + 1 <= currentMonthIdx + 1) {
-                                    items.push({ 
-                                        label: isRatioChart ? 'Razão %' : 'Atingido', 
-                                        value: `${m.atingido.toFixed(1)}%`, 
-                                        color: '#10b981' 
-                                    });
-                                }
-                                if (pctMode !== 'none') {
-                                    if (!onlyRealized) {
+                                    if (pctMode !== 'none') {
+                                        if (!onlyRealized) {
+                                            items.push({ 
+                                                label: '% s/ Receita (Orçado)', 
+                                                value: `${(m.pctOfRevenueBudgetB || 0).toFixed(1)}%`, 
+                                                color: '#a7f3d0' 
+                                            });
+                                        }
+                                        if (isRealizedVisible('realizedB', idx)) {
+                                            items.push({ 
+                                                label: '% s/ Receita (Realizado)', 
+                                                value: `${(m.pctOfRevenueB || 0).toFixed(1)}%`, 
+                                                color: '#34d399' 
+                                            });
+                                        }
+                                    }
+                                } else {
+                                    if (bMode !== 'none' && !hideBudget) {
+                                        const label = isRatioChart ? `${baseLabel || 'Base'} (Orçado)` : 'Orçado';
                                         items.push({ 
-                                            label: '% s/ Receita (Orçado)', 
-                                            value: `${(m.pctOfRevenueBudget || 0).toFixed(1)}%`, 
-                                            color: '#fed7aa' 
+                                            label, 
+                                            value: formatAbs(getAbsValue(m.budget, bMode, idx), isDailyMode(bMode)), 
+                                            color: 'var(--text-muted)' 
                                         });
                                     }
-                                    if (idx + 1 <= currentMonthIdx + 1) {
+                                    if (rMode !== 'none' && !hideRealized && idx <= currentMonthIdx) {
+                                        const label = isRatioChart ? `${baseLabel || 'Base'} (Realizado)` : 'Realizado';
                                         items.push({ 
-                                            label: '% s/ Receita (Realizado)', 
-                                            value: `${(m.pctOfRevenue || 0).toFixed(1)}%`, 
-                                            color: '#f59e0b' 
+                                            label, 
+                                            value: formatAbs(getAbsValue(m.realized, rMode, idx), isDailyMode(rMode)), 
+                                            color: chartColor 
                                         });
+                                    }
+                                    if (isRatioChart) {
+                                        if (bMode !== 'none' && !hideCompareBudget) {
+                                            items.push({ 
+                                                label: `${compareLabel || 'Comp'} (Orçado)`, 
+                                                value: formatAbs(getAbsValue(m.compareBudget, bMode, idx), isDailyMode(bMode)), 
+                                                color: '#fed7aa' 
+                                            });
+                                        }
+                                        if (rMode !== 'none' && !hideCompareRealized && idx <= currentMonthIdx) {
+                                            items.push({ 
+                                                label: `${compareLabel || 'Comp'} (Realizado)`, 
+                                                value: formatAbs(getAbsValue(m.compareRealized, rMode, idx), isDailyMode(rMode)), 
+                                                color: '#f97316' 
+                                            });
+                                        }
+                                    }
+                                    if (atMode !== 'none' && idx <= currentMonthIdx) {
+                                        items.push({ 
+                                            label: isRatioChart ? 'Razão %' : 'Atingido', 
+                                            value: `${m.atingido.toFixed(1)}%`, 
+                                            color: '#10b981' 
+                                        });
+                                    }
+                                    if (pctMode !== 'none') {
+                                        if (!onlyRealized && !hideBudget) {
+                                            items.push({ 
+                                                label: '% s/ Receita (Orçado)', 
+                                                value: `${(m.pctOfRevenueBudget || 0).toFixed(1)}%`, 
+                                                color: '#fed7aa' 
+                                            });
+                                        }
+                                        if (!hideRealized && idx <= currentMonthIdx) {
+                                            items.push({ 
+                                                label: '% s/ Receita (Realizado)', 
+                                                value: `${(m.pctOfRevenue || 0).toFixed(1)}%`, 
+                                                color: '#f59e0b' 
+                                            });
+                                        }
                                     }
                                 }
 
                                 onHover({
                                     x: e.clientX,
                                     y: e.clientY,
-                                    title: `${['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'][idx]} de ${year}`,
+                                    title: compareActive
+                                        ? `${m.labelA} vs ${m.labelB} de ${year}`
+                                        : `${['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'][idx]} de ${year}`,
                                     items
                                 });
                             }}
@@ -4304,8 +4503,6 @@ const renderDetailedChart = (
                 </svg>
             );
         }
-
-
 
         case 'VERTICAL_BAR': {
             const yBaseline = hasNegative ? 130 : 210;

@@ -586,7 +586,15 @@ export async function GET(request: Request) {
         const resolvedKeys = keys.map(key => {
             const isDreKey = ['vRev', 'vTaxes', 'vRecLiq', 'vCosts', 'vGrossMarg', 'vOpExp', 'vContribMarg', 'vAdminExp', 'vEbitda', 'vFin', 'vNetProfit'].includes(key);
             if (isDreKey) return key;
-            if (totalsMap.has(key)) return key;
+
+            // Normalize synthetic key if it starts with synth- (e.g. synth-03.4 -> synth-3.4)
+            let lookupKey = key;
+            if (key.startsWith('synth-')) {
+                const code = key.replace('synth-', '');
+                lookupKey = `synth-${normalizeCode(code)}`;
+            }
+
+            if (totalsMap.has(lookupKey)) return lookupKey;
 
             const origCat = originalCategories.find(c => c.id === key);
             if (!origCat) return key;

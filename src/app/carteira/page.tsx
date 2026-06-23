@@ -3726,6 +3726,27 @@ const renderDetailedChart = (
 
     const compInfo = getComparisonPeriods(comparePeriod);
 
+    const currentMonthIdx = new Date().getMonth();
+    const hasNegative = data.some(m => 
+        m.budget < 0 || 
+        m.realized < 0 || 
+        (m.budgetB !== undefined && m.budgetB < 0) || 
+        (m.realizedB !== undefined && m.realizedB < 0) ||
+        (m.compareBudget !== undefined && m.compareBudget < 0) ||
+        (m.compareRealized !== undefined && m.compareRealized < 0) ||
+        (m.compareBudgetB !== undefined && m.compareBudgetB < 0) ||
+        (m.compareRealizedB !== undefined && m.compareRealizedB < 0)
+    );
+
+    const hideBudget = !!hiddenSeries.budget || !!hiddenSeries.pctOfRevenueBudget || onlyRealized;
+    const hideRealized = !!hiddenSeries.realized || !!hiddenSeries.pctOfRevenue;
+    const hideBudgetB = !!hiddenSeries.budgetB || !!hiddenSeries.pctOfRevenueBudgetB || onlyRealized;
+    const hideRealizedB = !!hiddenSeries.realizedB || !!hiddenSeries.pctOfRevenueB;
+    const hideCompareBudget = !!hiddenSeries.compareBudget || onlyRealized;
+    const hideCompareRealized = !!hiddenSeries.compareRealized;
+    const hideCompareBudgetB = !!hiddenSeries.compareBudgetB || onlyRealized;
+    const hideCompareRealizedB = !!hiddenSeries.compareRealizedB;
+
     const isRealizedVisible = (key: string, idx: number) => {
         if (key.toLowerCase().includes('budget')) return true;
         if (!compInfo) {
@@ -3755,19 +3776,19 @@ const renderDetailedChart = (
         maxVal = Math.max(...data.map((m) => Math.max(
             hideBudget ? 0 : Math.abs(pctOfRevenue ? m.pctOfRevenueBudget : m.budget),
             !hideRealized ? Math.abs(pctOfRevenue ? m.pctOfRevenue : m.realized) : 0,
-            hideBudget ? 0 : Math.abs(pctOfRevenue ? m.pctOfRevenueBudgetB : m.budgetB),
-            !hideRealized ? Math.abs(pctOfRevenue ? m.pctOfRevenueB : m.realizedB) : 0,
-            isRatioChart && !hideBudget ? Math.abs(m.compareBudget || 0) : 0,
-            isRatioChart && !hideRealized ? Math.abs(m.compareRealized || 0) : 0,
-            isRatioChart && !hideBudget ? Math.abs(m.compareBudgetB || 0) : 0,
-            isRatioChart && !hideRealized ? Math.abs(m.compareRealizedB || 0) : 0
+            hideBudgetB ? 0 : Math.abs(pctOfRevenue ? m.pctOfRevenueBudgetB : m.budgetB),
+            !hideRealizedB ? Math.abs(pctOfRevenue ? m.pctOfRevenueB : m.realizedB) : 0,
+            isRatioChart && !hideCompareBudget ? Math.abs(m.compareBudget || 0) : 0,
+            isRatioChart && !hideCompareRealized ? Math.abs(m.compareRealized || 0) : 0,
+            isRatioChart && !hideCompareBudgetB ? Math.abs(m.compareBudgetB || 0) : 0,
+            isRatioChart && !hideCompareRealizedB ? Math.abs(m.compareRealizedB || 0) : 0
         ))) || 1;
     } else {
         maxVal = Math.max(...data.map((m, idx) => Math.max(
             hideBudget ? 0 : Math.abs(pctOfRevenue ? (m.pctOfRevenueBudget || 0) : m.budget),
-            (!hideRealized && idx + 1 <= currentMonthIdx + 1) ? Math.abs(pctOfRevenue ? (m.pctOfRevenue || 0) : m.realized) : 0,
-            isRatioChart && !hideBudget ? Math.abs(m.compareBudget || 0) : 0,
-            isRatioChart && !hideRealized && (idx + 1 <= currentMonthIdx + 1) ? Math.abs(m.compareRealized || 0) : 0
+            (!hideRealized && idx <= currentMonthIdx) ? Math.abs(pctOfRevenue ? (m.pctOfRevenue || 0) : m.realized) : 0,
+            isRatioChart && !hideCompareBudget ? Math.abs(m.compareBudget || 0) : 0,
+            isRatioChart && !hideCompareRealized && (idx <= currentMonthIdx) ? Math.abs(m.compareRealized || 0) : 0
         ))) || 1;
     }
 
@@ -3786,16 +3807,26 @@ const renderDetailedChart = (
             const activeBarKeys: string[] = [];
             if (compareActive) {
                 if (isRatioChart) {
-                    if (!hideBudget) activeBarKeys.push('budget', 'compareBudget', 'budgetB', 'compareBudgetB');
-                    if (!hideRealized) activeBarKeys.push('realized', 'compareRealized', 'realizedB', 'compareRealizedB');
+                    if (!hideBudget) activeBarKeys.push('budget');
+                    if (!hideCompareBudget) activeBarKeys.push('compareBudget');
+                    if (!hideBudgetB) activeBarKeys.push('budgetB');
+                    if (!hideCompareBudgetB) activeBarKeys.push('compareBudgetB');
+                    if (!hideRealized) activeBarKeys.push('realized');
+                    if (!hideCompareRealized) activeBarKeys.push('compareRealized');
+                    if (!hideRealizedB) activeBarKeys.push('realizedB');
+                    if (!hideCompareRealizedB) activeBarKeys.push('compareRealizedB');
                 } else {
-                    if (!hideBudget) activeBarKeys.push('budget', 'budgetB');
-                    if (!hideRealized) activeBarKeys.push('realized', 'realizedB');
+                    if (!hideBudget) activeBarKeys.push('budget');
+                    if (!hideBudgetB) activeBarKeys.push('budgetB');
+                    if (!hideRealized) activeBarKeys.push('realized');
+                    if (!hideRealizedB) activeBarKeys.push('realizedB');
                 }
             } else {
                 if (isRatioChart) {
-                    if (!hideBudget) activeBarKeys.push('budget', 'compareBudget');
-                    if (!hideRealized) activeBarKeys.push('realized', 'compareRealized');
+                    if (!hideBudget) activeBarKeys.push('budget');
+                    if (!hideCompareBudget) activeBarKeys.push('compareBudget');
+                    if (!hideRealized) activeBarKeys.push('realized');
+                    if (!hideCompareRealized) activeBarKeys.push('compareRealized');
                 } else {
                     if (!hideBudget) activeBarKeys.push('budget');
                     if (!hideRealized) activeBarKeys.push('realized');
@@ -3919,27 +3950,27 @@ const renderDetailedChart = (
                                         items.push({ label: `--- ${labelA} ---`, value: '', color: 'transparent' });
                                         if (!hideBudget) {
                                             items.push({ label: isRatioChart ? `${baseLabel || 'Base'} (Orçado)` : 'Orçado', value: formatVal(getVal('budget', m)), color: '#cbd5e1' });
-                                            if (isRatioChart) {
+                                            if (isRatioChart && !hideCompareBudget) {
                                                 items.push({ label: `${compareLabel || 'Comp'} (Orçado)`, value: formatVal(getVal('compareBudget', m)), color: '#cbd5e1' });
                                             }
                                         }
                                         if (!hideRealized && isRealizedVisible('realized', idx)) {
                                             items.push({ label: isRatioChart ? `${baseLabel || 'Base'} (Realizado)` : 'Realizado', value: formatVal(getVal('realized', m)), color: chartColor });
-                                            if (isRatioChart) {
+                                            if (isRatioChart && !hideCompareRealized) {
                                                 items.push({ label: `${compareLabel || 'Comp'} (Realizado)`, value: formatVal(getVal('compareRealized', m)), color: chartColor });
                                             }
                                         }
                                         // Period B
                                         items.push({ label: `--- ${labelB} ---`, value: '', color: 'transparent' });
-                                        if (!hideBudget) {
+                                        if (!hideBudgetB) {
                                             items.push({ label: isRatioChart ? `${baseLabel || 'Base'} (Orçado)` : 'Orçado', value: formatVal(getVal('budgetB', m)), color: '#fed7aa' });
-                                            if (isRatioChart) {
+                                            if (isRatioChart && !hideCompareBudgetB) {
                                                 items.push({ label: `${compareLabel || 'Comp'} (Orçado)`, value: formatVal(getVal('compareBudgetB', m)), color: '#fed7aa' });
                                             }
                                         }
-                                        if (!hideRealized && isRealizedVisible('realizedB', idx)) {
+                                        if (!hideRealizedB && isRealizedVisible('realizedB', idx)) {
                                             items.push({ label: isRatioChart ? `${baseLabel || 'Base'} (Realizado)` : 'Realizado', value: formatVal(getVal('realizedB', m)), color: '#10b981' });
-                                            if (isRatioChart) {
+                                            if (isRatioChart && !hideCompareRealizedB) {
                                                 items.push({ label: `${compareLabel || 'Comp'} (Realizado)`, value: formatVal(getVal('compareRealizedB', m)), color: '#10b981' });
                                             }
                                         }
@@ -3947,14 +3978,14 @@ const renderDetailedChart = (
                                         if (!hideBudget) {
                                             const valB = pctOfRevenue ? (m.pctOfRevenueBudget || 0) : m.budget;
                                             items.push({ label: 'Orçado', value: formatVal(valB), color: '#cbd5e1' });
-                                            if (isRatioChart) {
+                                            if (isRatioChart && !hideCompareBudget) {
                                                 items.push({ label: `${compareLabel || 'Comp'} (Orçado)`, value: formatVal(m.compareBudget || 0), color: '#fed7aa' });
                                             }
                                         }
                                         if (!hideRealized && idx <= currentMonthIdx) {
                                             const valR = pctOfRevenue ? (m.pctOfRevenue || 0) : m.realized;
                                             items.push({ label: 'Realizado', value: formatVal(valR), color: chartColor });
-                                            if (isRatioChart) {
+                                            if (isRatioChart && !hideCompareRealized) {
                                                 items.push({ label: `${compareLabel || 'Comp'} (Realizado)`, value: formatVal(m.compareRealized || 0), color: '#f97316' });
                                             }
                                         }
@@ -4002,48 +4033,56 @@ const renderDetailedChart = (
             if (compareActive) {
                 if (isRatioChart) {
                     if (!hideBudget) {
-                        seriesList.push(
-                            { key: 'budget', strokeColor: 'var(--text-muted)', isDash: true, isRealized: false, label: `${baseLabel || 'Base'} (Orçado)`, markerColor: 'var(--text-muted)' },
-                            { key: 'compareBudget', strokeColor: '#fed7aa', isDash: true, isRealized: false, label: `${compareLabel || 'Comp'} (Orçado)`, markerColor: '#fed7aa' },
-                            { key: 'budgetB', strokeColor: '#fed7aa', isDash: true, isRealized: false, label: `${baseLabel || 'Base'} (Orçado) B`, markerColor: '#fed7aa' },
-                            { key: 'compareBudgetB', strokeColor: '#ffedd5', isDash: true, isRealized: false, label: `${compareLabel || 'Comp'} (Orçado) B`, markerColor: '#ffedd5' }
-                        );
+                        seriesList.push({ key: 'budget', strokeColor: 'var(--text-muted)', isDash: true, isRealized: false, label: `${baseLabel || 'Base'} (Orçado)`, markerColor: 'var(--text-muted)' });
+                    }
+                    if (!hideCompareBudget) {
+                        seriesList.push({ key: 'compareBudget', strokeColor: '#fed7aa', isDash: true, isRealized: false, label: `${compareLabel || 'Comp'} (Orçado)`, markerColor: '#fed7aa' });
+                    }
+                    if (!hideBudgetB) {
+                        seriesList.push({ key: 'budgetB', strokeColor: '#fed7aa', isDash: true, isRealized: false, label: `${baseLabel || 'Base'} (Orçado) B`, markerColor: '#fed7aa' });
+                    }
+                    if (!hideCompareBudgetB) {
+                        seriesList.push({ key: 'compareBudgetB', strokeColor: '#ffedd5', isDash: true, isRealized: false, label: `${compareLabel || 'Comp'} (Orçado) B`, markerColor: '#ffedd5' });
                     }
                     if (!hideRealized) {
-                        seriesList.push(
-                            { key: 'realized', strokeColor: chartColor, isDash: false, isRealized: true, label: `${baseLabel || 'Base'} (Realizado)`, markerColor: chartColor },
-                            { key: 'compareRealized', strokeColor: '#818cf8', isDash: false, isRealized: true, label: `${compareLabel || 'Comp'} (Realizado)`, markerColor: '#818cf8' },
-                            { key: 'realizedB', strokeColor: '#10b981', isDash: true, isRealized: true, label: `${baseLabel || 'Base'} (Realizado) B`, markerColor: '#10b981' },
-                            { key: 'compareRealizedB', strokeColor: '#f97316', isDash: true, isRealized: true, label: `${compareLabel || 'Comp'} (Realizado) B`, markerColor: '#f97316' }
-                        );
+                        seriesList.push({ key: 'realized', strokeColor: chartColor, isDash: false, isRealized: true, label: `${baseLabel || 'Base'} (Realizado)`, markerColor: chartColor });
+                    }
+                    if (!hideCompareRealized) {
+                        seriesList.push({ key: 'compareRealized', strokeColor: '#818cf8', isDash: false, isRealized: true, label: `${compareLabel || 'Comp'} (Realizado)`, markerColor: '#818cf8' });
+                    }
+                    if (!hideRealizedB) {
+                        seriesList.push({ key: 'realizedB', strokeColor: '#10b981', isDash: true, isRealized: true, label: `${baseLabel || 'Base'} (Realizado) B`, markerColor: '#10b981' });
+                    }
+                    if (!hideCompareRealizedB) {
+                        seriesList.push({ key: 'compareRealizedB', strokeColor: '#f97316', isDash: true, isRealized: true, label: `${compareLabel || 'Comp'} (Realizado) B`, markerColor: '#f97316' });
                     }
                 } else {
                     if (!hideBudget) {
-                        seriesList.push(
-                            { key: 'budget', strokeColor: 'var(--text-muted)', isDash: true, isRealized: false, label: 'Orçado', markerColor: 'var(--text-muted)' },
-                            { key: 'budgetB', strokeColor: '#fed7aa', isDash: true, isRealized: false, label: 'Orçado B', markerColor: '#fed7aa' }
-                        );
+                        seriesList.push({ key: 'budget', strokeColor: 'var(--text-muted)', isDash: true, isRealized: false, label: 'Orçado', markerColor: 'var(--text-muted)' });
+                    }
+                    if (!hideBudgetB) {
+                        seriesList.push({ key: 'budgetB', strokeColor: '#fed7aa', isDash: true, isRealized: false, label: 'Orçado B', markerColor: '#fed7aa' });
                     }
                     if (!hideRealized) {
-                        seriesList.push(
-                            { key: 'realized', strokeColor: chartColor, isDash: false, isRealized: true, label: 'Realizado', markerColor: chartColor },
-                            { key: 'realizedB', strokeColor: '#10b981', isDash: true, isRealized: true, label: 'Realizado B', markerColor: '#10b981' }
-                        );
+                        seriesList.push({ key: 'realized', strokeColor: chartColor, isDash: false, isRealized: true, label: 'Realizado', markerColor: chartColor });
+                    }
+                    if (!hideRealizedB) {
+                        seriesList.push({ key: 'realizedB', strokeColor: '#10b981', isDash: true, isRealized: true, label: 'Realizado B', markerColor: '#10b981' });
                     }
                 }
             } else {
                 if (isRatioChart) {
                     if (!hideBudget) {
-                        seriesList.push(
-                            { key: 'budget', strokeColor: 'var(--text-muted)', isDash: true, isRealized: false, label: `${baseLabel || 'Base'} (Orçado)`, markerColor: 'var(--text-muted)' },
-                            { key: 'compareBudget', strokeColor: '#fed7aa', isDash: true, isRealized: false, label: `${compareLabel || 'Comp'} (Orçado)`, markerColor: '#fed7aa' }
-                        );
+                        seriesList.push({ key: 'budget', strokeColor: 'var(--text-muted)', isDash: true, isRealized: false, label: `${baseLabel || 'Base'} (Orçado)`, markerColor: 'var(--text-muted)' });
+                    }
+                    if (!hideCompareBudget) {
+                        seriesList.push({ key: 'compareBudget', strokeColor: '#fed7aa', isDash: true, isRealized: false, label: `${compareLabel || 'Comp'} (Orçado)`, markerColor: '#fed7aa' });
                     }
                     if (!hideRealized) {
-                        seriesList.push(
-                            { key: 'realized', strokeColor: chartColor, isDash: false, isRealized: true, label: `${baseLabel || 'Base'} (Realizado)`, markerColor: chartColor },
-                            { key: 'compareRealized', strokeColor: '#f97316', isDash: false, isRealized: true, label: `${compareLabel || 'Comp'} (Realizado)`, markerColor: '#f97316' }
-                        );
+                        seriesList.push({ key: 'realized', strokeColor: chartColor, isDash: false, isRealized: true, label: `${baseLabel || 'Base'} (Realizado)`, markerColor: chartColor });
+                    }
+                    if (!hideCompareRealized) {
+                        seriesList.push({ key: 'compareRealized', strokeColor: '#f97316', isDash: false, isRealized: true, label: `${compareLabel || 'Comp'} (Realizado)`, markerColor: '#f97316' });
                     }
                 } else {
                     if (!hideBudget) {
@@ -4169,27 +4208,27 @@ const renderDetailedChart = (
                                         items.push({ label: `--- ${labelA} ---`, value: '', color: 'transparent' });
                                         if (!hideBudget) {
                                             items.push({ label: isRatioChart ? `${baseLabel || 'Base'} (Orçado)` : 'Orçado', value: formatVal(getVal('budget', m)), color: 'var(--text-muted)' });
-                                            if (isRatioChart) {
+                                            if (isRatioChart && !hideCompareBudget) {
                                                 items.push({ label: `${compareLabel || 'Comp'} (Orçado)`, value: formatVal(getVal('compareBudget', m)), color: '#fed7aa' });
                                             }
                                         }
                                         if (!hideRealized && isRealizedVisible('realized', idx)) {
                                             items.push({ label: isRatioChart ? `${baseLabel || 'Base'} (Realizado)` : 'Realizado', value: formatVal(getVal('realized', m)), color: chartColor });
-                                            if (isRatioChart) {
+                                            if (isRatioChart && !hideCompareRealized) {
                                                 items.push({ label: `${compareLabel || 'Comp'} (Realizado)`, value: formatVal(getVal('compareRealized', m)), color: '#818cf8' });
                                             }
                                         }
                                         // Period B
                                         items.push({ label: `--- ${labelB} ---`, value: '', color: 'transparent' });
-                                        if (!hideBudget) {
+                                        if (!hideBudgetB) {
                                             items.push({ label: isRatioChart ? `${baseLabel || 'Base'} (Orçado)` : 'Orçado', value: formatVal(getVal('budgetB', m)), color: '#fed7aa' });
-                                            if (isRatioChart) {
+                                            if (isRatioChart && !hideCompareBudgetB) {
                                                 items.push({ label: `${compareLabel || 'Comp'} (Orçado)`, value: formatVal(getVal('compareBudgetB', m)), color: '#ffedd5' });
                                             }
                                         }
-                                        if (!hideRealized && isRealizedVisible('realizedB', idx)) {
+                                        if (!hideRealizedB && isRealizedVisible('realizedB', idx)) {
                                             items.push({ label: isRatioChart ? `${baseLabel || 'Base'} (Realizado)` : 'Realizado', value: formatVal(getVal('realizedB', m)), color: '#10b981' });
-                                            if (isRatioChart) {
+                                            if (isRatioChart && !hideCompareRealizedB) {
                                                 items.push({ label: `${compareLabel || 'Comp'} (Realizado)`, value: formatVal(getVal('compareRealizedB', m)), color: '#f97316' });
                                             }
                                         }
@@ -4197,7 +4236,7 @@ const renderDetailedChart = (
                                         if (!hideBudget) {
                                             const valB = pctOfRevenue ? (m.pctOfRevenueBudget || 0) : m.budget;
                                             items.push({ label: 'Orçado', value: formatVal(valB), color: 'var(--text-muted)' });
-                                            if (isRatioChart) {
+                                            if (isRatioChart && !hideCompareBudget) {
                                                 items.push({ label: `${compareLabel || 'Comp'} (Orçado)`, value: formatVal(m.compareBudget || 0), color: '#fed7aa' });
                                             }
                                         }

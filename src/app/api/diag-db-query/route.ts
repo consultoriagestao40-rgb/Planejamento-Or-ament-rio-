@@ -411,6 +411,18 @@ export async function GET() {
         if (root1) calculateNode(root1);
         const chartRevTotals = root1 ? totalsMap.get(root1.id) : null;
 
+        // Compare side by side
+        const comparison: any[] = [];
+        for (let m = 0; m < 12; m++) {
+            comparison.push({
+                month: m + 1,
+                dre_realized: dreRevRealized[m],
+                dre_budget: dreRevBudget[m],
+                chart_realized: chartRevTotals ? chartRevTotals.realized[m] : 0,
+                chart_budget: chartRevTotals ? chartRevTotals.budget[m] : 0
+            });
+        }
+
         // Detailed dump for Month 1 and 2
         const detailedBudget = budgetRaw.filter(e => e.month === 1 || e.month === 2 || e.month === 0).map(e => ({
             tenant: tenants.find(t => t.id === e.tenantId)?.name,

@@ -582,6 +582,12 @@ export async function GET(request: Request) {
             where: { id: { in: dbKeys } }
         }) : [];
 
+        // DEBUG: Log received categoryId and resolution
+        console.log('[DEBUG CHART DATA] categoryId recebido:', categoryId);
+        console.log('[DEBUG CHART DATA] keys:', keys);
+        console.log('[DEBUG CHART DATA] originalCategories encontradas:', originalCategories.map(c => ({ id: c.id, name: c.name, tenantId: c.tenantId })));
+        console.log('[DEBUG CHART DATA] totalsMap tem a key direto?', keys.map(k => `${k}: ${totalsMap.has(k)}`));
+
         // Map any UUID from another tenant to the corresponding UUID in the current targets
         const resolvedKeys = keys.map(key => {
             const isDreKey = ['vRev', 'vTaxes', 'vRecLiq', 'vCosts', 'vGrossMarg', 'vOpExp', 'vContribMarg', 'vAdminExp', 'vEbitda', 'vFin', 'vNetProfit'].includes(key);
@@ -594,9 +600,12 @@ export async function GET(request: Request) {
                 lookupKey = `synth-${normalizeCode(code)}`;
             }
 
+            console.log(`[DEBUG RESOLVE] key=${key} | lookupKey=${lookupKey} | totalsMap.has=${totalsMap.has(lookupKey)}`);
+
             if (totalsMap.has(lookupKey)) return lookupKey;
 
             const origCat = originalCategories.find(c => c.id === key);
+            console.log(`[DEBUG RESOLVE] origCat=${origCat ? origCat.name : 'NOT FOUND'}`);
             if (!origCat) return key;
 
             const cleanCode = (origCat.name.match(/^(\d{1,2}(?:\.\d+)*)/) || [])[1] || '';

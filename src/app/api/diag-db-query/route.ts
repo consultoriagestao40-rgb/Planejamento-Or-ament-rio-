@@ -464,6 +464,11 @@ export async function GET() {
         const m1ServicosVendidosDRE = cleanSyncRealized.filter(e => e.month === 1 && (categoryNameMap.get(e.categoryId) || '').includes('Serviços Vendidos')).map(e => ({ amount: e.amount, externalId: e.externalId, tenantId: e.tenantId }));
         const m1ServicosVendidosChart = chartRealizedFiltered.filter(e => e.month === 1 && (categoryNameMap.get(e.categoryId) || '').includes('Serviços Vendidos')).map(e => ({ amount: e.amount, externalId: e.externalId, tenantId: e.tenantId }));
 
+        const m1DiariasDRE = cleanSyncRealized.filter(e => e.month === 1 && ((categoryNameMap.get(e.categoryId) || '').toUpperCase().includes('DIARIA') || (categoryNameMap.get(e.categoryId) || '').toUpperCase().includes('DIÁRIA'))).map(e => ({ amount: e.amount, externalId: e.externalId, tenantId: e.tenantId, categoryId: e.categoryId, categoryName: categoryNameMap.get(e.categoryId) }));
+        const m1DiariasChart = chartRealizedFiltered.filter(e => e.month === 1 && ((categoryNameMap.get(e.categoryId) || '').toUpperCase().includes('DIARIA') || (categoryNameMap.get(e.categoryId) || '').toUpperCase().includes('DIÁRIA'))).map(e => ({ amount: e.amount, externalId: e.externalId, tenantId: e.tenantId, categoryId: e.categoryId, categoryName: categoryNameMap.get(e.categoryId) }));
+
+        const diariasCategories = categories.filter(c => c.name.toUpperCase().includes('DIARIA') || c.name.toUpperCase().includes('DIÁRIA')).map(c => ({ id: c.id, name: c.name, type: c.type, tenantId: c.tenantId }));
+
         return NextResponse.json({
             success: true,
             comparison,
@@ -472,6 +477,9 @@ export async function GET() {
             m1ChartRaw,
             m1ServicosVendidosDRE,
             m1ServicosVendidosChart,
+            m1DiariasDRE,
+            m1DiariasChart,
+            diariasCategories,
             treeDebug
         });
     } catch (e: any) {

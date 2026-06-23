@@ -115,13 +115,6 @@ export async function GET() {
         }
 
         // ------------------ LOGIC B: DETAILED CHART API ------------------
-        // Global synced months detection to prevent manual + sync overlap
-        const syncedMonths = new Set<string>();
-        realizedRaw.forEach(e => {
-            if (e.externalId && e.externalId.startsWith('sync-')) {
-                syncedMonths.add(`${e.year}|${e.month}`);
-            }
-        });
 
         const realizedEntriesRaw = realizedRaw.filter(e => {
             const key = `${e.year}|${e.month}`;

@@ -95,9 +95,65 @@ export default function PortfolioAnalysisPage() {
     const [chartPctOfRevenue, setChartPctOfRevenue] = useState<boolean>(false);
     const [chartAnalysisText, setChartAnalysisText] = useState<string>('');
     const [chartColor, setChartColor] = useState<string>('#6366f1');
+    const [chartComparePeriod, setChartComparePeriod] = useState<string>('none');
 
     // Preview data states
     const [chartPreviewData, setChartPreviewData] = useState<any[]>([]);
+
+    const processedPreviewData = useMemo(() => {
+        if (chartComparePeriod === 'none') return chartPreviewData;
+        const compInfo = getComparisonPeriods(chartComparePeriod);
+        if (!compInfo) return chartPreviewData;
+        const { monthsA, monthsB, monthLabelsA, monthLabelsB } = compInfo;
+        const result: any[] = [];
+        const isRatio = chartCategory && chartCategory.includes('|');
+        for (let i = 0; i < monthsA.length; i++) {
+            const idxA = monthsA[i];
+            const idxB = monthsB[i];
+            const mA = chartPreviewData[idxA] || { budget: 0, realized: 0, compareBudget: 0, compareRealized: 0, pctOfRevenue: 0, pctOfRevenueBudget: 0 };
+            const mB = chartPreviewData[idxB] || { budget: 0, realized: 0, compareBudget: 0, compareRealized: 0, pctOfRevenue: 0, pctOfRevenueBudget: 0 };
+            
+            let atA = 0;
+            if (isRatio) {
+                atA = mA.realized !== 0 ? ((mA.compareRealized || 0) / mA.realized) * 100 : 0;
+            } else {
+                if (mA.budget > 0) atA = (mA.realized / mA.budget) * 100;
+                else if (mA.budget < 0) atA = (1 + (mA.budget - mA.realized) / mA.budget) * 100;
+                else atA = mA.realized >= 0 ? 100 : 0;
+            }
+
+            let atB = 0;
+            if (isRatio) {
+                atB = mB.realized !== 0 ? ((mB.compareRealized || 0) / mB.realized) * 100 : 0;
+            } else {
+                if (mB.budget > 0) atB = (mB.realized / mB.budget) * 100;
+                else if (mB.budget < 0) atB = (1 + (mB.budget - mB.realized) / mB.budget) * 100;
+                else atB = mB.realized >= 0 ? 100 : 0;
+            }
+
+            result.push({
+                month: i + 1,
+                labelA: monthLabelsA[i],
+                labelB: monthLabelsB[i],
+                budget: mA.budget,
+                realized: mA.realized,
+                compareBudget: mA.compareBudget || 0,
+                compareRealized: mA.compareRealized || 0,
+                atingido: atA,
+                pctOfRevenue: mA.pctOfRevenue || 0,
+                pctOfRevenueBudget: mA.pctOfRevenueBudget || 0,
+
+                budgetB: mB.budget,
+                realizedB: mB.realized,
+                compareBudgetB: mB.compareBudget || 0,
+                compareRealizedB: mB.compareRealized || 0,
+                atingidoB: atB,
+                pctOfRevenueB: mB.pctOfRevenue || 0,
+                pctOfRevenueBudgetB: mB.pctOfRevenueBudget || 0
+            });
+        }
+        return result;
+    }, [chartPreviewData, chartComparePeriod, chartCategory]);
     const [previewTooltip, setPreviewTooltip] = useState<{ x: number; y: number; title: string; items: { label: string; value: string; color?: string }[] } | null>(null);
     const [loadingPreviewData, setLoadingPreviewData] = useState(false);
     const [savingChart, setSavingChart] = useState(false);
@@ -388,8 +444,8 @@ export default function PortfolioAnalysisPage() {
                     categoryId: chartComparisonCategory ? `${chartCategory}|${chartComparisonCategory}` : chartCategory,
                     filterTenantId: chartTenant,
                     filterCCId: chartCC,
-                    chartType: chartType === 'MIXED' || categoryIdsCount > 1
-                        ? JSON.stringify({ mode: chartType, config: seriesConfig, indicatorName })
+                    chartType: (chartType === 'MIXED' || categoryIdsCount > 1 || chartComparePeriod !== 'none')
+                        ? JSON.stringify({ mode: chartType, config: seriesConfig, indicatorName, comparePeriod: chartComparePeriod })
                         : chartType,
                     onlyRealized: chartOnlyRealized,
                     showAtingido: chartShowAtingido,
@@ -443,6 +499,7 @@ export default function PortfolioAnalysisPage() {
         setChartShowAtingido(false);
         setChartPctOfRevenue(false);
         setChartColor('#6366f1');
+        setChartComparePeriod('none');
         setChartAnalysisText('');
         setSeriesConfig({
             budget: 'bar',
@@ -493,10 +550,11 @@ export default function PortfolioAnalysisPage() {
         setChartCC(chart.filterCCId || 'ALL');
         
         let nameVal = '';
+        let comparePeriodVal = 'none';
         if (chart.chartType && chart.chartType.startsWith('{')) {
             try {
                 const parsed = JSON.parse(chart.chartType);
-                setChartType('MIXED');
+                setChartType(parsed.mode || 'MIXED');
                 setSeriesConfig({
                     budget: 'bar',
                     realized: 'bar',
@@ -509,6 +567,7 @@ export default function PortfolioAnalysisPage() {
                     ...(parsed.config || {})
                 });
                 nameVal = parsed.indicatorName || '';
+                comparePeriodVal = parsed.comparePeriod || 'none';
             } catch (e) {
                 setChartType(chart.chartType);
                 setSeriesConfig({
@@ -536,6 +595,7 @@ export default function PortfolioAnalysisPage() {
             });
         }
         setIndicatorName(nameVal);
+        setChartComparePeriod(comparePeriodVal);
 
         setChartOnlyRealized(!!chart.onlyRealized);
         setChartShowAtingido(!!chart.showAtingido);
@@ -1384,6 +1444,36 @@ export default function PortfolioAnalysisPage() {
                                         </div>
                                     </div>
 
+                                    {/* Comparação de Períodos */}
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
+                                        <label style={{ fontSize: '0.75rem', fontWeight: 800, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Comparação de Períodos (Opcional)</label>
+                                        <select
+                                            value={chartComparePeriod}
+                                            onChange={(e) => setChartComparePeriod(e.target.value)}
+                                            style={{
+                                                padding: '0.5rem 0.85rem',
+                                                height: '38px',
+                                                fontSize: '0.85rem',
+                                                fontWeight: 600,
+                                                border: '1px solid var(--border-default)',
+                                                borderRadius: '8px',
+                                                background: 'var(--bg-surface)',
+                                                outline: 'none',
+                                                color: 'var(--text-primary)',
+                                                cursor: 'pointer'
+                                            }}
+                                        >
+                                            <option value="none">Nenhuma (Evolução Anual Padrão)</option>
+                                            <option value="tri1_vs_tri2">1º Trimestre (Jan-Mar) vs 2º Trimestre (Abr-Jun)</option>
+                                            <option value="tri1_vs_tri3">1º Trimestre (Jan-Mar) vs 3º Trimestre (Jul-Set)</option>
+                                            <option value="tri1_vs_tri4">1º Trimestre (Jan-Mar) vs 4º Trimestre (Out-Dez)</option>
+                                            <option value="tri2_vs_tri3">2º Trimestre (Abr-Jun) vs 3º Trimestre (Jul-Set)</option>
+                                            <option value="tri2_vs_tri4">2º Trimestre (Abr-Jun) vs 4º Trimestre (Out-Dez)</option>
+                                            <option value="tri3_vs_tri4">3º Trimestre (Jul-Set) vs 4º Trimestre (Out-Dez)</option>
+                                            <option value="semestre1_vs_semestre2">1º Semestre (Jan-Jun) vs 2º Semestre (Jul-Dez)</option>
+                                        </select>
+                                    </div>
+
                                     {/* Category DRE searchable dropdown */}
                                     <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem', position: 'relative' }}>
                                         <label style={{ fontSize: '0.75rem', fontWeight: 800, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Conta do DRE / Indicador *</label>
@@ -2221,7 +2311,7 @@ export default function PortfolioAnalysisPage() {
                                             <div style={{ width: '100%' }}>
                                                 {renderDetailedChart(
                                                     chartType, 
-                                                    chartPreviewData, 
+                                                    processedPreviewData, 
                                                     chartOnlyRealized, 
                                                     chartShowAtingido, 
                                                     chartPctOfRevenue, 
@@ -2879,7 +2969,78 @@ export default function PortfolioAnalysisPage() {
             </div>
         </div>
     );
-}
+};
+
+const getComparisonPeriods = (comparePeriod: string) => {
+    if (!comparePeriod || comparePeriod === 'none') return null;
+    switch (comparePeriod) {
+        case 'tri1_vs_tri2':
+            return {
+                labelA: '1º Tri',
+                labelB: '2º Tri',
+                monthsA: [0, 1, 2],
+                monthsB: [3, 4, 5],
+                monthLabelsA: ['Jan', 'Fev', 'Mar'],
+                monthLabelsB: ['Abr', 'Mai', 'Jun']
+            };
+        case 'tri1_vs_tri3':
+            return {
+                labelA: '1º Tri',
+                labelB: '3º Tri',
+                monthsA: [0, 1, 2],
+                monthsB: [6, 7, 8],
+                monthLabelsA: ['Jan', 'Fev', 'Mar'],
+                monthLabelsB: ['Jul', 'Ago', 'Set']
+            };
+        case 'tri1_vs_tri4':
+            return {
+                labelA: '1º Tri',
+                labelB: '4º Tri',
+                monthsA: [0, 1, 2],
+                monthsB: [9, 10, 11],
+                monthLabelsA: ['Jan', 'Fev', 'Mar'],
+                monthLabelsB: ['Out', 'Nov', 'Dez']
+            };
+        case 'tri2_vs_tri3':
+            return {
+                labelA: '2º Tri',
+                labelB: '3º Tri',
+                monthsA: [3, 4, 5],
+                monthsB: [6, 7, 8],
+                monthLabelsA: ['Abr', 'Mai', 'Jun'],
+                monthLabelsB: ['Jul', 'Ago', 'Set']
+            };
+        case 'tri2_vs_tri4':
+            return {
+                labelA: '2º Tri',
+                labelB: '4º Tri',
+                monthsA: [3, 4, 5],
+                monthsB: [9, 10, 11],
+                monthLabelsA: ['Abr', 'Mai', 'Jun'],
+                monthLabelsB: ['Out', 'Nov', 'Dez']
+            };
+        case 'tri3_vs_tri4':
+            return {
+                labelA: '3º Tri',
+                labelB: '4º Tri',
+                monthsA: [6, 7, 8],
+                monthsB: [9, 10, 11],
+                monthLabelsA: ['Jul', 'Ago', 'Set'],
+                monthLabelsB: ['Out', 'Nov', 'Dez']
+            };
+        case 'semestre1_vs_semestre2':
+            return {
+                labelA: '1º Sem',
+                labelB: '2º Sem',
+                monthsA: [0, 1, 2, 3, 4, 5],
+                monthsB: [6, 7, 8, 9, 10, 11],
+                monthLabelsA: ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun'],
+                monthLabelsB: ['Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez']
+            };
+        default:
+            return null;
+    }
+};
 
 const DetailedChartCard = ({ chart, onEdit, onDelete, onOpenAnalysis, mainMonth, year, viewMode, categories, companies }: { chart: any, onEdit: (c: any) => void, onDelete: (id: string) => void, onOpenAnalysis: (c: any) => void, mainMonth: number, year: number, viewMode: 'caixa' | 'competencia', categories: any[], companies: any[] }) => {
     const [data, setData] = useState<any[]>([]);
@@ -2934,9 +3095,141 @@ const DetailedChartCard = ({ chart, onEdit, onDelete, onOpenAnalysis, mainMonth,
     }, [chart.filterTenantId, chart.categoryId, mainMonth, year, companies]);
 
     const processedData = useMemo(() => {
-        if (chartViewMode === 'monthly') return data;
+        let comparePeriod = 'none';
+        if (chart.chartType && chart.chartType.startsWith('{')) {
+            try {
+                const parsed = JSON.parse(chart.chartType);
+                comparePeriod = parsed.comparePeriod || 'none';
+            } catch (e) {}
+        }
 
         const isRatio = chart.categoryId && chart.categoryId.includes('|');
+
+        if (comparePeriod !== 'none') {
+            const compInfo = getComparisonPeriods(comparePeriod);
+            if (compInfo) {
+                const { monthsA, monthsB, monthLabelsA, monthLabelsB } = compInfo;
+                const result: any[] = [];
+                
+                let accBudgetA = 0, accRealizedA = 0, accCompareBudgetA = 0, accCompareRealizedA = 0, accRevenueRealizedA = 0, accRevenueBudgetA = 0;
+                let accBudgetB = 0, accRealizedB = 0, accCompareBudgetB = 0, accCompareRealizedB = 0, accRevenueRealizedB = 0, accRevenueBudgetB = 0;
+                
+                for (let i = 0; i < monthsA.length; i++) {
+                    const idxA = monthsA[i];
+                    const idxB = monthsB[i];
+                    const mA = data[idxA] || { budget: 0, realized: 0, compareBudget: 0, compareRealized: 0, pctOfRevenue: 0, pctOfRevenueBudget: 0 };
+                    const mB = data[idxB] || { budget: 0, realized: 0, compareBudget: 0, compareRealized: 0, pctOfRevenue: 0, pctOfRevenueBudget: 0 };
+                    
+                    const revRealizedA = mA.pctOfRevenue > 0 ? (mA.realized / (mA.pctOfRevenue / 100)) : 0;
+                    const revBudgetA = mA.pctOfRevenueBudget > 0 ? (mA.budget / (mA.pctOfRevenueBudget / 100)) : 0;
+                    const revRealizedB = mB.pctOfRevenue > 0 ? (mB.realized / (mB.pctOfRevenue / 100)) : 0;
+                    const revBudgetB = mB.pctOfRevenueBudget > 0 ? (mB.budget / (mB.pctOfRevenueBudget / 100)) : 0;
+
+                    if (chartViewMode === 'accumulated') {
+                        accBudgetA += mA.budget;
+                        accRealizedA += mA.realized;
+                        accCompareBudgetA += mA.compareBudget || 0;
+                        accCompareRealizedA += mA.compareRealized || 0;
+                        accRevenueRealizedA += revRealizedA;
+                        accRevenueBudgetA += revBudgetA;
+
+                        accBudgetB += mB.budget;
+                        accRealizedB += mB.realized;
+                        accCompareBudgetB += mB.compareBudget || 0;
+                        accCompareRealizedB += mB.compareRealized || 0;
+                        accRevenueRealizedB += revRealizedB;
+                        accRevenueBudgetB += revBudgetB;
+
+                        let atA = 0;
+                        if (isRatio) {
+                            atA = accRealizedA !== 0 ? (accCompareRealizedA / accRealizedA) * 100 : 0;
+                        } else {
+                            if (accBudgetA > 0) atA = (accRealizedA / accBudgetA) * 100;
+                            else if (accBudgetA < 0) atA = (1 + (accBudgetA - accRealizedA) / accBudgetA) * 100;
+                            else atA = accRealizedA >= 0 ? 100 : 0;
+                        }
+
+                        let atB = 0;
+                        if (isRatio) {
+                            atB = accRealizedB !== 0 ? (accCompareRealizedB / accRealizedB) * 100 : 0;
+                        } else {
+                            if (accBudgetB > 0) atB = (accRealizedB / accBudgetB) * 100;
+                            else if (accBudgetB < 0) atB = (1 + (accBudgetB - accRealizedB) / accBudgetB) * 100;
+                            else atB = accRealizedB >= 0 ? 100 : 0;
+                        }
+
+                        const pctA = accRevenueRealizedA > 0 ? (accRealizedA / accRevenueRealizedA) * 100 : 0;
+                        const pctBudgetA = accRevenueBudgetA > 0 ? (accBudgetA / accRevenueBudgetA) * 100 : 0;
+                        const pctB = accRevenueRealizedB > 0 ? (accRealizedB / accRevenueRealizedB) * 100 : 0;
+                        const pctBudgetB = accRevenueBudgetB > 0 ? (accBudgetB / accRevenueBudgetB) * 100 : 0;
+
+                        result.push({
+                            month: i + 1,
+                            labelA: monthLabelsA[i],
+                            labelB: monthLabelsB[i],
+                            budget: accBudgetA,
+                            realized: accRealizedA,
+                            compareBudget: accCompareBudgetA,
+                            compareRealized: accCompareRealizedA,
+                            atingido: atA,
+                            pctOfRevenue: pctA,
+                            pctOfRevenueBudget: pctBudgetA,
+                            
+                            budgetB: accBudgetB,
+                            realizedB: accRealizedB,
+                            compareBudgetB: accCompareBudgetB,
+                            compareRealizedB: accCompareRealizedB,
+                            atingidoB: atB,
+                            pctOfRevenueB: pctB,
+                            pctOfRevenueBudgetB: pctBudgetB
+                        });
+                    } else {
+                        // Monthly
+                        let atA = 0;
+                        if (isRatio) {
+                            atA = mA.realized !== 0 ? ((mA.compareRealized || 0) / mA.realized) * 100 : 0;
+                        } else {
+                            if (mA.budget > 0) atA = (mA.realized / mA.budget) * 100;
+                            else if (mA.budget < 0) atA = (1 + (mA.budget - mA.realized) / mA.budget) * 100;
+                            else atA = mA.realized >= 0 ? 100 : 0;
+                        }
+
+                        let atB = 0;
+                        if (isRatio) {
+                            atB = mB.realized !== 0 ? ((mB.compareRealized || 0) / mB.realized) * 100 : 0;
+                        } else {
+                            if (mB.budget > 0) atB = (mB.realized / mB.budget) * 100;
+                            else if (mB.budget < 0) atB = (1 + (mB.budget - mB.realized) / mB.budget) * 100;
+                            else atB = mB.realized >= 0 ? 100 : 0;
+                        }
+
+                        result.push({
+                            month: i + 1,
+                            labelA: monthLabelsA[i],
+                            labelB: monthLabelsB[i],
+                            budget: mA.budget,
+                            realized: mA.realized,
+                            compareBudget: mA.compareBudget || 0,
+                            compareRealized: mA.compareRealized || 0,
+                            atingido: atA,
+                            pctOfRevenue: mA.pctOfRevenue || 0,
+                            pctOfRevenueBudget: mA.pctOfRevenueBudget || 0,
+
+                            budgetB: mB.budget,
+                            realizedB: mB.realized,
+                            compareBudgetB: mB.compareBudget || 0,
+                            compareRealizedB: mB.compareRealized || 0,
+                            atingidoB: atB,
+                            pctOfRevenueB: mB.pctOfRevenue || 0,
+                            pctOfRevenueBudgetB: mB.pctOfRevenueBudget || 0
+                        });
+                    }
+                }
+                return result;
+            }
+        }
+
+        if (chartViewMode === 'monthly') return data;
 
         let accBudget = 0;
         let accRealized = 0;
@@ -2992,7 +3285,7 @@ const DetailedChartCard = ({ chart, onEdit, onDelete, onOpenAnalysis, mainMonth,
 
             return res;
         });
-    }, [data, chartViewMode, chart.categoryId]);
+    }, [data, chartViewMode, chart.categoryId, chart.chartType]);
 
     const getChartCategoryLabel = (categoriesStr: string): string => {
         if (!categoriesStr) return 'Sem contas';
@@ -3063,6 +3356,7 @@ const DetailedChartCard = ({ chart, onEdit, onDelete, onOpenAnalysis, mainMonth,
     let rMode = 'bar';
     let atMode = 'none';
     let pctMode = 'none';
+    let comparePeriod = 'none';
 
     if (chart.chartType && chart.chartType.startsWith('{')) {
         try {
@@ -3072,40 +3366,98 @@ const DetailedChartCard = ({ chart, onEdit, onDelete, onOpenAnalysis, mainMonth,
             rMode = parsed.config?.realized || 'bar';
             atMode = parsed.config?.atingido || 'none';
             pctMode = parsed.config?.pctOfRevenue || 'none';
+            comparePeriod = parsed.comparePeriod || 'none';
         } catch (e) {}
     }
 
     const isRatioChart = chart.categoryId && chart.categoryId.includes('|');
+    const compInfo = getComparisonPeriods(comparePeriod);
 
-    if (isRatioChart) {
-        const [baseId, compareId] = chart.categoryId.split('|');
-        const baseLabel = getChartCategoryLabel(baseId);
-        const compareLabel = getChartCategoryLabel(compareId);
+    if (compInfo) {
+        const { labelA, labelB } = compInfo;
+        if (isRatioChart) {
+            const [baseId, compareId] = chart.categoryId.split('|');
+            const baseLabel = getChartCategoryLabel(baseId);
+            const compareLabel = getChartCategoryLabel(compareId);
 
-        if (isMixed) {
-            if (bMode !== 'none' && !chart.onlyRealized) legendItems.push({ key: 'budget', label: `${baseLabel} (Orçado)`, color: '#cbd5e1' });
-            if (rMode !== 'none') legendItems.push({ key: 'realized', label: `${baseLabel} (Realizado)`, color: chart.chartColor || '#6366f1' });
-            if (bMode !== 'none' && !chart.onlyRealized) legendItems.push({ key: 'compareBudget', label: `${compareLabel} (Orçado)`, color: '#fed7aa' });
-            if (rMode !== 'none') legendItems.push({ key: 'compareRealized', label: `${compareLabel} (Realizado)`, color: '#f97316' });
-            if (atMode !== 'none') legendItems.push({ key: 'atingido', label: `% ${compareLabel} / ${baseLabel}`, color: '#10b981' });
-        } else {
-            if (!chart.onlyRealized) legendItems.push({ key: 'budget', label: `${baseLabel} (Orçado)`, color: '#cbd5e1' });
-            legendItems.push({ key: 'realized', label: `${baseLabel} (Realizado)`, color: chart.chartColor || '#6366f1' });
-            if (!chart.onlyRealized) legendItems.push({ key: 'compareBudget', label: `${compareLabel} (Orçado)`, color: '#fed7aa' });
-            legendItems.push({ key: 'compareRealized', label: `${compareLabel} (Realizado)`, color: '#f97316' });
-        }
-    } else {
-        if (isMixed) {
-            if (bMode !== 'none' && !chart.onlyRealized) legendItems.push({ key: 'budget', label: 'Orçado', color: '#cbd5e1' });
-            if (rMode !== 'none') legendItems.push({ key: 'realized', label: 'Realizado', color: chart.chartColor || '#6366f1' });
-            if (atMode !== 'none') legendItems.push({ key: 'atingido', label: 'Atingido', color: '#10b981' });
-            if (pctMode !== 'none') {
-                if (!chart.onlyRealized) legendItems.push({ key: 'pctOfRevenueBudget', label: '% s/ Receita (Orçado)', color: '#fed7aa' });
-                legendItems.push({ key: 'pctOfRevenue', label: '% s/ Receita (Realizado)', color: '#f59e0b' });
+            if (isMixed) {
+                if (bMode !== 'none' && !chart.onlyRealized) legendItems.push({ key: 'budget', label: `${baseLabel} (${labelA} - Orçado)`, color: '#cbd5e1' });
+                if (rMode !== 'none') legendItems.push({ key: 'realized', label: `${baseLabel} (${labelA} - Realizado)`, color: chart.chartColor || '#6366f1' });
+                if (bMode !== 'none' && !chart.onlyRealized) legendItems.push({ key: 'budgetB', label: `${baseLabel} (${labelB} - Orçado)`, color: '#fed7aa' });
+                if (rMode !== 'none') legendItems.push({ key: 'realizedB', label: `${baseLabel} (${labelB} - Realizado)`, color: '#10b981' });
+
+                if (bMode !== 'none' && !chart.onlyRealized) legendItems.push({ key: 'compareBudget', label: `${compareLabel} (${labelA} - Orçado)`, color: '#e2e8f0' });
+                if (rMode !== 'none') legendItems.push({ key: 'compareRealized', label: `${compareLabel} (${labelA} - Realizado)`, color: '#818cf8' });
+                if (bMode !== 'none' && !chart.onlyRealized) legendItems.push({ key: 'compareBudgetB', label: `${compareLabel} (${labelB} - Orçado)`, color: '#ffedd5' });
+                if (rMode !== 'none') legendItems.push({ key: 'compareRealizedB', label: `${compareLabel} (${labelB} - Realizado)`, color: '#f97316' });
+
+                if (atMode !== 'none') legendItems.push({ key: 'atingido', label: `% Razão (${labelA})`, color: '#a855f7' });
+                if (atMode !== 'none') legendItems.push({ key: 'atingidoB', label: `% Razão (${labelB})`, color: '#ec4899' });
+            } else {
+                if (!chart.onlyRealized) legendItems.push({ key: 'budget', label: `${baseLabel} (${labelA} - Orçado)`, color: '#cbd5e1' });
+                legendItems.push({ key: 'realized', label: `${baseLabel} (${labelA} - Realizado)`, color: chart.chartColor || '#6366f1' });
+                if (!chart.onlyRealized) legendItems.push({ key: 'budgetB', label: `${baseLabel} (${labelB} - Orçado)`, color: '#fed7aa' });
+                legendItems.push({ key: 'realizedB', label: `${baseLabel} (${labelB} - Realizado)`, color: '#10b981' });
+
+                if (!chart.onlyRealized) legendItems.push({ key: 'compareBudget', label: `${compareLabel} (${labelA} - Orçado)`, color: '#e2e8f0' });
+                legendItems.push({ key: 'compareRealized', label: `${compareLabel} (${labelA} - Realizado)`, color: '#818cf8' });
+                if (!chart.onlyRealized) legendItems.push({ key: 'compareBudgetB', label: `${compareLabel} (${labelB} - Orçado)`, color: '#ffedd5' });
+                legendItems.push({ key: 'compareRealizedB', label: `${compareLabel} (${labelB} - Realizado)`, color: '#f97316' });
             }
         } else {
-            if (!chart.onlyRealized) legendItems.push({ key: 'budget', label: 'Orçado', color: 'var(--border-strong)' });
-            legendItems.push({ key: 'realized', label: 'Realizado', color: chart.chartColor || '#6366f1' });
+            if (isMixed) {
+                if (bMode !== 'none' && !chart.onlyRealized) legendItems.push({ key: 'budget', label: `${labelA} - Orçado`, color: '#cbd5e1' });
+                if (rMode !== 'none') legendItems.push({ key: 'realized', label: `${labelA} - Realizado`, color: chart.chartColor || '#6366f1' });
+                if (bMode !== 'none' && !chart.onlyRealized) legendItems.push({ key: 'budgetB', label: `${labelB} - Orçado`, color: '#fed7aa' });
+                if (rMode !== 'none') legendItems.push({ key: 'realizedB', label: `${labelB} - Realizado`, color: '#10b981' });
+
+                if (atMode !== 'none') legendItems.push({ key: 'atingido', label: `${labelA} - Atingido`, color: '#10b981' });
+                if (atMode !== 'none') legendItems.push({ key: 'atingidoB', label: `${labelB} - Atingido`, color: '#a855f7' });
+
+                if (pctMode !== 'none') {
+                    if (!chart.onlyRealized) legendItems.push({ key: 'pctOfRevenueBudget', label: `${labelA} - % s/ Rec. (Orçado)`, color: '#fed7aa' });
+                    legendItems.push({ key: 'pctOfRevenue', label: `${labelA} - % s/ Rec. (Realizado)`, color: '#f59e0b' });
+                    if (!chart.onlyRealized) legendItems.push({ key: 'pctOfRevenueBudgetB', label: `${labelB} - % s/ Rec. (Orçado)`, color: '#a7f3d0' });
+                    legendItems.push({ key: 'pctOfRevenueB', label: `${labelB} - % s/ Rec. (Realizado)`, color: '#34d399' });
+                }
+            } else {
+                if (!chart.onlyRealized) legendItems.push({ key: 'budget', label: `${labelA} - Orçado`, color: '#cbd5e1' });
+                legendItems.push({ key: 'realized', label: `${labelA} - Realizado`, color: chart.chartColor || '#6366f1' });
+                if (!chart.onlyRealized) legendItems.push({ key: 'budgetB', label: `${labelB} - Orçado`, color: '#fed7aa' });
+                legendItems.push({ key: 'realizedB', label: `${labelB} - Realizado`, color: '#10b981' });
+            }
+        }
+    } else {
+        if (isRatioChart) {
+            const [baseId, compareId] = chart.categoryId.split('|');
+            const baseLabel = getChartCategoryLabel(baseId);
+            const compareLabel = getChartCategoryLabel(compareId);
+
+            if (isMixed) {
+                if (bMode !== 'none' && !chart.onlyRealized) legendItems.push({ key: 'budget', label: `${baseLabel} (Orçado)`, color: '#cbd5e1' });
+                if (rMode !== 'none') legendItems.push({ key: 'realized', label: `${baseLabel} (Realizado)`, color: chart.chartColor || '#6366f1' });
+                if (bMode !== 'none' && !chart.onlyRealized) legendItems.push({ key: 'compareBudget', label: `${compareLabel} (Orçado)`, color: '#fed7aa' });
+                if (rMode !== 'none') legendItems.push({ key: 'compareRealized', label: `${compareLabel} (Realizado)`, color: '#f97316' });
+                if (atMode !== 'none') legendItems.push({ key: 'atingido', label: `% ${compareLabel} / ${baseLabel}`, color: '#10b981' });
+            } else {
+                if (!chart.onlyRealized) legendItems.push({ key: 'budget', label: `${baseLabel} (Orçado)`, color: '#cbd5e1' });
+                legendItems.push({ key: 'realized', label: `${baseLabel} (Realizado)`, color: chart.chartColor || '#6366f1' });
+                if (!chart.onlyRealized) legendItems.push({ key: 'compareBudget', label: `${compareLabel} (Orçado)`, color: '#fed7aa' });
+                legendItems.push({ key: 'compareRealized', label: `${compareLabel} (Realizado)`, color: '#f97316' });
+            }
+        } else {
+            if (isMixed) {
+                if (bMode !== 'none' && !chart.onlyRealized) legendItems.push({ key: 'budget', label: 'Orçado', color: '#cbd5e1' });
+                if (rMode !== 'none') legendItems.push({ key: 'realized', label: 'Realizado', color: chart.chartColor || '#6366f1' });
+                if (atMode !== 'none') legendItems.push({ key: 'atingido', label: 'Atingido', color: '#10b981' });
+                if (pctMode !== 'none') {
+                    if (!chart.onlyRealized) legendItems.push({ key: 'pctOfRevenueBudget', label: '% s/ Receita (Orçado)', color: '#fed7aa' });
+                    legendItems.push({ key: 'pctOfRevenue', label: '% s/ Receita (Realizado)', color: '#f59e0b' });
+                }
+            } else {
+                if (!chart.onlyRealized) legendItems.push({ key: 'budget', label: 'Orçado', color: 'var(--border-strong)' });
+                legendItems.push({ key: 'realized', label: 'Realizado', color: chart.chartColor || '#6366f1' });
+            }
         }
     }
 
@@ -3347,11 +3699,13 @@ const renderDetailedChart = (
 
     let chartMode = type;
     let config = mixedConfig;
+    let comparePeriod = 'none';
     if (type && type.startsWith('{')) {
         try {
             const parsed = JSON.parse(type);
             chartMode = parsed.mode || 'MIXED';
             config = parsed.config;
+            comparePeriod = parsed.comparePeriod || 'none';
         } catch (e) {
             chartMode = 'VERTICAL_BAR';
         }
@@ -3370,536 +3724,147 @@ const renderDetailedChart = (
         return `${val < 0 ? '-' : ''}R$ ${formatted}`;
     };
 
-    const currentMonthIdx = new Date().getMonth();
-    const hasNegative = data.some(m => m.budget < 0 || m.realized < 0);
-    
-    const hideBudget = !!hiddenSeries.budget || onlyRealized;
-    const hideRealized = !!hiddenSeries.realized;
+    const compInfo = getComparisonPeriods(comparePeriod);
 
-    const maxVal = Math.max(...data.map((m, idx) => Math.max(
-        hideBudget ? 0 : Math.abs(pctOfRevenue ? m.pctOfRevenue : m.budget),
-        (!hideRealized && idx + 1 <= currentMonthIdx + 1) ? Math.abs(pctOfRevenue ? m.pctOfRevenue : m.realized) : 0,
-        isRatioChart && !hideBudget ? Math.abs(m.compareBudget || 0) : 0,
-        isRatioChart && !hideRealized && (idx + 1 <= currentMonthIdx + 1) ? Math.abs(m.compareRealized || 0) : 0
-    ))) || 1;
+    const isRealizedVisible = (key: string, idx: number) => {
+        if (key.toLowerCase().includes('budget')) return true;
+        if (!compInfo) {
+            return idx <= currentMonthIdx;
+        }
+        const isB = key.endsWith('B');
+        const calIdx = isB ? compInfo.monthsB[idx] : compInfo.monthsA[idx];
+        return calIdx <= currentMonthIdx;
+    };
+
+    const getVal = (key: string, m: any) => {
+        if (key === 'budget') return pctOfRevenue ? (m.pctOfRevenueBudget || 0) : m.budget;
+        if (key === 'realized') return pctOfRevenue ? (m.pctOfRevenue || 0) : m.realized;
+        if (key === 'budgetB') return pctOfRevenue ? (m.pctOfRevenueBudgetB || 0) : m.budgetB;
+        if (key === 'realizedB') return pctOfRevenue ? (m.pctOfRevenueB || 0) : m.realizedB;
+        if (key === 'compareBudget') return m.compareBudget || 0;
+        if (key === 'compareRealized') return m.compareRealized || 0;
+        if (key === 'compareBudgetB') return m.compareBudgetB || 0;
+        if (key === 'compareRealizedB') return m.compareRealizedB || 0;
+        return 0;
+    };
+    
+    const getLineVal = (key: string, m: any) => getVal(key, m);
+
+    let maxVal = 1;
+    if (compInfo) {
+        maxVal = Math.max(...data.map((m) => Math.max(
+            hideBudget ? 0 : Math.abs(pctOfRevenue ? m.pctOfRevenueBudget : m.budget),
+            !hideRealized ? Math.abs(pctOfRevenue ? m.pctOfRevenue : m.realized) : 0,
+            hideBudget ? 0 : Math.abs(pctOfRevenue ? m.pctOfRevenueBudgetB : m.budgetB),
+            !hideRealized ? Math.abs(pctOfRevenue ? m.pctOfRevenueB : m.realizedB) : 0,
+            isRatioChart && !hideBudget ? Math.abs(m.compareBudget || 0) : 0,
+            isRatioChart && !hideRealized ? Math.abs(m.compareRealized || 0) : 0,
+            isRatioChart && !hideBudget ? Math.abs(m.compareBudgetB || 0) : 0,
+            isRatioChart && !hideRealized ? Math.abs(m.compareRealizedB || 0) : 0
+        ))) || 1;
+    } else {
+        maxVal = Math.max(...data.map((m, idx) => Math.max(
+            hideBudget ? 0 : Math.abs(pctOfRevenue ? (m.pctOfRevenueBudget || 0) : m.budget),
+            (!hideRealized && idx + 1 <= currentMonthIdx + 1) ? Math.abs(pctOfRevenue ? (m.pctOfRevenue || 0) : m.realized) : 0,
+            isRatioChart && !hideBudget ? Math.abs(m.compareBudget || 0) : 0,
+            isRatioChart && !hideRealized && (idx + 1 <= currentMonthIdx + 1) ? Math.abs(m.compareRealized || 0) : 0
+        ))) || 1;
+    }
 
     switch (chartMode) {
-        case 'MIXED': {
-            const yBaseline = 210;
-
-            const getDaysInMonth = (mNum: number) => {
-                return new Date(year, mNum, 0).getDate();
-            };
-
-            const getAbsValue = (val: number, mode: string, mIdx: number) => {
-                if (mode === 'diarias_bar' || mode === 'diarias_line') {
-                    const days = getDaysInMonth(mIdx + 1);
-                    return val / days;
-                }
-                return val;
-            };
-
-            const isDailyMode = (mode: string) => {
-                return mode === 'diarias_bar' || mode === 'diarias_line';
-            };
-
-            const formatAbs = (val: number, isDaily: boolean = false) => {
-                if (val === 0) return 'R$ 0';
-                const absVal = Math.abs(val);
-                let formatted = '';
-                if (absVal < 1000) {
-                    formatted = absVal.toFixed(0);
-                } else if (absVal < 1_000_000) {
-                    formatted = (absVal / 1000).toFixed(1) + 'k';
-                } else {
-                    formatted = (absVal / 1_000_000).toFixed(2) + 'M';
-                }
-                return `${val < 0 ? '-' : ''}R$ ${formatted}${isDaily ? '/d' : ''}`;
-            };
-
-            const bMode = hiddenSeries.budget ? 'none' : (config?.budget || 'bar');
-            const rMode = hiddenSeries.realized ? 'none' : (config?.realized || 'bar');
-            const atMode = hiddenSeries.atingido ? 'none' : (config?.atingido || 'none');
-            const pctMode = hiddenSeries.pctOfRevenue ? 'none' : (config?.pctOfRevenue || 'none');
-
-            const hasDailyActive = isDailyMode(bMode) || isDailyMode(rMode);
-
-            let maxAbs = 1;
-            data.forEach((m, idx) => {
-                if (bMode !== 'none') {
-                    const bVal = getAbsValue(m.budget, bMode, idx);
-                    maxAbs = Math.max(maxAbs, Math.abs(bVal));
-                    if (isRatioChart) {
-                        const cbVal = getAbsValue(m.compareBudget || 0, bMode, idx);
-                        maxAbs = Math.max(maxAbs, Math.abs(cbVal));
-                    }
-                }
-                if (rMode !== 'none' && idx + 1 <= currentMonthIdx + 1) {
-                    const rVal = getAbsValue(m.realized, rMode, idx);
-                    maxAbs = Math.max(maxAbs, Math.abs(rVal));
-                    if (isRatioChart) {
-                        const crVal = getAbsValue(m.compareRealized || 0, rMode, idx);
-                        maxAbs = Math.max(maxAbs, Math.abs(crVal));
-                    }
-                }
-            });
-            const scaleMaxAbs = maxAbs * 1.20;
-
-            let maxPct = 5;
-            data.forEach((m, idx) => {
-                if (idx + 1 <= currentMonthIdx + 1) {
-                    if (atMode !== 'none') {
-                        maxPct = Math.max(maxPct, Math.abs(m.atingido));
-                    }
-                    if (pctMode !== 'none') {
-                        maxPct = Math.max(maxPct, Math.abs(m.pctOfRevenue));
-                    }
-                }
-                if (pctMode !== 'none' && !onlyRealized) {
-                    maxPct = Math.max(maxPct, Math.abs(m.pctOfRevenueBudget || 0));
-                }
-            });
-            const scaleMaxPct = maxPct * 1.15;
-
-            const getYAbs = (val: number) => {
-                const ratio = val / scaleMaxAbs;
-                return yBaseline - ratio * 170;
-            };
-
-            const getYPct = (val: number) => {
-                const ratio = val / scaleMaxPct;
-                return yBaseline - ratio * 170;
-            };
-
-            const startX = 80;
-            const stepX = 94;
-            const getX = (idx: number) => startX + idx * stepX;
-
-            const renderLineSeries = (key: string, strokeColor: string, isDash: boolean = false) => {
-                const points: { x: number; y: number; val: number }[] = [];
-                const isBudget = key === 'budget' || key === 'compareBudget';
-                const mode = isBudget ? bMode : rMode;
-                const showLabel = isBudget 
-                    ? config?.showBudgetLabels !== 'false' 
-                    : config?.showRealizedLabels !== 'false';
-                
-                data.forEach((m, monthIdx) => {
-                    const val = m[key] || 0;
-                    if (isBudget || (monthIdx + 1 <= currentMonthIdx + 1)) {
-                        const valScaled = getAbsValue(val, mode, monthIdx);
-                        points.push({
-                            x: getX(monthIdx),
-                            y: getYAbs(valScaled),
-                            val: valScaled
-                        });
-                    }
-                });
-
-                if (points.length === 0) return null;
-
-                let pathD = `M ${points[0].x} ${points[0].y}`;
-                for (let i = 1; i < points.length; i++) {
-                    pathD += ` L ${points[i].x} ${points[i].y}`;
-                }
-
-                return (
-                    <g key={`${key}-line`}>
-                        <path 
-                            d={pathD} 
-                            fill="none" 
-                            stroke={strokeColor} 
-                            strokeWidth="2.5" 
-                            strokeLinecap="round" 
-                            strokeLinejoin="round" 
-                            strokeDasharray={isDash ? '4 4' : undefined}
-                        />
-                        {points.map((p, idx) => (
-                            <g key={idx}>
-                                <circle cx={p.x} cy={p.y} r="4.5" fill="#ffffff" stroke={strokeColor} strokeWidth="2.5" />
-                                {showLabel && p.val !== 0 && (
-                                    <text 
-                                        x={p.x} 
-                                        y={p.y - 10} 
-                                        textAnchor="middle" 
-                                        fill="var(--text-secondary)" 
-                                        fontSize="9px" 
-                                        fontWeight="700"
-                                        style={{ paintOrder: 'stroke', stroke: 'var(--bg-surface)', strokeWidth: 3.5, strokeLinejoin: 'round' }}
-                                    >
-                                        {formatAbs(p.val, isDailyMode(mode))}
-                                    </text>
-                                )}
-                            </g>
-                        ))}
-                    </g>
-                );
-            };
-
-            // RENDER BARS (bar, diarias_bar)
-            const activeBarKeys: string[] = [];
-            if (isRatioChart) {
-                if (!hideBudget && (bMode === 'bar' || bMode === 'diarias_bar')) activeBarKeys.push('budget', 'compareBudget');
-                if (!hideRealized && (rMode === 'bar' || rMode === 'diarias_bar')) activeBarKeys.push('realized', 'compareRealized');
-            } else {
-                if (!hideBudget && (bMode === 'bar' || bMode === 'diarias_bar')) activeBarKeys.push('budget');
-                if (!hideRealized && (rMode === 'bar' || rMode === 'diarias_bar')) activeBarKeys.push('realized');
-            }
-
-            const renderedBars = data.map((m, monthIdx) => {
-                const xCenter = getX(monthIdx);
-                const numBars = activeBarKeys.length;
-                if (numBars === 0) return null;
-
-                const groupWidth = 76;
-                const barWidth = Math.max(16, (groupWidth / numBars) - 4);
-                const startBarX = xCenter - (groupWidth / 2);
-
-                return activeBarKeys.map((key, keyIdx) => {
-                    const isBudget = key === 'budget' || key === 'compareBudget';
-                    const mode = isBudget ? bMode : rMode;
-                    const val = m[key] || 0;
-                    const valScaled = getAbsValue(val, mode, monthIdx);
-
-                    const barX = startBarX + keyIdx * (barWidth + 4);
-                    const isPositive = valScaled >= 0;
-                    const hVal = Math.max(2, Math.abs(getYAbs(valScaled) - yBaseline));
-                    const yVal = isPositive ? yBaseline - hVal : yBaseline;
-
-                    let fill = '#cbd5e1';
-                    if (key === 'budget') fill = '#cbd5e1';
-                    else if (key === 'realized') fill = valScaled >= 0 ? chartColor : 'var(--accent-red)';
-                    else if (key === 'compareBudget') fill = '#fed7aa';
-                    else if (key === 'compareRealized') fill = valScaled >= 0 ? '#f97316' : 'var(--accent-red)';
-
-                    const shouldShow = isBudget || (monthIdx + 1 <= currentMonthIdx + 1);
-
-                    const showLabel = isBudget 
-                        ? config?.showBudgetLabels !== 'false' 
-                        : config?.showRealizedLabels !== 'false';
-
-                    return (
-                        <g key={`${monthIdx}-${key}`}>
-                            {shouldShow && valScaled !== 0 && (
-                                <>
-                                    <rect 
-                                        x={barX} 
-                                        y={yVal} 
-                                        width={barWidth} 
-                                        height={hVal} 
-                                        fill={fill} 
-                                        rx="3"
-                                    />
-                                    {showLabel && (
-                                        <text 
-                                            x={barX + barWidth / 2} 
-                                            y={isPositive ? yVal - 7 : yVal + hVal + 14} 
-                                            textAnchor="middle" 
-                                            fill="var(--text-secondary)" 
-                                            fontSize="9px" 
-                                            fontWeight="700"
-                                            style={{ paintOrder: 'stroke', stroke: 'var(--bg-surface)', strokeWidth: 3.5, strokeLinejoin: 'round' }}
-                                        >
-                                            {formatAbs(valScaled, isDailyMode(mode))}
-                                        </text>
-                                    )}
-                                </>
-                            )}
-                        </g>
-                    );
-                });
-            });
-
-            // RENDER LEFT AXIS LINES (line_val, diarias_line)
-            const leftLines: JSX.Element[] = [];
-
-            if (isRatioChart) {
-                if (!hideBudget && (bMode === 'line_val' || bMode === 'diarias_line')) {
-                    const l = renderLineSeries('budget', '#94a3b8', true);
-                    if (l) leftLines.push(l);
-                    const lc = renderLineSeries('compareBudget', '#fed7aa', true);
-                    if (lc) leftLines.push(lc);
-                }
-                if (!hideRealized && (rMode === 'line_val' || rMode === 'diarias_line')) {
-                    const l = renderLineSeries('realized', chartColor);
-                    if (l) leftLines.push(l);
-                    const lc = renderLineSeries('compareRealized', '#f97316');
-                    if (lc) leftLines.push(lc);
-                }
-            } else {
-                if (!hideBudget && (bMode === 'line_val' || bMode === 'diarias_line')) {
-                    const l = renderLineSeries('budget', '#94a3b8', true);
-                    if (l) leftLines.push(l);
-                }
-                if (!hideRealized && (rMode === 'line_val' || rMode === 'diarias_line')) {
-                    const l = renderLineSeries('realized', chartColor);
-                    if (l) leftLines.push(l);
-                }
-            }
-
-            // RENDER RIGHT AXIS LINES (% lines)
-            const rightLines: JSX.Element[] = [];
-
-            if (atMode === 'line_atingido') {
-                const points: { x: number; y: number; val: number }[] = [];
-                data.forEach((m, monthIdx) => {
-                    if (monthIdx + 1 <= currentMonthIdx + 1) {
-                        points.push({
-                            x: getX(monthIdx),
-                            y: getYPct(m.atingido),
-                            val: m.atingido
-                        });
-                    }
-                });
-
-                if (points.length > 0) {
-                    let pathD = `M ${points[0].x} ${points[0].y}`;
-                    for (let i = 1; i < points.length; i++) {
-                        pathD += ` L ${points[i].x} ${points[i].y}`;
-                    }
-                    const lineColor = '#10b981';
-                    rightLines.push(
-                        <g key="atingido-line">
-                            <path d={pathD} fill="none" stroke={lineColor} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
-                            {points.map((p, idx) => (
-                                <g key={idx}>
-                                    <circle cx={p.x} cy={p.y} r="4.5" fill={lineColor} stroke="var(--bg-surface)" strokeWidth="1.5" />
-                                    {config?.showAtingidoLabels !== 'false' && (
-                                        <text 
-                                            x={p.x} 
-                                            y={p.y - 10} 
-                                            textAnchor="middle" 
-                                            fill={lineColor} 
-                                            fontSize="9px" 
-                                            fontWeight="800"
-                                            style={{ paintOrder: 'stroke', stroke: 'var(--bg-surface)', strokeWidth: 3.5, strokeLinejoin: 'round' }}
-                                        >
-                                            {p.val.toFixed(1)}%
-                                        </text>
-                                    )}
-                                </g>
-                            ))}
-                        </g>
-                    );
-                }
-            }
-
-            if (pctMode === 'line_revenue') {
-                if (!onlyRealized) {
-                    const pointsB: { x: number; y: number; val: number }[] = [];
-                    data.forEach((m, monthIdx) => {
-                        pointsB.push({
-                            x: getX(monthIdx),
-                            y: getYPct(m.pctOfRevenueBudget || 0),
-                            val: m.pctOfRevenueBudget || 0
-                        });
-                    });
-
-                    if (pointsB.length > 0) {
-                        let pathD = `M ${pointsB[0].x} ${pointsB[0].y}`;
-                        for (let i = 1; i < pointsB.length; i++) {
-                            pathD += ` L ${pointsB[i].x} ${pointsB[i].y}`;
-                        }
-                        const lineColor = '#fed7aa';
-                        rightLines.push(
-                            <g key="pct-revenue-budget-line">
-                                <path d={pathD} fill="none" stroke={lineColor} strokeWidth="2.5" strokeDasharray="4 4" strokeLinecap="round" strokeLinejoin="round" />
-                                {pointsB.map((p, idx) => (
-                                    <g key={idx}>
-                                        <circle cx={p.x} cy={p.y} r="4.5" fill={lineColor} stroke="var(--bg-surface)" strokeWidth="1.5" />
-                                        {config?.showPctOfRevenueLabels !== 'false' && p.val !== 0 && (
-                                            <text 
-                                                x={p.x} 
-                                                y={p.y - 10} 
-                                                textAnchor="middle" 
-                                                fill={lineColor} 
-                                                fontSize="9px" 
-                                                fontWeight="800"
-                                                style={{ paintOrder: 'stroke', stroke: 'var(--bg-surface)', strokeWidth: 3.5, strokeLinejoin: 'round' }}
-                                            >
-                                                {p.val.toFixed(1)}%
-                                            </text>
-                                        )}
-                                    </g>
-                                ))}
-                            </g>
-                        );
-                    }
-                }
-
-                const points: { x: number; y: number; val: number }[] = [];
-                data.forEach((m, monthIdx) => {
-                    if (monthIdx + 1 <= currentMonthIdx + 1) {
-                        points.push({
-                            x: getX(monthIdx),
-                            y: getYPct(m.pctOfRevenue || 0),
-                            val: m.pctOfRevenue || 0
-                        });
-                    }
-                });
-
-                if (points.length > 0) {
-                    let pathD = `M ${points[0].x} ${points[0].y}`;
-                    for (let i = 1; i < points.length; i++) {
-                        pathD += ` L ${points[i].x} ${points[i].y}`;
-                    }
-
-                    const lineColor = '#f59e0b';
-
-                    rightLines.push(
-                        <g key="pct-revenue-line">
-                            <path d={pathD} fill="none" stroke={lineColor} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
-                            {points.map((p, idx) => (
-                                <g key={idx}>
-                                    <circle cx={p.x} cy={p.y} r="4.5" fill={lineColor} stroke="var(--bg-surface)" strokeWidth="1.5" />
-                                    {config?.showPctOfRevenueLabels !== 'false' && p.val !== 0 && (
-                                        <text 
-                                            x={p.x} 
-                                            y={p.y - 10} 
-                                            textAnchor="middle" 
-                                            fill={lineColor} 
-                                            fontSize="9px" 
-                                            fontWeight="800"
-                                            style={{ paintOrder: 'stroke', stroke: 'var(--bg-surface)', strokeWidth: 3.5, strokeLinejoin: 'round' }}
-                                        >
-                                            {p.val.toFixed(1)}%
-                                        </text>
-                                    )}
-                                </g>
-                            ))}
-                        </g>
-                    );
-                }
-            }
-
-            return (
-                <svg viewBox="-70 0 1290 260" width="100%" height="auto" style={{ overflow: 'visible' }}>
-                    {[0, 0.25, 0.5, 0.75, 1.0].map((ratio, gridIdx) => {
-                        const yGrid = yBaseline - ratio * 170;
-                        return (
-                            <line key={gridIdx} x1="40" y1={yGrid} x2="1160" y2={yGrid}
-                                stroke={ratio === 0 ? 'var(--border-default)' : 'var(--border-subtle)'}
-                                strokeWidth={ratio === 0 ? 1 : 0.5}
-                                strokeDasharray={ratio === 0 ? undefined : '3 3'}
-                            />
-                        );
-                    })}
-
-                    <line x1="40" y1="0" x2="40" y2={yBaseline} stroke="var(--border-default)" strokeWidth="1" />
-                    <line x1="1160" y1="0" x2="1160" y2={yBaseline} stroke="var(--border-default)" strokeWidth="1" />
-                    <line x1="40" y1={yBaseline} x2="1160" y2={yBaseline} stroke="var(--border-default)" strokeWidth="1" />
-
-                    {renderedBars}
-                    {leftLines}
-                    {rightLines}
-
-                    {[0.25, 0.5, 0.75, 1.0].map((ratio, gridIdx) => {
-                        const yGrid = yBaseline - ratio * 170;
-                        return (
-                            <g key={`label-${gridIdx}`}>
-                                <text x="32" y={yGrid + 4} textAnchor="end" fill="var(--text-muted)" fontSize="11px" fontWeight="600"
-                                    style={{ paintOrder: 'stroke', stroke: 'var(--bg-surface)', strokeWidth: 3, strokeLinejoin: 'round' }}>
-                                    {formatAbs(ratio * scaleMaxAbs, hasDailyActive)}
-                                </text>
-                                <text x="1168" y={yGrid + 4} textAnchor="start" fill="var(--text-muted)" fontSize="11px" fontWeight="600"
-                                    style={{ paintOrder: 'stroke', stroke: 'var(--bg-surface)', strokeWidth: 3, strokeLinejoin: 'round' }}>
-                                    {(ratio * scaleMaxPct).toFixed(0)}%
-                                </text>
-                            </g>
-                        );
-                    })}
-
-                    {data.map((m, idx) => (
-                        <text key={idx} x={getX(idx)} y={yBaseline + 20} textAnchor="middle" fill="var(--text-secondary)" fontSize="13px" fontWeight="800">
-                            {['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'][idx]}
-                        </text>
-                    ))}
-
-                    {onHover && data.map((m, idx) => (
-                        <rect
-                            key={`hover-${idx}`}
-                            x={getX(idx) - stepX / 2}
-                            y={0}
-                            width={stepX}
-                            height={yBaseline + 30}
-                            fill="transparent"
-                            style={{ cursor: 'pointer' }}
-                            onMouseMove={(e) => {
-                                const items = [];
-                                if (bMode !== 'none') {
-                                    const label = isRatioChart ? `${baseLabel || 'Base'} (Orçado)` : 'Orçado';
-                                    items.push({ 
-                                        label, 
-                                        value: formatAbs(getAbsValue(m.budget, bMode, idx), isDailyMode(bMode)), 
-                                        color: '#cbd5e1' 
-                                    });
-                                }
-                                if (rMode !== 'none' && idx + 1 <= currentMonthIdx + 1) {
-                                    const label = isRatioChart ? `${baseLabel || 'Base'} (Realizado)` : 'Realizado';
-                                    items.push({ 
-                                        label, 
-                                        value: formatAbs(getAbsValue(m.realized, rMode, idx), isDailyMode(rMode)), 
-                                        color: chartColor 
-                                    });
-                                }
-                                if (isRatioChart) {
-                                    if (bMode !== 'none') {
-                                        items.push({ 
-                                            label: `${compareLabel || 'Comp'} (Orçado)`, 
-                                            value: formatAbs(getAbsValue(m.compareBudget, bMode, idx), isDailyMode(bMode)), 
-                                            color: '#fed7aa' 
-                                        });
-                                    }
-                                    if (rMode !== 'none' && idx + 1 <= currentMonthIdx + 1) {
-                                        items.push({ 
-                                            label: `${compareLabel || 'Comp'} (Realizado)`, 
-                                            value: formatAbs(getAbsValue(m.compareRealized, rMode, idx), isDailyMode(rMode)), 
-                                            color: '#f97316' 
-                                        });
-                                    }
-                                }
-                                if (atMode !== 'none' && idx + 1 <= currentMonthIdx + 1) {
-                                    items.push({ 
-                                        label: isRatioChart ? 'Razão %' : 'Atingido', 
-                                        value: `${m.atingido.toFixed(1)}%`, 
-                                        color: '#10b981' 
-                                    });
-                                }
-                                if (pctMode !== 'none') {
-                                    if (!onlyRealized) {
-                                        items.push({ 
-                                            label: '% s/ Receita (Orçado)', 
-                                            value: `${(m.pctOfRevenueBudget || 0).toFixed(1)}%`, 
-                                            color: '#fed7aa' 
-                                        });
-                                    }
-                                    if (idx + 1 <= currentMonthIdx + 1) {
-                                        items.push({ 
-                                            label: '% s/ Receita (Realizado)', 
-                                            value: `${(m.pctOfRevenue || 0).toFixed(1)}%`, 
-                                            color: '#f59e0b' 
-                                        });
-                                    }
-                                }
-
-                                onHover({
-                                    x: e.clientX,
-                                    y: e.clientY,
-                                    title: `${['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'][idx]} de ${year}`,
-                                    items
-                                });
-                            }}
-                            onMouseLeave={() => onHover(null)}
-                        />
-                        )
-                    )}
-                </svg>
-            );
-        }
-
         case 'VERTICAL_BAR': {
             const yBaseline = hasNegative ? 130 : 210;
             const maxBarHeight = hasNegative ? 100 : 165;
             const scaleMaxVal = maxVal * 1.20;
+
+            const compareActive = compInfo !== null;
+            const numTicks = data.length;
+            const stepX = compareActive ? (1060 / numTicks) : 94;
+            const startX = 80;
+            const getX = (idx: number) => startX + idx * stepX;
+
+            const activeBarKeys: string[] = [];
+            if (compareActive) {
+                if (isRatioChart) {
+                    if (!hideBudget) activeBarKeys.push('budget', 'compareBudget', 'budgetB', 'compareBudgetB');
+                    if (!hideRealized) activeBarKeys.push('realized', 'compareRealized', 'realizedB', 'compareRealizedB');
+                } else {
+                    if (!hideBudget) activeBarKeys.push('budget', 'budgetB');
+                    if (!hideRealized) activeBarKeys.push('realized', 'realizedB');
+                }
+            } else {
+                if (isRatioChart) {
+                    if (!hideBudget) activeBarKeys.push('budget', 'compareBudget');
+                    if (!hideRealized) activeBarKeys.push('realized', 'compareRealized');
+                } else {
+                    if (!hideBudget) activeBarKeys.push('budget');
+                    if (!hideRealized) activeBarKeys.push('realized');
+                }
+            }
+
+            const renderedBars = data.map((m, idx) => {
+                const xCenter = getX(idx);
+                const numBars = activeBarKeys.length;
+                if (numBars === 0) return null;
+
+                const groupWidth = compareActive ? (stepX * 0.75) : 76;
+                const spacing = 4;
+                const barWidth = numBars > 0 
+                    ? Math.min(48, Math.max(8, (groupWidth - (numBars - 1) * spacing) / numBars))
+                    : 0;
+                const actualGroupWidth = numBars * barWidth + (numBars - 1) * spacing;
+                const startBarX = xCenter + (stepX - actualGroupWidth) / 2;
+
+                return activeBarKeys.map((key, keyIdx) => {
+                    const isRealized = !key.toLowerCase().includes('budget');
+                    if (isRealized && !isRealizedVisible(key, idx)) return null;
+
+                    const val = getVal(key, m);
+                    if (val === 0) return null;
+
+                    const barX = startBarX + keyIdx * (barWidth + spacing);
+                    const isPositive = val >= 0;
+                    const hVal = Math.max(2, (Math.abs(val) / scaleMaxVal) * maxBarHeight);
+                    const yVal = isPositive ? yBaseline - hVal : yBaseline;
+
+                    let fill = '#cbd5e1';
+                    if (key === 'budget') fill = 'var(--border-strong)';
+                    else if (key === 'realized') fill = val >= 0 ? chartColor : 'var(--accent-red)';
+                    else if (key === 'compareBudget') fill = '#e2e8f0';
+                    else if (key === 'compareRealized') fill = val >= 0 ? '#818cf8' : 'var(--accent-red)';
+                    else if (key === 'budgetB') fill = '#fed7aa';
+                    else if (key === 'realizedB') fill = val >= 0 ? '#10b981' : 'var(--accent-red)';
+                    else if (key === 'compareBudgetB') fill = '#ffedd5';
+                    else if (key === 'compareRealizedB') fill = val >= 0 ? '#f97316' : 'var(--accent-red)';
+
+                    const labelY = isPositive ? yVal - 8 : yVal + hVal + 17;
+                    const labelColor = isRealized ? (val >= 0 ? chartColor : '#7f1d1d') : 'var(--text-secondary)';
+
+                    return (
+                        <g key={`${idx}-${key}`}>
+                            <rect 
+                                x={barX} 
+                                y={yVal} 
+                                width={barWidth} 
+                                height={hVal} 
+                                fill={fill} 
+                                rx="3" 
+                            />
+                            <text 
+                                x={barX + barWidth / 2} 
+                                y={labelY} 
+                                textAnchor="middle" 
+                                fill={labelColor} 
+                                fontSize="11px" 
+                                fontWeight="700"
+                                style={{ paintOrder: 'stroke', stroke: 'var(--bg-surface)', strokeWidth: 3.5, strokeLinejoin: 'round' }}
+                            >
+                                {formatVal(val)}
+                            </text>
+                        </g>
+                    );
+                });
+            });
 
             return (
                 <svg viewBox="-70 0 1270 260" width="100%" height="auto" style={{ overflow: 'visible', maxHeight: '250px' }}>
@@ -3926,197 +3891,81 @@ const renderDetailedChart = (
                             style={{ paintOrder: 'stroke', stroke: 'var(--bg-surface)', strokeWidth: 3, strokeLinejoin: 'round' }}>{formatVal(-scaleMaxVal)}</text>
                     )}
 
-                    {data.map((m, idx) => {
-                        const valB = pctOfRevenue ? m.pctOfRevenue : m.budget;
-                        const valR = (idx + 1 <= currentMonthIdx + 1) ? (pctOfRevenue ? m.pctOfRevenue : m.realized) : 0;
-                        
-                        const bHeight = hideBudget ? 0 : (Math.abs(valB) / scaleMaxVal) * maxBarHeight;
-                        const rHeight = (!hideRealized && idx + 1 <= currentMonthIdx + 1) ? (Math.abs(valR) / scaleMaxVal) * maxBarHeight : 0;
-                        
-                        const xBase = 80 + idx * 94;
-                        const barWidth = hideBudget ? 48 : 36;
-                        const xB = xBase + 6;
-                        const xR = hideBudget ? xBase + 20 : xBase + 46;
+                    {renderedBars}
 
-                        const isClose = !hideBudget && (!hideRealized && idx + 1 <= currentMonthIdx + 1) && Math.abs(bHeight - rHeight) < 14 && (valB >= 0 === valR >= 0);
-
-                        const bLabelY = valB >= 0 ? yBaseline - bHeight - 8 : yBaseline + bHeight + 17;
-                        let rLabelY = valR >= 0 ? yBaseline - rHeight - 8 : yBaseline + rHeight + 17;
-                        if (isClose) {
-                            rLabelY = valR >= 0 ? yBaseline - rHeight - 24 : yBaseline + rHeight + 33;
-                        }
-
-                        const xMonthText = xBase + 44;
-
-                        return (
-                            <g key={idx}>
-                                {!hideBudget && valB !== 0 && (
-                                    <>
-                                        <rect 
-                                            x={xB} 
-                                            y={valB >= 0 ? yBaseline - bHeight : yBaseline} 
-                                            width={barWidth} 
-                                            height={bHeight} 
-                                            fill="var(--border-strong)" 
-                                            rx="3" 
-                                        />
-                                        <text x={xB + barWidth / 2} y={bLabelY} textAnchor="middle" fill="var(--text-secondary)" fontSize="12px" fontWeight="700">{formatVal(valB)}</text>
-                                    </>
-                                )}
-
-                                {!hideRealized && idx + 1 <= currentMonthIdx + 1 && valR !== 0 && (
-                                    <>
-                                        <rect 
-                                            x={xR} 
-                                            y={valR >= 0 ? yBaseline - rHeight : yBaseline} 
-                                            width={barWidth} 
-                                            height={rHeight} 
-                                            fill={valR >= 0 ? chartColor : 'var(--accent-red)'} 
-                                            rx="3" 
-                                        />
-                                        <text x={xR + barWidth / 2} y={rLabelY} textAnchor="middle" fill={valR >= 0 ? '#ffffff' : '#7f1d1d'} fontSize="12px" fontWeight="700">{formatVal(valR)}</text>
-                                    </>
-                                )}
-
-                                <text x={xMonthText} y="242" textAnchor="middle" fill="var(--text-muted)" fontSize="13px" fontWeight="700">
-                                    {['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'][idx]}
-                                </text>
-                            </g>
-                        );
-                    })}
+                    {data.map((m, idx) => (
+                        <text key={idx} x={getX(idx) + stepX / 2} y="242" textAnchor="middle" fill="var(--text-muted)" fontSize="13px" fontWeight="700">
+                            {compareActive ? `${m.labelA} / ${m.labelB}` : ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'][idx]}
+                        </text>
+                    ))}
 
                     {/* Hover tooltip zones */}
                     {onHover && data.map((m, idx) => {
-                        const xBase = 80 + idx * 94;
-                        const stepWidth = 94;
+                        const xBase = getX(idx);
                         return (
                             <rect
                                 key={`hover-${idx}`}
                                 x={xBase}
                                 y={0}
-                                width={stepWidth}
+                                width={stepX}
                                 height={yBaseline + 30}
                                 fill="transparent"
                                 style={{ cursor: 'pointer' }}
                                 onMouseMove={(e) => {
-                                    const valB = pctOfRevenue ? m.pctOfRevenue : m.budget;
-                                    const valR = (idx + 1 <= currentMonthIdx + 1) ? (pctOfRevenue ? m.pctOfRevenue : m.realized) : 0;
-
                                     const items = [];
-                                    if (!hideBudget) {
-                                        items.push({ label: 'Orçado', value: formatVal(valB), color: '#cbd5e1' });
-                                    }
-                                    if (!hideRealized && idx + 1 <= currentMonthIdx + 1) {
-                                        items.push({ label: 'Realizado', value: formatVal(valR), color: chartColor });
+                                    if (compareActive) {
+                                        const { labelA, labelB } = compInfo;
+                                        // Period A
+                                        items.push({ label: `--- ${labelA} ---`, value: '', color: 'transparent' });
+                                        if (!hideBudget) {
+                                            items.push({ label: isRatioChart ? `${baseLabel || 'Base'} (Orçado)` : 'Orçado', value: formatVal(getVal('budget', m)), color: '#cbd5e1' });
+                                            if (isRatioChart) {
+                                                items.push({ label: `${compareLabel || 'Comp'} (Orçado)`, value: formatVal(getVal('compareBudget', m)), color: '#cbd5e1' });
+                                            }
+                                        }
+                                        if (!hideRealized && isRealizedVisible('realized', idx)) {
+                                            items.push({ label: isRatioChart ? `${baseLabel || 'Base'} (Realizado)` : 'Realizado', value: formatVal(getVal('realized', m)), color: chartColor });
+                                            if (isRatioChart) {
+                                                items.push({ label: `${compareLabel || 'Comp'} (Realizado)`, value: formatVal(getVal('compareRealized', m)), color: chartColor });
+                                            }
+                                        }
+                                        // Period B
+                                        items.push({ label: `--- ${labelB} ---`, value: '', color: 'transparent' });
+                                        if (!hideBudget) {
+                                            items.push({ label: isRatioChart ? `${baseLabel || 'Base'} (Orçado)` : 'Orçado', value: formatVal(getVal('budgetB', m)), color: '#fed7aa' });
+                                            if (isRatioChart) {
+                                                items.push({ label: `${compareLabel || 'Comp'} (Orçado)`, value: formatVal(getVal('compareBudgetB', m)), color: '#fed7aa' });
+                                            }
+                                        }
+                                        if (!hideRealized && isRealizedVisible('realizedB', idx)) {
+                                            items.push({ label: isRatioChart ? `${baseLabel || 'Base'} (Realizado)` : 'Realizado', value: formatVal(getVal('realizedB', m)), color: '#10b981' });
+                                            if (isRatioChart) {
+                                                items.push({ label: `${compareLabel || 'Comp'} (Realizado)`, value: formatVal(getVal('compareRealizedB', m)), color: '#10b981' });
+                                            }
+                                        }
+                                    } else {
+                                        if (!hideBudget) {
+                                            const valB = pctOfRevenue ? (m.pctOfRevenueBudget || 0) : m.budget;
+                                            items.push({ label: 'Orçado', value: formatVal(valB), color: '#cbd5e1' });
+                                            if (isRatioChart) {
+                                                items.push({ label: `${compareLabel || 'Comp'} (Orçado)`, value: formatVal(m.compareBudget || 0), color: '#fed7aa' });
+                                            }
+                                        }
+                                        if (!hideRealized && idx <= currentMonthIdx) {
+                                            const valR = pctOfRevenue ? (m.pctOfRevenue || 0) : m.realized;
+                                            items.push({ label: 'Realizado', value: formatVal(valR), color: chartColor });
+                                            if (isRatioChart) {
+                                                items.push({ label: `${compareLabel || 'Comp'} (Realizado)`, value: formatVal(m.compareRealized || 0), color: '#f97316' });
+                                            }
+                                        }
                                     }
 
                                     onHover({
                                         x: e.clientX,
                                         y: e.clientY,
-                                        title: `${['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'][idx]} de ${year}`,
-                                        items
-                                    });
-                                }}
-                                onMouseLeave={() => onHover(null)}
-                            />
-                        );
-                    })}
-                </svg>
-            );
-        }
-
-        case 'HORIZONTAL_BAR': {
-            const xBaseline = 120;
-            const maxBarWidth = 980;
-            const scaleMaxVal = maxVal * 1.15;
-
-            return (
-                <svg viewBox="0 0 1200 320" width="100%" height="auto" style={{ overflow: 'visible', maxHeight: '280px' }}>
-                    <line x1={xBaseline} y1="10" x2={xBaseline} y2="295" stroke="var(--border-default)" strokeWidth="1.5" />
-                    <line x1={xBaseline + maxBarWidth / 2} y1="10" x2={xBaseline + maxBarWidth / 2} y2="295" stroke="var(--border-subtle)" strokeDasharray="3 3" />
-                    <line x1={xBaseline + maxBarWidth} y1="10" x2={xBaseline + maxBarWidth} y2="295" stroke="var(--border-default)" strokeDasharray="3 3" />
-
-                    <text x={xBaseline} y="312" textAnchor="middle" fill="var(--text-muted)" fontSize="12px" fontWeight="700">{formatVal(0)}</text>
-                    <text x={xBaseline + maxBarWidth / 2} y="312" textAnchor="middle" fill="var(--text-muted)" fontSize="12px" fontWeight="700">{formatVal(scaleMaxVal / 2)}</text>
-                    <text x={xBaseline + maxBarWidth} y="312" textAnchor="middle" fill="var(--text-muted)" fontSize="12px" fontWeight="700">{formatVal(scaleMaxVal)}</text>
-
-                    {data.map((m, idx) => {
-                        const valB = pctOfRevenue ? m.pctOfRevenue : m.budget;
-                        const valR = (idx + 1 <= currentMonthIdx + 1) ? (pctOfRevenue ? m.pctOfRevenue : m.realized) : 0;
-
-                        const bWidth = hideBudget ? 0 : (Math.abs(valB) / scaleMaxVal) * maxBarWidth;
-                        const rWidth = (!hideRealized && idx + 1 <= currentMonthIdx + 1) ? (Math.abs(valR) / scaleMaxVal) * maxBarWidth : 0;
-                        
-                        const yBase = 15 + idx * 24;
-                        const barHeight = hideBudget ? 16 : 10;
-                        const yB = yBase;
-                        const yR = hideBudget ? yBase + 2 : yBase + 12;
-
-                        return (
-                            <g key={idx}>
-                                <text x={xBaseline - 10} y={yBase + 14} textAnchor="end" fill="var(--text-secondary)" fontSize="13px" fontWeight="700">
-                                    {['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'][idx]}
-                                </text>
-
-                                {!hideBudget && valB !== 0 && (
-                                    <>
-                                        <rect 
-                                            x={xBaseline} 
-                                            y={yB} 
-                                            height={barHeight} 
-                                            width={bWidth} 
-                                            fill="var(--border-strong)" 
-                                            rx="1.5" 
-                                        />
-                                        <text x={xBaseline + bWidth + 5} y={yB + 8.5} textAnchor="start" fill="var(--text-secondary)" fontSize="11.5px" fontWeight="700">{formatVal(valB)}</text>
-                                    </>
-                                )}
-
-                                {!hideRealized && idx + 1 <= currentMonthIdx + 1 && valR !== 0 && (
-                                    <>
-                                        <rect 
-                                            x={xBaseline} 
-                                            y={yR} 
-                                            height={barHeight} 
-                                            width={rWidth} 
-                                            fill={valR >= 0 ? chartColor : 'var(--accent-red)'} 
-                                            rx="1.5" 
-                                        />
-                                        <text x={xBaseline + rWidth + 5} y={yR + 8.5} textAnchor="start" fill={valR >= 0 ? chartColor : '#7f1d1d'} fontSize="11.5px" fontWeight="700">{formatVal(valR)}</text>
-                                    </>
-                                )}
-                            </g>
-                        );
-                    })}
-
-                    {/* Hover tooltip zones */}
-                    {onHover && data.map((m, idx) => {
-                        const yBase = 15 + idx * 24;
-                        return (
-                            <rect
-                                key={`hover-${idx}`}
-                                x={0}
-                                y={yBase}
-                                width={1200}
-                                height={24}
-                                fill="transparent"
-                                style={{ cursor: 'pointer' }}
-                                onMouseMove={(e) => {
-                                    const valB = pctOfRevenue ? m.pctOfRevenue : m.budget;
-                                    const valR = (idx + 1 <= currentMonthIdx + 1) ? (pctOfRevenue ? m.pctOfRevenue : m.realized) : 0;
-
-                                    const items = [];
-                                    if (!hideBudget) {
-                                        items.push({ label: 'Orçado', value: formatVal(valB), color: '#cbd5e1' });
-                                    }
-                                    if (!hideRealized && idx + 1 <= currentMonthIdx + 1) {
-                                        items.push({ label: 'Realizado', value: formatVal(valR), color: chartColor });
-                                    }
-
-                                    onHover({
-                                        x: e.clientX,
-                                        y: e.clientY,
-                                        title: `${['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'][idx]} de ${year}`,
+                                        title: compareActive
+                                            ? `${m.labelA} vs ${m.labelB} de ${year}`
+                                            : `${['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'][idx]} de ${year}`,
                                         items
                                     });
                                 }}
@@ -4133,71 +3982,6 @@ const renderDetailedChart = (
             const yBaseline = hasNegative ? 130 : 210;
             const maxLineHeight = hasNegative ? 100 : 165;
             const scaleMaxVal = maxVal * 1.20;
-
-            let pathB = '';
-            let pathR = '';
-            let pathCB = '';
-            let pathCR = '';
-            const pointsB: { x: number, y: number, val: number }[] = [];
-            const pointsR: { x: number, y: number, val: number }[] = [];
-            const pointsCB: { x: number, y: number, val: number }[] = [];
-            const pointsCR: { x: number, y: number, val: number }[] = [];
-
-            data.forEach((m, idx) => {
-                const valB = pctOfRevenue ? m.pctOfRevenue : m.budget;
-                const valR = (idx + 1 <= currentMonthIdx + 1) ? (pctOfRevenue ? m.pctOfRevenue : m.realized) : 0;
-                const valCB = isRatioChart ? m.compareBudget : 0;
-                const valCR = isRatioChart && (idx + 1 <= currentMonthIdx + 1) ? m.compareRealized : 0;
-
-                const x = 80 + idx * 94;
-                const yB = yBaseline - (valB / scaleMaxVal) * maxLineHeight;
-                const yR = yBaseline - (valR / scaleMaxVal) * maxLineHeight;
-                const yCB = yBaseline - (valCB / scaleMaxVal) * maxLineHeight;
-                const yCR = yBaseline - (valCR / scaleMaxVal) * maxLineHeight;
-
-                if (!hideBudget) {
-                    pointsB.push({ x, y: yB, val: valB });
-                    pathB += (pathB === '' ? 'M' : 'L') + ` ${x} ${yB}`;
-                    if (isRatioChart) {
-                        pointsCB.push({ x, y: yCB, val: valCB });
-                        pathCB += (pathCB === '' ? 'M' : 'L') + ` ${x} ${yCB}`;
-                    }
-                }
-
-                if (!hideRealized && idx + 1 <= currentMonthIdx + 1) {
-                    pointsR.push({ x, y: yR, val: valR });
-                    pathR += (pathR === '' ? 'M' : 'L') + ` ${x} ${yR}`;
-                    if (isRatioChart) {
-                        pointsCR.push({ x, y: yCR, val: valCR });
-                        pathCR += (pathCR === '' ? 'M' : 'L') + ` ${x} ${yCR}`;
-                    }
-                }
-            });
-
-            return (
-                <svg viewBox="-70 0 1270 260" width="100%" height="auto" style={{ overflow: 'visible', maxHeight: '250px' }}>
-                    {hasNegative ? (
-                        <>
-                            <line x1="80" y1="130" x2="1140" y2="130" stroke="var(--border-strong)" strokeWidth="1.5" />
-                            <line x1="80" y1="70" x2="1140" y2="70" stroke="var(--border-subtle)" strokeDasharray="3 3" />
-                            <line x1="80" y1="190" x2="1140" y2="190" stroke="var(--border-subtle)" strokeDasharray="3 3" />
-                        </>
-                    ) : (
-                        <>
-                            <line x1="80" y1="210" x2="1140" y2="210" stroke="var(--border-default)" strokeWidth="1" />
-                            <line x1="80" y1="130" x2="1140" y2="130" stroke="var(--border-subtle)" strokeDasharray="3 3" />
-                            <line x1="80" y1="50" x2="1140" y2="50" stroke="var(--border-subtle)" strokeDasharray="3 3" />
-                        </>
-                    )}
-
-                    <text x="75" y={hasNegative ? 74 : 54} textAnchor="end" fill="var(--text-muted)" fontSize="12px" fontWeight="700"
-                        style={{ paintOrder: 'stroke', stroke: 'var(--bg-surface)', strokeWidth: 3, strokeLinejoin: 'round' }}>{formatVal(scaleMaxVal)}</text>
-                    <text x="75" y={yBaseline + 4} textAnchor="end" fill="var(--text-muted)" fontSize="12px" fontWeight="700"
-                        style={{ paintOrder: 'stroke', stroke: 'var(--bg-surface)', strokeWidth: 3, strokeLinejoin: 'round' }}>{formatVal(0)}</text>
-                    {hasNegative && (
-                        <text x="75" y="194" textAnchor="end" fill="var(--text-muted)" fontSize="12px" fontWeight="700"
-                            style={{ paintOrder: 'stroke', stroke: 'var(--bg-surface)', strokeWidth: 3, strokeLinejoin: 'round' }}>{formatVal(-scaleMaxVal)}</text>
-                    )}
 
                     {!hideBudget && pathB && (
                         <path d={pathB} fill="none" stroke="var(--text-muted)" strokeWidth="2.5" strokeDasharray="4 4" strokeLinecap="round" strokeLinejoin="round" />

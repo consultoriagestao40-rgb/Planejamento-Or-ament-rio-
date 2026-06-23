@@ -3081,8 +3081,8 @@ const renderDetailedChart = (
                 return yBaseline - ratio * 170;
             };
 
-            const startX = 150;
-            const stepX = 88;
+            const startX = 80;
+            const stepX = 94;
             const getX = (idx: number) => startX + idx * stepX;
 
             // RENDER BARS (bar, diarias_bar)
@@ -3398,12 +3398,12 @@ const renderDetailedChart = (
             }
 
             return (
-                <svg viewBox="0 0 1200 260" width="100%" height="auto" style={{ overflow: 'visible' }}>
+                <svg viewBox="-70 0 1270 260" width="100%" height="auto" style={{ overflow: 'visible' }}>
                     {/* Grid lines only — rendered first so bars draw over them */}
                     {[0, 0.25, 0.5, 0.75, 1.0].map((ratio, gridIdx) => {
                         const yGrid = yBaseline - ratio * 170;
                         return (
-                            <line key={gridIdx} x1="145" y1={yGrid} x2="1120" y2={yGrid}
+                            <line key={gridIdx} x1="95" y1={yGrid} x2="1120" y2={yGrid}
                                 stroke={ratio === 0 ? 'var(--border-default)' : 'var(--border-subtle)'}
                                 strokeWidth={ratio === 0 ? 1 : 0.5}
                                 strokeDasharray={ratio === 0 ? undefined : '3 3'}
@@ -3412,9 +3412,9 @@ const renderDetailedChart = (
                     })}
 
                     {/* Axis lines */}
-                    <line x1="145" y1="0" x2="145" y2={yBaseline} stroke="var(--border-default)" strokeWidth="1" />
+                    <line x1="95" y1="0" x2="95" y2={yBaseline} stroke="var(--border-default)" strokeWidth="1" />
                     <line x1="1120" y1="0" x2="1120" y2={yBaseline} stroke="var(--border-default)" strokeWidth="1" />
-                    <line x1="145" y1={yBaseline} x2="1120" y2={yBaseline} stroke="var(--border-default)" strokeWidth="1" />
+                    <line x1="95" y1={yBaseline} x2="1120" y2={yBaseline} stroke="var(--border-default)" strokeWidth="1" />
 
                     {renderedBars}
                     {leftLines}
@@ -3425,7 +3425,7 @@ const renderDetailedChart = (
                         const yGrid = yBaseline - ratio * 170;
                         return (
                             <g key={`label-${gridIdx}`}>
-                                <text x="140" y={yGrid + 4} textAnchor="end" fill="var(--text-muted)" fontSize="11px" fontWeight="600"
+                                <text x="88" y={yGrid + 4} textAnchor="end" fill="var(--text-muted)" fontSize="11px" fontWeight="600"
                                     style={{ paintOrder: 'stroke', stroke: 'var(--bg-surface)', strokeWidth: 3, strokeLinejoin: 'round' }}>
                                     {formatAbs(ratio * scaleMaxAbs, hasDailyActive)}
                                 </text>
@@ -3515,27 +3515,27 @@ const renderDetailedChart = (
             const scaleMaxVal = maxVal * 1.20;
 
             return (
-                <svg viewBox="0 0 1200 260" width="100%" height="auto" style={{ overflow: 'visible', maxHeight: '250px' }}>
+                <svg viewBox="-70 0 1270 260" width="100%" height="auto" style={{ overflow: 'visible', maxHeight: '250px' }}>
                     {hasNegative ? (
                         <>
-                            <line x1="150" y1="130" x2="1140" y2="130" stroke="var(--border-strong)" strokeWidth="1.5" />
-                            <line x1="150" y1="70" x2="1140" y2="70" stroke="var(--border-subtle)" strokeDasharray="3 3" />
-                            <line x1="150" y1="190" x2="1140" y2="190" stroke="var(--border-subtle)" strokeDasharray="3 3" />
+                            <line x1="80" y1="130" x2="1140" y2="130" stroke="var(--border-strong)" strokeWidth="1.5" />
+                            <line x1="80" y1="70" x2="1140" y2="70" stroke="var(--border-subtle)" strokeDasharray="3 3" />
+                            <line x1="80" y1="190" x2="1140" y2="190" stroke="var(--border-subtle)" strokeDasharray="3 3" />
                         </>
                     ) : (
                         <>
-                            <line x1="150" y1="210" x2="1140" y2="210" stroke="var(--border-default)" strokeWidth="1" />
-                            <line x1="150" y1="130" x2="1140" y2="130" stroke="var(--border-subtle)" strokeDasharray="3 3" />
-                            <line x1="150" y1="50" x2="1140" y2="50" stroke="var(--border-subtle)" strokeDasharray="3 3" />
+                            <line x1="80" y1="210" x2="1140" y2="210" stroke="var(--border-default)" strokeWidth="1" />
+                            <line x1="80" y1="130" x2="1140" y2="130" stroke="var(--border-subtle)" strokeDasharray="3 3" />
+                            <line x1="80" y1="50" x2="1140" y2="50" stroke="var(--border-subtle)" strokeDasharray="3 3" />
                         </>
                     )}
 
-                    <text x="145" y={hasNegative ? 74 : 54} textAnchor="end" fill="var(--text-muted)" fontSize="12px" fontWeight="700"
+                    <text x="75" y={hasNegative ? 74 : 54} textAnchor="end" fill="var(--text-muted)" fontSize="12px" fontWeight="700"
                         style={{ paintOrder: 'stroke', stroke: 'var(--bg-surface)', strokeWidth: 3, strokeLinejoin: 'round' }}>{formatVal(scaleMaxVal)}</text>
-                    <text x="145" y={yBaseline + 4} textAnchor="end" fill="var(--text-muted)" fontSize="12px" fontWeight="700"
+                    <text x="75" y={yBaseline + 4} textAnchor="end" fill="var(--text-muted)" fontSize="12px" fontWeight="700"
                         style={{ paintOrder: 'stroke', stroke: 'var(--bg-surface)', strokeWidth: 3, strokeLinejoin: 'round' }}>{formatVal(0)}</text>
                     {hasNegative && (
-                        <text x="145" y="194" textAnchor="end" fill="var(--text-muted)" fontSize="12px" fontWeight="700"
+                        <text x="75" y="194" textAnchor="end" fill="var(--text-muted)" fontSize="12px" fontWeight="700"
                             style={{ paintOrder: 'stroke', stroke: 'var(--bg-surface)', strokeWidth: 3, strokeLinejoin: 'round' }}>{formatVal(-scaleMaxVal)}</text>
                     )}
 
@@ -3546,10 +3546,10 @@ const renderDetailedChart = (
                         const bHeight = hideBudget ? 0 : (Math.abs(valB) / scaleMaxVal) * maxBarHeight;
                         const rHeight = (!hideRealized && idx + 1 <= currentMonthIdx + 1) ? (Math.abs(valR) / scaleMaxVal) * maxBarHeight : 0;
                         
-                        const xBase = 150 + idx * 88;
-                        const barWidth = hideBudget ? 48 : 34;
+                        const xBase = 80 + idx * 94;
+                        const barWidth = hideBudget ? 48 : 36;
                         const xB = xBase + 6;
-                        const xR = hideBudget ? xBase + 20 : xBase + 44;
+                        const xR = hideBudget ? xBase + 20 : xBase + 46;
 
                         const isClose = !hideBudget && (!hideRealized && idx + 1 <= currentMonthIdx + 1) && Math.abs(bHeight - rHeight) < 14 && (valB >= 0 === valR >= 0);
 
@@ -3559,7 +3559,7 @@ const renderDetailedChart = (
                             rLabelY = valR >= 0 ? yBaseline - rHeight - 24 : yBaseline + rHeight + 33;
                         }
 
-                        const xMonthText = xBase + 40;
+                        const xMonthText = xBase + 44;
 
                         return (
                             <g key={idx}>
@@ -3756,7 +3756,7 @@ const renderDetailedChart = (
                 const valB = pctOfRevenue ? m.pctOfRevenue : m.budget;
                 const valR = (idx + 1 <= currentMonthIdx + 1) ? (pctOfRevenue ? m.pctOfRevenue : m.realized) : 0;
 
-                const x = 150 + idx * 88;
+                const x = 80 + idx * 94;
                 const yB = yBaseline - (valB / scaleMaxVal) * maxLineHeight;
                 const yR = yBaseline - (valR / scaleMaxVal) * maxLineHeight;
 
@@ -3772,27 +3772,27 @@ const renderDetailedChart = (
             });
 
             return (
-                <svg viewBox="0 0 1200 260" width="100%" height="auto" style={{ overflow: 'visible', maxHeight: '250px' }}>
+                <svg viewBox="-70 0 1270 260" width="100%" height="auto" style={{ overflow: 'visible', maxHeight: '250px' }}>
                     {hasNegative ? (
                         <>
-                            <line x1="150" y1="130" x2="1140" y2="130" stroke="var(--border-strong)" strokeWidth="1.5" />
-                            <line x1="150" y1="70" x2="1140" y2="70" stroke="var(--border-subtle)" strokeDasharray="3 3" />
-                            <line x1="150" y1="190" x2="1140" y2="190" stroke="var(--border-subtle)" strokeDasharray="3 3" />
+                            <line x1="80" y1="130" x2="1140" y2="130" stroke="var(--border-strong)" strokeWidth="1.5" />
+                            <line x1="80" y1="70" x2="1140" y2="70" stroke="var(--border-subtle)" strokeDasharray="3 3" />
+                            <line x1="80" y1="190" x2="1140" y2="190" stroke="var(--border-subtle)" strokeDasharray="3 3" />
                         </>
                     ) : (
                         <>
-                            <line x1="150" y1="210" x2="1140" y2="210" stroke="var(--border-default)" strokeWidth="1" />
-                            <line x1="150" y1="130" x2="1140" y2="130" stroke="var(--border-subtle)" strokeDasharray="3 3" />
-                            <line x1="150" y1="50" x2="1140" y2="50" stroke="var(--border-subtle)" strokeDasharray="3 3" />
+                            <line x1="80" y1="210" x2="1140" y2="210" stroke="var(--border-default)" strokeWidth="1" />
+                            <line x1="80" y1="130" x2="1140" y2="130" stroke="var(--border-subtle)" strokeDasharray="3 3" />
+                            <line x1="80" y1="50" x2="1140" y2="50" stroke="var(--border-subtle)" strokeDasharray="3 3" />
                         </>
                     )}
 
-                    <text x="145" y={hasNegative ? 74 : 54} textAnchor="end" fill="var(--text-muted)" fontSize="12px" fontWeight="700"
+                    <text x="75" y={hasNegative ? 74 : 54} textAnchor="end" fill="var(--text-muted)" fontSize="12px" fontWeight="700"
                         style={{ paintOrder: 'stroke', stroke: 'var(--bg-surface)', strokeWidth: 3, strokeLinejoin: 'round' }}>{formatVal(scaleMaxVal)}</text>
-                    <text x="145" y={yBaseline + 4} textAnchor="end" fill="var(--text-muted)" fontSize="12px" fontWeight="700"
+                    <text x="75" y={yBaseline + 4} textAnchor="end" fill="var(--text-muted)" fontSize="12px" fontWeight="700"
                         style={{ paintOrder: 'stroke', stroke: 'var(--bg-surface)', strokeWidth: 3, strokeLinejoin: 'round' }}>{formatVal(0)}</text>
                     {hasNegative && (
-                        <text x="145" y="194" textAnchor="end" fill="var(--text-muted)" fontSize="12px" fontWeight="700"
+                        <text x="75" y="194" textAnchor="end" fill="var(--text-muted)" fontSize="12px" fontWeight="700"
                             style={{ paintOrder: 'stroke', stroke: 'var(--bg-surface)', strokeWidth: 3, strokeLinejoin: 'round' }}>{formatVal(-scaleMaxVal)}</text>
                     )}
 
@@ -3822,15 +3822,15 @@ const renderDetailedChart = (
                     )}
 
                     {data.map((m, idx) => (
-                        <text key={idx} x={150 + idx * 88} y="242" textAnchor="middle" fill="var(--text-muted)" fontSize="13px" fontWeight="700">
+                        <text key={idx} x={80 + idx * 94} y="242" textAnchor="middle" fill="var(--text-muted)" fontSize="13px" fontWeight="700">
                             {['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'][idx]}
                         </text>
                     ))}
 
                     {/* Hover tooltip zones */}
                     {onHover && data.map((m, idx) => {
-                        const xBase = 150 + idx * 88;
-                        const stepWidth = 88;
+                        const xBase = 80 + idx * 94;
+                        const stepWidth = 94;
                         return (
                             <rect
                                 key={`hover-${idx}`}

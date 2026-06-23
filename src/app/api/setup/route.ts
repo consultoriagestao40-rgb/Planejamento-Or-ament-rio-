@@ -5,7 +5,7 @@ export const dynamic = 'force-dynamic';
 
 export async function GET() {
     try {
-        const [categories, costCenters, tenants] = await Promise.all([
+        const [rawCategories, costCenters, tenants] = await Promise.all([
             prisma.category.findMany({ orderBy: { name: 'asc' } }),
             prisma.costCenter.findMany({ 
                 include: { tenant: { select: { name: true, taxRate: true } } },
@@ -13,6 +13,8 @@ export async function GET() {
             }),
             prisma.tenant.findMany({ select: { id: true, name: true, cnpj: true, taxRate: true } })
         ]);
+
+        const categories = rawCategories.filter((c: any) => !c.id.includes(','));
 
         console.log(`[RECOVERY] Loaded ${categories.length} categories and ${costCenters.length} cost centers`);
 

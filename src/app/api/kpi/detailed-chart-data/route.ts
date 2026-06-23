@@ -125,9 +125,10 @@ export async function GET(request: Request) {
         const budgetRawDeduped = budgetRaw;
 
         // Get categories
-        const categories = await prisma.category.findMany({
+        const rawCategories = await prisma.category.findMany({
             where: { tenantId: { in: targetTenantIds } }
         });
+        const categories = rawCategories.filter(c => !c.id.includes(','));
 
         const categoryNameMap = new Map<string, string>();
         categories.forEach(c => {

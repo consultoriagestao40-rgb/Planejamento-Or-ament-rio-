@@ -723,20 +723,24 @@ export async function GET(request: Request) {
             series = baseSeries.map((baseMonth, m) => {
                 const compareMonth = compareSeries[m];
                 
-                const rRatio = compareMonth.realized !== 0 ? (baseMonth.realized / compareMonth.realized) * 100 : 0;
-                const bRatio = compareMonth.budget !== 0 ? (baseMonth.budget / compareMonth.budget) * 100 : 0;
+                const rRatio = baseMonth.realized !== 0 ? (compareMonth.realized / baseMonth.realized) * 100 : 0;
+                const bRatio = baseMonth.budget !== 0 ? (compareMonth.budget / baseMonth.budget) * 100 : 0;
 
                 return {
                     month: m + 1,
-                    budget: bRatio,
-                    realized: rRatio,
-                    atingido: 0,
+                    budget: baseMonth.budget,
+                    realized: baseMonth.realized,
+                    compareBudget: compareMonth.budget,
+                    compareRealized: compareMonth.realized,
+                    ratioBudget: bRatio,
+                    ratioRealized: rRatio,
+                    atingido: rRatio,
                     pctOfRevenue: 0,
                     breakdown: {
                         ratio: {
                             budget: bRatio,
                             realized: rRatio,
-                            atingido: 0,
+                            atingido: rRatio,
                             pctOfRevenue: 0
                         }
                     }

@@ -1907,11 +1907,11 @@ export default function PortfolioAnalysisPage() {
                                                 {/* Atingido */}
                                                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '1rem', padding: '0.35rem 0', borderBottom: '1px solid var(--border-subtle)' }}>
                                                     <span style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-primary)' }}>
-                                                        Atingido (% do Orçado)
+                                                        {chartComparisonCategory ? 'Razão de Comparação (% comp/base)' : 'Atingido (% do Orçado)'}
                                                     </span>
                                                     <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.3rem', justifyContent: 'flex-end', maxWidth: '70%' }}>
                                                         {[
-                                                            { key: 'line_atingido', label: '📈 Linha (% At.)' },
+                                                            { key: 'line_atingido', label: chartComparisonCategory ? '📈 Linha (% Razão)' : '📈 Linha (% At.)' },
                                                             { key: 'none', label: '❌ Oculto' }
                                                         ].map(opt => (
                                                             <button
@@ -2154,7 +2154,21 @@ export default function PortfolioAnalysisPage() {
                                             </div>
                                         ) : (
                                             <div style={{ width: '100%' }}>
-                                                {renderDetailedChart(chartType, chartPreviewData, chartOnlyRealized, chartShowAtingido, chartPctOfRevenue, activeMonthNumber, chartColor, seriesConfig, selectedYear, setPreviewTooltip)}
+                                                {renderDetailedChart(
+                                                    chartType, 
+                                                    chartPreviewData, 
+                                                    chartOnlyRealized, 
+                                                    chartShowAtingido, 
+                                                    chartPctOfRevenue, 
+                                                    activeMonthNumber, 
+                                                    chartColor, 
+                                                    seriesConfig, 
+                                                    selectedYear, 
+                                                    setPreviewTooltip,
+                                                    {},
+                                                    chartCategory ? getChartCategoryLabel(chartCategory) : undefined,
+                                                    chartComparisonCategory ? getChartCategoryLabel(chartComparisonCategory) : undefined
+                                                )}
                                             </div>
                                         )}
                                     </div>
@@ -2857,37 +2871,57 @@ const DetailedChartCard = ({ chart, onEdit, onDelete, onOpenAnalysis, mainMonth,
     const processedData = useMemo(() => {
         if (chartViewMode === 'monthly') return data;
 
+        const isRatio = chart.categoryId && chart.categoryId.includes('|');
+
         let accBudget = 0;
         let accRealized = 0;
+        let accCompareBudget = 0;
+        let accCompareRealized = 0;
         let accRevenue = 0;
 
         return data.map((m) => {
             accBudget += m.budget;
             accRealized += m.realized;
             
+            if (isRatio) {
+                accCompareBudget += m.compareBudget || 0;
+                accCompareRealized += m.compareRealized || 0;
+            }
+
             const mRevenue = m.pctOfRevenue > 0 ? (m.realized / (m.pctOfRevenue / 100)) : 0;
             accRevenue += mRevenue;
 
             let accAtingido = 0;
-            if (accBudget > 0) {
-                accAtingido = (accRealized / accBudget) * 100;
-            } else if (accBudget < 0) {
-                accAtingido = (1 + (accBudget - accRealized) / accBudget) * 100;
+            if (isRatio) {
+                accAtingido = accRealized !== 0 ? (accCompareRealized / accRealized) * 100 : 0;
             } else {
-                accAtingido = accRealized >= 0 ? 100 : 0;
+                if (accBudget > 0) {
+                    accAtingido = (accRealized / accBudget) * 100;
+                } else if (accBudget < 0) {
+                    accAtingido = (1 + (accBudget - accRealized) / accBudget) * 100;
+                } else {
+                    accAtingido = accRealized >= 0 ? 100 : 0;
+                }
             }
 
             const accPctOfRevenue = accRevenue > 0 ? (accRealized / accRevenue) * 100 : 0;
 
-            return {
+            const res: any = {
                 ...m,
                 budget: accBudget,
                 realized: accRealized,
                 atingido: accAtingido,
                 pctOfRevenue: accPctOfRevenue
             };
+
+            if (isRatio) {
+                res.compareBudget = accCompareBudget;
+                res.compareRealized = accCompareRealized;
+            }
+
+            return res;
         });
-    }, [data, chartViewMode]);
+    }, [data, chartViewMode, chart.categoryId]);
 
     const getChartCategoryLabel = (categoriesStr: string): string => {
         if (!categoriesStr) return 'Sem contas';
@@ -2970,14 +3004,35 @@ const DetailedChartCard = ({ chart, onEdit, onDelete, onOpenAnalysis, mainMonth,
         } catch (e) {}
     }
 
-    if (isMixed) {
-        if (bMode !== 'none' && !chart.onlyRealized) legendItems.push({ key: 'budget', label: 'Orçado', color: '#cbd5e1' });
-        if (rMode !== 'none') legendItems.push({ key: 'realized', label: 'Realizado', color: chart.chartColor || '#6366f1' });
-        if (atMode !== 'none') legendItems.push({ key: 'atingido', label: 'Atingido', color: '#10b981' });
-        if (pctMode !== 'none') legendItems.push({ key: 'pctOfRevenue', label: '% s/ Receita', color: '#f59e0b' });
+    const isRatioChart = chart.categoryId && chart.categoryId.includes('|');
+
+    if (isRatioChart) {
+        const [baseId, compareId] = chart.categoryId.split('|');
+        const baseLabel = getChartCategoryLabel(baseId);
+        const compareLabel = getChartCategoryLabel(compareId);
+
+        if (isMixed) {
+            if (bMode !== 'none' && !chart.onlyRealized) legendItems.push({ key: 'budget', label: `${baseLabel} (Orçado)`, color: '#cbd5e1' });
+            if (rMode !== 'none') legendItems.push({ key: 'realized', label: `${baseLabel} (Realizado)`, color: chart.chartColor || '#6366f1' });
+            if (bMode !== 'none' && !chart.onlyRealized) legendItems.push({ key: 'compareBudget', label: `${compareLabel} (Orçado)`, color: '#fed7aa' });
+            if (rMode !== 'none') legendItems.push({ key: 'compareRealized', label: `${compareLabel} (Realizado)`, color: '#f97316' });
+            if (atMode !== 'none') legendItems.push({ key: 'atingido', label: `% ${compareLabel} / ${baseLabel}`, color: '#10b981' });
+        } else {
+            if (!chart.onlyRealized) legendItems.push({ key: 'budget', label: `${baseLabel} (Orçado)`, color: '#cbd5e1' });
+            legendItems.push({ key: 'realized', label: `${baseLabel} (Realizado)`, color: chart.chartColor || '#6366f1' });
+            if (!chart.onlyRealized) legendItems.push({ key: 'compareBudget', label: `${compareLabel} (Orçado)`, color: '#fed7aa' });
+            legendItems.push({ key: 'compareRealized', label: `${compareLabel} (Realizado)`, color: '#f97316' });
+        }
     } else {
-        if (!chart.onlyRealized) legendItems.push({ key: 'budget', label: 'Orçado', color: 'var(--border-strong)' });
-        legendItems.push({ key: 'realized', label: 'Realizado', color: chart.chartColor || '#6366f1' });
+        if (isMixed) {
+            if (bMode !== 'none' && !chart.onlyRealized) legendItems.push({ key: 'budget', label: 'Orçado', color: '#cbd5e1' });
+            if (rMode !== 'none') legendItems.push({ key: 'realized', label: 'Realizado', color: chart.chartColor || '#6366f1' });
+            if (atMode !== 'none') legendItems.push({ key: 'atingido', label: 'Atingido', color: '#10b981' });
+            if (pctMode !== 'none') legendItems.push({ key: 'pctOfRevenue', label: '% s/ Receita', color: '#f59e0b' });
+        } else {
+            if (!chart.onlyRealized) legendItems.push({ key: 'budget', label: 'Orçado', color: 'var(--border-strong)' });
+            legendItems.push({ key: 'realized', label: 'Realizado', color: chart.chartColor || '#6366f1' });
+        }
     }
 
     return (
@@ -3103,7 +3158,9 @@ const DetailedChartCard = ({ chart, onEdit, onDelete, onOpenAnalysis, mainMonth,
                         undefined, 
                         chart.year, 
                         setTooltip, 
-                        hiddenSeries
+                        hiddenSeries,
+                        chart.categoryId && chart.categoryId.includes('|') ? getChartCategoryLabel(chart.categoryId.split('|')[0]) : undefined,
+                        chart.categoryId && chart.categoryId.includes('|') ? getChartCategoryLabel(chart.categoryId.split('|')[1]) : undefined
                     )
                 )}
             </div>
@@ -3200,7 +3257,9 @@ const renderDetailedChart = (
     mixedConfig?: Record<string, 'bar' | 'line_val' | 'diarias_bar' | 'diarias_line' | 'line_atingido' | 'line_revenue'>,
     year: number = 2026,
     onHover?: (tooltipData: { x: number; y: number; title: string; items: { label: string; value: string; color?: string }[] } | null) => void,
-    hiddenSeries: Record<string, boolean> = {}
+    hiddenSeries: Record<string, boolean> = {},
+    baseLabel?: string,
+    compareLabel?: string
 ) => {
     if (!data || data.length === 0) {
         return (
@@ -3210,7 +3269,7 @@ const renderDetailedChart = (
         );
     }
 
-    const isRatioChart = data && data.length > 0 && data[0]?.breakdown?.hasOwnProperty('ratio');
+    const isRatioChart = data && data.length > 0 && data[0]?.hasOwnProperty('compareRealized');
 
     let chartMode = type;
     let config = mixedConfig;
@@ -3225,7 +3284,7 @@ const renderDetailedChart = (
     }
 
     const formatVal = (val: number) => {
-        if (pctOfRevenue || isRatioChart) return `${val.toFixed(1)}%`;
+        if (pctOfRevenue) return `${val.toFixed(1)}%`;
         if (val === 0) return 'R$ 0';
         const absVal = Math.abs(val);
         let formatted = '';
@@ -3245,7 +3304,9 @@ const renderDetailedChart = (
 
     const maxVal = Math.max(...data.map((m, idx) => Math.max(
         hideBudget ? 0 : Math.abs(pctOfRevenue ? m.pctOfRevenue : m.budget),
-        (!hideRealized && idx + 1 <= currentMonthIdx + 1) ? Math.abs(pctOfRevenue ? m.pctOfRevenue : m.realized) : 0
+        (!hideRealized && idx + 1 <= currentMonthIdx + 1) ? Math.abs(pctOfRevenue ? m.pctOfRevenue : m.realized) : 0,
+        isRatioChart && !hideBudget ? Math.abs(m.compareBudget || 0) : 0,
+        isRatioChart && !hideRealized && (idx + 1 <= currentMonthIdx + 1) ? Math.abs(m.compareRealized || 0) : 0
     ))) || 1;
 
     switch (chartMode) {
@@ -3269,7 +3330,6 @@ const renderDetailedChart = (
             };
 
             const formatAbs = (val: number, isDaily: boolean = false) => {
-                if (isRatioChart) return `${val.toFixed(1)}%`;
                 if (val === 0) return 'R$ 0';
                 const absVal = Math.abs(val);
                 let formatted = '';
@@ -3295,10 +3355,18 @@ const renderDetailedChart = (
                 if (bMode !== 'none') {
                     const bVal = getAbsValue(m.budget, bMode, idx);
                     maxAbs = Math.max(maxAbs, Math.abs(bVal));
+                    if (isRatioChart) {
+                        const cbVal = getAbsValue(m.compareBudget || 0, bMode, idx);
+                        maxAbs = Math.max(maxAbs, Math.abs(cbVal));
+                    }
                 }
                 if (rMode !== 'none' && idx + 1 <= currentMonthIdx + 1) {
                     const rVal = getAbsValue(m.realized, rMode, idx);
                     maxAbs = Math.max(maxAbs, Math.abs(rVal));
+                    if (isRatioChart) {
+                        const crVal = getAbsValue(m.compareRealized || 0, rMode, idx);
+                        maxAbs = Math.max(maxAbs, Math.abs(crVal));
+                    }
                 }
             });
             const scaleMaxAbs = maxAbs * 1.20;
@@ -3330,10 +3398,59 @@ const renderDetailedChart = (
             const stepX = 94;
             const getX = (idx: number) => startX + idx * stepX;
 
+            const renderLineSeries = (key: string, strokeColor: string, isDash: boolean = false) => {
+                const points: { x: number; y: number; val: number }[] = [];
+                const isBudget = key === 'budget' || key === 'compareBudget';
+                const mode = isBudget ? bMode : rMode;
+                
+                data.forEach((m, monthIdx) => {
+                    const val = m[key] || 0;
+                    if (isBudget || (monthIdx + 1 <= currentMonthIdx + 1)) {
+                        const valScaled = getAbsValue(val, mode, monthIdx);
+                        points.push({
+                            x: getX(monthIdx),
+                            y: getYAbs(valScaled),
+                            val: valScaled
+                        });
+                    }
+                });
+
+                if (points.length === 0) return null;
+
+                let pathD = `M ${points[0].x} ${points[0].y}`;
+                for (let i = 1; i < points.length; i++) {
+                    pathD += ` L ${points[i].x} ${points[i].y}`;
+                }
+
+                return (
+                    <g key={`${key}-line`}>
+                        <path 
+                            d={pathD} 
+                            fill="none" 
+                            stroke={strokeColor} 
+                            strokeWidth="2.5" 
+                            strokeLinecap="round" 
+                            strokeLinejoin="round" 
+                            strokeDasharray={isDash ? '4 4' : undefined}
+                        />
+                        {points.map((p, idx) => (
+                            <g key={idx}>
+                                <circle cx={p.x} cy={p.y} r="4.5" fill="#ffffff" stroke={strokeColor} strokeWidth="2.5" />
+                            </g>
+                        ))}
+                    </g>
+                );
+            };
+
             // RENDER BARS (bar, diarias_bar)
-            const activeBarKeys: ('budget' | 'realized')[] = [];
-            if (!hideBudget && (bMode === 'bar' || bMode === 'diarias_bar')) activeBarKeys.push('budget');
-            if (!hideRealized && (rMode === 'bar' || rMode === 'diarias_bar')) activeBarKeys.push('realized');
+            const activeBarKeys: string[] = [];
+            if (isRatioChart) {
+                if (!hideBudget && (bMode === 'bar' || bMode === 'diarias_bar')) activeBarKeys.push('budget', 'compareBudget');
+                if (!hideRealized && (rMode === 'bar' || rMode === 'diarias_bar')) activeBarKeys.push('realized', 'compareRealized');
+            } else {
+                if (!hideBudget && (bMode === 'bar' || bMode === 'diarias_bar')) activeBarKeys.push('budget');
+                if (!hideRealized && (rMode === 'bar' || rMode === 'diarias_bar')) activeBarKeys.push('realized');
+            }
 
             const renderedBars = data.map((m, monthIdx) => {
                 const xCenter = getX(monthIdx);
@@ -3345,8 +3462,9 @@ const renderDetailedChart = (
                 const startBarX = xCenter - (groupWidth / 2);
 
                 return activeBarKeys.map((key, keyIdx) => {
-                    const mode = key === 'budget' ? bMode : rMode;
-                    const val = key === 'budget' ? m.budget : m.realized;
+                    const isBudget = key === 'budget' || key === 'compareBudget';
+                    const mode = isBudget ? bMode : rMode;
+                    const val = m[key] || 0;
                     const valScaled = getAbsValue(val, mode, monthIdx);
 
                     const barX = startBarX + keyIdx * (barWidth + 4);
@@ -3354,174 +3472,55 @@ const renderDetailedChart = (
                     const hVal = Math.max(2, Math.abs(getYAbs(valScaled) - yBaseline));
                     const yVal = isPositive ? yBaseline - hVal : yBaseline;
 
-                    if (key === 'budget') {
-                        return (
-                            <g key={`${monthIdx}-budget`}>
-                                {valScaled !== 0 && (
-                                    <>
-                                        <rect 
-                                            x={barX} 
-                                            y={yVal} 
-                                            width={barWidth} 
-                                            height={hVal} 
-                                            fill="#cbd5e1" 
-                                            rx="3"
-                                        />
-                                        <text 
-                                            x={barX + barWidth / 2} 
-                                            y={isPositive ? yVal - 7 : yVal + hVal + 14} 
-                                            textAnchor="middle" 
-                                            fill="var(--text-secondary)" 
-                                            fontSize="11.5px" 
-                                            fontWeight="700"
-                                        >
-                                            {formatAbs(valScaled, isDailyMode(bMode))}
-                                        </text>
-                                    </>
-                                )}
-                            </g>
-                        );
-                    } else {
-                        // realized
-                        return (
-                            <g key={`${monthIdx}-realized`}>
-                                {monthIdx + 1 <= currentMonthIdx + 1 && valScaled !== 0 && (
-                                    <>
-                                        <rect 
-                                            x={barX} 
-                                            y={yVal} 
-                                            width={barWidth} 
-                                            height={hVal} 
-                                            fill={valScaled >= 0 ? chartColor : 'var(--accent-red)'} 
-                                            rx="3"
-                                        />
-                                        <text 
-                                            x={barX + barWidth / 2} 
-                                            y={isPositive ? yVal - 7 : yVal + hVal + 14} 
-                                            textAnchor="middle" 
-                                            fill="var(--text-secondary)" 
-                                            fontSize="11.5px" 
-                                            fontWeight="700"
-                                        >
-                                            {formatAbs(valScaled, isDailyMode(rMode))}
-                                        </text>
-                                    </>
-                                )}
-                            </g>
-                        );
-                    }
+                    let fill = '#cbd5e1';
+                    if (key === 'budget') fill = '#cbd5e1';
+                    else if (key === 'realized') fill = valScaled >= 0 ? chartColor : 'var(--accent-red)';
+                    else if (key === 'compareBudget') fill = '#fed7aa';
+                    else if (key === 'compareRealized') fill = valScaled >= 0 ? '#f97316' : 'var(--accent-red)';
+
+                    const shouldShow = isBudget || (monthIdx + 1 <= currentMonthIdx + 1);
+
+                    return (
+                        <g key={`${monthIdx}-${key}`}>
+                            {shouldShow && valScaled !== 0 && (
+                                <rect 
+                                    x={barX} 
+                                    y={yVal} 
+                                    width={barWidth} 
+                                    height={hVal} 
+                                    fill={fill} 
+                                    rx="3"
+                                />
+                            )}
+                        </g>
+                    );
                 });
             });
 
             // RENDER LEFT AXIS LINES (line_val, diarias_line)
             const leftLines: JSX.Element[] = [];
 
-            if (!hideBudget && (bMode === 'line_val' || bMode === 'diarias_line')) {
-                const points: { x: number; y: number; val: number }[] = [];
-                data.forEach((m, monthIdx) => {
-                    const valScaled = getAbsValue(m.budget, bMode, monthIdx);
-                    points.push({
-                        x: getX(monthIdx),
-                        y: getYAbs(valScaled),
-                        val: valScaled
-                    });
-                });
-                
-                let pathD = `M ${points[0].x} ${points[0].y}`;
-                for (let i = 1; i < points.length; i++) {
-                    pathD += ` L ${points[i].x} ${points[i].y}`;
+            if (isRatioChart) {
+                if (!hideBudget && (bMode === 'line_val' || bMode === 'diarias_line')) {
+                    const l = renderLineSeries('budget', '#94a3b8', true);
+                    if (l) leftLines.push(l);
+                    const lc = renderLineSeries('compareBudget', '#fed7aa', true);
+                    if (lc) leftLines.push(lc);
                 }
-
-                leftLines.push(
-                    <g key="budget-line">
-                        <path 
-                            d={pathD} 
-                            fill="none" 
-                            stroke="var(--text-muted)" 
-                            strokeWidth="2" 
-                            strokeDasharray="3 3"
-                            strokeLinecap="round" 
-                            strokeLinejoin="round" 
-                        />
-                        {points.map((p, idx) => (
-                            <g key={idx}>
-                                <circle 
-                                    cx={p.x} 
-                                    cy={p.y} 
-                                    r="3.5" 
-                                    fill="var(--text-muted)" 
-                                    stroke="var(--bg-surface)" 
-                                    strokeWidth="1" 
-                                />
-                                <text 
-                                    x={p.x} 
-                                    y={p.y - 11} 
-                                    textAnchor="middle" 
-                                    fill="var(--text-muted)" 
-                                    fontSize="12px" 
-                                    fontWeight="700"
-                                >
-                                    {formatAbs(p.val, isDailyMode(bMode))}
-                                </text>
-                            </g>
-                        ))}
-                    </g>
-                );
-            }
-
-            if (!hideRealized && (rMode === 'line_val' || rMode === 'diarias_line')) {
-                const points: { x: number; y: number; val: number }[] = [];
-                data.forEach((m, monthIdx) => {
-                    if (monthIdx + 1 <= currentMonthIdx + 1) {
-                        const valScaled = getAbsValue(m.realized, rMode, monthIdx);
-                        points.push({
-                            x: getX(monthIdx),
-                            y: getYAbs(valScaled),
-                            val: valScaled
-                        });
-                    }
-                });
-
-                if (points.length > 0) {
-                    let pathD = `M ${points[0].x} ${points[0].y}`;
-                    for (let i = 1; i < points.length; i++) {
-                        pathD += ` L ${points[i].x} ${points[i].y}`;
-                    }
-
-                    leftLines.push(
-                        <g key="realized-line">
-                            <path 
-                                d={pathD} 
-                                fill="none" 
-                                stroke={chartColor} 
-                                strokeWidth="2.5" 
-                                strokeLinecap="round" 
-                                strokeLinejoin="round" 
-                            />
-                            {points.map((p, idx) => (
-                                <g key={idx}>
-                                    <circle 
-                                        cx={p.x} 
-                                        cy={p.y} 
-                                        r="4.5" 
-                                        fill={chartColor} 
-                                        stroke="var(--bg-surface)" 
-                                        strokeWidth="1.5" 
-                                    />
-                                    <text 
-                                        x={p.x} 
-                                        y={p.y - 11} 
-                                        textAnchor="middle" 
-                                        fill={chartColor} 
-                                        fontSize="12px" 
-                                        fontWeight="800"
-                                    >
-                                        {formatAbs(p.val, isDailyMode(rMode))}
-                                    </text>
-                                </g>
-                            ))}
-                        </g>
-                    );
+                if (!hideRealized && (rMode === 'line_val' || rMode === 'diarias_line')) {
+                    const l = renderLineSeries('realized', chartColor);
+                    if (l) leftLines.push(l);
+                    const lc = renderLineSeries('compareRealized', '#f97316');
+                    if (lc) leftLines.push(lc);
+                }
+            } else {
+                if (!hideBudget && (bMode === 'line_val' || bMode === 'diarias_line')) {
+                    const l = renderLineSeries('budget', '#94a3b8', true);
+                    if (l) leftLines.push(l);
+                }
+                if (!hideRealized && (rMode === 'line_val' || rMode === 'diarias_line')) {
+                    const l = renderLineSeries('realized', chartColor);
+                    if (l) leftLines.push(l);
                 }
             }
 
@@ -3545,40 +3544,12 @@ const renderDetailedChart = (
                     for (let i = 1; i < points.length; i++) {
                         pathD += ` L ${points[i].x} ${points[i].y}`;
                     }
-
                     const lineColor = '#10b981';
-
                     rightLines.push(
                         <g key="atingido-line">
-                            <path 
-                                d={pathD} 
-                                fill="none" 
-                                stroke={lineColor} 
-                                strokeWidth="2.5" 
-                                strokeLinecap="round" 
-                                strokeLinejoin="round" 
-                            />
+                            <path d={pathD} fill="none" stroke={lineColor} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
                             {points.map((p, idx) => (
-                                <g key={idx}>
-                                    <circle 
-                                        cx={p.x} 
-                                        cy={p.y} 
-                                        r="4.5" 
-                                        fill={lineColor} 
-                                        stroke="var(--bg-surface)" 
-                                        strokeWidth="1.5" 
-                                    />
-                                    <text 
-                                        x={p.x} 
-                                        y={p.y - 11} 
-                                        textAnchor="middle" 
-                                        fill={lineColor} 
-                                        fontSize="12px" 
-                                        fontWeight="800"
-                                    >
-                                        {p.val.toFixed(1)}%
-                                    </text>
-                                </g>
+                                <circle key={idx} cx={p.x} cy={p.y} r="4.5" fill={lineColor} stroke="var(--bg-surface)" strokeWidth="1.5" />
                             ))}
                         </g>
                     );
@@ -3606,36 +3577,10 @@ const renderDetailedChart = (
                     const lineColor = '#f59e0b';
 
                     rightLines.push(
-                        <g key="revenue-line">
-                            <path 
-                                d={pathD} 
-                                fill="none" 
-                                stroke={lineColor} 
-                                strokeWidth="2.5" 
-                                strokeLinecap="round" 
-                                strokeLinejoin="round" 
-                            />
+                        <g key="pct-revenue-line">
+                            <path d={pathD} fill="none" stroke={lineColor} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
                             {points.map((p, idx) => (
-                                <g key={idx}>
-                                    <circle 
-                                        cx={p.x} 
-                                        cy={p.y} 
-                                        r="4.5" 
-                                        fill={lineColor} 
-                                        stroke="var(--bg-surface)" 
-                                        strokeWidth="1.5" 
-                                    />
-                                    <text 
-                                        x={p.x} 
-                                        y={p.y - 11} 
-                                        textAnchor="middle" 
-                                        fill={lineColor} 
-                                        fontSize="12px" 
-                                        fontWeight="800"
-                                    >
-                                        {p.val.toFixed(1)}%
-                                    </text>
-                                </g>
+                                <circle key={idx} cx={p.x} cy={p.y} r="4.5" fill={lineColor} stroke="var(--bg-surface)" strokeWidth="1.5" />
                             ))}
                         </g>
                     );
@@ -3644,7 +3589,6 @@ const renderDetailedChart = (
 
             return (
                 <svg viewBox="-70 0 1290 260" width="100%" height="auto" style={{ overflow: 'visible' }}>
-                    {/* Grid lines only — rendered first so bars draw over them */}
                     {[0, 0.25, 0.5, 0.75, 1.0].map((ratio, gridIdx) => {
                         const yGrid = yBaseline - ratio * 170;
                         return (
@@ -3656,7 +3600,6 @@ const renderDetailedChart = (
                         );
                     })}
 
-                    {/* Axis lines */}
                     <line x1="40" y1="0" x2="40" y2={yBaseline} stroke="var(--border-default)" strokeWidth="1" />
                     <line x1="1160" y1="0" x2="1160" y2={yBaseline} stroke="var(--border-default)" strokeWidth="1" />
                     <line x1="40" y1={yBaseline} x2="1160" y2={yBaseline} stroke="var(--border-default)" strokeWidth="1" />
@@ -3665,7 +3608,6 @@ const renderDetailedChart = (
                     {leftLines}
                     {rightLines}
 
-                    {/* Y-axis labels rendered LAST so they appear above bars */}
                     {[0.25, 0.5, 0.75, 1.0].map((ratio, gridIdx) => {
                         const yGrid = yBaseline - ratio * 170;
                         return (
@@ -3683,71 +3625,78 @@ const renderDetailedChart = (
                     })}
 
                     {data.map((m, idx) => (
-                        <text 
-                            key={idx} 
-                            x={getX(idx)} 
-                            y={yBaseline + 20} 
-                            textAnchor="middle" 
-                            fill="var(--text-secondary)" 
-                            fontSize="13px" 
-                            fontWeight="800"
-                        >
+                        <text key={idx} x={getX(idx)} y={yBaseline + 20} textAnchor="middle" fill="var(--text-secondary)" fontSize="13px" fontWeight="800">
                             {['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'][idx]}
                         </text>
                     ))}
 
-                    {/* Hover tooltip zones */}
-                    {onHover && data.map((m, idx) => {
-                        const xBase = getX(idx) - stepX / 2;
-                        return (
-                            <rect
-                                key={`hover-${idx}`}
-                                x={xBase}
-                                y={0}
-                                width={stepX}
-                                height={yBaseline + 30}
-                                fill="transparent"
-                                style={{ cursor: 'pointer' }}
-                                onMouseMove={(e) => {
-                                    const items = [];
+                    {onHover && data.map((m, idx) => (
+                        <rect
+                            key={`hover-${idx}`}
+                            x={getX(idx) - stepX / 2}
+                            y={0}
+                            width={stepX}
+                            height={yBaseline + 30}
+                            fill="transparent"
+                            style={{ cursor: 'pointer' }}
+                            onMouseMove={(e) => {
+                                const items = [];
+                                if (bMode !== 'none') {
+                                    const label = isRatioChart ? `${baseLabel || 'Base'} (Orçado)` : 'Orçado';
+                                    items.push({ 
+                                        label, 
+                                        value: formatAbs(getAbsValue(m.budget, bMode, idx), isDailyMode(bMode)), 
+                                        color: '#cbd5e1' 
+                                    });
+                                }
+                                if (rMode !== 'none' && idx + 1 <= currentMonthIdx + 1) {
+                                    const label = isRatioChart ? `${baseLabel || 'Base'} (Realizado)` : 'Realizado';
+                                    items.push({ 
+                                        label, 
+                                        value: formatAbs(getAbsValue(m.realized, rMode, idx), isDailyMode(rMode)), 
+                                        color: chartColor 
+                                    });
+                                }
+                                if (isRatioChart) {
                                     if (bMode !== 'none') {
                                         items.push({ 
-                                            label: 'Orçado', 
-                                            value: formatAbs(getAbsValue(m.budget, bMode, idx), isDailyMode(bMode)), 
-                                            color: '#cbd5e1' 
+                                            label: `${compareLabel || 'Comp'} (Orçado)`, 
+                                            value: formatAbs(getAbsValue(m.compareBudget, bMode, idx), isDailyMode(bMode)), 
+                                            color: '#fed7aa' 
                                         });
                                     }
                                     if (rMode !== 'none' && idx + 1 <= currentMonthIdx + 1) {
                                         items.push({ 
-                                            label: 'Realizado', 
-                                            value: formatAbs(getAbsValue(m.realized, rMode, idx), isDailyMode(rMode)), 
-                                            color: chartColor 
+                                            label: `${compareLabel || 'Comp'} (Realizado)`, 
+                                            value: formatAbs(getAbsValue(m.compareRealized, rMode, idx), isDailyMode(rMode)), 
+                                            color: '#f97316' 
                                         });
                                     }
-                                    if (atMode !== 'none' && idx + 1 <= currentMonthIdx + 1) {
-                                        items.push({ 
-                                            label: 'Atingido', 
-                                            value: `${m.atingido.toFixed(1)}%`, 
-                                            color: '#10b981' 
-                                        });
-                                    }
-                                    if (pctMode !== 'none' && idx + 1 <= currentMonthIdx + 1) {
-                                        items.push({ 
-                                            label: '% s/ Receita', 
-                                            value: `${m.pctOfRevenue.toFixed(1)}%`, 
-                                            color: '#f59e0b' 
-                                        });
-                                    }
-
-                                    onHover({
-                                        x: e.clientX,
-                                        y: e.clientY,
-                                        title: `${['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'][idx]} de ${year}`,
-                                        items
+                                }
+                                if (atMode !== 'none' && idx + 1 <= currentMonthIdx + 1) {
+                                    items.push({ 
+                                        label: isRatioChart ? 'Razão %' : 'Atingido', 
+                                        value: `${m.atingido.toFixed(1)}%`, 
+                                        color: '#10b981' 
                                     });
-                                }}
-                                onMouseLeave={() => onHover(null)}
-                            />
+                                }
+                                if (pctMode !== 'none' && idx + 1 <= currentMonthIdx + 1) {
+                                    items.push({ 
+                                        label: '% s/ Receita', 
+                                        value: `${m.pctOfRevenue.toFixed(1)}%`, 
+                                        color: '#f59e0b' 
+                                    });
+                                }
+
+                                onHover({
+                                    x: e.clientX,
+                                    y: e.clientY,
+                                    title: `${['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'][idx]} de ${year}`,
+                                    items
+                                });
+                            }}
+                            onMouseLeave={() => onHover(null)}
+                        />
                         );
                     })}
                 </svg>
@@ -3994,25 +3943,41 @@ const renderDetailedChart = (
 
             let pathB = '';
             let pathR = '';
+            let pathCB = '';
+            let pathCR = '';
             const pointsB: { x: number, y: number, val: number }[] = [];
             const pointsR: { x: number, y: number, val: number }[] = [];
+            const pointsCB: { x: number, y: number, val: number }[] = [];
+            const pointsCR: { x: number, y: number, val: number }[] = [];
 
             data.forEach((m, idx) => {
                 const valB = pctOfRevenue ? m.pctOfRevenue : m.budget;
                 const valR = (idx + 1 <= currentMonthIdx + 1) ? (pctOfRevenue ? m.pctOfRevenue : m.realized) : 0;
+                const valCB = isRatioChart ? m.compareBudget : 0;
+                const valCR = isRatioChart && (idx + 1 <= currentMonthIdx + 1) ? m.compareRealized : 0;
 
                 const x = 80 + idx * 94;
                 const yB = yBaseline - (valB / scaleMaxVal) * maxLineHeight;
                 const yR = yBaseline - (valR / scaleMaxVal) * maxLineHeight;
+                const yCB = yBaseline - (valCB / scaleMaxVal) * maxLineHeight;
+                const yCR = yBaseline - (valCR / scaleMaxVal) * maxLineHeight;
 
                 if (!hideBudget) {
                     pointsB.push({ x, y: yB, val: valB });
                     pathB += (pathB === '' ? 'M' : 'L') + ` ${x} ${yB}`;
+                    if (isRatioChart) {
+                        pointsCB.push({ x, y: yCB, val: valCB });
+                        pathCB += (pathCB === '' ? 'M' : 'L') + ` ${x} ${yCB}`;
+                    }
                 }
 
                 if (!hideRealized && idx + 1 <= currentMonthIdx + 1) {
                     pointsR.push({ x, y: yR, val: valR });
                     pathR += (pathR === '' ? 'M' : 'L') + ` ${x} ${yR}`;
+                    if (isRatioChart) {
+                        pointsCR.push({ x, y: yCR, val: valCR });
+                        pathCR += (pathCR === '' ? 'M' : 'L') + ` ${x} ${yCR}`;
+                    }
                 }
             });
 
@@ -4047,6 +4012,12 @@ const renderDetailedChart = (
                     {!hideRealized && pathR && (
                         <path d={pathR} fill="none" stroke={chartColor} strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
                     )}
+                    {isRatioChart && !hideBudget && pathCB && (
+                        <path d={pathCB} fill="none" stroke="#fed7aa" strokeWidth="2.5" strokeDasharray="4 4" strokeLinecap="round" strokeLinejoin="round" />
+                    )}
+                    {isRatioChart && !hideRealized && pathCR && (
+                        <path d={pathCR} fill="none" stroke="#f97316" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
+                    )}
 
                     {type === 'LINE_MARKERS' && (
                         <>
@@ -4061,6 +4032,20 @@ const renderDetailedChart = (
                                 <g key={`r-${idx}`}>
                                     <circle cx={p.x} cy={p.y} r="5" fill={chartColor} stroke="var(--bg-surface)" strokeWidth="2" />
                                     <text x={p.x} y={p.y - 13} textAnchor="middle" fill={chartColor} fontSize="12px" fontWeight="800">{formatVal(p.val)}</text>
+                                </g>
+                            ))}
+
+                            {isRatioChart && !hideBudget && pointsCB.map((p, idx) => (
+                                <g key={`cb-${idx}`}>
+                                    <circle cx={p.x} cy={p.y} r="4" fill="#fed7aa" stroke="var(--bg-surface)" strokeWidth="1.5" />
+                                    <text x={p.x} y={p.y - 12} textAnchor="middle" fill="var(--text-secondary)" fontSize="12px" fontWeight="700">{formatVal(p.val)}</text>
+                                </g>
+                            ))}
+
+                            {isRatioChart && !hideRealized && pointsCR.map((p, idx) => (
+                                <g key={`cr-${idx}`}>
+                                    <circle cx={p.x} cy={p.y} r="5" fill="#f97316" stroke="var(--bg-surface)" strokeWidth="2" />
+                                    <text x={p.x} y={p.y - 13} textAnchor="middle" fill="#f97316" fontSize="12px" fontWeight="800">{formatVal(p.val)}</text>
                                 </g>
                             ))}
                         </>

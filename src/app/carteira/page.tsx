@@ -5181,7 +5181,7 @@ const renderDetailedChart = (
 
             const cx = 250;
             const cy = 130;
-            const R = 95;
+            const R = 70;
             let cumulativeAngleSlices = 0;
             let cumulativeAngleLabels = 0;
 
@@ -5244,9 +5244,9 @@ const renderDetailedChart = (
 
                     {(chartMode === 'DONUT' || type === 'DONUT') && (
                         <>
-                            <circle cx={cx} cy={cy} r="60" fill="var(--bg-surface)" />
-                            <text x={cx} y={cy - 6} textAnchor="middle" fill="var(--text-muted)" fontSize="10px" fontWeight="800" textTransform="uppercase" letterSpacing="0.05em">Total Realiz.</text>
-                            <text x={cx} y={cy + 12} textAnchor="middle" fill="var(--text-primary)" fontSize="13px" fontWeight="800">{formatVal(totalRealizedSum)}</text>
+                            <circle cx={cx} cy={cy} r="44" fill="var(--bg-surface)" />
+                            <text x={cx} y={cy - 5} textAnchor="middle" fill="var(--text-muted)" fontSize="8.5px" fontWeight="800" textTransform="uppercase" letterSpacing="0.05em">Total Realiz.</text>
+                            <text x={cx} y={cy + 10} textAnchor="middle" fill="var(--text-primary)" fontSize="11.5px" fontWeight="800">{formatVal(totalRealizedSum)}</text>
                         </>
                     )}
 
@@ -5278,9 +5278,9 @@ const renderDetailedChart = (
                         return (
                             <g key={`lbl-grp-${idx}`}>
                                 <line x1={sx} y1={sy} x2={ex} y2={ey} stroke="var(--border-strong)" strokeWidth="1" />
-                                <text x={tx} y={ty} textAnchor={textAnchor} fill="var(--text-secondary)" fontSize="10.5px" fontWeight="800" style={{ paintOrder: 'stroke', stroke: 'var(--bg-surface)', strokeWidth: 3, strokeLinejoin: 'round' }}>
+                                <text x={tx} y={ty} textAnchor={textAnchor} fill="var(--text-secondary)" fontSize="10px" fontWeight="800" style={{ paintOrder: 'stroke', stroke: 'var(--bg-surface)', strokeWidth: 3, strokeLinejoin: 'round' }}>
                                     <tspan x={tx} dy="-2">{displayLabel}</tspan>
-                                    <tspan x={tx} dy="11" fill="var(--text-muted)" fontSize="9.5px" fontWeight="600">{formatVal(val)} ({percentage.toFixed(1)}%)</tspan>
+                                    <tspan x={tx} dy="11" fill="var(--text-muted)" fontSize="9px" fontWeight="600">{formatVal(val)} ({percentage.toFixed(1)}%)</tspan>
                                 </text>
                             </g>
                         );

@@ -5187,14 +5187,14 @@ const renderDetailedChart = (
                 );
             }
 
-            const cx = 250;
-            const cy = 130;
-            const R = 85;
+            const cx = 500;
+            const cy = 260;
+            const R = 170;
             let cumulativeAngleSlices = 0;
             let cumulativeAngleLabels = 0;
 
             return (
-                <svg viewBox="0 0 500 260" width="100%" height="100%" style={{ overflow: 'visible', width: '100%', height: 'auto' }}>
+                <svg viewBox="0 0 1000 520" width="100%" height="100%" style={{ overflow: 'visible', width: '100%', height: 'auto' }}>
                     {data.map((m, idx) => {
                         const val = isDimensional ? Math.max(0, m.realized || 0) : (idx + 1 <= currentMonthIdx + 1 ? Math.max(0, m.realized) : 0);
                         if (val === 0) return null;
@@ -5224,7 +5224,7 @@ const renderDetailedChart = (
                                 fill={chartColor} 
                                 fillOpacity={sliceOpacity}
                                 stroke="var(--bg-surface)" 
-                                strokeWidth="1.5"
+                                strokeWidth="3"
                                 onMouseEnter={(e) => {
                                     e.currentTarget.style.fillOpacity = String(Math.max(0.2, sliceOpacity - 0.15));
                                 }}
@@ -5252,9 +5252,9 @@ const renderDetailedChart = (
 
                     {(chartMode === 'DONUT' || type === 'DONUT') && (
                         <>
-                            <circle cx={cx} cy={cy} r="54" fill="var(--bg-surface)" />
-                            <text x={cx} y={cy - 4} textAnchor="middle" style={{ fontSize: '6px', fontWeight: 700, fill: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Total Realiz.</text>
-                            <text x={cx} y={cy + 10} textAnchor="middle" style={{ fontSize: '8.5px', fontWeight: 800, fill: 'var(--text-primary)' }}>{formatVal(totalRealizedSum)}</text>
+                            <circle cx={cx} cy={cy} r="108" fill="var(--bg-surface)" />
+                            <text x={cx} y={cy - 8} textAnchor="middle" style={{ fontSize: '12px', fontWeight: 700, fill: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Total Realiz.</text>
+                            <text x={cx} y={cy + 20} textAnchor="middle" style={{ fontSize: '17px', fontWeight: 800, fill: 'var(--text-primary)' }}>{formatVal(totalRealizedSum)}</text>
                         </>
                     )}
 
@@ -5271,37 +5271,37 @@ const renderDetailedChart = (
                         if (percentage < 3) return null;
 
                         const textAnchor = Math.cos(radMid) > 0.05 ? 'start' : (Math.cos(radMid) < -0.05 ? 'end' : 'middle');
-                        const labelR = textAnchor === 'middle' ? R + 26 : R + 16;
+                        const labelR = textAnchor === 'middle' ? R + 52 : R + 32;
                         const tx = cx + labelR * Math.cos(radMid);
                         const ty = cy + labelR * Math.sin(radMid);
                         
                         const sx = cx + R * Math.cos(radMid);
                         const sy = cy + R * Math.sin(radMid);
-                        const ex = cx + (R + 6) * Math.cos(radMid);
-                        const ey = cy + (R + 6) * Math.sin(radMid);
+                        const ex = cx + (R + 12) * Math.cos(radMid);
+                        const ey = cy + (R + 12) * Math.sin(radMid);
 
                         const labelText = (isDimensional ? m.label : ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'][idx]) || '';
                         const displayLabel = labelText.length > 20 ? labelText.substring(0, 18) + '..' : labelText;
 
                         return (
                             <g key={`lbl-grp-${idx}`}>
-                                <line x1={sx} y1={sy} x2={ex} y2={ey} stroke="var(--border-strong)" strokeWidth="0.8" />
+                                <line x1={sx} y1={sy} x2={ex} y2={ey} stroke="var(--border-strong)" strokeWidth="1.6" />
                                 <text 
                                     x={tx} 
                                     y={ty} 
                                     textAnchor={textAnchor} 
                                     style={{ 
-                                        fontSize: '7.5px', 
+                                        fontSize: '15px', 
                                         fontWeight: 800, 
                                         fill: 'var(--text-primary)', 
                                         paintOrder: 'stroke', 
                                         stroke: 'var(--bg-surface)', 
-                                        strokeWidth: 3, 
+                                        strokeWidth: 6, 
                                         strokeLinejoin: 'round' 
                                     }}
                                 >
-                                    <tspan x={tx} dy="-2">{displayLabel}</tspan>
-                                    <tspan x={tx} dy="15" style={{ fontSize: '6px', fontWeight: 500, fill: 'var(--text-muted)' }}>{formatVal(val)} ({percentage.toFixed(1)}%)</tspan>
+                                    <tspan x={tx} dy="-4">{displayLabel}</tspan>
+                                    <tspan x={tx} dy="30" style={{ fontSize: '12px', fontWeight: 500, fill: 'var(--text-muted)' }}>{formatVal(val)} ({percentage.toFixed(1)}%)</tspan>
                                 </text>
                             </g>
                         );

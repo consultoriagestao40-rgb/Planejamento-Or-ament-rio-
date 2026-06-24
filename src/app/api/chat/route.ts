@@ -39,16 +39,21 @@ export async function POST(request: Request) {
                 ...dbUser.costCenterAccess.map((c: any) => c.costCenter.tenantId)
             ]));
             
-            if (!targetTenantId) {
-                targetTenantId = allowedTenants[0];
-            } else if (!allowedTenants.includes(targetTenantId)) {
-                return NextResponse.json({ success: false, error: 'Acesso negado para este Tenant' }, { status: 403 });
+            if (!targetTenantId || targetTenantId === 'all') {
+                // Return all allowed tenants for consolidated group analysis
+                targetTenantId = allowedTenants.join(',');
+            } else {
+                const requestedIds = targetTenantId.split(',').map((id: string) => id.trim()).filter(Boolean);
+                const allAllowed = requestedIds.every((id: string) => allowedTenants.includes(id));
+                if (!allAllowed) {
+                    return NextResponse.json({ success: false, error: 'Acesso negado para um ou mais Tenants' }, { status: 403 });
+                }
             }
         } else {
             // MASTER role can access any tenant
-            if (!targetTenantId) {
-                const firstTenant = await prisma.tenant.findFirst();
-                targetTenantId = firstTenant?.id;
+            if (!targetTenantId || targetTenantId === 'all') {
+                const allTenants = await prisma.tenant.findMany({ select: { id: true } });
+                targetTenantId = allTenants.map(t => t.id).join(',');
             }
         }
 
@@ -63,20 +68,23 @@ export async function POST(request: Request) {
                 return NextResponse.json({ success: false, error: 'Parâmetros de plano de ação incompletos' }, { status: 400 });
             }
 
-            // Verify category exists in this tenant
+            // If categoryId is consolidated (comma-separated), grab the first ID
+            const firstCategoryId = categoryId.split(',')[0].trim();
+
+            // Verify category exists
             const category = await prisma.category.findFirst({
-                where: { id: categoryId, tenantId: targetTenantId }
+                where: { id: firstCategoryId }
             });
             if (!category) {
-                return NextResponse.json({ success: false, error: 'Categoria inválida ou não pertence a este Tenant' }, { status: 400 });
+                return NextResponse.json({ success: false, error: 'Categoria inválida ou não encontrada' }, { status: 400 });
             }
 
             // Create or update indicator analysis
             const analysis = await prisma.indicatorAnalysis.upsert({
                 where: {
                     tenantId_categoryId_month_year: {
-                        tenantId: targetTenantId,
-                        categoryId,
+                        tenantId: category.tenantId, // write to the actual tenant that owns the category
+                        categoryId: category.id,
                         month: parseInt(month, 10),
                         year: parseInt(year, 10)
                     }
@@ -86,8 +94,8 @@ export async function POST(request: Request) {
                     analysisPerformed: 'Análise realizada pelo CFO Virtual de IA'
                 },
                 create: {
-                    tenantId: targetTenantId,
-                    categoryId,
+                    tenantId: category.tenantId,
+                    categoryId: category.id,
                     month: parseInt(month, 10),
                     year: parseInt(year, 10),
                     deviationReport: description,

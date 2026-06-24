@@ -160,15 +160,27 @@ Certifique-se de que os dados JSON sejam válidos e não coloque nenhum texto ex
 
 // Implementations of the database queries exposed as tools
 async function executeTool(tenantId: string, name: string, args: any): Promise<any> {
+    const targetTenantIds = tenantId.split(',').map(id => id.trim()).filter(Boolean);
+
     switch (name) {
         case 'get_category_list': {
             const categories = await prisma.category.findMany({
-                where: { tenantId }
+                where: { tenantId: { in: targetTenantIds } }
             });
-            return categories.map(c => ({
-                id: c.id,
-                name: c.name,
-                type: c.type
+            // Group duplicate category names across tenants to make analysis consolidated
+            const nameMap = new Map<string, { id: string[]; name: string; type: string }>();
+            categories.forEach(c => {
+                const key = c.name.trim();
+                if (!nameMap.has(key)) {
+                    nameMap.set(key, { id: [c.id], name: c.name, type: c.type });
+                } else {
+                    nameMap.get(key)!.id.push(c.id);
+                }
+            });
+            return Array.from(nameMap.values()).map(item => ({
+                id: item.id.join(','), // Joined category IDs
+                name: item.name,
+                type: item.type
             }));
         }
 
@@ -180,56 +192,85 @@ async function executeTool(tenantId: string, name: string, args: any): Promise<a
 
             // Fetch categories
             const categories = await prisma.category.findMany({
-                where: { tenantId }
+                where: { tenantId: { in: targetTenantIds } }
             });
             const catMap = new Map(categories.map(c => [c.id, c]));
 
             // Fetch budgets
             const budgets = await prisma.budgetEntry.findMany({
-                where: { tenantId, year: yearNum, month: monthNum }
+                where: { tenantId: { in: targetTenantIds }, year: yearNum, month: monthNum }
             });
 
             // Fetch realized (competency)
             const realized = await prisma.realizedEntry.findMany({
-                where: { tenantId, year: yearNum, month: monthNum, viewMode: 'competencia' }
+                where: { tenantId: { in: targetTenantIds }, year: yearNum, month: monthNum, viewMode: 'competencia' }
             });
 
-            // Aggregate by category
-            const data: Record<string, { budget: number; realized: number }> = {};
+            // Global synced months detection to prevent manual + sync overlap
+            const syncedMonths = new Set<string>();
+            realized.forEach(e => {
+                if (e.externalId && e.externalId.startsWith('sync-')) {
+                    syncedMonths.add(`${e.tenantId}|${e.year}|${e.month}`);
+                }
+            });
+
+            const realizedDeduped = realized.filter(e => {
+                const key = `${e.tenantId}|${e.year}|${e.month}`;
+                if (syncedMonths.has(key)) {
+                    return e.externalId && e.externalId.startsWith('sync-');
+                }
+                return true;
+            });
+
+            // Aggregate by category name (grouping across tenants if consolidated)
+            const nameToVal: Record<string, { budget: number; realized: number; type: string; ids: string[] }> = {};
             
             categories.forEach(c => {
-                data[c.id] = { budget: 0, realized: 0 };
+                const normName = c.name.trim();
+                if (!nameToVal[normName]) {
+                    nameToVal[normName] = { budget: 0, realized: 0, type: c.type, ids: [c.id] };
+                } else {
+                    nameToVal[normName].ids.push(c.id);
+                }
             });
 
             budgets.forEach(b => {
-                if (data[b.categoryId]) data[b.categoryId].budget += b.amount;
+                const cat = catMap.get(b.categoryId);
+                if (cat) {
+                    const normName = cat.name.trim();
+                    if (nameToVal[normName]) {
+                        nameToVal[normName].budget += b.amount;
+                    }
+                }
             });
 
-            realized.forEach(r => {
-                if (data[r.categoryId]) data[r.categoryId].realized += r.amount;
+            realizedDeduped.forEach(r => {
+                const cat = catMap.get(r.categoryId);
+                if (cat) {
+                    const normName = cat.name.trim();
+                    if (nameToVal[normName]) {
+                        nameToVal[normName].realized += r.amount;
+                    }
+                }
             });
 
-            const result = Object.entries(data).map(([catId, vals]) => {
-                const cat = catMap.get(catId);
-                const categoryName = cat?.name || catId;
-                const type = cat?.type || 'EXPENSE';
+            const result = Object.entries(nameToVal).map(([name, vals]) => {
                 const budget = vals.budget;
                 const realized = vals.realized;
+                const type = vals.type;
                 
-                // For expenses: positive deviation = spent less than budgeted (good), negative deviation = spent more (bad)
-                // For revenues: positive deviation = earned more than budgeted (good), negative deviation = earned less (bad)
                 let deviation = 0;
                 if (type === 'REVENUE') {
                     deviation = realized - budget;
                 } else {
-                    deviation = budget - realized; // Budget - Realized (positive means economy, negative means leak)
+                    deviation = budget - realized;
                 }
 
                 const percentage = budget > 0 ? (realized / budget) * 100 : 0;
 
                 return {
-                    categoryId: catId,
-                    categoryName,
+                    categoryId: vals.ids.join(','), // Comma-separated category IDs for detail queries
+                    categoryName: name,
                     type,
                     budget,
                     realized,
@@ -238,7 +279,6 @@ async function executeTool(tenantId: string, name: string, args: any): Promise<a
                 };
             })
             .filter(r => r.budget > 0 || r.realized > 0)
-            // Sort by absolute deviation (worst cases first)
             .sort((a, b) => a.deviation - b.deviation);
 
             return result;
@@ -251,16 +291,32 @@ async function executeTool(tenantId: string, name: string, args: any): Promise<a
 
             // 1. Get bank balance
             const bankAccounts = await prisma.bankAccount.findMany({
-                where: { tenantId }
+                where: { tenantId: { in: targetTenantIds } }
             });
             const startBalance = bankAccounts.reduce((sum, acc) => sum + acc.balance, 0);
 
             // 2. Fetch realized cash items
             const realized = await prisma.realizedEntry.findMany({
-                where: { tenantId, year: yearNum, viewMode: 'caixa' },
+                where: { tenantId: { in: targetTenantIds }, year: yearNum, viewMode: 'caixa' },
                 include: {
-                    category: { select: { name: true } }
+                    category: { select: { name: true, tenantId: true } }
                 }
+            });
+
+            // Synced months detection
+            const syncedMonths = new Set<string>();
+            realized.forEach(e => {
+                if (e.externalId && e.externalId.startsWith('sync-')) {
+                    syncedMonths.add(`${e.tenantId}|${e.year}|${e.month}`);
+                }
+            });
+
+            const realizedDeduped = realized.filter(e => {
+                const key = `${e.tenantId}|${e.year}|${e.month}`;
+                if (syncedMonths.has(key)) {
+                    return e.externalId && e.externalId.startsWith('sync-');
+                }
+                return true;
             });
 
             // 3. Classify items monthly
@@ -275,9 +331,9 @@ async function executeTool(tenantId: string, name: string, args: any): Promise<a
                 monthlyData[m] = { inflow: 0, outflow: 0, capex: 0, financing: 0 };
             }
 
-            realized.forEach(r => {
+            realizedDeduped.forEach(r => {
                 const catName = r.category?.name || '';
-                const isRevenue = r.amount > 0; // standard cash rule
+                const isRevenue = r.amount > 0;
                 const cls = classifyCategory(catName, isRevenue);
                 
                 const m = r.month;
@@ -301,9 +357,8 @@ async function executeTool(tenantId: string, name: string, args: any): Promise<a
             const summary = Object.entries(monthlyData).map(([mStr, vals]) => {
                 const month = parseInt(mStr, 10);
                 const netOperational = vals.inflow - vals.outflow;
-                const totalNetFlow = netOperational - vals.capex + vals.financing; // capex reduces cash, financing adds/reduces
+                const totalNetFlow = netOperational - vals.capex + vals.financing;
                 
-                // We project cash month-over-month (approximation)
                 const monthBalance = currentCash + totalNetFlow;
                 currentCash = monthBalance;
 
@@ -333,13 +388,37 @@ async function executeTool(tenantId: string, name: string, args: any): Promise<a
             const yearNum = parseInt(String(year), 10);
             const monthNum = parseInt(String(month), 10);
 
+            // Handle comma-separated category list
+            const catIds = categoryId.split(',').map((id: string) => id.trim()).filter(Boolean);
+
             const transactions = await prisma.realizedEntry.findMany({
-                where: { tenantId, year: yearNum, month: monthNum, categoryId },
+                where: { 
+                    tenantId: { in: targetTenantIds }, 
+                    year: yearNum, 
+                    month: monthNum, 
+                    categoryId: { in: catIds } 
+                },
                 orderBy: { amount: 'desc' },
-                take: 50 // Limit to avoid text overflow
+                take: 50
             });
 
-            return transactions.map(t => ({
+            // Synced months detection
+            const syncedMonths = new Set<string>();
+            transactions.forEach(e => {
+                if (e.externalId && e.externalId.startsWith('sync-')) {
+                    syncedMonths.add(`${e.tenantId}|${e.year}|${e.month}`);
+                }
+            });
+
+            const transactionsDeduped = transactions.filter(e => {
+                const key = `${e.tenantId}|${e.year}|${e.month}`;
+                if (syncedMonths.has(key)) {
+                    return e.externalId && e.externalId.startsWith('sync-');
+                }
+                return true;
+            });
+
+            return transactionsDeduped.map(t => ({
                 id: t.id,
                 date: t.date ? t.date.toISOString().split('T')[0] : null,
                 amount: t.amount,

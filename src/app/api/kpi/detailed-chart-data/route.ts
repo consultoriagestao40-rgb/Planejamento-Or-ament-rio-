@@ -27,9 +27,6 @@ export async function GET(request: Request) {
         const filterCCId = searchParams.get('filterCCId') || 'ALL';
         const year = parseInt(searchParams.get('year') || new Date().getFullYear().toString(), 10);
         const viewMode = (searchParams.get('viewMode') || 'competencia') as 'caixa' | 'competencia';
-        const dimension = searchParams.get('dimension') || 'none';
-        const startMonth = parseInt(searchParams.get('startMonth') || '0', 10);
-        const endMonth = parseInt(searchParams.get('endMonth') || '11', 10);
 
         if (!categoryId) {
             return NextResponse.json({ success: false, error: 'Parâmetro categoryId ausente' }, { status: 400 });
@@ -97,7 +94,7 @@ export async function GET(request: Request) {
                     viewMode,
                     ...ccFilter
                 },
-                include: { category: true, costCenter: true, tenant: true }
+                include: { category: true, costCenter: true }
             }),
             prisma.budgetEntry.findMany({
                 where: {
@@ -105,7 +102,7 @@ export async function GET(request: Request) {
                     year,
                     ...ccFilter
                 },
-                include: { category: true, costCenter: true, tenant: true }
+                include: { category: true, costCenter: true }
             })
         ]);
 
@@ -387,6 +384,50 @@ export async function GET(request: Request) {
 
         const rawRoots: CategoryNode[] = [];
         map.forEach(node => {
+            if (!allChildren.has(node.id)) {
+                rawRoots.push(node);
+            }
+        });
+
+        // ROOT DEDUPLICATION
+        const uniqueRootsMap = new Map<string, CategoryNode>();
+        rawRoots.forEach(root => {
+            const rootCode = root.code || root.name;
+            if (uniqueRootsMap.has(rootCode)) {
+                const existingRoot = uniqueRootsMap.get(rootCode)!;
+                root.children.forEach(child => {
+                    if (!existingRoot.children.find(c => c.id === child.id)) {
+                        existingRoot.children.push(child);
+                    }
+                });
+                if (rootCode === '1') existingRoot.name = 'RECEITAS';
+                if (rootCode === '2') existingRoot.name = 'TRIBUTO SOBRE FATURAMENTO';
+            } else {
+                uniqueRootsMap.set(rootCode, root);
+            }
+        });
+
+        const finalRoots = Array.from(uniqueRootsMap.values());
+
+        // DEDUPLICATE CHILDREN
+        map.forEach(node => {
+            if (node.children.length > 0) {
+                const uniqueChildren = new Map<string, CategoryNode>();
+                node.children.forEach(c => uniqueChildren.set(c.id, c));
+                node.children = Array.from(uniqueChildren.values());
+            }
+        });
+
+        // Recalculate levels and sort
+        const recalculateLevels = (nodes: CategoryNode[], lvl: number) => {
+            nodes.sort((a, b) => (a.code || a.name).localeCompare(b.code || b.name, undefined, { numeric: true }));
+            nodes.forEach(n => {
+                n.level = lvl;
+                recalculateLevels(n.children, lvl + 1);
+            });
+        };
+        recalculateLevels(finalRoots, 0);
+
         // 3. Helper to recursively calculate node totals and series for a set of entries
         const computeCategorySeries = async (
             filteredRealized: typeof realizedEntries,

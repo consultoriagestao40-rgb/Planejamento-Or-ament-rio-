@@ -27,6 +27,9 @@ export async function GET(request: Request) {
         const filterCCId = searchParams.get('filterCCId') || 'ALL';
         const year = parseInt(searchParams.get('year') || new Date().getFullYear().toString(), 10);
         const viewMode = (searchParams.get('viewMode') || 'competencia') as 'caixa' | 'competencia';
+        const dimension = searchParams.get('dimension') || 'none';
+        const startMonth = parseInt(searchParams.get('startMonth') || '0', 10);
+        const endMonth = parseInt(searchParams.get('endMonth') || '11', 10);
 
         if (!categoryId) {
             return NextResponse.json({ success: false, error: 'Parâmetro categoryId ausente' }, { status: 400 });

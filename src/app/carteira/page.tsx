@@ -5262,16 +5262,16 @@ const renderDetailedChart = (
 
                         if (percentage < 3) return null;
 
-                        const labelR = R + 13;
+                        const textAnchor = Math.cos(radMid) > 0.05 ? 'start' : (Math.cos(radMid) < -0.05 ? 'end' : 'middle');
+                        const labelR = textAnchor === 'middle' ? R + 22 : R + 14;
                         const tx = cx + labelR * Math.cos(radMid);
                         const ty = cy + labelR * Math.sin(radMid);
                         
                         const sx = cx + R * Math.cos(radMid);
                         const sy = cy + R * Math.sin(radMid);
-                        const ex = cx + (R + 8) * Math.cos(radMid);
-                        const ey = cy + (R + 8) * Math.sin(radMid);
+                        const ex = cx + (R + 6) * Math.cos(radMid);
+                        const ey = cy + (R + 6) * Math.sin(radMid);
 
-                        const textAnchor = Math.cos(radMid) > 0.05 ? 'start' : (Math.cos(radMid) < -0.05 ? 'end' : 'middle');
                         const labelText = (isDimensional ? m.label : ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'][idx]) || '';
                         const displayLabel = labelText.length > 20 ? labelText.substring(0, 18) + '..' : labelText;
 

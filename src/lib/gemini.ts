@@ -257,10 +257,29 @@ Certifique-se de que os dados JSON sejam válidos e não coloque nenhum texto ex
 async function executeTool(tenantId: string, name: string, args: any): Promise<any> {
     const targetTenantIds = tenantId.split(',').map(id => id.trim()).filter(Boolean);
 
+    // Resolve activeTenantIds with optional companyId filter for security and accuracy
+    const requestedCompanyId = args?.companyId || args?.tenantId;
+    let activeTenantIds = targetTenantIds;
+    if (requestedCompanyId) {
+        const reqIds = String(requestedCompanyId).split(',').map(id => id.trim()).filter(Boolean);
+        const allAllowed = reqIds.every(id => targetTenantIds.includes(id));
+        if (allAllowed) {
+            activeTenantIds = reqIds;
+        }
+    }
+
     switch (name) {
+        case 'get_company_list': {
+            const tenants = await prisma.tenant.findMany({
+                where: { id: { in: targetTenantIds } },
+                select: { id: true, name: true, cnpj: true }
+            });
+            return tenants;
+        }
+
         case 'get_category_list': {
             const categories = await prisma.category.findMany({
-                where: { tenantId: { in: targetTenantIds } }
+                where: { tenantId: { in: activeTenantIds } }
             });
             // Group duplicate category names across tenants to make analysis consolidated
             const nameMap = new Map<string, { id: string[]; name: string; type: string; entradaDre: string | null }>();
@@ -288,18 +307,18 @@ async function executeTool(tenantId: string, name: string, args: any): Promise<a
 
             // Fetch categories
             const categories = await prisma.category.findMany({
-                where: { tenantId: { in: targetTenantIds } }
+                where: { tenantId: { in: activeTenantIds } }
             });
             const catMap = new Map(categories.map(c => [c.id, c]));
 
             // Fetch budgets
             const budgets = await prisma.budgetEntry.findMany({
-                where: { tenantId: { in: targetTenantIds }, year: yearNum, month: monthNum }
+                where: { tenantId: { in: activeTenantIds }, year: yearNum, month: monthNum }
             });
 
             // Fetch realized (competency)
             const realized = await prisma.realizedEntry.findMany({
-                where: { tenantId: { in: targetTenantIds }, year: yearNum, month: monthNum, viewMode: 'competencia' }
+                where: { tenantId: { in: activeTenantIds }, year: yearNum, month: monthNum, viewMode: 'competencia' }
             });
 
             // Global synced months detection to prevent manual + sync overlap
@@ -387,13 +406,13 @@ async function executeTool(tenantId: string, name: string, args: any): Promise<a
 
             // 1. Get bank balance
             const bankAccounts = await prisma.bankAccount.findMany({
-                where: { tenantId: { in: targetTenantIds } }
+                where: { tenantId: { in: activeTenantIds } }
             });
             const startBalance = bankAccounts.reduce((sum, acc) => sum + acc.balance, 0);
 
             // 2. Fetch realized cash items
             const realized = await prisma.realizedEntry.findMany({
-                where: { tenantId: { in: targetTenantIds }, year: yearNum, viewMode: 'caixa' },
+                where: { tenantId: { in: activeTenantIds }, year: yearNum, viewMode: 'caixa' },
                 include: {
                     category: { select: { name: true, tenantId: true } }
                 }
@@ -489,7 +508,7 @@ async function executeTool(tenantId: string, name: string, args: any): Promise<a
 
             const transactions = await prisma.realizedEntry.findMany({
                 where: { 
-                    tenantId: { in: targetTenantIds }, 
+                    tenantId: { in: activeTenantIds }, 
                     year: yearNum, 
                     month: monthNum, 
                     categoryId: { in: catIds } 
@@ -539,12 +558,12 @@ async function executeTool(tenantId: string, name: string, args: any): Promise<a
 
             // Fetch budgets
             const budgets = await prisma.budgetEntry.findMany({
-                where: { tenantId: { in: targetTenantIds }, year: yearNum, categoryId: { in: catIds } }
+                where: { tenantId: { in: activeTenantIds }, year: yearNum, categoryId: { in: catIds } }
             });
 
             // Fetch realized
             const realized = await prisma.realizedEntry.findMany({
-                where: { tenantId: { in: targetTenantIds }, year: yearNum, viewMode: mode, categoryId: { in: catIds } }
+                where: { tenantId: { in: activeTenantIds }, year: yearNum, viewMode: mode, categoryId: { in: catIds } }
             });
 
             // Deduplicate synced months
@@ -595,12 +614,12 @@ async function executeTool(tenantId: string, name: string, args: any): Promise<a
             today.setHours(0, 0, 0, 0);
 
             const categories = await prisma.category.findMany({
-                where: { tenantId: { in: targetTenantIds } }
+                where: { tenantId: { in: activeTenantIds } }
             });
             const catMap = new Map(categories.map(c => [c.id, c.name]));
 
             const whereClause: any = {
-                tenantId: { in: targetTenantIds },
+                tenantId: { in: activeTenantIds },
                 viewMode: { in: ['previsto_receber', 'previsto_pagar'] },
                 date: { lt: today }
             };
@@ -637,12 +656,12 @@ async function executeTool(tenantId: string, name: string, args: any): Promise<a
             const daysNum = Math.min(Math.max(days, 1), 30);
 
             const bankAccounts = await prisma.bankAccount.findMany({
-                where: { tenantId: { in: targetTenantIds } }
+                where: { tenantId: { in: activeTenantIds } }
             });
             const startBalance = bankAccounts.reduce((sum, acc) => sum + acc.balance, 0);
 
             const categories = await prisma.category.findMany({
-                where: { tenantId: { in: targetTenantIds } }
+                where: { tenantId: { in: activeTenantIds } }
             });
             const catMap = new Map(categories.map(c => [c.id, c.name]));
 
@@ -655,7 +674,7 @@ async function executeTool(tenantId: string, name: string, args: any): Promise<a
 
             const entries = await prisma.realizedEntry.findMany({
                 where: {
-                    tenantId: { in: targetTenantIds },
+                    tenantId: { in: activeTenantIds },
                     viewMode: { in: ['previsto_receber', 'previsto_pagar'] },
                     date: { gte: today, lte: endDate }
                 },

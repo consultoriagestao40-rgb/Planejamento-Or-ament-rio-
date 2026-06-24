@@ -326,7 +326,11 @@ export default function CFOVirtualPage() {
             const match = jsonRegex.exec(content);
             if (match) {
                 const parsed = JSON.parse(match[1]);
-                if (parsed.type === 'CASH_FLOW' || parsed.type === 'DEVIATIONS') {
+                if (parsed.type === 'CASH_FLOW' || 
+                    parsed.type === 'DEVIATIONS' || 
+                    parsed.type === 'MONTHLY_BREAKDOWN' || 
+                    parsed.type === 'OVERDUE_COMMITMENTS' || 
+                    parsed.type === 'SHORT_TERM_PROJECTION') {
                     return parsed;
                 }
             }
@@ -517,6 +521,347 @@ export default function CFOVirtualPage() {
         );
     };
 
+    // Renders side-by-side comparative SVG column chart (Orçado vs Realizado)
+    const renderMonthlyBreakdownChart = (payload: any) => {
+        if (!payload || !payload.values) return null;
+
+        const maxAmount = Math.max(...payload.values.map((i: any) => Math.max(Math.abs(i.budget), Math.abs(i.realized)))) || 1;
+        const totalBudget = payload.values.reduce((sum: number, item: any) => sum + item.budget, 0);
+        const totalRealized = payload.values.reduce((sum: number, item: any) => sum + item.realized, 0);
+        
+        const isRevenue = payload.title.toUpperCase().includes('FATURAMENTO') || 
+                          payload.title.toUpperCase().includes('RECEITA') || 
+                          payload.title.toUpperCase().includes('ENTRADA');
+        
+        const finalDeviation = isRevenue ? (totalRealized - totalBudget) : (totalBudget - totalRealized);
+        const isDeviationPositive = finalDeviation >= 0;
+
+        return (
+            <div className="glass-card" style={{ marginTop: '1rem', padding: '1.5rem', backgroundColor: '#ffffff', borderRadius: '12px', border: '1px solid rgba(15,23,42,0.08)', animation: 'fade-in 0.3s ease-out' }}>
+                <h3 style={{ fontSize: '0.95rem', fontWeight: 800, color: '#1e293b', marginBottom: '0.5rem', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <span>📊 {payload.title} ({payload.viewMode === 'caixa' ? 'Regime de Caixa' : 'Regime de Competência'})</span>
+                </h3>
+                <p style={{ fontSize: '0.75rem', color: '#64748b', marginBottom: '1.25rem' }}>Evolução mensal comparativa de Orçado vs Realizado.</p>
+
+                {/* SVG Side-by-side Bar Chart */}
+                <div style={{ height: '180px', position: 'relative', display: 'flex', flexDirection: 'column', justifyContent: 'flex-end', borderBottom: '1px solid rgba(15, 23, 42, 0.08)', paddingBottom: '1rem', marginBottom: '1.25rem' }}>
+                    <div style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: '1rem', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', zIndex: 0, pointerEvents: 'none' }}>
+                        <div style={{ borderBottom: '1px dashed rgba(15, 23, 42, 0.03)', width: '100%', height: '0' }} />
+                        <div style={{ borderBottom: '1px dashed rgba(15, 23, 42, 0.03)', width: '100%', height: '0' }} />
+                        <div style={{ borderBottom: '1px dashed rgba(15, 23, 42, 0.03)', width: '100%', height: '0' }} />
+                    </div>
+
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', height: '100%', zIndex: 1, padding: '0 4px' }}>
+                        {payload.values.map((item: any) => {
+                            const budgetHeight = (Math.abs(item.budget) / maxAmount) * 100;
+                            const realizedHeight = (Math.abs(item.realized) / maxAmount) * 100;
+
+                            return (
+                                <div key={item.month} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', flex: 1, maxWidth: '50px' }}>
+                                    <div style={{ display: 'flex', gap: '4px', alignItems: 'flex-end', height: '120px', width: '100%', justifyContent: 'center' }}>
+                                        {/* Budget Bar */}
+                                        <div 
+                                            style={{ width: '12px', height: `${budgetHeight}%`, backgroundColor: '#cbd5e1', borderRadius: '3px 3px 0 0', minHeight: '1px', cursor: 'pointer', position: 'relative' }}
+                                            className="dfc-bar"
+                                            title={`Orçado: ${formatBRL(item.budget)}`}
+                                        >
+                                            <div className="dfc-tooltip">Orçado: {formatBRL(item.budget)}</div>
+                                        </div>
+                                        {/* Realized Bar */}
+                                        <div 
+                                            style={{ 
+                                                width: '12px', 
+                                                height: `${realizedHeight}%`, 
+                                                backgroundColor: isRevenue 
+                                                    ? (item.realized >= item.budget ? '#10b981' : '#f59e0b') 
+                                                    : (item.realized <= item.budget ? '#10b981' : '#ef4444'), 
+                                                borderRadius: '3px 3px 0 0', 
+                                                minHeight: '1px', 
+                                                cursor: 'pointer', 
+                                                position: 'relative' 
+                                            }}
+                                            className="dfc-bar"
+                                            title={`Realizado: ${formatBRL(item.realized)}`}
+                                        >
+                                            <div className="dfc-tooltip">Realizado: {formatBRL(item.realized)}</div>
+                                        </div>
+                                    </div>
+                                    <span style={{ fontSize: '0.7rem', color: '#64748b', fontWeight: 700, marginTop: '6px' }}>
+                                        {getMonthName(item.month)}
+                                    </span>
+                                </div>
+                            );
+                        })}
+                    </div>
+                </div>
+
+                {/* Summary Metrics */}
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '0.75rem', marginBottom: '1rem' }}>
+                    <div style={{ padding: '8px 10px', borderRadius: '8px', backgroundColor: '#f8fafc', border: '1px solid #e2e8f0', textAlign: 'center' }}>
+                        <span style={{ fontSize: '0.65rem', color: '#64748b', fontWeight: 700 }}>Total Orçado</span>
+                        <h4 style={{ fontSize: '0.85rem', fontWeight: 800, color: '#334155', marginTop: '2px' }}>
+                            {formatBRL(totalBudget)}
+                        </h4>
+                    </div>
+                    <div style={{ padding: '8px 10px', borderRadius: '8px', backgroundColor: '#eff6ff', border: '1px solid #dbeafe', textAlign: 'center' }}>
+                        <span style={{ fontSize: '0.65rem', color: '#2563eb', fontWeight: 700 }}>Total Realizado</span>
+                        <h4 style={{ fontSize: '0.85rem', fontWeight: 800, color: '#1e3a8a', marginTop: '2px' }}>
+                            {formatBRL(totalRealized)}
+                        </h4>
+                    </div>
+                    <div style={{ 
+                        padding: '8px 10px', 
+                        borderRadius: '8px', 
+                        backgroundColor: isDeviationPositive ? '#f0fdf4' : '#fef2f2', 
+                        border: `1px solid ${isDeviationPositive ? '#dcfce7' : '#fee2e2'}`, 
+                        textAlign: 'center' 
+                    }}>
+                        <span style={{ fontSize: '0.65rem', color: isDeviationPositive ? '#16a34a' : '#dc2626', fontWeight: 700 }}>
+                            {isDeviationPositive ? 'Desvio (Economia)' : 'Desvio (Estouro/Frustração)'}
+                        </span>
+                        <h4 style={{ fontSize: '0.85rem', fontWeight: 800, color: isDeviationPositive ? '#14532d' : '#7f1d1d', marginTop: '2px' }}>
+                            {formatBRL(Math.abs(finalDeviation))} ({totalBudget > 0 ? `${((totalRealized / totalBudget) * 100).toFixed(1)}%` : '0%'})
+                        </h4>
+                    </div>
+                </div>
+
+                {/* Table details */}
+                <div style={{ border: '1px solid rgba(15, 23, 42, 0.08)', borderRadius: '8px', overflow: 'hidden' }}>
+                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.75rem', textAlign: 'left' }}>
+                        <thead>
+                            <tr style={{ backgroundColor: '#f8fafc', borderBottom: '1px solid rgba(15, 23, 42, 0.08)' }}>
+                                <th style={{ padding: '6px 10px', fontWeight: 600, color: '#475569' }}>Mês</th>
+                                <th style={{ padding: '6px 10px', fontWeight: 600, color: '#64748b', textAlign: 'right' }}>Orçado</th>
+                                <th style={{ padding: '6px 10px', fontWeight: 600, color: '#2563eb', textAlign: 'right' }}>Realizado</th>
+                                <th style={{ padding: '6px 10px', fontWeight: 600, color: '#475569', textAlign: 'right' }}>Desvio</th>
+                                <th style={{ padding: '6px 10px', fontWeight: 600, color: '#475569', textAlign: 'right' }}>%</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {payload.values.map((item: any) => {
+                                const itemDev = isRevenue ? (item.realized - item.budget) : (item.budget - item.realized);
+                                const isItemPos = itemDev >= 0;
+                                const itemPct = item.budget > 0 ? (item.realized / item.budget) * 100 : 0;
+                                return (
+                                    <tr key={item.month} style={{ borderBottom: '1px solid rgba(15, 23, 42, 0.04)', backgroundColor: '#ffffff' }}>
+                                        <td style={{ padding: '6px 10px', fontWeight: 700, color: '#334155' }}>{getMonthName(item.month)}</td>
+                                        <td style={{ padding: '6px 10px', color: '#64748b', textAlign: 'right' }}>{formatBRL(item.budget)}</td>
+                                        <td style={{ padding: '6px 10px', color: '#1e293b', textAlign: 'right', fontWeight: 600 }}>{formatBRL(item.realized)}</td>
+                                        <td style={{ padding: '6px 10px', color: isItemPos ? '#16a34a' : '#dc2626', textAlign: 'right', fontWeight: 600 }}>
+                                            {isItemPos ? '+' : '-'}{formatBRL(Math.abs(itemDev))}
+                                        </td>
+                                        <td style={{ padding: '6px 10px', color: '#475569', textAlign: 'right' }}>{itemPct.toFixed(0)}%</td>
+                                    </tr>
+                                );
+                            })}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        );
+    };
+
+    // Renders list of overdue receivables/payables
+    const renderOverdueCommitments = (payload: any) => {
+        if (!payload || !payload.values) return null;
+
+        const totalPayable = payload.values
+            .filter((item: any) => item.type === 'PAYABLE')
+            .reduce((sum: number, item: any) => sum + item.amount, 0);
+        
+        const totalReceivable = payload.values
+            .filter((item: any) => item.type === 'RECEIVABLE')
+            .reduce((sum: number, item: any) => sum + item.amount, 0);
+
+        return (
+            <div className="glass-card" style={{ marginTop: '1rem', padding: '1.5rem', backgroundColor: '#ffffff', borderRadius: '12px', border: '1px solid rgba(15,23,42,0.08)', animation: 'fade-in 0.3s ease-out' }}>
+                <h3 style={{ fontSize: '0.95rem', fontWeight: 800, color: '#1e293b', marginBottom: '0.5rem', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <span>⚠️ Relatório de Contas Atrasadas (Vencidas)</span>
+                </h3>
+                <p style={{ fontSize: '0.75rem', color: '#64748b', marginBottom: '1.25rem' }}>Lista de compromissos vencidos e pendentes de pagamento.</p>
+
+                {/* Resumo Rápido */}
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '0.75rem', marginBottom: '1.25rem' }}>
+                    <div style={{ padding: '8px 10px', borderRadius: '8px', backgroundColor: '#fef2f2', border: '1px solid #fee2e2', textAlign: 'center' }}>
+                        <span style={{ fontSize: '0.65rem', color: '#dc2626', fontWeight: 700 }}>Total a Pagar Atrasado</span>
+                        <h4 style={{ fontSize: '0.85rem', fontWeight: 800, color: '#7f1d1d', marginTop: '2px' }}>
+                            {formatBRL(totalPayable)}
+                        </h4>
+                    </div>
+                    <div style={{ padding: '8px 10px', borderRadius: '8px', backgroundColor: '#eff6ff', border: '1px solid #dbeafe', textAlign: 'center' }}>
+                        <span style={{ fontSize: '0.65rem', color: '#2563eb', fontWeight: 700 }}>Total a Receber Atrasado</span>
+                        <h4 style={{ fontSize: '0.85rem', fontWeight: 800, color: '#1e3a8a', marginTop: '2px' }}>
+                            {formatBRL(totalReceivable)}
+                        </h4>
+                    </div>
+                </div>
+
+                {/* Tabela de Contas */}
+                <div style={{ border: '1px solid rgba(15, 23, 42, 0.08)', borderRadius: '8px', overflow: 'hidden' }}>
+                    <div style={{ maxHeight: '250px', overflowY: 'auto' }}>
+                        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.75rem', textAlign: 'left' }}>
+                            <thead>
+                                <tr style={{ backgroundColor: '#f8fafc', borderBottom: '1px solid rgba(15, 23, 42, 0.08)', position: 'sticky', top: 0, zIndex: 1 }}>
+                                    <th style={{ padding: '8px 10px', fontWeight: 600, color: '#475569' }}>Vencimento</th>
+                                    <th style={{ padding: '8px 10px', fontWeight: 600, color: '#475569' }}>Tipo</th>
+                                    <th style={{ padding: '8px 10px', fontWeight: 600, color: '#475569' }}>Cliente/Fornecedor</th>
+                                    <th style={{ padding: '8px 10px', fontWeight: 600, color: '#475569' }}>Categoria/Descrição</th>
+                                    <th style={{ padding: '8px 10px', fontWeight: 600, color: '#475569', textAlign: 'right' }}>Valor</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {payload.values.length === 0 ? (
+                                    <tr>
+                                        <td colSpan={5} style={{ padding: '12px', textAlign: 'center', color: '#64748b' }}>Sem contas vencidas no período selecionado. 🎉</td>
+                                    </tr>
+                                ) : (
+                                    payload.values.map((item: any, idx: number) => {
+                                        const isPayable = item.type === 'PAYABLE';
+                                        return (
+                                            <tr key={item.id || idx} style={{ borderBottom: '1px solid rgba(15, 23, 42, 0.04)', backgroundColor: '#ffffff' }}>
+                                                <td style={{ padding: '8px 10px', whiteSpace: 'nowrap', color: '#64748b' }}>{item.date}</td>
+                                                <td style={{ padding: '8px 10px' }}>
+                                                    <span style={{ 
+                                                        padding: '2px 6px', 
+                                                        borderRadius: '4px', 
+                                                        fontSize: '0.65rem', 
+                                                        fontWeight: 700,
+                                                        backgroundColor: isPayable ? '#fef2f2' : '#eff6ff',
+                                                        color: isPayable ? '#991b1b' : '#1e40af'
+                                                    }}>
+                                                        {isPayable ? 'Pagar' : 'Receber'}
+                                                    </span>
+                                                </td>
+                                                <td style={{ padding: '8px 10px', fontWeight: 600, color: '#334155' }}>{item.customer}</td>
+                                                <td style={{ padding: '8px 10px', color: '#64748b' }}>
+                                                    <div style={{ fontWeight: 600, color: '#475569' }}>{item.categoryName}</div>
+                                                    <div style={{ fontSize: '0.65rem' }}>{item.description}</div>
+                                                </td>
+                                                <td style={{ padding: '8px 10px', textAlign: 'right', fontWeight: 700, color: isPayable ? '#dc2626' : '#16a34a' }}>
+                                                    {formatBRL(item.amount)}
+                                                </td>
+                                            </tr>
+                                        );
+                                    })
+                                )}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        );
+    };
+
+    // Renders short term cash flow projection daily
+    const renderShortTermProjection = (payload: any) => {
+        if (!payload || !payload.projection) return null;
+
+        const startBal = payload.startBalance || 0;
+        const list = payload.projection;
+
+        const totalIn = list.reduce((sum: number, item: any) => sum + item.inflow, 0);
+        const totalOut = list.reduce((sum: number, item: any) => sum + item.outflow, 0);
+        const endBal = list.length > 0 ? list[list.length - 1].endingBalance : startBal;
+        const netFlow = totalIn - totalOut;
+        const isNetPositive = netFlow >= 0;
+
+        return (
+            <div className="glass-card" style={{ marginTop: '1rem', padding: '1.5rem', backgroundColor: '#ffffff', borderRadius: '12px', border: '1px solid rgba(15,23,42,0.08)', animation: 'fade-in 0.3s ease-out' }}>
+                <h3 style={{ fontSize: '0.95rem', fontWeight: 800, color: '#1e293b', marginBottom: '0.5rem', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <span>🔮 Projeção de Fluxo de Caixa (Próximos {payload.days || 7} Dias)</span>
+                </h3>
+                <p style={{ fontSize: '0.75rem', color: '#64748b', marginBottom: '1.25rem' }}>Planejamento de liquidez diário com base em contas a pagar e receber previstas.</p>
+
+                {/* Métricas de Curto Prazo */}
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '0.5rem', marginBottom: '1.25rem' }}>
+                    <div style={{ padding: '6px 8px', borderRadius: '8px', backgroundColor: '#f8fafc', border: '1px solid #e2e8f0', textAlign: 'center' }}>
+                        <span style={{ fontSize: '0.6rem', color: '#64748b', fontWeight: 700 }}>Saldo Atual</span>
+                        <h4 style={{ fontSize: '0.8rem', fontWeight: 800, color: '#334155', marginTop: '2px' }}>{formatBRL(startBal)}</h4>
+                    </div>
+                    <div style={{ padding: '6px 8px', borderRadius: '8px', backgroundColor: '#f0fdf4', border: '1px solid #dcfce7', textAlign: 'center' }}>
+                        <span style={{ fontSize: '0.6rem', color: '#16a34a', fontWeight: 700 }}>Entradas Previstas</span>
+                        <h4 style={{ fontSize: '0.8rem', fontWeight: 800, color: '#14532d', marginTop: '2px' }}>{formatBRL(totalIn)}</h4>
+                    </div>
+                    <div style={{ padding: '6px 8px', borderRadius: '8px', backgroundColor: '#fef2f2', border: '1px solid #fee2e2', textAlign: 'center' }}>
+                        <span style={{ fontSize: '0.6rem', color: '#dc2626', fontWeight: 700 }}>Saídas Previstas</span>
+                        <h4 style={{ fontSize: '0.8rem', fontWeight: 800, color: '#7f1d1d', marginTop: '2px' }}>{formatBRL(totalOut)}</h4>
+                    </div>
+                    <div style={{ padding: '6px 8px', borderRadius: '8px', backgroundColor: isNetPositive ? '#f0fdf4' : '#fef2f2', border: `1px solid ${isNetPositive ? '#dcfce7' : '#fee2e2'}`, textAlign: 'center' }}>
+                        <span style={{ fontSize: '0.6rem', color: isNetPositive ? '#16a34a' : '#dc2626', fontWeight: 700 }}>Saldo Final</span>
+                        <h4 style={{ fontSize: '0.8rem', fontWeight: 800, color: isNetPositive ? '#14532d' : '#7f1d1d', marginTop: '2px' }}>{formatBRL(endBal)}</h4>
+                    </div>
+                </div>
+
+                {/* SVG Trendline do Saldo Diário */}
+                <div style={{ marginBottom: '1.25rem', border: '1px solid rgba(15, 23, 42, 0.05)', padding: '10px', borderRadius: '8px', backgroundColor: '#fafafa' }}>
+                    <div style={{ fontSize: '0.65rem', fontWeight: 700, color: '#64748b', marginBottom: '8px' }}>Evolução Projetada do Saldo Bancário:</div>
+                    <div style={{ height: '80px', width: '100%', position: 'relative' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', height: '100%', padding: '0 10px' }}>
+                            {list.map((item: any, idx: number) => {
+                                const maxBalance = Math.max(...list.map((i: any) => Math.max(i.endingBalance, startBal))) || 1;
+                                const minBalance = Math.min(...list.map((i: any) => i.endingBalance)) || 0;
+                                const balanceRange = maxBalance - minBalance || 1;
+                                const heightPercent = ((item.endingBalance - minBalance) / balanceRange) * 80 + 10;
+                                
+                                return (
+                                    <div key={idx} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', flex: 1 }}>
+                                        <div 
+                                            style={{ 
+                                                width: '6px', 
+                                                height: `${heightPercent}%`, 
+                                                backgroundColor: item.endingBalance >= startBal ? '#4f46e5' : '#f59e0b', 
+                                                borderRadius: '3px 3px 0 0',
+                                                cursor: 'pointer',
+                                                position: 'relative'
+                                            }}
+                                            className="dfc-bar"
+                                            title={`Saldo em ${item.date.split('-')[2]}: ${formatBRL(item.endingBalance)}`}
+                                        >
+                                            <div className="dfc-tooltip">{formatBRL(item.endingBalance)}</div>
+                                        </div>
+                                        <span style={{ fontSize: '0.6rem', color: '#64748b', marginTop: '4px', fontWeight: 600 }}>
+                                            {item.date.split('-')[2]}
+                                        </span>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    </div>
+                </div>
+
+                {/* Detalhes Diários */}
+                <div style={{ border: '1px solid rgba(15, 23, 42, 0.08)', borderRadius: '8px', overflow: 'hidden' }}>
+                    <div style={{ maxHeight: '180px', overflowY: 'auto' }}>
+                        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.75rem', textAlign: 'left' }}>
+                            <thead>
+                                <tr style={{ backgroundColor: '#f8fafc', borderBottom: '1px solid rgba(15, 23, 42, 0.08)' }}>
+                                    <th style={{ padding: '6px 10px', fontWeight: 600, color: '#475569' }}>Data</th>
+                                    <th style={{ padding: '6px 10px', fontWeight: 600, color: '#10b981', textAlign: 'right' }}>Entradas</th>
+                                    <th style={{ padding: '6px 10px', fontWeight: 600, color: '#ef4444', textAlign: 'right' }}>Saídas</th>
+                                    <th style={{ padding: '6px 10px', fontWeight: 600, color: '#475569', textAlign: 'right' }}>Saldo Projetado</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {list.map((item: any, idx: number) => {
+                                    const parts = item.date.split('-');
+                                    const dateLabel = `${parts[2]}/${parts[1]}`;
+                                    return (
+                                        <tr key={idx} style={{ borderBottom: '1px solid rgba(15, 23, 42, 0.04)', backgroundColor: '#ffffff' }}>
+                                            <td style={{ padding: '6px 10px', fontWeight: 700, color: '#334155' }}>{dateLabel}</td>
+                                            <td style={{ padding: '6px 10px', color: '#10b981', textAlign: 'right' }}>{item.inflow > 0 ? formatBRL(item.inflow) : '-'}</td>
+                                            <td style={{ padding: '6px 10px', color: '#ef4444', textAlign: 'right' }}>{item.outflow > 0 ? formatBRL(item.outflow) : '-'}</td>
+                                            <td style={{ padding: '6px 10px', color: '#1e293b', textAlign: 'right', fontWeight: 700 }}>{formatBRL(item.endingBalance)}</td>
+                                        </tr>
+                                    );
+                                })}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        );
+    };
+
     return (
         <div style={{ height: 'calc(100vh - 20px)', width: '100%', display: 'flex', flexDirection: 'column', padding: '1rem 1.5rem', boxSizing: 'border-box' }}>
             {/* Header */}
@@ -617,6 +962,9 @@ export default function CFOVirtualPage() {
                                     <>
                                         {visualPayload.type === 'CASH_FLOW' && renderCashFlowChart(visualPayload)}
                                         {visualPayload.type === 'DEVIATIONS' && renderDeviationsChart(visualPayload)}
+                                        {visualPayload.type === 'MONTHLY_BREAKDOWN' && renderMonthlyBreakdownChart(visualPayload)}
+                                        {visualPayload.type === 'OVERDUE_COMMITMENTS' && renderOverdueCommitments(visualPayload)}
+                                        {visualPayload.type === 'SHORT_TERM_PROJECTION' && renderShortTermProjection(visualPayload)}
                                     </>
                                 )}
 

@@ -100,6 +100,40 @@ const toolsDeclaration = [
                 }
             },
             {
+                name: 'get_monthly_category_summary',
+                description: 'Busca o resumo de valores mensal (orçado e realizado) para uma categoria específica (ou lista de categorias separadas por vírgula) ao longo dos meses de um determinado ano, permitindo gerar relatórios temporais ou gráficos de evolução.',
+                parameters: {
+                    type: 'OBJECT',
+                    properties: {
+                        year: { type: 'INTEGER', description: 'Ano fiscal' },
+                        categoryId: { type: 'STRING', description: 'ID da categoria (ou lista de IDs separados por vírgula obtidos na busca de categorias)' },
+                        viewMode: { type: 'STRING', description: 'Regime de caixa ou competência (opções: "competencia", "caixa")' }
+                    },
+                    required: ['year', 'categoryId']
+                }
+            },
+            {
+                name: 'get_overdue_commitments',
+                description: 'Retorna a lista de contas a pagar (previsto_pagar) e contas a receber (previsto_receber) que estão vencidas (data de vencimento anterior a hoje) e ainda não foram pagas.',
+                parameters: {
+                    type: 'OBJECT',
+                    properties: {
+                        year: { type: 'INTEGER', description: 'Filtrar por ano opcional (ex: 2026)' },
+                        month: { type: 'INTEGER', description: 'Filtrar por mês opcional (1 a 12)' }
+                    }
+                }
+            },
+            {
+                name: 'get_short_term_projection',
+                description: 'Retorna a projeção diária de fluxo de caixa para os próximos N dias (ex: 7 dias), com saldo inicial, entradas previstas, saídas previstas e saldo final diário.',
+                parameters: {
+                    type: 'OBJECT',
+                    properties: {
+                        days: { type: 'INTEGER', description: 'Número de dias para a projeção (padrão: 7, máximo: 30)' }
+                    }
+                }
+            },
+            {
                 name: 'suggest_action_plan',
                 description: 'Cria uma sugestão de plano de ação na interface do chat para corrigir um desvio financeiro ou otimizar caixa. O plano poderá ser aprovado e salvo pelo usuário.',
                 parameters: {
@@ -156,6 +190,30 @@ Instruções importantes:
   "month": <mes>,
   "year": <ano>,
   "deviations": <retorno_da_ferramenta_filtrado_apenas_as_10_principais>
+}
+\`\`\`
+10. Sempre que o usuário pedir para analisar faturamento, receitas, despesas ou a evolução de alguma conta específica por meses (ao usar 'get_monthly_category_summary'), inclua no FINAL da sua resposta (após o seu texto explicativo) o seguinte bloco de código JSON exato para desenhar o gráfico mensal:
+\`\`\`json
+{
+  "type": "MONTHLY_BREAKDOWN",
+  "title": "<titulo_do_grafico_legivel_ex_Faturamento_por_Competencia>",
+  "viewMode": "<competencia_ou_caixa>",
+  "values": <retorno_da_ferramenta_get_monthly_category_summary>
+}
+\`\`\`
+11. Sempre que o usuário pedir relatórios de contas a pagar/receber vencidas, atrasadas ou inadimplentes (ao usar 'get_overdue_commitments'), inclua no FINAL da sua resposta (após o seu texto explicativo) o seguinte bloco de código JSON exato:
+\`\`\`json
+{
+  "type": "OVERDUE_COMMITMENTS",
+  "values": <retorno_da_ferramenta_get_overdue_commitments>
+}
+\`\`\`
+12. Sempre que o usuário pedir a projeção do fluxo de caixa para os próximos dias/semana (ao usar 'get_short_term_projection'), inclua no FINAL da sua resposta (após o seu texto explicativo) o seguinte bloco de código JSON exato para desenhar o gráfico de projeção diária:
+\`\`\`json
+{
+  "type": "SHORT_TERM_PROJECTION",
+  "days": <dias_projetados>,
+  "projection": <retorno_da_ferramenta_get_short_term_projection>
 }
 \`\`\`
 Certifique-se de que os dados JSON sejam válidos e não coloque nenhum texto extra após o fechamento da tag \`\`\`.
@@ -428,6 +486,186 @@ async function executeTool(tenantId: string, name: string, args: any): Promise<a
                 description: t.description || 'Sem descrição',
                 customer: t.customer || 'Desconhecido'
             }));
+        }
+
+        case 'get_monthly_category_summary': {
+            const { year, categoryId, viewMode } = args;
+            if (!year || !categoryId) {
+                return { error: 'Parâmetros year e categoryId são obrigatórios.' };
+            }
+            const yearNum = parseInt(String(year), 10);
+            const mode = viewMode || 'competencia';
+
+            const catIds = categoryId.split(',').map((id: string) => id.trim()).filter(Boolean);
+
+            // Fetch budgets
+            const budgets = await prisma.budgetEntry.findMany({
+                where: { tenantId: { in: targetTenantIds }, year: yearNum, categoryId: { in: catIds } }
+            });
+
+            // Fetch realized
+            const realized = await prisma.realizedEntry.findMany({
+                where: { tenantId: { in: targetTenantIds }, year: yearNum, viewMode: mode, categoryId: { in: catIds } }
+            });
+
+            // Deduplicate synced months
+            const syncedMonths = new Set<string>();
+            realized.forEach(e => {
+                if (e.externalId && e.externalId.startsWith('sync-')) {
+                    syncedMonths.add(`${e.tenantId}|${e.year}|${e.month}`);
+                }
+            });
+
+            const realizedDeduped = realized.filter(e => {
+                const key = `${e.tenantId}|${e.year}|${e.month}`;
+                if (syncedMonths.has(key)) {
+                    return e.externalId && e.externalId.startsWith('sync-');
+                }
+                return true;
+            });
+
+            // Group by month (1 to 12)
+            const monthlyData: Record<number, { budget: number; realized: number }> = {};
+            for (let m = 1; m <= 12; m++) {
+                monthlyData[m] = { budget: 0, realized: 0 };
+            }
+
+            budgets.forEach(b => {
+                if (monthlyData[b.month]) {
+                    monthlyData[b.month].budget += b.amount;
+                }
+            });
+
+            realizedDeduped.forEach(r => {
+                if (monthlyData[r.month]) {
+                    monthlyData[r.month].realized += r.amount;
+                }
+            });
+
+            return Object.entries(monthlyData).map(([mStr, vals]) => ({
+                month: parseInt(mStr, 10),
+                budget: vals.budget,
+                realized: vals.realized,
+                deviation: mode === 'caixa' ? (vals.realized - vals.budget) : (vals.budget - vals.realized)
+            }));
+        }
+
+        case 'get_overdue_commitments': {
+            const { year, month } = args;
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+
+            const categories = await prisma.category.findMany({
+                where: { tenantId: { in: targetTenantIds } }
+            });
+            const catMap = new Map(categories.map(c => [c.id, c.name]));
+
+            const whereClause: any = {
+                tenantId: { in: targetTenantIds },
+                viewMode: { in: ['previsto_receber', 'previsto_pagar'] },
+                date: { lt: today }
+            };
+
+            if (year) {
+                whereClause.year = parseInt(String(year), 10);
+            }
+            if (month) {
+                whereClause.month = parseInt(String(month), 10);
+            }
+
+            const entries = await prisma.realizedEntry.findMany({
+                where: whereClause,
+                orderBy: { date: 'asc' }
+            });
+
+            return entries.map(e => ({
+                id: e.id,
+                date: e.date ? e.date.toISOString().split('T')[0] : null,
+                amount: e.amount,
+                type: e.viewMode === 'previsto_receber' ? 'RECEIVABLE' : 'PAYABLE',
+                description: e.description || 'Sem descrição',
+                customer: e.customer || 'Desconhecido',
+                categoryName: catMap.get(e.categoryId) || 'Sem categoria'
+            }));
+        }
+
+        case 'get_short_term_projection': {
+            const days = parseInt(String(args.days || 7), 10);
+            const daysNum = Math.min(Math.max(days, 1), 30);
+
+            const bankAccounts = await prisma.bankAccount.findMany({
+                where: { tenantId: { in: targetTenantIds } }
+            });
+            const startBalance = bankAccounts.reduce((sum, acc) => sum + acc.balance, 0);
+
+            const categories = await prisma.category.findMany({
+                where: { tenantId: { in: targetTenantIds } }
+            });
+            const catMap = new Map(categories.map(c => [c.id, c.name]));
+
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+
+            const endDate = new Date(today);
+            endDate.setDate(today.getDate() + daysNum);
+            endDate.setHours(23, 59, 59, 999);
+
+            const entries = await prisma.realizedEntry.findMany({
+                where: {
+                    tenantId: { in: targetTenantIds },
+                    viewMode: { in: ['previsto_receber', 'previsto_pagar'] },
+                    date: { gte: today, lte: endDate }
+                },
+                orderBy: { date: 'asc' }
+            });
+
+            const projectionList = [];
+            let rollingBalance = startBalance;
+
+            for (let i = 0; i <= daysNum; i++) {
+                const currentDate = new Date(today);
+                currentDate.setDate(today.getDate() + i);
+                const dateStr = currentDate.toISOString().split('T')[0];
+
+                const dayEntries = entries.filter(e => {
+                    if (!e.date) return false;
+                    const eDateStr = e.date.toISOString().split('T')[0];
+                    return eDateStr === dateStr;
+                });
+
+                const inflow = dayEntries
+                    .filter(e => e.viewMode === 'previsto_receber')
+                    .reduce((sum, e) => sum + e.amount, 0);
+
+                const outflow = dayEntries
+                    .filter(e => e.viewMode === 'previsto_pagar')
+                    .reduce((sum, e) => sum + e.amount, 0);
+
+                const netFlow = inflow - outflow;
+                const startingBalance = rollingBalance;
+                rollingBalance += netFlow;
+
+                projectionList.push({
+                    date: dateStr,
+                    startingBalance,
+                    inflow,
+                    outflow,
+                    netFlow,
+                    endingBalance: rollingBalance,
+                    details: dayEntries.map(e => ({
+                        amount: e.amount,
+                        type: e.viewMode === 'previsto_receber' ? 'RECEIVABLE' : 'PAYABLE',
+                        description: e.description || 'Sem descrição',
+                        customer: e.customer || 'Desconhecido',
+                        categoryName: catMap.get(e.categoryId) || 'Sem categoria'
+                    }))
+                });
+            }
+
+            return {
+                startBalance,
+                projection: projectionList
+            };
         }
 
         case 'suggest_action_plan': {

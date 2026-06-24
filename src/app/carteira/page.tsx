@@ -246,7 +246,11 @@ export default function PortfolioAnalysisPage() {
         const labels = selectedIds.map(id => {
             if (dreLabels[id]) return dreLabels[id];
             if (syntheticLabels[id]) return syntheticLabels[id];
-            const found = categories.find((cat: any) => cat.id === id);
+            const cleanId = id.includes(':') ? id.split(':').pop()! : id;
+            const found = categories.find((cat: any) => {
+                const cleanCatId = cat.id.includes(':') ? cat.id.split(':').pop()! : cat.id;
+                return cleanCatId === cleanId;
+            });
             return found ? found.name : id;
         });
 
@@ -3389,7 +3393,11 @@ const DetailedChartCard = ({ chart, onEdit, onDelete, onOpenAnalysis, mainMonth,
         const labels = selectedIds.map(id => {
             if (dreLabels[id]) return dreLabels[id];
             if (syntheticLabels[id]) return syntheticLabels[id];
-            const found = categories.find((cat: any) => cat.id === id);
+            const cleanId = id.includes(':') ? id.split(':').pop()! : id;
+            const found = categories.find((cat: any) => {
+                const cleanCatId = cat.id.includes(':') ? cat.id.split(':').pop()! : cat.id;
+                return cleanCatId === cleanId;
+            });
             return found ? found.name : id;
         });
 
@@ -5245,8 +5253,8 @@ const renderDetailedChart = (
                     {(chartMode === 'DONUT' || type === 'DONUT') && (
                         <>
                             <circle cx={cx} cy={cy} r="44" fill="var(--bg-surface)" />
-                            <text x={cx} y={cy - 4} textAnchor="middle" style={{ fontSize: '0.7rem', fontWeight: 700, fill: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Total Realiz.</text>
-                            <text x={cx} y={cy + 10} textAnchor="middle" style={{ fontSize: '0.9rem', fontWeight: 800, fill: 'var(--text-primary)' }}>{formatVal(totalRealizedSum)}</text>
+                            <text x={cx} y={cy - 4} textAnchor="middle" style={{ fontSize: '10px', fontWeight: 700, fill: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Total Realiz.</text>
+                            <text x={cx} y={cy + 10} textAnchor="middle" style={{ fontSize: '13px', fontWeight: 800, fill: 'var(--text-primary)' }}>{formatVal(totalRealizedSum)}</text>
                         </>
                     )}
 
@@ -5283,7 +5291,7 @@ const renderDetailedChart = (
                                     y={ty} 
                                     textAnchor={textAnchor} 
                                     style={{ 
-                                        fontSize: '0.95rem', 
+                                        fontSize: '11px', 
                                         fontWeight: 800, 
                                         fill: 'var(--text-primary)', 
                                         paintOrder: 'stroke', 
@@ -5293,7 +5301,7 @@ const renderDetailedChart = (
                                     }}
                                 >
                                     <tspan x={tx} dy="-2">{displayLabel}</tspan>
-                                    <tspan x={tx} dy="15" style={{ fontSize: '0.75rem', fontWeight: 500, fill: 'var(--text-muted)' }}>{formatVal(val)} ({percentage.toFixed(1)}%)</tspan>
+                                    <tspan x={tx} dy="15" style={{ fontSize: '8.5px', fontWeight: 500, fill: 'var(--text-muted)' }}>{formatVal(val)} ({percentage.toFixed(1)}%)</tspan>
                                 </text>
                             </g>
                         );

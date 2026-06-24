@@ -47,87 +47,7 @@ export async function GET(request: Request) {
             targetTenantIds = Array.from(new Set(variantSets.flat()));
         }
 
-        // Apply cost center filter
-        const ccFilter: any = {};
-        if (filterCCId && filterCCId !== 'ALL' && filterCCId !== 'DEFAULT') {
-            const requestedCCIds = filterCCId.split(',').map(id => id.trim()).filter(Boolean);
-            const selectedCCs = await prisma.costCenter.findMany({
-                where: { id: { in: requestedCCIds } },
-                select: { name: true, tenantId: true }
-            });
-            
-            const normalizeCCName = (name: string) => 
-                (name || '')
-                    .toLowerCase()
-                    .replace(/^[\d. ]+-?\s*/, '')
-                    .replace(/[^a-z0-9]/g, '')
-                    .replace(/merces/g, 'meces')
-                    .trim();
-
-            const allSynonymousCCIds = new Set<string>(requestedCCIds);
-            if (selectedCCs.length > 0) {
-                const targetNorms = selectedCCs.map(cc => normalizeCCName(cc.name));
-                const synonymousCCs = await prisma.costCenter.findMany({
-                    where: { tenantId: { in: targetTenantIds } },
-                    select: { id: true, name: true }
-                });
-                synonymousCCs.forEach(cc => {
-                    const cn = normalizeCCName(cc.name);
-                    if (targetNorms.some(tn => cn.includes(tn) || tn.includes(cn))) {
-                        allSynonymousCCIds.add(cc.id);
-                    }
-                });
-            }
-            ccFilter.costCenterId = { in: Array.from(allSynonymousCCIds) };
-        }
-        // Query raw Budget and Realized entries
-        const normalizeCCNameDedup = (name: string) =>
-            (name || '')
-                .toLowerCase()
-                .replace(/^\[inativo\]\s*/i, '')
-                .replace(/^[\d. ]+-?\s*/, '')
-                .replace(/[^a-z0-9]/g, '')
-                .trim();
-
-        const [realizedRaw, budgetRaw] = await Promise.all([
-            prisma.realizedEntry.findMany({
-                where: {
-                    tenantId: { in: targetTenantIds },
-                    year,
-                    viewMode,
-                    ...ccFilter
-                },
-                include: { category: true, costCenter: true }
-            }),
-            prisma.budgetEntry.findMany({
-                where: {
-                    tenantId: { in: targetTenantIds },
-                    year,
-                    ...ccFilter
-                },
-                include: { category: true, costCenter: true }
-            })
-        ]);
-
-        // Global synced months detection to prevent manual + sync overlap
-        const syncedMonths = new Set<string>();
-        realizedRaw.forEach(e => {
-            if (e.externalId && e.externalId.startsWith('sync-')) {
-                syncedMonths.add(`${e.year}|${e.month}`);
-            }
-        });
-
-        const realizedEntriesRaw = realizedRaw.filter(e => {
-            const key = `${e.year}|${e.month}`;
-            if (syncedMonths.has(key)) {
-                return e.externalId && e.externalId.startsWith('sync-');
-            }
-            return true;
-        });
-
-        const budgetRawDeduped = budgetRaw;
-
-        // Get categories
+        // 2. Load Categories and Build Category Tree (moved to the top to support DB-level filtering)
         const rawCategories = await prisma.category.findMany({
             where: { tenantId: { in: targetTenantIds } }
         });
@@ -144,79 +64,6 @@ export async function GET(request: Request) {
             }
         });
 
-        const requestedTenantIds = filterTenantId.split(',').map(id => id.trim()).filter(Boolean);
-        const isConsolidated = filterTenantId === 'ALL' || filterTenantId === 'DEFAULT' || requestedTenantIds.length > 1;
-
-        const getCleanCode = (name: string) => {
-            const match = name.match(/^(\d{1,2}(?:\.\d+)*)/); 
-            return match ? match[1] : '';
-        };
-
-        const realizedEntries = realizedEntriesRaw.filter(e => {
-            const catName = categoryNameMap.get(e.categoryId) || '';
-            const code = normalizeCode(getCleanCode(catName));
-            if (code === '6.1.2' || code === '6.2.2') return false;
-            if (isConsolidated && (code === '6.1.1' || code === '6.2.1')) return false;
-            return true;
-        });
-
-        const budgetEntries = budgetRawDeduped.filter(e => {
-            const catName = categoryNameMap.get(e.categoryId) || '';
-            const code = normalizeCode(getCleanCode(catName));
-            if (code === '6.1.2' || code === '6.2.2') return false;
-            if (isConsolidated && (code === '6.1.1' || code === '6.2.1')) return false;
-            return true;
-        });
-
-        // Aggregate realized and budgets
-        const realizedValues: Record<string, number> = {};
-        const budgetValues: Record<string, { amount: number }> = {};
-
-        realizedEntries.forEach((e: any) => {
-            const idKey = `realized-${e.categoryId}-${e.month - 1}`;
-            realizedValues[idKey] = (realizedValues[idKey] || 0) + e.amount;
-
-            let catName = categoryNameMap.get(e.categoryId);
-            if (!catName && e.categoryId.includes(':')) {
-                catName = categoryNameMap.get(e.categoryId.split(':')[1]);
-            }
-            if (catName) {
-                const normalizedName = catName.toUpperCase().replace(/[^A-Z0-9]/g, '');
-                const nameKey = `${normalizedName}|${e.month - 1}`;
-                realizedValues[nameKey] = (realizedValues[nameKey] || 0) + e.amount;
-
-                // Revenue aggregator
-                const isRevenue = normalizedName.startsWith('01') || normalizedName.startsWith('1RECEIT');
-                if (isRevenue && normalizedName !== '01RECEITABRUTA' && normalizedName !== '1RECEITABRUTA') {
-                    realizedValues[`01RECEITABRUTA|${e.month - 1}`] = (realizedValues[`01RECEITABRUTA|${e.month - 1}`] || 0) + e.amount;
-                    realizedValues[`1RECEITABRUTA|${e.month - 1}`] = (realizedValues[`1RECEITABRUTA|${e.month - 1}`] || 0) + e.amount;
-                }
-            }
-        });
-
-        budgetEntries.forEach((e: any) => {
-            const idKey = `${e.categoryId}-${e.month - 1}`;
-            budgetValues[idKey] = { amount: (budgetValues[idKey]?.amount || 0) + e.amount };
-
-            let catName = categoryNameMap.get(e.categoryId);
-            if (!catName && e.categoryId.includes(':')) {
-                catName = categoryNameMap.get(e.categoryId.split(':')[1]);
-            }
-            if (catName) {
-                const normalizedName = catName.toUpperCase().replace(/[^A-Z0-9]/g, '');
-                const nameKey = `budget-${normalizedName}|${e.month - 1}`;
-                budgetValues[nameKey] = { amount: (budgetValues[nameKey]?.amount || 0) + e.amount };
-
-                // Revenue aggregator
-                const isRevenue = normalizedName.startsWith('01') || normalizedName.startsWith('1RECEIT');
-                if (isRevenue && normalizedName !== '01RECEITABRUTA' && normalizedName !== '1RECEITABRUTA') {
-                    budgetValues[`budget-01RECEITABRUTA|${e.month - 1}`] = { amount: (budgetValues[`budget-01RECEITABRUTA|${e.month - 1}`]?.amount || 0) + e.amount };
-                    budgetValues[`budget-1RECEITABRUTA|${e.month - 1}`] = { amount: (budgetValues[`budget-1RECEITABRUTA|${e.month - 1}`]?.amount || 0) + e.amount };
-                }
-            }
-        });
-
-        // 2. Build Category Tree
         const map = new Map<string, CategoryNode>();
         const codeMap = new Map<string, CategoryNode>();
         const nameMap = new Map<string, CategoryNode>();
@@ -258,7 +105,6 @@ export async function GET(request: Request) {
             { code: '1.1', name: '01.1 - Receita de Serviços', parentCode: '1' },
             { code: '1.2', name: '01.2 - Receitas de Vendas', parentCode: '1' },
             { code: '2.1', name: '02.1 - Tributos', parentCode: '2' },
-            // CUSTOS OPERACIONAIS (3.1 to 3.9)
             { code: '3.1', name: '03.1 Salarios e Remuneração', parentCode: '3' },
             { code: '3.2', name: '03.2 Encargos Sociais', parentCode: '3' },
             { code: '3.3', name: '03.3 Beneficios', parentCode: '3' },
@@ -268,7 +114,6 @@ export async function GET(request: Request) {
             { code: '3.7', name: '03.7 Equipamentos', parentCode: '3' },
             { code: '3.8', name: '03.8 Comunicação/Sistema/Licenças', parentCode: '3' },
             { code: '3.9', name: '03.9 Custo com Veiculo', parentCode: '3' },
-            // DESPESAS OPERACIONAIS (4.1 to 4.8)
             { code: '4.1', name: '04.1 Salarios e Remuneração', parentCode: '4' },
             { code: '4.2', name: '04.2 Encargos Sociais', parentCode: '4' },
             { code: '4.3', name: '04.3 Beneficios', parentCode: '4' },
@@ -277,7 +122,6 @@ export async function GET(request: Request) {
             { code: '4.6', name: '04.6 Custo com Veículos', parentCode: '4' },
             { code: '4.7', name: '04.7 Cartão Corporativo', parentCode: '4' },
             { code: '4.8', name: '04.8 Serviços Terceirizados', parentCode: '4' },
-            // DESPESAS ADMINISTRATIVAS (5.1 to 5.13)
             { code: '5.1', name: '05.1 Salario e Remuneração', parentCode: '5' },
             { code: '5.2', name: '05.2 Encargos Sociais', parentCode: '5' },
             { code: '5.3', name: '05.3 Beneficios', parentCode: '5' },
@@ -291,7 +135,6 @@ export async function GET(request: Request) {
             { code: '5.11', name: '05.11 Despesa com Veículos', parentCode: '5' },
             { code: '5.12', name: '05.12 Despesa de Informatica', parentCode: '5' },
             { code: '5.13', name: '05.13 Taxas e Despesas Legais', parentCode: '5' },
-            // DESPESAS FINANCEIRAS (6.1 to 6.8)
             { code: '6.1', name: '06.1 Entradas Financeiras', parentCode: '6' },
             { code: '6.2', name: '06.2 Saidas Financeiras', parentCode: '6' },
             { code: '6.3', name: '06.3 Financiamento', parentCode: '6' },
@@ -430,6 +273,207 @@ export async function GET(request: Request) {
             });
         };
         recalculateLevels(finalRoots, 0);
+
+        // Helper to collect descendants for DB filtering
+        const getRelevantCategoryIds = (targetCatId: string): string[] | null => {
+            const keys = targetCatId.split('|').map(x => x.trim()).filter(Boolean);
+            const allKeys = new Set<string>();
+
+            for (const key of keys) {
+                if (['vRev', 'vTaxes', 'vRecLiq', 'vCosts', 'vGrossMarg', 'vOpExp', 'vContribMarg', 'vAdminExp', 'vEbitda', 'vFin', 'vNetProfit'].includes(key)) {
+                    return null; // Bypass filter (need all for DRE calculation)
+                }
+
+                let lookupKey = key;
+                if (key.startsWith('synth-')) {
+                    const code = key.replace('synth-', '');
+                    lookupKey = `synth-${normalizeCode(code)}`;
+                }
+
+                const node = map.get(lookupKey);
+                if (node) {
+                    const collectLeafIds = (n: CategoryNode) => {
+                        if (!n.isSynthetic) {
+                            n.id.split(',').forEach(id => allKeys.add(id));
+                        }
+                        n.children.forEach(collectLeafIds);
+                    };
+                    collectLeafIds(node);
+                } else {
+                    allKeys.add(key);
+                }
+            }
+
+            return Array.from(allKeys);
+        };
+
+        const getRevenueCategoryIds = (): string[] => {
+            const revIds = new Set<string>();
+            categories.forEach(c => {
+                const cleanCode = (c.name.match(/^(\d{1,2}(?:\.\d+)*)/) || [])[1] || '';
+                const norm = normalizeCode(cleanCode);
+                if (norm === '1' || norm.startsWith('1.')) {
+                    c.id.split(',').forEach(id => revIds.add(id));
+                }
+            });
+            return Array.from(revIds);
+        };
+
+        // Determine DB category filters
+        const categoryFilter: any = {};
+        const relevantCategoryIds = getRelevantCategoryIds(categoryId);
+        if (relevantCategoryIds !== null) {
+            const revenueIds = getRevenueCategoryIds();
+            const combinedIds = Array.from(new Set([...relevantCategoryIds, ...revenueIds]));
+            categoryFilter.categoryId = { in: combinedIds };
+        }
+
+        // Apply cost center filter
+        const ccFilter: any = {};
+        if (filterCCId && filterCCId !== 'ALL' && filterCCId !== 'DEFAULT') {
+            const requestedCCIds = filterCCId.split(',').map(id => id.trim()).filter(Boolean);
+            const selectedCCs = await prisma.costCenter.findMany({
+                where: { id: { in: requestedCCIds } },
+                select: { name: true, tenantId: true }
+            });
+            
+            const normalizeCCName = (name: string) => 
+                (name || '')
+                    .toLowerCase()
+                    .replace(/^[\d. ]+-?\s*/, '')
+                    .replace(/[^a-z0-9]/g, '')
+                    .replace(/merces/g, 'meces')
+                    .trim();
+
+            const allSynonymousCCIds = new Set<string>(requestedCCIds);
+            if (selectedCCs.length > 0) {
+                const targetNorms = selectedCCs.map(cc => normalizeCCName(cc.name));
+                const synonymousCCs = await prisma.costCenter.findMany({
+                    where: { tenantId: { in: targetTenantIds } },
+                    select: { id: true, name: true }
+                });
+                synonymousCCs.forEach(cc => {
+                    const cn = normalizeCCName(cc.name);
+                    if (targetNorms.some(tn => cn.includes(tn) || tn.includes(cn))) {
+                        allSynonymousCCIds.add(cc.id);
+                    }
+                });
+            }
+            ccFilter.costCenterId = { in: Array.from(allSynonymousCCIds) };
+        }
+
+        // Query raw Budget and Realized entries (optimized with DB-level category filtering)
+        const [realizedRaw, budgetRaw] = await Promise.all([
+            prisma.realizedEntry.findMany({
+                where: {
+                    tenantId: { in: targetTenantIds },
+                    year,
+                    viewMode,
+                    ...ccFilter,
+                    ...categoryFilter
+                },
+                include: { category: true, costCenter: true }
+            }),
+            prisma.budgetEntry.findMany({
+                where: {
+                    tenantId: { in: targetTenantIds },
+                    year,
+                    ...ccFilter,
+                    ...categoryFilter
+                },
+                include: { category: true, costCenter: true }
+            })
+        ]);
+
+        // Global synced months detection to prevent manual + sync overlap
+        const syncedMonths = new Set<string>();
+        realizedRaw.forEach(e => {
+            if (e.externalId && e.externalId.startsWith('sync-')) {
+                syncedMonths.add(`${e.year}|${e.month}`);
+            }
+        });
+
+        const realizedEntriesRaw = realizedRaw.filter(e => {
+            const key = `${e.year}|${e.month}`;
+            if (syncedMonths.has(key)) {
+                return e.externalId && e.externalId.startsWith('sync-');
+            }
+            return true;
+        });
+
+        const budgetRawDeduped = budgetRaw;
+
+        const requestedTenantIds = filterTenantId.split(',').map(id => id.trim()).filter(Boolean);
+        const isConsolidated = filterTenantId === 'ALL' || filterTenantId === 'DEFAULT' || requestedTenantIds.length > 1;
+
+        const getCleanCode = (name: string) => {
+            const match = name.match(/^(\d{1,2}(?:\.\d+)*)/); 
+            return match ? match[1] : '';
+        };
+
+        const realizedEntries = realizedEntriesRaw.filter(e => {
+            const catName = categoryNameMap.get(e.categoryId) || '';
+            const code = normalizeCode(getCleanCode(catName));
+            if (code === '6.1.2' || code === '6.2.2') return false;
+            if (isConsolidated && (code === '6.1.1' || code === '6.2.1')) return false;
+            return true;
+        });
+
+        const budgetEntries = budgetRawDeduped.filter(e => {
+            const catName = categoryNameMap.get(e.categoryId) || '';
+            const code = normalizeCode(getCleanCode(catName));
+            if (code === '6.1.2' || code === '6.2.2') return false;
+            if (isConsolidated && (code === '6.1.1' || code === '6.2.1')) return false;
+            return true;
+        });
+
+        // Aggregate realized and budgets
+        const realizedValues: Record<string, number> = {};
+        const budgetValues: Record<string, { amount: number }> = {};
+
+        realizedEntries.forEach((e: any) => {
+            const idKey = `realized-${e.categoryId}-${e.month - 1}`;
+            realizedValues[idKey] = (realizedValues[idKey] || 0) + e.amount;
+
+            let catName = categoryNameMap.get(e.categoryId);
+            if (!catName && e.categoryId.includes(':')) {
+                catName = categoryNameMap.get(e.categoryId.split(':')[1]);
+            }
+            if (catName) {
+                const normalizedName = catName.toUpperCase().replace(/[^A-Z0-9]/g, '');
+                const nameKey = `${normalizedName}|${e.month - 1}`;
+                realizedValues[nameKey] = (realizedValues[nameKey] || 0) + e.amount;
+
+                // Revenue aggregator
+                const isRevenue = normalizedName.startsWith('01') || normalizedName.startsWith('1RECEIT');
+                if (isRevenue && normalizedName !== '01RECEITABRUTA' && normalizedName !== '1RECEITABRUTA') {
+                    realizedValues[`01RECEITABRUTA|${e.month - 1}`] = (realizedValues[`01RECEITABRUTA|${e.month - 1}`] || 0) + e.amount;
+                    realizedValues[`1RECEITABRUTA|${e.month - 1}`] = (realizedValues[`1RECEITABRUTA|${e.month - 1}`] || 0) + e.amount;
+                }
+            }
+        });
+
+        budgetEntries.forEach((e: any) => {
+            const idKey = `${e.categoryId}-${e.month - 1}`;
+            budgetValues[idKey] = { amount: (budgetValues[idKey]?.amount || 0) + e.amount };
+
+            let catName = categoryNameMap.get(e.categoryId);
+            if (!catName && e.categoryId.includes(':')) {
+                catName = categoryNameMap.get(e.categoryId.split(':')[1]);
+            }
+            if (catName) {
+                const normalizedName = catName.toUpperCase().replace(/[^A-Z0-9]/g, '');
+                const nameKey = `budget-${normalizedName}|${e.month - 1}`;
+                budgetValues[nameKey] = { amount: (budgetValues[nameKey]?.amount || 0) + e.amount };
+
+                // Revenue aggregator
+                const isRevenue = normalizedName.startsWith('01') || normalizedName.startsWith('1RECEIT');
+                if (isRevenue && normalizedName !== '01RECEITABRUTA' && normalizedName !== '1RECEITABRUTA') {
+                    budgetValues[`budget-01RECEITABRUTA|${e.month - 1}`] = { amount: (budgetValues[`budget-01RECEITABRUTA|${e.month - 1}`]?.amount || 0) + e.amount };
+                    budgetValues[`budget-1RECEITABRUTA|${e.month - 1}`] = { amount: (budgetValues[`budget-1RECEITABRUTA|${e.month - 1}`]?.amount || 0) + e.amount };
+                }
+            }
+        });
 
         // 3. Helper to recursively calculate node totals and series for a set of entries
         const computeCategorySeries = async (

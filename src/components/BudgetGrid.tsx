@@ -900,7 +900,11 @@ export default function BudgetGrid({
             };
             if (dreLabels[id]) return dreLabels[id];
             if (syntheticLabels[id]) return syntheticLabels[id];
-            const found = categories.find((cat: any) => cat.id === id);
+            const cleanId = id.includes(':') ? id.split(':').pop()! : id;
+            const found = categories.find((cat: any) => {
+                const cleanCatId = cat.id.includes(':') ? cat.id.split(':').pop()! : cat.id;
+                return cleanCatId === cleanId;
+            });
             return found ? found.name : id;
         };
 

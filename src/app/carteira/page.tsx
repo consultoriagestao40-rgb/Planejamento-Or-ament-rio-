@@ -4412,7 +4412,7 @@ const renderDetailedChart = (
             }
 
             return (
-                <svg viewBox="-70 0 1290 260" width="100%" height="auto" style={{ overflow: 'visible' }}>
+                <svg viewBox="-70 0 1290 260" width="100%" height="100%" style={{ overflow: 'visible' }}>
                     {growth && (
                         <g transform="translate(600, 20)">
                             <rect x="-60" y="-12" width="120" height="24" rx="12" fill={growth.isGrowth ? 'rgba(16, 185, 129, 0.15)' : 'rgba(239, 68, 68, 0.15)'} stroke={growth.isGrowth ? '#10b981' : '#ef4444'} strokeWidth="1" />
@@ -4774,7 +4774,7 @@ const renderDetailedChart = (
             });
 
             return (
-                <svg viewBox="-70 0 1270 260" width="100%" height="auto" style={{ overflow: 'visible', maxHeight: '250px' }}>
+                <svg viewBox="-70 0 1270 260" width="100%" height="100%" style={{ overflow: 'visible', maxHeight: '250px' }}>
                     {growth && (
                         <g transform="translate(600, 20)">
                             <rect x="-60" y="-12" width="120" height="24" rx="12" fill={growth.isGrowth ? 'rgba(16, 185, 129, 0.15)' : 'rgba(239, 68, 68, 0.15)'} stroke={growth.isGrowth ? '#10b981' : '#ef4444'} strokeWidth="1" />
@@ -5041,7 +5041,7 @@ const renderDetailedChart = (
             });
 
             return (
-                <svg viewBox="-70 0 1270 260" width="100%" height="auto" style={{ overflow: 'visible', maxHeight: '250px' }}>
+                <svg viewBox="-70 0 1270 260" width="100%" height="100%" style={{ overflow: 'visible', maxHeight: '250px' }}>
                     {growth && (
                         <g transform="translate(600, 20)">
                             <rect x="-60" y="-12" width="120" height="24" rx="12" fill={growth.isGrowth ? 'rgba(16, 185, 129, 0.15)' : 'rgba(239, 68, 68, 0.15)'} stroke={growth.isGrowth ? '#10b981' : '#ef4444'} strokeWidth="1" />
@@ -5206,7 +5206,7 @@ const renderDetailedChart = (
                         cumulativeAngle += angle;
                         const sliceOpacity = 1 - (idx * 0.05);
 
-                        const labelText = isDimensional ? m.label : ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'][idx];
+                        const labelText = (isDimensional ? m.label : ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'][idx]) || '';
 
                         return (
                             <path 
@@ -5257,7 +5257,7 @@ const renderDetailedChart = (
                             const yPos = idx * 20;
                             const sliceOpacity = 1 - (idx * 0.05);
 
-                            const labelText = isDimensional ? m.label : ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'][idx];
+                            const labelText = (isDimensional ? m.label : ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'][idx]) || '';
                             const displayLabel = labelText.length > 15 ? labelText.substring(0, 13) + '..' : labelText;
 
                             return (

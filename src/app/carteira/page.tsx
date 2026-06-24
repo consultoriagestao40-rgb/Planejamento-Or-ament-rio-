@@ -5189,12 +5189,12 @@ const renderDetailedChart = (
 
             const cx = 250;
             const cy = 130;
-            const R = 70;
+            const R = 85;
             let cumulativeAngleSlices = 0;
             let cumulativeAngleLabels = 0;
 
             return (
-                <svg viewBox="0 0 500 260" width="100%" height="100%" style={{ overflow: 'visible', maxHeight: '230px', maxWidth: '440px', margin: '0 auto', display: 'block' }}>
+                <svg viewBox="0 0 500 260" width="100%" height="100%" style={{ overflow: 'visible', width: '100%', height: 'auto' }}>
                     {data.map((m, idx) => {
                         const val = isDimensional ? Math.max(0, m.realized || 0) : (idx + 1 <= currentMonthIdx + 1 ? Math.max(0, m.realized) : 0);
                         if (val === 0) return null;
@@ -5252,9 +5252,9 @@ const renderDetailedChart = (
 
                     {(chartMode === 'DONUT' || type === 'DONUT') && (
                         <>
-                            <circle cx={cx} cy={cy} r="44" fill="var(--bg-surface)" />
-                            <text x={cx} y={cy - 4} textAnchor="middle" style={{ fontSize: '11px', fontWeight: 700, fill: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Total Realiz.</text>
-                            <text x={cx} y={cy + 10} textAnchor="middle" style={{ fontSize: '15px', fontWeight: 800, fill: 'var(--text-primary)' }}>{formatVal(totalRealizedSum)}</text>
+                            <circle cx={cx} cy={cy} r="54" fill="var(--bg-surface)" />
+                            <text x={cx} y={cy - 4} textAnchor="middle" style={{ fontSize: '8px', fontWeight: 700, fill: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Total Realiz.</text>
+                            <text x={cx} y={cy + 10} textAnchor="middle" style={{ fontSize: '11px', fontWeight: 800, fill: 'var(--text-primary)' }}>{formatVal(totalRealizedSum)}</text>
                         </>
                     )}
 
@@ -5291,7 +5291,7 @@ const renderDetailedChart = (
                                     y={ty} 
                                     textAnchor={textAnchor} 
                                     style={{ 
-                                        fontSize: '14px', 
+                                        fontSize: '9.5px', 
                                         fontWeight: 800, 
                                         fill: 'var(--text-primary)', 
                                         paintOrder: 'stroke', 
@@ -5301,7 +5301,7 @@ const renderDetailedChart = (
                                     }}
                                 >
                                     <tspan x={tx} dy="-2">{displayLabel}</tspan>
-                                    <tspan x={tx} dy="15" style={{ fontSize: '11px', fontWeight: 500, fill: 'var(--text-muted)' }}>{formatVal(val)} ({percentage.toFixed(1)}%)</tspan>
+                                    <tspan x={tx} dy="15" style={{ fontSize: '7.5px', fontWeight: 500, fill: 'var(--text-muted)' }}>{formatVal(val)} ({percentage.toFixed(1)}%)</tspan>
                                 </text>
                             </g>
                         );

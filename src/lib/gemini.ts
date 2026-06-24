@@ -182,9 +182,7 @@ DIRETRIZES DE CATEGORIZAÇÃO E SOMA DE RECEITAS/FATURAMENTO:
 REGRAS DE OTIMIZAÇÃO DE CHAMADAS DE FERRAMENTAS:
 1. Para evitar lentidão, timeouts e atingir o limite de chamadas (loops), sempre que precisar buscar dados de múltiplas categorias (seja para get_monthly_category_summary ou get_transactions), você DEVE agrupar todos os IDs das categorias resolvidos em uma única string separada por vírgulas (ex: "id1,id2,id3") e fazer uma única chamada de ferramenta.
 2. NUNCA faça chamadas sequenciais para a mesma ferramenta em loops separados para categorias diferentes se você puder agrupá-las em uma única chamada.
-3. DICA DE EFICIÊNCIA DE CONSULTA: Se a pergunta do usuário for sobre valores de um mês específico (ex: "qual foi a receita de maio de 2026" ou "quanto gastamos em despesas administrativas em janeiro de 2026"), a forma mais eficiente é chamar diretamente 'get_deviations' para o ano e mês solicitados. Isso trará os valores orçados e realizados de todas as categorias daquele mês em uma única chamada. Depois, basta filtrar e somar as contas desejadas (iniciadas pelo código do grupo correspondente).
-
-Instruções importantes:
+3. DICA DE EFICIÊNCIA DE CONSULTA: Se a pergunta do usuário for sobre valores de um mês específico (ex: "qual foi a receita de maio de 2026" ou "quanto gastamos em despesas administrativas em janeiro de 2026"), a forma mais eficiente é chamar diretamente 'get_deviations' para o ano e mês solicitados. Isso trará os valores orçados e realizados de todas as categoInstruções importantes:
 1. Responda em Português do Brasil com tom altamente profissional, objective e analítico.
 2. Sempre use as ferramentas disponíveis para obter dados reais quando o usuário fizer perguntas sobre finanças, valores, desvios ou fluxo de caixa. Não invente números.
 3. Se identificar estouros de orçamento (desvios negativos relevantes nas despesas), chame a ferramenta 'suggest_action_plan' para sugerir um plano de ação interativo para o usuário.
@@ -192,7 +190,8 @@ Instruções importantes:
 5. Se uma conta tiver desvio alto, recomende ao usuário analisar as transações daquela conta (você pode sugerir os detalhes chamando 'get_transactions').
 6. Seja proativo em sugerir onde reduzir custos e como reequilibrar o caixa.
 7. Tenha em mente que desvios de despesas são negativos se o realizado for MAIOR que o orçado (estouro). Desvios de receitas são negativos se o realizado for MENOR que o orçado (frustração).
-8. Sempre que você chamar a ferramenta 'get_cash_flow_summary', inclua no FINAL da sua resposta (após o seu texto explicativo) o seguinte bloco de código JSON exato para o frontend desenhar o gráfico:
+8. Você tem acesso ao nome do centro de custo de cada lançamento (contido no campo 'costCenterName' retornado pelas ferramentas 'get_transactions', 'get_overdue_commitments' e 'get_short_term_projection'). Se o usuário pedir análises por centro de custo, você pode e deve usar esses dados para agrupar, filtrar e consolidar as informações antes de responder.
+9. Sempre que você chamar a ferramenta 'get_cash_flow_summary', inclua no FINAL da sua resposta (após o seu texto explicativo) o seguinte bloco de código JSON exato para o frontend desenhar o gráfico:
 \`\`\`json
 {
   "type": "CASH_FLOW",
@@ -200,7 +199,7 @@ Instruções importantes:
   "monthlyCashFlow": <retorno_da_ferramenta_monthlyCashFlow>
 }
 \`\`\`
-9. Sempre que você chamar a ferramenta 'get_deviations', inclua no FINAL da sua resposta (após o seu texto explicativo) o seguinte bloco de código JSON exato:
+10. Sempre que você chamar a ferramenta 'get_deviations', inclua no FINAL da sua resposta (após o seu texto explicativo) o seguinte bloco de código JSON exato:
 \`\`\`json
 {
   "type": "DEVIATIONS",
@@ -209,7 +208,7 @@ Instruções importantes:
   "deviations": <retorno_da_ferramenta_filtrado_apenas_as_10_principais>
 }
 \`\`\`
-10. Sempre que o usuário pedir para analisar faturamento, receitas, despesas ou a evolução de alguma conta específica por meses (ao usar 'get_monthly_category_summary'), inclua no FINAL da sua resposta (após o seu texto explicativo) o seguinte bloco de código JSON exato para desenhar o gráfico mensal:
+11. Sempre que o usuário pedir para analisar faturamento, receitas, despesas ou a evolução de alguma conta específica por meses (ao usar 'get_monthly_category_summary'), inclua no FINAL da sua resposta (após o seu texto explicativo) o seguinte bloco de código JSON exato para desenhar o gráfico mensal:
 \`\`\`json
 {
   "type": "MONTHLY_BREAKDOWN",
@@ -218,22 +217,22 @@ Instruções importantes:
   "values": <retorno_da_ferramenta_get_monthly_category_summary>
 }
 \`\`\`
-11. Sempre que o usuário pedir relatórios de contas a pagar/receber vencidas, atrasadas ou inadimplentes (ao usar 'get_overdue_commitments'), inclua no FINAL da sua resposta (após o seu texto explicativo) o seguinte bloco de código JSON exato:
+12. Sempre que o usuário pedir relatórios de contas a pagar/receber vencidas, atrasadas ou inadimplentes (ao usar 'get_overdue_commitments'), inclua no FINAL da sua resposta (após o seu texto explicativo) o seguinte bloco de código JSON exato:
 \`\`\`json
 {
   "type": "OVERDUE_COMMITMENTS",
   "values": <retorno_da_ferramenta_get_overdue_commitments>
 }
 \`\`\`
-12. Sempre que o usuário pedir a projeção do fluxo de caixa para os próximos dias/semana (ao usar 'get_short_term_projection'), inclua no FINAL da sua resposta (após o seu texto explicativo) o seguinte bloco de código JSON exato para desenhar o gráfico de projeção diária:
+13. Sempre que o usuário pedir a projeção do fluxo de caixa para os próximos dias/semana (ao usar 'get_short_term_projection'), inclua no FINAL da sua resposta (após o seu texto explicativo) o seguinte bloco de código JSON exato para desenhar o gráfico de projeção diária:
 \`\`\`json
 {
   "type": "SHORT_TERM_PROJECTION",
   "days": <dias_projetados>,
   "projection": <retorno_da_ferramenta_get_short_term_projection>
 }
-\`\`\`
-Certifique-se de que os dados JSON sejam válidos e não coloque nenhum texto extra após o fechamento da tag \`\`\`.
+```
+Certifique-se de que os dados JSON sejam válidos e não coloque nenhum texto extra após o fechamento da tag ```.
 `;
 
 // Implementations of the database queries exposed as tools
@@ -477,6 +476,9 @@ async function executeTool(tenantId: string, name: string, args: any): Promise<a
                     month: monthNum, 
                     categoryId: { in: catIds } 
                 },
+                include: {
+                    costCenter: { select: { name: true } }
+                },
                 orderBy: { amount: 'desc' },
                 take: 50
             });
@@ -502,7 +504,8 @@ async function executeTool(tenantId: string, name: string, args: any): Promise<a
                 date: t.date ? t.date.toISOString().split('T')[0] : null,
                 amount: t.amount,
                 description: t.description || 'Sem descrição',
-                customer: t.customer || 'Desconhecido'
+                customer: t.customer || 'Desconhecido',
+                costCenterName: t.costCenter?.name || 'Sem centro de custo'
             }));
         }
 
@@ -593,6 +596,9 @@ async function executeTool(tenantId: string, name: string, args: any): Promise<a
 
             const entries = await prisma.realizedEntry.findMany({
                 where: whereClause,
+                include: {
+                    costCenter: { select: { name: true } }
+                },
                 orderBy: { date: 'asc' }
             });
 
@@ -603,7 +609,8 @@ async function executeTool(tenantId: string, name: string, args: any): Promise<a
                 type: e.viewMode === 'previsto_receber' ? 'RECEIVABLE' : 'PAYABLE',
                 description: e.description || 'Sem descrição',
                 customer: e.customer || 'Desconhecido',
-                categoryName: catMap.get(e.categoryId) || 'Sem categoria'
+                categoryName: catMap.get(e.categoryId) || 'Sem categoria',
+                costCenterName: e.costCenter?.name || 'Sem centro de custo'
             }));
         }
 
@@ -633,6 +640,9 @@ async function executeTool(tenantId: string, name: string, args: any): Promise<a
                     tenantId: { in: targetTenantIds },
                     viewMode: { in: ['previsto_receber', 'previsto_pagar'] },
                     date: { gte: today, lte: endDate }
+                },
+                include: {
+                    costCenter: { select: { name: true } }
                 },
                 orderBy: { date: 'asc' }
             });
@@ -675,7 +685,8 @@ async function executeTool(tenantId: string, name: string, args: any): Promise<a
                         type: e.viewMode === 'previsto_receber' ? 'RECEIVABLE' : 'PAYABLE',
                         description: e.description || 'Sem descrição',
                         customer: e.customer || 'Desconhecido',
-                        categoryName: catMap.get(e.categoryId) || 'Sem categoria'
+                        categoryName: catMap.get(e.categoryId) || 'Sem categoria',
+                        costCenterName: e.costCenter?.name || 'Sem centro de custo'
                     }))
                 });
             }

@@ -167,8 +167,25 @@ REGRAS CRÍTICAS DE INTERFACE E SEGURANÇA:
    d) Faça a consolidação/soma matemática dos valores internamente.
    e) Exiba o resultado final consolidado diretamente para o usuário, listando quais contas foram somadas apenas pelo nome legível. Não pergunte "devo somar todas?". Assuma que sim e apresente a resposta pronta.
 
+DIRETRIZES DE CATEGORIZAÇÃO E SOMA DE RECEITAS/FATURAMENTO:
+1. A "Receita Bruta" (ou "Faturamento", ou "Receita Total") da DRE é composta estritamente pelas categorias cujos nomes ou códigos começam com "01." ou "1.".
+2. NUNCA inclua contas do grupo "06." (como 06.1.1 - Transferência entre CNPJ, 06.1.2 - Transferência entre Contas, 06.1.5 - Empréstimo de Bancos, 06.1.7 - Rentabilidade Bancaria, etc.) na Receita Bruta/Faturamento, mesmo que no banco de dados elas estejam com o tipo 'REVENUE' ou entradaDre '06. DESPESAS FINANCEIRAS'. Essas são contas financeiras/transferências de caixa, e não receita de vendas/prestação de serviços da DRE.
+3. Da mesma forma, classifique os grupos da DRE estritamente de acordo com as iniciais do código da categoria ou de seu campo 'entradaDre':
+   - "01. RECEITA BRUTA": Começa com "01." ou "1."
+   - "02. TRIBUTO SOBRE FATURAMENTO": Começa com "02." ou "2."
+   - "03. CUSTO OPERACIONAL": Começa com "03." ou "3."
+   - "04. DESPESA OPERACIONAL": Começa com "04." ou "4."
+   - "05. DESPESAS ADMINISTRATIVAS": Começa com "05." ou "5."
+   - "06. DESPESAS FINANCEIRAS": Começa com "06." ou "6."
+4. Para responder a perguntas sobre valores dessas contas consolidadas, some sempre e apenas as subcategorias filhas corretas que atendam às regras acima.
+
+REGRAS DE OTIMIZAÇÃO DE CHAMADAS DE FERRAMENTAS:
+1. Para evitar lentidão, timeouts e atingir o limite de chamadas (loops), sempre que precisar buscar dados de múltiplas categorias (seja para get_monthly_category_summary ou get_transactions), você DEVE agrupar todos os IDs das categorias resolvidos em uma única string separada por vírgulas (ex: "id1,id2,id3") e fazer uma única chamada de ferramenta.
+2. NUNCA faça chamadas sequenciais para a mesma ferramenta em loops separados para categorias diferentes se você puder agrupá-las em uma única chamada.
+3. DICA DE EFICIÊNCIA DE CONSULTA: Se a pergunta do usuário for sobre valores de um mês específico (ex: "qual foi a receita de maio de 2026" ou "quanto gastamos em despesas administrativas em janeiro de 2026"), a forma mais eficiente é chamar diretamente 'get_deviations' para o ano e mês solicitados. Isso trará os valores orçados e realizados de todas as categorias daquele mês em uma única chamada. Depois, basta filtrar e somar as contas desejadas (iniciadas pelo código do grupo correspondente).
+
 Instruções importantes:
-1. Responda em Português do Brasil com tom altamente profissional, objetivo e analítico.
+1. Responda em Português do Brasil com tom altamente profissional, objective e analítico.
 2. Sempre use as ferramentas disponíveis para obter dados reais quando o usuário fizer perguntas sobre finanças, valores, desvios ou fluxo de caixa. Não invente números.
 3. Se identificar estouros de orçamento (desvios negativos relevantes nas despesas), chame a ferramenta 'suggest_action_plan' para sugerir um plano de ação interativo para o usuário.
 4. Ao exibir tabelas e resumos, formate em Markdown de forma muito limpa e legível. 
@@ -229,11 +246,11 @@ async function executeTool(tenantId: string, name: string, args: any): Promise<a
                 where: { tenantId: { in: targetTenantIds } }
             });
             // Group duplicate category names across tenants to make analysis consolidated
-            const nameMap = new Map<string, { id: string[]; name: string; type: string }>();
+            const nameMap = new Map<string, { id: string[]; name: string; type: string; entradaDre: string | null }>();
             categories.forEach(c => {
                 const key = c.name.trim();
                 if (!nameMap.has(key)) {
-                    nameMap.set(key, { id: [c.id], name: c.name, type: c.type });
+                    nameMap.set(key, { id: [c.id], name: c.name, type: c.type, entradaDre: c.entradaDre });
                 } else {
                     nameMap.get(key)!.id.push(c.id);
                 }
@@ -241,7 +258,8 @@ async function executeTool(tenantId: string, name: string, args: any): Promise<a
             return Array.from(nameMap.values()).map(item => ({
                 id: item.id.join(','), // Joined category IDs
                 name: item.name,
-                type: item.type
+                type: item.type,
+                entradaDre: item.entradaDre
             }));
         }
 
@@ -702,7 +720,7 @@ export async function askVirtualCFO(tenantId: string, messages: any[]): Promise<
         let loopCount = 0;
         let lastActionPlan: any = null;
 
-        while (loopCount < 5) {
+        while (loopCount < 15) {
             loopCount++;
 
             const payload = {

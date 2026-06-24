@@ -801,16 +801,30 @@ export async function askVirtualCFO(tenantId: string, messages: any[]): Promise<
             };
 
             const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_API_KEY}`;
-            const res = await fetch(url, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(payload)
-            });
+            let res: Response | null = null;
+            let retries = 4;
+            let delay = 1500;
 
-            if (!res.ok) {
-                const errText = await res.text();
+            for (let r = 0; r < retries; r++) {
+                res = await fetch(url, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+
+                if (res.status === 429) {
+                    console.warn(`[CFO Virtual] Gemini API rate limit hit (429). Retrying in ${delay}ms... (Attempt ${r + 1}/${retries})`);
+                    await new Promise(resolve => setTimeout(resolve, delay));
+                    delay *= 2.5; // Exponential backoff
+                    continue;
+                }
+                break;
+            }
+
+            if (!res || !res.ok) {
+                const errText = res ? await res.text() : 'No response';
                 console.error("Gemini API Error:", errText);
-                throw new Error(`API returned status ${res.status}`);
+                throw new Error(`API returned status ${res ? res.status : 'unknown'}`);
             }
 
             const data = await res.json();

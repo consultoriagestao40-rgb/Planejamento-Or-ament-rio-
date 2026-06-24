@@ -5245,8 +5245,8 @@ const renderDetailedChart = (
                     {(chartMode === 'DONUT' || type === 'DONUT') && (
                         <>
                             <circle cx={cx} cy={cy} r="44" fill="var(--bg-surface)" />
-                            <text x={cx} y={cy - 4} textAnchor="middle" fill="var(--text-muted)" fontSize="7.5px" fontWeight="700" textTransform="uppercase" letterSpacing="0.05em">Total Realiz.</text>
-                            <text x={cx} y={cy + 9} textAnchor="middle" fill="var(--text-primary)" fontSize="10.5px" fontWeight="700">{formatVal(totalRealizedSum)}</text>
+                            <text x={cx} y={cy - 4} textAnchor="middle" fill="var(--text-muted)" fontSize="9px" fontWeight="700" textTransform="uppercase" letterSpacing="0.05em">Total Realiz.</text>
+                            <text x={cx} y={cy + 10} textAnchor="middle" fill="var(--text-primary)" fontSize="13px" fontWeight="700">{formatVal(totalRealizedSum)}</text>
                         </>
                     )}
 
@@ -5278,9 +5278,9 @@ const renderDetailedChart = (
                         return (
                             <g key={`lbl-grp-${idx}`}>
                                 <line x1={sx} y1={sy} x2={ex} y2={ey} stroke="var(--border-strong)" strokeWidth="0.8" />
-                                <text x={tx} y={ty} textAnchor={textAnchor} fill="var(--text-secondary)" fontSize="8.5px" fontWeight="700" style={{ paintOrder: 'stroke', stroke: 'var(--bg-surface)', strokeWidth: 3, strokeLinejoin: 'round' }}>
+                                <text x={tx} y={ty} textAnchor={textAnchor} fill="var(--text-secondary)" fontSize="12px" fontWeight="700" style={{ paintOrder: 'stroke', stroke: 'var(--bg-surface)', strokeWidth: 3, strokeLinejoin: 'round' }}>
                                     <tspan x={tx} dy="-2">{displayLabel}</tspan>
-                                    <tspan x={tx} dy="10" fill="var(--text-muted)" fontSize="7.5px" fontWeight="500">{formatVal(val)} ({percentage.toFixed(1)}%)</tspan>
+                                    <tspan x={tx} dy="12" fill="var(--text-muted)" fontSize="10px" fontWeight="500">{formatVal(val)} ({percentage.toFixed(1)}%)</tspan>
                                 </text>
                             </g>
                         );

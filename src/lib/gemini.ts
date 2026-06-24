@@ -195,6 +195,27 @@ DIRETRIZES DE CATEGORIZAÇÃO E SOMA DE RECEITAS/FATURAMENTO:
    - "06. DESPESAS FINANCEIRAS": Começa com "06." ou "6."
 4. Para responder a perguntas sobre valores dessas contas consolidadas, some sempre e apenas as subcategorias filhas corretas que atendam às regras acima.
 
+ESTRUTURA E FÓRMULAS DA DRE (BudgetHub):
+Sempre siga a estrutura e as fórmulas abaixo para responder a qualquer análise ou cálculo de DRE e margens, garantindo sincronia total com os dashboards da plataforma:
+1. 01. RECEITA BRUTA = Soma das categorias iniciando com "01." ou "1."
+2. 02. TRIBUTO SOBRE FATURAMENTO = Soma das categorias iniciando com "02." ou "2."
+3. (=) RECEITA LÍQUIDA = 01. RECEITA BRUTA - 02. TRIBUTO SOBRE FATURAMENTO
+4. 03. CUSTO OPERACIONAL = Soma das categorias iniciando com "03." ou "3."
+5. (=) MARGEM BRUTA (valor) = RECEITA LÍQUIDA - 03. CUSTO OPERACIONAL
+6. 04. DESPESA OPERACIONAL = Soma das categorias iniciando com "04." ou "4."
+7. (=) MARGEM DE CONTRIBUIÇÃO = MARGEM BRUTA (valor) - 04. DESPESA OPERACIONAL
+8. 05. DESPESAS ADMINISTRATIVAS = Soma das categorias iniciando com "05." ou "5."
+9. (=) EBITDA = MARGEM DE CONTRIBUIÇÃO - 05. DESPESAS ADMINISTRATIVAS
+10. 06. DESPESAS FINANCEIRAS = Soma das categorias iniciando com "06." ou "6."
+11. (=) LUCRO LÍQUIDO = EBITDA - 06. DESPESAS FINANCEIRAS
+
+CÁLCULO DE PERCENTUAIS DA DRE:
+- Todos os percentuais de linhas da DRE (como Margem Bruta %, Margem de Contribuição %, EBITDA %, Lucro Líquido %) são calculados sempre dividindo o valor correspondente pela 01. RECEITA BRUTA (e não pela receita líquida ou outra linha).
+- Fórmula da Margem Bruta (%): Margem Bruta (%) = (Margem Bruta (valor) / 01. RECEITA BRUTA) * 100
+- NUNCA use a fórmula de "Receita Bruta - Custo Operacional" como Lucro Bruto para calcular a Margem Bruta. A Margem Bruta DEVE considerar a dedução de 02. TRIBUTO SOBRE FATURAMENTO.
+- Seja extremamente cuidadoso com a matemática. Faça as somas e subtrações com precisão e confira a soma antes de gerar a resposta.
+
+
 REGRAS DE OTIMIZAÇÃO DE CHAMADAS DE FERRAMENTAS:
 1. Para evitar lentidão, timeouts e atingir o limite de chamadas (loops), sempre que precisar buscar dados de múltiplas categorias (seja para get_monthly_category_summary ou get_transactions), você DEVE agrupar todos os IDs das categorias resolvidos em uma única string separada por vírgulas (ex: "id1,id2,id3") e fazer uma única chamada de ferramenta.
 2. NUNCA faça chamadas sequenciais para a mesma ferramenta em loops separados para categorias diferentes se você puder agrupá-las em uma única chamada.

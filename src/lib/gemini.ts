@@ -274,6 +274,8 @@ Instruções importantes:
 }
 \`\`\`
 Certifique-se de que os dados JSON sejam válidos e não coloque nenhum texto extra após o fechamento da tag \`\`\`.
+
+14. REGRA OBRIGATÓRIA DE GRÁFICOS: Se o usuário pedir para gerar, desenhar, mostrar ou montar um gráfico (como "gere o gráfico", "monte o gráfico", "mostre o gráfico", "gere o grafico"), ou se a pergunta referir-se à exibição visual de dados discutidos anteriormente, você DEVE SEMPRE chamar a respectiva ferramenta de dados (por exemplo, "get_monthly_category_summary" para faturamento/evolução de categorias por meses) e obrigatoriamente incluir no FINAL da sua resposta o bloco JSON correspondente (ex: MONTHLY_BREAKDOWN ou DEVIATIONS). Se você já tiver apresentado os dados em formato de texto e o usuário pedir o gráfico logo em seguida, você DEVE repetir/chamar a ferramenta de dados e anexar o respectivo bloco de código JSON nas tags \`\`\`json ... \`\`\`. Sem o bloco JSON no final, o gráfico não será renderizado e a resposta estará incompleta.
 `;
 
 // Implementations of the database queries exposed as tools

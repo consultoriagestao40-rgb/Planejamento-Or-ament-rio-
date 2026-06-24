@@ -276,7 +276,11 @@ export async function GET(request: Request) {
 
         // Helper to collect descendants for DB filtering
         const getRelevantCategoryIds = (targetCatId: string): string[] | null => {
-            const keys = targetCatId.split('|').map(x => x.trim()).filter(Boolean);
+            const parts = targetCatId.split('|').map(x => x.trim()).filter(Boolean);
+            const keys: string[] = [];
+            for (const part of parts) {
+                part.split(',').map(x => x.trim()).filter(Boolean).forEach(k => keys.push(k));
+            }
             const allKeys = new Set<string>();
 
             for (const key of keys) {

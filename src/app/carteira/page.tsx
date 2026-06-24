@@ -5263,7 +5263,7 @@ const renderDetailedChart = (
                         if (percentage < 3) return null;
 
                         const textAnchor = Math.cos(radMid) > 0.05 ? 'start' : (Math.cos(radMid) < -0.05 ? 'end' : 'middle');
-                        const labelR = textAnchor === 'middle' ? R + 22 : R + 14;
+                        const labelR = textAnchor === 'middle' ? R + 26 : R + 16;
                         const tx = cx + labelR * Math.cos(radMid);
                         const ty = cy + labelR * Math.sin(radMid);
                         
@@ -5278,9 +5278,9 @@ const renderDetailedChart = (
                         return (
                             <g key={`lbl-grp-${idx}`}>
                                 <line x1={sx} y1={sy} x2={ex} y2={ey} stroke="var(--border-strong)" strokeWidth="0.8" />
-                                <text x={tx} y={ty} textAnchor={textAnchor} fill="var(--text-secondary)" fontSize="12px" fontWeight="700" style={{ paintOrder: 'stroke', stroke: 'var(--bg-surface)', strokeWidth: 3, strokeLinejoin: 'round' }}>
+                                <text x={tx} y={ty} textAnchor={textAnchor} fill="var(--text-secondary)" fontSize="14px" fontWeight="700" style={{ paintOrder: 'stroke', stroke: 'var(--bg-surface)', strokeWidth: 3, strokeLinejoin: 'round' }}>
                                     <tspan x={tx} dy="-2">{displayLabel}</tspan>
-                                    <tspan x={tx} dy="12" fill="var(--text-muted)" fontSize="10px" fontWeight="500">{formatVal(val)} ({percentage.toFixed(1)}%)</tspan>
+                                    <tspan x={tx} dy="14" fill="var(--text-muted)" fontSize="11px" fontWeight="500">{formatVal(val)} ({percentage.toFixed(1)}%)</tspan>
                                 </text>
                             </g>
                         );

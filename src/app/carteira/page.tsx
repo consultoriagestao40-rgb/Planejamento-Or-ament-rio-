@@ -5253,8 +5253,8 @@ const renderDetailedChart = (
                     {(chartMode === 'DONUT' || type === 'DONUT') && (
                         <>
                             <circle cx={cx} cy={cy} r="54" fill="var(--bg-surface)" />
-                            <text x={cx} y={cy - 4} textAnchor="middle" style={{ fontSize: '8px', fontWeight: 700, fill: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Total Realiz.</text>
-                            <text x={cx} y={cy + 10} textAnchor="middle" style={{ fontSize: '11px', fontWeight: 800, fill: 'var(--text-primary)' }}>{formatVal(totalRealizedSum)}</text>
+                            <text x={cx} y={cy - 4} textAnchor="middle" style={{ fontSize: '6px', fontWeight: 700, fill: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Total Realiz.</text>
+                            <text x={cx} y={cy + 10} textAnchor="middle" style={{ fontSize: '8.5px', fontWeight: 800, fill: 'var(--text-primary)' }}>{formatVal(totalRealizedSum)}</text>
                         </>
                     )}
 
@@ -5291,7 +5291,7 @@ const renderDetailedChart = (
                                     y={ty} 
                                     textAnchor={textAnchor} 
                                     style={{ 
-                                        fontSize: '9.5px', 
+                                        fontSize: '7.5px', 
                                         fontWeight: 800, 
                                         fill: 'var(--text-primary)', 
                                         paintOrder: 'stroke', 
@@ -5301,7 +5301,7 @@ const renderDetailedChart = (
                                     }}
                                 >
                                     <tspan x={tx} dy="-2">{displayLabel}</tspan>
-                                    <tspan x={tx} dy="15" style={{ fontSize: '7.5px', fontWeight: 500, fill: 'var(--text-muted)' }}>{formatVal(val)} ({percentage.toFixed(1)}%)</tspan>
+                                    <tspan x={tx} dy="15" style={{ fontSize: '6px', fontWeight: 500, fill: 'var(--text-muted)' }}>{formatVal(val)} ({percentage.toFixed(1)}%)</tspan>
                                 </text>
                             </g>
                         );

@@ -322,20 +322,52 @@ export default function CFOVirtualPage() {
     // Parse visual payload JSON directly from message content to render inline charts
     const getVisualPayload = (content: string) => {
         try {
-            const jsonRegex = /```json\s*(\{[\s\S]*?\})\s*```/;
+            if (!content) return null;
+            // 1. Try to extract content inside ```json ... ```
+            const jsonRegex = /```json\s*([\s\S]*?)\s*```/;
             const match = jsonRegex.exec(content);
+            let jsonText = "";
             if (match) {
-                const parsed = JSON.parse(match[1]);
-                if (parsed.type === 'CASH_FLOW' || 
-                    parsed.type === 'DEVIATIONS' || 
-                    parsed.type === 'MONTHLY_BREAKDOWN' || 
-                    parsed.type === 'OVERDUE_COMMITMENTS' || 
-                    parsed.type === 'SHORT_TERM_PROJECTION') {
-                    return parsed;
+                jsonText = match[1].trim();
+            } else {
+                // If not enclosed in ```json, find the first '{' and last '}'
+                const firstBrace = content.indexOf('{');
+                const lastBrace = content.lastIndexOf('}');
+                if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
+                    jsonText = content.substring(firstBrace, lastBrace + 1).trim();
+                }
+            }
+
+            if (jsonText) {
+                // Remove javascript single-line and multi-line comments
+                jsonText = jsonText.replace(/\/\*[\s\S]*?\*\/|([^\\:]|^)\/\/.*$/gm, '$1');
+                
+                // Remove trailing commas before closing braces/brackets
+                jsonText = jsonText.replace(/,(\s*[\]}])/g, '$1');
+                
+                // Attempt parsing
+                try {
+                    const parsed = JSON.parse(jsonText);
+                    if (parsed && typeof parsed === 'object' && parsed.type) {
+                        const validTypes = ['CASH_FLOW', 'DEVIATIONS', 'MONTHLY_BREAKDOWN', 'OVERDUE_COMMITMENTS', 'SHORT_TERM_PROJECTION'];
+                        if (validTypes.includes(parsed.type)) {
+                            return parsed;
+                        }
+                    }
+                } catch (e) {
+                    // Try to clean single quotes or unquoted keys if JSON.parse failed
+                    console.warn('CFO: Standard JSON parsing failed, applying cleanup replacements...', e);
+                    let cleaned = jsonText
+                        .replace(/'([^'\n]+)'\s*:/g, '"$1":')
+                        .replace(/:\s*'([^'\n]+)'/g, ': "$1"');
+                    const parsed = JSON.parse(cleaned);
+                    if (parsed && typeof parsed === 'object' && parsed.type) {
+                        return parsed;
+                    }
                 }
             }
         } catch (err) {
-            console.error('Erro ao analisar payload do gráfico:', err);
+            console.error('Erro ao analisar payload do gráfico:', err, content);
         }
         return null;
     };
@@ -525,13 +557,16 @@ export default function CFOVirtualPage() {
     const renderMonthlyBreakdownChart = (payload: any) => {
         if (!payload || !payload.values) return null;
 
-        const maxAmount = Math.max(...payload.values.map((i: any) => Math.max(Math.abs(i.budget), Math.abs(i.realized)))) || 1;
-        const totalBudget = payload.values.reduce((sum: number, item: any) => sum + item.budget, 0);
-        const totalRealized = payload.values.reduce((sum: number, item: any) => sum + item.realized, 0);
+        const titleText = payload.title || payload.titulo || 'Evolução Mensal';
+        const viewModeText = payload.viewMode === 'caixa' ? 'Regime de Caixa' : 'Regime de Competência';
+
+        const maxAmount = Math.max(...payload.values.map((i: any) => Math.max(Math.abs(i.budget || 0), Math.abs(i.realized || 0)))) || 1;
+        const totalBudget = payload.values.reduce((sum: number, item: any) => sum + (item.budget || 0), 0);
+        const totalRealized = payload.values.reduce((sum: number, item: any) => sum + (item.realized || 0), 0);
         
-        const isRevenue = payload.title.toUpperCase().includes('FATURAMENTO') || 
-                          payload.title.toUpperCase().includes('RECEITA') || 
-                          payload.title.toUpperCase().includes('ENTRADA');
+        const isRevenue = titleText.toUpperCase().includes('FATURAMENTO') || 
+                          titleText.toUpperCase().includes('RECEITA') || 
+                          titleText.toUpperCase().includes('ENTRADA');
         
         const finalDeviation = isRevenue ? (totalRealized - totalBudget) : (totalBudget - totalRealized);
         const isDeviationPositive = finalDeviation >= 0;
@@ -539,7 +574,7 @@ export default function CFOVirtualPage() {
         return (
             <div className="glass-card" style={{ marginTop: '1rem', padding: '1.5rem', backgroundColor: '#ffffff', borderRadius: '12px', border: '1px solid rgba(15,23,42,0.08)', animation: 'fade-in 0.3s ease-out' }}>
                 <h3 style={{ fontSize: '0.95rem', fontWeight: 800, color: '#1e293b', marginBottom: '0.5rem', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                    <span>📊 {payload.title} ({payload.viewMode === 'caixa' ? 'Regime de Caixa' : 'Regime de Competência'})</span>
+                    <span>📊 {titleText} ({viewModeText})</span>
                 </h3>
                 <p style={{ fontSize: '0.75rem', color: '#64748b', marginBottom: '1.25rem' }}>Evolução mensal comparativa de Orçado vs Realizado.</p>
 
@@ -639,9 +674,11 @@ export default function CFOVirtualPage() {
                         </thead>
                         <tbody>
                             {payload.values.map((item: any) => {
-                                const itemDev = isRevenue ? (item.realized - item.budget) : (item.budget - item.realized);
+                                const realizedVal = item.realized || 0;
+                                const budgetVal = item.budget || 0;
+                                const itemDev = isRevenue ? (realizedVal - budgetVal) : (budgetVal - realizedVal);
                                 const isItemPos = itemDev >= 0;
-                                const itemPct = item.budget > 0 ? (item.realized / item.budget) * 100 : 0;
+                                const itemPct = budgetVal > 0 ? (realizedVal / budgetVal) * 100 : 0;
                                 return (
                                     <tr key={item.month} style={{ borderBottom: '1px solid rgba(15, 23, 42, 0.04)', backgroundColor: '#ffffff' }}>
                                         <td style={{ padding: '6px 10px', fontWeight: 700, color: '#334155' }}>{getMonthName(item.month)}</td>

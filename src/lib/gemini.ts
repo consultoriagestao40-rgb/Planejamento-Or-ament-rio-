@@ -131,6 +131,31 @@ Instruções importantes:
 5. Se uma conta tiver desvio alto, recomende ao usuário analisar as transações daquela conta (você pode sugerir os detalhes chamando 'get_transactions').
 6. Seja proativo em sugerir onde reduzir custos e como reequilibrar o caixa.
 7. Tenha em mente que desvios de despesas são negativos se o realizado for MAIOR que o orçado (estouro). Desvios de receitas são negativos se o realizado for MENOR que o orçado (frustração).
+8. NUNCA, SOB NENHUMA HIPÓTESE, PEÇA AO USUÁRIO OS IDS OU UUIDS DAS CATEGORIAS. O usuário não sabe e não deve saber esses códigos técnicos do banco de dados.
+   Se o usuário mencionar um código de categoria (ex: "03.4", "3.4", "02.01") ou um nome/termo (ex: "diárias", "viagens", "marketing"):
+   a) Você DEVE obrigatoriamente chamar a ferramenta 'get_category_list' primeiro para obter a lista completa de categorias (que contém os nomes oficiais e seus respectivos UUIDs).
+   b) Com a lista em mãos, faça uma busca interna pelo nome ou pelo código (ex: procurando por "03.4" ou "diária" no campo name).
+   c) Identifique o UUID correspondente (campo 'id') e utilize esse UUID nos parâmetros das ferramentas 'get_transactions', 'suggest_action_plan' ou outras que exijam 'categoryId'.
+   d) Se você chamar uma ferramenta passando o nome ou o código curto (como "03.4") como se fosse o 'categoryId', ela retornará erro ou vazio. O 'categoryId' DEVE ser sempre o UUID retornado por 'get_category_list'.
+   e) Se por acaso você não encontrar nenhuma categoria correspondente na lista, explique de forma amigável quais nomes de categorias semelhantes você encontrou, mas NUNCA exiba ou peça UUIDs.
+9. Sempre que você chamar a ferramenta 'get_cash_flow_summary', inclua no FINAL da sua resposta (após o seu texto explicativo) o seguinte bloco de código JSON exato para o frontend desenhar o gráfico:
+\`\`\`json
+{
+  "type": "CASH_FLOW",
+  "currentBankBalance": <valor_atual_da_conta>,
+  "monthlyCashFlow": <retorno_da_ferramenta_monthlyCashFlow>
+}
+\`\`\`
+10. Sempre que você chamar a ferramenta 'get_deviations', inclua no FINAL da sua resposta (após o seu texto explicativo) o seguinte bloco de código JSON exato:
+\`\`\`json
+{
+  "type": "DEVIATIONS",
+  "month": <mes>,
+  "year": <ano>,
+  "deviations": <retorno_da_ferramenta_filtrado_apenas_as_10_principais>
+}
+\`\`\`
+Certifique-se de que os dados JSON sejam válidos e não coloque nenhum texto extra após o fechamento da tag \`\`\`.
 `;
 
 // Implementations of the database queries exposed as tools
@@ -150,6 +175,8 @@ async function executeTool(tenantId: string, name: string, args: any): Promise<a
         case 'get_deviations': {
             const { year, month } = args;
             if (!year || !month) return { error: 'Parâmetros year e month obrigatórios.' };
+            const yearNum = parseInt(String(year), 10);
+            const monthNum = parseInt(String(month), 10);
 
             // Fetch categories
             const categories = await prisma.category.findMany({
@@ -159,12 +186,12 @@ async function executeTool(tenantId: string, name: string, args: any): Promise<a
 
             // Fetch budgets
             const budgets = await prisma.budgetEntry.findMany({
-                where: { tenantId, year, month }
+                where: { tenantId, year: yearNum, month: monthNum }
             });
 
             // Fetch realized (competency)
             const realized = await prisma.realizedEntry.findMany({
-                where: { tenantId, year, month, viewMode: 'competencia' }
+                where: { tenantId, year: yearNum, month: monthNum, viewMode: 'competencia' }
             });
 
             // Aggregate by category
@@ -220,6 +247,7 @@ async function executeTool(tenantId: string, name: string, args: any): Promise<a
         case 'get_cash_flow_summary': {
             const { year } = args;
             if (!year) return { error: 'Parâmetro year obrigatório.' };
+            const yearNum = parseInt(String(year), 10);
 
             // 1. Get bank balance
             const bankAccounts = await prisma.bankAccount.findMany({
@@ -229,7 +257,7 @@ async function executeTool(tenantId: string, name: string, args: any): Promise<a
 
             // 2. Fetch realized cash items
             const realized = await prisma.realizedEntry.findMany({
-                where: { tenantId, year, viewMode: 'caixa' },
+                where: { tenantId, year: yearNum, viewMode: 'caixa' },
                 include: {
                     category: { select: { name: true } }
                 }
@@ -302,9 +330,11 @@ async function executeTool(tenantId: string, name: string, args: any): Promise<a
             if (!year || !month || !categoryId) {
                 return { error: 'Parâmetros year, month e categoryId são obrigatórios.' };
             }
+            const yearNum = parseInt(String(year), 10);
+            const monthNum = parseInt(String(month), 10);
 
             const transactions = await prisma.realizedEntry.findMany({
-                where: { tenantId, year, month, categoryId },
+                where: { tenantId, year: yearNum, month: monthNum, categoryId },
                 orderBy: { amount: 'desc' },
                 take: 50 // Limit to avoid text overflow
             });

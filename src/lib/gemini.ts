@@ -56,13 +56,22 @@ const toolsDeclaration = [
     {
         functionDeclarations: [
             {
+                name: 'get_company_list',
+                description: 'Retorna a lista de empresas (tenants) às quais o usuário tem acesso, com seus respectivos IDs, nomes e CNPJ.',
+                parameters: {
+                    type: 'OBJECT',
+                    properties: {}
+                }
+            },
+            {
                 name: 'get_deviations',
                 description: 'Calcula os desvios de orçamento (orçado vs realizado competência) para todas as categorias no ano e mês especificados, retornando as contas com maiores estouros ou perdas.',
                 parameters: {
                     type: 'OBJECT',
                     properties: {
                         year: { type: 'INTEGER', description: 'Ano fiscal (ex: 2026)' },
-                        month: { type: 'INTEGER', description: 'Mês (1 a 12)' }
+                        month: { type: 'INTEGER', description: 'Mês (1 a 12)' },
+                        companyId: { type: 'STRING', description: 'Opcional: ID da empresa para filtrar os resultados (obtenha em get_company_list)' }
                     },
                     required: ['year', 'month']
                 }
@@ -73,7 +82,8 @@ const toolsDeclaration = [
                 parameters: {
                     type: 'OBJECT',
                     properties: {
-                        year: { type: 'INTEGER', description: 'Ano fiscal (ex: 2026)' }
+                        year: { type: 'INTEGER', description: 'Ano fiscal (ex: 2026)' },
+                        companyId: { type: 'STRING', description: 'Opcional: ID da empresa para filtrar os resultados' }
                     },
                     required: ['year']
                 }
@@ -86,7 +96,8 @@ const toolsDeclaration = [
                     properties: {
                         year: { type: 'INTEGER', description: 'Ano fiscal' },
                         month: { type: 'INTEGER', description: 'Mês (1 a 12)' },
-                        categoryId: { type: 'STRING', description: 'ID da categoria (UUID obtido na lista)' }
+                        categoryId: { type: 'STRING', description: 'ID da categoria (UUID obtido na lista)' },
+                        companyId: { type: 'STRING', description: 'Opcional: ID da empresa para filtrar os resultados' }
                     },
                     required: ['year', 'month', 'categoryId']
                 }
@@ -96,7 +107,9 @@ const toolsDeclaration = [
                 description: 'Busca a lista completa de categorias do tenant para encontrar o categoryId correto ou nomes oficiais.',
                 parameters: {
                     type: 'OBJECT',
-                    properties: {}
+                    properties: {
+                        companyId: { type: 'STRING', description: 'Opcional: ID da empresa para filtrar as categorias' }
+                    }
                 }
             },
             {
@@ -107,7 +120,8 @@ const toolsDeclaration = [
                     properties: {
                         year: { type: 'INTEGER', description: 'Ano fiscal' },
                         categoryId: { type: 'STRING', description: 'ID da categoria (ou lista de IDs separados por vírgula obtidos na busca de categorias)' },
-                        viewMode: { type: 'STRING', description: 'Regime de caixa ou competência (opções: "competencia", "caixa")' }
+                        viewMode: { type: 'STRING', description: 'Regime de caixa ou competência (opções: "competencia", "caixa")' },
+                        companyId: { type: 'STRING', description: 'Opcional: ID da empresa para filtrar os resultados' }
                     },
                     required: ['year', 'categoryId']
                 }
@@ -119,7 +133,8 @@ const toolsDeclaration = [
                     type: 'OBJECT',
                     properties: {
                         year: { type: 'INTEGER', description: 'Filtrar por ano opcional (ex: 2026)' },
-                        month: { type: 'INTEGER', description: 'Filtrar por mês opcional (1 a 12)' }
+                        month: { type: 'INTEGER', description: 'Filtrar por mês opcional (1 a 12)' },
+                        companyId: { type: 'STRING', description: 'Opcional: ID da empresa para filtrar as contas atrasadas' }
                     }
                 }
             },
@@ -129,7 +144,8 @@ const toolsDeclaration = [
                 parameters: {
                     type: 'OBJECT',
                     properties: {
-                        days: { type: 'INTEGER', description: 'Número de dias para a projeção (padrão: 7, máximo: 30)' }
+                        days: { type: 'INTEGER', description: 'Número de dias para a projeção (padrão: 7, máximo: 30)' },
+                        companyId: { type: 'STRING', description: 'Opcional: ID da empresa para filtrar a projeção' }
                     }
                 }
             },
@@ -182,7 +198,9 @@ DIRETRIZES DE CATEGORIZAÇÃO E SOMA DE RECEITAS/FATURAMENTO:
 REGRAS DE OTIMIZAÇÃO DE CHAMADAS DE FERRAMENTAS:
 1. Para evitar lentidão, timeouts e atingir o limite de chamadas (loops), sempre que precisar buscar dados de múltiplas categorias (seja para get_monthly_category_summary ou get_transactions), você DEVE agrupar todos os IDs das categorias resolvidos em uma única string separada por vírgulas (ex: "id1,id2,id3") e fazer uma única chamada de ferramenta.
 2. NUNCA faça chamadas sequenciais para a mesma ferramenta em loops separados para categorias diferentes se você puder agrupá-las em uma única chamada.
-3. DICA DE EFICIÊNCIA DE CONSULTA: Se a pergunta do usuário for sobre valores de um mês específico (ex: "qual foi a receita de maio de 2026" ou "quanto gastamos em despesas administrativas em janeiro de 2026"), a forma mais eficiente é chamar diretamente 'get_deviations' para o ano e mês solicitados. Isso trará os valores orçados e realizados de todas as categoInstruções importantes:
+3. DICA DE EFICIÊNCIA DE CONSULTA: Se a pergunta do usuário for sobre valores de um mês específico (ex: "qual foi a receita de maio de 2026" ou "quanto gastamos em despesas administrativas em janeiro de 2026"), a forma mais eficiente é chamar diretamente 'get_deviations' para o ano e mês solicitados. Isso trará os valores orçados e realizados de todas as categorias daquele mês em uma única chamada. Depois, basta filtrar e somar as contas desejadas (iniciadas pelo código do grupo correspondente).
+
+Instruções importantes:
 1. Responda em Português do Brasil com tom altamente profissional, objective e analítico.
 2. Sempre use as ferramentas disponíveis para obter dados reais quando o usuário fizer perguntas sobre finanças, valores, desvios ou fluxo de caixa. Não invente números.
 3. Se identificar estouros de orçamento (desvios negativos relevantes nas despesas), chame a ferramenta 'suggest_action_plan' para sugerir um plano de ação interativo para o usuário.
@@ -231,8 +249,8 @@ REGRAS DE OTIMIZAÇÃO DE CHAMADAS DE FERRAMENTAS:
   "days": <dias_projetados>,
   "projection": <retorno_da_ferramenta_get_short_term_projection>
 }
-```
-Certifique-se de que os dados JSON sejam válidos e não coloque nenhum texto extra após o fechamento da tag ```.
+\`\`\`
+Certifique-se de que os dados JSON sejam válidos e não coloque nenhum texto extra após o fechamento da tag \`\`\`.
 `;
 
 // Implementations of the database queries exposed as tools

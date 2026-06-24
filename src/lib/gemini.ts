@@ -51,6 +51,17 @@ function classifyCategory(
     return isRevenue ? 'OPERATIONAL_IN' : 'OPERATIONAL_OUT';
 }
 
+function cleanKey(name: string): string {
+    return (name || '')
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .toUpperCase()
+        .replace(/\s*-\s*/g, '-')
+        .replace(/\s+/g, ' ')
+        .trim();
+}
+
+
 // Tool definitions for Gemini
 const toolsDeclaration = [
     {
@@ -296,6 +307,11 @@ async function executeTool(tenantId: string, name: string, args: any): Promise<a
         }
     }
 
+    // Expand variants
+    const { getAllVariantIds } = await import('./tenant-utils');
+    const variantSets = await Promise.all(activeTenantIds.map(id => getAllVariantIds(id)));
+    activeTenantIds = Array.from(new Set(variantSets.flat()));
+
     switch (name) {
         case 'get_company_list': {
             const tenants = await prisma.tenant.findMany({
@@ -312,7 +328,7 @@ async function executeTool(tenantId: string, name: string, args: any): Promise<a
             // Group duplicate category names across tenants to make analysis consolidated
             const nameMap = new Map<string, { id: string[]; name: string; type: string; entradaDre: string | null }>();
             categories.forEach(c => {
-                const key = c.name.trim();
+                const key = cleanKey(c.name);
                 if (!nameMap.has(key)) {
                     nameMap.set(key, { id: [c.id], name: c.name, type: c.type, entradaDre: c.entradaDre });
                 } else {
@@ -353,12 +369,12 @@ async function executeTool(tenantId: string, name: string, args: any): Promise<a
             const syncedMonths = new Set<string>();
             realized.forEach(e => {
                 if (e.externalId && e.externalId.startsWith('sync-')) {
-                    syncedMonths.add(`${e.tenantId}|${e.year}|${e.month}`);
+                    syncedMonths.add(`${e.year}|${e.month}`);
                 }
             });
 
             const realizedDeduped = realized.filter(e => {
-                const key = `${e.tenantId}|${e.year}|${e.month}`;
+                const key = `${e.year}|${e.month}`;
                 if (syncedMonths.has(key)) {
                     return e.externalId && e.externalId.startsWith('sync-');
                 }
@@ -366,23 +382,23 @@ async function executeTool(tenantId: string, name: string, args: any): Promise<a
             });
 
             // Aggregate by category name (grouping across tenants if consolidated)
-            const nameToVal: Record<string, { budget: number; realized: number; type: string; ids: string[] }> = {};
+            const cleanToVal: Record<string, { name: string; budget: number; realized: number; type: string; ids: string[] }> = {};
             
             categories.forEach(c => {
-                const normName = c.name.trim();
-                if (!nameToVal[normName]) {
-                    nameToVal[normName] = { budget: 0, realized: 0, type: c.type, ids: [c.id] };
+                const key = cleanKey(c.name);
+                if (!cleanToVal[key]) {
+                    cleanToVal[key] = { name: c.name, budget: 0, realized: 0, type: c.type, ids: [c.id] };
                 } else {
-                    nameToVal[normName].ids.push(c.id);
+                    cleanToVal[key].ids.push(c.id);
                 }
             });
 
             budgets.forEach(b => {
                 const cat = catMap.get(b.categoryId);
                 if (cat) {
-                    const normName = cat.name.trim();
-                    if (nameToVal[normName]) {
-                        nameToVal[normName].budget += b.amount;
+                    const key = cleanKey(cat.name);
+                    if (cleanToVal[key]) {
+                        cleanToVal[key].budget += b.amount;
                     }
                 }
             });
@@ -390,17 +406,18 @@ async function executeTool(tenantId: string, name: string, args: any): Promise<a
             realizedDeduped.forEach(r => {
                 const cat = catMap.get(r.categoryId);
                 if (cat) {
-                    const normName = cat.name.trim();
-                    if (nameToVal[normName]) {
-                        nameToVal[normName].realized += r.amount;
+                    const key = cleanKey(cat.name);
+                    if (cleanToVal[key]) {
+                        cleanToVal[key].realized += r.amount;
                     }
                 }
             });
 
-            const result = Object.entries(nameToVal).map(([name, vals]) => {
+            const result = Object.values(cleanToVal).map(vals => {
                 const budget = vals.budget;
                 const realized = vals.realized;
                 const type = vals.type;
+                const name = vals.name;
                 
                 let deviation = 0;
                 if (type === 'REVENUE') {
@@ -450,12 +467,12 @@ async function executeTool(tenantId: string, name: string, args: any): Promise<a
             const syncedMonths = new Set<string>();
             realized.forEach(e => {
                 if (e.externalId && e.externalId.startsWith('sync-')) {
-                    syncedMonths.add(`${e.tenantId}|${e.year}|${e.month}`);
+                    syncedMonths.add(`${e.year}|${e.month}`);
                 }
             });
 
             const realizedDeduped = realized.filter(e => {
-                const key = `${e.tenantId}|${e.year}|${e.month}`;
+                const key = `${e.year}|${e.month}`;
                 if (syncedMonths.has(key)) {
                     return e.externalId && e.externalId.startsWith('sync-');
                 }
@@ -552,12 +569,12 @@ async function executeTool(tenantId: string, name: string, args: any): Promise<a
             const syncedMonths = new Set<string>();
             transactions.forEach(e => {
                 if (e.externalId && e.externalId.startsWith('sync-')) {
-                    syncedMonths.add(`${e.tenantId}|${e.year}|${e.month}`);
+                    syncedMonths.add(`${e.year}|${e.month}`);
                 }
             });
 
             const transactionsDeduped = transactions.filter(e => {
-                const key = `${e.tenantId}|${e.year}|${e.month}`;
+                const key = `${e.year}|${e.month}`;
                 if (syncedMonths.has(key)) {
                     return e.externalId && e.externalId.startsWith('sync-');
                 }
@@ -598,12 +615,12 @@ async function executeTool(tenantId: string, name: string, args: any): Promise<a
             const syncedMonths = new Set<string>();
             realized.forEach(e => {
                 if (e.externalId && e.externalId.startsWith('sync-')) {
-                    syncedMonths.add(`${e.tenantId}|${e.year}|${e.month}`);
+                    syncedMonths.add(`${e.year}|${e.month}`);
                 }
             });
 
             const realizedDeduped = realized.filter(e => {
-                const key = `${e.tenantId}|${e.year}|${e.month}`;
+                const key = `${e.year}|${e.month}`;
                 if (syncedMonths.has(key)) {
                     return e.externalId && e.externalId.startsWith('sync-');
                 }

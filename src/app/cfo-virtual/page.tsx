@@ -374,7 +374,7 @@ export default function CFOVirtualPage() {
 
     // Renders the Cash Flow chart directly inline in the message bubble
     const renderCashFlowChart = (payload: any) => {
-        if (!payload || !payload.monthlyCashFlow) return null;
+        if (!payload || !payload.monthlyCashFlow || payload.monthlyCashFlow.length === 0) return null;
         
         return (
             <div className="glass-card" style={{ marginTop: '1rem', padding: '1.5rem', backgroundColor: '#ffffff', borderRadius: '12px', border: '1px solid rgba(15,23,42,0.08)', animation: 'fade-in 0.3s ease-out' }}>
@@ -392,7 +392,7 @@ export default function CFOVirtualPage() {
 
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', height: '100%', zIndex: 1, padding: '0 4px' }}>
                         {payload.monthlyCashFlow.map((item: any) => {
-                            const maxAmount = Math.max(...payload.monthlyCashFlow.map((i: any) => Math.max(i.inflow, i.outflow))) || 1;
+                            const maxAmount = Math.max(1, ...payload.monthlyCashFlow.map((i: any) => Math.max(i.inflow, i.outflow)));
                             const inflowHeight = (item.inflow / maxAmount) * 100;
                             const outflowHeight = (item.outflow / maxAmount) * 100;
 
@@ -555,12 +555,12 @@ export default function CFOVirtualPage() {
 
     // Renders side-by-side comparative SVG column chart (Orçado vs Realizado)
     const renderMonthlyBreakdownChart = (payload: any) => {
-        if (!payload || !payload.values) return null;
+        if (!payload || !payload.values || payload.values.length === 0) return null;
 
         const titleText = payload.title || payload.titulo || 'Evolução Mensal';
         const viewModeText = payload.viewMode === 'caixa' ? 'Regime de Caixa' : 'Regime de Competência';
 
-        const maxAmount = Math.max(...payload.values.map((i: any) => Math.max(Math.abs(i.budget || 0), Math.abs(i.realized || 0)))) || 1;
+        const maxAmount = Math.max(1, ...payload.values.map((i: any) => Math.max(Math.abs(i.budget || 0), Math.abs(i.realized || 0))));
         const totalBudget = payload.values.reduce((sum: number, item: any) => sum + (item.budget || 0), 0);
         const totalRealized = payload.values.reduce((sum: number, item: any) => sum + (item.realized || 0), 0);
         
@@ -791,7 +791,7 @@ export default function CFOVirtualPage() {
 
     // Renders short term cash flow projection daily
     const renderShortTermProjection = (payload: any) => {
-        if (!payload || !payload.projection) return null;
+        if (!payload || !payload.projection || payload.projection.length === 0) return null;
 
         const startBal = payload.startBalance || 0;
         const list = payload.projection;
@@ -835,8 +835,8 @@ export default function CFOVirtualPage() {
                     <div style={{ height: '80px', width: '100%', position: 'relative' }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', height: '100%', padding: '0 10px' }}>
                             {list.map((item: any, idx: number) => {
-                                const maxBalance = Math.max(...list.map((i: any) => Math.max(i.endingBalance, startBal))) || 1;
-                                const minBalance = Math.min(...list.map((i: any) => i.endingBalance)) || 0;
+                                const maxBalance = Math.max(1, ...list.map((i: any) => Math.max(i.endingBalance, startBal)));
+                                const minBalance = Math.min(0, ...list.map((i: any) => i.endingBalance));
                                 const balanceRange = maxBalance - minBalance || 1;
                                 const heightPercent = ((item.endingBalance - minBalance) / balanceRange) * 80 + 10;
                                 

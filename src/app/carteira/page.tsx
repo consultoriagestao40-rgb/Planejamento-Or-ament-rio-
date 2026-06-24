@@ -5179,13 +5179,14 @@ const renderDetailedChart = (
                 );
             }
 
-            const cx = 125;
-            const cy = 110;
-            const R = 85;
-            let cumulativeAngle = 0;
+            const cx = 250;
+            const cy = 130;
+            const R = 95;
+            let cumulativeAngleSlices = 0;
+            let cumulativeAngleLabels = 0;
 
             return (
-                <svg viewBox="0 0 420 220" width="100%" height="220px" style={{ overflow: 'visible' }}>
+                <svg viewBox="0 0 500 260" width="100%" height="100%" style={{ overflow: 'visible' }}>
                     {data.map((m, idx) => {
                         const val = isDimensional ? Math.max(0, m.realized || 0) : (idx + 1 <= currentMonthIdx + 1 ? Math.max(0, m.realized) : 0);
                         if (val === 0) return null;
@@ -5193,8 +5194,8 @@ const renderDetailedChart = (
                         const percentage = (val / totalRealizedSum) * 100;
                         const angle = (val / totalRealizedSum) * 360;
 
-                        const radStart = (cumulativeAngle - 90) * Math.PI / 180;
-                        const radEnd = (cumulativeAngle + angle - 90) * Math.PI / 180;
+                        const radStart = (cumulativeAngleSlices - 90) * Math.PI / 180;
+                        const radEnd = (cumulativeAngleSlices + angle - 90) * Math.PI / 180;
 
                         const x1 = cx + R * Math.cos(radStart);
                         const y1 = cy + R * Math.sin(radStart);
@@ -5203,7 +5204,7 @@ const renderDetailedChart = (
 
                         const largeArc = angle > 180 ? 1 : 0;
                         const pathData = `M ${cx} ${cy} L ${x1} ${y1} A ${R} ${R} 0 ${largeArc} 1 ${x2} ${y2} Z`;
-                        cumulativeAngle += angle;
+                        cumulativeAngleSlices += angle;
                         const sliceOpacity = 1 - (idx * 0.05);
 
                         const labelText = (isDimensional ? m.label : ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'][idx]) || '';
@@ -5243,33 +5244,47 @@ const renderDetailedChart = (
 
                     {(chartMode === 'DONUT' || type === 'DONUT') && (
                         <>
-                            <circle cx={cx} cy={cy} r="52" fill="var(--bg-surface)" />
-                            <text x={cx} y={cy - 6} textAnchor="middle" fill="var(--text-muted)" fontSize="11px" fontWeight="800" textTransform="uppercase" letterSpacing="0.05em">Total Realiz.</text>
-                            <text x={cx} y={cy + 14} textAnchor="middle" fill="var(--text-primary)" fontSize="14px" fontWeight="800">{formatVal(totalRealizedSum)}</text>
+                            <circle cx={cx} cy={cy} r="60" fill="var(--bg-surface)" />
+                            <text x={cx} y={cy - 6} textAnchor="middle" fill="var(--text-muted)" fontSize="10px" fontWeight="800" textTransform="uppercase" letterSpacing="0.05em">Total Realiz.</text>
+                            <text x={cx} y={cy + 12} textAnchor="middle" fill="var(--text-primary)" fontSize="13px" fontWeight="800">{formatVal(totalRealizedSum)}</text>
                         </>
                     )}
 
-                    <g transform="translate(245, 10)">
-                        {data.map((m, idx) => {
-                            const val = isDimensional ? Math.max(0, m.realized || 0) : (idx + 1 <= currentMonthIdx + 1 ? Math.max(0, m.realized) : 0);
-                            if (val === 0) return null;
-                            const percentage = (val / totalRealizedSum) * 100;
-                            const yPos = idx * 20;
-                            const sliceOpacity = 1 - (idx * 0.05);
+                    {data.map((m, idx) => {
+                        const val = isDimensional ? Math.max(0, m.realized || 0) : (idx + 1 <= currentMonthIdx + 1 ? Math.max(0, m.realized) : 0);
+                        if (val === 0) return null;
 
-                            const labelText = (isDimensional ? m.label : ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'][idx]) || '';
-                            const displayLabel = labelText.length > 15 ? labelText.substring(0, 13) + '..' : labelText;
+                        const percentage = (val / totalRealizedSum) * 100;
+                        const angle = (val / totalRealizedSum) * 360;
+                        const midAngle = cumulativeAngleLabels + angle / 2;
+                        const radMid = (midAngle - 90) * Math.PI / 180;
+                        cumulativeAngleLabels += angle;
 
-                            return (
-                                <g key={idx} transform={`translate(0, ${yPos})`}>
-                                    <rect width="9" height="9" rx="2" fill={chartColor} fillOpacity={sliceOpacity} />
-                                    <text x="14" y="9" fill="var(--text-secondary)" fontSize="12px" fontWeight="700">
-                                        {displayLabel}: {percentage.toFixed(1)}%
-                                    </text>
-                                </g>
-                            );
-                        })}
-                    </g>
+                        if (percentage < 3) return null;
+
+                        const labelR = R + 14;
+                        const tx = cx + labelR * Math.cos(radMid);
+                        const ty = cy + labelR * Math.sin(radMid);
+                        
+                        const sx = cx + R * Math.cos(radMid);
+                        const sy = cy + R * Math.sin(radMid);
+                        const ex = cx + (R + 8) * Math.cos(radMid);
+                        const ey = cy + (R + 8) * Math.sin(radMid);
+
+                        const textAnchor = Math.cos(radMid) > 0.05 ? 'start' : (Math.cos(radMid) < -0.05 ? 'end' : 'middle');
+                        const labelText = (isDimensional ? m.label : ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'][idx]) || '';
+                        const displayLabel = labelText.length > 20 ? labelText.substring(0, 18) + '..' : labelText;
+
+                        return (
+                            <g key={`lbl-grp-${idx}`}>
+                                <line x1={sx} y1={sy} x2={ex} y2={ey} stroke="var(--border-strong)" strokeWidth="1" />
+                                <text x={tx} y={ty} textAnchor={textAnchor} fill="var(--text-secondary)" fontSize="10.5px" fontWeight="800" style={{ paintOrder: 'stroke', stroke: 'var(--bg-surface)', strokeWidth: 3, strokeLinejoin: 'round' }}>
+                                    <tspan x={tx} dy="-2">{displayLabel}</tspan>
+                                    <tspan x={tx} dy="11" fill="var(--text-muted)" fontSize="9.5px" fontWeight="600">{formatVal(val)} ({percentage.toFixed(1)}%)</tspan>
+                                </text>
+                            </g>
+                        );
+                    })}
                 </svg>
             );
         }

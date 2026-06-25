@@ -308,9 +308,16 @@ async function executeTool(tenantId: string, name: string, args: any): Promise<a
     }
 
     // Expand variants
-    const { getAllVariantIds } = await import('./tenant-utils');
+    const { getAllVariantIds, getTenantGroups } = await import('./tenant-utils');
     const variantSets = await Promise.all(activeTenantIds.map(id => getAllVariantIds(id)));
     activeTenantIds = Array.from(new Set(variantSets.flat()));
+
+    // Get tenant groups for per-tenant manual/synced deduplication
+    const tenantGroups = await getTenantGroups();
+    const getPrimaryId = (id: string): string => {
+        const group = tenantGroups.find(g => g.includes(id));
+        return group ? group[0] : id;
+    };
 
     switch (name) {
         case 'get_company_list': {
@@ -369,12 +376,12 @@ async function executeTool(tenantId: string, name: string, args: any): Promise<a
             const syncedMonths = new Set<string>();
             realized.forEach(e => {
                 if (e.externalId && e.externalId.startsWith('sync-')) {
-                    syncedMonths.add(`${e.year}|${e.month}`);
+                    syncedMonths.add(`${getPrimaryId(e.tenantId)}|${e.year}|${e.month}`);
                 }
             });
 
             const realizedDeduped = realized.filter(e => {
-                const key = `${e.year}|${e.month}`;
+                const key = `${getPrimaryId(e.tenantId)}|${e.year}|${e.month}`;
                 if (syncedMonths.has(key)) {
                     return e.externalId && e.externalId.startsWith('sync-');
                 }
@@ -467,12 +474,12 @@ async function executeTool(tenantId: string, name: string, args: any): Promise<a
             const syncedMonths = new Set<string>();
             realized.forEach(e => {
                 if (e.externalId && e.externalId.startsWith('sync-')) {
-                    syncedMonths.add(`${e.year}|${e.month}`);
+                    syncedMonths.add(`${getPrimaryId(e.tenantId)}|${e.year}|${e.month}`);
                 }
             });
 
             const realizedDeduped = realized.filter(e => {
-                const key = `${e.year}|${e.month}`;
+                const key = `${getPrimaryId(e.tenantId)}|${e.year}|${e.month}`;
                 if (syncedMonths.has(key)) {
                     return e.externalId && e.externalId.startsWith('sync-');
                 }
@@ -569,12 +576,12 @@ async function executeTool(tenantId: string, name: string, args: any): Promise<a
             const syncedMonths = new Set<string>();
             transactions.forEach(e => {
                 if (e.externalId && e.externalId.startsWith('sync-')) {
-                    syncedMonths.add(`${e.year}|${e.month}`);
+                    syncedMonths.add(`${getPrimaryId(e.tenantId)}|${e.year}|${e.month}`);
                 }
             });
 
             const transactionsDeduped = transactions.filter(e => {
-                const key = `${e.year}|${e.month}`;
+                const key = `${getPrimaryId(e.tenantId)}|${e.year}|${e.month}`;
                 if (syncedMonths.has(key)) {
                     return e.externalId && e.externalId.startsWith('sync-');
                 }
@@ -615,12 +622,12 @@ async function executeTool(tenantId: string, name: string, args: any): Promise<a
             const syncedMonths = new Set<string>();
             realized.forEach(e => {
                 if (e.externalId && e.externalId.startsWith('sync-')) {
-                    syncedMonths.add(`${e.year}|${e.month}`);
+                    syncedMonths.add(`${getPrimaryId(e.tenantId)}|${e.year}|${e.month}`);
                 }
             });
 
             const realizedDeduped = realized.filter(e => {
-                const key = `${e.year}|${e.month}`;
+                const key = `${getPrimaryId(e.tenantId)}|${e.year}|${e.month}`;
                 if (syncedMonths.has(key)) {
                     return e.externalId && e.externalId.startsWith('sync-');
                 }
@@ -810,6 +817,23 @@ export async function askVirtualCFO(tenantId: string, messages: any[]): Promise<
             };
         });
 
+        // Resolve active tenant names for context
+        const targetTenantIds = tenantId.split(',').map(id => id.trim()).filter(Boolean);
+        const activeTenants = await prisma.tenant.findMany({
+            where: { id: { in: targetTenantIds } },
+            select: { id: true, name: true }
+        });
+        
+        let contextInstruction = '';
+        if (targetTenantIds.length > 1) {
+            const names = activeTenants.map(t => t.name).join(', ');
+            contextInstruction = `\n\nCONTEXTO DE SELEÇÃO ATUAL: O usuário selecionou a visualização CONSOLIDADA do grupo contendo as empresas: ${names}. Suas respostas, gráficos e tabelas devem apresentar obrigatoriamente os dados consolidados do grupo. NÃO passe o parâmetro 'companyId' nas chamadas de ferramentas (como get_deviations, get_monthly_category_summary, etc.), pois o comportamento padrão de todas as ferramentas ao omitir 'companyId' é consolidar os dados de todas as empresas autorizadas. Só use 'companyId' se o usuário solicitar explicitamente os dados de uma empresa específica por nome na pergunta.`;
+        } else if (activeTenants.length === 1) {
+            contextInstruction = `\n\nCONTEXTO DE SELEÇÃO ATUAL: O usuário selecionou a empresa específica "${activeTenants[0].name}" (ID: ${activeTenants[0].id}). Suas análises, respostas, gráficos e chamadas de ferramentas devem ser restritas APENAS a esta empresa.`;
+        }
+
+        const dynamicSystemInstruction = systemInstruction + contextInstruction;
+
         let loopCount = 0;
         let lastActionPlan: any = null;
 
@@ -820,7 +844,7 @@ export async function askVirtualCFO(tenantId: string, messages: any[]): Promise<
                 contents,
                 tools: toolsDeclaration,
                 systemInstruction: {
-                    parts: [{ text: systemInstruction }]
+                    parts: [{ text: dynamicSystemInstruction }]
                 }
             };
 

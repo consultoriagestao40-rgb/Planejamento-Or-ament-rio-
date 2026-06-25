@@ -3,6 +3,37 @@ import { prisma } from '@/lib/prisma';
 
 export const dynamic = 'force-dynamic';
 
+async function getCleanCategoryId(rawId: string, currentTenantId: string): Promise<string> {
+    const categoryUuid = rawId.includes(':') ? rawId.split(':')[1] : rawId;
+    
+    // 1. Testa se existe a versão com prefixo do tenant atual
+    const prefixedId = `${currentTenantId}:${categoryUuid}`;
+    const existsPrefixed = await prisma.category.findUnique({
+        where: { id: prefixedId }
+    });
+    if (existsPrefixed) {
+        return prefixedId;
+    }
+    
+    // 2. Senão, testa se existe a versão global (uuid puro)
+    const existsGlobal = await prisma.category.findUnique({
+        where: { id: categoryUuid }
+    });
+    if (existsGlobal) {
+        return categoryUuid;
+    }
+    
+    // 3. Senão, testa se o ID bruto fornecido existe
+    const existsRaw = await prisma.category.findUnique({
+        where: { id: rawId }
+    });
+    if (existsRaw) {
+        return rawId;
+    }
+    
+    return rawId;
+}
+
 export async function POST(request: Request) {
     try {
         const body = await request.json();
@@ -46,9 +77,9 @@ export async function POST(request: Request) {
             cleanCostCenterId = null;
         }
 
-        // Clean sourceCategory and targetCategory if they have tenant prefixes
-        const cleanSourceCategoryId = sourceCategoryId.includes(':') ? sourceCategoryId : `${tenantId}:${sourceCategoryId}`;
-        const cleanTargetCategoryId = targetCategoryId.includes(':') ? targetCategoryId : `${tenantId}:${targetCategoryId}`;
+        // Clean sourceCategory and targetCategory using robust async resolver
+        const cleanSourceCategoryId = await getCleanCategoryId(sourceCategoryId, tenantId);
+        const cleanTargetCategoryId = await getCleanCategoryId(targetCategoryId, tenantId);
 
         // 1. Estorno (Negative value in source category)
         const estornoExternalId = `adj-neg-${sourceTransactionId || 'manual'}-${Date.now()}-${viewMode}`;

@@ -7842,7 +7842,11 @@ export default function BudgetGrid({
                                                                         >
                                                                             <option value="">-- Escolha uma Categoria --</option>
                                                                             {categories
-                                                                                .filter((cat: any) => cat.id !== selectedCell?.categoryId)
+                                                                                .filter((cat: any) => {
+                                                                                    if (cat.id === selectedCell?.categoryId) return false;
+                                                                                    const catTenantId = cat.tenantId || (cat.id.includes(':') ? cat.id.split(':')[0] : null);
+                                                                                    return !catTenantId || catTenantId === tx.tenantId;
+                                                                                })
                                                                                 .sort((a: any, b: any) => (a.name || '').localeCompare(b.name || ''))
                                                                                 .map((cat: any) => (
                                                                                     <option key={cat.id} value={cat.id}>

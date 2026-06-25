@@ -64,6 +64,16 @@ const syntheticLabels: Record<string, string> = {
 
 export default function PortfolioAnalysisPage() {
     const [data, setData] = useState<PortfolioItem[]>([]);
+    const formatDateTimeSafe = (dateVal: any) => {
+        if (!dateVal) return '-';
+        try {
+            const d = new Date(dateVal);
+            if (isNaN(d.getTime())) return '-';
+            return d.toLocaleString('pt-BR');
+        } catch (e) {
+            return '-';
+        }
+    };
     const [loading, setLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState('');
     const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
@@ -2955,7 +2965,7 @@ export default function PortfolioAnalysisPage() {
                                                                     {comment.userName}
                                                                 </span>
                                                                 <span style={{ fontSize: '0.7rem', color: 'var(--text-secondary)' }}>
-                                                                    {new Date(comment.createdAt).toLocaleString('pt-BR')}
+                                                                    {formatDateTimeSafe(comment.createdAt)}
                                                                 </span>
                                                             </div>
                                                             <p style={{ margin: 0, fontSize: '0.85rem', color: 'var(--text-primary)', lineHeight: 1.4 }}>

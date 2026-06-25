@@ -92,7 +92,45 @@ export async function POST(request: Request) {
             return NextResponse.json({ success: false, error: 'Parâmetros obrigatórios ausentes' }, { status: 400 });
         }
 
-        const cleanCategoryId = categoryId.includes(':') ? categoryId : `${tenantId}:${categoryId}`;
+        let cleanCategoryId = categoryId;
+        if (categoryId.includes(',')) {
+            const ids = categoryId.split(',').map((x: string) => x.trim()).filter(Boolean);
+            const foundCat = await prisma.category.findFirst({
+                where: {
+                    id: { in: ids },
+                    tenantId: tenantId
+                }
+            });
+            if (foundCat) {
+                cleanCategoryId = foundCat.id;
+            } else {
+                cleanCategoryId = ids[0];
+            }
+        } else {
+            const exists = await prisma.category.findUnique({
+                where: { id: categoryId }
+            });
+            if (!exists) {
+                const prefixedId = categoryId.includes(':') ? categoryId : `${tenantId}:${categoryId}`;
+                const existsPrefixed = await prisma.category.findUnique({
+                    where: { id: prefixedId }
+                });
+                if (existsPrefixed) {
+                    cleanCategoryId = prefixedId;
+                } else {
+                    cleanCategoryId = prefixedId;
+                }
+            }
+        }
+
+
+        let parsedDueDate = null;
+        if (dueDate) {
+            const d = new Date(dueDate);
+            if (!isNaN(d.getTime())) {
+                parsedDueDate = d;
+            }
+        }
 
         const data: any = {
             tenantId,
@@ -104,7 +142,7 @@ export async function POST(request: Request) {
             correctionAction: correctionAction.trim(),
             responsibleId: responsibleId || null,
             responsibleName: responsibleName || null,
-            dueDate: dueDate ? new Date(dueDate) : null,
+            dueDate: parsedDueDate,
             isResolved: !!isResolved
         };
 

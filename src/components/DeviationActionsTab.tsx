@@ -18,13 +18,24 @@ export default function DeviationActionsTab({ companies, selectedYear, MONTHS }:
     const [filterStatus, setFilterStatus] = useState<string>('PENDING'); // default to pending to focus on action items
     const [filterType, setFilterType] = useState<string>('ALL');
 
+    const formatDateSafe = (dateVal: any) => {
+        if (!dateVal) return '-';
+        try {
+            const d = new Date(dateVal);
+            if (isNaN(d.getTime())) return '-';
+            return d.toLocaleDateString('pt-BR');
+        } catch (e) {
+            return '-';
+        }
+    };
+
     // Fetch deviations
     const loadAllDeviations = useCallback(async () => {
         setLoading(true);
         try {
             // Determine which tenants to fetch
             const tenantsToFetch = filterCompany === 'ALL' 
-                ? companies.map(c => c.id) 
+                ? (companies || []).map(c => c.id) 
                 : [filterCompany];
 
             if (tenantsToFetch.length === 0) {
@@ -52,7 +63,9 @@ export default function DeviationActionsTab({ companies, selectedYear, MONTHS }:
             // Sort by month ascending, then by createdAt desc
             allDevs.sort((a, b) => {
                 if (a.month !== b.month) return a.month - b.month;
-                return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+                const timeB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+                const timeA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+                return (isNaN(timeB) ? 0 : timeB) - (isNaN(timeA) ? 0 : timeA);
             });
 
             setDeviations(allDevs);
@@ -127,7 +140,7 @@ export default function DeviationActionsTab({ companies, selectedYear, MONTHS }:
 
     // Helper to get company name
     const getCompanyName = (tenantId: string) => {
-        const found = companies.find(c => c.id === tenantId);
+        const found = (companies || []).find(c => c.id === tenantId);
         return found ? found.name : 'Outra Empresa';
     };
 
@@ -154,7 +167,7 @@ export default function DeviationActionsTab({ companies, selectedYear, MONTHS }:
                         style={{ width: '100%', padding: '0.6rem', fontSize: '0.85rem', borderRadius: '10px', border: '1px solid var(--border-default)', background: 'var(--bg-elevated)', color: 'var(--text-primary)', outline: 'none', fontWeight: 650 }}
                     >
                         <option value="ALL">🏢 Todas as Empresas</option>
-                        {companies.map(c => (
+                        {(companies || []).map(c => (
                             <option key={c.id} value={c.id}>{c.name}</option>
                         ))}
                     </select>
@@ -366,7 +379,7 @@ export default function DeviationActionsTab({ companies, selectedYear, MONTHS }:
                                                 padding: isOverdue ? '0.15rem 0.4rem' : '0',
                                                 borderRadius: isOverdue ? '4px' : '0'
                                             }}>
-                                                {new Date(d.dueDate).toLocaleDateString('pt-BR')}
+                                                {formatDateSafe(d.dueDate)}
                                             </strong>
                                         </div>
                                     )}

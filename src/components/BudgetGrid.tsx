@@ -3035,6 +3035,29 @@ export default function BudgetGrid({
     }, [treeRoots, nodeTotals]);
 
     // Formatters
+    const formatDateSafe = (dateVal: any, options?: Intl.DateTimeFormatOptions) => {
+        if (!dateVal) return '-';
+        try {
+            const d = new Date(dateVal);
+            if (isNaN(d.getTime())) return '-';
+            return d.toLocaleDateString('pt-BR', options);
+        } catch (e) {
+            return '-';
+        }
+    };
+
+    const formatTimeSafe = (dateVal: any, options?: Intl.DateTimeFormatOptions) => {
+        if (!dateVal) return '';
+        try {
+            const d = new Date(dateVal);
+            if (isNaN(d.getTime())) return '';
+            return d.toLocaleTimeString('pt-BR', options);
+        } catch (e) {
+            return '';
+        }
+    };
+
+
     const formatCurrency = (val: number | undefined) => {
         if (typeof val !== 'number') return 'R$ 0,00';
         return val.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
@@ -8197,7 +8220,7 @@ export default function BudgetGrid({
                                                                         border: '1px solid rgba(15, 23, 42, 0.02)',
                                                                         fontFamily: 'Inter, sans-serif'
                                                                     }}>
-                                                                        {tx.date ? new Date(tx.date).toLocaleDateString('pt-BR', { timeZone: 'UTC' }) : '-'}
+                                                                        {formatDateSafe(tx.date, { timeZone: 'UTC' })}
                                                                     </div>
 
                                                                     {/* Descrição e Cliente */}
@@ -9132,9 +9155,9 @@ export default function BudgetGrid({
                                                             </td>
                                                             <td style={{ padding: '1rem', fontWeight: 600, color: '#475569' }}>{j.userName}</td>
                                                             <td style={{ padding: '1rem', color: '#64748b', fontSize: '0.75rem' }}>
-                                                                {new Date(j.createdAt).toLocaleDateString('pt-BR')} 
+                                                                {formatDateSafe(j.createdAt)} 
                                                                 <br />
-                                                                {new Date(j.createdAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
+                                                                {formatTimeSafe(j.createdAt, { hour: '2-digit', minute: '2-digit' })}
                                                             </td>
                                                             <td style={{ padding: '1rem', borderTopRightRadius: '8px', borderBottomRightRadius: '8px', fontSize: '0.9rem', color: '#334155', fontStyle: 'italic', maxWidth: '300px', wordBreak: 'break-word' }}>
                                                                 "{j.content}"
@@ -10617,7 +10640,7 @@ export default function BudgetGrid({
                                                             <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
                                                                 <span>📅 Prazo:</span>
                                                                 <strong style={{ color: new Date(d.dueDate) < new Date() && !d.isResolved ? 'var(--accent-red)' : 'var(--text-primary)' }}>
-                                                                    {new Date(d.dueDate).toLocaleDateString('pt-BR')}
+                                                                    {formatDateSafe(d.dueDate)}
                                                                 </strong>
                                                             </div>
                                                         )}

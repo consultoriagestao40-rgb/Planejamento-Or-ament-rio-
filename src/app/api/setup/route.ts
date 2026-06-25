@@ -58,13 +58,15 @@ export async function GET() {
                 }
             });
 
-            // NOVAS CATEGORIAS: 06.9 Dividas e 06.9.1 - Parcelamento Tributário competencia anteriores
+            // NOVAS CATEGORIAS: 06.9 Dividas e 06.9.1 - Parcelamento Tributário Comp. Anteriores
             const parentDividasId = `${tenant.id}:dividas-pai`;
             const parcelamentoId = `${tenant.id}:dividas-parcelamento`;
 
             await prisma.category.upsert({
                 where: { id: parentDividasId },
-                update: {},
+                update: {
+                    name: '06.9 Dividas'
+                },
                 create: {
                     id: parentDividasId,
                     name: '06.9 Dividas',
@@ -76,10 +78,12 @@ export async function GET() {
 
             await prisma.category.upsert({
                 where: { id: parcelamentoId },
-                update: {},
+                update: {
+                    name: '06.9.1 - Parcelamento Tributário Comp. Anteriores'
+                },
                 create: {
                     id: parcelamentoId,
-                    name: '06.9.1 - Parcelamento Tributário competencia anteriores',
+                    name: '06.9.1 - Parcelamento Tributário Comp. Anteriores',
                     tenantId: tenant.id,
                     parentId: parentDividasId,
                     type: 'EXPENSE',

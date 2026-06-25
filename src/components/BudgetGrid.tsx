@@ -3840,7 +3840,8 @@ export default function BudgetGrid({
                             )}
                             {!isInteractiveTree && <span style={{ width: '1.65rem' }}></span>}
                             <span style={{ 
-                                whiteSpace: 'nowrap',
+                                whiteSpace: 'normal',
+                                overflowWrap: 'break-word',
                                 textShadow: isInteractiveTree ? '0 1px 1px rgba(0,0,0,0.05)' : 'none'
                             }}>
                                 {node.name}

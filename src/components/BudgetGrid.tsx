@@ -7197,32 +7197,53 @@ export default function BudgetGrid({
                     );
                 })()}
                 {selectedCell && (
-                    <div className="modal-overlay" style={{ zIndex: 1100 }}>
-                        <div className="modal-content" style={{ maxWidth: '1000px', height: '90vh', backgroundColor: '#fff' }}>
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem', marginBottom: '1rem', borderBottom: '1px solid #e2e8f0', paddingBottom: '0.5rem' }}>
+                    <div className="modal-overlay" style={{ zIndex: 1100, position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(15, 23, 42, 0.4)', backdropFilter: 'blur(8px)', display: 'flex', justifyContent: 'center', alignItems: 'center', padding: '1.5rem' }}>
+                        <div className="modal-content" style={{ maxWidth: '900px', width: '100%', maxHeight: '85vh', height: 'auto', display: 'flex', flexDirection: 'column', backgroundColor: '#ffffff', borderRadius: '24px', boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.15), 0 0 0 1px rgba(15, 23, 42, 0.05)', padding: '1.75rem', overflow: 'hidden' }}>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem', marginBottom: '1.25rem', borderBottom: '1px solid rgba(15, 23, 42, 0.06)', paddingBottom: '1rem' }}>
                                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                    <h3 style={{ fontSize: '1.4rem', fontWeight: 'bold', color: '#1e293b' }}>{selectedCell.categoryName}</h3>
-                                    <button onClick={closeModal} style={{ background: 'none', border: 'none', fontSize: '1.5rem', cursor: 'pointer', color: '#94a3b8' }}>×</button>
+                                    <h3 style={{ margin: 0, fontSize: '1.35rem', fontWeight: 800, color: '#0f172a' }}>{selectedCell.categoryName}</h3>
+                                    <button 
+                                        onClick={closeModal} 
+                                        style={{ 
+                                            border: 'none', 
+                                            background: '#f1f5f9', 
+                                            cursor: 'pointer', 
+                                            fontSize: '0.9rem', 
+                                            color: '#64748b', 
+                                            padding: '0.5rem', 
+                                            borderRadius: '10px', 
+                                            display: 'flex', 
+                                            alignItems: 'center', 
+                                            justifyContent: 'center', 
+                                            transition: 'all 0.2s',
+                                            width: '28px',
+                                            height: '28px'
+                                        }} 
+                                        onMouseOver={e => e.currentTarget.style.backgroundColor='#e2e8f0'} 
+                                        onMouseOut={e => e.currentTarget.style.backgroundColor='#f1f5f9'}
+                                    >
+                                        ✕
+                                    </button>
                                 </div>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: '#64748b', fontSize: '0.9rem', fontWeight: 600 }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: '#64748b', fontSize: '0.85rem', fontWeight: 600, marginTop: '2px' }}>
                                     Competência: {MONTHS[selectedCell.month]} / {selectedYear}
                                 </div>
 
                                 {/* Breadcrumb Navigation */}
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginTop: '0.5rem', fontSize: '0.85rem' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap', marginTop: '0.75rem', padding: '6px 12px', backgroundColor: '#f8fafc', borderRadius: '10px', width: 'fit-content', border: '1px solid rgba(15, 23, 42, 0.03)' }}>
                                     <button
                                         onClick={() => setTransactionModalStep('company')}
-                                        style={{ background: 'none', border: 'none', padding: 0, color: transactionModalStep === 'company' ? '#1e293b' : '#3b82f6', fontWeight: transactionModalStep === 'company' ? 700 : 500, cursor: transactionModalStep === 'company' ? 'default' : 'pointer' }}
+                                        style={{ background: 'none', border: 'none', padding: 0, color: transactionModalStep === 'company' ? '#0f172a' : '#4f46e5', fontWeight: transactionModalStep === 'company' ? 800 : 500, fontSize: '0.75rem', cursor: transactionModalStep === 'company' ? 'default' : 'pointer' }}
                                     >
                                         🏢 Empresas
                                     </button>
 
                                     {transactionModalStep !== 'company' && transactionSelectedCompany && (
                                         <>
-                                            <span style={{ color: '#cbd5e1' }}>/</span>
+                                            <span style={{ color: '#cbd5e1', fontSize: '0.75rem' }}>/</span>
                                             <button
                                                 onClick={() => setTransactionModalStep('costcenter')}
-                                                style={{ background: 'none', border: 'none', padding: 0, color: transactionModalStep === 'costcenter' ? '#1e293b' : '#3b82f6', fontWeight: transactionModalStep === 'costcenter' ? 700 : 500, cursor: transactionModalStep === 'costcenter' ? 'default' : 'pointer' }}
+                                                style={{ background: 'none', border: 'none', padding: 0, color: transactionModalStep === 'costcenter' ? '#0f172a' : '#4f46e5', fontWeight: transactionModalStep === 'costcenter' ? 800 : 500, fontSize: '0.75rem', cursor: transactionModalStep === 'costcenter' ? 'default' : 'pointer' }}
                                             >
                                                 📍 {transactionSelectedCompany}
                                             </button>
@@ -7231,124 +7252,131 @@ export default function BudgetGrid({
 
                                     {transactionModalStep === 'transactions' && transactionSelectedCostCenter && (
                                         <>
-                                            <span style={{ color: '#cbd5e1' }}>/</span>
-                                            <span style={{ color: '#1e293b', fontWeight: 700 }}>📄 {transactionSelectedCostCenter}</span>
+                                            <span style={{ color: '#cbd5e1', fontSize: '0.75rem' }}>/</span>
+                                            <span style={{ color: '#0f172a', fontWeight: 800, fontSize: '0.75rem' }}>📄 {transactionSelectedCostCenter}</span>
                                         </>
                                     )}
                                 </div>
                             </div>
 
-                            {loadingTransactions ? <div style={{ textAlign: 'center', padding: '3rem', color: '#64748b' }}>
-                                <style>{`
-                                    @keyframes force-spin {
-                                        from { transform: rotate(0deg); }
-                                        to { transform: rotate(360deg); }
-                                    }
-                                `}</style>
-                                <div style={{ width: '40px', height: '40px', border: '3px solid #f1f5f9', borderTop: '3px solid #3b82f6', borderRadius: '50%', margin: '0 auto 1rem', animation: 'force-spin 1s linear infinite' }} />
-                                <div>Carregando detalhamentos...</div>
-                            </div> : transactions.length === 0 ? <div style={{ textAlign: 'center', padding: '2rem', color: '#64748b' }}>Nenhum lançamento encontrado.</div> : (
-                                <>
-                                    {transactionModalStep === 'company' && (
-                                        <table style={{ width: '100%', fontSize: '0.9rem', borderCollapse: 'collapse' }}>
-                                            <thead>
-                                                <tr style={{ background: '#f8fafc', textAlign: 'left' }}>
-                                                    <th style={{ padding: '0.75rem 1rem', borderBottom: '1px solid #e2e8f0', color: '#475569' }}>Empresas Contribuintes</th>
-                                                    <th style={{ padding: '0.75rem 1rem', borderBottom: '1px solid #e2e8f0', textAlign: 'right', color: '#475569' }}>Realizado</th>
-                                                </tr>
-                                            </thead>
-                                            <tbody>
-                                                {groupedByCompany.map((group, idx) => (
-                                                    <tr key={idx}
-                                                        onClick={() => { setTransactionSelectedCompany(group.name); setTransactionModalStep('costcenter'); }}
-                                                        style={{ borderBottom: '1px solid #f1f5f9', cursor: 'pointer', transition: 'background-color 0.2s' }}
-                                                        onMouseOver={(e) => e.currentTarget.style.backgroundColor = '#f8fafc'}
-                                                        onMouseOut={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
-                                                    >
-                                                        <td style={{ padding: '0.75rem 1rem', fontWeight: 600, color: '#3b82f6', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                                                            🏢 {group.name}
+                            {/* Contêiner de conteúdo rolável adaptativo */}
+                            <div style={{ flex: 1, overflowY: 'auto', minHeight: 0, paddingRight: '4px' }}>
+                                {loadingTransactions ? (
+                                    <div style={{ textAlign: 'center', padding: '3rem 1rem', color: '#64748b' }}>
+                                        <style>{`
+                                            @keyframes force-spin {
+                                                from { transform: rotate(0deg); }
+                                                to { transform: rotate(360deg); }
+                                            }
+                                        `}</style>
+                                        <div style={{ width: '36px', height: '36px', border: '3px solid #f1f5f9', borderTop: '3px solid #4f46e5', borderRadius: '50%', margin: '0 auto 1rem', animation: 'force-spin 1s linear infinite' }} />
+                                        <div style={{ fontSize: '0.85rem', fontWeight: 500 }}>Carregando detalhamentos...</div>
+                                    </div>
+                                ) : transactions.length === 0 ? (
+                                    <div style={{ textAlign: 'center', padding: '3rem 1rem', color: '#64748b', fontSize: '0.85rem', fontWeight: 500 }}>Nenhum lançamento encontrado.</div>
+                                ) : (
+                                    <>
+                                        {transactionModalStep === 'company' && (
+                                            <table style={{ width: '100%', fontSize: '0.85rem', borderCollapse: 'collapse', borderRadius: '12px', overflow: 'hidden' }}>
+                                                <thead>
+                                                    <tr style={{ background: '#f8fafc', textAlign: 'left' }}>
+                                                        <th style={{ padding: '0.75rem 1rem', borderBottom: '1px solid rgba(15, 23, 42, 0.06)', color: '#475569', fontSize: '0.75rem', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Empresas Contribuintes</th>
+                                                        <th style={{ padding: '0.75rem 1rem', borderBottom: '1px solid rgba(15, 23, 42, 0.06)', textAlign: 'right', color: '#475569', fontSize: '0.75rem', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Realizado</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody>
+                                                    {groupedByCompany.map((group, idx) => (
+                                                        <tr key={idx}
+                                                            onClick={() => { setTransactionSelectedCompany(group.name); setTransactionModalStep('costcenter'); }}
+                                                            style={{ borderBottom: '1px solid rgba(15, 23, 42, 0.04)', cursor: 'pointer', transition: 'background-color 0.15s' }}
+                                                            onMouseOver={(e) => e.currentTarget.style.backgroundColor = 'rgba(79, 70, 229, 0.03)'}
+                                                            onMouseOut={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+                                                        >
+                                                            <td style={{ padding: '0.75rem 1rem', fontWeight: 600, color: '#4f46e5', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                                                🏢 {group.name}
+                                                            </td>
+                                                            <td style={{ padding: '0.75rem 1rem', textAlign: 'right', fontWeight: 700, color: '#0f172a' }}>{group.total.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</td>
+                                                        </tr>
+                                                    ))}
+                                                </tbody>
+                                                <tfoot>
+                                                    <tr style={{ background: '#f8fafc', fontWeight: 'bold' }}>
+                                                        <td style={{ padding: '0.85rem 1rem', textAlign: 'right', borderTop: '2px solid rgba(15, 23, 42, 0.08)', fontSize: '0.8rem', color: '#64748b' }}>Total Geral do Mês:</td>
+                                                        <td style={{ padding: '0.85rem 1rem', textAlign: 'right', borderTop: '2px solid rgba(15, 23, 42, 0.08)', color: '#0f172a', fontSize: '0.95rem', fontWeight: 800 }}>
+                                                            {groupedByCompany.reduce((acc, g) => acc + g.total, 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
                                                         </td>
-                                                        <td style={{ padding: '0.75rem 1rem', textAlign: 'right', fontWeight: 'bold' }}>{group.total.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</td>
                                                     </tr>
-                                                ))}
-                                            </tbody>
-                                            <tfoot>
-                                                <tr style={{ background: '#f1f5f9', fontWeight: 'bold' }}>
-                                                    <td style={{ padding: '0.75rem 1rem', textAlign: 'right', borderTop: '2px solid #cbd5e1', fontSize: '0.85rem' }}>Total Geral do Mês:</td>
-                                                    <td style={{ padding: '0.75rem 1rem', textAlign: 'right', borderTop: '2px solid #cbd5e1', color: '#0f172a', fontSize: '0.95rem' }}>
-                                                        {groupedByCompany.reduce((acc, g) => acc + g.total, 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
-                                                    </td>
-                                                </tr>
-                                            </tfoot>
-                                        </table>
-                                    )}
+                                                </tfoot>
+                                            </table>
+                                        )}
 
-                                    {transactionModalStep === 'costcenter' && (
-                                        <table style={{ width: '100%', fontSize: '0.9rem', borderCollapse: 'collapse' }}>
-                                            <thead>
-                                                <tr style={{ background: '#f8fafc', textAlign: 'left' }}>
-                                                    <th style={{ padding: '0.75rem 1rem', borderBottom: '1px solid #e2e8f0', color: '#475569' }}>Centros de Custo (em {transactionSelectedCompany})</th>
-                                                    <th style={{ padding: '0.75rem 1rem', borderBottom: '1px solid #e2e8f0', textAlign: 'right', color: '#475569' }}>Realizado</th>
-                                                </tr>
-                                            </thead>
-                                            <tbody>
-                                                {groupedByCostCenter.map((group, idx) => (
-                                                    <tr key={idx}
-                                                        onClick={() => { setTransactionSelectedCostCenter(group.name); setTransactionModalStep('transactions'); }}
-                                                        style={{ borderBottom: '1px solid #f1f5f9', cursor: 'pointer', transition: 'background-color 0.2s' }}
-                                                        onMouseOver={(e) => e.currentTarget.style.backgroundColor = '#f8fafc'}
-                                                        onMouseOut={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
-                                                    >
-                                                        <td style={{ padding: '0.75rem 1rem', fontWeight: 600, color: '#3b82f6', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                                                            📍 {group.name}
+                                        {transactionModalStep === 'costcenter' && (
+                                            <table style={{ width: '100%', fontSize: '0.85rem', borderCollapse: 'collapse', borderRadius: '12px', overflow: 'hidden' }}>
+                                                <thead>
+                                                    <tr style={{ background: '#f8fafc', textAlign: 'left' }}>
+                                                        <th style={{ padding: '0.75rem 1rem', borderBottom: '1px solid rgba(15, 23, 42, 0.06)', color: '#475569', fontSize: '0.75rem', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Centros de Custo (em {transactionSelectedCompany})</th>
+                                                        <th style={{ padding: '0.75rem 1rem', borderBottom: '1px solid rgba(15, 23, 42, 0.06)', textAlign: 'right', color: '#475569', fontSize: '0.75rem', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Realizado</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody>
+                                                    {groupedByCostCenter.map((group, idx) => (
+                                                        <tr key={idx}
+                                                            onClick={() => { setTransactionSelectedCostCenter(group.name); setTransactionModalStep('transactions'); }}
+                                                            style={{ borderBottom: '1px solid rgba(15, 23, 42, 0.04)', cursor: 'pointer', transition: 'background-color 0.15s' }}
+                                                            onMouseOver={(e) => e.currentTarget.style.backgroundColor = 'rgba(79, 70, 229, 0.03)'}
+                                                            onMouseOut={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+                                                        >
+                                                            <td style={{ padding: '0.75rem 1rem', fontWeight: 600, color: '#4f46e5', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                                                📍 {group.name}
+                                                            </td>
+                                                            <td style={{ padding: '0.75rem 1rem', textAlign: 'right', fontWeight: 700, color: '#0f172a' }}>{group.total.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</td>
+                                                        </tr>
+                                                    ))}
+                                                </tbody>
+                                                <tfoot>
+                                                    <tr style={{ background: '#f8fafc', fontWeight: 'bold' }}>
+                                                        <td style={{ padding: '0.85rem 1rem', textAlign: 'right', borderTop: '2px solid rgba(15, 23, 42, 0.08)', fontSize: '0.8rem', color: '#64748b' }}>Total na Empresa:</td>
+                                                        <td style={{ padding: '0.85rem 1rem', textAlign: 'right', borderTop: '2px solid rgba(15, 23, 42, 0.08)', color: '#0f172a', fontSize: '0.95rem', fontWeight: 800 }}>
+                                                            {groupedByCostCenter.reduce((acc, g) => acc + g.total, 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
                                                         </td>
-                                                        <td style={{ padding: '0.75rem 1rem', textAlign: 'right', fontWeight: 'bold' }}>{group.total.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</td>
                                                     </tr>
-                                                ))}
-                                            </tbody>
-                                            <tfoot>
-                                                <tr style={{ background: '#f1f5f9', fontWeight: 'bold' }}>
-                                                    <td style={{ padding: '0.75rem 1rem', textAlign: 'right', borderTop: '2px solid #cbd5e1', fontSize: '0.85rem' }}>Total na Empresa:</td>
-                                                    <td style={{ padding: '0.75rem 1rem', textAlign: 'right', borderTop: '2px solid #cbd5e1', color: '#0f172a', fontSize: '0.95rem' }}>
-                                                        {groupedByCostCenter.reduce((acc, g) => acc + g.total, 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
-                                                    </td>
-                                                </tr>
-                                            </tfoot>
-                                        </table>
-                                    )}
+                                                </tfoot>
+                                            </table>
+                                        )}
 
-                                    {transactionModalStep === 'transactions' && (
-                                        <table style={{ width: '100%', fontSize: '0.8rem', borderCollapse: 'collapse' }}>
-                                            <thead>
-                                                <tr style={{ background: '#f8fafc', textAlign: 'left' }}>
-                                                    <th style={{ padding: '0.75rem 0.5rem', borderBottom: '1px solid #e2e8f0', color: '#475569', minWidth: '90px' }}>Data</th>
-                                                    <th style={{ padding: '0.75rem 0.5rem', borderBottom: '1px solid #e2e8f0', color: '#475569' }}>Descrição</th>
-                                                    <th style={{ padding: '0.75rem 0.5rem', borderBottom: '1px solid #e2e8f0', color: '#475569' }}>Cliente/Forn.</th>
-                                                    <th style={{ padding: '0.75rem 0.5rem', borderBottom: '1px solid #e2e8f0', textAlign: 'right', color: '#475569' }}>Valor</th>
-                                                </tr>
-                                            </thead>
-                                            <tbody>
-                                                {finalTransactions.map((tx: any) => (
-                                                    <tr key={tx.id} style={{ borderBottom: '1px solid #f1f5f9' }}>
-                                                        <td style={{ padding: '0.5rem' }}>{tx.date ? new Date(tx.date).toLocaleDateString('pt-BR', { timeZone: 'UTC' }) : '-'}</td>
-                                                        <td style={{ padding: '0.5rem' }}>{tx.description}</td>
-                                                        <td style={{ padding: '0.5rem' }}>{tx.customer || '-'}</td>
-                                                        <td style={{ padding: '0.5rem', textAlign: 'right', fontWeight: 'bold' }}>{parseFloat(tx.value).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</td>
+                                        {transactionModalStep === 'transactions' && (
+                                            <table style={{ width: '100%', fontSize: '0.8rem', borderCollapse: 'collapse', borderRadius: '12px', overflow: 'hidden' }}>
+                                                <thead>
+                                                    <tr style={{ background: '#f8fafc', textAlign: 'left' }}>
+                                                        <th style={{ padding: '0.75rem 0.5rem', borderBottom: '1px solid rgba(15, 23, 42, 0.06)', color: '#475569', fontSize: '0.7rem', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.05em', minWidth: '90px' }}>Data</th>
+                                                        <th style={{ padding: '0.75rem 0.5rem', borderBottom: '1px solid rgba(15, 23, 42, 0.06)', color: '#475569', fontSize: '0.7rem', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Descrição</th>
+                                                        <th style={{ padding: '0.75rem 0.5rem', borderBottom: '1px solid rgba(15, 23, 42, 0.06)', color: '#475569', fontSize: '0.7rem', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Cliente/Forn.</th>
+                                                        <th style={{ padding: '0.75rem 0.5rem', borderBottom: '1px solid rgba(15, 23, 42, 0.06)', textAlign: 'right', color: '#475569', fontSize: '0.7rem', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Valor</th>
                                                     </tr>
-                                                ))}
-                                            </tbody>
-                                            <tfoot>
-                                                <tr style={{ background: '#f8fafc', fontWeight: 'bold' }}>
-                                                    <td colSpan={3} style={{ padding: '0.75rem 0.5rem', textAlign: 'right', borderTop: '2px solid #cbd5e1', fontSize: '0.85rem' }}>Total neste Centro de Custo:</td>
-                                                    <td style={{ padding: '0.75rem 0.5rem', textAlign: 'right', borderTop: '2px solid #cbd5e1', color: '#0f172a', fontSize: '0.85rem' }}>
-                                                {finalTransactions.reduce((acc, tx) => acc + (parseFloat(tx.value) || 0), 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
-                                                    </td>
-                                                </tr>
-                                            </tfoot>
-                                        </table>
-                                    )}
-                                </>
-                            )}
+                                                </thead>
+                                                <tbody>
+                                                    {finalTransactions.map((tx: any) => (
+                                                        <tr key={tx.id} style={{ borderBottom: '1px solid rgba(15, 23, 42, 0.04)', transition: 'background-color 0.1s' }} onMouseOver={e => e.currentTarget.style.backgroundColor = 'rgba(15, 23, 42, 0.01)'} onMouseOut={e => e.currentTarget.style.backgroundColor = 'transparent'}>
+                                                            <td style={{ padding: '0.6rem 0.5rem', color: '#475569' }}>{tx.date ? new Date(tx.date).toLocaleDateString('pt-BR', { timeZone: 'UTC' }) : '-'}</td>
+                                                            <td style={{ padding: '0.6rem 0.5rem', fontWeight: 500, color: '#1e293b' }}>{tx.description}</td>
+                                                            <td style={{ padding: '0.6rem 0.5rem', color: '#64748b' }}>{tx.customer || '-'}</td>
+                                                            <td style={{ padding: '0.6rem 0.5rem', textAlign: 'right', fontWeight: 700, color: '#0f172a' }}>{parseFloat(tx.value).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</td>
+                                                        </tr>
+                                                    ))}
+                                                </tbody>
+                                                <tfoot>
+                                                    <tr style={{ background: '#f8fafc', fontWeight: 'bold' }}>
+                                                        <td colSpan={3} style={{ padding: '0.85rem 0.5rem', textAlign: 'right', borderTop: '2px solid rgba(15, 23, 42, 0.08)', fontSize: '0.8rem', color: '#64748b' }}>Total neste Centro de Custo:</td>
+                                                        <td style={{ padding: '0.85rem 0.5rem', textAlign: 'right', borderTop: '2px solid rgba(15, 23, 42, 0.08)', color: '#0f172a', fontSize: '0.85rem', fontWeight: 800 }}>
+                                                            {finalTransactions.reduce((acc, tx) => acc + (parseFloat(tx.value) || 0), 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                                                        </td>
+                                                    </tr>
+                                                </tfoot>
+                                            </table>
+                                        )}
+                                    </>
+                                )}
+                            </div>
                         </div>
                     </div>
                 )}

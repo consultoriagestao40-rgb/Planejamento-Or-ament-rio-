@@ -524,7 +524,11 @@ export default function BudgetGrid({
             return;
         }
 
-        const parsedValue = transferAmount.replace(/[^\d,.-]/g, '').replace(',', '.');
+        let cleanAmount = transferAmount;
+        if (cleanAmount.includes(',') && cleanAmount.includes('.')) {
+            cleanAmount = cleanAmount.replace(/\./g, '');
+        }
+        const parsedValue = cleanAmount.replace(/[^\d,.-]/g, '').replace(',', '.');
         const numericAmount = parseFloat(parsedValue);
         if (isNaN(numericAmount) || numericAmount <= 0) {
             alert("Por favor, insira um valor válido e maior que zero.");

@@ -51,7 +51,7 @@ export async function GET() {
         const syncRealizedEntries = realizedRaw.filter(e => {
             const key = `${e.year}|${e.month}`;
             if (syncedMonths.has(key)) {
-                return e.externalId && (e.externalId.startsWith('sync-') || e.externalId.startsWith('adj-'));
+                return e.externalId && (e.externalId.startsWith('sync-') || e.externalId.startsWith('adj-') || e.externalId.startsWith('transf-'));
             }
             return true;
         });
@@ -120,7 +120,7 @@ export async function GET() {
         const realizedEntriesRaw = realizedRaw.filter(e => {
             const key = `${e.year}|${e.month}`;
             if (syncedMonths.has(key)) {
-                return e.externalId && (e.externalId.startsWith('sync-') || e.externalId.startsWith('adj-'));
+                return e.externalId && (e.externalId.startsWith('sync-') || e.externalId.startsWith('adj-') || e.externalId.startsWith('transf-'));
             }
             return true;
         });

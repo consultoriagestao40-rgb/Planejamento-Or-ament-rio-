@@ -99,7 +99,7 @@ export async function GET(request: Request) {
         // Deduplicate entries: if a tenant is synced, only return entries with 'sync-' prefix
         const entriesSyncFiltered = entriesRaw.filter(e => {
             if (syncedTenantIds.has(e.tenantId)) {
-                return e.externalId && (e.externalId.startsWith('sync-') || e.externalId.startsWith('adj-'));
+                return e.externalId && (e.externalId.startsWith('sync-') || e.externalId.startsWith('adj-') || e.externalId.startsWith('transf-'));
             }
             return true;
         });

@@ -390,7 +390,22 @@ async function collectDetailedTransactions(
 
                                     let catId = rat.id_categoria;
                                     if (!catId) continue;
-                                    
+
+                                    // Skip tax category entries in Receivables (since taxes are payables, any tax categorized on a receivable is a duplicate retention)
+                                    if (!isExpense) {
+                                        const cleanCode = (catName.match(/^(\d{1,2}(?:\.\d+)*)/) || [])[1] || '';
+                                        if (
+                                            cleanCode === '02.1.1' || cleanCode === '2.1.1' || 
+                                            cleanCode === '02.1.2' || cleanCode === '2.1.2' ||
+                                            catId === '1452e2b7-3968-4370-9173-412736e4d1df' ||
+                                            catId === '514d81fe-c366-4714-8243-39bbb4bc9e55' ||
+                                            catId.endsWith(':1452e2b7-3968-4370-9173-412736e4d1df') ||
+                                            catId.endsWith(':514d81fe-c366-4714-8243-39bbb4bc9e55')
+                                        ) {
+                                            continue;
+                                        }
+                                    }
+
                                     const catValue = (rat.valor_bruto !== undefined && rat.valor_bruto !== null) ? rat.valor_bruto : (rat.valor || 0);
 
                                     // Mapear IDs de produção para IDs do banco (com prefixo de tenant) para a JVS Facilities
@@ -525,6 +540,21 @@ async function collectDetailedTransactions(
                     const catToUse = categories[0];
                     const catName = catToUse.nome || catToUse.name || '';
                     let catId = catToUse.id || catToUse.categoria_id;
+
+                    // Skip tax category entries in Receivables (since taxes are payables, any tax categorized on a receivable is a duplicate retention)
+                    if (!isExpense && catId) {
+                        const cleanCode = (catName.match(/^(\d{1,2}(?:\.\d+)*)/) || [])[1] || '';
+                        if (
+                            cleanCode === '02.1.1' || cleanCode === '2.1.1' || 
+                            cleanCode === '02.1.2' || cleanCode === '2.1.2' ||
+                            catId === '1452e2b7-3968-4370-9173-412736e4d1df' ||
+                            catId === '514d81fe-c366-4714-8243-39bbb4bc9e55' ||
+                            catId.endsWith(':1452e2b7-3968-4370-9173-412736e4d1df') ||
+                            catId.endsWith(':514d81fe-c366-4714-8243-39bbb4bc9e55')
+                        ) {
+                            continue;
+                        }
+                    }
                     
                     if (viewMode === 'competencia') {
                         if (isNonDRECategory(catName, tenantId)) {

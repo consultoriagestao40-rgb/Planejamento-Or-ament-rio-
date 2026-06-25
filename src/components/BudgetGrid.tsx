@@ -509,7 +509,7 @@ export default function BudgetGrid({
                 body: JSON.stringify({
                     sourceTransactionId: tx.id,
                     tenantId,
-                    sourceCategoryId: selectedCell?.categoryId,
+                    sourceCategoryId: tx.categoryId || selectedCell?.categoryId,
                     targetCategoryId: targetReclassCategoryId,
                     costCenterId: tx.costCenterId || 'Geral',
                     month: selectedCell?.month !== undefined ? selectedCell.month + 1 : undefined,

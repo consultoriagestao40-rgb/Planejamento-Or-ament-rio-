@@ -77,8 +77,19 @@ export async function POST(request: Request) {
             cleanCostCenterId = null;
         }
 
+        // Resolve sourceCategoryId if it's synthetic (e.g. starts with 'synth-'), comma-separated (merged cells), or falsy
+        let finalSourceCategoryId = sourceCategoryId;
+        if (sourceTransactionId && (!sourceCategoryId || sourceCategoryId.startsWith('synth-') || sourceCategoryId.includes(','))) {
+            const sourceTx = await prisma.realizedEntry.findUnique({
+                where: { id: sourceTransactionId }
+            });
+            if (sourceTx) {
+                finalSourceCategoryId = sourceTx.categoryId;
+            }
+        }
+
         // Clean sourceCategory and targetCategory using robust async resolver
-        const cleanSourceCategoryId = await getCleanCategoryId(sourceCategoryId, tenantId);
+        const cleanSourceCategoryId = await getCleanCategoryId(finalSourceCategoryId, tenantId);
         const cleanTargetCategoryId = await getCleanCategoryId(targetCategoryId, tenantId);
 
         // 1. Estorno (Negative value in source category)

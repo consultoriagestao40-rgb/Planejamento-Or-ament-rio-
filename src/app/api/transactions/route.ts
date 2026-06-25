@@ -130,6 +130,7 @@ export async function GET(request: Request) {
             status: 'REALIZADO',
             tenantId: e.tenantId, // v66.25: ID for bulletproof reconciliation
             tenantName: e.tenant.name,
+            categoryId: e.categoryId,
             costCenterId: e.costCenterId, // v66.25: ID for drill-down reconciliation
             costCenters: e.costCenter ? [{ nome: e.costCenter.name.replace(/^\[INATIVO\]\s*/i, '').replace(/^ENCERRADO\s*/i, '').trim() }] : []
         }));

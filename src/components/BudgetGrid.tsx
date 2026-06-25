@@ -58,6 +58,7 @@ const syntheticLabels: Record<string, string> = {
     'synth-3.7': '03.7 Equipamentos',
     'synth-3.8': '03.8 Comunicação/Sistema/Licenças',
     'synth-3.9': '03.9 Custo com Veiculo',
+    'synth-3.10': '03.10 Custos Transferidos',
     'synth-4.1': '04.1 Salarios e Remuneração',
     'synth-4.2': '04.2 Encargos Sociais',
     'synth-4.3': '04.3 Beneficios',
@@ -259,6 +260,17 @@ export default function BudgetGrid({
     const [reclassCategorySearch, setReclassCategorySearch] = useState<string>('');
     const [reclassReason, setReclassReason] = useState<string>('');
     const [targetReclassTenantId, setTargetReclassTenantId] = useState<string>('');
+
+    // --- Transfer Modal State ---
+    const [isTransferModalOpen, setIsTransferModalOpen] = useState<boolean>(false);
+    const [transferSourceTenantId, setTransferSourceTenantId] = useState<string>('');
+    const [transferTargetTenantId, setTransferTargetTenantId] = useState<string>('');
+    const [transferAmount, setTransferAmount] = useState<string>('');
+    const [transferReason, setTransferReason] = useState<string>('');
+    const [transferMonth, setTransferMonth] = useState<number>(1);
+    const [transferYear, setTransferYear] = useState<number>(2026);
+    const [isTransferring, setIsTransferring] = useState<boolean>(false);
+
 
     // --- Budget Modal State ---
     const [budgetModal, setBudgetModal] = useState<{ categoryId: string, fullNodeId: string, categoryName: string, startMonth: number, type: 'budget' | 'radar' } | null>(null);
@@ -504,6 +516,59 @@ export default function BudgetGrid({
         setReclassCategorySearch('');
         setReclassReason('');
         setTargetReclassTenantId('');
+    };
+
+    const handleConfirmTransfer = async () => {
+        if (!transferSourceTenantId || !transferTargetTenantId || !transferAmount || !transferMonth || !transferYear) {
+            alert("Por favor, preencha todos os campos obrigatórios.");
+            return;
+        }
+
+        const parsedValue = transferAmount.replace(/[^\d,.-]/g, '').replace(',', '.');
+        const numericAmount = parseFloat(parsedValue);
+        if (isNaN(numericAmount) || numericAmount <= 0) {
+            alert("Por favor, insira um valor válido e maior que zero.");
+            return;
+        }
+
+        if (transferSourceTenantId === transferTargetTenantId) {
+            alert("A empresa de origem e destino devem ser diferentes.");
+            return;
+        }
+
+        setIsTransferring(true);
+        try {
+            const res = await fetch('/api/realized/transfers', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    sourceTenantId: transferSourceTenantId,
+                    targetTenantId: transferTargetTenantId,
+                    amount: numericAmount,
+                    month: transferMonth,
+                    year: transferYear,
+                    description: transferReason,
+                    viewMode
+                })
+            });
+            const data = await res.json();
+            if (data.success) {
+                setIsTransferModalOpen(false);
+                setTransferAmount('');
+                setTransferReason('');
+                setInternalRefresh(prev => prev + 1);
+                if (selectedCell) {
+                    await handleCellClick(selectedCell.categoryId, selectedCell.month, selectedCell.categoryName);
+                }
+            } else {
+                alert("Erro ao realizar transferência: " + (data.error || "Erro desconhecido"));
+            }
+        } catch (err: any) {
+            console.error("Transfer error:", err);
+            alert("Erro ao realizar transferência.");
+        } finally {
+            setIsTransferring(false);
+        }
     };
 
     const handleReclassifyConfirm = async (tx: any) => {
@@ -2464,6 +2529,7 @@ export default function BudgetGrid({
             { code: '03.7', name: '03.7 Equipamentos', parentCode: '03' },
             { code: '03.8', name: '03.8 Comunicação/Sistema/Licenças', parentCode: '03' },
             { code: '03.9', name: '03.9 Custo com Veiculo', parentCode: '03' },
+            { code: '03.10', name: '03.10 Custos Transferidos', parentCode: '03' },
             // DESPESAS OPERACIONAIS (04.1 to 04.8)
             { code: '04.1', name: '04.1 Salarios e Remuneração', parentCode: '04' },
             { code: '04.2', name: '04.2 Encargos Sociais', parentCode: '04' },
@@ -6178,6 +6244,48 @@ export default function BudgetGrid({
                                 🔒 ORÇAMENTO BLOQUEADO
                             </div>
                         )}
+
+                        <button
+                            onClick={() => {
+                                setIsTransferModalOpen(true);
+                                const initialSource = selectedCompany.includes('DEFAULT') ? companies[0]?.id : selectedCompany[0];
+                                setTransferSourceTenantId(initialSource || '');
+                                const initialTarget = companies.find(c => c.id !== initialSource)?.id || '';
+                                setTransferTargetTenantId(initialTarget);
+                                setTransferMonth(new Date().getMonth() + 1);
+                                setTransferYear(selectedYear);
+                                setTransferAmount('');
+                                setTransferReason('');
+                            }}
+                            className="premium-btn"
+                            style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '6px',
+                                padding: '0.4rem 0.85rem',
+                                height: '32px',
+                                background: 'linear-gradient(135deg, #4f46e5 0%, #3730a3 100%)',
+                                color: '#ffffff',
+                                borderRadius: '8px',
+                                fontSize: '0.72rem',
+                                fontWeight: 700,
+                                border: 'none',
+                                cursor: 'pointer',
+                                transition: 'all 0.2s',
+                                boxShadow: '0 2px 4px rgba(79, 70, 229, 0.2)'
+                            }}
+                            onMouseOver={(e) => {
+                                e.currentTarget.style.transform = 'translateY(-1px)';
+                                e.currentTarget.style.boxShadow = '0 4px 8px rgba(79, 70, 229, 0.3)';
+                            }}
+                            onMouseOut={(e) => {
+                                e.currentTarget.style.transform = 'none';
+                                e.currentTarget.style.boxShadow = '0 2px 4px rgba(79, 70, 229, 0.2)';
+                            }}
+                        >
+                            <span>💸</span>
+                            <span>Transf. Gerencial</span>
+                        </button>
                     </div>
 
 
@@ -7320,6 +7428,139 @@ export default function BudgetGrid({
                         </div>
                     );
                 })()}
+                {isTransferModalOpen && (
+                    <div className="modal-overlay" style={{ zIndex: 1200, display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(15, 23, 42, 0.5)', backdropFilter: 'blur(8px)' }}>
+                        <div className="glass-card" style={{ maxWidth: '500px', width: '90%', padding: '2rem', borderRadius: '16px', background: 'var(--bg-surface)', border: '1px solid var(--border-default)', boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.15), 0 10px 10px -5px rgba(0, 0, 0, 0.04)' }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
+                                <h3 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 800, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                    <span>💸</span> Transferência Gerencial de Custos
+                                </h3>
+                                <button 
+                                    onClick={() => setIsTransferModalOpen(false)} 
+                                    style={{ border: 'none', background: 'var(--bg-base)', cursor: 'pointer', fontSize: '1rem', color: 'var(--text-secondary)', padding: '0.4rem 0.6rem', borderRadius: '8px', transition: 'all 0.2s' }}
+                                >✕</button>
+                            </div>
+
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                                <div>
+                                    <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 800, color: 'var(--accent-blue)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.4rem' }}>Empresa Origem (Saída)</label>
+                                    <select
+                                        value={transferSourceTenantId}
+                                        onChange={(e) => {
+                                            const val = e.target.value;
+                                            setTransferSourceTenantId(val);
+                                            if (val === transferTargetTenantId) {
+                                                const other = companies.find(c => c.id !== val)?.id || '';
+                                                setTransferTargetTenantId(other);
+                                            }
+                                        }}
+                                        style={{ width: '100%', padding: '0.6rem 0.8rem', fontSize: '0.85rem', borderRadius: '8px', border: '1px solid var(--border-default)', background: 'var(--bg-base)', color: 'var(--text-primary)', outline: 'none', fontWeight: 600 }}
+                                    >
+                                        {companies.map(c => (
+                                            <option key={c.id} value={c.id}>{c.name}</option>
+                                        ))}
+                                    </select>
+                                </div>
+
+                                <div>
+                                    <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 800, color: 'var(--accent-blue)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.4rem' }}>Empresa Destino (Entrada)</label>
+                                    <select
+                                        value={transferTargetTenantId}
+                                        onChange={(e) => setTransferTargetTenantId(e.target.value)}
+                                        style={{ width: '100%', padding: '0.6rem 0.8rem', fontSize: '0.85rem', borderRadius: '8px', border: '1px solid var(--border-default)', background: 'var(--bg-base)', color: 'var(--text-primary)', outline: 'none', fontWeight: 600 }}
+                                    >
+                                        {companies.filter(c => c.id !== transferSourceTenantId).map(c => (
+                                            <option key={c.id} value={c.id}>{c.name}</option>
+                                        ))}
+                                    </select>
+                                </div>
+
+                                <div style={{ display: 'flex', gap: '1rem' }}>
+                                    <div style={{ flex: 1 }}>
+                                        <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 800, color: 'var(--accent-blue)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.4rem' }}>Mês</label>
+                                        <select
+                                            value={transferMonth}
+                                            onChange={(e) => setTransferMonth(Number(e.target.value))}
+                                            style={{ width: '100%', padding: '0.6rem 0.8rem', fontSize: '0.85rem', borderRadius: '8px', border: '1px solid var(--border-default)', background: 'var(--bg-base)', color: 'var(--text-primary)', outline: 'none', fontWeight: 600 }}
+                                        >
+                                            {MONTHS.map((m, idx) => (
+                                                <option key={idx} value={idx + 1}>{m}</option>
+                                            ))}
+                                        </select>
+                                    </div>
+                                    <div style={{ flex: 1 }}>
+                                        <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 800, color: 'var(--accent-blue)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.4rem' }}>Ano</label>
+                                        <select
+                                            value={transferYear}
+                                            onChange={(e) => setTransferYear(Number(e.target.value))}
+                                            style={{ width: '100%', padding: '0.6rem 0.8rem', fontSize: '0.85rem', borderRadius: '8px', border: '1px solid var(--border-default)', background: 'var(--bg-base)', color: 'var(--text-primary)', outline: 'none', fontWeight: 600 }}
+                                        >
+                                            {[2025, 2026, 2027].map(y => (
+                                                <option key={y} value={y}>{y}</option>
+                                            ))}
+                                        </select>
+                                    </div>
+                                </div>
+
+                                <div>
+                                    <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 800, color: 'var(--accent-blue)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.4rem' }}>Valor (R$)</label>
+                                    <input
+                                        type="text"
+                                        placeholder="0,00"
+                                        value={transferAmount}
+                                        onChange={(e) => {
+                                            let v = e.target.value.replace(/\D/g, '');
+                                            if (v) {
+                                                const numeric = parseFloat(v) / 100;
+                                                setTransferAmount(numeric.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }));
+                                            } else {
+                                                setTransferAmount('');
+                                            }
+                                        }}
+                                        style={{ width: '100%', padding: '0.6rem 0.8rem', fontSize: '0.9rem', borderRadius: '8px', border: '1px solid var(--border-default)', background: 'var(--bg-base)', color: 'var(--text-primary)', outline: 'none', fontWeight: 700 }}
+                                    />
+                                </div>
+
+                                <div>
+                                    <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 800, color: 'var(--accent-blue)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.4rem' }}>Justificativa / Motivo</label>
+                                    <textarea
+                                        placeholder="Explique o motivo deste rateio ou transferência gerencial..."
+                                        value={transferReason}
+                                        onChange={(e) => setTransferReason(e.target.value)}
+                                        style={{ width: '100%', height: '80px', padding: '0.6rem 0.8rem', fontSize: '0.85rem', borderRadius: '8px', border: '1px solid var(--border-default)', background: 'var(--bg-base)', color: 'var(--text-primary)', outline: 'none', resize: 'none', fontFamily: 'inherit' }}
+                                    />
+                                </div>
+
+                                <div style={{ display: 'flex', gap: '0.75rem', marginTop: '1rem' }}>
+                                    <button
+                                        onClick={() => setIsTransferModalOpen(false)}
+                                        style={{ flex: 1, padding: '0.65rem', fontSize: '0.8rem', borderRadius: '8px', border: '1px solid var(--border-default)', background: 'transparent', color: 'var(--text-secondary)', cursor: 'pointer', fontWeight: 700, transition: 'all 0.2s' }}
+                                    >Cancelar</button>
+                                    
+                                    <button
+                                        onClick={handleConfirmTransfer}
+                                        disabled={isTransferring || !transferAmount || !transferReason.trim()}
+                                        style={{ 
+                                            flex: 1, 
+                                            padding: '0.65rem', 
+                                            fontSize: '0.8rem', 
+                                            borderRadius: '8px', 
+                                            border: 'none', 
+                                            background: (isTransferring || !transferAmount || !transferReason.trim()) ? 'var(--border-default)' : 'linear-gradient(135deg, #4f46e5 0%, #3730a3 100%)', 
+                                            color: '#ffffff', 
+                                            cursor: (isTransferring || !transferAmount || !transferReason.trim()) ? 'not-allowed' : 'pointer', 
+                                            fontWeight: 700, 
+                                            transition: 'all 0.2s',
+                                            boxShadow: (isTransferring || !transferAmount || !transferReason.trim()) ? 'none' : '0 2px 4px rgba(79, 70, 229, 0.2)'
+                                        }}
+                                    >
+                                        {isTransferring ? 'Processando...' : 'Confirmar Transferência'}
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                )}
                 {selectedCell && (
                     <div 
                         className="modern-overlay" 

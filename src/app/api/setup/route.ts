@@ -5,7 +5,7 @@ export const dynamic = 'force-dynamic';
 
 export async function GET() {
     try {
-        const [rawCategories, costCenters, tenants] = await Promise.all([
+        let [rawCategories, costCenters, tenants] = await Promise.all([
             prisma.category.findMany({ orderBy: { name: 'asc' } }),
             prisma.costCenter.findMany({ 
                 include: { tenant: { select: { name: true, taxRate: true } } },
@@ -13,6 +13,56 @@ export async function GET() {
             }),
             prisma.tenant.findMany({ select: { id: true, name: true, cnpj: true, taxRate: true } })
         ]);
+
+        // Garantir que as categorias gerenciais de transferência (03.10) existam em todos os tenants ativos
+        const missingTenants = tenants.filter(t => !rawCategories.some(c => c.tenantId === t.id && c.name.includes('03.10 - Custos Transferidos')));
+        if (missingTenants.length > 0) {
+            for (const tenant of missingTenants) {
+                const parentId = `${tenant.id}:custos-transferidos-pai`;
+                const saidasId = `${tenant.id}:custos-transferidos-saidas`;
+                const entradasId = `${tenant.id}:custos-transferidos-entradas`;
+                
+                await prisma.category.upsert({
+                    where: { id: parentId },
+                    update: {},
+                    create: {
+                        id: parentId,
+                        name: '03.10 - Custos Transferidos',
+                        tenantId: tenant.id,
+                        type: 'EXPENSE',
+                        entradaDre: 'DESPESAS_OPERACIONAIS'
+                    }
+                });
+                
+                await prisma.category.upsert({
+                    where: { id: saidasId },
+                    update: {},
+                    create: {
+                        id: saidasId,
+                        name: '03.10.1 - Custos Transferidos saídas',
+                        tenantId: tenant.id,
+                        parentId: parentId,
+                        type: 'EXPENSE',
+                        entradaDre: 'DESPESAS_OPERACIONAIS'
+                    }
+                });
+
+                await prisma.category.upsert({
+                    where: { id: entradasId },
+                    update: {},
+                    create: {
+                        id: entradasId,
+                        name: '03.10.2 - Custos Transferidos entradas',
+                        tenantId: tenant.id,
+                        parentId: parentId,
+                        type: 'EXPENSE',
+                        entradaDre: 'DESPESAS_OPERACIONAIS'
+                    }
+                });
+            }
+            // Recarrega as categorias após a inserção
+            rawCategories = await prisma.category.findMany({ orderBy: { name: 'asc' } });
+        }
 
         const categories = rawCategories.filter((c: any) => !c.id.includes(',') && !c.id.includes('|'));
 

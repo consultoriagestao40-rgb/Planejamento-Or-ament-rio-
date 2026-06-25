@@ -255,6 +255,8 @@ export default function BudgetGrid({
     const [targetReclassMonth, setTargetReclassMonth] = useState<number>(0);
     const [targetReclassYear, setTargetReclassYear] = useState<number>(2026);
     const [isReclassifying, setIsReclassifying] = useState<boolean>(false);
+    const [isReclassCategoryDropdownOpen, setIsReclassCategoryDropdownOpen] = useState<boolean>(false);
+    const [reclassCategorySearch, setReclassCategorySearch] = useState<string>('');
 
     // --- Budget Modal State ---
     const [budgetModal, setBudgetModal] = useState<{ categoryId: string, fullNodeId: string, categoryName: string, startMonth: number, type: 'budget' | 'radar' } | null>(null);
@@ -496,6 +498,8 @@ export default function BudgetGrid({
         setTargetReclassMonth(0);
         setTargetReclassYear(2026);
         setIsReclassifying(false);
+        setIsReclassCategoryDropdownOpen(false);
+        setReclassCategorySearch('');
     };
 
     const handleReclassifyConfirm = async (tx: any) => {
@@ -528,6 +532,8 @@ export default function BudgetGrid({
                 setTargetReclassCategoryId('');
                 setTargetReclassMonth(0);
                 setTargetReclassYear(2026);
+                setIsReclassCategoryDropdownOpen(false);
+                setReclassCategorySearch('');
                 setInternalRefresh(prev => prev + 1);
                 if (selectedCell) {
                     await handleCellClick(selectedCell.categoryId, selectedCell.month, selectedCell.categoryName);
@@ -7822,39 +7828,137 @@ export default function BudgetGrid({
                                                                         Selecione a categoria e competência gerencial de destino:
                                                                     </div>
                                                                     <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center' }}>
-                                                                        {/* Select de Categoria */}
-                                                                        <select
-                                                                            value={targetReclassCategoryId}
-                                                                            onChange={(e) => setTargetReclassCategoryId(e.target.value)}
-                                                                            style={{
-                                                                                flex: 2,
-                                                                                minWidth: '200px',
-                                                                                padding: '8px 12px',
-                                                                                borderRadius: '10px',
-                                                                                border: '1px solid rgba(15, 23, 42, 0.1)',
-                                                                                backgroundColor: '#ffffff',
-                                                                                fontSize: '0.8rem',
-                                                                                fontWeight: 600,
-                                                                                color: '#334155',
-                                                                                outline: 'none',
-                                                                                boxShadow: '0 1px 2px rgba(0, 0, 0, 0.05)'
-                                                                            }}
-                                                                        >
-                                                                            <option value="">-- Escolha uma Categoria --</option>
-                                                                            {categories
-                                                                                .filter((cat: any) => {
-                                                                                    if (cat.id === selectedCell?.categoryId) return false;
-                                                                                    const catTenantId = cat.tenantId || (cat.id.includes(':') ? cat.id.split(':')[0] : null);
-                                                                                    return !catTenantId || catTenantId === tx.tenantId;
-                                                                                })
-                                                                                .sort((a: any, b: any) => (a.name || '').localeCompare(b.name || ''))
-                                                                                .map((cat: any) => (
-                                                                                    <option key={cat.id} value={cat.id}>
-                                                                                        {cat.name}
-                                                                                    </option>
-                                                                                ))
-                                                                            }
-                                                                        </select>
+                                                                        {/* Dropdown de Categoria Customizado com Campo de Pesquisa */}
+                                                                        <div style={{ position: 'relative', flex: 2, minWidth: '200px' }}>
+                                                                            <div
+                                                                                onClick={() => {
+                                                                                    setIsReclassCategoryDropdownOpen(!isReclassCategoryDropdownOpen);
+                                                                                    setReclassCategorySearch('');
+                                                                                }}
+                                                                                style={{
+                                                                                    cursor: 'pointer',
+                                                                                    display: 'flex',
+                                                                                    justifyContent: 'space-between',
+                                                                                    alignItems: 'center',
+                                                                                    padding: '8px 12px',
+                                                                                    borderRadius: '10px',
+                                                                                    border: '1px solid rgba(15, 23, 42, 0.1)',
+                                                                                    backgroundColor: '#ffffff',
+                                                                                    fontSize: '0.8rem',
+                                                                                    fontWeight: 600,
+                                                                                    color: '#334155',
+                                                                                    outline: 'none',
+                                                                                    boxShadow: '0 1px 2px rgba(0, 0, 0, 0.05)',
+                                                                                    userSelect: 'none'
+                                                                                }}
+                                                                            >
+                                                                                <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                                                                    {targetReclassCategoryId 
+                                                                                        ? (categories.find((c: any) => c.id === targetReclassCategoryId)?.name || targetReclassCategoryId)
+                                                                                        : '-- Escolha uma Categoria --'}
+                                                                                </span>
+                                                                                <span style={{ fontSize: '0.6rem', opacity: 0.5 }}>▼</span>
+                                                                            </div>
+
+                                                                            {isReclassCategoryDropdownOpen && (
+                                                                                <>
+                                                                                    <div 
+                                                                                        style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, zIndex: 9999 }} 
+                                                                                        onClick={() => setIsReclassCategoryDropdownOpen(false)} 
+                                                                                    />
+                                                                                    <div 
+                                                                                        className="glass-card" 
+                                                                                        style={{ 
+                                                                                            position: 'absolute', 
+                                                                                            top: 'calc(100% + 4px)', 
+                                                                                            left: 0, 
+                                                                                            right: 0, 
+                                                                                            zIndex: 10000, 
+                                                                                            maxHeight: '260px', 
+                                                                                            overflowY: 'auto', 
+                                                                                            background: '#ffffff', 
+                                                                                            border: '1px solid #cbd5e1',
+                                                                                            borderRadius: '8px',
+                                                                                            boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)',
+                                                                                            padding: '0.25rem 0'
+                                                                                        }}
+                                                                                    >
+                                                                                        <div style={{ padding: '0.4rem 0.5rem', borderBottom: '1px solid #e2e8f0', position: 'sticky', top: 0, background: '#ffffff', zIndex: 10 }}>
+                                                                                            <input 
+                                                                                                type="text" 
+                                                                                                placeholder="Comece a digitar..." 
+                                                                                                value={reclassCategorySearch}
+                                                                                                onChange={(e) => setReclassCategorySearch(e.target.value)}
+                                                                                                onClick={(e) => e.stopPropagation()}
+                                                                                                autoFocus
+                                                                                                style={{ 
+                                                                                                    width: '100%', 
+                                                                                                    padding: '0.4rem 0.6rem', 
+                                                                                                    fontSize: '0.75rem', 
+                                                                                                    borderRadius: '6px', 
+                                                                                                    border: '1px solid #cbd5e1', 
+                                                                                                    background: '#f8fafc', 
+                                                                                                    outline: 'none',
+                                                                                                    boxSizing: 'border-box'
+                                                                                                }}
+                                                                                            />
+                                                                                        </div>
+                                                                                        <div style={{ maxHeight: '200px', overflowY: 'auto' }}>
+                                                                                            <div
+                                                                                                onClick={() => {
+                                                                                                    setTargetReclassCategoryId('');
+                                                                                                    setIsReclassCategoryDropdownOpen(false);
+                                                                                                }}
+                                                                                                style={{ 
+                                                                                                    padding: '0.5rem 0.75rem', 
+                                                                                                    cursor: 'pointer', 
+                                                                                                    fontSize: '0.75rem', 
+                                                                                                    fontWeight: 500,
+                                                                                                    color: '#64748b',
+                                                                                                    background: targetReclassCategoryId === '' ? '#f1f5f9' : 'transparent'
+                                                                                                }}
+                                                                                                className="hover-row"
+                                                                                            >
+                                                                                                -- Escolha uma Categoria --
+                                                                                            </div>
+                                                                                            {categories
+                                                                                                .filter((cat: any) => {
+                                                                                                    if (cat.id === selectedCell?.categoryId) return false;
+                                                                                                    const catTenantId = cat.tenantId || (cat.id.includes(':') ? cat.id.split(':')[0] : null);
+                                                                                                    return !catTenantId || catTenantId === tx.tenantId;
+                                                                                                })
+                                                                                                .filter((cat: any) => {
+                                                                                                    if (!reclassCategorySearch) return true;
+                                                                                                    const search = reclassCategorySearch.toLowerCase();
+                                                                                                    return (cat.name || '').toLowerCase().includes(search) || (cat.id || '').toLowerCase().includes(search);
+                                                                                                })
+                                                                                                .sort((a: any, b: any) => (a.name || '').localeCompare(b.name || ''))
+                                                                                                .map((cat: any) => (
+                                                                                                    <div
+                                                                                                        key={cat.id}
+                                                                                                        onClick={() => {
+                                                                                                            setTargetReclassCategoryId(cat.id);
+                                                                                                            setIsReclassCategoryDropdownOpen(false);
+                                                                                                        }}
+                                                                                                        style={{ 
+                                                                                                            padding: '0.5rem 0.75rem', 
+                                                                                                            cursor: 'pointer', 
+                                                                                                            fontSize: '0.75rem', 
+                                                                                                            fontWeight: 600,
+                                                                                                            color: '#1e293b',
+                                                                                                            background: targetReclassCategoryId === cat.id ? '#eff6ff' : 'transparent'
+                                                                                                        }}
+                                                                                                        className="hover-row"
+                                                                                                    >
+                                                                                                        {cat.name}
+                                                                                                    </div>
+                                                                                                ))
+                                                                                            }
+                                                                                        </div>
+                                                                                    </div>
+                                                                                </>
+                                                                            )}
+                                                                        </div>
 
                                                                         {/* Select de Mês */}
                                                                         <select

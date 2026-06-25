@@ -257,6 +257,7 @@ export default function BudgetGrid({
     const [isReclassifying, setIsReclassifying] = useState<boolean>(false);
     const [isReclassCategoryDropdownOpen, setIsReclassCategoryDropdownOpen] = useState<boolean>(false);
     const [reclassCategorySearch, setReclassCategorySearch] = useState<string>('');
+    const [reclassReason, setReclassReason] = useState<string>('');
 
     // --- Budget Modal State ---
     const [budgetModal, setBudgetModal] = useState<{ categoryId: string, fullNodeId: string, categoryName: string, startMonth: number, type: 'budget' | 'radar' } | null>(null);
@@ -500,6 +501,7 @@ export default function BudgetGrid({
         setIsReclassifying(false);
         setIsReclassCategoryDropdownOpen(false);
         setReclassCategorySearch('');
+        setReclassReason('');
     };
 
     const handleReclassifyConfirm = async (tx: any) => {
@@ -521,7 +523,9 @@ export default function BudgetGrid({
                     targetMonth: targetReclassMonth,
                     targetYear: targetReclassYear,
                     amount: Math.abs(parseFloat(tx.value) || 0),
-                    description: tx.description || '',
+                    description: reclassReason.trim()
+                         ? `${tx.description || ''} | De: ${selectedCell?.categoryName || ''} (${(selectedCell?.month !== undefined ? selectedCell.month + 1 : 1)}/${selectedYear}) para: ${categories.find((c: any) => c.id === targetReclassCategoryId)?.name || targetReclassCategoryId} (${targetReclassMonth}/${targetReclassYear}) | Motivo: ${reclassReason.trim()}`
+                         : `${tx.description || ''} | De: ${selectedCell?.categoryName || ''} (${(selectedCell?.month !== undefined ? selectedCell.month + 1 : 1)}/${selectedYear}) para: ${categories.find((c: any) => c.id === targetReclassCategoryId)?.name || targetReclassCategoryId} (${targetReclassMonth}/${targetReclassYear})`,
                     date: tx.date || tx.data,
                     viewMode
                 })
@@ -534,6 +538,7 @@ export default function BudgetGrid({
                 setTargetReclassYear(2026);
                 setIsReclassCategoryDropdownOpen(false);
                 setReclassCategorySearch('');
+                setReclassReason('');
                 setInternalRefresh(prev => prev + 1);
                 if (selectedCell) {
                     await handleCellClick(selectedCell.categoryId, selectedCell.month, selectedCell.categoryName);
@@ -7626,7 +7631,7 @@ export default function BudgetGrid({
                                                         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                                                             <span style={{ fontWeight: 800, color: '#0f172a', fontSize: '0.9rem' }}>
                                                                 {group.total.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
-                                                            </span>
+</span>
                                                             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ transition: 'transform 0.2s' }} className="item-arrow">
                                                                 <polyline points="9 18 15 12 9 6"></polyline>
                                                             </svg>
@@ -7642,6 +7647,7 @@ export default function BudgetGrid({
                                                     const isReclassified = !tx.externalId?.startsWith('adj-') && transactions.some((t: any) => t.externalId === `adj-neg-${tx.id}-${viewMode}`);
                                                     const isAdjustmentPos = tx.externalId?.startsWith('adj-pos-');
                                                     const isCurrentReclassifying = reclassifyingTx?.id === tx.id;
+                                                    const negAdj = isReclassified ? transactions.find((t: any) => t.externalId === `adj-neg-${tx.id}-${viewMode}`) : null;
 
                                                     return (
                                                         <div key={tx.id} style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
@@ -7678,7 +7684,7 @@ export default function BudgetGrid({
                                                                     </div>
 
                                                                     {/* Descrição e Cliente */}
-                                                                    <div style={{ minWidth: 0 }}>
+                                                                    <div style={{ minWidth: 0, flex: 1 }}>
                                                                         <div style={{ 
                                                                             fontWeight: 700, 
                                                                             color: '#0f172a', 
@@ -7697,6 +7703,76 @@ export default function BudgetGrid({
                                                                             </svg>
                                                                             <span>{tx.customer || '-'}</span>
                                                                         </div>
+
+                                                                        {/* Mensagem Histórico: Transação de Origem Estornada */}
+                                                                        {isReclassified && negAdj && (() => {
+                                                                            const desc = negAdj.description || '';
+                                                                            const paraMatch = desc.match(/para:\s*([^|]+)/);
+                                                                            const motivoMatch = desc.match(/Motivo:\s*(.+)$/);
+                                                                            const paraInfo = paraMatch ? paraMatch[1].trim() : '';
+                                                                            const motivoInfo = motivoMatch ? motivoMatch[1].trim() : '';
+                                                                            return (
+                                                                                <div style={{ 
+                                                                                    fontSize: '0.7rem', 
+                                                                                    color: '#4f46e5', 
+                                                                                    fontWeight: 700, 
+                                                                                    marginTop: '6px',
+                                                                                    display: 'flex',
+                                                                                    flexDirection: 'column',
+                                                                                    gap: '2px',
+                                                                                    backgroundColor: 'rgba(79, 70, 229, 0.04)',
+                                                                                    padding: '6px 10px',
+                                                                                    borderRadius: '8px',
+                                                                                    border: '1px dashed rgba(79, 70, 229, 0.15)',
+                                                                                    width: 'fit-content'
+                                                                                }}>
+                                                                                    <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                                                                        <span>➡️</span>
+                                                                                        <span>Reclassificado para: <strong style={{ color: '#312e81' }}>{paraInfo || 'outra conta'}</strong></span>
+                                                                                    </div>
+                                                                                    {motivoInfo && (
+                                                                                        <div style={{ color: '#475569', fontWeight: 600, fontSize: '0.68rem', paddingLeft: '18px' }}>
+                                                                                            Motivo: <span style={{ fontStyle: 'italic', color: '#1e293b' }}>"{motivoInfo}"</span>
+                                                                                        </div>
+                                                                                    )}
+                                                                                </div>
+                                                                            );
+                                                                        })()}
+
+                                                                        {/* Mensagem Histórico: Transação de Ajuste Positivo (Destino) */}
+                                                                        {isAdjustmentPos && (() => {
+                                                                            const desc = tx.description || '';
+                                                                            const deMatch = desc.match(/De:\s*([^|]+)/);
+                                                                            const motivoMatch = desc.match(/Motivo:\s*(.+)$/);
+                                                                            const deInfo = deMatch ? deMatch[1].trim() : '';
+                                                                            const motivoInfo = motivoMatch ? motivoMatch[1].trim() : '';
+                                                                            return (
+                                                                                <div style={{ 
+                                                                                    fontSize: '0.7rem', 
+                                                                                    color: '#0891b2', 
+                                                                                    fontWeight: 700, 
+                                                                                    marginTop: '6px',
+                                                                                    display: 'flex',
+                                                                                    flexDirection: 'column',
+                                                                                    gap: '2px',
+                                                                                    backgroundColor: 'rgba(8, 145, 178, 0.04)',
+                                                                                    padding: '6px 10px',
+                                                                                    borderRadius: '8px',
+                                                                                    border: '1px dashed rgba(8, 145, 178, 0.15)',
+                                                                                    width: 'fit-content'
+                                                                                }}>
+                                                                                    <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                                                                        <span>⬅️</span>
+                                                                                        <span>Origem gerencial: <strong style={{ color: '#164e63' }}>{deInfo || 'outra conta'}</strong></span>
+                                                                                    </div>
+                                                                                    {motivoInfo && (
+                                                                                        <div style={{ color: '#475569', fontWeight: 600, fontSize: '0.68rem', paddingLeft: '18px' }}>
+                                                                                            Motivo: <span style={{ fontStyle: 'italic', color: '#1e293b' }}>"{motivoInfo}"</span>
+                                                                                        </div>
+                                                                                    )}
+                                                                                </div>
+                                                                            );
+                                                                        })()}
                                                                     </div>
                                                                 </div>
 
@@ -7753,6 +7829,7 @@ export default function BudgetGrid({
                                                                                     setTargetReclassCategoryId('');
                                                                                     setTargetReclassMonth(selectedCell?.month !== undefined ? selectedCell.month + 1 : 1);
                                                                                     setTargetReclassYear(selectedYear);
+                                                                                    setReclassReason('');
                                                                                 }}
                                                                                 disabled={isReclassifying}
                                                                                 style={{
@@ -7827,6 +7904,7 @@ export default function BudgetGrid({
                                                                     <div style={{ fontSize: '0.75rem', fontWeight: 700, color: '#475569' }}>
                                                                         Selecione a categoria e competência gerencial de destino:
                                                                     </div>
+                                                                    {/* Container dos Dropdowns */}
                                                                     <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center' }}>
                                                                         {/* Dropdown de Categoria Customizado com Campo de Pesquisa */}
                                                                         <div style={{ position: 'relative', flex: 2, minWidth: '200px' }}>
@@ -8013,66 +8091,97 @@ export default function BudgetGrid({
                                                                                 </option>
                                                                             ))}
                                                                         </select>
+                                                                    </div>
 
-                                                                        <div style={{ display: 'flex', gap: '6px' }}>
-                                                                            <button
-                                                                                onClick={() => handleReclassifyConfirm(tx)}
-                                                                                disabled={!targetReclassCategoryId || !targetReclassMonth || !targetReclassYear || isReclassifying}
-                                                                                style={{
-                                                                                    padding: '8px 16px',
-                                                                                    borderRadius: '10px',
-                                                                                    backgroundColor: '#4f46e5',
-                                                                                    color: '#ffffff',
-                                                                                    border: 'none',
-                                                                                    fontSize: '0.78rem',
-                                                                                    fontWeight: 700,
-                                                                                    cursor: 'pointer',
-                                                                                    transition: 'all 0.2s',
-                                                                                    boxShadow: '0 4px 12px -3px rgba(79, 70, 229, 0.3)'
-                                                                                }}
-                                                                                onMouseOver={(e) => {
-                                                                                    if (!e.currentTarget.disabled) {
-                                                                                        e.currentTarget.style.backgroundColor = '#4338ca';
-                                                                                    }
-                                                                                }}
-                                                                                onMouseOut={(e) => {
-                                                                                    if (!e.currentTarget.disabled) {
-                                                                                        e.currentTarget.style.backgroundColor = '#4f46e5';
-                                                                                    }
-                                                                                }}
-                                                                            >
-                                                                                {isReclassifying ? 'Processando...' : 'Confirmar'}
-                                                                            </button>
+                                                                    {/* Campo para o Motivo da Reclassificação */}
+                                                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', width: '100%', marginTop: '4px' }}>
+                                                                        <input 
+                                                                            type="text" 
+                                                                            placeholder="Escreva o motivo da reclassificação (opcional)..." 
+                                                                            value={reclassReason}
+                                                                            onChange={(e) => setReclassReason(e.target.value)}
+                                                                            style={{
+                                                                                width: '100%',
+                                                                                padding: '8px 12px',
+                                                                                borderRadius: '10px',
+                                                                                border: '1px solid rgba(15, 23, 42, 0.1)',
+                                                                                backgroundColor: '#ffffff',
+                                                                                fontSize: '0.8rem',
+                                                                                fontWeight: 600,
+                                                                                color: '#334155',
+                                                                                outline: 'none',
+                                                                                boxShadow: '0 1px 2px rgba(0, 0, 0, 0.05)',
+                                                                                boxSizing: 'border-box'
+                                                                            }}
+                                                                        />
+                                                                    </div>
 
-                                                                            <button
-                                                                                onClick={() => {
-                                                                                    setReclassifyingTx(null);
-                                                                                    setTargetReclassCategoryId('');
-                                                                                    setTargetReclassMonth(0);
-                                                                                    setTargetReclassYear(2026);
-                                                                                }}
-                                                                                disabled={isReclassifying}
-                                                                                style={{
-                                                                                    padding: '8px 14px',
-                                                                                    borderRadius: '10px',
-                                                                                    backgroundColor: '#ffffff',
-                                                                                    color: '#64748b',
-                                                                                    border: '1px solid rgba(15, 23, 42, 0.08)',
-                                                                                    fontSize: '0.78rem',
-                                                                                    fontWeight: 700,
-                                                                                    cursor: 'pointer',
-                                                                                    transition: 'all 0.2s'
-                                                                                }}
-                                                                                onMouseOver={(e) => {
-                                                                                    e.currentTarget.style.backgroundColor = '#f1f5f9';
-                                                                                }}
-                                                                                onMouseOut={(e) => {
+                                                                    {/* Container dos Botões */}
+                                                                    <div style={{ display: 'flex', gap: '6px', marginTop: '4px' }}>
+                                                                        <button
+                                                                            onClick={() => handleReclassifyConfirm(tx)}
+                                                                            disabled={!targetReclassCategoryId || !targetReclassMonth || !targetReclassYear || isReclassifying}
+                                                                            style={{
+                                                                                padding: '8px 16px',
+                                                                                borderRadius: '10px',
+                                                                                backgroundColor: '#4f46e5',
+                                                                                color: '#ffffff',
+                                                                                border: 'none',
+                                                                                fontSize: '0.78rem',
+                                                                                fontWeight: 700,
+                                                                                cursor: 'pointer',
+                                                                                transition: 'all 0.2s',
+                                                                                boxShadow: '0 4px 12px -3px rgba(79, 70, 229, 0.3)'
+                                                                            }}
+                                                                            onMouseOver={(e) => {
+                                                                                if (!e.currentTarget.disabled) {
+                                                                                    e.currentTarget.style.backgroundColor = '#4338ca';
+                                                                                }
+                                                                            }}
+                                                                            onMouseOut={(e) => {
+                                                                                if (!e.currentTarget.disabled) {
+                                                                                    e.currentTarget.style.backgroundColor = '#4f46e5';
+                                                                                }
+                                                                            }}
+                                                                        >
+                                                                            {isReclassifying ? 'Processando...' : 'Confirmar'}
+                                                                        </button>
+
+                                                                        <button
+                                                                            onClick={() => {
+                                                                                setReclassifyingTx(null);
+                                                                                setTargetReclassCategoryId('');
+                                                                                setTargetReclassMonth(0);
+                                                                                setTargetReclassYear(2026);
+                                                                                setReclassReason('');
+                                                                            }}
+                                                                            disabled={isReclassifying}
+                                                                            style={{
+                                                                                padding: '8px 14px',
+                                                                                borderRadius: '10px',
+                                                                                backgroundColor: '#ffffff',
+                                                                                color: '#64748b',
+                                                                                border: '1px solid rgba(15, 23, 42, 0.08)',
+                                                                                fontSize: '0.78rem',
+                                                                                fontWeight: 700,
+                                                                                cursor: 'pointer',
+                                                                                transition: 'all 0.2s'
+                                                                            }}
+                                                                            onMouseOver={(e) => {
+                                                                                if (!e.currentTarget.disabled) {
+                                                                                    e.currentTarget.style.backgroundColor = '#f8fafc';
+                                                                                    e.currentTarget.style.borderColor = 'rgba(15, 23, 42, 0.15)';
+                                                                                }
+                                                                            }}
+                                                                            onMouseOut={(e) => {
+                                                                                if (!e.currentTarget.disabled) {
                                                                                     e.currentTarget.style.backgroundColor = '#ffffff';
-                                                                                }}
-                                                                            >
-                                                                                Cancelar
-                                                                            </button>
-                                                                        </div>
+                                                                                    e.currentTarget.style.borderColor = 'rgba(15, 23, 42, 0.08)';
+                                                                                }
+                                                                            }}
+                                                                        >
+                                                                            Cancelar
+                                                                        </button>
                                                                     </div>
                                                                 </div>
                                                             )}

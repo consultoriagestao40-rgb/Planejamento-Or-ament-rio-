@@ -289,6 +289,136 @@ export default function BudgetGrid({
     // --- Excel Import State ---
     const [isExcelModalOpen, setIsExcelModalOpen] = useState(false);
 
+    // --- Deviation Analysis & Actions State ---
+    const [deviations, setDeviations] = useState<any[]>([]);
+    const [isDeviationModalOpen, setIsDeviationModalOpen] = useState(false);
+    const [usersList, setUsersList] = useState<any[]>([]);
+    const [isSavingDeviation, setIsSavingDeviation] = useState(false);
+    const [activeDeviationNode, setActiveDeviationNode] = useState<CategoryNode | null>(null);
+    const [deviationType, setDeviationType] = useState('Desvios de orçamento');
+    const [deviationDescription, setDeviationDescription] = useState('');
+    const [deviationCorrectionAction, setDeviationCorrectionAction] = useState('');
+    const [deviationResponsibleId, setDeviationResponsibleId] = useState('');
+    const [deviationDueDate, setDeviationDueDate] = useState('');
+    const [deviationMonth, setDeviationMonth] = useState<number>(6); // June (1-indexed)
+
+    const fetchDeviations = useCallback(async () => {
+        const activeTenantId = selectedCompany.includes('DEFAULT') ? companies[0]?.id : selectedCompany[0];
+        if (!activeTenantId) return;
+        try {
+            const devsRes = await fetch(`/api/deviations?tenantId=${activeTenantId}&year=${selectedYear}&t=${Date.now()}`);
+            if (devsRes.ok) {
+                const d = await devsRes.json();
+                if (d.success) {
+                    setDeviations(d.data || []);
+                }
+            }
+        } catch (e) {
+            console.error("fetchDeviations error:", e);
+        }
+    }, [selectedCompany, companies, selectedYear]);
+
+    const fetchUsers = useCallback(async () => {
+        const activeTenantId = selectedCompany.includes('DEFAULT') ? companies[0]?.id : selectedCompany[0];
+        if (!activeTenantId) return;
+        try {
+            const usersRes = await fetch(`/api/users/list?tenantId=${activeTenantId}&t=${Date.now()}`);
+            if (usersRes.ok) {
+                const u = await usersRes.json();
+                if (u.success) {
+                    setUsersList(u.data || []);
+                }
+            }
+        } catch (e) {
+            console.error("fetchUsers error:", e);
+        }
+    }, [selectedCompany, companies]);
+
+    const handleSaveDeviation = async () => {
+        const activeTenantId = selectedCompany.includes('DEFAULT') ? companies[0]?.id : selectedCompany[0];
+        if (!activeTenantId || !activeDeviationNode) return;
+        if (!deviationDescription.trim() || !deviationCorrectionAction.trim()) {
+            alert("Por favor, preencha a descrição e a ação corretiva.");
+            return;
+        }
+
+        setIsSavingDeviation(true);
+        try {
+            const res = await fetch('/api/deviations', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    tenantId: activeTenantId,
+                    categoryId: activeDeviationNode.id,
+                    month: deviationMonth,
+                    year: selectedYear,
+                    deviationType,
+                    description: deviationDescription,
+                    correctionAction: deviationCorrectionAction,
+                    responsibleId: deviationResponsibleId || null,
+                    dueDate: deviationDueDate || null
+                })
+            });
+            const data = await res.json();
+            if (data.success) {
+                setDeviationDescription('');
+                setDeviationCorrectionAction('');
+                setDeviationResponsibleId('');
+                setDeviationDueDate('');
+                await fetchDeviations();
+                alert("Desvio cadastrado com sucesso!");
+            } else {
+                alert(`Erro ao cadastrar desvio: ${data.error}`);
+            }
+        } catch (e) {
+            console.error(e);
+            alert("Erro ao salvar desvio.");
+        } finally {
+            setIsSavingDeviation(false);
+        }
+    };
+
+    const handleToggleResolveDeviation = async (id: string, currentStatus: boolean) => {
+        try {
+            const res = await fetch('/api/deviations/resolve', {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    id,
+                    isResolved: !currentStatus,
+                    resolvedBy: 'Usuário'
+                })
+            });
+            const data = await res.json();
+            if (data.success) {
+                await fetchDeviations();
+            } else {
+                alert(`Erro ao alterar status: ${data.error}`);
+            }
+        } catch (e) {
+            console.error(e);
+            alert("Erro ao alterar status do desvio.");
+        }
+    };
+
+    const handleDeleteDeviation = async (id: string) => {
+        if (!confirm("Deseja realmente excluir este desvio?")) return;
+        try {
+            const res = await fetch(`/api/deviations?id=${id}`, {
+                method: 'DELETE'
+            });
+            const data = await res.json();
+            if (data.success) {
+                await fetchDeviations();
+            } else {
+                alert(`Erro ao excluir desvio: ${data.error}`);
+            }
+        } catch (e) {
+            console.error(e);
+            alert("Erro ao excluir desvio.");
+        }
+    };
+
     // --- DRE Group Card Collapse States ---
     const [isReceitasExpanded, setIsReceitasExpanded] = useState(true);
     const [isCustosExpanded, setIsCustosExpanded] = useState(true);
@@ -2462,6 +2592,23 @@ export default function BudgetGrid({
                         console.warn("Indicators data error:", e);
                     }
                 }
+
+                // Fetch deviations and users list
+                const activeTenantId = selectedCompany.includes('DEFAULT') ? companies[0]?.id : selectedCompany[0];
+                if (activeTenantId) {
+                    const [devsRes, usersRes] = await Promise.all([
+                        fetch(`/api/deviations?tenantId=${activeTenantId}&year=${selectedYear}&t=${Date.now()}`),
+                        fetch(`/api/users/list?tenantId=${activeTenantId}&t=${Date.now()}`)
+                    ]);
+                    if (devsRes.ok) {
+                        const d = await devsRes.json();
+                        if (d.success) setDeviations(d.data || []);
+                    }
+                    if (usersRes.ok) {
+                        const u = await usersRes.json();
+                        if (u.success) setUsersList(u.data || []);
+                    }
+                }
             } catch (err: any) {
                 console.error('Grid Load Error:', err);
                 setError(err.message);
@@ -3874,6 +4021,40 @@ export default function BudgetGrid({
                             }}>
                                 {node.name}
                             </span>
+                            {!node.isSynthetic && (
+                                <button
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        setActiveDeviationNode(node);
+                                        setDeviationDescription('');
+                                        setDeviationCorrectionAction('');
+                                        setDeviationDueDate('');
+                                        setDeviationResponsibleId('');
+                                        setDeviationMonth(endMonth + 1);
+                                        setIsDeviationModalOpen(true);
+                                    }}
+                                    style={{
+                                        background: 'none',
+                                        border: 'none',
+                                        cursor: 'pointer',
+                                        padding: '2px 4px',
+                                        fontSize: '0.85rem',
+                                        opacity: 0.7,
+                                        transition: 'all 0.2s',
+                                        marginLeft: '6px',
+                                        display: 'inline-flex',
+                                        alignItems: 'center',
+                                        borderRadius: '4px',
+                                        backgroundColor: deviations.some((d: any) => (d.categoryId === node.id || d.categoryId.endsWith(':' + node.id)) && !d.isResolved) ? 'rgba(239, 68, 68, 0.15)' : 'transparent',
+                                        borderWidth: '1px',
+                                        borderStyle: 'solid',
+                                        borderColor: deviations.some((d: any) => (d.categoryId === node.id || d.categoryId.endsWith(':' + node.id)) && !d.isResolved) ? 'rgba(239, 68, 68, 0.3)' : 'transparent',
+                                    }}
+                                    title={deviations.some((d: any) => (d.categoryId === node.id || d.categoryId.endsWith(':' + node.id)) && !d.isResolved) ? "Possui desvio pendente registrado" : "Registrar desvio / Ações"}
+                                >
+                                    {deviations.some((d: any) => (d.categoryId === node.id || d.categoryId.endsWith(':' + node.id)) && !d.isResolved) ? '⚠️' : '📋'}
+                                </button>
+                            )}
                         </div>
                     </td>
                     {(viewPeriod === 'month' ? MONTHS : [1, 2, 3, 4]).map((_, i) => {
@@ -10195,6 +10376,273 @@ export default function BudgetGrid({
                             to { transform: translateY(0); opacity: 1; }
                         }
                     `}</style>
+                </div>
+            )}
+            {isDeviationModalOpen && activeDeviationNode && (
+                <div className="modal-overlay" style={{ zIndex: 1210, position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(15, 23, 42, 0.6)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem' }}>
+                    <div className="modal-content" style={{ maxWidth: '850px', width: '100%', maxHeight: '90vh', backgroundColor: 'var(--bg-surface)', borderRadius: '24px', boxShadow: 'var(--shadow-card)', overflow: 'hidden', display: 'flex', flexDirection: 'column', border: '1px solid var(--border-default)', animation: 'modalSlideIn 0.3s cubic-bezier(0.16, 1, 0.3, 1)' }}>
+                        
+                        {/* Header */}
+                        <div style={{ padding: '1.5rem 2rem', borderBottom: '1px solid var(--border-default)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'var(--bg-elevated)' }}>
+                            <div>
+                                <span style={{ fontSize: '0.75rem', fontWeight: 800, color: 'var(--accent-blue)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Apontamento de Desvios & Ações</span>
+                                <h3 style={{ margin: 0, fontSize: '1.35rem', fontWeight: 800, color: 'var(--text-primary)' }}>
+                                    📋 {activeDeviationNode.name}
+                                </h3>
+                            </div>
+                            <button 
+                                onClick={() => {
+                                    setIsDeviationModalOpen(false);
+                                    setActiveDeviationNode(null);
+                                }} 
+                                style={{ border: 'none', background: 'var(--bg-surface)', cursor: 'pointer', fontSize: '1.1rem', color: 'var(--text-secondary)', padding: '0.5rem', borderRadius: '10px', transition: 'all 0.2s', border: '1px solid var(--border-default)' }}
+                            >
+                                ✕
+                            </button>
+                        </div>
+
+                        {/* Modal Body */}
+                        <div style={{ padding: '2rem', overflowY: 'auto', flex: 1, display: 'flex', flexDirection: 'column', gap: '2rem' }}>
+                            
+                            {/* Novo Desvio Form */}
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem', padding: '1.5rem', borderRadius: '16px', background: 'var(--bg-elevated)', border: '1px solid var(--border-default)' }}>
+                                <h4 style={{ margin: 0, fontSize: '1rem', fontWeight: 800, color: 'var(--text-primary)' }}>Registrar Novo Desvio</h4>
+                                
+                                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1rem' }}>
+                                    {/* Mês */}
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
+                                        <label style={{ fontSize: '0.7rem', fontWeight: 800, color: 'var(--text-secondary)', textTransform: 'uppercase' }}>Mês de Competência</label>
+                                        <select
+                                            value={deviationMonth}
+                                            onChange={(e) => setDeviationMonth(parseInt(e.target.value, 10))}
+                                            style={{ padding: '0.5rem', fontSize: '0.85rem', borderRadius: '8px', border: '1px solid var(--border-default)', background: 'var(--bg-surface)', color: 'var(--text-primary)', outline: 'none', fontWeight: 650 }}
+                                        >
+                                            {MONTHS.map((m, idx) => (
+                                                <option key={idx} value={idx + 1}>{m} / {selectedYear}</option>
+                                            ))}
+                                        </select>
+                                    </div>
+
+                                    {/* Tipo de Desvio */}
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
+                                        <label style={{ fontSize: '0.7rem', fontWeight: 800, color: 'var(--text-secondary)', textTransform: 'uppercase' }}>Tipo de Análise / Ação</label>
+                                        <select
+                                            value={deviationType}
+                                            onChange={(e) => setDeviationType(e.target.value)}
+                                            style={{ padding: '0.5rem', fontSize: '0.85rem', borderRadius: '8px', border: '1px solid var(--border-default)', background: 'var(--bg-surface)', color: 'var(--text-primary)', outline: 'none', fontWeight: 650 }}
+                                        >
+                                            <option value="Reclassificar na fonte (Conta Azul)">Reclassificar na fonte (Conta Azul)</option>
+                                            <option value="Desvios de orçamento">Desvios de orçamento</option>
+                                            <option value="Reclassificação gerencial">Reclassificação gerencial</option>
+                                            <option value="Ajuste de lançamentos">Ajuste de lançamentos</option>
+                                            <option value="Outro">Outro (Anotações gerais)</option>
+                                        </select>
+                                    </div>
+                                </div>
+
+                                <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
+                                    {/* Relato / Descrição */}
+                                    <div style={{ flex: 1, minWidth: '280px', display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
+                                        <label style={{ fontSize: '0.7rem', fontWeight: 800, color: 'var(--text-secondary)', textTransform: 'uppercase' }}>Descrição do Desvio / Ocorrência</label>
+                                        <textarea
+                                            value={deviationDescription}
+                                            onChange={(e) => setDeviationDescription(e.target.value)}
+                                            placeholder="Descreva o problema ou observação identificada..."
+                                            style={{ height: '80px', padding: '0.5rem', fontSize: '0.85rem', borderRadius: '8px', border: '1px solid var(--border-default)', background: 'var(--bg-surface)', color: 'var(--text-primary)', outline: 'none', resize: 'vertical', fontFamily: 'inherit' }}
+                                        />
+                                    </div>
+
+                                    {/* Ação Corretiva */}
+                                    <div style={{ flex: 1, minWidth: '280px', display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
+                                        <label style={{ fontSize: '0.7rem', fontWeight: 800, color: 'var(--text-secondary)', textTransform: 'uppercase' }}>Plano de Correção (Ação Gerencial)</label>
+                                        <textarea
+                                            value={deviationCorrectionAction}
+                                            onChange={(e) => setDeviationCorrectionAction(e.target.value)}
+                                            placeholder="Descreva a ação corretiva que deve ser tomada..."
+                                            style={{ height: '80px', padding: '0.5rem', fontSize: '0.85rem', borderRadius: '8px', border: '1px solid var(--border-default)', background: 'var(--bg-surface)', color: 'var(--text-primary)', outline: 'none', resize: 'vertical', fontFamily: 'inherit' }}
+                                        />
+                                    </div>
+                                </div>
+
+                                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1rem', alignItems: 'end' }}>
+                                    {/* Responsável */}
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
+                                        <label style={{ fontSize: '0.7rem', fontWeight: 800, color: 'var(--text-secondary)', textTransform: 'uppercase' }}>Responsável pela Ação</label>
+                                        <select
+                                            value={deviationResponsibleId}
+                                            onChange={(e) => setDeviationResponsibleId(e.target.value)}
+                                            style={{ padding: '0.5rem', fontSize: '0.85rem', borderRadius: '8px', border: '1px solid var(--border-default)', background: 'var(--bg-surface)', color: 'var(--text-primary)', outline: 'none', fontWeight: 650 }}
+                                        >
+                                            <option value="">-- Sem responsável --</option>
+                                            {usersList.map((u: any) => (
+                                                <option key={u.id} value={u.id}>{u.name} ({u.email})</option>
+                                            ))}
+                                        </select>
+                                    </div>
+
+                                    {/* Prazo */}
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
+                                        <label style={{ fontSize: '0.7rem', fontWeight: 800, color: 'var(--text-secondary)', textTransform: 'uppercase' }}>Prazo de Conclusão</label>
+                                        <input
+                                            type="date"
+                                            value={deviationDueDate}
+                                            onChange={(e) => setDeviationDueDate(e.target.value)}
+                                            style={{ padding: '0.45rem', fontSize: '0.85rem', borderRadius: '8px', border: '1px solid var(--border-default)', background: 'var(--bg-surface)', color: 'var(--text-primary)', outline: 'none', fontWeight: 650 }}
+                                        />
+                                    </div>
+
+                                    {/* Salvar Button */}
+                                    <button
+                                        onClick={handleSaveDeviation}
+                                        disabled={isSavingDeviation}
+                                        style={{
+                                            padding: '0.6rem 1.5rem',
+                                            background: 'var(--gradient-brand)',
+                                            color: '#ffffff',
+                                            border: 'none',
+                                            borderRadius: '8px',
+                                            fontSize: '0.85rem',
+                                            fontWeight: 700,
+                                            cursor: 'pointer',
+                                            boxShadow: 'var(--shadow-button)',
+                                            transition: 'all 0.2s',
+                                            height: '38px',
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            justifyContent: 'center',
+                                            gap: '0.5rem'
+                                        }}
+                                    >
+                                        {isSavingDeviation ? 'Salvando...' : 'Adicionar Ação'}
+                                    </button>
+                                </div>
+                            </div>
+
+                            {/* Histórico / Lista de Desvios */}
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                                <h4 style={{ margin: 0, fontSize: '1rem', fontWeight: 800, color: 'var(--text-primary)' }}>Desvios e Planos de Ação Registrados</h4>
+                                
+                                {deviations.filter((d: any) => d.categoryId === activeDeviationNode.id || d.categoryId.endsWith(':' + activeDeviationNode.id)).length === 0 ? (
+                                    <div style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-secondary)', fontSize: '0.85rem', border: '1px dashed var(--border-default)', borderRadius: '12px', fontStyle: 'italic' }}>
+                                        Nenhum desvio ou plano de ação registrado para esta conta neste ano.
+                                    </div>
+                                ) : (
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                                        {deviations.filter((d: any) => d.categoryId === activeDeviationNode.id || d.categoryId.endsWith(':' + activeDeviationNode.id)).map((d: any) => {
+                                            return (
+                                                <div 
+                                                    key={d.id} 
+                                                    style={{ 
+                                                        padding: '1.25rem', 
+                                                        borderRadius: '14px', 
+                                                        border: '1px solid var(--border-default)', 
+                                                        backgroundColor: d.isResolved ? 'rgba(16, 185, 129, 0.03)' : 'var(--bg-surface)',
+                                                        boxShadow: '0 2px 4px rgba(0,0,0,0.02)',
+                                                        transition: 'all 0.2s',
+                                                        opacity: d.isResolved ? 0.75 : 1,
+                                                        position: 'relative'
+                                                    }}
+                                                >
+                                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '1rem', marginBottom: '0.75rem' }}>
+                                                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', flexWrap: 'wrap' }}>
+                                                            <span style={{ fontSize: '0.75rem', fontWeight: 800, padding: '0.25rem 0.6rem', borderRadius: '99px', background: 'var(--bg-elevated)', color: 'var(--text-primary)', border: '1px solid var(--border-default)' }}>
+                                                                📅 {MONTHS[d.month - 1]} / {d.year}
+                                                            </span>
+                                                            <span style={{ fontSize: '0.75rem', fontWeight: 800, padding: '0.25rem 0.6rem', borderRadius: '99px', background: d.isResolved ? 'rgba(16, 185, 129, 0.15)' : 'rgba(239, 68, 68, 0.15)', color: d.isResolved ? 'var(--accent-green)' : 'var(--accent-red)' }}>
+                                                                {d.isResolved ? 'Corrigido / Resolvido' : 'Pendente'}
+                                                            </span>
+                                                            <span style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-primary)' }}>
+                                                                {d.deviationType}
+                                                            </span>
+                                                        </div>
+
+                                                        <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                                                            <button
+                                                                onClick={() => handleToggleResolveDeviation(d.id, d.isResolved)}
+                                                                style={{
+                                                                    padding: '0.35rem 0.75rem',
+                                                                    background: d.isResolved ? '#f1f5f9' : 'rgba(16, 185, 129, 0.1)',
+                                                                    border: d.isResolved ? '1px solid #cbd5e1' : '1px solid rgba(16, 185, 129, 0.3)',
+                                                                    borderRadius: '8px',
+                                                                    color: d.isResolved ? '#475569' : 'var(--accent-green)',
+                                                                    fontSize: '0.75rem',
+                                                                    fontWeight: 700,
+                                                                    cursor: 'pointer',
+                                                                    transition: 'all 0.15s'
+                                                                }}
+                                                            >
+                                                                {d.isResolved ? 'Reabrir Ação' : 'Marcar Resolvido'}
+                                                            </button>
+                                                            <button
+                                                                onClick={() => handleDeleteDeviation(d.id)}
+                                                                style={{
+                                                                    padding: '0.35rem',
+                                                                    background: 'none',
+                                                                    border: '1px solid var(--border-default)',
+                                                                    borderRadius: '8px',
+                                                                    color: 'var(--accent-red)',
+                                                                    cursor: 'pointer',
+                                                                    fontSize: '0.85rem'
+                                                                }}
+                                                                title="Excluir desvio"
+                                                            >
+                                                                🗑️
+                                                            </button>
+                                                        </div>
+                                                    </div>
+
+                                                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '1rem', marginTop: '0.75rem', borderTop: '1px solid var(--border-default)', paddingTop: '0.75rem' }}>
+                                                        <div>
+                                                            <div style={{ fontSize: '0.7rem', fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase' }}>Ocorrência / Relato:</div>
+                                                            <div style={{ fontSize: '0.85rem', color: 'var(--text-primary)', marginTop: '0.2rem', whiteSpace: 'pre-wrap', textDecoration: d.isResolved ? 'line-through' : 'none' }}>
+                                                                {d.description}
+                                                            </div>
+                                                        </div>
+                                                        <div>
+                                                            <div style={{ fontSize: '0.7rem', fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase' }}>Plano de Ação:</div>
+                                                            <div style={{ fontSize: '0.85rem', color: 'var(--text-primary)', marginTop: '0.2rem', whiteSpace: 'pre-wrap', textDecoration: d.isResolved ? 'line-through' : 'none' }}>
+                                                                {d.correctionAction}
+                                                            </div>
+                                                        </div>
+                                                    </div>
+
+                                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '0.85rem', fontSize: '0.8rem', color: 'var(--text-secondary)', background: 'var(--bg-elevated)', padding: '0.5rem 0.75rem', borderRadius: '8px' }}>
+                                                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                                                            <span>👤 Responsável:</span>
+                                                            <strong style={{ color: 'var(--text-primary)' }}>
+                                                                {d.responsible?.name || d.responsibleName || 'Não designado'}
+                                                            </strong>
+                                                        </div>
+                                                        {d.dueDate && (
+                                                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                                                                <span>📅 Prazo:</span>
+                                                                <strong style={{ color: new Date(d.dueDate) < new Date() && !d.isResolved ? 'var(--accent-red)' : 'var(--text-primary)' }}>
+                                                                    {new Date(d.dueDate).toLocaleDateString('pt-BR')}
+                                                                </strong>
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+
+                        {/* Footer */}
+                        <div style={{ padding: '1rem 2rem', borderTop: '1px solid var(--border-default)', display: 'flex', justifyContent: 'flex-end', background: 'var(--bg-elevated)' }}>
+                            <button
+                                onClick={() => {
+                                    setIsDeviationModalOpen(false);
+                                    setActiveDeviationNode(null);
+                                }}
+                                style={{ padding: '0.55rem 1.5rem', background: 'var(--bg-surface)', border: '1px solid var(--border-default)', borderRadius: '8px', fontSize: '0.85rem', fontWeight: 700, color: 'var(--text-primary)', cursor: 'pointer' }}
+                            >
+                                Fechar
+                            </button>
+                        </div>
+                    </div>
                 </div>
             )}
         </>

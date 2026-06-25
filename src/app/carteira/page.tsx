@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import Link from 'next/link';
 import { createPortal } from 'react-dom';
+import DeviationActionsTab from '@/components/DeviationActionsTab';
 
 interface PortfolioItem {
     tenantId: string;
@@ -71,7 +72,7 @@ export default function PortfolioAnalysisPage() {
     const [selectedViewMode, setSelectedViewMode] = useState<'competencia' | 'caixa'>('competencia');
     const [expandedTenants, setExpandedTenants] = useState<Set<string>>(new Set());
     // --- Detailed Analysis Custom Charts State ---
-    const [activeAnalysisTab, setActiveAnalysisTab] = useState<'carteira' | 'detailed'>('carteira');
+    const [activeAnalysisTab, setActiveAnalysisTab] = useState<'carteira' | 'detailed' | 'actions'>('carteira');
     const [companies, setCompanies] = useState<any[]>([]);
     const [categories, setCategories] = useState<any[]>([]);
     const [costCenters, setCostCenters] = useState<any[]>([]);
@@ -282,8 +283,8 @@ export default function PortfolioAnalysisPage() {
 
     useEffect(() => {
         const storedTab = localStorage.getItem('activeAnalysisTab');
-        if (storedTab === 'carteira' || storedTab === 'detailed') {
-            setActiveAnalysisTab(storedTab as 'carteira' | 'detailed');
+        if (storedTab === 'carteira' || storedTab === 'detailed' || storedTab === 'actions') {
+            setActiveAnalysisTab(storedTab as any);
         }
     }, []);
 
@@ -941,7 +942,7 @@ export default function PortfolioAnalysisPage() {
                     borderRadius: '10px',
                     border: '1px solid var(--border-default)',
                     marginBottom: '2rem',
-                    maxWidth: '450px',
+                    maxWidth: '580px',
                     gap: '0.3rem'
                 }}>
                     <button
@@ -985,6 +986,27 @@ export default function PortfolioAnalysisPage() {
                         }}
                     >
                         📊 Análises Detalhadas
+                    </button>
+                    <button
+                        onClick={() => {
+                            setActiveAnalysisTab('actions');
+                            localStorage.setItem('activeAnalysisTab', 'actions');
+                        }}
+                        style={{
+                            flex: 1,
+                            padding: '0.6rem',
+                            border: 'none',
+                            borderRadius: '8px',
+                            fontSize: '0.85rem',
+                            fontWeight: 700,
+                            cursor: 'pointer',
+                            transition: 'all 0.2s',
+                            background: activeAnalysisTab === 'actions' ? 'var(--gradient-brand)' : 'transparent',
+                            color: activeAnalysisTab === 'actions' ? '#ffffff' : 'var(--text-secondary)',
+                            boxShadow: activeAnalysisTab === 'actions' ? 'var(--shadow-button)' : 'none'
+                        }}
+                    >
+                        📋 Central de Ações
                     </button>
                 </div>
 
@@ -2424,6 +2446,14 @@ export default function PortfolioAnalysisPage() {
                             </div>
                         )}
                     </div>
+                )}
+
+                {activeAnalysisTab === 'actions' && (
+                    <DeviationActionsTab
+                        companies={companies}
+                        selectedYear={selectedYear}
+                        MONTHS={['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro']}
+                    />
                 )}
 
             {/* Preview Tooltip Rendering */}

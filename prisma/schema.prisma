@@ -30,6 +30,7 @@ model Tenant {
   bankAccounts BankAccount[]
   indicatorAnalyses IndicatorAnalysis[]
   detailedAnalyses  DetailedAnalysis[]
+  deviations        DeviationAnalysis[]
 }
 
 model RadarLock {
@@ -62,6 +63,7 @@ model Category {
   realized   RealizedEntry[]
   justifications RealizedJustification[]
   indicatorAnalyses IndicatorAnalysis[]
+  deviations        DeviationAnalysis[]
 }
 
 model CostCenter {
@@ -170,12 +172,14 @@ model User {
   email        String     @unique
   passwordHash String
   role         Role       @default(GESTOR)
+  avatarUrl    String?
   createdAt    DateTime   @default(now())
   updatedAt    DateTime   @updatedAt
 
   tenantAccess     UserTenantAccess[]
   costCenterAccess UserCostCenterAccess[]
   chatSessions     ChatSession[]
+  deviations       DeviationAnalysis[]
 }
 
 model UserTenantAccess {
@@ -327,4 +331,29 @@ model ChatMessage {
   session         ChatSession  @relation(fields: [sessionId], references: [id], onDelete: Cascade)
 
   @@index([sessionId])
+}
+
+model DeviationAnalysis {
+  id               String    @id @default(uuid())
+  tenantId         String
+  categoryId       String    // ID da categoria correspondente (ex: 04.8.1)
+  month            Int       // 1-12
+  year             Int
+  deviationType    String    // Tipo/Categoria: "Reclassificar na fonte (Conta Azul)", "Desvios de orçamento", "Reclassificação gerencial" etc.
+  description      String    @db.Text
+  correctionAction String    @db.Text
+  responsibleId    String?   // Usuário responsável pela ação
+  responsibleName  String?   // Nome do responsável
+  dueDate          DateTime? // Prazo de execução
+  isResolved       Boolean   @default(false)
+  resolvedAt       DateTime?
+  resolvedBy       String?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  tenant           Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  category         Category  @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  responsible      User?     @relation(fields: [responsibleId], references: [id], onDelete: SetNull)
+
+  @@index([tenantId, month, year])
 }

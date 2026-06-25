@@ -14,6 +14,8 @@ export async function POST(request: Request) {
             costCenterId,
             month,
             year,
+            targetMonth,
+            targetYear,
             amount,
             description,
             date,
@@ -27,7 +29,14 @@ export async function POST(request: Request) {
         const numericAmount = parseFloat(String(amount));
         const monthNum = parseInt(String(month), 10);
         const yearNum = parseInt(String(year), 10);
-        const transactionDate = date ? new Date(date) : new Date(yearNum, monthNum - 1, 1);
+
+        // Competência destino (se não enviada, assume a de origem)
+        const targetMonthNum = targetMonth ? parseInt(String(targetMonth), 10) : monthNum;
+        const targetYearNum = targetYear ? parseInt(String(targetYear), 10) : yearNum;
+
+        // Datas correspondentes
+        const estornoDate = date ? new Date(date) : new Date(yearNum, monthNum - 1, 1);
+        const targetDate = targetMonth && targetYear ? new Date(targetYearNum, targetMonthNum - 1, estornoDate.getDate() || 1) : estornoDate;
 
         // Standardize IDs: Clean Tech / JVS Facility prefixed costCenterIds if required
         let cleanCostCenterId = costCenterId || null;
@@ -66,7 +75,7 @@ export async function POST(request: Request) {
                     costCenterId: cleanCostCenterId,
                     month: monthNum,
                     year: yearNum,
-                    date: transactionDate,
+                    date: estornoDate,
                     description: `[Estorno Gerencial] ${description || ''}`.trim()
                 },
                 create: {
@@ -78,7 +87,7 @@ export async function POST(request: Request) {
                     costCenterId: cleanCostCenterId,
                     month: monthNum,
                     year: yearNum,
-                    date: transactionDate,
+                    date: estornoDate,
                     description: `[Estorno Gerencial] ${description || ''}`.trim()
                 }
             });
@@ -96,9 +105,9 @@ export async function POST(request: Request) {
                     amount: Math.abs(numericAmount),
                     categoryId: cleanTargetCategoryId,
                     costCenterId: cleanCostCenterId,
-                    month: monthNum,
-                    year: yearNum,
-                    date: transactionDate,
+                    month: targetMonthNum,
+                    year: targetYearNum,
+                    date: targetDate,
                     description: `[Reclassificação Gerencial] ${description || ''}`.trim()
                 },
                 create: {
@@ -108,9 +117,9 @@ export async function POST(request: Request) {
                     amount: Math.abs(numericAmount),
                     categoryId: cleanTargetCategoryId,
                     costCenterId: cleanCostCenterId,
-                    month: monthNum,
-                    year: yearNum,
-                    date: transactionDate,
+                    month: targetMonthNum,
+                    year: targetYearNum,
+                    date: targetDate,
                     description: `[Reclassificação Gerencial] ${description || ''}`.trim()
                 }
             });

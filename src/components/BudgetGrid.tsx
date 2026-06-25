@@ -252,6 +252,8 @@ export default function BudgetGrid({
     // --- Managerial Reclassification State ---
     const [reclassifyingTx, setReclassifyingTx] = useState<any | null>(null);
     const [targetReclassCategoryId, setTargetReclassCategoryId] = useState<string>('');
+    const [targetReclassMonth, setTargetReclassMonth] = useState<number>(0);
+    const [targetReclassYear, setTargetReclassYear] = useState<number>(2026);
     const [isReclassifying, setIsReclassifying] = useState<boolean>(false);
 
     // --- Budget Modal State ---
@@ -491,6 +493,8 @@ export default function BudgetGrid({
         setTransactionSelectedCostCenter(null);
         setReclassifyingTx(null);
         setTargetReclassCategoryId('');
+        setTargetReclassMonth(0);
+        setTargetReclassYear(2026);
         setIsReclassifying(false);
     };
 
@@ -510,6 +514,8 @@ export default function BudgetGrid({
                     costCenterId: tx.costCenterId || 'Geral',
                     month: selectedCell?.month !== undefined ? selectedCell.month + 1 : undefined,
                     year: selectedYear,
+                    targetMonth: targetReclassMonth,
+                    targetYear: targetReclassYear,
                     amount: Math.abs(parseFloat(tx.value) || 0),
                     description: tx.description || '',
                     date: tx.date || tx.data,
@@ -520,6 +526,8 @@ export default function BudgetGrid({
             if (data.success) {
                 setReclassifyingTx(null);
                 setTargetReclassCategoryId('');
+                setTargetReclassMonth(0);
+                setTargetReclassYear(2026);
                 setInternalRefresh(prev => prev + 1);
                 if (selectedCell) {
                     await handleCellClick(selectedCell.categoryId, selectedCell.month, selectedCell.categoryName);
@@ -7737,6 +7745,8 @@ export default function BudgetGrid({
                                                                                 onClick={() => {
                                                                                     setReclassifyingTx(tx);
                                                                                     setTargetReclassCategoryId('');
+                                                                                    setTargetReclassMonth(selectedCell?.month !== undefined ? selectedCell.month + 1 : 1);
+                                                                                    setTargetReclassYear(selectedYear);
                                                                                 }}
                                                                                 disabled={isReclassifying}
                                                                                 style={{
@@ -7809,14 +7819,15 @@ export default function BudgetGrid({
                                                                     }}
                                                                 >
                                                                     <div style={{ fontSize: '0.75rem', fontWeight: 700, color: '#475569' }}>
-                                                                        Selecione a categoria gerencial de destino:
+                                                                        Selecione a categoria e competência gerencial de destino:
                                                                     </div>
                                                                     <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center' }}>
+                                                                        {/* Select de Categoria */}
                                                                         <select
                                                                             value={targetReclassCategoryId}
                                                                             onChange={(e) => setTargetReclassCategoryId(e.target.value)}
                                                                             style={{
-                                                                                flex: 1,
+                                                                                flex: 2,
                                                                                 minWidth: '200px',
                                                                                 padding: '8px 12px',
                                                                                 borderRadius: '10px',
@@ -7841,10 +7852,64 @@ export default function BudgetGrid({
                                                                             }
                                                                         </select>
 
+                                                                        {/* Select de Mês */}
+                                                                        <select
+                                                                            value={targetReclassMonth}
+                                                                            onChange={(e) => setTargetReclassMonth(parseInt(e.target.value, 10))}
+                                                                            style={{
+                                                                                flex: 1,
+                                                                                minWidth: '120px',
+                                                                                padding: '8px 12px',
+                                                                                borderRadius: '10px',
+                                                                                border: '1px solid rgba(15, 23, 42, 0.1)',
+                                                                                backgroundColor: '#ffffff',
+                                                                                fontSize: '0.8rem',
+                                                                                fontWeight: 600,
+                                                                                color: '#334155',
+                                                                                outline: 'none',
+                                                                                boxShadow: '0 1px 2px rgba(0, 0, 0, 0.05)'
+                                                                            }}
+                                                                        >
+                                                                            {Array.from({ length: 12 }, (_, i) => i + 1).map((m) => {
+                                                                                const monthName = new Date(2026, m - 1, 1).toLocaleDateString('pt-BR', { month: 'long' });
+                                                                                const capitalizedMonth = monthName.charAt(0).toUpperCase() + monthName.slice(1);
+                                                                                return (
+                                                                                    <option key={m} value={m}>
+                                                                                        {capitalizedMonth}
+                                                                                    </option>
+                                                                                );
+                                                                            })}
+                                                                        </select>
+
+                                                                        {/* Select de Ano */}
+                                                                        <select
+                                                                            value={targetReclassYear}
+                                                                            onChange={(e) => setTargetReclassYear(parseInt(e.target.value, 10))}
+                                                                            style={{
+                                                                                flex: 1,
+                                                                                minWidth: '85px',
+                                                                                padding: '8px 12px',
+                                                                                borderRadius: '10px',
+                                                                                border: '1px solid rgba(15, 23, 42, 0.1)',
+                                                                                backgroundColor: '#ffffff',
+                                                                                fontSize: '0.8rem',
+                                                                                fontWeight: 600,
+                                                                                color: '#334155',
+                                                                                outline: 'none',
+                                                                                boxShadow: '0 1px 2px rgba(0, 0, 0, 0.05)'
+                                                                            }}
+                                                                        >
+                                                                            {Array.from({ length: 4 }, (_, i) => selectedYear - 1 + i).map((y) => (
+                                                                                <option key={y} value={y}>
+                                                                                    {y}
+                                                                                </option>
+                                                                            ))}
+                                                                        </select>
+
                                                                         <div style={{ display: 'flex', gap: '6px' }}>
                                                                             <button
                                                                                 onClick={() => handleReclassifyConfirm(tx)}
-                                                                                disabled={!targetReclassCategoryId || isReclassifying}
+                                                                                disabled={!targetReclassCategoryId || !targetReclassMonth || !targetReclassYear || isReclassifying}
                                                                                 style={{
                                                                                     padding: '8px 16px',
                                                                                     borderRadius: '10px',
@@ -7875,6 +7940,8 @@ export default function BudgetGrid({
                                                                                 onClick={() => {
                                                                                     setReclassifyingTx(null);
                                                                                     setTargetReclassCategoryId('');
+                                                                                    setTargetReclassMonth(0);
+                                                                                    setTargetReclassYear(2026);
                                                                                 }}
                                                                                 disabled={isReclassifying}
                                                                                 style={{

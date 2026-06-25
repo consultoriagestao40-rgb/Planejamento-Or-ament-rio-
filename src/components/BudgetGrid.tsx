@@ -672,6 +672,42 @@ export default function BudgetGrid({
         }
     };
 
+    const handleUndoTransfer = async (tx: any) => {
+        setIsReclassifying(true);
+        try {
+            let transferUuid = '';
+            if (tx.externalId?.startsWith('transf-out-')) {
+                transferUuid = tx.externalId.replace('transf-out-', '');
+            } else if (tx.externalId?.startsWith('transf-in-')) {
+                transferUuid = tx.externalId.replace('transf-in-', '');
+            }
+
+            if (!transferUuid) {
+                alert("Não foi possível identificar o ID da transferência.");
+                return;
+            }
+
+            const res = await fetch(`/api/realized/transfers?transferUuid=${transferUuid}&viewMode=${viewMode}`, {
+                method: 'DELETE'
+            });
+            const data = await res.json();
+            if (data.success) {
+                setInternalRefresh(prev => prev + 1);
+                if (selectedCell) {
+                    await handleCellClick(selectedCell.categoryId, selectedCell.month, selectedCell.categoryName);
+                }
+            } else {
+                alert("Erro ao desfazer transferência: " + (data.error || "Erro desconhecido"));
+            }
+        } catch (err: any) {
+            console.error("Undo transfer error:", err);
+            alert("Erro ao desfazer transferência.");
+        } finally {
+            setIsReclassifying(false);
+        }
+    };
+
+
     // --- Aggregation logic for drill-down ---
     const groupedByCompany = useMemo(() => {
         if (!transactions || transactions.length === 0) return [];
@@ -7904,8 +7940,11 @@ export default function BudgetGrid({
                                         {transactionModalStep === 'transactions' && (
                                             <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                                                 {finalTransactions.map((tx: any) => {
-                                                    const isReclassified = !tx.externalId?.startsWith('adj-') && transactions.some((t: any) => t.externalId === `adj-neg-${tx.id}-${viewMode}`);
+                                                    const isReclassified = !tx.externalId?.startsWith('adj-') && !tx.externalId?.startsWith('transf-') && transactions.some((t: any) => t.externalId === `adj-neg-${tx.id}-${viewMode}`);
                                                     const isAdjustmentPos = tx.externalId?.startsWith('adj-pos-');
+                                                    const isTransferOut = tx.externalId?.startsWith('transf-out-');
+                                                    const isTransferIn = tx.externalId?.startsWith('transf-in-');
+                                                    const isTransfer = isTransferOut || isTransferIn;
                                                     const isCurrentReclassifying = reclassifyingTx?.id === tx.id;
                                                     const negAdj = isReclassified ? transactions.find((t: any) => t.externalId === `adj-neg-${tx.id}-${viewMode}`) : null;
 
@@ -8078,11 +8117,26 @@ export default function BudgetGrid({
                                                                                 Ajuste
                                                                             </span>
                                                                         )}
+                                                                        {isTransfer && (
+                                                                            <span style={{
+                                                                                fontSize: '0.65rem',
+                                                                                fontWeight: 800,
+                                                                                color: '#6366f1',
+                                                                                backgroundColor: '#e0e7ff',
+                                                                                padding: '2px 6px',
+                                                                                borderRadius: '6px',
+                                                                                border: '1px solid rgba(99, 102, 241, 0.15)',
+                                                                                textTransform: 'uppercase',
+                                                                                letterSpacing: '0.05em'
+                                                                            }}>
+                                                                                Transferência
+                                                                            </span>
+                                                                        )}
                                                                     </div>
 
                                                                     {/* Botões de Ação */}
                                                                     <div style={{ display: 'flex', gap: '6px' }}>
-                                                                        {!tx.externalId?.startsWith('adj-') && !isReclassified && (
+                                                                        {!tx.externalId?.startsWith('adj-') && !tx.externalId?.startsWith('transf-') && !isReclassified && (
                                                                             <button
                                                                                 onClick={() => {
                                                                                     setReclassifyingTx(tx);
@@ -8142,6 +8196,33 @@ export default function BudgetGrid({
                                                                                 }}
                                                                             >
                                                                                 Desfazer
+                                                                            </button>
+                                                                        )}
+
+                                                                        {isTransfer && (
+                                                                            <button
+                                                                                onClick={() => handleUndoTransfer(tx)}
+                                                                                disabled={isReclassifying}
+                                                                                style={{
+                                                                                    padding: '6px 12px',
+                                                                                    borderRadius: '8px',
+                                                                                    border: '1px solid rgba(239, 68, 68, 0.15)',
+                                                                                    backgroundColor: '#fef2f2',
+                                                                                    color: '#ef4444',
+                                                                                    fontSize: '0.75rem',
+                                                                                    fontWeight: 700,
+                                                                                    cursor: 'pointer',
+                                                                                    transition: 'all 0.2s',
+                                                                                    outline: 'none'
+                                                                                }}
+                                                                                onMouseOver={(e) => {
+                                                                                    e.currentTarget.style.backgroundColor = '#fee2e2';
+                                                                                }}
+                                                                                onMouseOut={(e) => {
+                                                                                    e.currentTarget.style.backgroundColor = '#fef2f2';
+                                                                                }}
+                                                                            >
+                                                                                Desfazer Transferência
                                                                             </button>
                                                                         )}
                                                                     </div>

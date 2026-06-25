@@ -261,6 +261,7 @@ export default function BudgetGrid({
     const [reclassCategorySearch, setReclassCategorySearch] = useState<string>('');
     const [reclassReason, setReclassReason] = useState<string>('');
     const [targetReclassTenantId, setTargetReclassTenantId] = useState<string>('');
+    const [reclassAmount, setReclassAmount] = useState<string>('');
 
     // --- Transfer Modal State ---
     const [isTransferModalOpen, setIsTransferModalOpen] = useState<boolean>(false);
@@ -517,6 +518,7 @@ export default function BudgetGrid({
         setReclassCategorySearch('');
         setReclassReason('');
         setTargetReclassTenantId('');
+        setReclassAmount('');
     };
 
     const handleConfirmTransfer = async () => {
@@ -580,6 +582,31 @@ export default function BudgetGrid({
         if (!targetReclassCategoryId) return;
         setIsReclassifying(true);
         
+        // Processa o valor parcial digitado pelo usuário
+        let cleanAmount = reclassAmount.trim();
+        if (cleanAmount.includes(',') && cleanAmount.includes('.')) {
+            cleanAmount = cleanAmount.replace(/\./g, '');
+        }
+        const parsedValue = cleanAmount.replace(/[^\d,.-]/g, '').replace(',', '.');
+        const numericAmount = parseFloat(parsedValue);
+
+        const totalTxValue = Math.abs(parseFloat(tx.value) || 0);
+
+        if (isNaN(numericAmount) || numericAmount <= 0) {
+            alert("Por favor, insira um valor válido e maior que zero para a reclassificação.");
+            setIsReclassifying(false);
+            return;
+        }
+
+        if (numericAmount > totalTxValue) {
+            alert(`O valor da reclassificação (R$ ${numericAmount.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}) não pode ser maior que o valor total da transação (R$ ${totalTxValue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}).`);
+            setIsReclassifying(false);
+            return;
+        }
+
+        const isPartial = numericAmount < totalTxValue;
+        const partialLabel = isPartial ? ' | Parcial' : '';
+        
         const tenantId = tx.tenantId || (selectedCompany.includes('DEFAULT') ? companies[0]?.id : selectedCompany[0]);
         
         const sourceCompanyObj = companies.find((c: any) => c.id === tenantId);
@@ -610,10 +637,10 @@ export default function BudgetGrid({
                     year: sourceYear,
                     targetMonth: targetReclassMonth,
                     targetYear: targetReclassYear,
-                    amount: Math.abs(parseFloat(tx.value) || 0),
+                    amount: numericAmount,
                     description: reasonText
-                         ? `${tx.description || ''} | De: ${deText} (${sourceMonth}/${sourceYear}) para: ${paraText} (${targetReclassMonth}/${targetReclassYear}) | Motivo: ${reasonText}`
-                         : `${tx.description || ''} | De: ${deText} (${sourceMonth}/${sourceYear}) para: ${paraText} (${targetReclassMonth}/${targetReclassYear})`,
+                         ? `${tx.description || ''}${partialLabel} | De: ${deText} (${sourceMonth}/${sourceYear}) para: ${paraText} (${targetReclassMonth}/${targetReclassYear}) | Motivo: ${reasonText}`
+                         : `${tx.description || ''}${partialLabel} | De: ${deText} (${sourceMonth}/${sourceYear}) para: ${paraText} (${targetReclassMonth}/${targetReclassYear})`,
                     date: tx.date || tx.data,
                     viewMode
                 })
@@ -628,6 +655,7 @@ export default function BudgetGrid({
                 setReclassCategorySearch('');
                 setReclassReason('');
                 setTargetReclassTenantId('');
+                setReclassAmount('');
                 setInternalRefresh(prev => prev + 1);
                 if (selectedCell) {
                     await handleCellClick(selectedCell.categoryId, selectedCell.month, selectedCell.categoryName);
@@ -657,7 +685,7 @@ export default function BudgetGrid({
                 }
             }
 
-            const res = await fetch(`/api/realized/adjustments?sourceTransactionId=${sourceId}&viewMode=${viewMode}&tenantId=${tenantId}`, {
+            const res = await fetch(`/api/realized/adjustments?sourceTransactionId=${sourceId}&viewMode=${viewMode}&tenantId=${tenantId}&externalId=${tx.externalId || ''}`, {
                 method: 'DELETE'
             });
             const data = await res.json();
@@ -8191,6 +8219,8 @@ export default function BudgetGrid({
                                                                                     setTargetReclassYear(selectedYear);
                                                                                     setReclassReason('');
                                                                                     setTargetReclassTenantId(tx.tenantId || (selectedCompany.includes('DEFAULT') ? companies[0]?.id : selectedCompany[0]));
+                                                                                    const initialAmount = tx.value !== undefined ? Math.abs(tx.value).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '';
+                                                                                    setReclassAmount(initialAmount);
                                                                                 }}
                                                                                 disabled={isReclassifying}
                                                                                 style={{
@@ -8509,6 +8539,33 @@ export default function BudgetGrid({
                                                                             ))}
                                                                         </select>
                                                                     </div>
+ 
+                                                                    {/* Campo para o Valor a Reclassificar (Parcial ou Total) */}
+                                                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', width: '100%', marginTop: '4px' }}>
+                                                                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.72rem', fontWeight: 700, color: '#64748b', padding: '0 2px' }}>
+                                                                            <span>Valor a reclassificar:</span>
+                                                                            <span style={{ fontSize: '0.68rem', fontWeight: 600 }}>Total: R$ {Math.abs(tx.value !== undefined ? tx.value : 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                                                                        </div>
+                                                                        <input 
+                                                                            type="text" 
+                                                                            placeholder="Valor a reclassificar..." 
+                                                                            value={reclassAmount}
+                                                                            onChange={(e) => setReclassAmount(e.target.value)}
+                                                                            style={{
+                                                                                width: '100%',
+                                                                                padding: '8px 12px',
+                                                                                borderRadius: '10px',
+                                                                                border: '1px solid rgba(15, 23, 42, 0.1)',
+                                                                                backgroundColor: '#ffffff',
+                                                                                fontSize: '0.8rem',
+                                                                                fontWeight: 600,
+                                                                                color: '#334155',
+                                                                                outline: 'none',
+                                                                                boxShadow: '0 1px 2px rgba(0, 0, 0, 0.05)',
+                                                                                boxSizing: 'border-box'
+                                                                            }}
+                                                                        />
+                                                                    </div>
 
                                                                     {/* Campo para o Motivo da Reclassificação */}
                                                                     <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', width: '100%', marginTop: '4px' }}>
@@ -8537,7 +8594,7 @@ export default function BudgetGrid({
                                                                     <div style={{ display: 'flex', gap: '6px', marginTop: '4px' }}>
                                                                         <button
                                                                             onClick={() => handleReclassifyConfirm(tx)}
-                                                                            disabled={!targetReclassCategoryId || !targetReclassMonth || !targetReclassYear || isReclassifying}
+                                                                            disabled={!targetReclassCategoryId || !targetReclassMonth || !targetReclassYear || !reclassAmount || isReclassifying}
                                                                             style={{
                                                                                 padding: '8px 16px',
                                                                                 borderRadius: '10px',

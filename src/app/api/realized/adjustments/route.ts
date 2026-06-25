@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import crypto from 'crypto';
 
 export const dynamic = 'force-dynamic';
 
@@ -103,13 +104,15 @@ export async function POST(request: Request) {
         const cleanSourceCategoryId = await getCleanCategoryId(finalSourceCategoryId, tenantId);
         const cleanTargetCategoryId = await getCleanCategoryId(targetCategoryId, finalTargetTenantId);
 
+        // Geramos um UUID para garantir a unicidade do par de reclassificação (permitindo reclassificações parciais múltiplas)
+        const adjustUuid = crypto.randomUUID();
         // 1. Estorno (Negative value in source category and source company)
-        const estornoExternalId = `adj-neg-${sourceTransactionId || 'manual'}-${Date.now()}-${viewMode}`;
-        const finalEstornoId = sourceTransactionId ? `adj-neg-${sourceTransactionId}-${viewMode}` : estornoExternalId;
+        const estornoExternalId = `adj-neg-${sourceTransactionId || 'manual'}-${adjustUuid}`;
+        const finalEstornoId = sourceTransactionId ? `adj-neg-${sourceTransactionId}-${adjustUuid}` : estornoExternalId;
 
         // 2. Reclassificação (Positive value in target category and target company)
-        const reclassExternalId = `adj-pos-${sourceTransactionId || 'manual'}-${Date.now()}-${viewMode}`;
-        const finalReclassId = sourceTransactionId ? `adj-pos-${sourceTransactionId}-${viewMode}` : reclassExternalId;
+        const reclassExternalId = `adj-pos-${sourceTransactionId || 'manual'}-${adjustUuid}`;
+        const finalReclassId = sourceTransactionId ? `adj-pos-${sourceTransactionId}-${adjustUuid}` : reclassExternalId;
 
         // Run in transaction to guarantee consistency
         const result = await prisma.$transaction(async (tx) => {
@@ -192,6 +195,7 @@ export async function DELETE(request: Request) {
     try {
         const { searchParams } = new URL(request.url);
         const sourceTransactionId = searchParams.get('sourceTransactionId');
+        const externalId = searchParams.get('externalId');
         const viewMode = searchParams.get('viewMode') || 'competencia';
         const tenantId = searchParams.get('tenantId');
 
@@ -199,12 +203,32 @@ export async function DELETE(request: Request) {
             return NextResponse.json({ success: false, error: 'Missing sourceTransactionId or tenantId' }, { status: 400 });
         }
 
-        const targetExternalIds = [
-            `adj-neg-${sourceTransactionId}-${viewMode}`,
-            `adj-pos-${sourceTransactionId}-${viewMode}`
-        ];
+        let targetExternalIds: string[] = [];
 
-        // Deletamos as transações gerenciais independentemente do tenant em que foram salvas
+        // Se passarmos o externalId específico, extraímos o UUID para apagar o par (estorno e ajuste positivo) correspondente
+        if (externalId) {
+            let adjustUuid = '';
+            if (externalId.includes('-')) {
+                const parts = externalId.split('-');
+                adjustUuid = parts[parts.length - 1];
+            }
+            if (adjustUuid) {
+                targetExternalIds = [
+                    `adj-neg-${sourceTransactionId}-${adjustUuid}`,
+                    `adj-pos-${sourceTransactionId}-${adjustUuid}`
+                ];
+            }
+        }
+
+        // Caso não seja um ajuste parcial novo (compatibilidade retroativa), apagamos o ID fixo legado
+        if (targetExternalIds.length === 0) {
+            targetExternalIds = [
+                `adj-neg-${sourceTransactionId}-${viewMode}`,
+                `adj-pos-${sourceTransactionId}-${viewMode}`
+            ];
+        }
+
+        // Deletamos as transações gerenciais correspondentes de forma atômica
         const deleted = await prisma.realizedEntry.deleteMany({
             where: {
                 viewMode,

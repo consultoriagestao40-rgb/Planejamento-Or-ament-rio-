@@ -3057,6 +3057,17 @@ export default function BudgetGrid({
         }
     };
 
+    const formatDateTimeSafe = (dateVal: any, options?: Intl.DateTimeFormatOptions) => {
+        if (!dateVal) return '-';
+        try {
+            const d = new Date(dateVal);
+            if (isNaN(d.getTime())) return '-';
+            return d.toLocaleString('pt-BR', options);
+        } catch (e) {
+            return '-';
+        }
+    };
+
 
     const formatCurrency = (val: number | undefined) => {
         if (typeof val !== 'number') return 'R$ 0,00';
@@ -9226,7 +9237,7 @@ export default function BudgetGrid({
                                                         <div key={j.id || idx} style={{ padding: '1rem', backgroundColor: '#f8fafc', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
                                                             <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
                                                                 <span style={{ fontWeight: 700, fontSize: '0.85rem', color: '#1e293b' }}>{j.userName}</span>
-                                                                <span style={{ fontSize: '0.75rem', color: '#94a3b8' }}>{new Date(j.createdAt).toLocaleString('pt-BR')}</span>
+                                                                <span style={{ fontSize: '0.75rem', color: '#94a3b8' }}>{formatDateTimeSafe(j.createdAt)}</span>
                                                             </div>
                                                             <p style={{ fontSize: '0.9rem', color: '#334155', lineHeight: 1.5, margin: 0 }}>{j.content}</p>
                                                         </div>
@@ -9854,7 +9865,7 @@ export default function BudgetGrid({
                                                             <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.7rem', fontWeight: 700, color: '#475569' }}>
                                                                 <span>👤 {comment.userName}</span>
                                                                 <span style={{ color: '#94a3b8' }}>
-                                                                    {new Date(comment.createdAt).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' })}
+                                                                    {formatDateTimeSafe(comment.createdAt, { dateStyle: 'short', timeStyle: 'short' })}
                                                                 </span>
                                                             </div>
                                                             <div style={{ fontSize: '0.75rem', color: '#1e293b', paddingLeft: '1rem', borderLeft: '2px solid #cbd5e1' }}>

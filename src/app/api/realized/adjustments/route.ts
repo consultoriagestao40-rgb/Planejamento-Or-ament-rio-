@@ -39,7 +39,8 @@ export async function POST(request: Request) {
         const body = await request.json();
         const {
             sourceTransactionId,
-            tenantId,
+            tenantId,             // Tenant original (origem)
+            targetTenantId,       // Tenant destino (empresa selecionada)
             sourceCategoryId,
             targetCategoryId,
             costCenterId,
@@ -65,16 +66,26 @@ export async function POST(request: Request) {
         const targetMonthNum = targetMonth ? parseInt(String(targetMonth), 10) : monthNum;
         const targetYearNum = targetYear ? parseInt(String(targetYear), 10) : yearNum;
 
+        // Tenant de destino (se não enviado, assume o de origem)
+        const finalTargetTenantId = targetTenantId || tenantId;
+
         // Datas correspondentes
         const estornoDate = date ? new Date(date) : new Date(yearNum, monthNum - 1, 1);
         const targetDate = targetMonth && targetYear ? new Date(targetYearNum, targetMonthNum - 1, estornoDate.getDate() || 1) : estornoDate;
 
-        // Standardize IDs: Clean Tech / JVS Facility prefixed costCenterIds if required
+        // Standardize IDs: Clean Tech / JVS Facility prefixed costCenterIds if required (apenas para a origem)
         let cleanCostCenterId = costCenterId || null;
         if (cleanCostCenterId && !cleanCostCenterId.includes(':') && cleanCostCenterId !== 'Geral') {
             cleanCostCenterId = `${tenantId}:${cleanCostCenterId}`;
         } else if (cleanCostCenterId === 'Geral') {
             cleanCostCenterId = null;
+        }
+
+        // Se cruzarmos empresas, o Centro de Custo da empresa original não pode ir para a empresa de destino
+        // para evitar violação de Foreign Key. Nesse caso, a transação na empresa destino cai no "Geral" (null)
+        let targetCostCenterId = cleanCostCenterId;
+        if (finalTargetTenantId !== tenantId) {
+            targetCostCenterId = null;
         }
 
         // Resolve sourceCategoryId if it's synthetic (e.g. starts with 'synth-'), comma-separated (merged cells), or falsy
@@ -90,19 +101,19 @@ export async function POST(request: Request) {
 
         // Clean sourceCategory and targetCategory using robust async resolver
         const cleanSourceCategoryId = await getCleanCategoryId(finalSourceCategoryId, tenantId);
-        const cleanTargetCategoryId = await getCleanCategoryId(targetCategoryId, tenantId);
+        const cleanTargetCategoryId = await getCleanCategoryId(targetCategoryId, finalTargetTenantId);
 
-        // 1. Estorno (Negative value in source category)
+        // 1. Estorno (Negative value in source category and source company)
         const estornoExternalId = `adj-neg-${sourceTransactionId || 'manual'}-${Date.now()}-${viewMode}`;
         const finalEstornoId = sourceTransactionId ? `adj-neg-${sourceTransactionId}-${viewMode}` : estornoExternalId;
 
-        // 2. Reclassificação (Positive value in target category)
+        // 2. Reclassificação (Positive value in target category and target company)
         const reclassExternalId = `adj-pos-${sourceTransactionId || 'manual'}-${Date.now()}-${viewMode}`;
         const finalReclassId = sourceTransactionId ? `adj-pos-${sourceTransactionId}-${viewMode}` : reclassExternalId;
 
         // Run in transaction to guarantee consistency
         const result = await prisma.$transaction(async (tx) => {
-            // Estorno
+            // Estorno na empresa de origem
             const negEntry = await tx.realizedEntry.upsert({
                 where: {
                     externalId_viewMode_tenantId: {
@@ -134,19 +145,19 @@ export async function POST(request: Request) {
                 }
             });
 
-            // Target Entry (Positive adjustment)
+            // Target Entry (Positive adjustment) na empresa de destino
             const posEntry = await tx.realizedEntry.upsert({
                 where: {
                     externalId_viewMode_tenantId: {
                         externalId: finalReclassId,
                         viewMode,
-                        tenantId
+                        tenantId: finalTargetTenantId
                     }
                 },
                 update: {
                     amount: Math.abs(numericAmount),
                     categoryId: cleanTargetCategoryId,
-                    costCenterId: cleanCostCenterId,
+                    costCenterId: targetCostCenterId,
                     month: targetMonthNum,
                     year: targetYearNum,
                     date: targetDate,
@@ -155,10 +166,10 @@ export async function POST(request: Request) {
                 create: {
                     externalId: finalReclassId,
                     viewMode,
-                    tenantId,
+                    tenantId: finalTargetTenantId,
                     amount: Math.abs(numericAmount),
                     categoryId: cleanTargetCategoryId,
-                    costCenterId: cleanCostCenterId,
+                    costCenterId: targetCostCenterId,
                     month: targetMonthNum,
                     year: targetYearNum,
                     date: targetDate,
@@ -193,9 +204,9 @@ export async function DELETE(request: Request) {
             `adj-pos-${sourceTransactionId}-${viewMode}`
         ];
 
+        // Deletamos as transações gerenciais independentemente do tenant em que foram salvas
         const deleted = await prisma.realizedEntry.deleteMany({
             where: {
-                tenantId,
                 viewMode,
                 externalId: { in: targetExternalIds }
             }

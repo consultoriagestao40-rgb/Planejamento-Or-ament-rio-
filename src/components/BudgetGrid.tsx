@@ -258,6 +258,7 @@ export default function BudgetGrid({
     const [isReclassCategoryDropdownOpen, setIsReclassCategoryDropdownOpen] = useState<boolean>(false);
     const [reclassCategorySearch, setReclassCategorySearch] = useState<string>('');
     const [reclassReason, setReclassReason] = useState<string>('');
+    const [targetReclassTenantId, setTargetReclassTenantId] = useState<string>('');
 
     // --- Budget Modal State ---
     const [budgetModal, setBudgetModal] = useState<{ categoryId: string, fullNodeId: string, categoryName: string, startMonth: number, type: 'budget' | 'radar' } | null>(null);
@@ -502,30 +503,47 @@ export default function BudgetGrid({
         setIsReclassCategoryDropdownOpen(false);
         setReclassCategorySearch('');
         setReclassReason('');
+        setTargetReclassTenantId('');
     };
 
     const handleReclassifyConfirm = async (tx: any) => {
         if (!targetReclassCategoryId) return;
         setIsReclassifying(true);
+        
+        const tenantId = tx.tenantId || (selectedCompany.includes('DEFAULT') ? companies[0]?.id : selectedCompany[0]);
+        
+        const sourceCompanyObj = companies.find((c: any) => c.id === tenantId);
+        const targetCompanyObj = companies.find((c: any) => c.id === targetReclassTenantId);
+
+        const sourceCompanyName = sourceCompanyObj?.name || '';
+        const targetCompanyName = targetCompanyObj?.name || '';
+
+        const deText = sourceCompanyName ? `${sourceCompanyName} - ${selectedCell?.categoryName || ''}` : (selectedCell?.categoryName || '');
+        const paraText = targetCompanyName ? `${targetCompanyName} - ${categories.find((c: any) => c.id === targetReclassCategoryId)?.name || targetReclassCategoryId}` : (categories.find((c: any) => c.id === targetReclassCategoryId)?.name || targetReclassCategoryId);
+        
+        const sourceMonth = selectedCell?.month !== undefined ? selectedCell.month + 1 : 1;
+        const sourceYear = selectedYear;
+        const reasonText = reclassReason.trim();
+
         try {
-            const tenantId = tx.tenantId || (selectedCompany.includes('DEFAULT') ? companies[0]?.id : selectedCompany[0]);
             const res = await fetch('/api/realized/adjustments', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     sourceTransactionId: tx.id,
                     tenantId,
+                    targetTenantId: targetReclassTenantId,
                     sourceCategoryId: tx.categoryId || selectedCell?.categoryId,
                     targetCategoryId: targetReclassCategoryId,
                     costCenterId: tx.costCenterId || 'Geral',
-                    month: selectedCell?.month !== undefined ? selectedCell.month + 1 : undefined,
-                    year: selectedYear,
+                    month: sourceMonth,
+                    year: sourceYear,
                     targetMonth: targetReclassMonth,
                     targetYear: targetReclassYear,
                     amount: Math.abs(parseFloat(tx.value) || 0),
-                    description: reclassReason.trim()
-                         ? `${tx.description || ''} | De: ${selectedCell?.categoryName || ''} (${(selectedCell?.month !== undefined ? selectedCell.month + 1 : 1)}/${selectedYear}) para: ${categories.find((c: any) => c.id === targetReclassCategoryId)?.name || targetReclassCategoryId} (${targetReclassMonth}/${targetReclassYear}) | Motivo: ${reclassReason.trim()}`
-                         : `${tx.description || ''} | De: ${selectedCell?.categoryName || ''} (${(selectedCell?.month !== undefined ? selectedCell.month + 1 : 1)}/${selectedYear}) para: ${categories.find((c: any) => c.id === targetReclassCategoryId)?.name || targetReclassCategoryId} (${targetReclassMonth}/${targetReclassYear})`,
+                    description: reasonText
+                         ? `${tx.description || ''} | De: ${deText} (${sourceMonth}/${sourceYear}) para: ${paraText} (${targetReclassMonth}/${targetReclassYear}) | Motivo: ${reasonText}`
+                         : `${tx.description || ''} | De: ${deText} (${sourceMonth}/${sourceYear}) para: ${paraText} (${targetReclassMonth}/${targetReclassYear})`,
                     date: tx.date || tx.data,
                     viewMode
                 })
@@ -539,6 +557,7 @@ export default function BudgetGrid({
                 setIsReclassCategoryDropdownOpen(false);
                 setReclassCategorySearch('');
                 setReclassReason('');
+                setTargetReclassTenantId('');
                 setInternalRefresh(prev => prev + 1);
                 if (selectedCell) {
                     await handleCellClick(selectedCell.categoryId, selectedCell.month, selectedCell.categoryName);
@@ -7830,6 +7849,7 @@ export default function BudgetGrid({
                                                                                     setTargetReclassMonth(selectedCell?.month !== undefined ? selectedCell.month + 1 : 1);
                                                                                     setTargetReclassYear(selectedYear);
                                                                                     setReclassReason('');
+                                                                                    setTargetReclassTenantId(tx.tenantId || (selectedCompany.includes('DEFAULT') ? companies[0]?.id : selectedCompany[0]));
                                                                                 }}
                                                                                 disabled={isReclassifying}
                                                                                 style={{
@@ -7906,6 +7926,35 @@ export default function BudgetGrid({
                                                                     </div>
                                                                     {/* Container dos Dropdowns */}
                                                                     <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center' }}>
+                                                                        
+                                                                        {/* Select de Empresa */}
+                                                                        <select
+                                                                            value={targetReclassTenantId}
+                                                                            onChange={(e) => {
+                                                                                setTargetReclassTenantId(e.target.value);
+                                                                                setTargetReclassCategoryId('');
+                                                                            }}
+                                                                            style={{
+                                                                                flex: 1.5,
+                                                                                minWidth: '160px',
+                                                                                padding: '8px 12px',
+                                                                                borderRadius: '10px',
+                                                                                border: '1px solid rgba(15, 23, 42, 0.1)',
+                                                                                backgroundColor: '#ffffff',
+                                                                                fontSize: '0.8rem',
+                                                                                fontWeight: 600,
+                                                                                color: '#334155',
+                                                                                outline: 'none',
+                                                                                boxShadow: '0 1px 2px rgba(0, 0, 0, 0.05)'
+                                                                            }}
+                                                                        >
+                                                                            {companies.map((c: any) => (
+                                                                                <option key={c.id} value={c.id}>
+                                                                                    {c.name}
+                                                                                </option>
+                                                                            ))}
+                                                                        </select>
+
                                                                         {/* Dropdown de Categoria Customizado com Campo de Pesquisa */}
                                                                         <div style={{ position: 'relative', flex: 2, minWidth: '200px' }}>
                                                                             <div
@@ -8003,7 +8052,7 @@ export default function BudgetGrid({
                                                                                                 .filter((cat: any) => {
                                                                                                     if (cat.id === selectedCell?.categoryId) return false;
                                                                                                     const catTenantId = cat.tenantId || (cat.id.includes(':') ? cat.id.split(':')[0] : null);
-                                                                                                    return !catTenantId || catTenantId === tx.tenantId;
+                                                                                                    return !catTenantId || catTenantId === targetReclassTenantId;
                                                                                                 })
                                                                                                 .filter((cat: any) => {
                                                                                                     if (!reclassCategorySearch) return true;
@@ -8154,6 +8203,7 @@ export default function BudgetGrid({
                                                                                 setTargetReclassMonth(0);
                                                                                 setTargetReclassYear(2026);
                                                                                 setReclassReason('');
+                                                                                setTargetReclassTenantId('');
                                                                             }}
                                                                             disabled={isReclassifying}
                                                                             style={{

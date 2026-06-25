@@ -87,7 +87,8 @@ const syntheticLabels: Record<string, string> = {
     'synth-6.5': '06.5 Passivo Trabalhista',
     'synth-6.6': '06.6 Depreciação',
     'synth-6.7': '06.7 Cartão de Credito',
-    'synth-6.8': '06.8 PDD'
+    'synth-6.8': '06.8 PDD',
+    'synth-6.9': '06.9 Dividas'
 };
 
 export default function BudgetGrid({
@@ -2602,6 +2603,7 @@ export default function BudgetGrid({
             { code: '06.6', name: '06.6 Depreciação', parentCode: '06' },
             { code: '06.7', name: '06.7 Cartão de Credito', parentCode: '06' },
             { code: '06.8', name: '06.8 PDD', parentCode: '06' },
+            { code: '06.9', name: '06.9 Dividas', parentCode: '06' },
         ];
 
         syntheticParents.forEach(synth => {

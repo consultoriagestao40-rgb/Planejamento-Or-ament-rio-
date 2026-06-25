@@ -734,22 +734,6 @@ async function collectRetentionsFromSales(
                 const description = `Retenção Imposto Fonte (Venda ${saleNum})`.trim();
                 const saleDate = sale.data_emissao || sale.data_venda || sale.venda_em || sale.data || `${year}-${paddedMonth}-01`;
                 const dateObj = new Date(saleDate);
-
-                // Add revenue retention entry
-                entries.push({
-                    tenantId,
-                    categoryId: mappedRevenueCatId,
-                    costCenterId: !ccId ? null : (ccId.includes(':') ? ccId : `${tenantId}:${ccId}`),
-                    month,
-                    year,
-                    amount: totalRet,
-                    viewMode,
-                    externalId: `sync-${tenantId}-${sale.id}-ret-rev-${viewMode}`,
-                    description: `Recomposição Faturamento Bruto (Retenções Venda ${saleNum})`,
-                    customer: clientName || null,
-                    date: dateObj
-                });
-
                 // Add tax retention entry
                 entries.push({
                     tenantId,

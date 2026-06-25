@@ -7197,186 +7197,432 @@ export default function BudgetGrid({
                     );
                 })()}
                 {selectedCell && (
-                    <div className="modal-overlay" style={{ zIndex: 1100, position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(15, 23, 42, 0.4)', backdropFilter: 'blur(8px)', display: 'flex', justifyContent: 'center', alignItems: 'center', padding: '1.5rem' }}>
-                        <div className="modal-content" style={{ maxWidth: '900px', width: '100%', maxHeight: '85vh', height: 'auto', display: 'flex', flexDirection: 'column', backgroundColor: '#ffffff', borderRadius: '24px', boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.15), 0 0 0 1px rgba(15, 23, 42, 0.05)', padding: '1.75rem', overflow: 'hidden' }}>
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem', marginBottom: '1.25rem', borderBottom: '1px solid rgba(15, 23, 42, 0.06)', paddingBottom: '1rem' }}>
-                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                    <h3 style={{ margin: 0, fontSize: '1.35rem', fontWeight: 800, color: '#0f172a' }}>{selectedCell.categoryName}</h3>
+                    <div 
+                        className="modern-overlay" 
+                        style={{ 
+                            zIndex: 1100, 
+                            position: 'fixed', 
+                            top: 0, 
+                            left: 0, 
+                            right: 0, 
+                            bottom: 0, 
+                            backgroundColor: 'rgba(9, 9, 11, 0.45)', 
+                            backdropFilter: 'blur(12px)', 
+                            display: 'flex', 
+                            justifyContent: 'center', 
+                            alignItems: 'center', 
+                            padding: '1.5rem' 
+                        }}
+                        onClick={closeModal}
+                    >
+                        <div 
+                            className="modern-content" 
+                            style={{ 
+                                maxWidth: '650px', 
+                                width: '100%', 
+                                maxHeight: '82vh', 
+                                height: 'auto', 
+                                display: 'flex', 
+                                flexDirection: 'column', 
+                                backgroundColor: '#ffffff', 
+                                borderRadius: '24px', 
+                                boxShadow: '0 25px 50px -12px rgba(9, 9, 11, 0.15), 0 0 0 1px rgba(9, 9, 11, 0.04)', 
+                                padding: '1.75rem', 
+                                overflow: 'hidden',
+                                border: '1px solid rgba(15, 23, 42, 0.06)'
+                            }}
+                            onClick={e => e.stopPropagation()}
+                        >
+                            <style>{`
+                                @keyframes modalFadeIn {
+                                    from { opacity: 0; }
+                                    to { opacity: 1; }
+                                }
+                                @keyframes modalScaleIn {
+                                    from { transform: scale(0.96); opacity: 0; }
+                                    to { transform: scale(1); opacity: 1; }
+                                }
+                                .modern-overlay {
+                                    animation: modalFadeIn 0.2s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+                                }
+                                .modern-content {
+                                    animation: modalScaleIn 0.28s cubic-bezier(0.34, 1.25, 0.64, 1) forwards;
+                                }
+                                .interactive-item {
+                                    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+                                }
+                                .interactive-item:hover {
+                                    background-color: #f8fafc !important;
+                                    border-color: rgba(79, 70, 229, 0.12) !important;
+                                    transform: translateX(4px);
+                                    box-shadow: 0 4px 12px rgba(15, 23, 42, 0.03);
+                                }
+                                .interactive-item:active {
+                                    transform: translateX(1px);
+                                }
+                                .interactive-item:hover .item-icon-bg {
+                                    background-color: rgba(79, 70, 229, 0.12) !important;
+                                    transform: scale(1.03);
+                                }
+                                .interactive-item:hover .item-arrow {
+                                    transform: translateX(3px);
+                                    stroke: #4f46e5 !important;
+                                }
+                                .close-btn {
+                                    transition: all 0.25s ease;
+                                }
+                                .close-btn:hover {
+                                    transform: rotate(90deg) scale(1.05);
+                                    background-color: #f1f5f9 !important;
+                                    color: #0f172a !important;
+                                }
+                                .breadcrumb-pill {
+                                    transition: all 0.2s ease;
+                                }
+                                .breadcrumb-pill:hover:not(.active) {
+                                    background-color: rgba(15, 23, 42, 0.04) !important;
+                                    color: #0f172a !important;
+                                }
+                                /* Custom Scrollbar */
+                                .custom-scroll::-webkit-scrollbar {
+                                    width: 6px;
+                                }
+                                .custom-scroll::-webkit-scrollbar-track {
+                                    background: transparent;
+                                }
+                                .custom-scroll::-webkit-scrollbar-thumb {
+                                    background: #e2e8f0;
+                                    border-radius: 9999px;
+                                }
+                                .custom-scroll::-webkit-scrollbar-thumb:hover {
+                                    background: #cbd5e1;
+                                }
+                            `}</style>
+
+                            {/* Header */}
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', marginBottom: '1.25rem', borderBottom: '1px solid rgba(15, 23, 42, 0.06)', paddingBottom: '1.25rem' }}>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                            <span style={{ fontSize: '0.65rem', fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', color: '#4f46e5', backgroundColor: 'rgba(79, 70, 229, 0.08)', padding: '3px 8px', borderRadius: '6px' }}>
+                                                Lançamentos Realizados
+                                            </span>
+                                        </div>
+                                        <h3 style={{ margin: '0.25rem 0 0 0', fontSize: '1.35rem', fontWeight: 900, color: '#0f172a', letterSpacing: '-0.02em' }}>
+                                            {selectedCell.categoryName}
+                                        </h3>
+                                    </div>
                                     <button 
                                         onClick={closeModal} 
+                                        className="close-btn"
                                         style={{ 
                                             border: 'none', 
-                                            background: '#f1f5f9', 
+                                            background: '#f8fafc', 
                                             cursor: 'pointer', 
-                                            fontSize: '0.9rem', 
                                             color: '#64748b', 
-                                            padding: '0.5rem', 
-                                            borderRadius: '10px', 
+                                            padding: '0', 
+                                            borderRadius: '50%', 
                                             display: 'flex', 
                                             alignItems: 'center', 
                                             justifyContent: 'center', 
-                                            transition: 'all 0.2s',
-                                            width: '28px',
-                                            height: '28px'
+                                            width: '36px',
+                                            height: '36px',
+                                            boxShadow: '0 1px 2px rgba(15, 23, 42, 0.04), 0 0 0 1px rgba(15, 23, 42, 0.04)'
                                         }} 
-                                        onMouseOver={e => e.currentTarget.style.backgroundColor='#e2e8f0'} 
-                                        onMouseOut={e => e.currentTarget.style.backgroundColor='#f1f5f9'}
                                     >
-                                        ✕
+                                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                                            <line x1="18" y1="6" x2="6" y2="18"></line>
+                                            <line x1="6" y1="6" x2="18" y2="18"></line>
+                                        </svg>
                                     </button>
                                 </div>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: '#64748b', fontSize: '0.85rem', fontWeight: 600, marginTop: '2px' }}>
-                                    Competência: {MONTHS[selectedCell.month]} / {selectedYear}
+                                
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', color: '#64748b', fontSize: '0.8rem', fontWeight: 600 }}>
+                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ color: '#94a3b8' }}>
+                                        <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
+                                        <line x1="16" y1="2" x2="16" y2="6"></line>
+                                        <line x1="8" y1="2" x2="8" y2="6"></line>
+                                        <line x1="3" y1="10" x2="21" y2="10"></line>
+                                    </svg>
+                                    <span>Competência:</span> 
+                                    <span style={{ color: '#0f172a', fontWeight: 700 }}>{MONTHS[selectedCell.month]} / {selectedYear}</span>
                                 </div>
 
-                                {/* Breadcrumb Navigation */}
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap', marginTop: '0.75rem', padding: '6px 12px', backgroundColor: '#f8fafc', borderRadius: '10px', width: 'fit-content', border: '1px solid rgba(15, 23, 42, 0.03)' }}>
+                                {/* Breadcrumb Navigation - Modern Pill-style without crude emojis */}
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap', marginTop: '0.5rem', padding: '4px', backgroundColor: '#f8fafc', borderRadius: '14px', width: 'fit-content', border: '1px solid rgba(15, 23, 42, 0.04)' }}>
                                     <button
                                         onClick={() => setTransactionModalStep('company')}
-                                        style={{ background: 'none', border: 'none', padding: 0, color: transactionModalStep === 'company' ? '#0f172a' : '#4f46e5', fontWeight: transactionModalStep === 'company' ? 800 : 500, fontSize: '0.75rem', cursor: transactionModalStep === 'company' ? 'default' : 'pointer' }}
+                                        className={`breadcrumb-pill ${transactionModalStep === 'company' ? 'active' : ''}`}
+                                        style={{ 
+                                            background: 'none', 
+                                            border: 'none', 
+                                            padding: '6px 12px', 
+                                            borderRadius: '10px',
+                                            color: transactionModalStep === 'company' ? '#ffffff' : '#64748b', 
+                                            backgroundColor: transactionModalStep === 'company' ? '#4f46e5' : 'transparent',
+                                            fontWeight: 700, 
+                                            fontSize: '0.72rem', 
+                                            cursor: transactionModalStep === 'company' ? 'default' : 'pointer',
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            gap: '5px',
+                                            boxShadow: transactionModalStep === 'company' ? '0 4px 10px -2px rgba(79, 70, 229, 0.4)' : 'none'
+                                        }}
                                     >
-                                        🏢 Empresas
+                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                                            <rect x="4" y="2" width="16" height="20" rx="2" ry="2"></rect>
+                                            <line x1="9" y1="22" x2="9" y2="16"></line>
+                                            <line x1="15" y1="22" x2="15" y2="16"></line>
+                                            <line x1="9" y1="16" x2="15" y2="16"></line>
+                                        </svg>
+                                        <span>Empresas</span>
                                     </button>
 
                                     {transactionModalStep !== 'company' && transactionSelectedCompany && (
                                         <>
-                                            <span style={{ color: '#cbd5e1', fontSize: '0.75rem' }}>/</span>
+                                            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#cbd5e1" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
+                                                <polyline points="9 18 15 12 9 6"></polyline>
+                                            </svg>
                                             <button
                                                 onClick={() => setTransactionModalStep('costcenter')}
-                                                style={{ background: 'none', border: 'none', padding: 0, color: transactionModalStep === 'costcenter' ? '#0f172a' : '#4f46e5', fontWeight: transactionModalStep === 'costcenter' ? 800 : 500, fontSize: '0.75rem', cursor: transactionModalStep === 'costcenter' ? 'default' : 'pointer' }}
+                                                className={`breadcrumb-pill ${transactionModalStep === 'costcenter' ? 'active' : ''}`}
+                                                style={{ 
+                                                    background: 'none', 
+                                                    border: 'none', 
+                                                    padding: '6px 12px', 
+                                                    borderRadius: '10px',
+                                                    color: transactionModalStep === 'costcenter' ? '#ffffff' : '#4f46e5', 
+                                                    backgroundColor: transactionModalStep === 'costcenter' ? '#4f46e5' : 'rgba(79, 70, 229, 0.06)',
+                                                    fontWeight: 700, 
+                                                    fontSize: '0.72rem', 
+                                                    cursor: transactionModalStep === 'costcenter' ? 'default' : 'pointer',
+                                                    display: 'flex',
+                                                    alignItems: 'center',
+                                                    gap: '5px',
+                                                    boxShadow: transactionModalStep === 'costcenter' ? '0 4px 10px -2px rgba(79, 70, 229, 0.4)' : 'none'
+                                                }}
                                             >
-                                                📍 {transactionSelectedCompany}
+                                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                                                    <circle cx="12" cy="12" r="10"></circle>
+                                                    <circle cx="12" cy="12" r="2"></circle>
+                                                </svg>
+                                                <span style={{ maxWidth: '120px', textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap' }}>{transactionSelectedCompany}</span>
                                             </button>
                                         </>
                                     )}
 
                                     {transactionModalStep === 'transactions' && transactionSelectedCostCenter && (
                                         <>
-                                            <span style={{ color: '#cbd5e1', fontSize: '0.75rem' }}>/</span>
-                                            <span style={{ color: '#0f172a', fontWeight: 800, fontSize: '0.75rem' }}>📄 {transactionSelectedCostCenter}</span>
+                                            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#cbd5e1" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
+                                                <polyline points="9 18 15 12 9 6"></polyline>
+                                            </svg>
+                                            <span style={{ 
+                                                padding: '6px 12px', 
+                                                borderRadius: '10px',
+                                                color: '#1e293b', 
+                                                backgroundColor: 'rgba(15, 23, 42, 0.05)',
+                                                fontWeight: 700, 
+                                                fontSize: '0.72rem',
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                gap: '5px'
+                                            }}>
+                                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                                                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                                                    <polyline points="14 2 14 8 20 8"></polyline>
+                                                    <line x1="16" y1="13" x2="8" y2="13"></line>
+                                                    <line x1="16" y1="17" x2="8" y2="17"></line>
+                                                    <polyline points="10 9 9 9 8 9"></polyline>
+                                                </svg>
+                                                <span style={{ maxWidth: '120px', textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap' }}>{transactionSelectedCostCenter}</span>
+                                            </span>
                                         </>
                                     )}
                                 </div>
                             </div>
 
-                            {/* Contêiner de conteúdo rolável adaptativo */}
-                            <div style={{ flex: 1, overflowY: 'auto', minHeight: 0, paddingRight: '4px' }}>
+                            {/* Content list with custom scrollbar */}
+                            <div className="custom-scroll" style={{ flex: 1, overflowY: 'auto', minHeight: 0, paddingRight: '4px', marginBottom: '1.25rem' }}>
                                 {loadingTransactions ? (
-                                    <div style={{ textAlign: 'center', padding: '3rem 1rem', color: '#64748b' }}>
-                                        <style>{`
-                                            @keyframes force-spin {
-                                                from { transform: rotate(0deg); }
-                                                to { transform: rotate(360deg); }
-                                            }
-                                        `}</style>
-                                        <div style={{ width: '36px', height: '36px', border: '3px solid #f1f5f9', borderTop: '3px solid #4f46e5', borderRadius: '50%', margin: '0 auto 1rem', animation: 'force-spin 1s linear infinite' }} />
-                                        <div style={{ fontSize: '0.85rem', fontWeight: 500 }}>Carregando detalhamentos...</div>
+                                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '4rem 1rem' }}>
+                                        <div style={{ width: '36px', height: '36px', border: '3px solid #f1f5f9', borderTop: '3px solid #4f46e5', borderRadius: '50%', marginBottom: '1.25rem', animation: 'spin 1s linear infinite' }} />
+                                        <div style={{ fontSize: '0.85rem', fontWeight: 600, color: '#475569' }}>Buscando detalhamentos...</div>
                                     </div>
                                 ) : transactions.length === 0 ? (
-                                    <div style={{ textAlign: 'center', padding: '3rem 1rem', color: '#64748b', fontSize: '0.85rem', fontWeight: 500 }}>Nenhum lançamento encontrado.</div>
+                                    <div style={{ textAlign: 'center', padding: '4rem 1rem', color: '#64748b', fontSize: '0.85rem', fontWeight: 600 }}>Nenhum lançamento encontrado.</div>
                                 ) : (
                                     <>
                                         {transactionModalStep === 'company' && (
-                                            <table style={{ width: '100%', fontSize: '0.85rem', borderCollapse: 'collapse', borderRadius: '12px', overflow: 'hidden' }}>
-                                                <thead>
-                                                    <tr style={{ background: '#f8fafc', textAlign: 'left' }}>
-                                                        <th style={{ padding: '0.75rem 1rem', borderBottom: '1px solid rgba(15, 23, 42, 0.06)', color: '#475569', fontSize: '0.75rem', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Empresas Contribuintes</th>
-                                                        <th style={{ padding: '0.75rem 1rem', borderBottom: '1px solid rgba(15, 23, 42, 0.06)', textAlign: 'right', color: '#475569', fontSize: '0.75rem', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Realizado</th>
-                                                    </tr>
-                                                </thead>
-                                                <tbody>
-                                                    {groupedByCompany.map((group, idx) => (
-                                                        <tr key={idx}
-                                                            onClick={() => { setTransactionSelectedCompany(group.name); setTransactionModalStep('costcenter'); }}
-                                                            style={{ borderBottom: '1px solid rgba(15, 23, 42, 0.04)', cursor: 'pointer', transition: 'background-color 0.15s' }}
-                                                            onMouseOver={(e) => e.currentTarget.style.backgroundColor = 'rgba(79, 70, 229, 0.03)'}
-                                                            onMouseOut={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
-                                                        >
-                                                            <td style={{ padding: '0.75rem 1rem', fontWeight: 600, color: '#4f46e5', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                                                                🏢 {group.name}
-                                                            </td>
-                                                            <td style={{ padding: '0.75rem 1rem', textAlign: 'right', fontWeight: 700, color: '#0f172a' }}>{group.total.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</td>
-                                                        </tr>
-                                                    ))}
-                                                </tbody>
-                                                <tfoot>
-                                                    <tr style={{ background: '#f8fafc', fontWeight: 'bold' }}>
-                                                        <td style={{ padding: '0.85rem 1rem', textAlign: 'right', borderTop: '2px solid rgba(15, 23, 42, 0.08)', fontSize: '0.8rem', color: '#64748b' }}>Total Geral do Mês:</td>
-                                                        <td style={{ padding: '0.85rem 1rem', textAlign: 'right', borderTop: '2px solid rgba(15, 23, 42, 0.08)', color: '#0f172a', fontSize: '0.95rem', fontWeight: 800 }}>
-                                                            {groupedByCompany.reduce((acc, g) => acc + g.total, 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
-                                                        </td>
-                                                    </tr>
-                                                </tfoot>
-                                            </table>
+                                            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                                                {groupedByCompany.map((group, idx) => (
+                                                    <div 
+                                                        key={idx}
+                                                        onClick={() => { setTransactionSelectedCompany(group.name); setTransactionModalStep('costcenter'); }}
+                                                        style={{ 
+                                                            display: 'flex', 
+                                                            justifyContent: 'space-between', 
+                                                            alignItems: 'center', 
+                                                            padding: '0.9rem 1.1rem', 
+                                                            borderRadius: '16px', 
+                                                            border: '1px solid rgba(15, 23, 42, 0.04)', 
+                                                            backgroundColor: '#ffffff',
+                                                            cursor: 'pointer'
+                                                        }}
+                                                        className="interactive-item"
+                                                    >
+                                                        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                                                            <div className="item-icon-bg" style={{ width: '36px', height: '36px', borderRadius: '10px', backgroundColor: 'rgba(79, 70, 229, 0.06)', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.2s' }}>
+                                                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#4f46e5" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                                                                    <rect x="4" y="2" width="16" height="20" rx="2" ry="2"></rect>
+                                                                    <line x1="9" y1="22" x2="9" y2="16"></line>
+                                                                    <line x1="15" y1="22" x2="15" y2="16"></line>
+                                                                    <line x1="9" y1="16" x2="15" y2="16"></line>
+                                                                    <path d="M8 6h.01M16 6h.01M8 10h.01M16 10h.01M12 14h.01M12 10h.01M12 6h.01"></path>
+                                                                </svg>
+                                                            </div>
+                                                            <span style={{ fontWeight: 700, color: '#1e293b', fontSize: '0.85rem' }}>{group.name}</span>
+                                                        </div>
+                                                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                                            <span style={{ fontWeight: 800, color: '#0f172a', fontSize: '0.9rem' }}>
+                                                                {group.total.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                                                            </span>
+                                                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ transition: 'transform 0.2s' }} className="item-arrow">
+                                                                <polyline points="9 18 15 12 9 6"></polyline>
+                                                            </svg>
+                                                        </div>
+                                                    </div>
+                                                ))}
+                                            </div>
                                         )}
 
                                         {transactionModalStep === 'costcenter' && (
-                                            <table style={{ width: '100%', fontSize: '0.85rem', borderCollapse: 'collapse', borderRadius: '12px', overflow: 'hidden' }}>
-                                                <thead>
-                                                    <tr style={{ background: '#f8fafc', textAlign: 'left' }}>
-                                                        <th style={{ padding: '0.75rem 1rem', borderBottom: '1px solid rgba(15, 23, 42, 0.06)', color: '#475569', fontSize: '0.75rem', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Centros de Custo (em {transactionSelectedCompany})</th>
-                                                        <th style={{ padding: '0.75rem 1rem', borderBottom: '1px solid rgba(15, 23, 42, 0.06)', textAlign: 'right', color: '#475569', fontSize: '0.75rem', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Realizado</th>
-                                                    </tr>
-                                                </thead>
-                                                <tbody>
-                                                    {groupedByCostCenter.map((group, idx) => (
-                                                        <tr key={idx}
-                                                            onClick={() => { setTransactionSelectedCostCenter(group.name); setTransactionModalStep('transactions'); }}
-                                                            style={{ borderBottom: '1px solid rgba(15, 23, 42, 0.04)', cursor: 'pointer', transition: 'background-color 0.15s' }}
-                                                            onMouseOver={(e) => e.currentTarget.style.backgroundColor = 'rgba(79, 70, 229, 0.03)'}
-                                                            onMouseOut={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
-                                                        >
-                                                            <td style={{ padding: '0.75rem 1rem', fontWeight: 600, color: '#4f46e5', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                                                                📍 {group.name}
-                                                            </td>
-                                                            <td style={{ padding: '0.75rem 1rem', textAlign: 'right', fontWeight: 700, color: '#0f172a' }}>{group.total.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</td>
-                                                        </tr>
-                                                    ))}
-                                                </tbody>
-                                                <tfoot>
-                                                    <tr style={{ background: '#f8fafc', fontWeight: 'bold' }}>
-                                                        <td style={{ padding: '0.85rem 1rem', textAlign: 'right', borderTop: '2px solid rgba(15, 23, 42, 0.08)', fontSize: '0.8rem', color: '#64748b' }}>Total na Empresa:</td>
-                                                        <td style={{ padding: '0.85rem 1rem', textAlign: 'right', borderTop: '2px solid rgba(15, 23, 42, 0.08)', color: '#0f172a', fontSize: '0.95rem', fontWeight: 800 }}>
-                                                            {groupedByCostCenter.reduce((acc, g) => acc + g.total, 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
-                                                        </td>
-                                                    </tr>
-                                                </tfoot>
-                                            </table>
+                                            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                                                {groupedByCostCenter.map((group, idx) => (
+                                                    <div 
+                                                        key={idx}
+                                                        onClick={() => { setTransactionSelectedCostCenter(group.name); setTransactionModalStep('transactions'); }}
+                                                        style={{ 
+                                                            display: 'flex', 
+                                                            justifyContent: 'space-between', 
+                                                            alignItems: 'center', 
+                                                            padding: '0.9rem 1.1rem', 
+                                                            borderRadius: '16px', 
+                                                            border: '1px solid rgba(15, 23, 42, 0.04)', 
+                                                            backgroundColor: '#ffffff',
+                                                            cursor: 'pointer'
+                                                        }}
+                                                        className="interactive-item"
+                                                    >
+                                                        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                                                            <div className="item-icon-bg" style={{ width: '36px', height: '36px', borderRadius: '10px', backgroundColor: 'rgba(6, 182, 212, 0.06)', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.2s' }}>
+                                                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#06b6d4" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                                                                    <circle cx="12" cy="12" r="10"></circle>
+                                                                    <circle cx="12" cy="12" r="6"></circle>
+                                                                    <circle cx="12" cy="12" r="2"></circle>
+                                                                </svg>
+                                                            </div>
+                                                            <span style={{ fontWeight: 700, color: '#1e293b', fontSize: '0.85rem' }}>{group.name}</span>
+                                                        </div>
+                                                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                                            <span style={{ fontWeight: 800, color: '#0f172a', fontSize: '0.9rem' }}>
+                                                                {group.total.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                                                            </span>
+                                                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ transition: 'transform 0.2s' }} className="item-arrow">
+                                                                <polyline points="9 18 15 12 9 6"></polyline>
+                                                            </svg>
+                                                        </div>
+                                                    </div>
+                                                ))}
+                                            </div>
                                         )}
 
                                         {transactionModalStep === 'transactions' && (
-                                            <table style={{ width: '100%', fontSize: '0.8rem', borderCollapse: 'collapse', borderRadius: '12px', overflow: 'hidden' }}>
-                                                <thead>
-                                                    <tr style={{ background: '#f8fafc', textAlign: 'left' }}>
-                                                        <th style={{ padding: '0.75rem 0.5rem', borderBottom: '1px solid rgba(15, 23, 42, 0.06)', color: '#475569', fontSize: '0.7rem', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.05em', minWidth: '90px' }}>Data</th>
-                                                        <th style={{ padding: '0.75rem 0.5rem', borderBottom: '1px solid rgba(15, 23, 42, 0.06)', color: '#475569', fontSize: '0.7rem', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Descrição</th>
-                                                        <th style={{ padding: '0.75rem 0.5rem', borderBottom: '1px solid rgba(15, 23, 42, 0.06)', color: '#475569', fontSize: '0.7rem', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Cliente/Forn.</th>
-                                                        <th style={{ padding: '0.75rem 0.5rem', borderBottom: '1px solid rgba(15, 23, 42, 0.06)', textAlign: 'right', color: '#475569', fontSize: '0.7rem', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Valor</th>
-                                                    </tr>
-                                                </thead>
-                                                <tbody>
-                                                    {finalTransactions.map((tx: any) => (
-                                                        <tr key={tx.id} style={{ borderBottom: '1px solid rgba(15, 23, 42, 0.04)', transition: 'background-color 0.1s' }} onMouseOver={e => e.currentTarget.style.backgroundColor = 'rgba(15, 23, 42, 0.01)'} onMouseOut={e => e.currentTarget.style.backgroundColor = 'transparent'}>
-                                                            <td style={{ padding: '0.6rem 0.5rem', color: '#475569' }}>{tx.date ? new Date(tx.date).toLocaleDateString('pt-BR', { timeZone: 'UTC' }) : '-'}</td>
-                                                            <td style={{ padding: '0.6rem 0.5rem', fontWeight: 500, color: '#1e293b' }}>{tx.description}</td>
-                                                            <td style={{ padding: '0.6rem 0.5rem', color: '#64748b' }}>{tx.customer || '-'}</td>
-                                                            <td style={{ padding: '0.6rem 0.5rem', textAlign: 'right', fontWeight: 700, color: '#0f172a' }}>{parseFloat(tx.value).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</td>
-                                                        </tr>
-                                                    ))}
-                                                </tbody>
-                                                <tfoot>
-                                                    <tr style={{ background: '#f8fafc', fontWeight: 'bold' }}>
-                                                        <td colSpan={3} style={{ padding: '0.85rem 0.5rem', textAlign: 'right', borderTop: '2px solid rgba(15, 23, 42, 0.08)', fontSize: '0.8rem', color: '#64748b' }}>Total neste Centro de Custo:</td>
-                                                        <td style={{ padding: '0.85rem 0.5rem', textAlign: 'right', borderTop: '2px solid rgba(15, 23, 42, 0.08)', color: '#0f172a', fontSize: '0.85rem', fontWeight: 800 }}>
-                                                            {finalTransactions.reduce((acc, tx) => acc + (parseFloat(tx.value) || 0), 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
-                                                        </td>
-                                                    </tr>
-                                                </tfoot>
-                                            </table>
+                                            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                                                {finalTransactions.map((tx: any) => (
+                                                    <div 
+                                                        key={tx.id}
+                                                        style={{ 
+                                                            display: 'flex', 
+                                                            justifyContent: 'space-between', 
+                                                            alignItems: 'center', 
+                                                            padding: '0.9rem 1.1rem', 
+                                                            borderRadius: '16px', 
+                                                            border: '1px solid rgba(15, 23, 42, 0.03)', 
+                                                            backgroundColor: '#ffffff',
+                                                            boxShadow: '0 2px 8px -2px rgba(15, 23, 42, 0.02)'
+                                                        }}
+                                                    >
+                                                        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', minWidth: 0, flex: 1 }}>
+                                                            {/* Data Badge premium */}
+                                                            <div style={{ 
+                                                                flexShrink: 0,
+                                                                backgroundColor: '#f1f5f9', 
+                                                                color: '#334155', 
+                                                                fontSize: '0.75rem', 
+                                                                fontWeight: 800, 
+                                                                padding: '6px 10px', 
+                                                                borderRadius: '10px',
+                                                                textAlign: 'center',
+                                                                minWidth: '85px',
+                                                                border: '1px solid rgba(15, 23, 42, 0.02)',
+                                                                fontFamily: 'Inter, sans-serif'
+                                                            }}>
+                                                                {tx.date ? new Date(tx.date).toLocaleDateString('pt-BR', { timeZone: 'UTC' }) : '-'}
+                                                            </div>
+
+                                                            {/* Descrição e Cliente */}
+                                                            <div style={{ minWidth: 0 }}>
+                                                                <div style={{ fontWeight: 700, color: '#0f172a', fontSize: '0.85rem', textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap' }} title={tx.description}>
+                                                                    {tx.description}
+                                                                </div>
+                                                                <div style={{ display: 'flex', alignItems: 'center', gap: '5px', marginTop: '2px', color: '#64748b', fontSize: '0.72rem', fontWeight: 600 }}>
+                                                                    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ opacity: 0.7 }}>
+                                                                        <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+                                                                        <circle cx="12" cy="7" r="4"></circle>
+                                                                    </svg>
+                                                                    <span>{tx.customer || '-'}</span>
+                                                                </div>
+                                                            </div>
+                                                        </div>
+
+                                                        {/* Valor */}
+                                                        <div style={{ fontWeight: 800, color: '#0f172a', fontSize: '0.9rem', paddingLeft: '1rem', flexShrink: 0, fontFamily: 'Inter, sans-serif' }}>
+                                                            {parseFloat(tx.value).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                                                        </div>
+                                                    </div>
+                                                ))}
+                                            </div>
                                         )}
                                     </>
                                 )}
                             </div>
+
+                            {/* Rodapé Totalizador Premium */}
+                            {!loadingTransactions && transactions.length > 0 && (
+                                <div 
+                                    style={{ 
+                                        display: 'flex', 
+                                        justifyContent: 'space-between', 
+                                        alignItems: 'center', 
+                                        padding: '1.1rem 1.4rem', 
+                                        borderRadius: '18px', 
+                                        background: 'linear-gradient(135deg, #4f46e5 0%, #3730a3 100%)',
+                                        boxShadow: '0 10px 25px -8px rgba(79, 70, 229, 0.45)',
+                                        animation: 'modalFadeIn 0.3s ease-out'
+                                    }}
+                                >
+                                    <span style={{ fontSize: '0.72rem', fontWeight: 800, color: 'rgba(255, 255, 255, 0.8)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+                                        {transactionModalStep === 'company' ? 'Total Geral do Mês:' : 
+                                         transactionModalStep === 'costcenter' ? 'Total na Empresa:' : 
+                                         'Total no Centro de Custo:'}
+                                    </span>
+                                    <span style={{ fontSize: '1.15rem', fontWeight: 900, color: '#ffffff', fontFamily: 'Inter, monospace', letterSpacing: '-0.02em' }}>
+                                        {transactionModalStep === 'company' && groupedByCompany.reduce((acc, g) => acc + g.total, 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                                        {transactionModalStep === 'costcenter' && groupedByCostCenter.reduce((acc, g) => acc + g.total, 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                                        {transactionModalStep === 'transactions' && finalTransactions.reduce((acc, tx) => acc + (parseFloat(tx.value) || 0), 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                                    </span>
+                                </div>
+                            )}
                         </div>
                     </div>
                 )}

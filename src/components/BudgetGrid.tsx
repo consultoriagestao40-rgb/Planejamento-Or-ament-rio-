@@ -303,7 +303,7 @@ export default function BudgetGrid({
     const [deviationMonth, setDeviationMonth] = useState<number>(6); // June (1-indexed)
 
     const fetchDeviations = useCallback(async () => {
-        const activeTenantId = selectedCompany.includes('DEFAULT') ? companies[0]?.id : selectedCompany[0];
+        const activeTenantId = selectedCompany.includes('DEFAULT') ? companies?.[0]?.id : selectedCompany[0];
         if (!activeTenantId) return;
         try {
             const devsRes = await fetch(`/api/deviations?tenantId=${activeTenantId}&year=${selectedYear}&t=${Date.now()}`);
@@ -319,7 +319,7 @@ export default function BudgetGrid({
     }, [selectedCompany, companies, selectedYear]);
 
     const fetchUsers = useCallback(async () => {
-        const activeTenantId = selectedCompany.includes('DEFAULT') ? companies[0]?.id : selectedCompany[0];
+        const activeTenantId = selectedCompany.includes('DEFAULT') ? companies?.[0]?.id : selectedCompany[0];
         if (!activeTenantId) return;
         try {
             const usersRes = await fetch(`/api/users/list?tenantId=${activeTenantId}&t=${Date.now()}`);
@@ -335,7 +335,7 @@ export default function BudgetGrid({
     }, [selectedCompany, companies]);
 
     const handleSaveDeviation = async () => {
-        const activeTenantId = selectedCompany.includes('DEFAULT') ? companies[0]?.id : selectedCompany[0];
+        const activeTenantId = selectedCompany.includes('DEFAULT') ? companies?.[0]?.id : selectedCompany[0];
         if (!activeTenantId || !activeDeviationNode) return;
         if (!deviationDescription.trim() || !deviationCorrectionAction.trim()) {
             alert("Por favor, preencha a descrição e a ação corretiva.");
@@ -2594,7 +2594,7 @@ export default function BudgetGrid({
                 }
 
                 // Fetch deviations and users list
-                const activeTenantId = selectedCompany.includes('DEFAULT') ? companies[0]?.id : selectedCompany[0];
+                const activeTenantId = selectedCompany.includes('DEFAULT') ? companies?.[0]?.id : selectedCompany[0];
                 if (activeTenantId) {
                     const [devsRes, usersRes] = await Promise.all([
                         fetch(`/api/deviations?tenantId=${activeTenantId}&year=${selectedYear}&t=${Date.now()}`),
@@ -4045,14 +4045,14 @@ export default function BudgetGrid({
                                         display: 'inline-flex',
                                         alignItems: 'center',
                                         borderRadius: '4px',
-                                        backgroundColor: deviations.some((d: any) => (d.categoryId === node.id || d.categoryId.endsWith(':' + node.id)) && !d.isResolved) ? 'rgba(239, 68, 68, 0.15)' : 'transparent',
+                                        backgroundColor: deviations?.some((d: any) => d?.categoryId && (d.categoryId === node.id || d.categoryId.endsWith(':' + node.id)) && !d.isResolved) ? 'rgba(239, 68, 68, 0.15)' : 'transparent',
                                         borderWidth: '1px',
                                         borderStyle: 'solid',
-                                        borderColor: deviations.some((d: any) => (d.categoryId === node.id || d.categoryId.endsWith(':' + node.id)) && !d.isResolved) ? 'rgba(239, 68, 68, 0.3)' : 'transparent',
+                                        borderColor: deviations?.some((d: any) => d?.categoryId && (d.categoryId === node.id || d.categoryId.endsWith(':' + node.id)) && !d.isResolved) ? 'rgba(239, 68, 68, 0.3)' : 'transparent',
                                     }}
-                                    title={deviations.some((d: any) => (d.categoryId === node.id || d.categoryId.endsWith(':' + node.id)) && !d.isResolved) ? "Possui desvio pendente registrado" : "Registrar desvio / Ações"}
+                                    title={deviations?.some((d: any) => d?.categoryId && (d.categoryId === node.id || d.categoryId.endsWith(':' + node.id)) && !d.isResolved) ? "Possui desvio pendente registrado" : "Registrar desvio / Ações"}
                                 >
-                                    {deviations.some((d: any) => (d.categoryId === node.id || d.categoryId.endsWith(':' + node.id)) && !d.isResolved) ? '⚠️' : '📋'}
+                                    {deviations?.some((d: any) => d?.categoryId && (d.categoryId === node.id || d.categoryId.endsWith(':' + node.id)) && !d.isResolved) ? '⚠️' : '📋'}
                                 </button>
                             )}
                         </div>
@@ -10522,13 +10522,13 @@ export default function BudgetGrid({
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
                                 <h4 style={{ margin: 0, fontSize: '1rem', fontWeight: 800, color: 'var(--text-primary)' }}>Desvios e Planos de Ação Registrados</h4>
                                 
-                                {deviations.filter((d: any) => d.categoryId === activeDeviationNode.id || d.categoryId.endsWith(':' + activeDeviationNode.id)).length === 0 ? (
+                                {deviations?.filter((d: any) => d?.categoryId && (d.categoryId === activeDeviationNode.id || d.categoryId.endsWith(':' + activeDeviationNode.id))).length === 0 ? (
                                     <div style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-secondary)', fontSize: '0.85rem', border: '1px dashed var(--border-default)', borderRadius: '12px', fontStyle: 'italic' }}>
                                         Nenhum desvio ou plano de ação registrado para esta conta neste ano.
                                     </div>
                                 ) : (
                                     <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                                        {deviations.filter((d: any) => d.categoryId === activeDeviationNode.id || d.categoryId.endsWith(':' + activeDeviationNode.id)).map((d: any) => {
+                                        {deviations?.filter((d: any) => d?.categoryId && (d.categoryId === activeDeviationNode.id || d.categoryId.endsWith(':' + activeDeviationNode.id))).map((d: any) => {
                                             return (
                                                 <div 
                                                     key={d.id} 

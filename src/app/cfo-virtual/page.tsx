@@ -20,9 +20,29 @@ export default function CFOVirtualPage() {
     const [actionSavingId, setActionSavingId] = useState<string | null>(null);
     const [actionSavedIds, setActionSavedIds] = useState<Set<string>>(new Set());
 
+    // Chat History and Sidebar States
+    const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+    const [sessions, setSessions] = useState<any[]>([]);
+    const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
+    const [editingSessionId, setEditingSessionId] = useState<string | null>(null);
+    const [editTitleInput, setEditTitleInput] = useState('');
+
     const messagesEndRef = useRef<HTMLDivElement>(null);
 
-    // Load tenants on mount
+    // Carregar lista de conversas salvas
+    const loadSessions = async () => {
+        try {
+            const res = await fetch('/api/chat/sessions');
+            const data = await res.json();
+            if (data.success && data.sessions) {
+                setSessions(data.sessions);
+            }
+        } catch (err) {
+            console.error('Erro ao carregar sessões de chat:', err);
+        }
+    };
+
+    // Load tenants and chat sessions on mount
     useEffect(() => {
         const loadSetup = async () => {
             try {
@@ -43,6 +63,7 @@ export default function CFOVirtualPage() {
             }
         };
         loadSetup();
+        loadSessions();
     }, []);
 
     // Save tenant back to localStorage when changed
@@ -72,6 +93,91 @@ export default function CFOVirtualPage() {
         }
     }, [messages.length]);
 
+    // Iniciar um novo chat limpo
+    const createNewChat = () => {
+        setActiveSessionId(null);
+        setMessages([
+            {
+                id: 'greeting',
+                role: 'model',
+                content: 'Olá! Sou o seu **CFO Virtual de IA** do BudgetHub.\n\nEstou pronto para analisar seu fluxo de caixa (DFC), auditar desvios de orçamento (orçado vs realizado competência) e identificar gargalos financeiros de forma individual ou consolidada.\n\nSelecione o filtro de empresa no topo e clique em um dos tópicos rápidos abaixo ou faça uma pergunta direta.'
+            }
+        ]);
+    };
+
+    // Carregar detalhes de uma conversa selecionada
+    const loadSessionDetails = async (sessionId: string) => {
+        setIsLoading(true);
+        try {
+            const res = await fetch(`/api/chat/sessions/${sessionId}`);
+            const data = await res.json();
+            if (data.success && data.session) {
+                setActiveSessionId(data.session.id);
+                setSelectedTenant(data.session.tenantId);
+                
+                if (data.session.messages && data.session.messages.length > 0) {
+                    const formattedMsgs = data.session.messages.map((m: any) => ({
+                        id: m.id,
+                        role: m.role as 'user' | 'model',
+                        content: m.content,
+                        suggestedAction: m.suggestedAction
+                    }));
+                    setMessages(formattedMsgs);
+                } else {
+                    setMessages([]);
+                }
+            }
+        } catch (err) {
+            console.error('Erro ao carregar detalhes da sessão:', err);
+            alert('Erro ao carregar o histórico deste chat.');
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    // Renomear uma sessão
+    const renameSession = async (sessionId: string, newTitle: string) => {
+        if (!newTitle.trim()) {
+            setEditingSessionId(null);
+            return;
+        }
+        try {
+            const res = await fetch(`/api/chat/sessions/${sessionId}`, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ title: newTitle.trim() })
+            });
+            const data = await res.json();
+            if (data.success) {
+                setSessions(prev => prev.map(s => s.id === sessionId ? { ...s, title: newTitle.trim() } : s));
+                setEditingSessionId(null);
+            }
+        } catch (err) {
+            console.error('Erro ao renomear sessão:', err);
+        }
+    };
+
+    // Excluir uma sessão
+    const deleteSession = async (sessionId: string, e: React.MouseEvent) => {
+        e.stopPropagation();
+        if (!confirm('Deseja realmente excluir esta conversa?')) return;
+        
+        try {
+            const res = await fetch(`/api/chat/sessions/${sessionId}`, {
+                method: 'DELETE'
+            });
+            const data = await res.json();
+            if (data.success) {
+                setSessions(prev => prev.filter(s => s.id !== sessionId));
+                if (activeSessionId === sessionId) {
+                    createNewChat();
+                }
+            }
+        } catch (err) {
+            console.error('Erro ao excluir sessão:', err);
+        }
+    };
+
     const sendMessage = async (text: string) => {
         if (!text.trim() || isLoading) return;
 
@@ -90,8 +196,9 @@ export default function CFOVirtualPage() {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                    messages: [...messages, userMsg].map(m => ({ role: m.role, content: m.content })),
-                    tenantId: selectedTenant
+                    messages: [...messages.filter(m => m.id !== 'greeting'), userMsg].map(m => ({ role: m.role, content: m.content })),
+                    tenantId: selectedTenant,
+                    sessionId: activeSessionId
                 })
             });
 
@@ -104,6 +211,11 @@ export default function CFOVirtualPage() {
                     content: data.text,
                     suggestedAction: data.suggestedAction
                 }]);
+
+                if (!activeSessionId && data.sessionId) {
+                    setActiveSessionId(data.sessionId);
+                }
+                loadSessions();
             } else {
                 setMessages(prev => [...prev, {
                     id: (Date.now() + 1).toString(),
@@ -937,253 +1049,463 @@ export default function CFOVirtualPage() {
                 </div>
             </div>
 
-            {/* Centered Single-Column Chat Area */}
-            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', maxWidth: '900px', width: '100%', margin: '0 auto', overflow: 'hidden' }} className="glass-card">
+            {/* Main Layout Area: Sidebar + Chat Area */}
+            <div style={{ flex: 1, display: 'flex', gap: '1rem', overflow: 'hidden', width: '100%', maxWidth: '1200px', margin: '0 auto' }}>
                 
-                {/* Chat Header Status */}
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 16px', borderBottom: '1px solid rgba(15, 23, 42, 0.05)', backgroundColor: 'rgba(248, 250, 252, 0.5)' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                        <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
-                            <span style={{ display: 'block', width: '6px', height: '6px', borderRadius: '50%', backgroundColor: '#10b981' }} />
-                            <span style={{ position: 'absolute', width: '6px', height: '6px', borderRadius: '50%', backgroundColor: '#10b981', animation: 'ping 1.5s infinite', opacity: 0.7 }} />
-                        </div>
-                        <span style={{ fontSize: '0.75rem', fontWeight: 700, color: '#475569' }}>CFO Online</span>
-                    </div>
-                    <button 
-                        onClick={() => {
-                            if (confirm('Limpar conversa?')) {
-                                setMessages([]);
-                            }
+                {/* Sidebar */}
+                {isSidebarOpen && (
+                    <div 
+                        style={{ 
+                            width: '260px', 
+                            backgroundColor: '#ffffff', 
+                            borderRadius: '16px', 
+                            border: '1px solid rgba(15, 23, 42, 0.06)',
+                            display: 'flex', 
+                            flexDirection: 'column', 
+                            overflow: 'hidden',
+                            boxShadow: '0 4px 6px -1px rgba(0,0,0,0.02), 0 2px 4px -1px rgba(0,0,0,0.01)',
+                            animation: 'fade-in 0.2s ease-out'
                         }}
-                        style={{ background: 'none', border: 'none', color: '#ef4444', fontSize: '0.75rem', fontWeight: 700, cursor: 'pointer', padding: '2px 4px' }}
                     >
-                        Limpar Chat
-                    </button>
-                </div>
-
-                {/* Conversation Feed */}
-                <div style={{ flex: 1, overflowY: 'auto', padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1.5rem', backgroundColor: '#f8fafc' }}>
-                    {messages.map((msg) => {
-                        const isModel = msg.role === 'model';
-                        const visualPayload = isModel ? getVisualPayload(msg.content) : null;
-
-                        return (
-                            <div 
-                                key={msg.id} 
-                                style={{ 
-                                    display: 'flex', 
-                                    flexDirection: 'column', 
-                                    alignSelf: isModel ? 'flex-start' : 'flex-end', 
-                                    maxWidth: '85%',
-                                    width: isModel && visualPayload ? '100%' : 'auto'
+                        {/* Novo Chat button */}
+                        <div style={{ padding: '12px' }}>
+                            <button
+                                onClick={createNewChat}
+                                style={{
+                                    width: '100%',
+                                    padding: '10px 14px',
+                                    borderRadius: '10px',
+                                    backgroundColor: '#4f46e5',
+                                    color: '#ffffff',
+                                    border: 'none',
+                                    fontSize: '0.8rem',
+                                    fontWeight: 700,
+                                    cursor: 'pointer',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    gap: '8px',
+                                    boxShadow: '0 2px 4px rgba(79, 70, 229, 0.2)',
+                                    transition: 'all 0.2s'
                                 }}
+                                onMouseEnter={e => e.currentTarget.style.backgroundColor = '#4338ca'}
+                                onMouseLeave={e => e.currentTarget.style.backgroundColor = '#4f46e5'}
                             >
-                                {/* Text Bubble */}
-                                <div
-                                    style={{
-                                        padding: '12px 16px',
-                                        borderRadius: isModel ? '16px 16px 16px 4px' : '16px 16px 4px 16px',
-                                        backgroundColor: isModel ? '#ffffff' : '#3b82f6',
-                                        color: isModel ? '#1e293b' : '#ffffff',
-                                        boxShadow: '0 2px 4px rgba(0,0,0,0.02)',
-                                        border: isModel ? '1px solid rgba(15, 23, 42, 0.06)' : 'none',
-                                        fontSize: '0.85rem',
-                                        lineHeight: 1.5
-                                    }}
-                                >
-                                    {parseMarkdown(msg.content)}
-                                </div>
-                                
-                                {/* Inline Chart rendering */}
-                                {isModel && visualPayload && (
-                                    <>
-                                        {visualPayload.type === 'CASH_FLOW' && renderCashFlowChart(visualPayload)}
-                                        {visualPayload.type === 'DEVIATIONS' && renderDeviationsChart(visualPayload)}
-                                        {visualPayload.type === 'MONTHLY_BREAKDOWN' && renderMonthlyBreakdownChart(visualPayload)}
-                                        {visualPayload.type === 'OVERDUE_COMMITMENTS' && renderOverdueCommitments(visualPayload)}
-                                        {visualPayload.type === 'SHORT_TERM_PROJECTION' && renderShortTermProjection(visualPayload)}
-                                    </>
-                                )}
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                                    <line x1="12" y1="5" x2="12" y2="19"></line>
+                                    <line x1="5" y1="12" x2="19" y2="12"></line>
+                                </svg>
+                                Novo Chat
+                            </button>
+                        </div>
 
-                                {/* Action plan card rendering below the bubble */}
-                                {isModel && msg.suggestedAction && (
-                                    <div
-                                        style={{
-                                            marginTop: '10px',
-                                            padding: '12px 14px',
-                                            borderRadius: '12px',
-                                            backgroundColor: '#eff6ff',
-                                            border: '1px dashed #3b82f6',
-                                            boxShadow: '0 2px 4px rgba(0,0,0,0.01)'
-                                        }}
-                                    >
-                                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '6px' }}>
-                                            <span style={{ fontSize: '1rem' }}>💡</span>
-                                            <strong style={{ fontSize: '0.8rem', color: '#1d4ed8', fontWeight: 700 }}>Plano de Ação Sugerido</strong>
-                                        </div>
-                                        <p style={{ margin: '4px 0', fontSize: '0.75rem', color: '#475569', lineHeight: 1.4 }}>
-                                            <strong>Problema:</strong> {msg.suggestedAction.description}
-                                        </p>
-                                        <p style={{ margin: '4px 0 8px 0', fontSize: '0.75rem', color: '#475569', lineHeight: 1.4 }}>
-                                            <strong>Ação Corretiva:</strong> {msg.suggestedAction.actionText}
-                                        </p>
-                                        <button
-                                            onClick={() => handleCreateAction(msg.suggestedAction, msg.id)}
-                                            disabled={actionSavingId === msg.id || actionSavedIds.has(msg.id)}
+                        {/* List of Sessions */}
+                        <div style={{ flex: 1, overflowY: 'auto', padding: '0 12px 12px 12px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                            <span style={{ fontSize: '0.65rem', color: '#94a3b8', fontWeight: 800, padding: '4px 6px', letterSpacing: '0.05em' }}>CONVERSAS SALVAS</span>
+                            {sessions.length === 0 ? (
+                                <div style={{ padding: '20px 10px', textAlign: 'center', color: '#94a3b8', fontSize: '0.75rem', border: '1.5px dashed rgba(15, 23, 42, 0.04)', borderRadius: '8px' }}>
+                                    Nenhuma conversa salva
+                                </div>
+                            ) : (
+                                sessions.map(s => {
+                                    const isActive = s.id === activeSessionId;
+                                    const isEditing = s.id === editingSessionId;
+
+                                    return (
+                                        <div
+                                            key={s.id}
+                                            onClick={() => !isEditing && loadSessionDetails(s.id)}
                                             style={{
-                                                width: '100%',
-                                                padding: '8px',
+                                                padding: '8px 10px',
                                                 borderRadius: '8px',
-                                                backgroundColor: actionSavedIds.has(msg.id) ? '#10b981' : '#3b82f6',
-                                                color: '#ffffff',
-                                                border: 'none',
-                                                fontSize: '0.75rem',
-                                                fontWeight: 700,
-                                                cursor: actionSavedIds.has(msg.id) ? 'default' : 'pointer',
+                                                backgroundColor: isActive ? 'rgba(79, 70, 229, 0.06)' : 'transparent',
+                                                border: isActive ? '1px solid rgba(79, 70, 229, 0.12)' : '1px solid transparent',
+                                                color: isActive ? '#4f46e5' : '#475569',
+                                                fontSize: '0.8rem',
+                                                fontWeight: isActive ? 700 : 500,
+                                                cursor: isEditing ? 'default' : 'pointer',
                                                 display: 'flex',
                                                 alignItems: 'center',
-                                                justifyContent: 'center',
-                                                gap: '6px',
-                                                transition: 'background-color 0.2s'
+                                                justifyContent: 'space-between',
+                                                gap: '8px',
+                                                transition: 'all 0.2s',
                                             }}
-                                            onMouseEnter={e => {
-                                                if (!actionSavedIds.has(msg.id)) e.currentTarget.style.backgroundColor = '#2563eb';
-                                            }}
-                                            onMouseLeave={e => {
-                                                if (!actionSavedIds.has(msg.id)) e.currentTarget.style.backgroundColor = '#3b82f6';
-                                            }}
+                                            className="sidebar-chat-item"
                                         >
-                                            {actionSavingId === msg.id ? (
-                                                <span>Registrando...</span>
-                                            ) : actionSavedIds.has(msg.id) ? (
-                                                <>
-                                                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
-                                                        <polyline points="20 6 9 17 4 12" />
-                                                    </svg>
-                                                    <span>Registrado no Painel</span>
-                                                </>
-                                            ) : (
-                                                <span>Aprovar e Salvar Metas</span>
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flex: 1, minWidth: 0 }}>
+                                                <span style={{ opacity: isActive ? 1 : 0.6, flexShrink: 0 }}>💬</span>
+                                                {isEditing ? (
+                                                    <input
+                                                        type="text"
+                                                        value={editTitleInput}
+                                                        onChange={e => setEditTitleInput(e.target.value)}
+                                                        onKeyDown={e => {
+                                                            if (e.key === 'Enter') renameSession(s.id, editTitleInput);
+                                                            if (e.key === 'Escape') setEditingSessionId(null);
+                                                        }}
+                                                        onBlur={() => renameSession(s.id, editTitleInput)}
+                                                        autoFocus
+                                                        style={{
+                                                            width: '100%',
+                                                            padding: '2px 4px',
+                                                            fontSize: '0.75rem',
+                                                            border: '1px solid #4f46e5',
+                                                            borderRadius: '4px',
+                                                            outline: 'none',
+                                                            color: '#1e293b'
+                                                        }}
+                                                        onClick={e => e.stopPropagation()}
+                                                    />
+                                                ) : (
+                                                    <span style={{ textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap' }}>
+                                                        {s.title}
+                                                    </span>
+                                                )}
+                                            </div>
+
+                                            {/* Actions */}
+                                            {!isEditing && (
+                                                <div className="sidebar-chat-actions" style={{ display: 'flex', alignItems: 'center', gap: '4px', flexShrink: 0 }}>
+                                                    <button
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            setEditingSessionId(s.id);
+                                                            setEditTitleInput(s.title);
+                                                        }}
+                                                        title="Renomear"
+                                                        style={{
+                                                            background: 'none',
+                                                            border: 'none',
+                                                            cursor: 'pointer',
+                                                            color: '#94a3b8',
+                                                            padding: '2px',
+                                                            borderRadius: '4px',
+                                                            display: 'flex',
+                                                            alignItems: 'center',
+                                                            justifyContent: 'center'
+                                                        }}
+                                                        onMouseEnter={e => e.currentTarget.style.color = '#4f46e5'}
+                                                        onMouseLeave={e => e.currentTarget.style.color = '#94a3b8'}
+                                                    >
+                                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                                                            <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+                                                            <path d="M18.5 2.5a2.121 2.121 0 1 1 3 3L12 15l-4 1 1-4Z"></path>
+                                                        </svg>
+                                                    </button>
+                                                    <button
+                                                        onClick={(e) => deleteSession(s.id, e)}
+                                                        title="Excluir"
+                                                        style={{
+                                                            background: 'none',
+                                                            border: 'none',
+                                                            cursor: 'pointer',
+                                                            color: '#94a3b8',
+                                                            padding: '2px',
+                                                            borderRadius: '4px',
+                                                            display: 'flex',
+                                                            alignItems: 'center',
+                                                            justifyContent: 'center'
+                                                        }}
+                                                        onMouseEnter={e => e.currentTarget.style.color = '#ef4444'}
+                                                        onMouseLeave={e => e.currentTarget.style.color = '#94a3b8'}
+                                                    >
+                                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                                                            <polyline points="3 6 5 6 21 6"></polyline>
+                                                            <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                                                            <line x1="10" y1="11" x2="10" y2="17"></line>
+                                                            <line x1="14" y1="11" x2="14" y2="17"></line>
+                                                        </svg>
+                                                    </button>
+                                                </div>
                                             )}
-                                        </button>
-                                    </div>
-                                )}
-                            </div>
-                        );
-                    })}
-
-                    {/* Loading Typing Indicator */}
-                    {isLoading && (
-                        <div style={{ alignSelf: 'flex-start', padding: '12px 16px', borderRadius: '16px 16px 16px 4px', backgroundColor: '#ffffff', border: '1px solid rgba(15, 23, 42, 0.05)', display: 'flex', gap: '4px', alignItems: 'center' }}>
-                            <span style={{ width: '5px', height: '5px', borderRadius: '50%', backgroundColor: '#94a3b8', display: 'inline-block', animation: 'typing-pulse 1.2s infinite' }} />
-                            <span style={{ width: '5px', height: '5px', borderRadius: '50%', backgroundColor: '#94a3b8', display: 'inline-block', animation: 'typing-pulse 1.2s infinite 0.2s' }} />
-                            <span style={{ width: '5px', height: '5px', borderRadius: '50%', backgroundColor: '#94a3b8', display: 'inline-block', animation: 'typing-pulse 1.2s infinite 0.4s' }} />
-                        </div>
-                    )}
-                    <div ref={messagesEndRef} />
-                </div>
-
-                {/* Topics Suggestion chips at bottom of feed */}
-                {messages.length <= 1 && !isLoading && (
-                    <div style={{ padding: '12px 16px', display: 'flex', flexDirection: 'column', gap: '6px', backgroundColor: '#f8fafc', borderTop: '1px solid rgba(15, 23, 42, 0.05)' }}>
-                        <span style={{ fontSize: '0.65rem', color: '#64748b', fontWeight: 700, letterSpacing: '0.04em' }}>TÓPICOS RÁPIDOS SUGERIDOS:</span>
-                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '6px' }}>
-                            {quickChips.map((chip, idx) => (
-                                <button
-                                    key={idx}
-                                    onClick={() => sendMessage(chip.text)}
-                                    style={{
-                                        textAlign: 'left',
-                                        padding: '8px 10px',
-                                        borderRadius: '8px',
-                                        backgroundColor: '#ffffff',
-                                        border: '1px solid rgba(15, 23, 42, 0.05)',
-                                        fontSize: '0.75rem',
-                                        color: '#475569',
-                                        cursor: 'pointer',
-                                        boxShadow: '0 1px 2px rgba(0,0,0,0.01)',
-                                        transition: 'all 0.2s'
-                                    }}
-                                    onMouseEnter={(e) => {
-                                        e.currentTarget.style.backgroundColor = '#f1f5f9';
-                                        e.currentTarget.style.borderColor = 'rgba(15, 23, 42, 0.1)';
-                                    }}
-                                    onMouseLeave={(e) => {
-                                        e.currentTarget.style.backgroundColor = '#ffffff';
-                                        e.currentTarget.style.borderColor = 'rgba(15, 23, 42, 0.05)';
-                                    }}
-                                >
-                                    {chip.label}
-                                </button>
-                            ))}
+                                        </div>
+                                    );
+                                })
+                            )}
                         </div>
                     </div>
                 )}
 
-                {/* Chat Footer Input */}
-                <form
-                    onSubmit={(e) => {
-                        e.preventDefault();
-                        sendMessage(input);
-                    }}
-                    style={{ padding: '1rem', backgroundColor: '#ffffff', borderTop: '1px solid rgba(15, 23, 42, 0.05)', display: 'flex', gap: '8px', alignItems: 'center' }}
-                >
-                    <input
-                        type="text"
-                        value={input}
-                        onChange={(e) => setInput(e.target.value)}
-                        disabled={isLoading}
-                        placeholder="Pergunte ao CFO (ex: 'Auditar desvios de orçamento de junho')..."
-                        style={{
-                            flex: 1,
-                            padding: '10px 14px',
-                            borderRadius: '10px',
-                            border: '1px solid rgba(15, 23, 42, 0.1)',
-                            fontSize: '0.85rem',
-                            outline: 'none',
-                            transition: 'all 0.2s',
-                            color: '#1e293b'
+                {/* Chat Area */}
+                <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }} className="glass-card">
+                    
+                    {/* Chat Header Status */}
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 16px', borderBottom: '1px solid rgba(15, 23, 42, 0.05)', backgroundColor: 'rgba(248, 250, 252, 0.5)' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                            {/* Toggle Sidebar Button */}
+                            <button
+                                onClick={() => setIsSidebarOpen(!isSidebarOpen)}
+                                title={isSidebarOpen ? "Ocultar histórico" : "Mostrar histórico"}
+                                style={{
+                                    background: 'none',
+                                    border: 'none',
+                                    cursor: 'pointer',
+                                    color: '#64748b',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    padding: '6px',
+                                    borderRadius: '8px',
+                                    transition: 'all 0.2s',
+                                    marginRight: '4px'
+                                }}
+                                onMouseEnter={e => {
+                                    e.currentTarget.style.backgroundColor = '#f1f5f9';
+                                    e.currentTarget.style.color = '#1e293b';
+                                }}
+                                onMouseLeave={e => {
+                                    e.currentTarget.style.backgroundColor = 'transparent';
+                                    e.currentTarget.style.color = '#64748b';
+                                }}
+                            >
+                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                    <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+                                    <line x1="9" y1="3" x2="9" y2="21"></line>
+                                </svg>
+                            </button>
+
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+                                    <span style={{ display: 'block', width: '6px', height: '6px', borderRadius: '50%', backgroundColor: '#10b981' }} />
+                                    <span style={{ position: 'absolute', width: '6px', height: '6px', borderRadius: '50%', backgroundColor: '#10b981', animation: 'ping 1.5s infinite', opacity: 0.7 }} />
+                                </div>
+                                <span style={{ fontSize: '0.75rem', fontWeight: 700, color: '#475569' }}>CFO Online</span>
+                            </div>
+                        </div>
+                        <button 
+                            onClick={createNewChat}
+                            style={{ background: 'none', border: 'none', color: '#4f46e5', fontSize: '0.75rem', fontWeight: 700, cursor: 'pointer', padding: '2px 4px' }}
+                            onMouseEnter={e => e.currentTarget.style.textDecoration = 'underline'}
+                            onMouseLeave={e => e.currentTarget.style.textDecoration = 'none'}
+                        >
+                            Novo Chat
+                        </button>
+                    </div>
+
+                    {/* Conversation Feed */}
+                    <div style={{ flex: 1, overflowY: 'auto', padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1.5rem', backgroundColor: '#f8fafc' }}>
+                        {messages.map((msg) => {
+                            const isModel = msg.role === 'model';
+                            const visualPayload = isModel ? getVisualPayload(msg.content) : null;
+
+                            return (
+                                <div 
+                                    key={msg.id} 
+                                    style={{ 
+                                        display: 'flex', 
+                                        flexDirection: 'column', 
+                                        alignSelf: isModel ? 'flex-start' : 'flex-end', 
+                                        maxWidth: '85%',
+                                        width: isModel && visualPayload ? '100%' : 'auto'
+                                    }}
+                                >
+                                    {/* Text Bubble */}
+                                    <div
+                                        style={{
+                                            padding: '12px 16px',
+                                            borderRadius: isModel ? '16px 16px 16px 4px' : '16px 16px 4px 16px',
+                                            backgroundColor: isModel ? '#ffffff' : '#3b82f6',
+                                            color: isModel ? '#1e293b' : '#ffffff',
+                                            boxShadow: '0 2px 4px rgba(0,0,0,0.02)',
+                                            border: isModel ? '1px solid rgba(15, 23, 42, 0.06)' : 'none',
+                                            fontSize: '0.85rem',
+                                            lineHeight: 1.5
+                                        }}
+                                    >
+                                        {parseMarkdown(msg.content)}
+                                    </div>
+                                    
+                                    {/* Inline Chart rendering */}
+                                    {isModel && visualPayload && (
+                                        <>
+                                            {visualPayload.type === 'CASH_FLOW' && renderCashFlowChart(visualPayload)}
+                                            {visualPayload.type === 'DEVIATIONS' && renderDeviationsChart(visualPayload)}
+                                            {visualPayload.type === 'MONTHLY_BREAKDOWN' && renderMonthlyBreakdownChart(visualPayload)}
+                                            {visualPayload.type === 'OVERDUE_COMMITMENTS' && renderOverdueCommitments(visualPayload)}
+                                            {visualPayload.type === 'SHORT_TERM_PROJECTION' && renderShortTermProjection(visualPayload)}
+                                        </>
+                                    )}
+
+                                    {/* Action plan card rendering below the bubble */}
+                                    {isModel && msg.suggestedAction && (
+                                        <div
+                                            style={{
+                                                marginTop: '10px',
+                                                padding: '12px 14px',
+                                                borderRadius: '12px',
+                                                backgroundColor: '#eff6ff',
+                                                border: '1px dashed #3b82f6',
+                                                boxShadow: '0 2px 4px rgba(0,0,0,0.01)'
+                                            }}
+                                        >
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '6px' }}>
+                                                <span style={{ fontSize: '1rem' }}>💡</span>
+                                                <strong style={{ fontSize: '0.8rem', color: '#1d4ed8', fontWeight: 700 }}>Plano de Ação Sugerido</strong>
+                                            </div>
+                                            <p style={{ margin: '4px 0', fontSize: '0.75rem', color: '#475569', lineHeight: 1.4 }}>
+                                                <strong>Problema:</strong> {msg.suggestedAction.description}
+                                            </p>
+                                            <p style={{ margin: '4px 0 8px 0', fontSize: '0.75rem', color: '#475569', lineHeight: 1.4 }}>
+                                                <strong>Ação Corretiva:</strong> {msg.suggestedAction.actionText}
+                                            </p>
+                                            <button
+                                                onClick={() => handleCreateAction(msg.suggestedAction, msg.id)}
+                                                disabled={actionSavingId === msg.id || actionSavedIds.has(msg.id)}
+                                                style={{
+                                                    width: '100%',
+                                                    padding: '8px',
+                                                    borderRadius: '8px',
+                                                    backgroundColor: actionSavedIds.has(msg.id) ? '#10b981' : '#3b82f6',
+                                                    color: '#ffffff',
+                                                    border: 'none',
+                                                    fontSize: '0.75rem',
+                                                    fontWeight: 700,
+                                                    cursor: actionSavedIds.has(msg.id) ? 'default' : 'pointer',
+                                                    display: 'flex',
+                                                    alignItems: 'center',
+                                                    justifyContent: 'center',
+                                                    gap: '6px',
+                                                    transition: 'background-color 0.2s'
+                                                }}
+                                                onMouseEnter={e => {
+                                                    if (!actionSavedIds.has(msg.id)) e.currentTarget.style.backgroundColor = '#2563eb';
+                                                }}
+                                                onMouseLeave={e => {
+                                                    if (!actionSavedIds.has(msg.id)) e.currentTarget.style.backgroundColor = '#3b82f6';
+                                                }}
+                                            >
+                                                {actionSavingId === msg.id ? (
+                                                    <span>Registrando...</span>
+                                                ) : actionSavedIds.has(msg.id) ? (
+                                                    <>
+                                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                                                            <polyline points="20 6 9 17 4 12" />
+                                                        </svg>
+                                                        <span>Registrado no Painel</span>
+                                                    </>
+                                                ) : (
+                                                    <span>Aprovar e Salvar Metas</span>
+                                                )}
+                                            </button>
+                                        </div>
+                                    )}
+                                </div>
+                            );
+                        })}
+
+                        {/* Loading Typing Indicator */}
+                        {isLoading && (
+                            <div style={{ alignSelf: 'flex-start', padding: '12px 16px', borderRadius: '16px 16px 16px 4px', backgroundColor: '#ffffff', border: '1px solid rgba(15, 23, 42, 0.05)', display: 'flex', gap: '4px', alignItems: 'center' }}>
+                                <span style={{ width: '5px', height: '5px', borderRadius: '50%', backgroundColor: '#94a3b8', display: 'inline-block', animation: 'typing-pulse 1.2s infinite' }} />
+                                <span style={{ width: '5px', height: '5px', borderRadius: '50%', backgroundColor: '#94a3b8', display: 'inline-block', animation: 'typing-pulse 1.2s infinite 0.2s' }} />
+                                <span style={{ width: '5px', height: '5px', borderRadius: '50%', backgroundColor: '#94a3b8', display: 'inline-block', animation: 'typing-pulse 1.2s infinite 0.4s' }} />
+                            </div>
+                        )}
+                        <div ref={messagesEndRef} />
+                    </div>
+
+                    {/* Topics Suggestion chips at bottom of feed */}
+                    {messages.length <= 1 && !isLoading && (
+                        <div style={{ padding: '12px 16px', display: 'flex', flexDirection: 'column', gap: '6px', backgroundColor: '#f8fafc', borderTop: '1px solid rgba(15, 23, 42, 0.05)' }}>
+                            <span style={{ fontSize: '0.65rem', color: '#64748b', fontWeight: 700, letterSpacing: '0.04em' }}>TÓPICOS RÁPIDOS SUGERIDOS:</span>
+                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '6px' }}>
+                                {quickChips.map((chip, idx) => (
+                                    <button
+                                        key={idx}
+                                        onClick={() => sendMessage(chip.text)}
+                                        style={{
+                                            textAlign: 'left',
+                                            padding: '8px 10px',
+                                            borderRadius: '8px',
+                                            backgroundColor: '#ffffff',
+                                            border: '1px solid rgba(15, 23, 42, 0.05)',
+                                            fontSize: '0.75rem',
+                                            color: '#475569',
+                                            cursor: 'pointer',
+                                            boxShadow: '0 1px 2px rgba(0,0,0,0.01)',
+                                            transition: 'all 0.2s'
+                                        }}
+                                        onMouseEnter={(e) => {
+                                            e.currentTarget.style.backgroundColor = '#f1f5f9';
+                                            e.currentTarget.style.borderColor = 'rgba(15, 23, 42, 0.1)';
+                                        }}
+                                        onMouseLeave={(e) => {
+                                            e.currentTarget.style.backgroundColor = '#ffffff';
+                                            e.currentTarget.style.borderColor = 'rgba(15, 23, 42, 0.05)';
+                                        }}
+                                    >
+                                        {chip.label}
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Chat Footer Input */}
+                    <form
+                        onSubmit={(e) => {
+                            e.preventDefault();
+                            sendMessage(input);
                         }}
-                        onFocus={e => {
-                            e.currentTarget.style.borderColor = '#4f46e5';
-                            e.currentTarget.style.boxShadow = '0 0 0 3px rgba(79, 70, 229, 0.12)';
-                        }}
-                        onBlur={e => {
-                            e.currentTarget.style.borderColor = 'rgba(15, 23, 42, 0.1)';
-                            e.currentTarget.style.boxShadow = 'none';
-                        }}
-                    />
-                    <button
-                        type="submit"
-                        disabled={isLoading || !input.trim()}
-                        style={{
-                            width: '38px',
-                            height: '38px',
-                            borderRadius: '10px',
-                            backgroundColor: '#4f46e5',
-                            border: 'none',
-                            color: '#ffffff',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            cursor: 'pointer',
-                            opacity: isLoading || !input.trim() ? 0.5 : 1,
-                            transition: 'opacity 0.2s, background-color 0.2s',
-                            padding: 0
-                        }}
-                        onMouseEnter={e => {
-                            if (input.trim() && !isLoading) e.currentTarget.style.backgroundColor = '#4338ca';
-                        }}
-                        onMouseLeave={e => {
-                            if (input.trim() && !isLoading) e.currentTarget.style.backgroundColor = '#4f46e5';
-                        }}
+                        style={{ padding: '1rem', backgroundColor: '#ffffff', borderTop: '1px solid rgba(15, 23, 42, 0.05)', display: 'flex', gap: '8px', alignItems: 'center' }}
                     >
-                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                            <line x1="22" y1="2" x2="11" y2="13" />
-                            <polygon points="22 2 15 22 11 13 2 9 22 2" />
-                        </svg>
-                    </button>
-                </form>
+                        <input
+                            type="text"
+                            value={input}
+                            onChange={(e) => setInput(e.target.value)}
+                            disabled={isLoading}
+                            placeholder="Pergunte ao CFO (ex: 'Auditar desvios de orçamento de junho')..."
+                            style={{
+                                flex: 1,
+                                padding: '10px 14px',
+                                borderRadius: '10px',
+                                border: '1px solid rgba(15, 23, 42, 0.1)',
+                                fontSize: '0.85rem',
+                                outline: 'none',
+                                transition: 'all 0.2s',
+                                color: '#1e293b'
+                            }}
+                            onFocus={e => {
+                                e.currentTarget.style.borderColor = '#4f46e5';
+                                e.currentTarget.style.boxShadow = '0 0 0 3px rgba(79, 70, 229, 0.12)';
+                            }}
+                            onBlur={e => {
+                                e.currentTarget.style.borderColor = 'rgba(15, 23, 42, 0.1)';
+                                e.currentTarget.style.boxShadow = 'none';
+                            }}
+                        />
+                        <button
+                            type="submit"
+                            disabled={isLoading || !input.trim()}
+                            style={{
+                                width: '38px',
+                                height: '38px',
+                                borderRadius: '10px',
+                                backgroundColor: '#4f46e5',
+                                border: 'none',
+                                color: '#ffffff',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                cursor: 'pointer',
+                                opacity: isLoading || !input.trim() ? 0.5 : 1,
+                                transition: 'opacity 0.2s, background-color 0.2s',
+                                padding: 0
+                            }}
+                            onMouseEnter={e => {
+                                if (input.trim() && !isLoading) e.currentTarget.style.backgroundColor = '#4338ca';
+                            }}
+                            onMouseLeave={e => {
+                                if (input.trim() && !isLoading) e.currentTarget.style.backgroundColor = '#4f46e5';
+                            }}
+                        >
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                                <line x1="22" y1="2" x2="11" y2="13" />
+                                <polygon points="22 2 15 22 11 13 2 9 22 2" />
+                            </svg>
+                        </button>
+                    </form>
+                </div>
             </div>
 
             {/* CSS styles for animations */}
@@ -1231,6 +1553,17 @@ export default function CFOVirtualPage() {
                     border-color: rgba(79, 70, 229, 0.2) !important;
                     background-color: #ffffff !important;
                     box-shadow: 0 4px 10px rgba(0, 0, 0, 0.02);
+                }
+
+                .sidebar-chat-item:hover {
+                    background-color: rgba(15, 23, 42, 0.03) !important;
+                }
+                .sidebar-chat-item .sidebar-chat-actions {
+                    opacity: 0;
+                    transition: opacity 0.15s ease-in-out;
+                }
+                .sidebar-chat-item:hover .sidebar-chat-actions {
+                    opacity: 1;
                 }
             `}</style>
         </div>

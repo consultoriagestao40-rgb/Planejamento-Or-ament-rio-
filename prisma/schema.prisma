@@ -175,6 +175,7 @@ model User {
 
   tenantAccess     UserTenantAccess[]
   costCenterAccess UserCostCenterAccess[]
+  chatSessions     ChatSession[]
 }
 
 model UserTenantAccess {
@@ -299,4 +300,31 @@ model DetailedAnalysis {
   updatedAt       DateTime @updatedAt
 
   tenant          Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+}
+
+model ChatSession {
+  id        String        @id @default(uuid())
+  title     String
+  userId    String
+  tenantId  String        // Active tenant filter when created/active
+  createdAt DateTime      @default(now())
+  updatedAt DateTime      @updatedAt
+
+  user      User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  messages  ChatMessage[]
+
+  @@index([userId])
+}
+
+model ChatMessage {
+  id              String       @id @default(uuid())
+  sessionId       String
+  role            String       // "user" or "model"
+  content         String       @db.Text
+  suggestedAction Json?        // Optional suggested action data
+  createdAt       DateTime     @default(now())
+
+  session         ChatSession  @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@index([sessionId])
 }

@@ -124,14 +124,77 @@ export async function POST(request: Request) {
         }
 
         // Default: Chat interaction
-        const { messages } = body;
+        const { messages, sessionId } = body;
         if (!messages || !Array.isArray(messages)) {
             return NextResponse.json({ success: false, error: 'Mensagens ausentes ou inválidas' }, { status: 400 });
         }
 
-        const result = await askVirtualCFO(targetTenantId, messages);
+        let session;
+        if (sessionId) {
+            session = await prisma.chatSession.findUnique({
+                where: { id: sessionId }
+            });
+
+            if (!session) {
+                return NextResponse.json({ success: false, error: 'Sessão de chat não encontrada' }, { status: 404 });
+            }
+
+            if (session.userId !== sessionUser.userId) {
+                return NextResponse.json({ success: false, error: 'Acesso negado' }, { status: 403 });
+            }
+        } else {
+            // Criar uma nova sessão se sessionId não for fornecido
+            const firstUserMsg = messages.find(m => m.role === 'user')?.content || 'Nova conversa';
+            const title = firstUserMsg.length > 40 ? firstUserMsg.substring(0, 37) + '...' : firstUserMsg;
+
+            session = await prisma.chatSession.create({
+                data: {
+                    title,
+                    tenantId: targetTenantId,
+                    userId: sessionUser.userId as string
+                }
+            });
+        }
+
+        // Salvar a nova mensagem do usuário se ela ainda não estiver salva.
+        // Identificamos a última mensagem recebida.
+        const lastUserMsg = messages[messages.length - 1];
+        if (lastUserMsg && lastUserMsg.role === 'user') {
+            await prisma.chatMessage.create({
+                data: {
+                    sessionId: session.id,
+                    role: 'user',
+                    content: lastUserMsg.content
+                }
+            });
+        }
+
+        // Carregar todas as mensagens salvas nesta sessão para enviar ao Gemini
+        const dbMessages = await prisma.chatMessage.findMany({
+            where: { sessionId: session.id },
+            orderBy: { createdAt: 'asc' }
+        });
+
+        const formattedMessages = dbMessages.map(m => ({
+            role: m.role,
+            content: m.content
+        }));
+
+        const result = await askVirtualCFO(session.tenantId, formattedMessages);
+
+        // Salvar a resposta gerada pelo modelo no banco de dados
+        await prisma.chatMessage.create({
+            data: {
+                sessionId: session.id,
+                role: 'model',
+                content: result.text,
+                suggestedAction: result.suggestedAction ? (result.suggestedAction as any) : undefined
+            }
+        });
+
         return NextResponse.json({
             success: true,
+            sessionId: session.id,
             text: result.text,
             suggestedAction: result.suggestedAction
         });

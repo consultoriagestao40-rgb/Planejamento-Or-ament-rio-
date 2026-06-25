@@ -7997,7 +7997,9 @@ export default function BudgetGrid({
                                                                             whiteSpace: 'nowrap',
                                                                             textDecoration: isReclassified ? 'line-through' : 'none'
                                                                         }} title={tx.description}>
-                                                                            {tx.description}
+                                                                            {isTransfer 
+                                                                                ? (tx.description.startsWith('[Saída') ? '[Saída Transferida] Transferência Gerencial' : '[Entrada Transferida] Transferência Gerencial')
+                                                                                : tx.description}
                                                                         </div>
                                                                         <div style={{ display: 'flex', alignItems: 'center', gap: '5px', marginTop: '2px', color: '#64748b', fontSize: '0.72rem', fontWeight: 600 }}>
                                                                             <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ opacity: 0.7 }}>
@@ -8071,6 +8073,43 @@ export default function BudgetGrid({
                                                                                     {motivoInfo && (
                                                                                         <div style={{ color: '#475569', fontWeight: 600, fontSize: '0.68rem', paddingLeft: '18px' }}>
                                                                                             Motivo: <span style={{ fontStyle: 'italic', color: '#1e293b' }}>"{motivoInfo}"</span>
+                                                                                        </div>
+                                                                                    )}
+                                                                                </div>
+                                                                            );
+                                                                        })()}
+
+                                                                        {/* Mensagem Histórico: Transação de Transferência Gerencial */}
+                                                                        {isTransfer && (() => {
+                                                                            const desc = tx.description || '';
+                                                                            const deMatch = desc.match(/De:\s*([^|]+)/);
+                                                                            const paraMatch = desc.match(/para:\s*([^|]+)/);
+                                                                            const justificativaMatch = desc.match(/Justificativa:\s*(.+)$/);
+                                                                            const deInfo = deMatch ? deMatch[1].trim() : '';
+                                                                            const paraInfo = paraMatch ? paraMatch[1].trim() : '';
+                                                                            const justificativaInfo = justificativaMatch ? justificativaMatch[1].trim() : '';
+                                                                            return (
+                                                                                <div style={{ 
+                                                                                    fontSize: '0.7rem', 
+                                                                                    color: '#6366f1', 
+                                                                                    fontWeight: 700, 
+                                                                                    marginTop: '6px',
+                                                                                    display: 'flex',
+                                                                                    flexDirection: 'column',
+                                                                                    gap: '2px',
+                                                                                    backgroundColor: 'rgba(99, 102, 241, 0.04)',
+                                                                                    padding: '6px 10px',
+                                                                                    borderRadius: '8px',
+                                                                                    border: '1px dashed rgba(99, 102, 241, 0.25)',
+                                                                                    width: 'fit-content'
+                                                                                }}>
+                                                                                    <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                                                                        <span>🔄</span>
+                                                                                        <span>Remanejamento: De <strong style={{ color: '#312e81' }}>{deInfo || 'origem'}</strong> para <strong style={{ color: '#312e81' }}>{paraInfo || 'destino'}</strong></span>
+                                                                                    </div>
+                                                                                    {justificativaInfo && (
+                                                                                        <div style={{ color: '#475569', fontWeight: 600, fontSize: '0.68rem', paddingLeft: '18px' }}>
+                                                                                            Justificativa: <span style={{ fontStyle: 'italic', color: '#1e293b' }}>"{justificativaInfo}"</span>
                                                                                         </div>
                                                                                     )}
                                                                                 </div>

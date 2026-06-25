@@ -4090,9 +4090,11 @@ export default function BudgetGrid({
                     return Array.from(allItemNames).sort().map(itemName => (
                         <tr key={`${node.id}-${itemName}`} style={{ background: 'rgba(241, 245, 249, 0.4)' }}>
                             <td className="sticky-col" style={{ paddingLeft: `${2.5 + (node.level * 1.75)}rem`, fontSize: '0.9rem', color: '#334155', borderBottom: '1px solid #f1f5f9', width: '400px', minWidth: '400px', maxWidth: '400px' }}>
-                                <div style={{ display: 'flex', alignItems: 'center' }}>
-                                    <span style={{ marginRight: '0.5rem', color: '#cbd5e1' }}>└</span>
-                                    {itemName}
+                                <div style={{ display: 'flex', alignItems: 'center', width: '100%', overflow: 'hidden' }}>
+                                    <span style={{ marginRight: '0.5rem', color: '#cbd5e1', flexShrink: 0 }}>└</span>
+                                    <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', fontSize: '0.85rem' }} title={itemName}>
+                                        {itemName}
+                                    </span>
                                 </div>
                             </td>
                             {months.map((_, i) => {

@@ -99,7 +99,7 @@ export async function GET(request: Request) {
         // Deduplicate entries: if a tenant is synced, only return entries with 'sync-' prefix
         const entriesSyncFiltered = entriesRaw.filter(e => {
             if (syncedTenantIds.has(e.tenantId)) {
-                return e.externalId && e.externalId.startsWith('sync-');
+                return e.externalId && (e.externalId.startsWith('sync-') || e.externalId.startsWith('adj-'));
             }
             return true;
         });
@@ -122,6 +122,7 @@ export async function GET(request: Request) {
 
         const transactions = entries.map(e => ({
             id: e.id,
+            externalId: e.externalId,
             date: e.date || `${year}-${String(month + 1).padStart(2, '0')}-01`,
             description: e.description || `Lançamento: ${e.category.name}`,
             value: e.amount,

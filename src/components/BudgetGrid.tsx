@@ -249,6 +249,11 @@ export default function BudgetGrid({
     const [transactionSelectedCompany, setTransactionSelectedCompany] = useState<string | null>(null);
     const [transactionSelectedCostCenter, setTransactionSelectedCostCenter] = useState<string | null>(null);
 
+    // --- Managerial Reclassification State ---
+    const [reclassifyingTx, setReclassifyingTx] = useState<any | null>(null);
+    const [targetReclassCategoryId, setTargetReclassCategoryId] = useState<string>('');
+    const [isReclassifying, setIsReclassifying] = useState<boolean>(false);
+
     // --- Budget Modal State ---
     const [budgetModal, setBudgetModal] = useState<{ categoryId: string, fullNodeId: string, categoryName: string, startMonth: number, type: 'budget' | 'radar' } | null>(null);
     const [modalValues, setModalValues] = useState<string[]>(new Array(12).fill(''));
@@ -484,6 +489,84 @@ export default function BudgetGrid({
         setTransactionModalStep('company');
         setTransactionSelectedCompany(null);
         setTransactionSelectedCostCenter(null);
+        setReclassifyingTx(null);
+        setTargetReclassCategoryId('');
+        setIsReclassifying(false);
+    };
+
+    const handleReclassifyConfirm = async (tx: any) => {
+        if (!targetReclassCategoryId) return;
+        setIsReclassifying(true);
+        try {
+            const tenantId = tx.tenantId || (selectedCompany.includes('DEFAULT') ? companies[0]?.id : selectedCompany[0]);
+            const res = await fetch('/api/realized/adjustments', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    sourceTransactionId: tx.id,
+                    tenantId,
+                    sourceCategoryId: selectedCell?.categoryId,
+                    targetCategoryId: targetReclassCategoryId,
+                    costCenterId: tx.costCenterId || 'Geral',
+                    month: selectedCell?.month !== undefined ? selectedCell.month + 1 : undefined,
+                    year: selectedYear,
+                    amount: Math.abs(parseFloat(tx.value) || 0),
+                    description: tx.description || '',
+                    date: tx.date || tx.data,
+                    viewMode
+                })
+            });
+            const data = await res.json();
+            if (data.success) {
+                setReclassifyingTx(null);
+                setTargetReclassCategoryId('');
+                setInternalRefresh(prev => prev + 1);
+                if (selectedCell) {
+                    await handleCellClick(selectedCell.categoryId, selectedCell.month, selectedCell.categoryName);
+                }
+            } else {
+                alert("Erro ao reclassificar transação: " + (data.error || "Erro desconhecido"));
+            }
+        } catch (err: any) {
+            console.error("Reclassify error:", err);
+            alert("Erro ao reclassificar transação.");
+        } finally {
+            setIsReclassifying(false);
+        }
+    };
+
+    const handleUndoReclassify = async (tx: any) => {
+        setIsReclassifying(true);
+        try {
+            const tenantId = tx.tenantId || (selectedCompany.includes('DEFAULT') ? companies[0]?.id : selectedCompany[0]);
+            
+            // Extract original source ID if it's an adjustment entry itself
+            let sourceId = tx.id;
+            if (tx.externalId?.startsWith('adj-neg-') || tx.externalId?.startsWith('adj-pos-')) {
+                const parts = tx.externalId.split('-');
+                if (parts.length >= 3) {
+                    sourceId = parts.slice(2, parts.length - 1).join('-');
+                }
+            }
+
+            const res = await fetch(`/api/realized/adjustments?sourceTransactionId=${sourceId}&viewMode=${viewMode}&tenantId=${tenantId}`, {
+                method: 'DELETE'
+            });
+            const data = await res.json();
+            if (data.success) {
+                setInternalRefresh(prev => prev + 1);
+                if (selectedCell) {
+                    await handleCellClick(selectedCell.categoryId, selectedCell.month, selectedCell.categoryName);
+                }
+            } else {
+                alert("Erro ao desfazer reclassificação: " + (data.error || "Erro desconhecido"));
+            }
+        } catch (err: any) {
+            console.error("Undo reclassify error:", err);
+            alert("Erro ao desfazer reclassificação.");
+        } finally {
+            setIsReclassifying(false);
+        }
     };
 
     // --- Aggregation logic for drill-down ---
@@ -517,10 +600,13 @@ export default function BudgetGrid({
 
     const finalTransactions = useMemo(() => {
         if (!transactions || transactions.length === 0 || !transactionSelectedCompany || !transactionSelectedCostCenter) return [];
-        return transactions.filter((tx: any) =>
-            (tx.tenantName || 'Geral') === transactionSelectedCompany &&
-            ((tx.costCenters && tx.costCenters.length > 0) ? tx.costCenters[0].nome : 'Geral') === transactionSelectedCostCenter
-        );
+        return transactions.filter((tx: any) => {
+            // Ocultar estornos negativos para não duplicar visualmente a transação no modal
+            if (tx.externalId?.startsWith('adj-neg-')) return false;
+
+            return (tx.tenantName || 'Geral') === transactionSelectedCompany &&
+                ((tx.costCenters && tx.costCenters.length > 0) ? tx.costCenters[0].nome : 'Geral') === transactionSelectedCostCenter;
+        });
     }, [transactions, transactionSelectedCompany, transactionSelectedCostCenter]);
 
     const [categories, setCategories] = useState<any[]>([]);
@@ -2150,7 +2236,7 @@ export default function BudgetGrid({
             }
         };
         loadSetup();
-    }, [refreshKey, selectedYear]);
+    }, [refreshKey, selectedYear, internalRefresh]);
 
     // 2. Data Effect
     useEffect(() => {
@@ -2213,7 +2299,7 @@ export default function BudgetGrid({
         };
 
         loadValues();
-    }, [selectedCostCenter, selectedCompany, selectedYear, refreshKey, viewMode]);
+    }, [selectedCostCenter, selectedCompany, selectedYear, refreshKey, viewMode, internalRefresh]);
 
     useEffect(() => {
         if (activeTab !== 'kpi') return;
@@ -7538,59 +7624,286 @@ export default function BudgetGrid({
 
                                         {transactionModalStep === 'transactions' && (
                                             <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                                                {finalTransactions.map((tx: any) => (
-                                                    <div 
-                                                        key={tx.id}
-                                                        style={{ 
-                                                            display: 'flex', 
-                                                            justifyContent: 'space-between', 
-                                                            alignItems: 'center', 
-                                                            padding: '0.9rem 1.1rem', 
-                                                            borderRadius: '16px', 
-                                                            border: '1px solid rgba(15, 23, 42, 0.03)', 
-                                                            backgroundColor: '#ffffff',
-                                                            boxShadow: '0 2px 8px -2px rgba(15, 23, 42, 0.02)'
-                                                        }}
-                                                    >
-                                                        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', minWidth: 0, flex: 1 }}>
-                                                            {/* Data Badge premium */}
-                                                            <div style={{ 
-                                                                flexShrink: 0,
-                                                                backgroundColor: '#f1f5f9', 
-                                                                color: '#334155', 
-                                                                fontSize: '0.75rem', 
-                                                                fontWeight: 800, 
-                                                                padding: '6px 10px', 
-                                                                borderRadius: '10px',
-                                                                textAlign: 'center',
-                                                                minWidth: '85px',
-                                                                border: '1px solid rgba(15, 23, 42, 0.02)',
-                                                                fontFamily: 'Inter, sans-serif'
-                                                            }}>
-                                                                {tx.date ? new Date(tx.date).toLocaleDateString('pt-BR', { timeZone: 'UTC' }) : '-'}
+                                                {finalTransactions.map((tx: any) => {
+                                                    const isReclassified = !tx.externalId?.startsWith('adj-') && transactions.some((t: any) => t.externalId === `adj-neg-${tx.id}-${viewMode}`);
+                                                    const isAdjustmentPos = tx.externalId?.startsWith('adj-pos-');
+                                                    const isCurrentReclassifying = reclassifyingTx?.id === tx.id;
+
+                                                    return (
+                                                        <div key={tx.id} style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                                                            {/* Transação Card */}
+                                                            <div 
+                                                                style={{ 
+                                                                    display: 'flex', 
+                                                                    justifyContent: 'space-between', 
+                                                                    alignItems: 'center', 
+                                                                    padding: '0.9rem 1.1rem', 
+                                                                    borderRadius: '16px', 
+                                                                    border: '1px solid rgba(15, 23, 42, 0.03)', 
+                                                                    backgroundColor: '#ffffff',
+                                                                    boxShadow: '0 2px 8px -2px rgba(15, 23, 42, 0.02)',
+                                                                    opacity: isReclassified ? 0.75 : 1
+                                                                }}
+                                                            >
+                                                                <div style={{ display: 'flex', alignItems: 'center', gap: '12px', minWidth: 0, flex: 1 }}>
+                                                                    {/* Data Badge premium */}
+                                                                    <div style={{ 
+                                                                        flexShrink: 0,
+                                                                        backgroundColor: '#f1f5f9', 
+                                                                        color: '#334155', 
+                                                                        fontSize: '0.75rem', 
+                                                                        fontWeight: 800, 
+                                                                        padding: '6px 10px', 
+                                                                        borderRadius: '10px',
+                                                                        textAlign: 'center',
+                                                                        minWidth: '85px',
+                                                                        border: '1px solid rgba(15, 23, 42, 0.02)',
+                                                                        fontFamily: 'Inter, sans-serif'
+                                                                    }}>
+                                                                        {tx.date ? new Date(tx.date).toLocaleDateString('pt-BR', { timeZone: 'UTC' }) : '-'}
+                                                                    </div>
+
+                                                                    {/* Descrição e Cliente */}
+                                                                    <div style={{ minWidth: 0 }}>
+                                                                        <div style={{ 
+                                                                            fontWeight: 700, 
+                                                                            color: '#0f172a', 
+                                                                            fontSize: '0.85rem', 
+                                                                            textOverflow: 'ellipsis', 
+                                                                            overflow: 'hidden', 
+                                                                            whiteSpace: 'nowrap',
+                                                                            textDecoration: isReclassified ? 'line-through' : 'none'
+                                                                        }} title={tx.description}>
+                                                                            {tx.description}
+                                                                        </div>
+                                                                        <div style={{ display: 'flex', alignItems: 'center', gap: '5px', marginTop: '2px', color: '#64748b', fontSize: '0.72rem', fontWeight: 600 }}>
+                                                                            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ opacity: 0.7 }}>
+                                                                                <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+                                                                                <circle cx="12" cy="7" r="4"></circle>
+                                                                            </svg>
+                                                                            <span>{tx.customer || '-'}</span>
+                                                                        </div>
+                                                                    </div>
+                                                                </div>
+
+                                                                {/* Valor e Ações Gerenciais */}
+                                                                <div style={{ display: 'flex', alignItems: 'center', gap: '16px', paddingLeft: '1rem', flexShrink: 0 }}>
+                                                                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '4px' }}>
+                                                                        <div style={{ 
+                                                                            fontWeight: 800, 
+                                                                            color: isReclassified ? '#94a3b8' : '#0f172a', 
+                                                                            fontSize: '0.9rem', 
+                                                                            fontFamily: 'Inter, sans-serif',
+                                                                            textDecoration: isReclassified ? 'line-through' : 'none'
+                                                                        }}>
+                                                                            {parseFloat(tx.value).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                                                                        </div>
+                                                                        {isReclassified && (
+                                                                            <span style={{
+                                                                                fontSize: '0.65rem',
+                                                                                fontWeight: 800,
+                                                                                color: '#ef4444',
+                                                                                backgroundColor: '#fef2f2',
+                                                                                padding: '2px 6px',
+                                                                                borderRadius: '6px',
+                                                                                border: '1px solid rgba(239, 68, 68, 0.1)',
+                                                                                textTransform: 'uppercase',
+                                                                                letterSpacing: '0.05em'
+                                                                            }}>
+                                                                                Estornado
+                                                                            </span>
+                                                                        )}
+                                                                        {isAdjustmentPos && (
+                                                                            <span style={{
+                                                                                fontSize: '0.65rem',
+                                                                                fontWeight: 800,
+                                                                                color: '#3b82f6',
+                                                                                backgroundColor: '#eff6ff',
+                                                                                padding: '2px 6px',
+                                                                                borderRadius: '6px',
+                                                                                border: '1px solid rgba(59, 130, 246, 0.1)',
+                                                                                textTransform: 'uppercase',
+                                                                                letterSpacing: '0.05em'
+                                                                            }}>
+                                                                                Ajuste
+                                                                            </span>
+                                                                        )}
+                                                                    </div>
+
+                                                                    {/* Botões de Ação */}
+                                                                    <div style={{ display: 'flex', gap: '6px' }}>
+                                                                        {!tx.externalId?.startsWith('adj-') && !isReclassified && (
+                                                                            <button
+                                                                                onClick={() => {
+                                                                                    setReclassifyingTx(tx);
+                                                                                    setTargetReclassCategoryId('');
+                                                                                }}
+                                                                                disabled={isReclassifying}
+                                                                                style={{
+                                                                                    padding: '6px 12px',
+                                                                                    borderRadius: '8px',
+                                                                                    border: '1px solid rgba(15, 23, 42, 0.08)',
+                                                                                    backgroundColor: '#f8fafc',
+                                                                                    color: '#334155',
+                                                                                    fontSize: '0.75rem',
+                                                                                    fontWeight: 700,
+                                                                                    cursor: 'pointer',
+                                                                                    transition: 'all 0.2s',
+                                                                                    outline: 'none'
+                                                                                }}
+                                                                                onMouseOver={(e) => {
+                                                                                    e.currentTarget.style.backgroundColor = '#f1f5f9';
+                                                                                    e.currentTarget.style.borderColor = 'rgba(15, 23, 42, 0.15)';
+                                                                                }}
+                                                                                onMouseOut={(e) => {
+                                                                                    e.currentTarget.style.backgroundColor = '#f8fafc';
+                                                                                    e.currentTarget.style.borderColor = 'rgba(15, 23, 42, 0.08)';
+                                                                                }}
+                                                                            >
+                                                                                Reclassificar
+                                                                            </button>
+                                                                        )}
+
+                                                                        {(isReclassified || isAdjustmentPos) && (
+                                                                            <button
+                                                                                onClick={() => handleUndoReclassify(tx)}
+                                                                                disabled={isReclassifying}
+                                                                                style={{
+                                                                                    padding: '6px 12px',
+                                                                                    borderRadius: '8px',
+                                                                                    border: '1px solid rgba(239, 68, 68, 0.15)',
+                                                                                    backgroundColor: '#fef2f2',
+                                                                                    color: '#ef4444',
+                                                                                    fontSize: '0.75rem',
+                                                                                    fontWeight: 700,
+                                                                                    cursor: 'pointer',
+                                                                                    transition: 'all 0.2s',
+                                                                                    outline: 'none'
+                                                                                }}
+                                                                                onMouseOver={(e) => {
+                                                                                    e.currentTarget.style.backgroundColor = '#fee2e2';
+                                                                                }}
+                                                                                onMouseOut={(e) => {
+                                                                                    e.currentTarget.style.backgroundColor = '#fef2f2';
+                                                                                }}
+                                                                            >
+                                                                                Desfazer
+                                                                            </button>
+                                                                        )}
+                                                                    </div>
+                                                                </div>
                                                             </div>
 
-                                                            {/* Descrição e Cliente */}
-                                                            <div style={{ minWidth: 0 }}>
-                                                                <div style={{ fontWeight: 700, color: '#0f172a', fontSize: '0.85rem', textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap' }} title={tx.description}>
-                                                                    {tx.description}
-                                                                </div>
-                                                                <div style={{ display: 'flex', alignItems: 'center', gap: '5px', marginTop: '2px', color: '#64748b', fontSize: '0.72rem', fontWeight: 600 }}>
-                                                                    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ opacity: 0.7 }}>
-                                                                        <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
-                                                                        <circle cx="12" cy="7" r="4"></circle>
-                                                                    </svg>
-                                                                    <span>{tx.customer || '-'}</span>
-                                                                </div>
-                                                            </div>
-                                                        </div>
+                                                            {/* Painel Inline de Reclassificação */}
+                                                            {isCurrentReclassifying && (
+                                                                <div 
+                                                                    style={{
+                                                                        display: 'flex',
+                                                                        flexDirection: 'column',
+                                                                        gap: '10px',
+                                                                        padding: '1rem',
+                                                                        borderRadius: '16px',
+                                                                        backgroundColor: '#f8fafc',
+                                                                        border: '1px dashed rgba(79, 70, 229, 0.3)',
+                                                                        animation: 'modalFadeIn 0.2s ease-out'
+                                                                    }}
+                                                                >
+                                                                    <div style={{ fontSize: '0.75rem', fontWeight: 700, color: '#475569' }}>
+                                                                        Selecione a categoria gerencial de destino:
+                                                                    </div>
+                                                                    <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center' }}>
+                                                                        <select
+                                                                            value={targetReclassCategoryId}
+                                                                            onChange={(e) => setTargetReclassCategoryId(e.target.value)}
+                                                                            style={{
+                                                                                flex: 1,
+                                                                                minWidth: '200px',
+                                                                                padding: '8px 12px',
+                                                                                borderRadius: '10px',
+                                                                                border: '1px solid rgba(15, 23, 42, 0.1)',
+                                                                                backgroundColor: '#ffffff',
+                                                                                fontSize: '0.8rem',
+                                                                                fontWeight: 600,
+                                                                                color: '#334155',
+                                                                                outline: 'none',
+                                                                                boxShadow: '0 1px 2px rgba(0, 0, 0, 0.05)'
+                                                                            }}
+                                                                        >
+                                                                            <option value="">-- Escolha uma Categoria --</option>
+                                                                            {categories
+                                                                                .filter((cat: any) => cat.id !== selectedCell?.categoryId)
+                                                                                .sort((a: any, b: any) => (a.name || '').localeCompare(b.name || ''))
+                                                                                .map((cat: any) => (
+                                                                                    <option key={cat.id} value={cat.id}>
+                                                                                        {cat.name}
+                                                                                    </option>
+                                                                                ))
+                                                                            }
+                                                                        </select>
 
-                                                        {/* Valor */}
-                                                        <div style={{ fontWeight: 800, color: '#0f172a', fontSize: '0.9rem', paddingLeft: '1rem', flexShrink: 0, fontFamily: 'Inter, sans-serif' }}>
-                                                            {parseFloat(tx.value).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                                                                        <div style={{ display: 'flex', gap: '6px' }}>
+                                                                            <button
+                                                                                onClick={() => handleReclassifyConfirm(tx)}
+                                                                                disabled={!targetReclassCategoryId || isReclassifying}
+                                                                                style={{
+                                                                                    padding: '8px 16px',
+                                                                                    borderRadius: '10px',
+                                                                                    backgroundColor: '#4f46e5',
+                                                                                    color: '#ffffff',
+                                                                                    border: 'none',
+                                                                                    fontSize: '0.78rem',
+                                                                                    fontWeight: 700,
+                                                                                    cursor: 'pointer',
+                                                                                    transition: 'all 0.2s',
+                                                                                    boxShadow: '0 4px 12px -3px rgba(79, 70, 229, 0.3)'
+                                                                                }}
+                                                                                onMouseOver={(e) => {
+                                                                                    if (!e.currentTarget.disabled) {
+                                                                                        e.currentTarget.style.backgroundColor = '#4338ca';
+                                                                                    }
+                                                                                }}
+                                                                                onMouseOut={(e) => {
+                                                                                    if (!e.currentTarget.disabled) {
+                                                                                        e.currentTarget.style.backgroundColor = '#4f46e5';
+                                                                                    }
+                                                                                }}
+                                                                            >
+                                                                                {isReclassifying ? 'Processando...' : 'Confirmar'}
+                                                                            </button>
+
+                                                                            <button
+                                                                                onClick={() => {
+                                                                                    setReclassifyingTx(null);
+                                                                                    setTargetReclassCategoryId('');
+                                                                                }}
+                                                                                disabled={isReclassifying}
+                                                                                style={{
+                                                                                    padding: '8px 14px',
+                                                                                    borderRadius: '10px',
+                                                                                    backgroundColor: '#ffffff',
+                                                                                    color: '#64748b',
+                                                                                    border: '1px solid rgba(15, 23, 42, 0.08)',
+                                                                                    fontSize: '0.78rem',
+                                                                                    fontWeight: 700,
+                                                                                    cursor: 'pointer',
+                                                                                    transition: 'all 0.2s'
+                                                                                }}
+                                                                                onMouseOver={(e) => {
+                                                                                    e.currentTarget.style.backgroundColor = '#f1f5f9';
+                                                                                }}
+                                                                                onMouseOut={(e) => {
+                                                                                    e.currentTarget.style.backgroundColor = '#ffffff';
+                                                                                }}
+                                                                            >
+                                                                                Cancelar
+                                                                            </button>
+                                                                        </div>
+                                                                    </div>
+                                                                </div>
+                                                            )}
                                                         </div>
-                                                    </div>
-                                                ))}
+                                                    );
+                                                })}
                                             </div>
                                         )}
                                     </>
@@ -7619,7 +7932,10 @@ export default function BudgetGrid({
                                     <span style={{ fontSize: '1.15rem', fontWeight: 900, color: '#ffffff', fontFamily: 'Inter, monospace', letterSpacing: '-0.02em' }}>
                                         {transactionModalStep === 'company' && groupedByCompany.reduce((acc, g) => acc + g.total, 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
                                         {transactionModalStep === 'costcenter' && groupedByCostCenter.reduce((acc, g) => acc + g.total, 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
-                                        {transactionModalStep === 'transactions' && finalTransactions.reduce((acc, tx) => acc + (parseFloat(tx.value) || 0), 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                                        {transactionModalStep === 'transactions' && finalTransactions.reduce((acc, tx) => {
+                                            const isReclassified = !tx.externalId?.startsWith('adj-') && transactions.some((t: any) => t.externalId === `adj-neg-${tx.id}-${viewMode}`);
+                                            return acc + (isReclassified ? 0 : (parseFloat(tx.value) || 0));
+                                        }, 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
                                     </span>
                                 </div>
                             )}

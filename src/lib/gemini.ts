@@ -383,7 +383,7 @@ async function executeTool(tenantId: string, name: string, args: any): Promise<a
             const realizedDeduped = realized.filter(e => {
                 const key = `${getPrimaryId(e.tenantId)}|${e.year}|${e.month}`;
                 if (syncedMonths.has(key)) {
-                    return e.externalId && e.externalId.startsWith('sync-');
+                    return e.externalId && (e.externalId.startsWith('sync-') || e.externalId.startsWith('adj-'));
                 }
                 return true;
             });
@@ -481,7 +481,7 @@ async function executeTool(tenantId: string, name: string, args: any): Promise<a
             const realizedDeduped = realized.filter(e => {
                 const key = `${getPrimaryId(e.tenantId)}|${e.year}|${e.month}`;
                 if (syncedMonths.has(key)) {
-                    return e.externalId && e.externalId.startsWith('sync-');
+                    return e.externalId && (e.externalId.startsWith('sync-') || e.externalId.startsWith('adj-'));
                 }
                 return true;
             });
@@ -583,7 +583,7 @@ async function executeTool(tenantId: string, name: string, args: any): Promise<a
             const transactionsDeduped = transactions.filter(e => {
                 const key = `${getPrimaryId(e.tenantId)}|${e.year}|${e.month}`;
                 if (syncedMonths.has(key)) {
-                    return e.externalId && e.externalId.startsWith('sync-');
+                    return e.externalId && (e.externalId.startsWith('sync-') || e.externalId.startsWith('adj-'));
                 }
                 return true;
             });
@@ -629,7 +629,7 @@ async function executeTool(tenantId: string, name: string, args: any): Promise<a
             const realizedDeduped = realized.filter(e => {
                 const key = `${getPrimaryId(e.tenantId)}|${e.year}|${e.month}`;
                 if (syncedMonths.has(key)) {
-                    return e.externalId && e.externalId.startsWith('sync-');
+                    return e.externalId && (e.externalId.startsWith('sync-') || e.externalId.startsWith('adj-'));
                 }
                 return true;
             });

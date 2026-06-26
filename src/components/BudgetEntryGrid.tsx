@@ -494,7 +494,7 @@ export default function BudgetEntryGrid({ costCenterId, year, taxRate = 0 }: Bud
         const sumRoots = (roots: CategoryNode[], monthIdx: number, type: 'budget' | 'realized' | 'radar') =>
             roots.reduce((acc, r) => acc + (nodeTotals.get(r.id)?.[type][monthIdx] || 0), 0);
 
-        const buckets = { rev: [] as CategoryNode[], taxes: [] as CategoryNode[], costs: [] as CategoryNode[], opExp: [] as CategoryNode[], adminExp: [] as CategoryNode[], fin: [] as CategoryNode[] };
+        const buckets = { rev: [] as CategoryNode[], taxes: [] as CategoryNode[], costs: [] as CategoryNode[], opExp: [] as CategoryNode[], adminExp: [] as CategoryNode[], fin: [] as CategoryNode[], invest: [] as CategoryNode[] };
         treeRoots.forEach(root => {
             const code = root.code || '';
             const nameNorm = (root.name || '').toUpperCase();
@@ -510,6 +510,7 @@ export default function BudgetEntryGrid({ costCenterId, year, taxRate = 0 }: Bud
             else if (code.startsWith('4') || code.startsWith('04')) buckets.opExp.push(root);
             else if (code.startsWith('5') || code.startsWith('05')) buckets.adminExp.push(root);
             else if (code.startsWith('6') || code.startsWith('06')) buckets.fin.push(root);
+            else if (code.startsWith('7') || code.startsWith('07')) buckets.invest.push(root);
             else buckets.adminExp.push(root);
         });
 
@@ -527,7 +528,8 @@ export default function BudgetEntryGrid({ costCenterId, year, taxRate = 0 }: Bud
                 const ebitda = contribMarg - adminExp;
                 const fin = sumRoots(buckets.fin, monthIdx, type);
                 const netProfit = ebitda - fin;
-                return { rev, taxes, recLiq, costs, grossMarg, opExp, contribMarg, adminExp, ebitda, fin, netProfit };
+                const invest = sumRoots(buckets.invest, monthIdx, type);
+                return { rev, taxes, recLiq, costs, grossMarg, opExp, contribMarg, adminExp, ebitda, fin, netProfit, invest };
             }
         };
     }, [treeRoots, nodeTotals]);
@@ -1140,7 +1142,7 @@ export default function BudgetEntryGrid({ costCenterId, year, taxRate = 0 }: Bud
                         </button>
                     )}
                     <button
-                        onClick={() => { setExpandedGroups(new Set(['rev', 'taxes', 'costs', 'opExp', 'adminExp', 'fin'])); setExpandedRows(new Set()); }}
+                        onClick={() => { setExpandedGroups(new Set(['rev', 'taxes', 'costs', 'opExp', 'adminExp', 'fin', 'invest'])); setExpandedRows(new Set()); }}
                         className="btn btn-secondary"
                         style={{ padding: '0.5rem 1rem', fontSize: '0.8rem' }}
                     >
@@ -1295,6 +1297,10 @@ export default function BudgetEntryGrid({ costCenterId, year, taxRate = 0 }: Bud
                         {expandedGroups.has('fin') && (dreStructure.buckets.fin || []).map(r => renderNode(r))}
 
                         {renderSummaryRow('(=) LUCRO LÍQUIDO', dreMonthlyData.map(d => d.netProfit), true, 'var(--gradient-brand)', 'white')}
+
+                        {/* 07. INVESTIMENTOS */}
+                        {renderSummaryRow('07. Investimentos', dreMonthlyData.map(d => d.invest), true, 'var(--bg-surface)', 'var(--text-secondary)', 'invest')}
+                        {expandedGroups.has('invest') && (dreStructure.buckets.invest || []).map(r => renderNode(r))}
                     </tbody>
                 </table>
             </div>

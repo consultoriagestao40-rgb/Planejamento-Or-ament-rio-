@@ -2482,7 +2482,7 @@ export default function BudgetGrid({
         let defaultCatId = '';
         const tenantCats = categories.filter((c: any) => c.tenantId === defaultTenant);
         
-        const dreKeys = ['vRev', 'vTaxes', 'vRecLiq', 'vCosts', 'vGrossMarg', 'vOpExp', 'vContribMarg', 'vAdminExp', 'vEbitda', 'vFin', 'vNetProfit'];
+        const dreKeys = ['vRev', 'vTaxes', 'vRecLiq', 'vCosts', 'vGrossMarg', 'vOpExp', 'vContribMarg', 'vAdminExp', 'vEbitda', 'vFin', 'vNetProfit', 'vInvest'];
         if (dreKeys.includes(indicatorType)) {
             defaultCatId = indicatorType;
         } else if (indicatorType === 'receita') {
@@ -3000,6 +3000,7 @@ export default function BudgetGrid({
             opExp: [] as CategoryNode[],
             adminExp: [] as CategoryNode[],
             fin: [] as CategoryNode[],
+            invest: [] as CategoryNode[],
             other: [] as CategoryNode[]
         };
 
@@ -3009,8 +3010,9 @@ export default function BudgetGrid({
             else if (code.startsWith('02') || code.startsWith('2')) buckets.taxes.push(root);
             else if (code.startsWith('3') || code.startsWith('03')) buckets.costs.push(root);
             else if (code.startsWith('4') || code.startsWith('04')) buckets.opExp.push(root);
-            else if (code.startsWith('5') || code.startsWith('05') || code.startsWith('7') || code.startsWith('07') || code.startsWith('8') || code.startsWith('08')) buckets.adminExp.push(root);
+            else if (code.startsWith('5') || code.startsWith('05') || code.startsWith('8') || code.startsWith('08')) buckets.adminExp.push(root);
             else if (code.startsWith('6') || code.startsWith('06') || code.startsWith('9') || code.startsWith('09') || code.startsWith('10')) buckets.fin.push(root);
+            else if (code.startsWith('7') || code.startsWith('07')) buckets.invest.push(root);
             else buckets.other.push(root);
         });
 
@@ -3028,8 +3030,9 @@ export default function BudgetGrid({
                 const vEbitda = { b: vContribMarg.b - vAdminExp.b, r: vContribMarg.r - vAdminExp.r, rd: vContribMarg.rd - vAdminExp.rd };
                 const vFin = { b: sumRoots(buckets.fin, monthIdx, 'budget'), r: sumRoots(buckets.fin, monthIdx, 'realized'), rd: sumRoots(buckets.fin, monthIdx, 'radar') };
                 const vNetProfit = { b: vEbitda.b - vFin.b, r: vEbitda.r - vFin.r, rd: vEbitda.rd - vFin.rd };
+                const vInvest = { b: sumRoots(buckets.invest, monthIdx, 'budget'), r: sumRoots(buckets.invest, monthIdx, 'realized'), rd: sumRoots(buckets.invest, monthIdx, 'radar') };
 
-                return { vRev, vTaxes, vRecLiq, vCosts, vGrossMarg, vOpExp, vContribMarg, vAdminExp, vEbitda, vFin, vNetProfit };
+                return { vRev, vTaxes, vRecLiq, vCosts, vGrossMarg, vOpExp, vContribMarg, vAdminExp, vEbitda, vFin, vNetProfit, vInvest };
             }
         };
     }, [treeRoots, nodeTotals]);
@@ -3561,6 +3564,7 @@ export default function BudgetGrid({
         let accEbitdaB = 0, accEbitdaR = 0, accEbitdaRd = 0;
         let accFinB = 0, accFinR = 0, accFinRd = 0;
         let accNetProfitB = 0, accNetProfitR = 0, accNetProfitRd = 0;
+        let accInvestB = 0, accInvestR = 0, accInvestRd = 0;
 
         return precomputedDreTotals.map((m, idx) => {
             accRevB += m.vRev.b;
@@ -3607,6 +3611,10 @@ export default function BudgetGrid({
             accNetProfitR += m.vNetProfit.r;
             accNetProfitRd += m.vNetProfit.rd;
 
+            accInvestB += m.vInvest.b;
+            accInvestR += m.vInvest.r;
+            accInvestRd += m.vInvest.rd;
+
             return {
                 vRev: { b: accRevB, r: accRevR, rd: accRevRd },
                 vTaxes: { b: accTaxesB, r: accTaxesR, rd: accTaxesRd },
@@ -3618,7 +3626,8 @@ export default function BudgetGrid({
                 vAdminExp: { b: accAdminExpB, r: accAdminExpR, rd: accAdminExpRd },
                 vEbitda: { b: accEbitdaB, r: accEbitdaR, rd: accEbitdaRd },
                 vFin: { b: accFinB, r: accFinR, rd: accFinRd },
-                vNetProfit: { b: accNetProfitB, r: accNetProfitR, rd: accNetProfitRd }
+                vNetProfit: { b: accNetProfitB, r: accNetProfitR, rd: accNetProfitRd },
+                vInvest: { b: accInvestB, r: accInvestR, rd: accInvestRd }
             };
         });
     }, [precomputedDreTotals]);
@@ -5098,7 +5107,7 @@ export default function BudgetGrid({
 
     const renderDashboardChart = (
         title: string,
-        dataKey: 'vRev' | 'vTaxes' | 'vCosts' | 'vGrossMarg' | 'vOpExp' | 'vContribMarg' | 'vAdminExp' | 'vEbitda' | 'vFin' | 'vNetProfit',
+        dataKey: 'vRev' | 'vTaxes' | 'vCosts' | 'vGrossMarg' | 'vOpExp' | 'vContribMarg' | 'vAdminExp' | 'vEbitda' | 'vFin' | 'vNetProfit' | 'vInvest',
         viewMode: 'mensal' | 'acumulado',
         setViewMode: React.Dispatch<React.SetStateAction<'mensal' | 'acumulado'>>,
         visible: { budget: boolean, realized: boolean, atingido: boolean, budgetRate: boolean, realizedRate: boolean },
@@ -7603,6 +7612,8 @@ export default function BudgetGrid({
                                             {renderSummaryRow('📉 06. DESPESAS FINANCEIRAS', 'vFin', true, 'fin')}
                                             {expandedGroups.has('fin') && dreStructure.buckets.fin.map(root => renderNode(root))}
                                             {renderSummaryRow('(=) LUCRO LÍQUIDO', 'vNetProfit', true)}
+                                            {renderSummaryRow('07. Investimentos', 'vInvest', true, 'invest')}
+                                            {expandedGroups.has('invest') && dreStructure.buckets.invest.map(root => renderNode(root))}
                                         </>
                                     )}
                                 </tbody>
@@ -10096,7 +10107,8 @@ export default function BudgetGrid({
                                                                     vAdminExp: '(-) Despesas Administrativas',
                                                                     vEbitda: '(=) EBITDA',
                                                                     vFin: '(-) Despesas Financeiras',
-                                                                    vNetProfit: '(=) Lucro Líquido'
+                                                                    vNetProfit: '(=) Lucro Líquido',
+                                                                    vInvest: '07. Investimentos'
                                                                 };
                                                                 if (dreLabels[chartCategory]) return dreLabels[chartCategory];
                                                                 const found = categories.find((cat: any) => cat.id === chartCategory);
@@ -10162,7 +10174,8 @@ export default function BudgetGrid({
                                                                         vAdminExp: '(-) Despesas Administrativas',
                                                                         vEbitda: '(=) EBITDA',
                                                                         vFin: '(-) Despesas Financeiras',
-                                                                        vNetProfit: '(=) Lucro Líquido'
+                                                                        vNetProfit: '(=) Lucro Líquido',
+                                                                        vInvest: '07. Investimentos'
                                                                     })
                                                                     .filter(([_, name]) => !chartCategorySearch || name.toLowerCase().includes(chartCategorySearch.toLowerCase()))
                                                                     .map(([id, name]) => (

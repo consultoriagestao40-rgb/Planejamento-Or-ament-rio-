@@ -9,20 +9,38 @@ export async function GET() {
             select: { id: true, name: true, email: true, role: true }
         });
 
-        const ccAccesses = await prisma.userCostCenterAccess.findMany({
+        const jvsTenantId = 'dc2b6eed-a38a-43c3-9465-ce854bfda90f';
+
+        // Get all accesses specifically for coordenacao@grupojvsserv.com.br
+        const coordUser = users.find(u => u.email === 'coordenacao@grupojvsserv.com.br');
+        let coordAccesses: any[] = [];
+        if (coordUser) {
+            coordAccesses = await prisma.userCostCenterAccess.findMany({
+                where: { userId: coordUser.id },
+                include: { costCenter: true }
+            });
+        }
+
+        // Get all accesses specifically for JVS Facilities
+        const jvsAccesses = await prisma.userCostCenterAccess.findMany({
+            where: { costCenter: { tenantId: jvsTenantId } },
             include: {
                 user: { select: { email: true } },
-                costCenter: { select: { id: true, name: true } }
+                costCenter: true
             }
         });
 
         return NextResponse.json({
             success: true,
-            users,
-            accesses: ccAccesses.map(a => ({
+            coordAccesses: coordAccesses.map(a => ({
+                id: a.costCenterId,
+                name: a.costCenter.name,
+                tenantId: a.costCenter.tenantId
+            })),
+            jvsAccesses: jvsAccesses.map(a => ({
                 userEmail: a.user.email,
-                costCenterId: a.costCenterId,
-                costCenterName: a.costCenter.name,
+                ccId: a.costCenterId,
+                ccName: a.costCenter.name,
                 accessLevel: a.accessLevel
             }))
         });

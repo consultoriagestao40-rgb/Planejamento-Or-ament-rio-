@@ -1,46 +1,8 @@
 import { getAuthUrl } from '@/lib/contaazul';
 import { prisma } from '@/lib/prisma';
-import dynamicImport from 'next/dynamic';
 import { cookies } from 'next/headers';
 import { verifyToken } from '@/lib/auth';
-
-const Loading = () => (
-  <main className="dashboard-loading-screen">
-    <style>{`
-      .dashboard-loading-screen {
-        width: 100%;
-        min-height: 100vh;
-        background-color: var(--bg-base);
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        color: var(--text-secondary);
-      }
-      .dashboard-loading-container {
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        gap: 1rem;
-      }
-      .dashboard-loading-text {
-        font-size: 0.90rem;
-        font-weight: 700;
-      }
-    `}</style>
-    <div className="dashboard-loading-container">
-      <div className="spinner" />
-      <span className="dashboard-loading-text">Carregando Painel...</span>
-    </div>
-  </main>
-);
-
-const FinancialDashboard = dynamicImport(
-  () => import('@/components/FinancialDashboard'),
-  { 
-    ssr: false,
-    loading: Loading
-  }
-);
+import DashboardWrapper from '@/components/DashboardWrapper';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -71,7 +33,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ c
   }
 
   return (
-    <FinancialDashboard
+    <DashboardWrapper
       isConnected={isConnected}
       isTestMode={isTestMode}
       authUrl={authUrl}
@@ -80,3 +42,4 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ c
     />
   );
 }
+

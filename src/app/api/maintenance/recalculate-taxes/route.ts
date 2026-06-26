@@ -36,13 +36,13 @@ export async function GET(req: Request) {
                 const n = c.name.toUpperCase();
                 const codeMatch = c.name.match(/^(\d{1,2}(?:\.\d+)*)/);
                 const code = codeMatch ? codeMatch[1] : '';
-                const isRevenue = code.startsWith('01') || code.startsWith('1.');
-                if (isRevenue) return false;
+                const isTax = code.startsWith('2.') || code.startsWith('02.');
+                if (!isTax) return false;
                 
                 return (
                     code.startsWith('2.1.1') ||
                     code.startsWith('02.1.1') ||
-                    n.includes('DAS') || 
+                    /\bDAS\b/.test(n) || 
                     n.includes('SIMPLES NACIONAL')
                 );
             });
@@ -65,6 +65,14 @@ export async function GET(req: Request) {
         });
 
         // --- DESTRUCTIVE CLEANUP ---
+        const del1 = await prisma.budgetEntry.deleteMany({
+            where: {
+                year,
+                observation: 'Recalculado automaticamente (v64.0.1)'
+            }
+        });
+        console.log(`[CLEANUP] Deleted ${del1.count} previously auto-calculated entries.`);
+
         if (allTaxCatIds.length > 0) {
             const del = await prisma.budgetEntry.deleteMany({
                 where: {

@@ -18,6 +18,9 @@ export default function DeviationActionsTab({ companies, selectedYear, MONTHS }:
     const [filterStatus, setFilterStatus] = useState<string>('PENDING'); // default to pending to focus on action items
     const [filterType, setFilterType] = useState<string>('ALL');
     const [viewMode, setViewMode] = useState<'cards' | 'list'>('cards');
+    const [resolvingDeviation, setResolvingDeviation] = useState<any | null>(null);
+    const [resolutionBy, setResolutionBy] = useState<string>('Cristiano Silva');
+    const [resolutionNotes, setResolutionNotes] = useState<string>('');
 
     // Restore viewMode from localStorage
     useEffect(() => {
@@ -102,15 +105,28 @@ export default function DeviationActionsTab({ companies, selectedYear, MONTHS }:
     }, [loadAllDeviations]);
 
     // Handle resolve toggle
-    const handleToggleResolve = async (id: string, currentlyResolved: boolean) => {
+    const handleToggleResolveClick = (d: any) => {
+        if (d.isResolved) {
+            // Reopening: call submit immediately
+            submitToggleResolve(d.id, false, null, null);
+        } else {
+            // Concluding: open modal
+            setResolvingDeviation(d);
+            setResolutionBy('Cristiano Silva');
+            setResolutionNotes('');
+        }
+    };
+
+    const submitToggleResolve = async (id: string, targetResolved: boolean, resolverName: string | null, notes: string | null) => {
         try {
             const res = await fetch('/api/deviations/resolve', {
                 method: 'PATCH',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     id,
-                    isResolved: !currentlyResolved,
-                    resolvedBy: 'Cristiano Silva'
+                    isResolved: targetResolved,
+                    resolvedBy: targetResolved ? (resolverName || 'Sistema') : null,
+                    resolutionNotes: targetResolved ? (notes || null) : null
                 })
             });
             if (res.ok) {
@@ -119,11 +135,13 @@ export default function DeviationActionsTab({ companies, selectedYear, MONTHS }:
                     setDeviations(prev => 
                         prev.map(d => d.id === id ? { 
                             ...d, 
-                            isResolved: !currentlyResolved,
-                            resolvedAt: !currentlyResolved ? new Date() : null,
-                            resolvedBy: !currentlyResolved ? 'Cristiano Silva' : null
+                            isResolved: targetResolved,
+                            resolvedAt: targetResolved ? new Date() : null,
+                            resolvedBy: targetResolved ? (resolverName || 'Sistema') : null,
+                            resolutionNotes: targetResolved ? (notes || null) : null
                         } : d)
                     );
+                    setResolvingDeviation(null);
                 }
             }
         } catch (e) {
@@ -394,6 +412,14 @@ export default function DeviationActionsTab({ companies, selectedYear, MONTHS }:
                                             <p style={{ margin: 0, fontSize: '0.8rem', color: 'var(--text-primary)', fontWeight: 600, whiteSpace: 'pre-wrap', lineHeight: 1.3, textDecoration: d.isResolved ? 'line-through' : 'none' }}>
                                                 {d.correctionAction}
                                             </p>
+                                            {d.isResolved && d.resolutionNotes && (
+                                                <div style={{ borderTop: '1px dashed var(--border-default)', paddingTop: '0.4rem', marginTop: '0.4rem' }}>
+                                                    <span style={{ fontSize: '0.65rem', fontWeight: 800, color: 'var(--accent-green)', textTransform: 'uppercase', letterSpacing: '0.05em', display: 'block' }}>Solução:</span>
+                                                    <p style={{ margin: '0.1rem 0 0 0', fontSize: '0.75rem', color: 'var(--text-secondary)', fontStyle: 'italic', whiteSpace: 'pre-wrap', lineHeight: 1.2 }}>
+                                                        {d.resolutionNotes}
+                                                    </p>
+                                                </div>
+                                            )}
                                         </td>
 
                                         {/* Responsável */}
@@ -449,7 +475,7 @@ export default function DeviationActionsTab({ companies, selectedYear, MONTHS }:
                                         <td style={{ padding: '1rem', verticalAlign: 'middle', textAlign: 'right' }}>
                                             <div style={{ display: 'flex', gap: '0.3rem', alignItems: 'center', justifyContent: 'flex-end' }}>
                                                 <button
-                                                    onClick={() => handleToggleResolve(d.id, d.isResolved)}
+                                                    onClick={() => handleToggleResolveClick(d)}
                                                     style={{
                                                         padding: '0.3rem 0.5rem',
                                                         borderRadius: '6px',
@@ -530,7 +556,7 @@ export default function DeviationActionsTab({ companies, selectedYear, MONTHS }:
                                     {/* Action Buttons */}
                                     <div style={{ display: 'flex', gap: '0.4rem', alignItems: 'center' }}>
                                         <button
-                                            onClick={() => handleToggleResolve(d.id, d.isResolved)}
+                                            onClick={() => handleToggleResolveClick(d)}
                                             style={{
                                                 padding: '0.35rem 0.6rem',
                                                 borderRadius: '8px',
@@ -591,6 +617,14 @@ export default function DeviationActionsTab({ companies, selectedYear, MONTHS }:
                                             {d.correctionAction}
                                         </p>
                                     </div>
+                                    {d.isResolved && d.resolutionNotes && (
+                                        <div style={{ borderTop: '1px dashed var(--border-default)', paddingTop: '0.75rem', marginTop: '0.75rem' }}>
+                                            <div style={{ fontSize: '0.65rem', fontWeight: 800, color: 'var(--accent-green)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Solução Executada</div>
+                                            <p style={{ margin: '0.2rem 0 0 0', fontSize: '0.85rem', color: 'var(--text-primary)', fontStyle: 'italic', whiteSpace: 'pre-wrap', lineHeight: 1.4 }}>
+                                                {d.resolutionNotes}
+                                            </p>
+                                        </div>
+                                    )}
                                 </div>
 
                                 {/* Meta details: Responsible & Due Date */}
@@ -635,6 +669,167 @@ export default function DeviationActionsTab({ companies, selectedYear, MONTHS }:
                             </div>
                         );
                     })}
+                </div>
+            )}
+
+            {/* Modal Overlay para Concluir Ação Corretiva */}
+            {resolvingDeviation && (
+                <div style={{
+                    position: 'fixed',
+                    top: 0,
+                    left: 0,
+                    right: 0,
+                    bottom: 0,
+                    backgroundColor: 'rgba(15, 23, 42, 0.65)',
+                    backdropFilter: 'blur(8px)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    zIndex: 9999
+                }}>
+                    <div style={{
+                        backgroundColor: 'var(--bg-surface)',
+                        borderRadius: '24px',
+                        border: '1px solid var(--border-default)',
+                        width: '90%',
+                        maxWidth: '540px',
+                        boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)',
+                        overflow: 'hidden',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: 0
+                    }}>
+                        {/* Header */}
+                        <div style={{
+                            padding: '1.5rem 2rem',
+                            borderBottom: '1px solid var(--border-default)',
+                            display: 'flex',
+                            justifyContent: 'space-between',
+                            alignItems: 'center'
+                        }}>
+                            <div>
+                                <span style={{ fontSize: '0.7rem', fontWeight: 800, color: 'var(--accent-blue)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                                    {getCompanyName(resolvingDeviation.tenantId)}
+                                </span>
+                                <h3 style={{ margin: '0.2rem 0 0 0', fontSize: '1.25rem', fontWeight: 800, color: 'var(--text-primary)' }}>
+                                    Concluir Ação Corretiva
+                                </h3>
+                            </div>
+                            <button 
+                                onClick={() => setResolvingDeviation(null)}
+                                style={{
+                                    background: 'none',
+                                    border: 'none',
+                                    fontSize: '1.25rem',
+                                    color: 'var(--text-secondary)',
+                                    cursor: 'pointer',
+                                    padding: '0.2rem'
+                                }}
+                            >
+                                ✕
+                            </button>
+                        </div>
+
+                        {/* Body */}
+                        <form onSubmit={(e) => {
+                            e.preventDefault();
+                            if (!resolutionNotes.trim()) return;
+                            submitToggleResolve(resolvingDeviation.id, true, resolutionBy, resolutionNotes);
+                        }} style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', padding: '2rem' }}>
+                            
+                            <div style={{ backgroundColor: 'var(--bg-elevated)', padding: '1rem', borderRadius: '12px', border: '1px solid var(--border-default)' }}>
+                                <div style={{ fontSize: '0.65rem', fontWeight: 800, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.25rem' }}>Ação de Correção Planejada</div>
+                                <p style={{ margin: 0, fontSize: '0.85rem', color: 'var(--text-primary)', fontWeight: 650 }}>
+                                    {resolvingDeviation.correctionAction}
+                                </p>
+                            </div>
+
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
+                                <label style={{ fontSize: '0.75rem', fontWeight: 800, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Quem resolveu?</label>
+                                <input 
+                                    type="text" 
+                                    value={resolutionBy}
+                                    onChange={(e) => setResolutionBy(e.target.value)}
+                                    placeholder="Ex: Cristiano Silva"
+                                    required
+                                    style={{
+                                        padding: '0.75rem 1rem',
+                                        fontSize: '0.9rem',
+                                        borderRadius: '12px',
+                                        border: '1px solid var(--border-default)',
+                                        backgroundColor: 'var(--bg-elevated)',
+                                        color: 'var(--text-primary)',
+                                        outline: 'none',
+                                        fontWeight: 600
+                                    }}
+                                />
+                            </div>
+
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
+                                <label style={{ fontSize: '0.75rem', fontWeight: 800, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                                    Solução Executada / O que foi feito *
+                                </label>
+                                <textarea 
+                                    value={resolutionNotes}
+                                    onChange={(e) => setResolutionNotes(e.target.value)}
+                                    placeholder="Descreva detalhadamente o que foi feito para corrigir o desvio. Este campo é obrigatório."
+                                    required
+                                    rows={4}
+                                    style={{
+                                        padding: '0.75rem 1rem',
+                                        fontSize: '0.9rem',
+                                        borderRadius: '12px',
+                                        border: '1px solid var(--border-default)',
+                                        backgroundColor: 'var(--bg-elevated)',
+                                        color: 'var(--text-primary)',
+                                        outline: 'none',
+                                        resize: 'vertical',
+                                        lineHeight: 1.5,
+                                        fontWeight: 500
+                                    }}
+                                />
+                            </div>
+
+                            {/* Footer Buttons */}
+                            <div style={{ display: 'flex', gap: '1rem', justifyContent: 'flex-end', marginTop: '0.5rem' }}>
+                                <button
+                                    type="button"
+                                    onClick={() => setResolvingDeviation(null)}
+                                    style={{
+                                        padding: '0.75rem 1.5rem',
+                                        borderRadius: '12px',
+                                        border: '1px solid var(--border-default)',
+                                        background: 'var(--bg-surface)',
+                                        color: 'var(--text-secondary)',
+                                        fontSize: '0.85rem',
+                                        fontWeight: 700,
+                                        cursor: 'pointer',
+                                        transition: 'all 0.15s'
+                                    }}
+                                >
+                                    Cancelar
+                                </button>
+                                <button
+                                    type="submit"
+                                    disabled={!resolutionNotes.trim()}
+                                    style={{
+                                        padding: '0.75rem 1.5rem',
+                                        borderRadius: '12px',
+                                        border: 'none',
+                                        background: resolutionNotes.trim() ? 'var(--accent-green)' : 'var(--border-default)',
+                                        color: '#ffffff',
+                                        fontSize: '0.85rem',
+                                        fontWeight: 700,
+                                        cursor: resolutionNotes.trim() ? 'pointer' : 'not-allowed',
+                                        transition: 'all 0.15s',
+                                        boxShadow: resolutionNotes.trim() ? '0 4px 12px rgba(16, 185, 129, 0.2)' : 'none'
+                                    }}
+                                >
+                                    Confirmar Resolução
+                                </button>
+                            </div>
+                        </form>
+                    </div>
                 </div>
             )}
         </div>

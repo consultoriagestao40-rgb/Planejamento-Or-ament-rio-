@@ -348,6 +348,7 @@ model DeviationAnalysis {
   isResolved       Boolean   @default(false)
   resolvedAt       DateTime?
   resolvedBy       String?
+  resolutionNotes  String?   @db.Text
   createdAt        DateTime  @default(now())
   updatedAt        DateTime  @updatedAt
 

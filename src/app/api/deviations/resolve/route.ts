@@ -6,7 +6,7 @@ export const dynamic = 'force-dynamic';
 export async function PATCH(request: Request) {
     try {
         const body = await request.json();
-        const { id, isResolved, resolvedBy } = body;
+        const { id, isResolved, resolvedBy, resolutionNotes } = body;
 
         if (!id) {
             return NextResponse.json({ success: false, error: 'Parâmetro id é obrigatório' }, { status: 400 });
@@ -17,7 +17,8 @@ export async function PATCH(request: Request) {
             data: {
                 isResolved: !!isResolved,
                 resolvedAt: isResolved ? new Date() : null,
-                resolvedBy: isResolved ? (resolvedBy || 'Sistema') : null
+                resolvedBy: isResolved ? (resolvedBy || 'Sistema') : null,
+                resolutionNotes: isResolved ? (resolutionNotes || null) : null
             },
             include: {
                 category: { select: { id: true, name: true } },

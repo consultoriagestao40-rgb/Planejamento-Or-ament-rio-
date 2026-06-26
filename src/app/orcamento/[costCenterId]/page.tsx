@@ -27,7 +27,10 @@ export default function BudgetEntryPage() {
                 const data = await res.json();
                 if (data.success) {
                     const searchList = data.fullCostCenters || data.costCenters || [];
-                    const found = searchList.find((cc: any) => cc.id === costCenterId);
+                    const found = searchList.find((cc: any) => {
+                        const cleanCcId = cc.id.includes(':') ? cc.id.split(':').pop() : cc.id;
+                        return cleanCcId === costCenterId;
+                    });
                     if (found) {
                         setCcName((found.name || found.id).replace('[INATIVO] ', ''));
                         setTenantName(found.tenantName || '');

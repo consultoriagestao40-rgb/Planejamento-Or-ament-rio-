@@ -617,13 +617,24 @@ export async function POST(request: Request) {
         const ccCandidate = parts.length > 1 ? parts[1].trim() : parts[0].trim();
         const firstCC = ccCandidate.split(',')[0].trim(); // Handle comma-synonyms
 
-        const targetCCId: string | null = (
-          !firstCC || 
-          firstCC === 'DEFAULT' || 
-          firstCC === 'null' || 
-          firstCC === 'undefined' || 
-          firstCC === currentTenantId
-        ) ? null : `${currentTenantId}:${firstCC}`;
+        let targetCCId: string | null = null;
+        if (firstCC && firstCC !== 'DEFAULT' && firstCC !== 'null' && firstCC !== 'undefined') {
+            const dbCC = await prisma.costCenter.findFirst({
+                where: {
+                    OR: [
+                        { id: firstCC },
+                        { id: { endsWith: `:${firstCC}` } }
+                    ]
+                },
+                select: { id: true, tenantId: true }
+            });
+            if (dbCC) {
+                targetCCId = dbCC.id;
+                currentTenantId = dbCC.tenantId;
+            } else {
+                targetCCId = firstCC.includes(':') ? firstCC : `${currentTenantId}:${firstCC}`;
+            }
+        }
 
         // 2. Safely parse values
         const dbMonth = parseInt(month.toString()) + 1;

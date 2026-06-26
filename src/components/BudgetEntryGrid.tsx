@@ -200,7 +200,10 @@ export default function BudgetEntryGrid({ costCenterId, year, taxRate = 0 }: Bud
                 if (setupData.success) {
                     setCategories(setupData.categories || []);
                     const searchList = setupData.fullCostCenters || setupData.costCenters || [];
-                    const foundCC = searchList.find((cc: any) => cc.id === costCenterId);
+                    const foundCC = searchList.find((cc: any) => {
+                        const cleanCcId = cc.id.includes(':') ? cc.id.split(':').pop() : cc.id;
+                        return cleanCcId === costCenterId;
+                    });
                     if (foundCC?.tenantId) setTenantId(foundCC.tenantId);
                 }
 

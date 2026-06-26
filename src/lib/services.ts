@@ -808,17 +808,24 @@ export async function syncMasterData(tenantId: string) {
         let pagina = 1;
         let hasMore = true;
         while (hasMore) {
-            const ccRes = await fetch(`https://api-v2.contaazul.com/v1/centros-de-custo?tamanho_pagina=100&pagina=${pagina}`, { 
+            let ccRes = await fetch(`https://api-v2.contaazul.com/v1/centros-de-custo?tamanho_pagina=100&pagina=${pagina}&status=TODOS`, { 
                 headers: { 'Authorization': `Bearer ${token}` },
                 cache: 'no-store'
             });
+            if (!ccRes.ok) {
+                ccRes = await fetch(`https://api-v2.contaazul.com/v1/centros-de-custo?tamanho_pagina=100&pagina=${pagina}`, { 
+                    headers: { 'Authorization': `Bearer ${token}` },
+                    cache: 'no-store'
+                });
+            }
             if (ccRes.ok) {
                 const data = await ccRes.json();
                 const items = Array.isArray(data) ? data : (data.itens || []);
                 if (items.length === 0) break;
 
                 for (const item of items) {
-                    const existing = await prisma.costCenter.findUnique({ where: { id: item.id } });
+                    const prefixedId = item.id.includes(':') ? item.id : `${tenantId}:${item.id}`;
+                    const existing = await prisma.costCenter.findUnique({ where: { id: prefixedId } });
                     let finalName = item.name;
                     if (existing) {
                         const isLocalInactive = existing.name.toUpperCase().includes('[INATIVO]');
@@ -828,7 +835,6 @@ export async function syncMasterData(tenantId: string) {
                         }
                     }
 
-                    const prefixedId = item.id.includes(':') ? item.id : `${tenantId}:${item.id}`;
                     await (prisma.costCenter as any).upsert({
                         where: { id: prefixedId },
                         update: { name: finalName },

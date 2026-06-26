@@ -32,12 +32,20 @@ export async function GET(req: Request) {
         const allTaxCatIds: string[] = [];
         
         tenants.forEach(t => {
-            const dasCat = t.categories.find(c => 
-                c.name.includes('.1.1') || 
-                c.name.toUpperCase().includes('DAS') ||
-                c.name.toUpperCase().includes('SIMPLES NACIONAL') ||
-                c.name.startsWith('02.1')
-            );
+            const dasCat = t.categories.find(c => {
+                const n = c.name.toUpperCase();
+                const codeMatch = c.name.match(/^(\d{1,2}(?:\.\d+)*)/);
+                const code = codeMatch ? codeMatch[1] : '';
+                const isRevenue = code.startsWith('01') || code.startsWith('1.');
+                if (isRevenue) return false;
+                
+                return (
+                    code.startsWith('2.1.1') ||
+                    code.startsWith('02.1.1') ||
+                    n.includes('DAS') || 
+                    n.includes('SIMPLES NACIONAL')
+                );
+            });
             if (dasCat) tenantDasMap[t.id] = dasCat.id;
             tenantRateMap[t.id] = t.taxRate || 0;
             tenantNameMap[t.id] = t.name;
@@ -45,7 +53,12 @@ export async function GET(req: Request) {
             // Collect ALL tax-like category IDs for deletion
             t.categories.forEach(c => {
                const n = c.name.toUpperCase();
-               if (n.includes('DAS') || n.includes('IMPOSTO') || n.includes('TRIBUTO') || c.name.startsWith('02.1')) {
+               const codeMatch = c.name.match(/^(\d{1,2}(?:\.\d+)*)/);
+               const code = codeMatch ? codeMatch[1] : '';
+               const isRevenue = code.startsWith('01') || code.startsWith('1.');
+               if (isRevenue) return;
+
+               if (n.includes('DAS') || n.includes('IMPOSTO') || n.includes('TRIBUTO') || c.name.startsWith('02.1') || c.name.startsWith('2.1')) {
                    allTaxCatIds.push(c.id);
                }
             });

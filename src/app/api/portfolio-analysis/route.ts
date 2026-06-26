@@ -67,13 +67,18 @@ export async function GET(request: Request) {
 
         // Helper to normalize cost center names
         const getCleanName = (name: string) => {
-            return (name || '')
+            const clean = (name || '')
                 .replace(/^\[INATIVO\]\s*/i, '')
                 .replace(/^ENCERRADO\s*/i, '')
                 .replace(/^[\d. ]+-?\s*/, '') // Remove numeric prefixes
                 .replace(/\s*\(NOTURNO\)\s*/i, '')
                 .replace(/\s*\(DIURNO\)\s*/i, '')
                 .trim();
+            const upper = clean.toUpperCase();
+            if (upper.includes('ERASTO') || upper.includes('GAETNER') || upper.includes('GAERTNER')) {
+                return 'ERASTO GAETNER';
+            }
+            return clean;
         };
 
         // Helper to classify category codes

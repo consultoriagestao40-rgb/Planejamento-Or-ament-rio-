@@ -43,13 +43,18 @@ export async function GET(request: Request) {
         
         // --- NORMALIZATION HELPER ---
         const getCleanName = (name: string) => {
-            return (name || '')
+            const clean = (name || '')
                 .replace(/^\[INATIVO\]\s*/i, '')
                 .replace(/^ENCERRADO\s*/i, '')
                 .replace(/^[\d. ]+-?\s*/, '') // Remove prefixos numéricos "271.204 - "
                 .replace(/\s*\(NOTURNO\)\s*/i, '') // Remove sufixos de turno para agrupamento
                 .replace(/\s*\(DIURNO\)\s*/i, '')
                 .trim();
+            const upper = clean.toUpperCase();
+            if (upper.includes('ERASTO') || upper.includes('GAETNER') || upper.includes('GAERTNER')) {
+                return 'ERASTO GAETNER';
+            }
+            return clean;
         };
 
         const costCenterMap = new Map(costCenters.map(cc => [cc.id, cc]));
@@ -77,7 +82,7 @@ export async function GET(request: Request) {
                     tenantId: cc.tenantId,
                     tenantName: cc.tenant.name,
                     costCenterId: cc.id, // Primary ID for links
-                    costCenterName: cc.name,
+                    costCenterName: cleanName === 'ERASTO GAETNER' ? 'ERASTO GAETNER' : cc.name,
                     totalRevenueBudget: 0,
                     totalExpenseBudget: 0,
                     totalRevenue: 0,

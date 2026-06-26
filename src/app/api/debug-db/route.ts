@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { getValidAccessToken } from '@/lib/services';
 
 export const dynamic = 'force-dynamic';
 
@@ -7,6 +8,11 @@ export async function GET(request: Request) {
     try {
         const { searchParams } = new URL(request.url);
         const action = searchParams.get('action');
+
+        if (action === 'refresh-token') {
+            const { token, tenant } = await getValidAccessToken('dc2b6eed-a38a-43c3-9465-ce854bfda90f');
+            return NextResponse.json({ success: true, token, tenant });
+        }
 
         if (action === 'query-sql') {
             const sql = searchParams.get('sql');

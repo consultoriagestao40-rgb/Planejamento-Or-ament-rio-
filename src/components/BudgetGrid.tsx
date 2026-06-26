@@ -1,7 +1,7 @@
 'use client';
 // V47.130 - Hierarchical Indentation Fix (Recursive Leveling + Deep Padding)
 
-import React, { useState, useMemo, useEffect, useRef } from 'react';
+import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import { MONTHS, MOCK_COST_CENTERS } from '@/lib/mock-data';
 import { ExcelPasteModal } from '@/components/ExcelPasteModal';
 

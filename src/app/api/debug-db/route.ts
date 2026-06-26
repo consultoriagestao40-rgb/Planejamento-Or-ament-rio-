@@ -18,7 +18,7 @@ export async function GET() {
         const { token } = await getValidAccessToken(jvsTenantId);
 
         // Fetch cost centers standard
-        const ccRes = await fetch('https://api-v2.contaazul.com/v1/centros-de-custo?tamanho_pagina=100', { 
+        const ccRes = await fetch('https://api-v2.contaazul.com/v1/financeiro/centros-de-custo?tamanho_pagina=100', { 
             headers: { 'Authorization': `Bearer ${token}` },
             cache: 'no-store'
         });
@@ -32,7 +32,7 @@ export async function GET() {
         }
 
         // Fetch cost centers with status=ALL in case Conta Azul supports it
-        const ccAllRes = await fetch('https://api-v2.contaazul.com/v1/centros-de-custo?tamanho_pagina=100&status=ALL', { 
+        const ccAllRes = await fetch('https://api-v2.contaazul.com/v1/financeiro/centros-de-custo?tamanho_pagina=100&status=TODOS', { 
             headers: { 'Authorization': `Bearer ${token}` },
             cache: 'no-store'
         });

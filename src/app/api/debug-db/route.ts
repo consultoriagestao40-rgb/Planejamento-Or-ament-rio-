@@ -17,32 +17,30 @@ export async function GET() {
 
         const { token } = await getValidAccessToken(jvsTenantId);
 
-        // Fetch cost centers standard
-        const ccRes = await fetch('https://api-v2.contaazul.com/v1/financeiro/centros-de-custo?tamanho_pagina=100', { 
-            headers: { 'Authorization': `Bearer ${token}` },
-            cache: 'no-store'
-        });
-        
-        let rawCCsApi: any = null;
-        if (ccRes.ok) {
-            rawCCsApi = await ccRes.json();
-        } else {
-            const errText = await ccRes.text();
-            rawCCsApi = { error: `HTTP ${ccRes.status}`, details: errText };
-        }
+        const testUrls = {
+            ccSingularStandard: 'https://api-v2.contaazul.com/v1/centro-de-custo?tamanho_pagina=100',
+            ccSingularTodos: 'https://api-v2.contaazul.com/v1/centro-de-custo?tamanho_pagina=100&status=TODOS',
+            ccSingularAll: 'https://api-v2.contaazul.com/v1/centro-de-custo?tamanho_pagina=100&status=ALL',
+            ccSingularFinanceiro: 'https://api-v2.contaazul.com/v1/financeiro/centro-de-custo?tamanho_pagina=100'
+        };
 
-        // Fetch cost centers with status=ALL in case Conta Azul supports it
-        const ccAllRes = await fetch('https://api-v2.contaazul.com/v1/financeiro/centros-de-custo?tamanho_pagina=100&status=TODOS', { 
-            headers: { 'Authorization': `Bearer ${token}` },
-            cache: 'no-store'
-        });
-        
-        let rawCCsApiAll: any = null;
-        if (ccAllRes.ok) {
-            rawCCsApiAll = await ccAllRes.json();
-        } else {
-            const errText = await ccAllRes.text();
-            rawCCsApiAll = { error: `HTTP ${ccAllRes.status}`, details: errText };
+        const results: Record<string, any> = {};
+
+        for (const [key, url] of Object.entries(testUrls)) {
+            try {
+                const res = await fetch(url, {
+                    headers: { 'Authorization': `Bearer ${token}` },
+                    cache: 'no-store'
+                });
+                if (res.ok) {
+                    results[key] = await res.json();
+                } else {
+                    const text = await res.text();
+                    results[key] = { error: `HTTP ${res.status}`, details: text };
+                }
+            } catch (err: any) {
+                results[key] = { error: 'FetchException', details: err.message };
+            }
         }
 
         // Fetch from DB as well to compare
@@ -53,8 +51,7 @@ export async function GET() {
         return NextResponse.json({
             success: true,
             tenantName: tenant.name,
-            apiCostCentersStandard: rawCCsApi,
-            apiCostCentersStatusAll: rawCCsApiAll,
+            results,
             dbCostCenters: dbCCs
         });
     } catch (e: any) {

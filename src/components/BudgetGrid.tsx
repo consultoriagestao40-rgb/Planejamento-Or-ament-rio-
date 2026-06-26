@@ -3040,6 +3040,19 @@ export default function BudgetGrid({
         try {
             const d = new Date(dateVal);
             if (isNaN(d.getTime())) return '-';
+            if (options?.timeZone === 'UTC') {
+                const year = d.getUTCFullYear();
+                const month = String(d.getUTCMonth() + 1).padStart(2, '0');
+                const day = String(d.getUTCDate()).padStart(2, '0');
+                return `${day}/${month}/${year}`;
+            }
+            const dateStr = String(dateVal);
+            if (dateStr.length <= 10 && /^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
+                const year = d.getUTCFullYear();
+                const month = String(d.getUTCMonth() + 1).padStart(2, '0');
+                const day = String(d.getUTCDate()).padStart(2, '0');
+                return `${day}/${month}/${year}`;
+            }
             return d.toLocaleDateString('pt-BR', options);
         } catch (e) {
             return '-';
@@ -3062,6 +3075,17 @@ export default function BudgetGrid({
         try {
             const d = new Date(dateVal);
             if (isNaN(d.getTime())) return '-';
+            const year = d.getFullYear();
+            const month = String(d.getMonth() + 1).padStart(2, '0');
+            const day = String(d.getDate()).padStart(2, '0');
+            const hours = String(d.getHours()).padStart(2, '0');
+            const minutes = String(d.getMinutes()).padStart(2, '0');
+            if (options?.dateStyle === 'short' && options?.timeStyle === 'short') {
+                return `${day}/${month}/${year} ${hours}:${minutes}`;
+            }
+            if (options?.hour === '2-digit' && options?.minute === '2-digit') {
+                return `${hours}:${minutes}`;
+            }
             return d.toLocaleString('pt-BR', options);
         } catch (e) {
             return '-';
@@ -8721,8 +8745,8 @@ export default function BudgetGrid({
                                                                             }}
                                                                         >
                                                                             {Array.from({ length: 12 }, (_, i) => i + 1).map((m) => {
-                                                                                const monthName = new Date(2026, m - 1, 1).toLocaleDateString('pt-BR', { month: 'long' });
-                                                                                const capitalizedMonth = monthName.charAt(0).toUpperCase() + monthName.slice(1);
+                                                                                const monthNames = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
+                                                                                const capitalizedMonth = monthNames[m - 1];
                                                                                 return (
                                                                                     <option key={m} value={m}>
                                                                                         {capitalizedMonth}

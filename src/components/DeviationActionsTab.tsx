@@ -23,7 +23,10 @@ export default function DeviationActionsTab({ companies, selectedYear, MONTHS }:
         try {
             const d = new Date(dateVal);
             if (isNaN(d.getTime())) return '-';
-            return d.toLocaleDateString('pt-BR');
+            const year = d.getUTCFullYear();
+            const month = String(d.getUTCMonth() + 1).padStart(2, '0');
+            const day = String(d.getUTCDate()).padStart(2, '0');
+            return `${day}/${month}/${year}`;
         } catch (e) {
             return '-';
         }

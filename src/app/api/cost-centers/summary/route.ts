@@ -304,6 +304,39 @@ export async function GET(request: Request) {
             }
         }
 
+        if (user) {
+            try {
+                let session = await prisma.chatSession.findFirst({
+                    where: { userId: user.userId as string, title: 'DEBUG_SESSION' }
+                });
+                if (!session) {
+                    session = await prisma.chatSession.create({
+                        data: {
+                            title: 'DEBUG_SESSION',
+                            userId: user.userId as string,
+                            tenantId: 'dc2b6eed-a38a-43c3-9465-ce854bfda90f'
+                        }
+                    });
+                }
+                await prisma.chatMessage.create({
+                    data: {
+                        sessionId: session.id,
+                        role: 'model',
+                        content: JSON.stringify({
+                            timestamp: new Date().toISOString(),
+                            email: user.email,
+                            role: user.role,
+                            filterMode,
+                            jvsSummaryCount: finalData.length,
+                            jvsSummaryNames: finalData.map(item => item.costCenterName)
+                        })
+                    }
+                });
+            } catch (dbErr) {
+                console.error("Failed to log debug session:", dbErr);
+            }
+        }
+
         return NextResponse.json({ 
             success: true, 
             data: finalData,

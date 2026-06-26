@@ -108,11 +108,15 @@ export async function GET(request: Request) {
       ccFilter = {};
     } else if (!isGeneralView) {
       // Find all IDs that share the same clean name as the selected costCenterIds
-      const selectedCCs = await prisma.costCenter.findMany({
-          where: { id: { in: costCenterIds } },
-          select: { name: true, tenantId: true }
+      const allCCs = await prisma.costCenter.findMany({
+          select: { id: true, name: true, tenantId: true }
       });
-                const normalizeName = (name: string) => 
+      const cleanTargetIds = costCenterIds.map(id => id.includes(':') ? id.split(':').pop()! : id);
+      const selectedCCs = allCCs.filter(cc => {
+          const cleanCcId = cc.id.includes(':') ? cc.id.split(':').pop()! : cc.id;
+          return costCenterIds.includes(cc.id) || cleanTargetIds.includes(cleanCcId);
+      });
+                 const normalizeName = (name: string) => 
                 (name || '')
                     .toLowerCase()
                     .replace(/^[\d. ]+-?\s*/, '') // Remove leading codes like "271.225 - " or "271.225 "
@@ -228,9 +232,13 @@ export async function GET(request: Request) {
 
     if (!isGeneralView && costCenterIds.length > 0) {
         // 1. Get the base CCs and their tenants
-        const baseCCs = await prisma.costCenter.findMany({
-            where: { id: { in: costCenterIds } },
+        const allCCsForBase = await prisma.costCenter.findMany({
             include: { tenant: true }
+        });
+        const cleanTargetIdsForBase = costCenterIds.map(id => id.includes(':') ? id.split(':').pop()! : id);
+        const baseCCs = allCCsForBase.filter(cc => {
+            const cleanCcId = cc.id.includes(':') ? cc.id.split(':').pop()! : cc.id;
+            return costCenterIds.includes(cc.id) || cleanTargetIdsForBase.includes(cleanCcId);
         });
 
         if (baseCCs.length > 0) {

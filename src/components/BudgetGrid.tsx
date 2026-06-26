@@ -104,7 +104,7 @@ export default function BudgetGrid({
     setShowAR,
     userRole,
     setUserRole,
-    companies,
+    companies = [],
     externalYear = new Date().getFullYear(),
     searchQuery = '',
     activeTab = 'visao'
@@ -2528,8 +2528,8 @@ export default function BudgetGrid({
                 const setupData = await setupRes.json();
                 
                 if (setupData.success) {
-                    setCategories(setupData.categories);
-                    if (setupData.costCenters.length > 0) {
+                    setCategories(setupData.categories || []);
+                    if (setupData.costCenters && setupData.costCenters.length > 0) {
                         setCostCenters([...MOCK_COST_CENTERS.filter(m => m.id === 'DEFAULT'), ...setupData.costCenters]);
                     }
                 }

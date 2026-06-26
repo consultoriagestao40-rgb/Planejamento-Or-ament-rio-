@@ -31,6 +31,11 @@ export default function FinancialDashboard({
     const [userRole, setUserRole] = useState<'MASTER' | 'GESTOR'>((serverUserRole as 'MASTER' | 'GESTOR') || 'GESTOR');
     const [activeTab, setActiveTab] = useState<'visao' | 'graficos' | 'kpi'>('visao');
     const [searchQuery, setSearchQuery] = useState('');
+    const [isMounted, setIsMounted] = useState(false);
+
+    useEffect(() => {
+        setIsMounted(true);
+    }, []);
 
     useEffect(() => {
         const storedTab = localStorage.getItem('dashboardActiveTab');
@@ -44,11 +49,30 @@ export default function FinancialDashboard({
             fetch('/api/companies')
                 .then(res => res.json())
                 .then(data => {
-                    if (data.success) setCompanies(data.companies);
+                    if (data.success) setCompanies(data.companies || []);
                 })
                 .catch(console.error);
         }
     }, [isConnected, refreshKey]);
+
+    if (!isMounted) {
+        return (
+            <main style={{
+                width: '100%',
+                minHeight: '100vh',
+                backgroundColor: 'var(--bg-base)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                color: 'var(--text-secondary)'
+            }}>
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '1rem' }}>
+                    <div className="spinner" />
+                    <span style={{ fontSize: '0.90rem', fontWeight: 700 }}>Carregando Painel...</span>
+                </div>
+            </main>
+        );
+    }
 
     const triggerRefresh = () => {
         setIsSyncing(false);

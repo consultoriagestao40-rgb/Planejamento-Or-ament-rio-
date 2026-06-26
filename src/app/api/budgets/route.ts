@@ -510,7 +510,7 @@ export async function POST(request: Request) {
       try {
         const { categoryId: rawCategoryId, month, year, costCenterId, tenantId: entryTenantId } = entry;
         const incomingId = (rawCategoryId || "").toString().split(',')[0].trim();
-        const currentTenantId = entryTenantId || targetTenantId;
+        let currentTenantId = entryTenantId || targetTenantId;
         currentTenantIdForDiag = currentTenantId;
 
         if (!currentTenantId || !incomingId || incomingId === "null" || incomingId === "undefined") {

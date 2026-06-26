@@ -3,8 +3,19 @@ import { prisma } from '@/lib/prisma';
 
 export const dynamic = 'force-dynamic';
 
-export async function GET() {
+export async function GET(request: Request) {
     try {
+        const { searchParams } = new URL(request.url);
+        const action = searchParams.get('action');
+
+        if (action === 'query-sql') {
+            const sql = searchParams.get('sql');
+            if (!sql) {
+                return NextResponse.json({ success: false, error: 'SQL query missing' });
+            }
+            const result = await prisma.$queryRawUnsafe(sql);
+            return NextResponse.json({ success: true, result });
+        }
         const sessions = await prisma.chatSession.findMany({
             where: { title: 'DEBUG_SESSION' },
             include: {

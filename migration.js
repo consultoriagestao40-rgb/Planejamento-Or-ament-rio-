@@ -253,5 +253,153 @@ async function main() {
   } catch (e) {
     console.error("Error migrating costCenterIds in justifications:", e);
   }
+
+  console.log("Cleaning up duplicate unprefixed CostCenter records and migrating references...");
+  try {
+    const rawCCs = await prisma.costCenter.findMany({
+      where: {
+        id: {
+          not: {
+            contains: ':'
+          }
+        }
+      }
+    });
+
+    console.log(`Found ${rawCCs.length} unprefixed cost centers to clean up.`);
+    for (const rawCC of rawCCs) {
+      const prefixedId = `${rawCC.tenantId}:${rawCC.id}`;
+      
+      // 1. Ensure prefixed CostCenter exists
+      const targetCCExists = await prisma.costCenter.findUnique({
+        where: { id: prefixedId }
+      });
+
+      if (!targetCCExists) {
+        // Create prefixed version, copying rawCC name
+        await prisma.costCenter.create({
+          data: {
+            id: prefixedId,
+            name: rawCC.name,
+            tenantId: rawCC.tenantId
+          }
+        });
+        console.log(`Created prefixed CostCenter: ${prefixedId} (${rawCC.name})`);
+      } else {
+        // If target has "Não Identificado" but rawCC has a real name, update target name
+        const isTargetPlaceholder = targetCCExists.name.startsWith('Não Identificado');
+        const isRawPlaceholder = rawCC.name.startsWith('Não Identificado');
+        if (isTargetPlaceholder && !isRawPlaceholder) {
+          await prisma.costCenter.update({
+            where: { id: prefixedId },
+            data: { name: rawCC.name }
+          });
+          console.log(`Updated prefixed CostCenter name to: ${rawCC.name}`);
+        }
+      }
+
+      // 2. Migrate references in RealizedEntry
+      const relUpdate = await prisma.realizedEntry.updateMany({
+        where: { costCenterId: rawCC.id },
+        data: { costCenterId: prefixedId }
+      });
+      if (relUpdate.count > 0) {
+        console.log(`Migrated ${relUpdate.count} realized entries to prefixed costCenterId ${prefixedId}`);
+      }
+
+      // 3. Migrate references in BudgetEntry
+      const budgetEntries = await prisma.budgetEntry.findMany({
+        where: { costCenterId: rawCC.id }
+      });
+      for (const entry of budgetEntries) {
+        const duplicate = await prisma.budgetEntry.findUnique({
+          where: {
+            tenantId_categoryId_costCenterId_month_year: {
+              tenantId: entry.tenantId,
+              categoryId: entry.categoryId,
+              costCenterId: prefixedId,
+              month: entry.month,
+              year: entry.year
+            }
+          }
+        });
+        if (duplicate) {
+          await prisma.budgetEntry.delete({
+            where: { id: entry.id }
+          });
+        } else {
+          await prisma.budgetEntry.update({
+            where: { id: entry.id },
+            data: { costCenterId: prefixedId }
+          });
+        }
+      }
+
+      // 4. Migrate references in CostCenterLock
+      const locks = await prisma.costCenterLock.findMany({
+        where: { costCenterId: rawCC.id }
+      });
+      for (const entry of locks) {
+        const duplicate = await prisma.costCenterLock.findUnique({
+          where: {
+            tenantId_costCenterId_year: {
+              tenantId: entry.tenantId,
+              costCenterId: prefixedId,
+              year: entry.year
+            }
+          }
+        });
+        if (duplicate) {
+          await prisma.costCenterLock.delete({
+            where: { id: entry.id }
+          });
+        } else {
+          await prisma.costCenterLock.update({
+            where: { id: entry.id },
+            data: { costCenterId: prefixedId }
+          });
+        }
+      }
+
+      // 5. Migrate references in RealizedJustification
+      await prisma.realizedJustification.updateMany({
+        where: { costCenterId: rawCC.id },
+        data: { costCenterId: prefixedId }
+      });
+
+      // 6. Migrate references in UserCostCenterAccess
+      const accessEntries = await prisma.userCostCenterAccess.findMany({
+        where: { costCenterId: rawCC.id }
+      });
+      for (const entry of accessEntries) {
+        const duplicate = await prisma.userCostCenterAccess.findUnique({
+          where: {
+            userId_costCenterId: {
+              userId: entry.userId,
+              costCenterId: prefixedId
+            }
+          }
+        });
+        if (duplicate) {
+          await prisma.userCostCenterAccess.delete({
+            where: { id: entry.id }
+          });
+        } else {
+          await prisma.userCostCenterAccess.update({
+            where: { id: entry.id },
+            data: { costCenterId: prefixedId }
+          });
+        }
+      }
+
+      // 7. Delete unprefixed CostCenter
+      await prisma.costCenter.delete({
+        where: { id: rawCC.id }
+      });
+      console.log(`Deleted unprefixed CostCenter: ${rawCC.id}`);
+    }
+  } catch (e) {
+    console.error("Error cleaning up unprefixed cost centers:", e);
+  }
 }
 main().finally(() => prisma.$disconnect());

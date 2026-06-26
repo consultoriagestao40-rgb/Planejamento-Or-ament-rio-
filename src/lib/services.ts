@@ -172,11 +172,14 @@ export async function syncRealizedEntries(
             const missingCCIds = ccIdsToVerify.filter(id => !existingCCIds.has(id));
 
             if (missingCCIds.length > 0) {
-                const ccsToCreate = missingCCIds.map(id => ({
-                    id,
-                    name: `Não Identificado (${id.substring(0, 8)})`,
-                    tenantId
-                }));
+                const ccsToCreate = missingCCIds.map(id => {
+                    const rawCcId = id.includes(':') ? id.split(':')[1] : id;
+                    return {
+                        id,
+                        name: `Não Identificado (${rawCcId.substring(0, 8)})`,
+                        tenantId
+                    };
+                });
                 await prisma.costCenter.createMany({
                     data: ccsToCreate,
                     skipDuplicates: true
@@ -1299,10 +1302,11 @@ export async function syncOpenCommitments(tenantId: string, accessToken: string,
         for (const ccId of ccIds) {
             const exists = await prisma.costCenter.findUnique({ where: { id: ccId } });
             if (!exists) {
+                const rawCcId = ccId.includes(':') ? ccId.split(':')[1] : ccId;
                 await prisma.costCenter.create({
                     data: {
                         id: ccId,
-                        name: `Não Identificado (${ccId.substring(0, 8)})`,
+                        name: `Não Identificado (${rawCcId.substring(0, 8)})`,
                         tenantId
                     }
                 });
@@ -1449,9 +1453,10 @@ async function collectOpenTransactions(
                                     addEntry(null, catValue, 'NONE');
                                 } else {
                                     ratCcs.forEach((rc: any) => {
-                                        const ccId = rc.id_centro_custo;
+                                        const rawCcId = rc.id_centro_custo;
+                                        const ccId = (rawCcId === 'NONE' || !rawCcId) ? null : (rawCcId.includes(':') ? rawCcId : `${tenantId}:${rawCcId}`);
                                         const percent = (rc.percentual || (100 / ratCcs.length)) / 100;
-                                        addEntry(ccId, catValue * percent, ccId || 'NONE');
+                                        addEntry(ccId, catValue * percent, rawCcId || 'NONE');
                                     });
                                 }
                                 ratIdx++;
@@ -1505,9 +1510,10 @@ async function collectOpenTransactions(
                 addEntryDirect(null, amount, 'NONE');
             } else {
                 ccs.forEach((c: any) => {
-                    const ccId = c.id;
+                    const rawCcId = c.id;
+                    const ccId = (rawCcId === 'NONE' || !rawCcId) ? null : (rawCcId.includes(':') ? rawCcId : `${tenantId}:${rawCcId}`);
                     const percent = (c.percentual || (100 / ccs.length)) / 100;
-                    addEntryDirect(ccId, amount * percent, ccId || 'NONE');
+                    addEntryDirect(ccId, amount * percent, rawCcId || 'NONE');
                 });
             }
         }

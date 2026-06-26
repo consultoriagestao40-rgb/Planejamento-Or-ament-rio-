@@ -75,7 +75,7 @@ export async function GET(request: Request) {
                 .replace(/\s*\(DIURNO\)\s*/i, '')
                 .trim();
             const upper = clean.toUpperCase();
-            if (upper.includes('ERASTO') || upper.includes('GAETNER') || upper.includes('GAERTNER')) {
+            if (!upper.includes('IBGE') && (upper.includes('ERASTO') || upper.includes('GAETNER') || upper.includes('GAERTNER'))) {
                 return 'ERASTO GAETNER';
             }
             return clean;

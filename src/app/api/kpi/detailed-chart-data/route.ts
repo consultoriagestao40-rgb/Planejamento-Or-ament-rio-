@@ -341,13 +341,18 @@ export async function GET(request: Request) {
                 select: { name: true, tenantId: true }
             });
             
-            const normalizeCCName = (name: string) => 
-                (name || '')
+            const normalizeCCName = (name: string) => {
+                const clean = (name || '')
                     .toLowerCase()
                     .replace(/^[\d. ]+-?\s*/, '')
-                    .replace(/[^a-z0-9]/g, '')
                     .replace(/merces/g, 'meces')
                     .trim();
+                const upper = clean.toUpperCase();
+                if (!upper.includes('IBGE') && (upper.includes('ERASTO') || upper.includes('GAETNER') || upper.includes('GAERTNER'))) {
+                    return 'erastogaetner';
+                }
+                return clean.replace(/[^a-z0-9]/g, '');
+            };
 
             const allSynonymousCCIds = new Set<string>(requestedCCIds);
             if (selectedCCs.length > 0) {
@@ -358,7 +363,7 @@ export async function GET(request: Request) {
                 });
                 synonymousCCs.forEach(cc => {
                     const cn = normalizeCCName(cc.name);
-                    if (targetNorms.some(tn => cn.includes(tn) || tn.includes(cn))) {
+                    if (targetNorms.some(tn => cn === tn)) {
                         allSynonymousCCIds.add(cc.id);
                     }
                 });

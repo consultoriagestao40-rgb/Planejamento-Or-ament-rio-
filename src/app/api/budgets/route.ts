@@ -116,13 +116,18 @@ export async function GET(request: Request) {
           const cleanCcId = cc.id.includes(':') ? cc.id.split(':').pop()! : cc.id;
           return costCenterIds.includes(cc.id) || cleanTargetIds.includes(cleanCcId);
       });
-                 const normalizeName = (name: string) => 
-                (name || '')
-                    .toLowerCase()
-                    .replace(/^[\d. ]+-?\s*/, '') // Remove leading codes like "271.225 - " or "271.225 "
-                    .replace(/[^a-z0-9]/g, '')
-                    .replace(/merces/g, 'meces') // Fix Mercês/Mecês typo
-                    .trim();
+                 const normalizeName = (name: string) => {
+                     const clean = (name || '')
+                         .toLowerCase()
+                         .replace(/^[\d. ]+-?\s*/, '') // Remove leading codes like "271.225 - " or "271.225 "
+                         .replace(/merces/g, 'meces') // Fix Mercês/Mecês typo
+                         .trim();
+                     const upper = clean.toUpperCase();
+                     if (!upper.includes('IBGE') && (upper.includes('ERASTO') || upper.includes('GAETNER') || upper.includes('GAERTNER'))) {
+                         return 'erastogaetner';
+                     }
+                     return clean.replace(/[^a-z0-9]/g, '');
+                 };
  
            const allSynonymousIds = new Set<string>(costCenterIds);
            if (selectedCCs.length > 0) {
@@ -130,19 +135,18 @@ export async function GET(request: Request) {
                
                const synonymousCCs = await prisma.costCenter.findMany({
                    where: {
-                       tenantId: { in: selectedCCs.map(cc => cc.tenantId) } // Use selectedCCs' tenantIds for initial search
+                       tenantId: { in: selectedCCs.map(cc => cc.tenantId) }
                    },
                    select: { id: true, name: true, tenantId: true }
                });
                
                synonymousCCs.forEach(cc => {
                    const cn = normalizeName(cc.name);
-                   if (targetNorms.some(tn => cn.includes(tn) || tn.includes(cn))) {
+                   if (targetNorms.some(tn => cn === tn)) {
                        allSynonymousIds.add(cc.id);
                    }
                });
            }
-
             const finalIds = new Set<string>();
             allSynonymousIds.forEach(id => {
                 finalIds.add(id);
@@ -258,17 +262,23 @@ export async function GET(request: Request) {
             });
 
             // 4. Normalize and find synonyms
-            const normalize = (name: string) => (name || '')
-                .toLowerCase()
-                .replace(/^[\d. ]+-?\s*/, '') // Remove leading codes like "271.225 - " or "271.225 "
-                .replace(/[^a-z0-9]/g, '')
-                .replace(/merces/g, 'meces')
-                .trim();
+            const normalize = (name: string) => {
+                const clean = (name || '')
+                    .toLowerCase()
+                    .replace(/^[\d. ]+-?\s*/, '') // Remove leading codes like "271.225 - " or "271.225 "
+                    .replace(/merces/g, 'meces') // Fix Mercês/Mecês typo
+                    .trim();
+                const upper = clean.toUpperCase();
+                if (!upper.includes('IBGE') && (upper.includes('ERASTO') || upper.includes('GAETNER') || upper.includes('GAERTNER'))) {
+                    return 'erastogaetner';
+                }
+                return clean.replace(/[^a-z0-9]/g, '');
+            };
 
             const targetNorms = baseCCs.map(cc => normalize(cc.name));
             const synonyms = potentialCCs.filter(cc => {
                 const cn = normalize(cc.name);
-                return targetNorms.some(tn => cn.includes(tn) || tn.includes(cn));
+                return targetNorms.some(tn => cn === tn);
             });
 
             allSynonymousIdsArr = [];

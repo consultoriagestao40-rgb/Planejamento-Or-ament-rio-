@@ -58,13 +58,18 @@ export async function GET(request: Request) {
                     select: { name: true, tenantId: true }
                 });
                 
-                const normalizeName = (name: string) => 
-                    (name || '')
+                const normalizeName = (name: string) => {
+                    const clean = (name || '')
                         .toLowerCase()
                         .replace(/^[\d. ]+-?\s*/, '') // Remove leading codes like "271.225 - " or "271.225 "
-                        .replace(/[^a-z0-9]/g, '')
                         .replace(/merces/g, 'meces') // Handle the specific typo Mercês vs Mecês
                         .trim();
+                    const upper = clean.toUpperCase();
+                    if (!upper.includes('IBGE') && (upper.includes('ERASTO') || upper.includes('GAETNER') || upper.includes('GAERTNER'))) {
+                        return 'erastogaetner';
+                    }
+                    return clean.replace(/[^a-z0-9]/g, '');
+                };
 
                 const allSynonymousIds = new Set<string>(requestedIds);
                 if (selectedCCs.length > 0) {
@@ -80,7 +85,7 @@ export async function GET(request: Request) {
                     
                     synonymousCCs.forEach(cc => {
                         const cn = normalizeName(cc.name);
-                        if (targetNorms.some(tn => cn.includes(tn) || tn.includes(cn))) {
+                        if (targetNorms.some(tn => cn === tn)) {
                             allSynonymousIds.add(cc.id);
                         }
                     });

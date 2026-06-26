@@ -936,10 +936,9 @@ export default function PortfolioAnalysisPage() {
                 {/* Cabeçalho */}
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: '2.5rem', borderBottom: '1px solid var(--border-default)', paddingBottom: '1.5rem', gap: '2rem', flexWrap: 'wrap' }}>
                     <div>
-                        <h1 className="brand-text" style={{ fontSize: '2.25rem', marginBottom: '0.5rem', background: 'var(--gradient-brand)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
-                            💼 Análise de Carteira
+                        <h1 className="brand-text" style={{ fontSize: '2.25rem', marginBottom: '0px', background: 'var(--gradient-brand)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
+                            Análises de Resultados
                         </h1>
-                        <p style={{ color: 'var(--text-secondary)', fontSize: '1rem' }}>Visão detalhada de rentabilidade e margens por centro de custo.</p>
                     </div>
                 </div>
 

@@ -1,8 +1,31 @@
 import { getAuthUrl } from '@/lib/contaazul';
 import { prisma } from '@/lib/prisma';
-import FinancialDashboard from '@/components/FinancialDashboard';
+import dynamicImport from 'next/dynamic';
 import { cookies } from 'next/headers';
 import { verifyToken } from '@/lib/auth';
+
+const FinancialDashboard = dynamicImport(
+  () => import('@/components/FinancialDashboard'),
+  { 
+    ssr: false,
+    loading: () => (
+      <main style={{
+          width: '100%',
+          minHeight: '100vh',
+          backgroundColor: 'var(--bg-base)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          color: 'var(--text-secondary)'
+      }}>
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '1rem' }}>
+              <div className="spinner" />
+              <span style={{ fontSize: '0.90rem', fontWeight: 700 }}>Carregando Painel...</span>
+          </div>
+      </main>
+    )
+  }
+);
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;

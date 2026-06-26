@@ -112,12 +112,16 @@ export async function GET(req: Request) {
         }
 
         let count = 0;
+        const errors: any[] = [];
         for (const entry of entriesToCreate) {
             try {
                 await prisma.budgetEntry.create({ data: entry as any });
                 count++;
             } catch (err: any) {
                 console.error(`[MAINTENANCE ERR] Failed to create tax entry for ${entry.tenantId}:`, err.message);
+                if (errors.length < 20) {
+                    errors.push({ entry, error: err.message });
+                }
             }
         }
 
@@ -125,6 +129,7 @@ export async function GET(req: Request) {
             success: true,
             summary: logs.slice(0, 10),
             totalAffected: count,
+            errors,
             year
         });
 

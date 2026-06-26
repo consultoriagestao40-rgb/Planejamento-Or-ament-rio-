@@ -5,20 +5,17 @@ export const dynamic = 'force-dynamic';
 
 export async function GET() {
     try {
+        const tenantId = 'dc2b6eed-a38a-43c3-9465-ce854bfda90f'; // JVS Facilities
         const ccs = await prisma.costCenter.findMany({
+            where: { tenantId },
             orderBy: { name: 'asc' }
         });
         
-        const rawCCs = ccs.filter(c => !c.id.includes(':'));
-        const prefixedCCs = ccs.filter(c => c.id.includes(':'));
-        
         return NextResponse.json({
             success: true,
+            tenantId,
             total: ccs.length,
-            unprefixedCount: rawCCs.length,
-            prefixedCount: prefixedCCs.length,
-            unprefixed: rawCCs.map(c => ({ id: c.id, name: c.name, tenantId: c.tenantId })),
-            prefixed: prefixedCCs.slice(0, 50).map(c => ({ id: c.id, name: c.name, tenantId: c.tenantId }))
+            costCenters: ccs.map(c => ({ id: c.id, name: c.name }))
         });
     } catch (e: any) {
         return NextResponse.json({ success: false, error: e.message }, { status: 500 });

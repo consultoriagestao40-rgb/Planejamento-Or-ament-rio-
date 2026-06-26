@@ -17,6 +17,24 @@ export default function DeviationActionsTab({ companies, selectedYear, MONTHS }:
     const [filterMonth, setFilterMonth] = useState<string>('ALL');
     const [filterStatus, setFilterStatus] = useState<string>('PENDING'); // default to pending to focus on action items
     const [filterType, setFilterType] = useState<string>('ALL');
+    const [viewMode, setViewMode] = useState<'cards' | 'list'>('cards');
+
+    // Restore viewMode from localStorage
+    useEffect(() => {
+        if (typeof window !== 'undefined') {
+            const saved = localStorage.getItem('deviationViewMode');
+            if (saved === 'cards' || saved === 'list') {
+                setViewMode(saved);
+            }
+        }
+    }, []);
+
+    const handleSetViewMode = (mode: 'cards' | 'list') => {
+        setViewMode(mode);
+        if (typeof window !== 'undefined') {
+            localStorage.setItem('deviationViewMode', mode);
+        }
+    };
 
     const formatDateSafe = (dateVal: any) => {
         if (!dateVal) return '-';
@@ -203,7 +221,7 @@ export default function DeviationActionsTab({ companies, selectedYear, MONTHS }:
                     </select>
                 </div>
 
-                <div style={{ display: 'flex', flexContent: 'column', gap: '0.4rem', flex: '1.2', minWidth: '220px' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem', flex: '1.2', minWidth: '220px' }}>
                     <label style={{ fontSize: '0.7rem', fontWeight: 800, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Tipo de Desvio</label>
                     <select
                         value={filterType}
@@ -218,7 +236,60 @@ export default function DeviationActionsTab({ companies, selectedYear, MONTHS }:
                         <option value="Outro">Outro (Anotações gerais)</option>
                     </select>
                 </div>
+
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem', flex: '0.8', minWidth: '160px' }}>
+                    <label style={{ fontSize: '0.7rem', fontWeight: 800, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Visualização</label>
+                    <div style={{ display: 'flex', gap: '0.2rem', backgroundColor: 'var(--bg-elevated)', padding: '0.2rem', borderRadius: '10px', border: '1px solid var(--border-default)', height: '2.3rem', boxSizing: 'border-box', alignItems: 'center' }}>
+                        <button
+                            type="button"
+                            onClick={() => handleSetViewMode('cards')}
+                            style={{
+                                flex: 1,
+                                height: '100%',
+                                border: 'none',
+                                borderRadius: '7px',
+                                background: viewMode === 'cards' ? 'var(--bg-surface)' : 'transparent',
+                                color: viewMode === 'cards' ? 'var(--text-primary)' : 'var(--text-secondary)',
+                                fontSize: '0.75rem',
+                                fontWeight: viewMode === 'cards' ? 800 : 550,
+                                cursor: 'pointer',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                gap: '0.3rem',
+                                boxShadow: viewMode === 'cards' ? '0 1px 3px rgba(0,0,0,0.05)' : 'none',
+                                transition: 'all 0.15s'
+                            }}
+                        >
+                            🗂️ Cards
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => handleSetViewMode('list')}
+                            style={{
+                                flex: 1,
+                                height: '100%',
+                                border: 'none',
+                                borderRadius: '7px',
+                                background: viewMode === 'list' ? 'var(--bg-surface)' : 'transparent',
+                                color: viewMode === 'list' ? 'var(--text-primary)' : 'var(--text-secondary)',
+                                fontSize: '0.75rem',
+                                fontWeight: viewMode === 'list' ? 800 : 550,
+                                cursor: 'pointer',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                gap: '0.3rem',
+                                boxShadow: viewMode === 'list' ? '0 1px 3px rgba(0,0,0,0.05)' : 'none',
+                                transition: 'all 0.15s'
+                            }}
+                        >
+                            📑 Lista
+                        </button>
+                    </div>
+                </div>
             </div>
+
 
             {/* Content List */}
             {loading ? (
@@ -241,6 +312,173 @@ export default function DeviationActionsTab({ companies, selectedYear, MONTHS }:
                     <p style={{ margin: '0.5rem 0 0 0', fontSize: '0.85rem', color: 'var(--text-muted)' }}>
                         Selecione outros filtros ou registre novos desvios diretamente na tabela do DRE clicando no ícone 📋 ao lado das contas.
                     </p>
+                </div>
+            ) : viewMode === 'list' ? (
+                <div style={{
+                    backgroundColor: 'var(--bg-surface)',
+                    borderRadius: '16px',
+                    border: '1px solid var(--border-default)',
+                    boxShadow: 'var(--shadow-card)',
+                    overflowX: 'auto'
+                }}>
+                    <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', minWidth: '1000px' }}>
+                        <thead style={{ backgroundColor: 'var(--bg-elevated)', borderBottom: '1px solid var(--border-default)' }}>
+                            <tr>
+                                <th style={{ padding: '1rem', color: 'var(--text-secondary)', fontSize: '0.75rem', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.05em', width: '20%' }}>Empresa / Conta</th>
+                                <th style={{ padding: '1rem', color: 'var(--text-secondary)', fontSize: '0.75rem', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.05em', width: '12%' }}>Período / Tipo</th>
+                                <th style={{ padding: '1rem', color: 'var(--text-secondary)', fontSize: '0.75rem', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.05em', width: '38%' }}>Descrição & Correção</th>
+                                <th style={{ padding: '1rem', color: 'var(--text-secondary)', fontSize: '0.75rem', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.05em', width: '15%' }}>Resp. / Prazo</th>
+                                <th style={{ padding: '1rem', color: 'var(--text-secondary)', fontSize: '0.75rem', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.05em', width: '15%', textAlign: 'right' }}>Status / Ações</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {filteredDeviations.map((d) => {
+                                const isOverdue = d.dueDate && new Date(d.dueDate) < new Date() && !d.isResolved;
+                                return (
+                                    <tr 
+                                        key={d.id} 
+                                        style={{ 
+                                            borderBottom: '1px solid var(--border-default)', 
+                                            opacity: d.isResolved ? 0.7 : 1,
+                                            transition: 'background-color 0.15s'
+                                        }}
+                                        onMouseEnter={(e) => {
+                                            e.currentTarget.style.backgroundColor = 'var(--bg-elevated)';
+                                        }}
+                                        onMouseLeave={(e) => {
+                                            e.currentTarget.style.backgroundColor = 'transparent';
+                                        }}
+                                    >
+                                        {/* Empresa / Conta */}
+                                        <td style={{ padding: '1rem', verticalAlign: 'top' }}>
+                                            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
+                                                <span style={{ fontSize: '0.65rem', fontWeight: 800, color: 'var(--accent-blue)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                                                    {getCompanyName(d.tenantId)}
+                                                </span>
+                                                <span style={{ fontSize: '0.85rem', fontWeight: 800, color: 'var(--text-primary)', textDecoration: d.isResolved ? 'line-through' : 'none' }}>
+                                                    {d.category?.name || 'Conta não encontrada'}
+                                                </span>
+                                            </div>
+                                        </td>
+
+                                        {/* Período / Tipo */}
+                                        <td style={{ padding: '1rem', verticalAlign: 'top' }}>
+                                            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem', alignItems: 'flex-start' }}>
+                                                <span style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-primary)' }}>
+                                                    {MONTHS[d.month - 1]} / {d.year}
+                                                </span>
+                                                <span style={{ fontSize: '0.7rem', fontWeight: 750, padding: '0.15rem 0.4rem', borderRadius: '6px', background: 'rgba(59, 130, 246, 0.08)', color: 'var(--accent-blue)' }}>
+                                                    {d.deviationType}
+                                                </span>
+                                            </div>
+                                        </td>
+
+                                        {/* Descrição & Correção */}
+                                        <td style={{ padding: '1rem', verticalAlign: 'top' }}>
+                                            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                                                <div>
+                                                    <span style={{ fontSize: '0.65rem', fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', display: 'block' }}>Desvio:</span>
+                                                    <p style={{ margin: '0.1rem 0 0 0', fontSize: '0.8rem', color: 'var(--text-primary)', whiteSpace: 'pre-wrap', lineHeight: 1.3, textDecoration: d.isResolved ? 'line-through' : 'none' }}>
+                                                        {d.description}
+                                                    </p>
+                                                </div>
+                                                <div>
+                                                    <span style={{ fontSize: '0.65rem', fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', display: 'block' }}>Ação Corretiva:</span>
+                                                    <p style={{ margin: '0.1rem 0 0 0', fontSize: '0.8rem', color: 'var(--text-primary)', fontWeight: 600, whiteSpace: 'pre-wrap', lineHeight: 1.3, textDecoration: d.isResolved ? 'line-through' : 'none' }}>
+                                                        {d.correctionAction}
+                                                    </p>
+                                                </div>
+                                            </div>
+                                        </td>
+
+                                        {/* Resp / Prazo */}
+                                        <td style={{ padding: '1rem', verticalAlign: 'top' }}>
+                                            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
+                                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                                                    {d.responsible?.avatarUrl ? (
+                                                        <img 
+                                                            src={d.responsible.avatarUrl} 
+                                                            alt={d.responsible.name} 
+                                                            style={{ width: '20px', height: '20px', borderRadius: '50%', objectFit: 'cover' }} 
+                                                        />
+                                                    ) : (
+                                                        <span style={{ fontSize: '0.8rem' }}>👤</span>
+                                                    )}
+                                                    <span style={{ fontSize: '0.8rem', color: 'var(--text-primary)', fontWeight: 600 }}>
+                                                        {d.responsible?.name || d.responsibleName || 'Não designado'}
+                                                    </span>
+                                                </div>
+
+                                                {d.dueDate && (
+                                                    <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
+                                                        Prazo: {' '}
+                                                        <strong style={{ 
+                                                            color: isOverdue ? 'var(--accent-red)' : 'var(--text-primary)',
+                                                            background: isOverdue ? 'rgba(239, 68, 68, 0.08)' : 'transparent',
+                                                            padding: isOverdue ? '0.1rem 0.3rem' : '0',
+                                                            borderRadius: isOverdue ? '4px' : '0'
+                                                        }}>
+                                                            {formatDateSafe(d.dueDate)}
+                                                        </strong>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        </td>
+
+                                        {/* Status / Ações */}
+                                        <td style={{ padding: '1rem', verticalAlign: 'middle', textAlign: 'right' }}>
+                                            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '0.5rem' }}>
+                                                <span style={{ 
+                                                    fontSize: '0.7rem', 
+                                                    fontWeight: 750, 
+                                                    padding: '0.15rem 0.4rem', 
+                                                    borderRadius: '6px', 
+                                                    background: d.isResolved ? 'rgba(16, 185, 129, 0.12)' : 'rgba(239, 68, 68, 0.12)', 
+                                                    color: d.isResolved ? 'var(--accent-green)' : 'var(--accent-red)' 
+                                                }}>
+                                                    {d.isResolved ? 'Resolvido' : 'Pendente'}
+                                                </span>
+
+                                                <div style={{ display: 'flex', gap: '0.3rem', alignItems: 'center' }}>
+                                                    <button
+                                                        onClick={() => handleToggleResolve(d.id, d.isResolved)}
+                                                        style={{
+                                                            padding: '0.3rem 0.5rem',
+                                                            borderRadius: '6px',
+                                                            border: d.isResolved ? '1px solid var(--border-default)' : '1px solid rgba(16, 185, 129, 0.3)',
+                                                            background: d.isResolved ? 'var(--bg-elevated)' : 'rgba(16, 185, 129, 0.1)',
+                                                            color: d.isResolved ? 'var(--text-secondary)' : 'var(--accent-green)',
+                                                            fontSize: '0.7rem',
+                                                            fontWeight: 800,
+                                                            cursor: 'pointer',
+                                                            transition: 'all 0.15s'
+                                                        }}
+                                                    >
+                                                        {d.isResolved ? 'Reabrir' : '✓ Concluído'}
+                                                    </button>
+                                                    <button
+                                                        onClick={() => handleDelete(d.id)}
+                                                        style={{
+                                                            padding: '0.3rem',
+                                                            borderRadius: '6px',
+                                                            border: '1px solid var(--border-default)',
+                                                            background: 'none',
+                                                            color: 'var(--accent-red)',
+                                                            cursor: 'pointer',
+                                                            fontSize: '0.8rem'
+                                                        }}
+                                                        title="Excluir ação"
+                                                    >
+                                                        🗑️
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                );
+                            })}
+                        </tbody>
+                    </table>
                 </div>
             ) : (
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(360px, 1fr))', gap: '1.5rem' }}>

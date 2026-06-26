@@ -80,7 +80,7 @@ export async function GET(request: Request) {
             if (!summaryMap[key] || (!isInactive && summaryMap[key].isCandidateInactive)) {
                 let finalCCId = cc.id;
                 if (cleanName === 'ERASTO GAETNER' && cc.tenantId === 'dc2b6eed-a38a-43c3-9465-ce854bfda90f') {
-                    finalCCId = 'dc2b6eed-a38a-43c3-9465-ce854bfda90f:5ee294c0-a5e6-11ef-8521-831ac6abba1c';
+                    finalCCId = 'dc2b6eed-a38a-43c3-9465-ce854bfda90f:30345fc4-69ca-11f1-9cef-cb535c10113a';
                 }
                 summaryMap[key] = {
                     tenantId: cc.tenantId,

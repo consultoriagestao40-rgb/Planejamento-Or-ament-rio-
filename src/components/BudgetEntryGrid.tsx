@@ -174,10 +174,10 @@ export default function BudgetEntryGrid({ costCenterId, year, taxRate = 0 }: Bud
             const erastoIds = [
                 '12e8fa4a-5fce-11ef-8d21-5359b5a09e54',
                 'e38bdeb8-b0c0-11ef-913c-2759e039bba0',
-                '30345fc4-69ca-11f1-9cef-cb535c10113a'
+                '5ee294c0-a5e6-11ef-8521-831ac6abba1c'
             ];
             if (erastoIds.includes(costCenterId)) {
-                const correctId = '5ee294c0-a5e6-11ef-8521-831ac6abba1c';
+                const correctId = '30345fc4-69ca-11f1-9cef-cb535c10113a';
                 console.warn('v67.07: Erasto Gaetner cost center redirecting to official ID...');
                 window.location.replace(window.location.href.replace(costCenterId, correctId));
                 return;

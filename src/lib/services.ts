@@ -808,12 +808,12 @@ export async function syncMasterData(tenantId: string) {
         let pagina = 1;
         let hasMore = true;
         while (hasMore) {
-            let ccRes = await fetch(`https://api-v2.contaazul.com/v1/financeiro/centros-de-custo?tamanho_pagina=100&pagina=${pagina}&status=TODOS`, { 
+            let ccRes = await fetch(`https://api-v2.contaazul.com/v1/centro-de-custo?tamanho_pagina=100&pagina=${pagina}&status=TODOS`, { 
                 headers: { 'Authorization': `Bearer ${token}` },
                 cache: 'no-store'
             });
             if (!ccRes.ok) {
-                ccRes = await fetch(`https://api-v2.contaazul.com/v1/financeiro/centros-de-custo?tamanho_pagina=100&pagina=${pagina}`, { 
+                ccRes = await fetch(`https://api-v2.contaazul.com/v1/centro-de-custo?tamanho_pagina=100&pagina=${pagina}`, { 
                     headers: { 'Authorization': `Bearer ${token}` },
                     cache: 'no-store'
                 });

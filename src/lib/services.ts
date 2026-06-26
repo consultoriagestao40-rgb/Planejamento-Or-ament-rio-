@@ -778,13 +778,14 @@ export async function syncMasterData(tenantId: string) {
                 if (items.length === 0) break;
                 
                 for (const item of items) {
+                    const itemRealName = item.nome || item.name || '';
                     const existing = await prisma.category.findUnique({ where: { id: item.id } });
-                    let finalName = item.name;
+                    let finalName = itemRealName;
                     if (existing) {
                         const isLocalInactive = existing.name.toUpperCase().includes('[INATIVO]');
-                        const isRemoteInactive = item.name.toUpperCase().includes('[INATIVO]');
+                        const isRemoteInactive = itemRealName.toUpperCase().includes('[INATIVO]');
                         if (isLocalInactive && !isRemoteInactive) {
-                            finalName = `[INATIVO] ${item.name}`;
+                            finalName = `[INATIVO] ${itemRealName}`;
                         }
                     }
 
@@ -801,7 +802,9 @@ export async function syncMasterData(tenantId: string) {
                 hasMore = false;
             }
         }
-    } catch (e) {}
+    } catch (e: any) {
+        console.error('[SYNC] Erro ao sincronizar categorias:', e);
+    }
 
     // Sync Cost Centers
     try {
@@ -824,14 +827,15 @@ export async function syncMasterData(tenantId: string) {
                 if (items.length === 0) break;
 
                 for (const item of items) {
+                    const itemRealName = item.nome || item.name || '';
                     const prefixedId = item.id.includes(':') ? item.id : `${tenantId}:${item.id}`;
                     const existing = await prisma.costCenter.findUnique({ where: { id: prefixedId } });
-                    let finalName = item.name;
+                    let finalName = itemRealName;
                     if (existing) {
                         const isLocalInactive = existing.name.toUpperCase().includes('[INATIVO]');
-                        const isRemoteInactive = item.name.toUpperCase().includes('[INATIVO]');
+                        const isRemoteInactive = itemRealName.toUpperCase().includes('[INATIVO]');
                         if (isLocalInactive && !isRemoteInactive) {
-                            finalName = `[INATIVO] ${item.name}`;
+                            finalName = `[INATIVO] ${itemRealName}`;
                         }
                     }
 
@@ -848,7 +852,9 @@ export async function syncMasterData(tenantId: string) {
                 hasMore = false;
             }
         }
-    } catch (e) {}
+    } catch (e: any) {
+        console.error('[SYNC] Erro ao sincronizar centros de custo:', e);
+    }
 
     return { success: true };
 }

@@ -196,10 +196,14 @@ export async function GET(request: Request) {
             if (isBlacklisted) return;
 
             if (!groupsMap[key]) {
+                let finalCCId = cc.id;
+                if (cleanName === 'ERASTO GAETNER' && pTenantId === 'dc2b6eed-a38a-43c3-9465-ce854bfda90f') {
+                    finalCCId = 'dc2b6eed-a38a-43c3-9465-ce854bfda90f:5ee294c0-a5e6-11ef-8521-831ac6abba1c';
+                }
                 groupsMap[key] = {
                     tenantId: pTenantId,
                     tenantName: primaryTenantNames.get(pTenantId) || cc.tenant.name,
-                    costCenterId: cc.id,
+                    costCenterId: finalCCId,
                     costCenterName: cleanName,
                     monthlyData: {}
                 };

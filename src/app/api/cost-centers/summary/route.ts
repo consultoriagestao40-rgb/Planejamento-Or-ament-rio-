@@ -78,10 +78,14 @@ export async function GET(request: Request) {
             const isInactive = (cc.name || '').toUpperCase().includes('[INATIVO]');
             
             if (!summaryMap[key] || (!isInactive && summaryMap[key].isCandidateInactive)) {
+                let finalCCId = cc.id;
+                if (cleanName === 'ERASTO GAETNER' && cc.tenantId === 'dc2b6eed-a38a-43c3-9465-ce854bfda90f') {
+                    finalCCId = 'dc2b6eed-a38a-43c3-9465-ce854bfda90f:5ee294c0-a5e6-11ef-8521-831ac6abba1c';
+                }
                 summaryMap[key] = {
                     tenantId: cc.tenantId,
                     tenantName: cc.tenant.name,
-                    costCenterId: cc.id, // Primary ID for links
+                    costCenterId: finalCCId, // Primary ID for links
                     costCenterName: cleanName === 'ERASTO GAETNER' ? 'ERASTO GAETNER' : cc.name,
                     totalRevenueBudget: 0,
                     totalExpenseBudget: 0,

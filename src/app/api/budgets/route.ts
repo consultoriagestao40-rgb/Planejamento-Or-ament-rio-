@@ -623,7 +623,7 @@ export async function POST(request: Request) {
           firstCC === 'null' || 
           firstCC === 'undefined' || 
           firstCC === currentTenantId
-        ) ? null : firstCC;
+        ) ? null : `${currentTenantId}:${firstCC}`;
 
         // 2. Safely parse values
         const dbMonth = parseInt(month.toString()) + 1;

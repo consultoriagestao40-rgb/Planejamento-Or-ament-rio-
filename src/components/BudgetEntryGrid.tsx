@@ -430,7 +430,10 @@ export default function BudgetEntryGrid({ costCenterId, year, taxRate = 0 }: Bud
     const nodeTotals = useMemo(() => {
         const totalsMap = new Map<string, { budget: number[], realized: number[], radar: number[] }>();
 
-        const isNegatedCode = (code: string) => code.startsWith('06.1');
+        const isNegatedCode = (code: string) => {
+            const norm = code.split('.').map(part => part.replace(/^0+/, '') || '0').join('.');
+            return norm === '6.1' || norm.startsWith('6.1.');
+        };
 
         const calculateNode = (node: CategoryNode, parentNegated = false): { budget: number[], realized: number[], radar: number[] } => {
             const myBudget = new Array(12).fill(0);

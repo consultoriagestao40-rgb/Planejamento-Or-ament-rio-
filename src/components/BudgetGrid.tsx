@@ -2922,7 +2922,10 @@ export default function BudgetGrid({
     // --- RECURSIVE TOTALS ---
     const nodeTotals = useMemo(() => {
         const totalsMap = new Map<string, { budget: number[], realized: number[], radar: number[] }>();
-        const isNegatedCode = (code: string) => code.startsWith('06.1');
+        const isNegatedCode = (code: string) => {
+            const norm = code.split('.').map(part => part.replace(/^0+/, '') || '0').join('.');
+            return norm === '6.1' || norm.startsWith('6.1.');
+        };
 
         const calculateNode = (node: CategoryNode, parentNegated = false) => {
             const negated = parentNegated || isNegatedCode(node.code || '');
@@ -4400,7 +4403,7 @@ export default function BudgetGrid({
 
     const renderSummaryRow = (label: string, validx: keyof ReturnType<typeof dreStructure.calculateTotals>, isBold = false, groupId?: string) => {
         const isGroupExpanded = groupId ? expandedGroups.has(groupId) : true;
-        const isLucroLiquido = false;
+        const isLucroLiquido = validx === 'vNetProfit';
 
         return (
             <tr 
@@ -4449,10 +4452,6 @@ export default function BudgetGrid({
                     if (rowData) {
                         budgetVal = (rowData as any).b || 0;
                         realizedVal = (rowData as any).r || 0;
-                        if (validx === 'vFin') {
-                            budgetVal = -budgetVal;
-                            realizedVal = -realizedVal;
-                        }
                     }
 
                     if (viewPeriod === 'quarter') {

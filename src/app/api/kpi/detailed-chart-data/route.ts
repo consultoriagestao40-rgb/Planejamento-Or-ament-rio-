@@ -284,7 +284,7 @@ export async function GET(request: Request) {
             const allKeys = new Set<string>();
 
             for (const key of keys) {
-                if (['vRev', 'vTaxes', 'vRecLiq', 'vCosts', 'vGrossMarg', 'vOpExp', 'vContribMarg', 'vAdminExp', 'vEbitda', 'vFin', 'vNetProfit'].includes(key)) {
+                if (['vRev', 'vTaxes', 'vRecLiq', 'vCosts', 'vGrossMarg', 'vOpExp', 'vContribMarg', 'vAdminExp', 'vEbitda', 'vFin', 'vNetProfit', 'vInvest'].includes(key)) {
                     return null; // Bypass filter (need all for DRE calculation)
                 }
 
@@ -611,8 +611,9 @@ export async function GET(request: Request) {
                     if (norm === '2' || norm.startsWith('2.')) return 'taxes';
                     if (norm === '3' || norm.startsWith('3.')) return 'costs';
                     if (norm === '4' || norm.startsWith('4.')) return 'opExp';
-                    if (norm === '5' || norm.startsWith('5.') || norm === '7' || norm.startsWith('7.') || norm === '8' || norm.startsWith('8.')) return 'adminExp';
+                    if (norm === '5' || norm.startsWith('5.') || norm === '8' || norm.startsWith('8.')) return 'adminExp';
                     if (norm === '6' || norm.startsWith('6.') || norm === '9' || norm.startsWith('9.') || norm === '10' || norm.startsWith('10.')) return 'fin';
+                    if (norm === '7' || norm.startsWith('7.')) return 'invest';
                     return 'other';
                 };
 
@@ -660,6 +661,9 @@ export async function GET(request: Request) {
                 const bNetProfit = bEbitda - bFin;
                 const rNetProfit = rEbitda - rFin;
 
+                const bInvest = sumGroup('invest', 'budget');
+                const rInvest = sumGroup('invest', 'realized');
+
                 return {
                     vRev: { b: bRev, r: rRev },
                     vTaxes: { b: bTaxes, r: rTaxes },
@@ -671,7 +675,8 @@ export async function GET(request: Request) {
                     vAdminExp: { b: bAdminExp, r: rAdminExp },
                     vEbitda: { b: bEbitda, r: rEbitda },
                     vFin: { b: bFin, r: rFin },
-                    vNetProfit: { b: bNetProfit, r: rNetProfit }
+                    vNetProfit: { b: bNetProfit, r: rNetProfit },
+                    vInvest: { b: bInvest, r: rInvest }
                 };
             };
 
@@ -680,13 +685,13 @@ export async function GET(request: Request) {
             const getSeriesForCategory = async (catId: string) => {
                 const keys = catId.split(',').map(k => k.trim()).filter(Boolean);
 
-                const dbKeys = keys.filter(k => !['vRev', 'vTaxes', 'vRecLiq', 'vCosts', 'vGrossMarg', 'vOpExp', 'vContribMarg', 'vAdminExp', 'vEbitda', 'vFin', 'vNetProfit'].includes(k));
+                const dbKeys = keys.filter(k => !['vRev', 'vTaxes', 'vRecLiq', 'vCosts', 'vGrossMarg', 'vOpExp', 'vContribMarg', 'vAdminExp', 'vEbitda', 'vFin', 'vNetProfit', 'vInvest'].includes(k));
                 const originalCategories = dbKeys.length > 0 ? await prisma.category.findMany({
                     where: { id: { in: dbKeys } }
                 }) : [];
 
                 const resolvedKeys = keys.map(key => {
-                    const isDreKey = ['vRev', 'vTaxes', 'vRecLiq', 'vCosts', 'vGrossMarg', 'vOpExp', 'vContribMarg', 'vAdminExp', 'vEbitda', 'vFin', 'vNetProfit'].includes(key);
+                    const isDreKey = ['vRev', 'vTaxes', 'vRecLiq', 'vCosts', 'vGrossMarg', 'vOpExp', 'vContribMarg', 'vAdminExp', 'vEbitda', 'vFin', 'vNetProfit', 'vInvest'].includes(key);
                     if (isDreKey) return key;
 
                     let lookupKey = key;
@@ -726,7 +731,7 @@ export async function GET(request: Request) {
 
                     resolvedKeys.forEach((key, idx) => {
                         const originalKey = keys[idx];
-                        const isDreKey = ['vRev', 'vTaxes', 'vRecLiq', 'vCosts', 'vGrossMarg', 'vOpExp', 'vContribMarg', 'vAdminExp', 'vEbitda', 'vFin', 'vNetProfit'].includes(key);
+                        const isDreKey = ['vRev', 'vTaxes', 'vRecLiq', 'vCosts', 'vGrossMarg', 'vOpExp', 'vContribMarg', 'vAdminExp', 'vEbitda', 'vFin', 'vNetProfit', 'vInvest'].includes(key);
 
                         let canonicalKey = key;
                         if (!isDreKey) {

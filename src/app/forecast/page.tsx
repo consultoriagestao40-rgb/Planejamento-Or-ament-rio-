@@ -13,6 +13,22 @@ export default function ForecastPage() {
     const [loadingData, setLoadingData] = useState(false);
     const [activeTab, setActiveTab] = useState<'grid' | 'coefficients'>('grid');
     const [isSimulatorOpen, setIsSimulatorOpen] = useState(false);
+    const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set([
+        'G-01', 'G-02', 'G-03', 'G-04', 'G-05', 'G-06',
+        'G-01.1', 'G-01.2', 'G-02.1', 'G-03.1', 'G-03.2', 'G-03.3', 'G-03.4', 'G-03.5', 'G-03.7', 'G-03.8', 'G-03.9'
+    ]));
+
+    const toggleRow = (id: string) => {
+        setExpandedRows(prev => {
+            const next = new Set(prev);
+            if (next.has(id)) {
+                next.delete(id);
+            } else {
+                next.add(id);
+            }
+            return next;
+        });
+    };
 
     // Modal/Form States for Simulated Contract
     const [isContractModalOpen, setIsContractModalOpen] = useState(false);
@@ -161,9 +177,200 @@ export default function ForecastPage() {
     // Group forecast grid categories logically
     const displayGrid = useMemo(() => {
         if (forecastData.length === 0) return [];
-        // Map DRE rows
-        return forecastData.sort((a, b) => a.categoryName.localeCompare(b.categoryName));
-    }, [forecastData]);
+
+        const buildDreTree = (flatData: any[]) => {
+            const createNode = (id: string, name: string, level: number, isFormula = false) => ({
+                categoryId: id,
+                categoryName: name,
+                level,
+                isFormula,
+                realized: Array(12).fill(0),
+                budget: Array(12).fill(0),
+                forecast: Array(12).fill(0),
+                children: [] as any[]
+            });
+
+            // Main parent groups
+            const recBruta = createNode('G-01', '01. RECEITA BRUTA', 0);
+            const recServicos = createNode('G-01.1', '01.1 - Receita de Serviços', 1);
+            const recVendas = createNode('G-01.2', '01.2 - Receitas de Vendas', 1);
+            recBruta.children = [recServicos, recVendas];
+
+            const tributos = createNode('G-02', '02. TRIBUTO SOBRE FATURAMENTO', 0);
+            const tribSub = createNode('G-02.1', '02.1 - Tributos', 1);
+            tributos.children = [tribSub];
+
+            const recLiquida = createNode('F-RL', '(=) RECEITA LÍQUIDA', 0, true);
+
+            const custosOp = createNode('G-03', '03. CUSTOS OPERACIONAIS', 0);
+            const custosSubs: Record<string, any> = {
+                '03.1': createNode('G-03.1', '03.1 Salarios e Remuneração', 1),
+                '03.2': createNode('G-03.2', '03.2 Encargos Sociais', 1),
+                '03.3': createNode('G-03.3', '03.3 Beneficios', 1),
+                '03.4': createNode('G-03.4', '03.4 Diárias', 1),
+                '03.5': createNode('G-03.5', '03.5 SSMA', 1),
+                '03.6': createNode('G-03.6', '03.6 Materiais', 1),
+                '03.7': createNode('G-03.7', '03.7 Equipamentos', 1),
+                '03.8': createNode('G-03.8', '03.8 Comunicação/Sistema/Licenças', 1),
+                '03.9': createNode('G-03.9', '03.9 Custo com Veiculo', 1),
+                '03.10': createNode('G-03.10', '03.10 Custos Transferidos', 1),
+            };
+            custosOp.children = Object.values(custosSubs);
+
+            const margemContrib = createNode('F-MC', '(=) MARGEM DE CONTRIBUIÇÃO', 0, true);
+
+            const despVendas = createNode('G-04', '04. DESPESAS COM VENDAS', 0);
+            const despVendasSubs: Record<string, any> = {
+                '04.1': createNode('G-04.1', '04.1 Salarios e Remuneração', 1),
+                '04.2': createNode('G-04.2', '04.2 Encargos Sociais', 1),
+                '04.3': createNode('G-04.3', '04.3 Beneficios', 1),
+                '04.4': createNode('G-04.4', '04.4 SSMA', 1),
+                '04.5': createNode('G-04.5', '04.5 Viagens', 1),
+                '04.6': createNode('G-04.6', '04.6 Custo com Veículos', 1),
+                '04.7': createNode('G-04.7', '04.7 Cartão Corporativo', 1),
+                '04.8': createNode('G-04.8', '04.8 Serviços Terceirizados', 1),
+            };
+            despVendas.children = Object.values(despVendasSubs);
+
+            const despAdmin = createNode('G-05', '05. DESPESAS ADMINISTRATIVAS', 0);
+            const despAdminSubs: Record<string, any> = {
+                '05.1': createNode('G-05.1', '05.1 Salario e Remuneração', 1),
+                '05.2': createNode('G-05.2', '05.2 Encargos Sociais', 1),
+                '05.3': createNode('G-05.3', '05.3 Beneficios', 1),
+                '05.4': createNode('G-05.4', '05.4 SSMA', 1),
+                '05.5': createNode('G-05.5', '05.5 Viagens', 1),
+                '05.6': createNode('G-05.6', '05.6 Despesa com Socios', 1),
+                '05.7': createNode('G-05.7', '05.7 Serviços Contratados', 1),
+                '05.8': createNode('G-05.8', '05.8 Despesa Comercial/Marketing', 1),
+                '05.9': createNode('G-05.9', '05.9 Despesa com Estrutura', 1),
+                '05.10': createNode('G-05.10', '05.10 Despesa Copa e Cozinha', 1),
+                '05.11': createNode('G-05.11', '05.11 Despesa com Veículos', 1),
+                '05.12': createNode('G-05.12', '05.12 Despesa de Informatica', 1),
+                '05.13': createNode('G-05.13', '05.13 Taxas e Despesas Legais', 1),
+            };
+            despAdmin.children = Object.values(despAdminSubs);
+
+            const ebitda = createNode('F-EBITDA', '(=) EBITDA', 0, true);
+
+            const despFin = createNode('G-06', '06. DESPESAS FINANCEIRAS', 0);
+            const despFinSubs: Record<string, any> = {
+                '06.1': createNode('G-06.1', '06.1 Entradas Financeiras', 1),
+                '06.2': createNode('G-06.2', '06.2 Saidas Financeiras', 1),
+                '06.3': createNode('G-06.3', '06.3 Financiamento', 1),
+                '06.4': createNode('G-06.4', '06.4 Juros/Multas', 1),
+                '06.5': createNode('G-06.5', '06.5 Passivo Trabalhista', 1),
+                '06.6': createNode('G-06.6', '06.6 Depreciação', 1),
+                '06.7': createNode('G-06.7', '06.7 Cartão de Credito', 1),
+                '06.8': createNode('G-06.8', '06.8 PDD', 1),
+            };
+            despFin.children = Object.values(despFinSubs);
+
+            const lucroLiquido = createNode('F-LL', '(=) LUCRO LÍQUIDO', 0, true);
+
+            // Classify flat leaf categories
+            flatData.forEach(cat => {
+                const name = cat.categoryName;
+                const codeMatch = name.match(/^([\d.]+)/);
+                const code = codeMatch ? codeMatch[1] : '';
+
+                let parentNode = null;
+                if (code.startsWith('01.1.') || code.startsWith('1.1.')) {
+                    parentNode = recServicos;
+                } else if (code.startsWith('01.2.') || code.startsWith('1.2.')) {
+                    parentNode = recVendas;
+                } else if (code.startsWith('02.1.') || code.startsWith('2.1.') || code.startsWith('02.') || code.startsWith('2.')) {
+                    parentNode = tribSub;
+                } else if (code.startsWith('03.')) {
+                    const subPrefix = code.substring(0, 4);
+                    parentNode = custosSubs[subPrefix];
+                } else if (code.startsWith('04.')) {
+                    const subPrefix = code.substring(0, 4);
+                    parentNode = despVendasSubs[subPrefix];
+                } else if (code.startsWith('05.')) {
+                    const subPrefix = code.substring(0, 4);
+                    parentNode = despAdminSubs[subPrefix];
+                } else if (code.startsWith('06.')) {
+                    const subPrefix = code.substring(0, 4);
+                    parentNode = despFinSubs[subPrefix];
+                }
+
+                if (parentNode) {
+                    parentNode.children.push({
+                        ...cat,
+                        level: parentNode.level + 1,
+                        isFormula: false,
+                        children: []
+                    });
+                }
+            });
+
+            // Compute parent sums
+            const computeSums = (node: any): any => {
+                if (!node.children || node.children.length === 0) {
+                    return { realized: node.realized, budget: node.budget, forecast: node.forecast };
+                }
+
+                node.children.forEach((child: any) => {
+                    const childData = computeSums(child);
+                    const isFinancialRevenue = child.categoryId.includes('06.1') || child.categoryName.includes('06.1');
+                    const sign = isFinancialRevenue ? -1 : 1;
+                    for (let i = 0; i < 12; i++) {
+                        node.realized[i] += sign * childData.realized[i];
+                        node.budget[i] += sign * childData.budget[i];
+                        node.forecast[i] += sign * childData.forecast[i];
+                    }
+                });
+
+                return { realized: node.realized, budget: node.budget, forecast: node.forecast };
+            };
+
+            computeSums(recBruta);
+            computeSums(tributos);
+            computeSums(custosOp);
+            computeSums(despVendas);
+            computeSums(despAdmin);
+            computeSums(despFin);
+
+            // Compute formulas
+            for (let i = 0; i < 12; i++) {
+                recLiquida.realized[i] = recBruta.realized[i] - tributos.realized[i];
+                recLiquida.budget[i] = recBruta.budget[i] - tributos.budget[i];
+                recLiquida.forecast[i] = recBruta.forecast[i] - tributos.forecast[i];
+
+                margemContrib.realized[i] = recLiquida.realized[i] - custosOp.realized[i];
+                margemContrib.budget[i] = recLiquida.budget[i] - custosOp.budget[i];
+                margemContrib.forecast[i] = recLiquida.forecast[i] - custosOp.forecast[i];
+
+                ebitda.realized[i] = margemContrib.realized[i] - despVendas.realized[i] - despAdmin.realized[i];
+                ebitda.budget[i] = margemContrib.budget[i] - despVendas.budget[i] - despAdmin.budget[i];
+                ebitda.forecast[i] = margemContrib.forecast[i] - despVendas.forecast[i] - despAdmin.forecast[i];
+
+                lucroLiquido.realized[i] = ebitda.realized[i] - despFin.realized[i];
+                lucroLiquido.budget[i] = ebitda.budget[i] - despFin.budget[i];
+                lucroLiquido.forecast[i] = ebitda.forecast[i] - despFin.forecast[i];
+            }
+
+            return [recBruta, tributos, recLiquida, custosOp, margemContrib, despVendas, despAdmin, ebitda, despFin, lucroLiquido];
+        };
+
+        const treeRoots = buildDreTree(forecastData);
+
+        // Flatten and filter visible nodes recursively
+        const resultList: any[] = [];
+        const checkVisible = (node: any, parentVisible = true) => {
+            if (parentVisible) {
+                resultList.push(node);
+            }
+            if (node.children && node.children.length > 0) {
+                const isOpen = expandedRows.has(node.categoryId);
+                node.children.sort((a: any, b: any) => a.categoryName.localeCompare(b.categoryName));
+                node.children.forEach((c: any) => checkVisible(c, parentVisible && isOpen));
+            }
+        };
+
+        treeRoots.forEach(r => checkVisible(r, true));
+        return resultList;
+    }, [forecastData, expandedRows]);
 
     return (
         <div style={{ padding: '2rem', display: 'flex', flexDirection: 'column', gap: '1.5rem', width: '100%', boxSizing: 'border-box', background: 'var(--bg-default)', color: 'var(--text-primary)' }}>
@@ -289,12 +496,42 @@ export default function ForecastPage() {
                                         const sumForecast = row.forecast.reduce((a: number, b: number) => a + b, 0);
                                         const sumBudget = row.budget.reduce((a: number, b: number) => a + b, 0);
                                         const variance = sumForecast - sumBudget;
-                                        const isParent = row.categoryId.includes('synth-') || row.categoryId.length <= 6;
+                                        
+                                        const isGroup = row.categoryId.startsWith('G-');
+                                        const isFormula = row.categoryId.startsWith('F-');
+                                        const hasChildren = row.children && row.children.length > 0;
+
+                                        let background = 'transparent';
+                                        let fontWeight = 500;
+                                        let borderBottom = '1px solid var(--border-subtle)';
+
+                                        if (isFormula) {
+                                            background = 'rgba(99, 102, 241, 0.08)';
+                                            fontWeight = 800;
+                                            borderBottom = '2px double var(--border-default)';
+                                        } else if (isGroup) {
+                                            background = 'var(--bg-elevated)';
+                                            fontWeight = 700;
+                                        }
 
                                         return (
-                                            <tr key={row.categoryId} style={{ borderBottom: '1px solid var(--border-subtle)', background: isParent ? 'var(--bg-elevated)' : 'transparent', fontWeight: isParent ? 700 : 500 }}>
-                                                <td style={{ padding: '0.6rem 0.5rem', whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden', paddingLeft: isParent ? '0.5rem' : '1.5rem' }}>
-                                                    {row.categoryName}
+                                            <tr key={row.categoryId} style={{ borderBottom, background, fontWeight }}>
+                                                <td style={{ padding: '0.6rem 0.5rem', whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden', paddingLeft: `${row.level * 16 + 8}px` }}>
+                                                    {hasChildren && (
+                                                        <span 
+                                                            onClick={() => toggleRow(row.categoryId)}
+                                                            style={{ cursor: 'pointer', userSelect: 'none', marginRight: '0.5rem', display: 'inline-block', width: '12px', color: 'var(--text-secondary)' }}
+                                                        >
+                                                            {expandedRows.has(row.categoryId) ? '▼' : '▶'}
+                                                        </span>
+                                                    )}
+                                                    {!hasChildren && !isFormula && <span style={{ display: 'inline-block', width: '17px' }} />}
+                                                    <span 
+                                                        onClick={() => hasChildren && toggleRow(row.categoryId)}
+                                                        style={{ cursor: hasChildren ? 'pointer' : 'default' }}
+                                                    >
+                                                        {row.categoryName}
+                                                    </span>
                                                 </td>
                                                 {row.forecast.map((val: number, i: number) => (
                                                     <td key={i} style={{ padding: '0.6rem 0.5rem', textAlign: 'right' }}>

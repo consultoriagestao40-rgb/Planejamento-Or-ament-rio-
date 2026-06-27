@@ -3,6 +3,64 @@ import { prisma } from '@/lib/prisma';
 
 export const dynamic = 'force-dynamic';
 
+const formatCategoryName = (name: string): string => {
+    if (!name) return '';
+    if (name.startsWith('synth-')) {
+        const parts = name.split('|');
+        const codePart = parts[0].replace('synth-', '');
+        const normalizedCode = codePart.startsWith('0') ? codePart : '0' + codePart;
+        
+        const standardNames: Record<string, string> = {
+            '01.1': '01.1 - Receita de Serviços',
+            '01.2': '01.2 - Receitas de Vendas',
+            '02.1': '02.1 - Tributos',
+            '03.1': '03.1 - Salários e Remuneração',
+            '03.2': '03.2 - Encargos Sociais',
+            '03.3': '03.3 - Benefícios',
+            '03.4': '03.4 - Diárias',
+            '03.5': '03.5 - SSMA',
+            '03.6': '03.6 - Materiais',
+            '03.7': '03.7 - Equipamentos',
+            '03.8': '03.8 - Comunicação/Sistema/Licenças',
+            '03.9': '03.9 - Custo com Veículo',
+            '03.10': '03.10 - Custos Transferidos',
+            '04.1': '04.1 - Salários e Remuneração',
+            '04.2': '04.2 - Encargos Sociais',
+            '04.3': '04.3 - Benefícios',
+            '04.4': '04.4 - SSMA',
+            '04.5': '04.5 - Viagens',
+            '04.6': '04.6 - Custo com Veículos',
+            '04.7': '04.7 - Cartão Corporativo',
+            '04.8': '04.8 - Serviços Terceirizados',
+            '05.1': '05.1 - Salários e Remuneração',
+            '05.2': '05.2 - Encargos Sociais',
+            '05.3': '05.3 - Benefícios',
+            '05.4': '05.4 - SSMA',
+            '05.5': '05.5 - Viagens',
+            '05.6': '05.6 - Despesa com Sócios',
+            '05.7': '05.7 - Serviços Contratados',
+            '05.8': '05.8 - Despesa Comercial/Marketing',
+            '05.9': '05.9 - Despesa com Estrutura',
+            '05.10': '05.10 - Despesa Copa e Cozinha',
+            '05.11': '05.11 - Despesa com Veículos',
+            '05.12': '05.12 - Despesa de Informática',
+            '05.13': '05.13 - Taxas e Despesas Legais',
+            '06.1': '06.1 - Entradas Financeiras',
+            '06.2': '06.2 - Saídas Financeiras',
+            '06.3': '06.3 - Financiamento',
+            '06.4': '06.4 - Juros/Multas',
+            '06.5': '06.5 - Passivo Trabalhista',
+            '06.6': '06.6 - Depreciação',
+            '06.7': '06.7 - Cartão de Crédito',
+            '06.8': '06.8 - PDD',
+            '07': '07. Investimentos'
+        };
+        
+        return standardNames[normalizedCode] || standardNames[codePart] || name;
+    }
+    return name;
+};
+
 export async function GET(request: Request) {
     try {
         const { searchParams } = new URL(request.url);
@@ -75,16 +133,10 @@ export async function GET(request: Request) {
             return true;
         });
 
-        // 4. Find Receita Bruta (01) historical sum
-        const grossRevCategories = await prisma.category.findMany({
-            where: {
-                tenantId: { in: tenantIds },
-                OR: [
-                    { id: { startsWith: 'synth-1.' } },
-                    { id: { startsWith: '01.' } },
-                    { id: { startsWith: '1.' } }
-                ]
-            }
+        // 4. Find Receita Bruta (01) historical sum (using memory categories since IDs are UUIDs)
+        const grossRevCategories = categories.filter(c => {
+            const name = c.name || '';
+            return name.startsWith('01') || name.startsWith('1.') || c.id.startsWith('synth-1.');
         });
         const grossRevIds = grossRevCategories.map(c => c.id);
         const totalGrossRevenue = filteredRealized
@@ -153,7 +205,7 @@ export async function GET(request: Request) {
 
             return {
                 categoryId: catInfo.categoryId, // representative ID
-                categoryName: catInfo.categoryName,
+                categoryName: formatCategoryName(catInfo.categoryName),
                 percentage: calculatedPercentage,
                 isOverride: overrideVal !== undefined
             };

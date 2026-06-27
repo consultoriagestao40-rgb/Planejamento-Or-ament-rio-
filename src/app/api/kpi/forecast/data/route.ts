@@ -86,16 +86,10 @@ export async function GET(request: Request) {
             return true;
         });
 
-        // Calculate consolidated gross revenue for default coefficients
-        const grossRevCategories = await prisma.category.findMany({
-            where: {
-                tenantId: { in: tenantIds },
-                OR: [
-                    { id: { startsWith: 'synth-1.' } },
-                    { id: { startsWith: '01.' } },
-                    { id: { startsWith: '1.' } }
-                ]
-            }
+        // Calculate consolidated gross revenue for default coefficients (using memory categories since IDs are UUIDs)
+        const grossRevCategories = categories.filter(c => {
+            const name = c.name || '';
+            return name.startsWith('01') || name.startsWith('1.') || c.id.startsWith('synth-1.');
         });
         const grossRevIds = grossRevCategories.map(c => c.id);
         const totalGrossRevenueRealized = filteredRealized

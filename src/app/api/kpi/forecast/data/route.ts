@@ -113,34 +113,15 @@ export async function GET(request: Request) {
             .filter(r => grossRevIds.includes(r.categoryId))
             .reduce((sum, r) => sum + r.amount, 0);
 
-        // Group categories by unified prefix code
+        // Group categories by unified prefix code (exact leaf code)
         const uniqueCategoriesMap = new Map<string, { categoryId: string; categoryName: string; type: string; parentId: string | null }>();
         
-        const standardCodes = [
-            '01.1', '01.2', '02.1',
-            '03.1', '03.2', '03.3', '03.4', '03.5', '03.6', '03.7', '03.8', '03.9', '03.10',
-            '04.1', '04.2', '04.3', '04.4', '04.5', '04.6', '04.7', '04.8',
-            '05.1', '05.2', '05.3', '05.4', '05.5', '05.6', '05.7', '05.8', '05.9', '05.10', '05.11', '05.12', '05.13',
-            '06.1', '06.2', '06.3', '06.4', '06.5', '06.6', '06.7', '06.8',
-            '07'
-        ];
-
-        standardCodes.forEach(code => {
-            const matchedCat = categories.find(c => normalizeCode(c.name) === code);
-            const representativeId = matchedCat ? matchedCat.id : `synth-${code}`;
-            const representativeName = matchedCat ? matchedCat.name : `synth-${code}`;
-            
-            uniqueCategoriesMap.set(code, {
-                categoryId: representativeId,
-                categoryName: representativeName,
-                type: (code.startsWith('01') || code.startsWith('1')) ? 'REVENUE' : 'EXPENSE',
-                parentId: null
-            });
-        });
-
         leafCategories.forEach(cat => {
-            const code = normalizeCode(cat.name);
-            if (code && !uniqueCategoriesMap.has(code)) {
+            const name = cat.name;
+            const codeMatch = name.match(/^([\d.]+)/);
+            const code = codeMatch ? codeMatch[1] : name;
+
+            if (!uniqueCategoriesMap.has(code)) {
                 uniqueCategoriesMap.set(code, {
                     categoryId: cat.id,
                     categoryName: cat.name,
@@ -154,10 +135,12 @@ export async function GET(request: Request) {
         const coefMap = new Map<string, number>();
         uniqueCategoriesMap.forEach((catInfo, code) => {
             const matchedCatIds = leafCategories.filter(c => {
-                return normalizeCode(c.name) === code;
+                const cMatch = c.name.match(/^([\d.]+)/);
+                const cCode = cMatch ? cMatch[1] : c.name;
+                return cCode === code;
             }).map(c => c.id);
 
-            const isGrossRevenue = code === '01.1' || code === '01.2' || code === '01';
+            const isGrossRevenue = code === '01.1' || code === '01.2' || code === '01' || code.startsWith('01.');
             
             let overrideVal: number | undefined = undefined;
             if (overrideMap.has(catInfo.categoryId)) {
@@ -185,16 +168,27 @@ export async function GET(request: Request) {
 
             // Apply special rules
             if (overrideVal === undefined) {
-                if (code === '03.2') {
-                    pct = 5.5; // Default INSS/Encargos
-                } else if (code === '03.4') {
-                    pct = 0.5; // Default Diárias (0.5% Cobertura + 0% Extra)
-                } else if (code === '03.7') {
-                    pct = 0.6; // Default Equipamentos
-                } else if (code === '03.8') {
-                    pct = 0.1; // Default Comunicação
-                } else if (code === '03.9') {
-                    pct = 0.4; // Default Veículos
+                const nameLower = catInfo.categoryName.toLowerCase();
+                if (code.includes('03.2.6') || code.endsWith('.3.2.6') || nameLower.includes('inss')) {
+                    pct = 5.5; // INSS
+                } else if (code.includes('03.4.1') || nameLower.includes('cobertura')) {
+                    pct = 0.5; // Diárias de Cobertura
+                } else if (code.includes('03.4.2') || nameLower.includes('serviço extra') || nameLower.includes('servico extra')) {
+                    pct = 0.0; // Diária de Serviço Extra
+                } else if (code.includes('03.7.1') || nameLower.includes('não depreciáveis') || nameLower.includes('nao depreciaveis')) {
+                    pct = 0.1;
+                } else if (code.includes('03.7.2') || nameLower.includes('depreciação de equipamentos') || nameLower.includes('depreciacao de equipamentos')) {
+                    pct = 0.1;
+                } else if (code.includes('03.7.4') || nameLower.includes('manutenção de equipamentos') || nameLower.includes('manutencao de equipamentos')) {
+                    pct = 0.3;
+                } else if (code.includes('03.8.2') || nameLower.includes('ponto digital')) {
+                    pct = 0.1;
+                } else if (code.includes('03.9.2') || nameLower.includes('manutenção de veículos') || nameLower.includes('manutencao de veiculos')) {
+                    pct = 0.1;
+                } else if (code.includes('03.9.3') || nameLower.includes('combustível') || nameLower.includes('combustivel')) {
+                    pct = 0.1;
+                } else if (code.includes('03.9.8') || nameLower.includes('seguro dos veículos') || nameLower.includes('seguros de veículos') || nameLower.includes('seguro de veiculo')) {
+                    pct = 0.2;
                 }
             }
 
@@ -209,7 +203,9 @@ export async function GET(request: Request) {
 
             // Find all matching database category IDs for this prefix
             const matchedCatIds = leafCategories.filter(c => {
-                return normalizeCode(c.name) === code;
+                const cMatch = c.name.match(/^([\d.]+)/);
+                const cCode = cMatch ? cMatch[1] : c.name;
+                return cCode === code;
             }).map(c => c.id);
 
             // Populate Realized and Budget

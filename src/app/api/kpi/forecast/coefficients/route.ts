@@ -160,34 +160,23 @@ export async function GET(request: Request) {
             .filter(r => grossRevIds.includes(r.categoryId))
             .reduce((sum, r) => sum + r.amount, 0);
 
-        // Group categories by normalized code/name
-        const uniqueCategoriesMap = new Map<string, { categoryId: string; categoryName: string }>();
-        
-        // Prepopulate with standard codes to guarantee all standard subcategories are returned
-        const standardCodes = [
-            '01.1', '01.2', '02.1',
-            '03.1', '03.2', '03.3', '03.4', '03.5', '03.6', '03.7', '03.8', '03.9', '03.10',
-            '04.1', '04.2', '04.3', '04.4', '04.5', '04.6', '04.7', '04.8',
-            '05.1', '05.2', '05.3', '05.4', '05.5', '05.6', '05.7', '05.8', '05.9', '05.10', '05.11', '05.12', '05.13',
-            '06.1', '06.2', '06.3', '06.4', '06.5', '06.6', '06.7', '06.8',
-            '07'
-        ];
-
-        standardCodes.forEach(code => {
-            const matchedCat = categories.find(c => normalizeCode(c.name) === code);
-            const representativeId = matchedCat ? matchedCat.id : `synth-${code}`;
-            const representativeName = matchedCat ? matchedCat.name : `synth-${code}`;
-            
-            uniqueCategoriesMap.set(code, {
-                categoryId: representativeId,
-                categoryName: representativeName
-            });
+        const filteredLeafCategories = leafCategories.filter(c => {
+            const name = c.name || '';
+            const codeMatch = name.match(/^([\d.]+)/);
+            const code = codeMatch ? codeMatch[1] : '';
+            return code.startsWith('01.') || code.startsWith('02.') || code.startsWith('03.') ||
+                   code.startsWith('1.') || code.startsWith('2.') || code.startsWith('3.') ||
+                   c.id.startsWith('synth-1.') || c.id.startsWith('synth-2.') || c.id.startsWith('synth-3.');
         });
 
-        // Add any other custom codes that aren't standard
-        leafCategories.forEach(cat => {
-            const code = normalizeCode(cat.name);
-            if (code && !uniqueCategoriesMap.has(code)) {
+        // Group categories by unified prefix code (exact leaf code)
+        const uniqueCategoriesMap = new Map<string, { categoryId: string; categoryName: string }>();
+        filteredLeafCategories.forEach(cat => {
+            const name = cat.name;
+            const codeMatch = name.match(/^([\d.]+)/);
+            const code = codeMatch ? codeMatch[1] : name;
+            
+            if (!uniqueCategoriesMap.has(code)) {
                 uniqueCategoriesMap.set(code, {
                     categoryId: cat.id,
                     categoryName: cat.name
@@ -196,12 +185,14 @@ export async function GET(request: Request) {
         });
 
         const coefficients = Array.from(uniqueCategoriesMap.entries()).map(([code, catInfo]) => {
-            // Find all database category IDs belonging to this code prefix
+            // Find all database category IDs belonging to this exact leaf code prefix
             const matchedCatIds = leafCategories.filter(c => {
-                return normalizeCode(c.name) === code;
+                const cMatch = c.name.match(/^([\d.]+)/);
+                const cCode = cMatch ? cMatch[1] : c.name;
+                return cCode === code;
             }).map(c => c.id);
 
-            const isGrossRevenue = code === '01.1' || code === '01.2' || code === '01';
+            const isGrossRevenue = code === '01.1' || code === '01.2' || code === '01' || code.startsWith('01.');
             
             // Check if any matching ID or the representative ID has an override
             let overrideVal: number | undefined = undefined;
@@ -228,23 +219,34 @@ export async function GET(request: Request) {
                 calculatedPercentage = parseFloat(((Math.abs(catSum) / totalGrossRevenue) * 100).toFixed(2));
             }
 
-            // Apply special user rules if no override exists
+            // Apply special default rules from the prints if there is no user override
             if (overrideVal === undefined) {
-                if (code === '03.2') {
-                    calculatedPercentage = 5.5; // Default INSS/Encargos
-                } else if (code === '03.4') {
-                    calculatedPercentage = 0.5; // Default Diárias (0.5% Cobertura + 0% Extra)
-                } else if (code === '03.7') {
-                    calculatedPercentage = 0.6; // Default Equipamentos
-                } else if (code === '03.8') {
-                    calculatedPercentage = 0.1; // Default Comunicação
-                } else if (code === '03.9') {
-                    calculatedPercentage = 0.4; // Default Veículos
+                const nameLower = catInfo.categoryName.toLowerCase();
+                if (code.includes('03.2.6') || code.endsWith('.3.2.6') || nameLower.includes('inss')) {
+                    calculatedPercentage = 5.5; // INSS
+                } else if (code.includes('03.4.1') || nameLower.includes('cobertura')) {
+                    calculatedPercentage = 0.5; // Diárias de Cobertura
+                } else if (code.includes('03.4.2') || nameLower.includes('serviço extra') || nameLower.includes('servico extra')) {
+                    calculatedPercentage = 0.0; // Diária de Serviço Extra
+                } else if (code.includes('03.7.1') || nameLower.includes('não depreciáveis') || nameLower.includes('nao depreciaveis')) {
+                    calculatedPercentage = 0.1;
+                } else if (code.includes('03.7.2') || nameLower.includes('depreciação de equipamentos') || nameLower.includes('depreciacao de equipamentos')) {
+                    calculatedPercentage = 0.1;
+                } else if (code.includes('03.7.4') || nameLower.includes('manutenção de equipamentos') || nameLower.includes('manutencao de equipamentos')) {
+                    calculatedPercentage = 0.3;
+                } else if (code.includes('03.8.2') || nameLower.includes('ponto digital')) {
+                    calculatedPercentage = 0.1;
+                } else if (code.includes('03.9.2') || nameLower.includes('manutenção de veículos') || nameLower.includes('manutencao de veiculos')) {
+                    calculatedPercentage = 0.1;
+                } else if (code.includes('03.9.3') || nameLower.includes('combustível') || nameLower.includes('combustivel')) {
+                    calculatedPercentage = 0.1;
+                } else if (code.includes('03.9.8') || nameLower.includes('seguro dos veículos') || nameLower.includes('seguros de veículos') || nameLower.includes('seguro de veiculo')) {
+                    calculatedPercentage = 0.2;
                 }
             }
 
             return {
-                categoryId: catInfo.categoryId, // representative ID
+                categoryId: catInfo.categoryId,
                 categoryName: formatCategoryName(catInfo.categoryName),
                 percentage: calculatedPercentage,
                 isOverride: overrideVal !== undefined
@@ -267,30 +269,77 @@ export async function POST(request: Request) {
             return NextResponse.json({ success: false, error: 'Parâmetros obrigatórios ausentes' }, { status: 400 });
         }
 
+        let tenantIds: string[] = [];
         if (tenantId === 'ALL') {
-            return NextResponse.json({ success: false, error: 'Não é permitido customizar taxas no modo consolidado. Selecione uma empresa.' }, { status: 400 });
+            const allTenants = await prisma.tenant.findMany({ select: { id: true } });
+            tenantIds = allTenants.map(t => t.id);
+        } else {
+            tenantIds = [tenantId];
         }
 
-        const coef = await prisma.forecastCoefficient.upsert({
-            where: {
-                tenantId_categoryId_year: {
-                    tenantId,
-                    categoryId,
-                    year: parseInt(year, 10)
-                }
-            },
-            update: {
-                percentage: parseFloat(percentage)
-            },
-            create: {
-                tenantId,
-                categoryId,
-                year: parseInt(year, 10),
-                percentage: parseFloat(percentage)
+        // We need to find the category name and code for the given categoryId
+        let categoryName = '';
+        let categoryCode = '';
+        if (categoryId.startsWith('synth-')) {
+            const codePart = categoryId.replace('synth-', '');
+            categoryCode = codePart.split('|')[0];
+        } else {
+            const sourceCategory = await prisma.category.findUnique({
+                where: { id: categoryId }
+            });
+            if (sourceCategory) {
+                categoryName = sourceCategory.name;
+                const codeMatch = categoryName.match(/^([\d.]+)/);
+                categoryCode = codeMatch ? codeMatch[1] : '';
             }
-        });
+        }
 
-        return NextResponse.json({ success: true, data: coef });
+        // Upsert for each tenant
+        for (const tId of tenantIds) {
+            let targetCategoryId = categoryId;
+            if (tenantId === 'ALL' || categoryId.startsWith('synth-')) {
+                const tenantCategory = await prisma.category.findFirst({
+                    where: {
+                        tenantId: tId,
+                        OR: [
+                            { id: categoryId },
+                            { name: categoryName },
+                            { name: { startsWith: categoryCode + ' ' } },
+                            { name: { startsWith: categoryCode + ' - ' } }
+                        ]
+                    }
+                });
+                if (tenantCategory) {
+                    targetCategoryId = tenantCategory.id;
+                } else if (categoryId.startsWith('synth-')) {
+                    // Fallback to exact string if it is a synthetic string ID
+                    targetCategoryId = categoryId;
+                } else {
+                    continue; // Skip if this tenant doesn't have this category
+                }
+            }
+
+            await prisma.forecastCoefficient.upsert({
+                where: {
+                    tenantId_categoryId_year: {
+                        tenantId: tId,
+                        categoryId: targetCategoryId,
+                        year: parseInt(year.toString(), 10)
+                    }
+                },
+                update: {
+                    percentage: parseFloat(percentage.toString())
+                },
+                create: {
+                    tenantId: tId,
+                    categoryId: targetCategoryId,
+                    year: parseInt(year.toString(), 10),
+                    percentage: parseFloat(percentage.toString())
+                }
+            });
+        }
+
+        return NextResponse.json({ success: true });
     } catch (e: any) {
         console.error('[API FORECAST COEFFICIENTS POST] Error:', e.message);
         return NextResponse.json({ success: false, error: e.message }, { status: 500 });

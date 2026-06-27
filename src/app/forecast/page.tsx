@@ -83,16 +83,6 @@ export default function ForecastPage() {
         const val = viewingContractDetails.value;
         const tenantCoefs = coefficients;
 
-        const getCoefPct = (code: string) => {
-            const match = tenantCoefs.find(c => {
-                const cName = c.categoryName;
-                const cMatch = cName.match(/^([\d.]+)/);
-                const cCode = cMatch ? cMatch[1] : c.categoryId;
-                return cCode === code;
-            });
-            return match ? match.percentage : 0;
-        };
-
         const createNode = (id: string, name: string, level: number, isFormula = false) => ({
             categoryId: id,
             categoryName: name,
@@ -103,6 +93,7 @@ export default function ForecastPage() {
             children: [] as any[]
         });
 
+        // 1. Build static parent nodes structure
         const recBruta = createNode('G-01', '01. RECEITA BRUTA', 0);
         const recServicos = createNode('G-01.1', '01.1 - Receita de Serviços', 1);
         const recVendas = createNode('G-01.2', '01.2 - Receitas de Vendas', 1);
@@ -114,130 +105,128 @@ export default function ForecastPage() {
 
         const recLiquida = createNode('F-RL', '(=) RECEITA LÍQUIDA', 0, true);
 
-        const custosOp = createNode('G-03', '03. Custo Operacional', 0);
+        const custosOp = createNode('G-03', '03. CUSTOS OPERACIONAIS (TOTAL)', 0);
         const custosSubs: Record<string, any> = {
-            '03.1': createNode('G-03.1', '03.1 Salarios e Remuneração', 1),
+            '03.1': createNode('G-03.1', '03.1 Salários e Remuneração', 1),
             '03.2': createNode('G-03.2', '03.2 Encargos Sociais', 1),
-            '03.3': createNode('G-03.3', '03.3 Beneficios', 1),
+            '03.3': createNode('G-03.3', '03.3 Benefícios', 1),
             '03.4': createNode('G-03.4', '03.4 Diárias', 1),
             '03.5': createNode('G-03.5', '03.5 SSMA', 1),
             '03.6': createNode('G-03.6', '03.6 Materiais', 1),
             '03.7': createNode('G-03.7', '03.7 Equipamentos', 1),
             '03.8': createNode('G-03.8', '03.8 Comunicação/Sistema/Licenças', 1),
-            '03.9': createNode('G-03.9', '03.9 Custo com Veiculo', 1),
+            '03.9': createNode('G-03.9', '03.9 Custo com Veículo', 1),
             '03.10': createNode('G-03.10', '03.10 Custos Transferidos', 1),
         };
         custosOp.children = Object.values(custosSubs);
 
         const margemBruta = createNode('F-MB', '(=) MARGEM BRUTA', 0, true);
 
-        const despVendas = createNode('G-04', '04. Despesa Operacional', 0);
-        const despVendasSubs: Record<string, any> = {
-            '04.1': createNode('G-04.1', '04.1 Salarios e Remuneração', 1),
-            '04.2': createNode('G-04.2', '04.2 Encargos Sociais', 1),
-            '04.3': createNode('G-04.3', '04.3 Beneficios', 1),
-            '04.4': createNode('G-04.4', '04.4 SSMA', 1),
-            '04.5': createNode('G-04.5', '04.5 Viagens', 1),
-            '04.6': createNode('G-04.6', '04.6 Custo com Veículos', 1),
-            '04.7': createNode('G-04.7', '04.7 Cartão Corporativo', 1),
-            '04.8': createNode('G-04.8', '04.8 Serviços Terceirizados', 1),
-        };
-        despVendas.children = Object.values(despVendasSubs);
+        // 2. Classify leaf categories from coefficients state and populate their values/AV
+        tenantCoefs.forEach(coef => {
+            const name = coef.categoryName;
+            const codeMatch = name.match(/^([\d.]+)/);
+            const code = codeMatch ? codeMatch[1] : '';
 
-        const margemContrib = createNode('F-MC', '(=) MARGEM DE CONTRIBUIÇÃO', 0, true);
+            // Skip gross revenue itself to avoid doubling
+            if (code === '01' || code === '01.1' || code === '01.2' || code === '02.1' || code === '03') return;
 
-        const despAdmin = createNode('G-05', '05. Despesas Administrativas', 0);
-        const despAdminSubs: Record<string, any> = {
-            '05.1': createNode('G-05.1', '05.1 Salario e Remuneração', 1),
-            '05.2': createNode('G-05.2', '05.2 Encargos Sociais', 1),
-            '05.3': createNode('G-05.3', '05.3 Beneficios', 1),
-            '05.4': createNode('G-05.4', '05.4 SSMA', 1),
-            '05.5': createNode('G-05.5', '05.5 Viagens', 1),
-            '05.6': createNode('G-05.6', '05.6 Despesa com Socios', 1),
-            '05.7': createNode('G-05.7', '05.7 Serviços Contratados', 1),
-            '05.8': createNode('G-05.8', '05.8 Despesa Comercial/Marketing', 1),
-            '05.9': createNode('G-05.9', '05.9 Despesa com Estrutura', 1),
-            '05.10': createNode('G-05.10', '05.10 Despesa Copa e Cozinha', 1),
-            '05.11': createNode('G-05.11', '05.11 Despesa com Veículos', 1),
-            '05.12': createNode('G-05.12', '05.12 Despesa de Informatica', 1),
-            '05.13': createNode('G-05.13', '05.13 Taxas e Despesas Legais', 1),
-        };
-        despAdmin.children = Object.values(despAdminSubs);
+            const isRevenue = code.startsWith('01.') || code.startsWith('1.');
+            const pct = coef.percentage;
+            const itemValue = (val * (pct / 100)) * (isRevenue ? 1 : -1);
 
-        const ebitda = createNode('F-EBITDA', '(=) EBITDA', 0, true);
+            const leafNode = {
+                categoryId: coef.categoryId,
+                categoryName: name,
+                level: 0,
+                isFormula: false,
+                value: itemValue,
+                av: pct * (isRevenue ? 1 : -1),
+                children: []
+            };
 
-        const despFin = createNode('G-06', '06. Despesas Financeiras', 0);
-        const despFinSubs: Record<string, any> = {
-            '06.1': createNode('G-06.1', '06.1 Entradas Financeiras', 1),
-            '06.2': createNode('G-06.2', '06.2 Saidas Financeiras', 1),
-            '06.3': createNode('G-06.3', '06.3 Financiamento', 1),
-            '06.4': createNode('G-06.4', '06.4 Juros/Multas', 1),
-            '06.5': createNode('G-06.5', '06.5 Passivo Trabalhista', 1),
-            '06.6': createNode('G-06.6', '06.6 Depreciação', 1),
-            '06.7': createNode('G-06.7', '06.7 Cartão de Credito', 1),
-            '06.8': createNode('G-06.8', '06.8 PDD', 1),
-        };
-        despFin.children = Object.values(despFinSubs);
+            let parentNode = null;
+            if (code.startsWith('01.1.') || code.startsWith('1.1.')) {
+                parentNode = recServicos;
+            } else if (code.startsWith('01.2.') || code.startsWith('1.2.')) {
+                parentNode = recVendas;
+            } else if (code.startsWith('02.1.') || code.startsWith('2.1.')) {
+                parentNode = tribSub;
+            } else if (code.startsWith('03.')) {
+                const subPrefix = code.substring(0, 4);
+                parentNode = custosSubs[subPrefix];
+            }
 
-        const lucroLiquido = createNode('F-LL', '(=) LUCRO LÍQUIDO', 0, true);
-        const invest = createNode('G-07', '07. Investimentos', 0);
-
-        const pctServicos = getCoefPct('01.1');
-        const pctVendas = getCoefPct('01.2');
-        if (pctServicos > 0 || pctVendas > 0) {
-            const totalPct = (pctServicos + pctVendas) || 100;
-            recServicos.value = val * (pctServicos / totalPct);
-            recVendas.value = val * (pctVendas / totalPct);
-        } else {
-            recServicos.value = val;
-            recVendas.value = 0;
-        }
-
-        tribSub.value = - (val * (getCoefPct('02.1') / 100));
-
-        Object.keys(custosSubs).forEach(subCode => {
-            custosSubs[subCode].value = - (val * (getCoefPct(subCode) / 100));
+            if (parentNode) {
+                leafNode.level = parentNode.level + 1;
+                parentNode.children.push(leafNode);
+            }
         });
 
-        Object.keys(despVendasSubs).forEach(subCode => {
-            despVendasSubs[subCode].value = - (val * (getCoefPct(subCode) / 100));
-        });
-
-        Object.keys(despAdminSubs).forEach(subCode => {
-            despAdminSubs[subCode].value = - (val * (getCoefPct(subCode) / 100));
-        });
-
-        Object.keys(despFinSubs).forEach(subCode => {
-            despFinSubs[subCode].value = - (val * (getCoefPct(subCode) / 100));
-        });
-
-        recBruta.value = recServicos.value + recVendas.value;
-        tributos.value = tribSub.value;
-        custosOp.value = Object.values(custosSubs).reduce((sum, n) => sum + n.value, 0);
-        despVendas.value = Object.values(despVendasSubs).reduce((sum, n) => sum + n.value, 0);
-        despAdmin.value = Object.values(despAdminSubs).reduce((sum, n) => sum + n.value, 0);
-        despFin.value = Object.values(despFinSubs).reduce((sum, n) => sum + n.value, 0);
-
-        recLiquida.value = recBruta.value + tributos.value;
-        margemBruta.value = recLiquida.value + custosOp.value;
-        margemContrib.value = margemBruta.value + despVendas.value;
-        ebitda.value = margemContrib.value + despAdmin.value;
-        lucroLiquido.value = ebitda.value + despFin.value;
-
-        const calculateAv = (node: any) => {
-            node.av = Math.abs(recBruta.value) > 0.01 ? (node.value / recBruta.value) * 100 : 0;
-            if (node.children) {
-                node.children.forEach(calculateAv);
+        // 3. Roll up child values/percentages to parent subcategories
+        const rollupNode = (node: any) => {
+            if (node.children && node.children.length > 0) {
+                node.children.forEach(rollupNode);
+                node.value = node.children.reduce((sum: number, c: any) => sum + c.value, 0);
+                node.av = node.children.reduce((sum: number, c: any) => sum + c.av, 0);
             }
         };
 
-        const rootNodes = [recBruta, tributos, recLiquida, custosOp, margemBruta];
-        rootNodes.forEach(calculateAv);
+        [recServicos, recVendas, tribSub].forEach(rollupNode);
+        Object.values(custosSubs).forEach(rollupNode);
 
+        // 4. If children are empty for a node (e.g. no database categories yet), fallback to getCoefPct
+        const getCoefPct = (code: string) => {
+            const match = tenantCoefs.find(c => {
+                const cName = c.categoryName;
+                const cMatch = cName.match(/^([\d.]+)/);
+                const cCode = cMatch ? cMatch[1] : c.categoryId;
+                return cCode === code;
+            });
+            return match ? match.percentage : 0;
+        };
+
+        if (recServicos.children.length === 0 && recVendas.children.length === 0) {
+            recServicos.value = val;
+            recServicos.av = 100.0;
+        }
+
+        if (tribSub.children.length === 0) {
+            tribSub.value = - (val * (getCoefPct('02.1') / 100));
+            tribSub.av = - getCoefPct('02.1');
+        }
+
+        Object.keys(custosSubs).forEach(subCode => {
+            if (custosSubs[subCode].children.length === 0) {
+                const pct = getCoefPct(subCode);
+                custosSubs[subCode].value = - (val * (pct / 100));
+                custosSubs[subCode].av = - pct;
+            }
+        });
+
+        // 5. Final rollout of top groups and formulas
+        recBruta.value = recServicos.value + recVendas.value;
+        recBruta.av = 100.0; // standard 100% base
+
+        tributos.value = tribSub.value;
+        tributos.av = tribSub.av;
+
+        custosOp.value = Object.values(custosSubs).reduce((sum, n) => sum + n.value, 0);
+        custosOp.av = Object.values(custosSubs).reduce((sum, n) => sum + n.av, 0);
+
+        recLiquida.value = recBruta.value + tributos.value;
+        recLiquida.av = recBruta.av + tributos.av;
+
+        margemBruta.value = recLiquida.value + custosOp.value;
+        margemBruta.av = recLiquida.av + custosOp.av;
+
+        const rootNodes = [recBruta, tributos, recLiquida, custosOp, margemBruta];
+
+        // Flatten based on expandedContractRows state
         const flatList: any[] = [];
         const flatten = (node: any) => {
             flatList.push(node);
-            if (node.children && expandedContractRows.has(node.categoryId)) {
+            if (node.children && node.children.length > 0 && expandedContractRows.has(node.categoryId)) {
                 node.children.forEach(flatten);
             }
         };
@@ -850,7 +839,7 @@ export default function ForecastPage() {
                                 </p>
                                 {selectedTenant === 'ALL' && (
                                     <div style={{ marginTop: '0.5rem', padding: '0.5rem 0.75rem', background: 'rgba(245, 158, 11, 0.1)', color: 'var(--accent-orange)', borderRadius: '6px', fontSize: '0.75rem', fontWeight: 700 }}>
-                                        ⚠️ Você está na visualização Consolidada. Para customizar coeficientes específicos, selecione uma empresa no filtro acima.
+                                        ⚠️ Você está na visualização Consolidada. Alterações aqui serão aplicadas a todas as empresas do grupo.
                                     </div>
                                 )}
                             </div>
@@ -868,7 +857,7 @@ export default function ForecastPage() {
                                                 </span>
                                             </div>
                                             <div>
-                                                {editingCoefId === coef.categoryId && selectedTenant !== 'ALL' ? (
+                                                {editingCoefId === coef.categoryId ? (
                                                     <div style={{ display: 'flex', gap: '0.25rem', alignItems: 'center' }}>
                                                         <input
                                                             type="number"
@@ -894,17 +883,15 @@ export default function ForecastPage() {
                                                 ) : (
                                                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                                                         <span style={{ fontSize: '0.9rem', fontWeight: 800, color: 'var(--accent-indigo)' }}>{coef.percentage.toFixed(2)}%</span>
-                                                        {selectedTenant !== 'ALL' && (
-                                                            <button
-                                                                onClick={() => {
-                                                                    setEditingCoefId(coef.categoryId);
-                                                                    setEditingCoefValue(coef.percentage);
-                                                                }}
-                                                                style={{ background: 'transparent', border: 'none', cursor: 'pointer', fontSize: '0.85rem' }}
-                                                            >
-                                                                ✏️
-                                                            </button>
-                                                        )}
+                                                        <button
+                                                            onClick={() => {
+                                                                setEditingCoefId(coef.categoryId);
+                                                                setEditingCoefValue(coef.percentage);
+                                                            }}
+                                                            style={{ background: 'transparent', border: 'none', cursor: 'pointer', fontSize: '0.85rem' }}
+                                                        >
+                                                            ✏️
+                                                        </button>
                                                     </div>
                                                 )}
                                             </div>

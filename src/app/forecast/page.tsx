@@ -28,6 +28,11 @@ export default function ForecastPage() {
     const [contractProbability, setContractProbability] = useState(100);
     const [contractStatus, setContractStatus] = useState('PIPELINE');
     const [contractTenantId, setContractTenantId] = useState('');
+    const [viewingContractDetails, setViewingContractDetails] = useState<any | null>(null);
+    const [expandedContractRows, setExpandedContractRows] = useState<Set<string>>(new Set([
+        'G-01', 'G-02', 'G-03', 'G-04', 'G-05', 'G-06', 'G-07',
+        'G-01.1', 'G-01.2', 'G-02.1', 'G-03.1', 'G-03.2', 'G-03.3', 'G-03.4', 'G-03.5', 'G-03.7', 'G-03.8', 'G-03.9'
+    ]));
 
     // Coefficient Edit State
     const [editingCoefId, setEditingCoefId] = useState<string | null>(null);
@@ -62,6 +67,184 @@ export default function ForecastPage() {
     const handleCollapseAll = () => {
         setExpandedRows(new Set());
     };
+
+    const toggleContractRow = (id: string) => {
+        setExpandedContractRows(prev => {
+            const next = new Set(prev);
+            if (next.has(id)) next.delete(id);
+            else next.add(id);
+            return next;
+        });
+    };
+
+    const contractDreGrid = useMemo(() => {
+        if (!viewingContractDetails) return [];
+
+        const val = viewingContractDetails.value;
+        const tenantCoefs = coefficients;
+
+        const getCoefPct = (code: string) => {
+            const match = tenantCoefs.find(c => {
+                const cName = c.categoryName;
+                const cMatch = cName.match(/^([\d.]+)/);
+                const cCode = cMatch ? cMatch[1] : c.categoryId;
+                return cCode === code;
+            });
+            return match ? match.percentage : 0;
+        };
+
+        const createNode = (id: string, name: string, level: number, isFormula = false) => ({
+            categoryId: id,
+            categoryName: name,
+            level,
+            isFormula,
+            value: 0,
+            av: 0,
+            children: [] as any[]
+        });
+
+        const recBruta = createNode('G-01', '01. RECEITA BRUTA', 0);
+        const recServicos = createNode('G-01.1', '01.1 - Receita de Serviços', 1);
+        const recVendas = createNode('G-01.2', '01.2 - Receitas de Vendas', 1);
+        recBruta.children = [recServicos, recVendas];
+
+        const tributos = createNode('G-02', '02. Tributo sobre Faturamento', 0);
+        const tribSub = createNode('G-02.1', '02.1 - Tributos', 1);
+        tributos.children = [tribSub];
+
+        const recLiquida = createNode('F-RL', '(=) RECEITA LÍQUIDA', 0, true);
+
+        const custosOp = createNode('G-03', '03. Custo Operacional', 0);
+        const custosSubs: Record<string, any> = {
+            '03.1': createNode('G-03.1', '03.1 Salarios e Remuneração', 1),
+            '03.2': createNode('G-03.2', '03.2 Encargos Sociais', 1),
+            '03.3': createNode('G-03.3', '03.3 Beneficios', 1),
+            '03.4': createNode('G-03.4', '03.4 Diárias', 1),
+            '03.5': createNode('G-03.5', '03.5 SSMA', 1),
+            '03.6': createNode('G-03.6', '03.6 Materiais', 1),
+            '03.7': createNode('G-03.7', '03.7 Equipamentos', 1),
+            '03.8': createNode('G-03.8', '03.8 Comunicação/Sistema/Licenças', 1),
+            '03.9': createNode('G-03.9', '03.9 Custo com Veiculo', 1),
+            '03.10': createNode('G-03.10', '03.10 Custos Transferidos', 1),
+        };
+        custosOp.children = Object.values(custosSubs);
+
+        const margemBruta = createNode('F-MB', '(=) MARGEM BRUTA', 0, true);
+
+        const despVendas = createNode('G-04', '04. Despesa Operacional', 0);
+        const despVendasSubs: Record<string, any> = {
+            '04.1': createNode('G-04.1', '04.1 Salarios e Remuneração', 1),
+            '04.2': createNode('G-04.2', '04.2 Encargos Sociais', 1),
+            '04.3': createNode('G-04.3', '04.3 Beneficios', 1),
+            '04.4': createNode('G-04.4', '04.4 SSMA', 1),
+            '04.5': createNode('G-04.5', '04.5 Viagens', 1),
+            '04.6': createNode('G-04.6', '04.6 Custo com Veículos', 1),
+            '04.7': createNode('G-04.7', '04.7 Cartão Corporativo', 1),
+            '04.8': createNode('G-04.8', '04.8 Serviços Terceirizados', 1),
+        };
+        despVendas.children = Object.values(despVendasSubs);
+
+        const margemContrib = createNode('F-MC', '(=) MARGEM DE CONTRIBUIÇÃO', 0, true);
+
+        const despAdmin = createNode('G-05', '05. Despesas Administrativas', 0);
+        const despAdminSubs: Record<string, any> = {
+            '05.1': createNode('G-05.1', '05.1 Salario e Remuneração', 1),
+            '05.2': createNode('G-05.2', '05.2 Encargos Sociais', 1),
+            '05.3': createNode('G-05.3', '05.3 Beneficios', 1),
+            '05.4': createNode('G-05.4', '05.4 SSMA', 1),
+            '05.5': createNode('G-05.5', '05.5 Viagens', 1),
+            '05.6': createNode('G-05.6', '05.6 Despesa com Socios', 1),
+            '05.7': createNode('G-05.7', '05.7 Serviços Contratados', 1),
+            '05.8': createNode('G-05.8', '05.8 Despesa Comercial/Marketing', 1),
+            '05.9': createNode('G-05.9', '05.9 Despesa com Estrutura', 1),
+            '05.10': createNode('G-05.10', '05.10 Despesa Copa e Cozinha', 1),
+            '05.11': createNode('G-05.11', '05.11 Despesa com Veículos', 1),
+            '05.12': createNode('G-05.12', '05.12 Despesa de Informatica', 1),
+            '05.13': createNode('G-05.13', '05.13 Taxas e Despesas Legais', 1),
+        };
+        despAdmin.children = Object.values(despAdminSubs);
+
+        const ebitda = createNode('F-EBITDA', '(=) EBITDA', 0, true);
+
+        const despFin = createNode('G-06', '06. Despesas Financeiras', 0);
+        const despFinSubs: Record<string, any> = {
+            '06.1': createNode('G-06.1', '06.1 Entradas Financeiras', 1),
+            '06.2': createNode('G-06.2', '06.2 Saidas Financeiras', 1),
+            '06.3': createNode('G-06.3', '06.3 Financiamento', 1),
+            '06.4': createNode('G-06.4', '06.4 Juros/Multas', 1),
+            '06.5': createNode('G-06.5', '06.5 Passivo Trabalhista', 1),
+            '06.6': createNode('G-06.6', '06.6 Depreciação', 1),
+            '06.7': createNode('G-06.7', '06.7 Cartão de Credito', 1),
+            '06.8': createNode('G-06.8', '06.8 PDD', 1),
+        };
+        despFin.children = Object.values(despFinSubs);
+
+        const lucroLiquido = createNode('F-LL', '(=) LUCRO LÍQUIDO', 0, true);
+        const invest = createNode('G-07', '07. Investimentos', 0);
+
+        const pctServicos = getCoefPct('01.1');
+        const pctVendas = getCoefPct('01.2');
+        if (pctServicos > 0 || pctVendas > 0) {
+            const totalPct = (pctServicos + pctVendas) || 100;
+            recServicos.value = val * (pctServicos / totalPct);
+            recVendas.value = val * (pctVendas / totalPct);
+        } else {
+            recServicos.value = val;
+            recVendas.value = 0;
+        }
+
+        tribSub.value = - (val * (getCoefPct('02.1') / 100));
+
+        Object.keys(custosSubs).forEach(subCode => {
+            custosSubs[subCode].value = - (val * (getCoefPct(subCode) / 100));
+        });
+
+        Object.keys(despVendasSubs).forEach(subCode => {
+            despVendasSubs[subCode].value = - (val * (getCoefPct(subCode) / 100));
+        });
+
+        Object.keys(despAdminSubs).forEach(subCode => {
+            despAdminSubs[subCode].value = - (val * (getCoefPct(subCode) / 100));
+        });
+
+        Object.keys(despFinSubs).forEach(subCode => {
+            despFinSubs[subCode].value = - (val * (getCoefPct(subCode) / 100));
+        });
+
+        recBruta.value = recServicos.value + recVendas.value;
+        tributos.value = tribSub.value;
+        custosOp.value = Object.values(custosSubs).reduce((sum, n) => sum + n.value, 0);
+        despVendas.value = Object.values(despVendasSubs).reduce((sum, n) => sum + n.value, 0);
+        despAdmin.value = Object.values(despAdminSubs).reduce((sum, n) => sum + n.value, 0);
+        despFin.value = Object.values(despFinSubs).reduce((sum, n) => sum + n.value, 0);
+
+        recLiquida.value = recBruta.value + tributos.value;
+        margemBruta.value = recLiquida.value + custosOp.value;
+        margemContrib.value = margemBruta.value + despVendas.value;
+        ebitda.value = margemContrib.value + despAdmin.value;
+        lucroLiquido.value = ebitda.value + despFin.value;
+
+        const calculateAv = (node: any) => {
+            node.av = Math.abs(recBruta.value) > 0.01 ? (node.value / recBruta.value) * 100 : 0;
+            if (node.children) {
+                node.children.forEach(calculateAv);
+            }
+        };
+
+        const rootNodes = [recBruta, tributos, recLiquida, custosOp, margemBruta, despVendas, margemContrib, despAdmin, ebitda, despFin, lucroLiquido, invest];
+        rootNodes.forEach(calculateAv);
+
+        const flatList: any[] = [];
+        const flatten = (node: any) => {
+            flatList.push(node);
+            if (node.children && expandedContractRows.has(node.categoryId)) {
+                node.children.forEach(flatten);
+            }
+        };
+        rootNodes.forEach(flatten);
+
+        return flatList;
+    }, [viewingContractDetails, coefficients, expandedContractRows]);
 
     const fetchSetup = useCallback(async () => {
         try {
@@ -769,6 +952,15 @@ export default function ForecastPage() {
                                             <div style={{ display: 'flex', gap: '0.5rem' }}>
                                                 <button
                                                     onClick={() => {
+                                                        setViewingContractDetails(contract);
+                                                    }}
+                                                    title="Visualizar Custos do Contrato"
+                                                    style={{ border: 'none', background: 'transparent', cursor: 'pointer', fontSize: '0.85rem' }}
+                                                >
+                                                    👁️
+                                                </button>
+                                                <button
+                                                    onClick={() => {
                                                         setEditingContractId(contract.id);
                                                         setContractName(contract.name);
                                                         setContractValue(contract.value);
@@ -951,6 +1143,125 @@ export default function ForecastPage() {
                                 style={{ padding: '0.45rem 1rem', borderRadius: '6px', border: 'none', background: 'var(--accent-indigo)', color: '#ffffff', cursor: 'pointer', fontWeight: 700 }}
                             >
                                 Salvar
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            {viewingContractDetails && (
+                <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.6)', zIndex: 20000, display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
+                    <div className="glass-card" style={{ width: '700px', maxHeight: '85vh', padding: '1.5rem', background: 'var(--bg-surface)', borderRadius: '12px', border: '1px solid var(--border-default)', display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+                        
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid var(--border-subtle)', paddingBottom: '0.75rem' }}>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.15rem' }}>
+                                <h4 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 800, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                    📊 Detalhamento de Custos Mensais
+                                </h4>
+                                <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', fontWeight: 600 }}>
+                                    Contrato: <strong>{viewingContractDetails.name}</strong> ({viewingContractDetails.tenant?.name || 'Empresa'})
+                                </span>
+                            </div>
+                            <button
+                                onClick={() => setViewingContractDetails(null)}
+                                style={{ background: 'transparent', border: 'none', color: 'var(--text-secondary)', cursor: 'pointer', fontSize: '1.1rem', fontWeight: 700 }}
+                            >
+                                ❌
+                            </button>
+                        </div>
+
+                        {/* Summary Cards */}
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '0.75rem' }}>
+                            <div style={{ padding: '0.75rem', background: 'var(--bg-elevated)', borderRadius: '8px', border: '1px solid var(--border-subtle)', display: 'flex', flexDirection: 'column', gap: '0.15rem' }}>
+                                <span style={{ fontSize: '0.65rem', color: 'var(--text-secondary)', fontWeight: 700 }}>VALOR BRUTO</span>
+                                <span style={{ fontSize: '1.15rem', fontWeight: 800, color: 'var(--accent-indigo)' }}>{fmt(viewingContractDetails.value)}/mês</span>
+                            </div>
+                            <div style={{ padding: '0.75rem', background: 'var(--bg-elevated)', borderRadius: '8px', border: '1px solid var(--border-subtle)', display: 'flex', flexDirection: 'column', gap: '0.15rem' }}>
+                                <span style={{ fontSize: '0.65rem', color: 'var(--text-secondary)', fontWeight: 700 }}>
+                                    IMPOSTOS ({Math.abs(contractDreGrid.find(row => row.categoryId === 'G-02.1')?.av || 0).toFixed(1)}%)
+                                </span>
+                                <span style={{ fontSize: '1.15rem', fontWeight: 800, color: 'var(--accent-red)' }}>
+                                    {fmt(Math.abs(contractDreGrid.find(row => row.categoryId === 'G-02.1')?.value || 0))}/mês
+                                </span>
+                            </div>
+                            <div style={{ padding: '0.75rem', background: 'var(--bg-elevated)', borderRadius: '8px', border: '1px solid var(--border-subtle)', display: 'flex', flexDirection: 'column', gap: '0.15rem' }}>
+                                <span style={{ fontSize: '0.65rem', color: 'var(--text-secondary)', fontWeight: 700 }}>LUCRO LÍQUIDO SIMULADO</span>
+                                <span style={{
+                                    fontSize: '1.15rem',
+                                    fontWeight: 800,
+                                    color: (contractDreGrid.find(row => row.categoryId === 'F-LL')?.value || 0) >= 0 ? 'var(--accent-green)' : 'var(--accent-red)'
+                                }}>
+                                    {fmt(contractDreGrid.find(row => row.categoryId === 'F-LL')?.value || 0)}/mês
+                                </span>
+                            </div>
+                        </div>
+
+                        {/* Table */}
+                        <div style={{ flex: 1, overflowY: 'auto', paddingRight: '0.25rem' }}>
+                            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.75rem', textAlign: 'left' }}>
+                                <thead>
+                                    <tr style={{ borderBottom: '2px solid var(--border-default)', color: 'var(--text-secondary)' }}>
+                                        <th style={{ padding: '0.5rem' }}>Conta / Categoria</th>
+                                        <th style={{ padding: '0.5rem', textAlign: 'right', width: '150px' }}>Valor Mensal</th>
+                                        <th style={{ padding: '0.5rem', textAlign: 'center', width: '150px' }}>Análise Vertical (AV)</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {contractDreGrid.map(row => {
+                                        const isGroup = row.categoryId.startsWith('G-');
+                                        const isFormula = row.categoryId.startsWith('F-');
+                                        const hasChildren = row.children && row.children.length > 0;
+
+                                        let background = 'transparent';
+                                        let fontWeight = 500;
+                                        let borderBottom = '1px solid var(--border-subtle)';
+
+                                        if (isFormula) {
+                                            background = 'rgba(99, 102, 241, 0.08)';
+                                            fontWeight = 800;
+                                            borderBottom = '2px double var(--border-default)';
+                                        } else if (isGroup) {
+                                            background = 'var(--bg-elevated)';
+                                            fontWeight = 700;
+                                        }
+
+                                        return (
+                                            <tr key={row.categoryId} style={{ borderBottom, background, fontWeight }}>
+                                                <td style={{ padding: '0.55rem 0.5rem', whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden', paddingLeft: `${row.level * 16 + 8}px` }}>
+                                                    {hasChildren && (
+                                                        <span 
+                                                            onClick={() => toggleContractRow(row.categoryId)}
+                                                            style={{ cursor: 'pointer', userSelect: 'none', marginRight: '0.5rem', display: 'inline-block', width: '12px', color: 'var(--text-secondary)' }}
+                                                        >
+                                                            {expandedContractRows.has(row.categoryId) ? '▼' : '▶'}
+                                                        </span>
+                                                    )}
+                                                    {!hasChildren && !isFormula && <span style={{ display: 'inline-block', width: '17px' }} />}
+                                                    <span 
+                                                        onClick={() => hasChildren && toggleContractRow(row.categoryId)}
+                                                        style={{ cursor: hasChildren ? 'pointer' : 'default' }}
+                                                    >
+                                                        {row.categoryName}
+                                                    </span>
+                                                </td>
+                                                <td style={{ padding: '0.55rem 0.5rem', textAlign: 'right', whiteSpace: 'nowrap', color: row.value < 0 ? 'var(--accent-red)' : (row.value > 0 ? 'var(--text-primary)' : 'var(--text-secondary)') }}>
+                                                    {fmt(row.value)}
+                                                </td>
+                                                <td style={{ padding: '0.55rem 0.5rem', textAlign: 'center', fontWeight: 700, color: row.av < 0 ? 'var(--accent-red)' : (row.av > 0 ? 'var(--accent-green)' : 'var(--text-secondary)') }}>
+                                                    {row.av.toFixed(1)}%
+                                                </td>
+                                            </tr>
+                                        );
+                                    })}
+                                </tbody>
+                            </table>
+                        </div>
+
+                        <div style={{ display: 'flex', justifyContent: 'flex-end', borderTop: '1px solid var(--border-subtle)', paddingTop: '0.75rem' }}>
+                            <button
+                                onClick={() => setViewingContractDetails(null)}
+                                className="btn"
+                                style={{ padding: '0.45rem 1.25rem', fontSize: '0.8rem', borderRadius: '8px', cursor: 'pointer', background: 'var(--bg-elevated)', border: '1px solid var(--border-default)', color: 'var(--text-secondary)', fontWeight: 700 }}
+                            >
+                                Fechar
                             </button>
                         </div>
                     </div>

@@ -12,6 +12,7 @@ export default function ForecastPage() {
     const [forecastData, setForecastData] = useState<any[]>([]);
     const [loadingData, setLoadingData] = useState(false);
     const [activeTab, setActiveTab] = useState<'grid' | 'coefficients'>('grid');
+    const [showAV, setShowAV] = useState(false);
     const [isSimulatorOpen, setIsSimulatorOpen] = useState(false);
     const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set([
         'G-01', 'G-02', 'G-03', 'G-04', 'G-05', 'G-06', 'G-07',
@@ -476,19 +477,32 @@ export default function ForecastPage() {
                 <div style={{ flex: 1, width: '100%', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
                     
                     {/* Tabs */}
-                    <div style={{ display: 'flex', gap: '0.5rem', borderBottom: '1px solid var(--border-default)', paddingBottom: '0.5rem' }}>
-                        <button
-                            onClick={() => setActiveTab('grid')}
-                            style={{ padding: '0.5rem 1rem', borderRadius: '8px', border: 'none', background: activeTab === 'grid' ? 'var(--accent-indigo)' : 'transparent', color: activeTab === 'grid' ? '#ffffff' : 'var(--text-secondary)', fontWeight: 700, cursor: 'pointer' }}
-                        >
-                            📊 Planilha Forecast (DRE)
-                        </button>
-                        <button
-                            onClick={() => setActiveTab('coefficients')}
-                            style={{ padding: '0.5rem 1rem', borderRadius: '8px', border: 'none', background: activeTab === 'coefficients' ? 'var(--accent-indigo)' : 'transparent', color: activeTab === 'coefficients' ? '#ffffff' : 'var(--text-secondary)', fontWeight: 700, cursor: 'pointer' }}
-                        >
-                            ⚙️ Coeficientes de Custos (Análise Vertical)
-                        </button>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid var(--border-default)', paddingBottom: '0.5rem' }}>
+                        <div style={{ display: 'flex', gap: '0.5rem' }}>
+                            <button
+                                onClick={() => setActiveTab('grid')}
+                                style={{ padding: '0.5rem 1rem', borderRadius: '8px', border: 'none', background: activeTab === 'grid' ? 'var(--accent-indigo)' : 'transparent', color: activeTab === 'grid' ? '#ffffff' : 'var(--text-secondary)', fontWeight: 700, cursor: 'pointer' }}
+                            >
+                                📊 Planilha Forecast (DRE)
+                            </button>
+                            <button
+                                onClick={() => setActiveTab('coefficients')}
+                                style={{ padding: '0.5rem 1rem', borderRadius: '8px', border: 'none', background: activeTab === 'coefficients' ? 'var(--accent-indigo)' : 'transparent', color: activeTab === 'coefficients' ? '#ffffff' : 'var(--text-secondary)', fontWeight: 700, cursor: 'pointer' }}
+                            >
+                                ⚙️ Coeficientes de Custos (Análise Vertical)
+                            </button>
+                        </div>
+                        {activeTab === 'grid' && (
+                            <label style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.8rem', cursor: 'pointer', fontWeight: 700, color: 'var(--text-primary)', padding: '0.35rem 0.65rem', background: 'var(--bg-elevated)', borderRadius: '6px', border: '1px solid var(--border-subtle)' }}>
+                                <input 
+                                    type="checkbox" 
+                                    checked={showAV} 
+                                    onChange={(e) => setShowAV(e.target.checked)} 
+                                    style={{ cursor: 'pointer' }}
+                                />
+                                🔍 Exibir Análise Vertical (AV)
+                            </label>
+                        )}
                     </div>
 
                     {loadingData ? (
@@ -518,6 +532,13 @@ export default function ForecastPage() {
                                         const sumBudget = row.budget.reduce((a: number, b: number) => a + b, 0);
                                         const variance = sumForecast - sumBudget;
                                         
+                                        // Análise Vertical (AV) Totais
+                                        const groupBruta = displayGrid.find(r => r.categoryId === 'G-01');
+                                        const sumForecastBruta = groupBruta?.forecast.reduce((a: number, b: number) => a + b, 0) || 0;
+                                        const sumBudgetBruta = groupBruta?.budget.reduce((a: number, b: number) => a + b, 0) || 0;
+                                        const avTotalPercent = Math.abs(sumForecastBruta) > 0.01 ? (sumForecast / sumForecastBruta) * 100 : 0;
+                                        const avBudgetPercent = Math.abs(sumBudgetBruta) > 0.01 ? (sumBudget / sumBudgetBruta) * 100 : 0;
+                                        
                                         const isGroup = row.categoryId.startsWith('G-');
                                         const isFormula = row.categoryId.startsWith('F-');
                                         const hasChildren = row.children && row.children.length > 0;
@@ -543,7 +564,7 @@ export default function ForecastPage() {
                                                             onClick={() => toggleRow(row.categoryId)}
                                                             style={{ cursor: 'pointer', userSelect: 'none', marginRight: '0.5rem', display: 'inline-block', width: '12px', color: 'var(--text-secondary)' }}
                                                         >
-                                                            {expandedRows.has(row.categoryId) ? '▼' : '▶'}
+                                                             {expandedRows.has(row.categoryId) ? '▼' : '▶'}
                                                         </span>
                                                     )}
                                                     {!hasChildren && !isFormula && <span style={{ display: 'inline-block', width: '17px' }} />}
@@ -554,16 +575,35 @@ export default function ForecastPage() {
                                                         {row.categoryName}
                                                     </span>
                                                 </td>
-                                                {row.forecast.map((val: number, i: number) => (
-                                                    <td key={i} style={{ padding: '0.6rem 0.5rem', textAlign: 'right' }}>
-                                                        {fmt(val)}
-                                                    </td>
-                                                ))}
+                                                {row.forecast.map((val: number, i: number) => {
+                                                    const totalBruta = displayGrid.find(r => r.categoryId === 'G-01')?.forecast[i] || 0;
+                                                    const avPercent = Math.abs(totalBruta) > 0.01 ? (val / totalBruta) * 100 : 0;
+                                                    return (
+                                                        <td key={i} style={{ padding: '0.6rem 0.5rem', textAlign: 'right' }}>
+                                                            <div>{fmt(val)}</div>
+                                                            {showAV && (
+                                                                <div style={{ fontSize: '0.62rem', color: 'var(--text-secondary)', fontWeight: 700, marginTop: '2px' }}>
+                                                                    {avPercent.toFixed(1)}%
+                                                                </div>
+                                                            )}
+                                                        </td>
+                                                    );
+                                                })}
                                                 <td style={{ padding: '0.6rem 0.5rem', textAlign: 'right', fontWeight: 800, color: 'var(--accent-indigo)' }}>
-                                                    {fmt(sumForecast)}
+                                                    <div>{fmt(sumForecast)}</div>
+                                                    {showAV && (
+                                                        <div style={{ fontSize: '0.62rem', color: 'var(--text-secondary)', fontWeight: 700, marginTop: '2px' }}>
+                                                            {avTotalPercent.toFixed(1)}%
+                                                        </div>
+                                                    )}
                                                 </td>
                                                 <td style={{ padding: '0.6rem 0.5rem', textAlign: 'right', opacity: 0.8 }}>
-                                                    {fmt(sumBudget)}
+                                                     <div>{fmt(sumBudget)}</div>
+                                                     {showAV && (
+                                                         <div style={{ fontSize: '0.62rem', color: 'var(--text-secondary)', fontWeight: 700, marginTop: '2px' }}>
+                                                             {avBudgetPercent.toFixed(1)}%
+                                                         </div>
+                                                     )}
                                                 </td>
                                                 <td style={{ padding: '0.6rem 0.5rem', textAlign: 'right', color: variance > 0 ? 'var(--accent-green)' : variance < 0 ? 'var(--accent-red)' : 'var(--text-secondary)' }}>
                                                     {variance > 0 ? '+' : ''}{fmt(variance)}

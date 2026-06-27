@@ -29,7 +29,6 @@ export function middleware(request: NextRequest) {
         pathname.startsWith('/api/debug-cc-271') ||
         pathname.startsWith('/api/diag-ca') ||
         pathname.startsWith('/api/version') ||
-        pathname.startsWith('/api/kpi/forecast/debug') ||
         pathname.startsWith('/api/run-push') ||
         pathname.startsWith('/api/clean-ghosts') ||
         pathname.startsWith('/api/diag-db-query') ||

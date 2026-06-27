@@ -45,6 +45,24 @@ export default function ForecastPage() {
         });
     };
 
+    const handleExpandAll = () => {
+        const allIds = new Set<string>();
+        const collectIds = (nodes: any[]) => {
+            nodes.forEach(n => {
+                if (n.children && n.children.length > 0) {
+                    allIds.add(n.categoryId);
+                    collectIds(n.children);
+                }
+            });
+        };
+        collectIds(displayGrid);
+        setExpandedRows(allIds);
+    };
+
+    const handleCollapseAll = () => {
+        setExpandedRows(new Set());
+    };
+
     const fetchSetup = useCallback(async () => {
         try {
             const res = await fetch('/api/companies');
@@ -493,15 +511,29 @@ export default function ForecastPage() {
                             </button>
                         </div>
                         {activeTab === 'grid' && (
-                            <label style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.8rem', cursor: 'pointer', fontWeight: 700, color: 'var(--text-primary)', padding: '0.35rem 0.65rem', background: 'var(--bg-elevated)', borderRadius: '6px', border: '1px solid var(--border-subtle)' }}>
-                                <input 
-                                    type="checkbox" 
-                                    checked={showAV} 
-                                    onChange={(e) => setShowAV(e.target.checked)} 
-                                    style={{ cursor: 'pointer' }}
-                                />
-                                🔍 Exibir Análise Vertical (AV)
-                            </label>
+                            <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                                <button
+                                    onClick={handleExpandAll}
+                                    style={{ padding: '0.35rem 0.65rem', borderRadius: '6px', border: '1px solid var(--border-subtle)', background: 'var(--bg-elevated)', color: 'var(--text-primary)', fontSize: '0.8rem', fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.25rem' }}
+                                >
+                                    ↕️ Expandir Tudo
+                                </button>
+                                <button
+                                    onClick={handleCollapseAll}
+                                    style={{ padding: '0.35rem 0.65rem', borderRadius: '6px', border: '1px solid var(--border-subtle)', background: 'var(--bg-elevated)', color: 'var(--text-primary)', fontSize: '0.8rem', fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.25rem' }}
+                                >
+                                    ↔️ Retrair Tudo
+                                </button>
+                                <label style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.8rem', cursor: 'pointer', fontWeight: 700, color: 'var(--text-primary)', padding: '0.35rem 0.65rem', background: 'var(--bg-elevated)', borderRadius: '6px', border: '1px solid var(--border-subtle)' }}>
+                                    <input 
+                                        type="checkbox" 
+                                        checked={showAV} 
+                                        onChange={(e) => setShowAV(e.target.checked)} 
+                                        style={{ cursor: 'pointer' }}
+                                    />
+                                    🔍 Exibir Análise Vertical (AV)
+                                </label>
+                            </div>
                         )}
                     </div>
 

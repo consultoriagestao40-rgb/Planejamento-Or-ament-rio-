@@ -24,7 +24,7 @@ export async function GET(request: Request) {
 
         // 1. Fetch Realized data
         const realizedData = await prisma.realizedEntry.findMany({
-            where: { tenantId: { in: tenantIds }, year }
+            where: { tenantId: { in: tenantIds }, year, viewMode: 'competencia' }
         });
 
         // 2. Fetch Budget data

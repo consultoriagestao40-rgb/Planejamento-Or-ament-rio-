@@ -31,7 +31,7 @@ export async function GET(request: Request) {
 
         // 2. Load historical realized data for the selected year
         const realizedData = await prisma.realizedEntry.findMany({
-            where: { tenantId: { in: tenantIds }, year }
+            where: { tenantId: { in: tenantIds }, year, viewMode: 'competencia' }
         });
 
         // 3. Find Receita Bruta (01) historical sum

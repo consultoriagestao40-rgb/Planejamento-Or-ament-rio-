@@ -26,15 +26,56 @@ export async function GET(request: Request) {
             where: { tenantId: { in: tenantIds }, year }
         });
         const overrideMap = new Map<string, number>();
-        // Group overrides by normalized category name/code to consolidate
         overrides.forEach(o => overrideMap.set(o.categoryId, o.percentage));
 
-        // 2. Load historical realized data for the selected year
+        // 2. Fetch all categories first
+        const categories = await prisma.category.findMany({
+            where: { tenantId: { in: tenantIds } }
+        });
+
+        // Filter out categories that are parent nodes to prevent double counting
+        const parentIds = new Set(categories.map(c => c.parentId).filter(Boolean));
+        const leafCategories = categories.filter(c => !parentIds.has(c.id));
+
+        // 3. Load historical realized data for the selected year
         const realizedData = await prisma.realizedEntry.findMany({
             where: { tenantId: { in: tenantIds }, year, viewMode: 'competencia' }
         });
 
-        // 3. Find Receita Bruta (01) historical sum
+        // Synced months detection to prevent manual + sync overlap
+        const syncedMonths = new Set<string>();
+        realizedData.forEach(e => {
+            if (e.externalId && e.externalId.startsWith('sync-')) {
+                syncedMonths.add(`${e.year}|${e.month}`);
+            }
+        });
+
+        const isConsolidated = tenantId === 'ALL';
+        const filteredRealized = realizedData.filter(e => {
+            const key = `${e.year}|${e.month}`;
+            if (syncedMonths.has(key)) {
+                if (!e.externalId || !(
+                    e.externalId.startsWith('sync-') ||
+                    e.externalId.startsWith('adj-') ||
+                    e.externalId.startsWith('transf-')
+                )) {
+                    return false;
+                }
+            }
+
+            // Exclude transfer categories
+            const cat = categories.find(c => c.id === e.categoryId);
+            if (cat) {
+                const name = cat.name;
+                const codeMatch = name.match(/^([\d.]+)/);
+                const code = codeMatch ? codeMatch[1] : '';
+                if (code === '6.1.2' || code === '06.1.2' || code === '6.2.2' || code === '06.2.2') return false;
+                if (isConsolidated && (code === '6.1.1' || code === '06.1.1' || code === '6.2.1' || code === '06.2.1')) return false;
+            }
+            return true;
+        });
+
+        // 4. Find Receita Bruta (01) historical sum
         const grossRevCategories = await prisma.category.findMany({
             where: {
                 tenantId: { in: tenantIds },
@@ -46,18 +87,9 @@ export async function GET(request: Request) {
             }
         });
         const grossRevIds = grossRevCategories.map(c => c.id);
-        const totalGrossRevenue = realizedData
+        const totalGrossRevenue = filteredRealized
             .filter(r => grossRevIds.includes(r.categoryId))
             .reduce((sum, r) => sum + r.amount, 0);
-
-        // 4. Load all categories
-        const categories = await prisma.category.findMany({
-            where: { tenantId: { in: tenantIds } }
-        });
-
-        // Filter out categories that are parent nodes to prevent double counting
-        const parentIds = new Set(categories.map(c => c.parentId).filter(Boolean));
-        const leafCategories = categories.filter(c => !parentIds.has(c.id));
 
         // Group categories by normalized code/name
         const uniqueCategoriesMap = new Map<string, { categoryId: string; categoryName: string }>();
@@ -99,7 +131,7 @@ export async function GET(request: Request) {
             } else if (overrideVal !== undefined) {
                 calculatedPercentage = overrideVal;
             } else if (totalGrossRevenue > 0) {
-                const catSum = realizedData
+                const catSum = filteredRealized
                     .filter(r => matchedCatIds.includes(r.categoryId))
                     .reduce((sum, r) => sum + r.amount, 0);
                 calculatedPercentage = parseFloat(((Math.abs(catSum) / totalGrossRevenue) * 100).toFixed(2));

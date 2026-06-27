@@ -44,6 +44,48 @@ export async function GET(request: Request) {
         const overrideMap = new Map<string, number>();
         overrides.forEach(o => overrideMap.set(o.categoryId, o.percentage));
 
+        // 5. Fetch all categories first
+        const categories = await prisma.category.findMany({
+            where: { tenantId: { in: tenantIds } }
+        });
+
+        // Filter out categories that are parent nodes to prevent double counting
+        const parentIds = new Set(categories.map(c => c.parentId).filter(Boolean));
+        const leafCategories = categories.filter(c => !parentIds.has(c.id));
+
+        // Synced months detection to prevent manual + sync overlap
+        const syncedMonths = new Set<string>();
+        realizedData.forEach(e => {
+            if (e.externalId && e.externalId.startsWith('sync-')) {
+                syncedMonths.add(`${e.year}|${e.month}`);
+            }
+        });
+
+        const isConsolidated = tenantId === 'ALL';
+        const filteredRealized = realizedData.filter(e => {
+            const key = `${e.year}|${e.month}`;
+            if (syncedMonths.has(key)) {
+                if (!e.externalId || !(
+                    e.externalId.startsWith('sync-') ||
+                    e.externalId.startsWith('adj-') ||
+                    e.externalId.startsWith('transf-')
+                )) {
+                    return false;
+                }
+            }
+
+            // Exclude transfer categories
+            const cat = categories.find(c => c.id === e.categoryId);
+            if (cat) {
+                const name = cat.name;
+                const codeMatch = name.match(/^([\d.]+)/);
+                const code = codeMatch ? codeMatch[1] : '';
+                if (code === '6.1.2' || code === '06.1.2' || code === '6.2.2' || code === '06.2.2') return false;
+                if (isConsolidated && (code === '6.1.1' || code === '06.1.1' || code === '6.2.1' || code === '06.2.1')) return false;
+            }
+            return true;
+        });
+
         // Calculate consolidated gross revenue for default coefficients
         const grossRevCategories = await prisma.category.findMany({
             where: {
@@ -56,17 +98,9 @@ export async function GET(request: Request) {
             }
         });
         const grossRevIds = grossRevCategories.map(c => c.id);
-        const totalGrossRevenueRealized = realizedData
+        const totalGrossRevenueRealized = filteredRealized
             .filter(r => grossRevIds.includes(r.categoryId))
             .reduce((sum, r) => sum + r.amount, 0);
-
-        const categories = await prisma.category.findMany({
-            where: { tenantId: { in: tenantIds } }
-        });
-
-        // Filter out categories that are parent nodes to prevent double counting
-        const parentIds = new Set(categories.map(c => c.parentId).filter(Boolean));
-        const leafCategories = categories.filter(c => !parentIds.has(c.id));
 
         // Group categories by unified prefix code
         const uniqueCategoriesMap = new Map<string, { categoryId: string; categoryName: string; type: string; parentId: string | null }>();
@@ -110,7 +144,7 @@ export async function GET(request: Request) {
             } else if (overrideVal !== undefined) {
                 pct = overrideVal;
             } else if (totalGrossRevenueRealized > 0) {
-                const catSum = realizedData
+                const catSum = filteredRealized
                     .filter(r => matchedCatIds.includes(r.categoryId))
                     .reduce((sum, r) => sum + r.amount, 0);
                 pct = (Math.abs(catSum) / totalGrossRevenueRealized) * 100;
@@ -147,7 +181,7 @@ export async function GET(request: Request) {
             }).map(c => c.id);
 
             // Populate Realized and Budget
-            realizedData.filter(r => matchedCatIds.includes(r.categoryId)).forEach(r => {
+            filteredRealized.filter(r => matchedCatIds.includes(r.categoryId)).forEach(r => {
                 if (r.month >= 1 && r.month <= 12) {
                     monthlyRealized[r.month - 1] += r.amount;
                 }

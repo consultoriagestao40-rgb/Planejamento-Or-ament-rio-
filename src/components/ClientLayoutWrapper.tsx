@@ -118,6 +118,16 @@ export default function ClientLayoutWrapper({ children }: { children: React.Reac
                     <circle cx="12" cy="12" r="3.5" fill="currentColor" fillOpacity="0.4" />
                 </svg>
             )
+        },
+        { 
+            label: 'Forecast', 
+            path: '/forecast', 
+            icon: (
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M23 6l-9.5 9.5-5-5L1 18" />
+                    <polyline points="17 6 23 6 23 12" />
+                </svg>
+            )
         }
     ];
 

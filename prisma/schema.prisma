@@ -31,6 +31,8 @@ model Tenant {
   indicatorAnalyses IndicatorAnalysis[]
   detailedAnalyses  DetailedAnalysis[]
   deviations        DeviationAnalysis[]
+  forecastContracts ForecastContract[]
+  forecastCoefficients ForecastCoefficient[]
 }
 
 model RadarLock {
@@ -64,6 +66,7 @@ model Category {
   justifications RealizedJustification[]
   indicatorAnalyses IndicatorAnalysis[]
   deviations        DeviationAnalysis[]
+  forecastCoefficients ForecastCoefficient[]
 }
 
 model CostCenter {
@@ -357,4 +360,36 @@ model DeviationAnalysis {
   responsible      User?     @relation(fields: [responsibleId], references: [id], onDelete: SetNull)
 
   @@index([tenantId, month, year])
+}
+
+model ForecastContract {
+  id          String   @id @default(uuid())
+  tenantId    String
+  name        String
+  value       Float    // Valor mensal do contrato (R$)
+  startMonth  Int      // 1-12
+  startYear   Int      // Ano de início (ex: 2026)
+  probability Float    // Probabilidade (0-100)
+  status      String   // "PIPELINE" | "VENDIDO" | "PERDIDO"
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  tenant      Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, startYear])
+}
+
+model ForecastCoefficient {
+  id         String   @id @default(uuid())
+  tenantId   String
+  categoryId String
+  percentage Float    // Porcentagem (0-100)
+  year       Int
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  tenant     Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  category   Category @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, categoryId, year])
 }

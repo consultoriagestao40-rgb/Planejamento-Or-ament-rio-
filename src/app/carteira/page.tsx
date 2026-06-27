@@ -512,6 +512,41 @@ export default function PortfolioAnalysisPage() {
         }
     };
 
+    const handleUpdateChartFilter = async (chartId: string, newFilterTenantId: string) => {
+        const chart = detailedAnalyses.find(c => c.id === chartId);
+        if (!chart) return;
+        try {
+            const res = await fetch('/api/kpi/detailed-analysis', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    id: chart.id,
+                    tenantId: chart.tenantId,
+                    month: chart.month,
+                    year: chart.year,
+                    categoryId: chart.categoryId,
+                    filterTenantId: newFilterTenantId,
+                    filterCCId: chart.filterCCId,
+                    chartType: chart.chartType,
+                    onlyRealized: chart.onlyRealized,
+                    showAtingido: chart.showAtingido,
+                    pctOfRevenue: chart.pctOfRevenue,
+                    chartColor: chart.chartColor,
+                    analysisText: chart.analysisText
+                })
+            });
+            const json = await res.json();
+            if (json.success) {
+                fetchDetailedAnalyses();
+            } else {
+                alert(`Erro ao atualizar filtro de empresa: ${json.error}`);
+            }
+        } catch (err) {
+            console.error('Error updating chart filter tenant ID inline:', err);
+            alert('Erro de conexão ao atualizar filtro.');
+        }
+    };
+
     const handleAddChartClick = () => {
         setEditingChartId(null);
         setChartCategory('');
@@ -1440,6 +1475,7 @@ export default function PortfolioAnalysisPage() {
                                                 onEdit={handleEditChartClick} 
                                                 onDelete={deleteDetailedAnalysis} 
                                                 onOpenAnalysis={handleOpenAnalysis}
+                                                onUpdateFilterTenantId={handleUpdateChartFilter}
                                                 mainMonth={activeMonthNumber} 
                                                 year={selectedYear} 
                                                 viewMode={selectedViewMode} 
@@ -2190,25 +2226,21 @@ export default function PortfolioAnalysisPage() {
                                     <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
                                         <div style={{ flex: 1, minWidth: '150px', display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
                                             <label style={{ fontSize: '0.75rem', fontWeight: 800, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Filtro de Empresa no Gráfico *</label>
-                                            <select
-                                                value={chartTenant}
-                                                onChange={(e) => {
-                                                    const val = e.target.value;
-                                                    setChartTenant(val);
-                                                    if (val === 'ALL') {
+                                            <CompanyMultiSelectDropdown
+                                                companies={companies}
+                                                selectedTenantIds={chartTenant}
+                                                onChange={(newIds) => {
+                                                    setChartTenant(newIds);
+                                                    const first = newIds.split(',')[0];
+                                                    if (first && first !== 'ALL') {
+                                                        setAnalysisSelectedTenant(first);
+                                                    } else {
                                                         const jvs = companies.find((c: any) => c.name.toUpperCase().includes('JVS TRAT'));
                                                         setAnalysisSelectedTenant(jvs ? jvs.id : (companies[0]?.id || ''));
-                                                    } else {
-                                                        setAnalysisSelectedTenant(val);
                                                     }
                                                 }}
-                                                style={{ width: '100%', height: '38px', padding: '0 0.75rem', fontSize: '0.85rem', fontWeight: 600, border: '1px solid var(--border-default)', borderRadius: '8px', outline: 'none', background: 'var(--bg-surface)', color: 'var(--text-primary)', cursor: 'pointer' }}
-                                            >
-                                                <option value="ALL">Grupo JVS</option>
-                                                {companies.map((c: any) => (
-                                                    <option key={c.id} value={c.id}>{c.name}</option>
-                                                ))}
-                                            </select>
+                                                fullWidth={true}
+                                            />
                                         </div>
                                         <div style={{ flex: 1, minWidth: '150px', display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
                                             <label style={{ fontSize: '0.75rem', fontWeight: 800, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Centro de Custo</label>
@@ -3174,7 +3206,162 @@ const getComparisonPeriods = (comparePeriod: string) => {
     }
 };
 
-const DetailedChartCard = ({ chart, onEdit, onDelete, onOpenAnalysis, mainMonth, year, viewMode, categories, companies }: { chart: any, onEdit: (c: any) => void, onDelete: (id: string) => void, onOpenAnalysis: (c: any) => void, mainMonth: number, year: number, viewMode: 'caixa' | 'competencia', categories: any[], companies: any[] }) => {
+const CompanyMultiSelectDropdown = ({ companies, selectedTenantIds, onChange, fullWidth = false }: { companies: any[], selectedTenantIds: string, onChange: (newIds: string) => void, fullWidth?: boolean }) => {
+    const [isOpen, setIsOpen] = useState(false);
+    const selectedList = useMemo(() => {
+        if (!selectedTenantIds || selectedTenantIds === 'ALL') return ['ALL'];
+        return selectedTenantIds.split(',').map(x => x.trim()).filter(Boolean);
+    }, [selectedTenantIds]);
+
+    const label = useMemo(() => {
+        if (selectedList.includes('ALL')) return 'Grupo JVS (Todas)';
+        if (selectedList.length === 0) return 'Selecione...';
+        if (selectedList.length === 1) {
+            const found = companies.find(c => c.id === selectedList[0]);
+            return found ? found.name : 'Empresa';
+        }
+        return `Empresas (${selectedList.length})`;
+    }, [selectedList, companies]);
+
+    const toggleTenant = (tenantId: string) => {
+        if (tenantId === 'ALL') {
+            onChange('ALL');
+            return;
+        }
+        let next = selectedList.filter(x => x !== 'ALL');
+        if (next.includes(tenantId)) {
+            next = next.filter(x => x !== tenantId);
+        } else {
+            next.push(tenantId);
+        }
+        if (next.length === 0) {
+            onChange('ALL');
+        } else if (next.length === companies.length) {
+            onChange('ALL');
+        } else {
+            onChange(next.join(','));
+        }
+    };
+
+    return (
+        <div style={{ position: 'relative', display: fullWidth ? 'block' : 'inline-block', width: fullWidth ? '100%' : 'auto' }}>
+            <button
+                type="button"
+                onClick={() => setIsOpen(!isOpen)}
+                style={{
+                    background: 'var(--bg-surface)',
+                    border: '1px solid var(--border-default)',
+                    borderRadius: '8px',
+                    padding: fullWidth ? '0.5rem 0.85rem' : '2px 8px',
+                    height: fullWidth ? '38px' : 'auto',
+                    fontSize: fullWidth ? '0.85rem' : '0.7rem',
+                    fontWeight: 600,
+                    color: 'var(--text-primary)',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    width: '100%',
+                    outline: 'none',
+                    textAlign: 'left',
+                    boxSizing: 'border-box',
+                    gap: '4px'
+                }}
+            >
+                <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{label}</span>
+                <span style={{ fontSize: '0.5rem', opacity: 0.7 }}>▼</span>
+            </button>
+
+            {isOpen && (
+                <>
+                    <div 
+                        style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, zIndex: 9999 }} 
+                        onClick={() => setIsOpen(false)} 
+                    />
+                    <div 
+                        className="glass-card" 
+                        style={{ 
+                            position: 'absolute', 
+                            top: 'calc(100% + 4px)', 
+                            left: 0, 
+                            zIndex: 10000, 
+                            minWidth: '200px',
+                            maxHeight: '220px', 
+                            overflowY: 'auto', 
+                            background: 'var(--bg-surface)', 
+                            border: '1px solid var(--border-default)',
+                            borderRadius: '8px',
+                            boxShadow: 'var(--shadow-card)',
+                            padding: '0.35rem 0',
+                            textAlign: 'left'
+                        }}
+                    >
+                        {/* Option: Grupo JVS */}
+                        <div
+                            onClick={() => {
+                                toggleTenant('ALL');
+                                setIsOpen(false);
+                            }}
+                            style={{ 
+                                padding: '0.45rem 0.75rem', 
+                                cursor: 'pointer', 
+                                fontSize: '0.8rem', 
+                                fontWeight: 700,
+                                color: 'var(--accent-indigo)',
+                                background: selectedList.includes('ALL') ? 'rgba(99, 102, 241, 0.05)' : 'transparent',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '0.5rem'
+                            }}
+                        >
+                            <input 
+                                type="checkbox" 
+                                checked={selectedList.includes('ALL')}
+                                readOnly
+                                style={{ accentColor: 'var(--accent-indigo)', pointerEvents: 'none' }}
+                            />
+                            <span>Grupo JVS (Todas)</span>
+                        </div>
+                        
+                        <div style={{ height: '1px', background: 'var(--border-subtle)', margin: '0.2rem 0' }} />
+
+                        {/* Companies List */}
+                        {companies.map((c) => {
+                            const isSelected = selectedList.includes(c.id);
+                            return (
+                                <div
+                                    key={c.id}
+                                    onClick={() => toggleTenant(c.id)}
+                                    style={{ 
+                                        padding: '0.45rem 0.75rem', 
+                                        cursor: 'pointer', 
+                                        fontSize: '0.8rem', 
+                                        fontWeight: 600,
+                                        color: 'var(--text-primary)',
+                                        background: isSelected ? 'rgba(99, 102, 241, 0.05)' : 'transparent',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        gap: '0.5rem'
+                                    }}
+                                >
+                                    <input 
+                                        type="checkbox" 
+                                        checked={isSelected}
+                                        readOnly
+                                        style={{ accentColor: 'var(--accent-indigo)', pointerEvents: 'none' }}
+                                    />
+                                    <span>{c.name}</span>
+                                </div>
+                            );
+                        })}
+                    </div>
+                </>
+            )}
+        </div>
+    );
+};
+
+const DetailedChartCard = ({ chart, onEdit, onDelete, onOpenAnalysis, onUpdateFilterTenantId, mainMonth, year, viewMode, categories, companies }: { chart: any, onEdit: (c: any) => void, onDelete: (id: string) => void, onOpenAnalysis: (c: any) => void, onUpdateFilterTenantId?: (chartId: string, filterTenantId: string) => void, mainMonth: number, year: number, viewMode: 'caixa' | 'competencia', categories: any[], companies: any[] }) => {
     const [data, setData] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
     const [chartViewMode, setChartViewMode] = useState<'monthly' | 'accumulated'>('monthly');
@@ -3609,12 +3796,17 @@ const DetailedChartCard = ({ chart, onEdit, onDelete, onOpenAnalysis, mainMonth,
                     <h4 style={{ fontSize: '0.95rem', fontWeight: 800, color: 'var(--text-primary)', margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                         📊 {getChartHeaderTitle(chart)} ({getChartTypeName(chart.chartType)})
                     </h4>
-                    <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', fontWeight: 500, display: 'block', marginTop: '0.2rem' }}>
-                        Filtros: {chart.filterTenantId === 'ALL' ? 'Grupo JVS' : (companies.find(c => c.id === chart.filterTenantId)?.name || 'Empresa Única')} 
+                    <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', fontWeight: 500, display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '0.35rem', marginTop: '0.2rem' }}>
+                        <span>Filtro Empresa:</span>
+                        <CompanyMultiSelectDropdown
+                            companies={companies}
+                            selectedTenantIds={chart.filterTenantId}
+                            onChange={(newIds) => onUpdateFilterTenantId && onUpdateFilterTenantId(chart.id, newIds)}
+                        />
                         {chart.filterCCId && chart.filterCCId !== 'ALL' ? ` | Centro de Custo: ${chart.filterCCId}` : ' | Todos Centros de Custo'}
                         {chart.pctOfRevenue ? ' | % sobre Receita' : ''}
                         {chart.onlyRealized ? ' | Somente Realizado' : ''}
-                    </span>
+                    </div>
                 </div>
                 <div style={{ display: 'flex', gap: '0.5rem', flexShrink: 0, alignItems: 'center' }}>
                     {/* Mensal / Acumulado Toggle */}

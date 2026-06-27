@@ -550,7 +550,7 @@ export default function ForecastPage() {
                                         <th style={{ padding: '0.5rem', minWidth: '180px' }}>Conta / Categoria</th>
                                         {monthsName.map((name, i) => (
                                             <React.Fragment key={i}>
-                                                <th style={{ padding: '0.5rem', textAlign: 'right', background: i + 1 <= activeMonth ? 'rgba(99, 102, 241, 0.05)' : 'transparent' }}>
+                                                <th style={{ padding: '0.5rem', textAlign: 'right', minWidth: '100px', whiteSpace: 'nowrap', background: i + 1 <= activeMonth ? 'rgba(99, 102, 241, 0.05)' : 'transparent' }}>
                                                     {name} <span style={{ fontSize: '0.6rem', display: 'block', opacity: 0.7 }}>{i + 1 <= activeMonth ? 'Real' : 'Proj'}</span>
                                                 </th>
                                                 {showAV && (
@@ -560,11 +560,11 @@ export default function ForecastPage() {
                                                 )}
                                             </React.Fragment>
                                         ))}
-                                        <th style={{ padding: '0.5rem', textAlign: 'right', fontWeight: 800 }}>Total Forecast</th>
+                                        <th style={{ padding: '0.5rem', textAlign: 'right', fontWeight: 800, minWidth: '110px', whiteSpace: 'nowrap' }}>Total Forecast</th>
                                         {showAV && <th style={{ padding: '0.5rem', textAlign: 'center', width: '55px', minWidth: '55px', color: 'var(--text-secondary)', fontSize: '0.65rem' }}>AV</th>}
-                                        <th style={{ padding: '0.5rem', textAlign: 'right', opacity: 0.8 }}>Budget Original</th>
+                                        <th style={{ padding: '0.5rem', textAlign: 'right', opacity: 0.8, minWidth: '110px', whiteSpace: 'nowrap' }}>Budget Original</th>
                                         {showAV && <th style={{ padding: '0.5rem', textAlign: 'center', width: '55px', minWidth: '55px', color: 'var(--text-secondary)', opacity: 0.8, fontSize: '0.65rem' }}>AV</th>}
-                                        <th style={{ padding: '0.5rem', textAlign: 'right' }}>Variação</th>
+                                        <th style={{ padding: '0.5rem', textAlign: 'right', minWidth: '110px', whiteSpace: 'nowrap' }}>Variação</th>
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -621,7 +621,7 @@ export default function ForecastPage() {
                                                     const avPercent = Math.abs(totalBruta) > 0.01 ? (val / totalBruta) * 100 : 0;
                                                     return (
                                                         <React.Fragment key={i}>
-                                                            <td style={{ padding: '0.6rem 0.5rem', textAlign: 'right' }}>
+                                                            <td style={{ padding: '0.6rem 0.5rem', textAlign: 'right', whiteSpace: 'nowrap' }}>
                                                                 {fmt(val)}
                                                             </td>
                                                             {showAV && (
@@ -632,7 +632,7 @@ export default function ForecastPage() {
                                                         </React.Fragment>
                                                     );
                                                 })}
-                                                <td style={{ padding: '0.6rem 0.5rem', textAlign: 'right', fontWeight: 800, color: 'var(--accent-indigo)' }}>
+                                                <td style={{ padding: '0.6rem 0.5rem', textAlign: 'right', fontWeight: 800, color: 'var(--accent-indigo)', whiteSpace: 'nowrap' }}>
                                                     {fmt(sumForecast)}
                                                 </td>
                                                 {showAV && (
@@ -640,7 +640,7 @@ export default function ForecastPage() {
                                                         {avTotalPercent.toFixed(1)}%
                                                     </td>
                                                 )}
-                                                <td style={{ padding: '0.6rem 0.5rem', textAlign: 'right', opacity: 0.8 }}>
+                                                <td style={{ padding: '0.6rem 0.5rem', textAlign: 'right', opacity: 0.8, whiteSpace: 'nowrap' }}>
                                                     {fmt(sumBudget)}
                                                 </td>
                                                 {showAV && (
@@ -648,7 +648,7 @@ export default function ForecastPage() {
                                                         {avBudgetPercent.toFixed(1)}%
                                                     </td>
                                                 )}
-                                                <td style={{ padding: '0.6rem 0.5rem', textAlign: 'right', color: variance > 0 ? 'var(--accent-green)' : variance < 0 ? 'var(--accent-red)' : 'var(--text-secondary)' }}>
+                                                <td style={{ padding: '0.6rem 0.5rem', textAlign: 'right', color: variance > 0 ? 'var(--accent-green)' : variance < 0 ? 'var(--accent-red)' : 'var(--text-secondary)', whiteSpace: 'nowrap' }}>
                                                     {variance > 0 ? '+' : ''}{fmt(variance)}
                                                 </td>
                                             </tr>

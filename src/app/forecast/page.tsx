@@ -14,7 +14,7 @@ export default function ForecastPage() {
     const [activeTab, setActiveTab] = useState<'grid' | 'coefficients'>('grid');
     const [isSimulatorOpen, setIsSimulatorOpen] = useState(false);
     const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set([
-        'G-01', 'G-02', 'G-03', 'G-04', 'G-05', 'G-06',
+        'G-01', 'G-02', 'G-03', 'G-04', 'G-05', 'G-06', 'G-07',
         'G-01.1', 'G-01.2', 'G-02.1', 'G-03.1', 'G-03.2', 'G-03.3', 'G-03.4', 'G-03.5', 'G-03.7', 'G-03.8', 'G-03.9'
     ]));
 
@@ -196,13 +196,13 @@ export default function ForecastPage() {
             const recVendas = createNode('G-01.2', '01.2 - Receitas de Vendas', 1);
             recBruta.children = [recServicos, recVendas];
 
-            const tributos = createNode('G-02', '02. TRIBUTO SOBRE FATURAMENTO', 0);
+            const tributos = createNode('G-02', '02. Tributo sobre Faturamento', 0);
             const tribSub = createNode('G-02.1', '02.1 - Tributos', 1);
             tributos.children = [tribSub];
 
             const recLiquida = createNode('F-RL', '(=) RECEITA LÍQUIDA', 0, true);
 
-            const custosOp = createNode('G-03', '03. CUSTOS OPERACIONAIS', 0);
+            const custosOp = createNode('G-03', '03. Custo Operacional', 0);
             const custosSubs: Record<string, any> = {
                 '03.1': createNode('G-03.1', '03.1 Salarios e Remuneração', 1),
                 '03.2': createNode('G-03.2', '03.2 Encargos Sociais', 1),
@@ -217,9 +217,9 @@ export default function ForecastPage() {
             };
             custosOp.children = Object.values(custosSubs);
 
-            const margemContrib = createNode('F-MC', '(=) MARGEM DE CONTRIBUIÇÃO', 0, true);
+            const margemBruta = createNode('F-MB', '(=) MARGEM BRUTA', 0, true);
 
-            const despVendas = createNode('G-04', '04. DESPESAS COM VENDAS', 0);
+            const despVendas = createNode('G-04', '04. Despesa Operacional', 0);
             const despVendasSubs: Record<string, any> = {
                 '04.1': createNode('G-04.1', '04.1 Salarios e Remuneração', 1),
                 '04.2': createNode('G-04.2', '04.2 Encargos Sociais', 1),
@@ -232,7 +232,9 @@ export default function ForecastPage() {
             };
             despVendas.children = Object.values(despVendasSubs);
 
-            const despAdmin = createNode('G-05', '05. DESPESAS ADMINISTRATIVAS', 0);
+            const margemContrib = createNode('F-MC', '(=) MARGEM DE CONTRIBUIÇÃO', 0, true);
+
+            const despAdmin = createNode('G-05', '05. Despesas Administrativas', 0);
             const despAdminSubs: Record<string, any> = {
                 '05.1': createNode('G-05.1', '05.1 Salario e Remuneração', 1),
                 '05.2': createNode('G-05.2', '05.2 Encargos Sociais', 1),
@@ -252,7 +254,7 @@ export default function ForecastPage() {
 
             const ebitda = createNode('F-EBITDA', '(=) EBITDA', 0, true);
 
-            const despFin = createNode('G-06', '06. DESPESAS FINANCEIRAS', 0);
+            const despFin = createNode('G-06', '06. Despesas Financeiras', 0);
             const despFinSubs: Record<string, any> = {
                 '06.1': createNode('G-06.1', '06.1 Entradas Financeiras', 1),
                 '06.2': createNode('G-06.2', '06.2 Saidas Financeiras', 1),
@@ -266,6 +268,8 @@ export default function ForecastPage() {
             despFin.children = Object.values(despFinSubs);
 
             const lucroLiquido = createNode('F-LL', '(=) LUCRO LÍQUIDO', 0, true);
+
+            const invest = createNode('G-07', '07. Investimentos', 0);
 
             // Classify flat leaf categories
             flatData.forEach(cat => {
@@ -292,6 +296,8 @@ export default function ForecastPage() {
                 } else if (code.startsWith('06.')) {
                     const subPrefix = code.substring(0, 4);
                     parentNode = despFinSubs[subPrefix];
+                } else if (code.startsWith('07.') || code.startsWith('7.')) {
+                    parentNode = invest;
                 }
 
                 if (parentNode) {
@@ -330,6 +336,7 @@ export default function ForecastPage() {
             computeSums(despVendas);
             computeSums(despAdmin);
             computeSums(despFin);
+            computeSums(invest);
 
             // Compute formulas
             for (let i = 0; i < 12; i++) {
@@ -337,20 +344,27 @@ export default function ForecastPage() {
                 recLiquida.budget[i] = recBruta.budget[i] - tributos.budget[i];
                 recLiquida.forecast[i] = recBruta.forecast[i] - tributos.forecast[i];
 
-                margemContrib.realized[i] = recLiquida.realized[i] - custosOp.realized[i];
-                margemContrib.budget[i] = recLiquida.budget[i] - custosOp.budget[i];
-                margemContrib.forecast[i] = recLiquida.forecast[i] - custosOp.forecast[i];
+                margemBruta.realized[i] = recLiquida.realized[i] - custosOp.realized[i];
+                margemBruta.budget[i] = recLiquida.budget[i] - custosOp.budget[i];
+                margemBruta.forecast[i] = recLiquida.forecast[i] - custosOp.forecast[i];
 
-                ebitda.realized[i] = margemContrib.realized[i] - despVendas.realized[i] - despAdmin.realized[i];
-                ebitda.budget[i] = margemContrib.budget[i] - despVendas.budget[i] - despAdmin.budget[i];
-                ebitda.forecast[i] = margemContrib.forecast[i] - despVendas.forecast[i] - despAdmin.forecast[i];
+                margemContrib.realized[i] = margemBruta.realized[i] - despVendas.realized[i];
+                margemContrib.budget[i] = margemBruta.budget[i] - despVendas.budget[i];
+                margemContrib.forecast[i] = margemBruta.forecast[i] - despVendas.forecast[i];
+
+                ebitda.realized[i] = margemContrib.realized[i] - despAdmin.realized[i];
+                ebitda.budget[i] = margemContrib.budget[i] - despAdmin.budget[i];
+                ebitda.forecast[i] = margemContrib.forecast[i] - despAdmin.forecast[i];
 
                 lucroLiquido.realized[i] = ebitda.realized[i] - despFin.realized[i];
                 lucroLiquido.budget[i] = ebitda.budget[i] - despFin.budget[i];
                 lucroLiquido.forecast[i] = ebitda.forecast[i] - despFin.forecast[i];
             }
 
-            return [recBruta, tributos, recLiquida, custosOp, margemContrib, despVendas, despAdmin, ebitda, despFin, lucroLiquido];
+            return [
+                recBruta, tributos, recLiquida, custosOp, margemBruta,
+                despVendas, margemContrib, despAdmin, ebitda, despFin, lucroLiquido, invest
+            ];
         };
 
         const treeRoots = buildDreTree(forecastData);

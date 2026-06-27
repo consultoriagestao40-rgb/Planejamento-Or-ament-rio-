@@ -1230,11 +1230,11 @@ export default function ForecastPage() {
                                                         {row.categoryName}
                                                     </span>
                                                 </td>
-                                                <td style={{ padding: '0.55rem 0.5rem', textAlign: 'right', whiteSpace: 'nowrap', color: row.value < 0 ? 'var(--accent-red)' : (row.value > 0 ? 'var(--text-primary)' : 'var(--text-secondary)') }}>
-                                                    {fmt(row.value)}
+                                                <td style={{ padding: '0.55rem 0.5rem', textAlign: 'right', whiteSpace: 'nowrap', color: 'var(--text-primary)' }}>
+                                                    {fmt(Math.abs(row.value))}
                                                 </td>
-                                                <td style={{ padding: '0.55rem 0.5rem', textAlign: 'center', fontWeight: 700, color: row.av < 0 ? 'var(--accent-red)' : (row.av > 0 ? 'var(--accent-green)' : 'var(--text-secondary)') }}>
-                                                    {row.av.toFixed(1)}%
+                                                <td style={{ padding: '0.55rem 0.5rem', textAlign: 'center', fontWeight: 700, color: 'var(--text-primary)' }}>
+                                                    {Math.abs(row.av).toFixed(1)}%
                                                 </td>
                                             </tr>
                                         );

@@ -221,9 +221,49 @@ export async function GET(request: Request) {
 
             // Apply special default rules from the prints if there is no user override
             if (overrideVal === undefined) {
+                const defaultPcts: Record<string, number> = {
+                    '02.1.1': 12.5,
+                    '03.1.1': 30.4,
+                    '03.1.2': 1.4,
+                    '03.1.3': 0.3,
+                    '03.1.5': 0.5,
+                    '03.1.10': 1.6,
+                    '03.2.1': 2.7,
+                    '03.2.2': 2.8,
+                    '03.2.3': 3.8,
+                    '03.2.4': 1.1,
+                    '03.2.6': 5.5,
+                    '03.3.1': 2.9,
+                    '03.3.2': 11.3,
+                    '03.3.4': 0.9,
+                    '03.3.6': 0.9,
+                    '03.3.7': 0.1,
+                    '03.4.1': 0.5,
+                    '03.4.2': 0.0,
+                    '03.5.1': 0.6,
+                    '03.5.2': 0.6,
+                    '03.5.3': 0.2,
+                    '03.5.5': 0.0,
+                    '03.7.1': 0.1,
+                    '03.7.2': 0.1,
+                    '03.7.4': 0.3,
+                    '03.8.2': 0.1,
+                    '03.9.2': 0.1,
+                    '03.9.3': 0.1,
+                    '03.9.8': 0.2
+                };
+
                 const nameLower = catInfo.categoryName.toLowerCase();
-                if (code.includes('03.2.6') || code.endsWith('.3.2.6') || nameLower.includes('inss')) {
+                
+                // Match by code key directly first
+                if (defaultPcts[code] !== undefined) {
+                    calculatedPercentage = defaultPcts[code];
+                } else if (code.includes('03.2.6') || nameLower.includes('inss')) {
                     calculatedPercentage = 5.5; // INSS
+                } else if (code.includes('03.3.2') || nameLower.includes('vale alimentação') || nameLower.includes('vale alimentacao')) {
+                    calculatedPercentage = 11.3;
+                } else if (code.includes('03.3.4') || nameLower.includes('vale alimentação sobre férias') || nameLower.includes('vale alimentacao sobre ferias') || nameLower.includes('vale alimentação sobre ferias') || nameLower.includes('vale alimentacao sobre férias')) {
+                    calculatedPercentage = 0.9;
                 } else if (code.includes('03.4.1') || nameLower.includes('cobertura')) {
                     calculatedPercentage = 0.5; // Diárias de Cobertura
                 } else if (code.includes('03.4.2') || nameLower.includes('serviço extra') || nameLower.includes('servico extra')) {

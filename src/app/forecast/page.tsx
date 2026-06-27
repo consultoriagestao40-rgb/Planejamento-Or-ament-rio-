@@ -12,6 +12,7 @@ export default function ForecastPage() {
     const [forecastData, setForecastData] = useState<any[]>([]);
     const [loadingData, setLoadingData] = useState(false);
     const [activeTab, setActiveTab] = useState<'grid' | 'coefficients'>('grid');
+    const [isSimulatorOpen, setIsSimulatorOpen] = useState(false);
 
     // Modal/Form States for Simulated Contract
     const [isContractModalOpen, setIsContractModalOpen] = useState(false);
@@ -212,14 +213,39 @@ export default function ForecastPage() {
                             {monthsName.map((name, i) => <option key={i} value={i + 1}>{name} (Realizado até {name})</option>)}
                         </select>
                     </div>
+
+                    {/* Simulator Modal Trigger Button */}
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem', justifyContent: 'flex-end' }}>
+                        <span style={{ fontSize: '0.7rem', fontWeight: 700, color: 'transparent', textTransform: 'uppercase', userSelect: 'none' }}>Simulador</span>
+                        <button
+                            onClick={() => setIsSimulatorOpen(true)}
+                            style={{
+                                height: '36px',
+                                padding: '0 1rem',
+                                borderRadius: '8px',
+                                border: 'none',
+                                background: 'var(--gradient-brand)',
+                                color: '#ffffff',
+                                fontWeight: 700,
+                                fontSize: '0.8rem',
+                                cursor: 'pointer',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '0.5rem',
+                                boxShadow: '0 4px 12px rgba(99, 102, 241, 0.2)'
+                            }}
+                        >
+                            🚀 Simulador ({contracts.length})
+                        </button>
+                    </div>
                 </div>
             </div>
 
             {/* Layout Main Grid */}
-            <div style={{ display: 'flex', gap: '1.5rem', flexWrap: 'wrap', alignItems: 'flex-start' }}>
+            <div style={{ display: 'flex', width: '100%' }}>
                 
-                {/* Left Area - Data Grid and Tabs */}
-                <div style={{ flex: 3.5, minWidth: '320px', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                {/* Data Grid and Tabs (Full Width) */}
+                <div style={{ flex: 1, width: '100%', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
                     
                     {/* Tabs */}
                     <div style={{ display: 'flex', gap: '0.5rem', borderBottom: '1px solid var(--border-default)', paddingBottom: '0.5rem' }}>
@@ -357,50 +383,37 @@ export default function ForecastPage() {
                         </div>
                     )}
                 </div>
+            </div>
 
-                {/* Right Area - Sales Pipeline Contract Simulator */}
-                <div style={{ flex: 1.2, minWidth: '280px', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                    <div className="glass-card" style={{ padding: '1.25rem', background: 'var(--bg-surface)', borderRadius: '12px', border: '1px solid var(--border-default)', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+            {/* Simulator Overlay Modal */}
+            {isSimulatorOpen && (
+                <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.6)', zIndex: 19000, display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
+                    <div className="glass-card" style={{ width: '450px', maxHeight: '80vh', padding: '1.5rem', background: 'var(--bg-surface)', borderRadius: '12px', border: '1px solid var(--border-default)', display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
                         
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                            <h4 style={{ margin: 0, fontSize: '0.95rem', fontWeight: 800 }}>🚀 Simulador de Contratos</h4>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid var(--border-subtle)', paddingBottom: '0.75rem' }}>
+                            <h4 style={{ margin: 0, fontSize: '1rem', fontWeight: 800, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                🚀 Simulador de Contratos ({contracts.length})
+                            </h4>
                             <button
-                                onClick={() => {
-                                    setEditingContractId(null);
-                                    setContractName('');
-                                    setContractValue(0);
-                                    setContractStartMonth(activeMonth + 1 > 12 ? 12 : activeMonth + 1);
-                                    setContractProbability(100);
-                                    setContractStatus('PIPELINE');
-                                    setIsContractModalOpen(true);
-                                }}
-                                style={{
-                                    padding: '0.35rem 0.65rem',
-                                    background: 'var(--gradient-brand)',
-                                    color: '#ffffff',
-                                    border: 'none',
-                                    borderRadius: '6px',
-                                    fontSize: '0.75rem',
-                                    fontWeight: 700,
-                                    cursor: 'pointer'
-                                }}
+                                onClick={() => setIsSimulatorOpen(false)}
+                                style={{ background: 'transparent', border: 'none', color: 'var(--text-secondary)', cursor: 'pointer', fontSize: '1.1rem', fontWeight: 700 }}
                             >
-                                ➕ Novo
+                                ❌
                             </button>
                         </div>
 
                         {/* List of Simulated Contracts */}
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                        <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '0.75rem', paddingRight: '0.25rem' }}>
                             {contracts.length === 0 ? (
-                                <div style={{ padding: '2rem 1rem', textAlign: 'center', color: 'var(--text-secondary)', fontSize: '0.8rem' }}>
-                                    Nenhum contrato simulado. Clique em "Novo" para adicionar projeções de receita no Forecast.
+                                <div style={{ padding: '3rem 1rem', textAlign: 'center', color: 'var(--text-secondary)', fontSize: '0.85rem' }}>
+                                    Nenhum contrato simulado no momento. Adicione um novo contrato para ver as projeções de faturamento e custos.
                                 </div>
                             ) : (
                                 contracts.map(contract => (
-                                    <div key={contract.id} style={{ padding: '0.75rem', background: 'var(--bg-elevated)', borderRadius: '8px', border: '1px solid var(--border-subtle)', display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
+                                    <div key={contract.id} style={{ padding: '0.85rem', background: 'var(--bg-elevated)', borderRadius: '8px', border: '1px solid var(--border-subtle)', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
                                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                                            <span style={{ fontSize: '0.8rem', fontWeight: 800 }}>{contract.name}</span>
-                                            <div style={{ display: 'flex', gap: '0.25rem' }}>
+                                            <span style={{ fontSize: '0.85rem', fontWeight: 800 }}>{contract.name}</span>
+                                            <div style={{ display: 'flex', gap: '0.5rem' }}>
                                                 <button
                                                     onClick={() => {
                                                         setEditingContractId(contract.id);
@@ -411,13 +424,13 @@ export default function ForecastPage() {
                                                         setContractStatus(contract.status);
                                                         setIsContractModalOpen(true);
                                                     }}
-                                                    style={{ border: 'none', background: 'transparent', cursor: 'pointer', fontSize: '0.75rem' }}
+                                                    style={{ border: 'none', background: 'transparent', cursor: 'pointer', fontSize: '0.85rem' }}
                                                 >
                                                     ✏️
                                                 </button>
                                                 <button
                                                     onClick={() => handleDeleteContract(contract.id)}
-                                                    style={{ border: 'none', background: 'transparent', cursor: 'pointer', fontSize: '0.75rem' }}
+                                                    style={{ border: 'none', background: 'transparent', cursor: 'pointer', fontSize: '0.85rem' }}
                                                 >
                                                     🗑️
                                                 </button>
@@ -425,7 +438,7 @@ export default function ForecastPage() {
                                         </div>
 
                                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                            <span style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--accent-indigo)' }}>{fmt(contract.value)}/mês</span>
+                                            <span style={{ fontSize: '0.9rem', fontWeight: 800, color: 'var(--accent-indigo)' }}>{fmt(contract.value)}/mês</span>
                                             <span style={{
                                                 fontSize: '0.65rem',
                                                 fontWeight: 800,
@@ -434,15 +447,15 @@ export default function ForecastPage() {
                                                 background: contract.status === 'VENDIDO' ? 'rgba(16, 185, 129, 0.1)' : 'rgba(99, 102, 241, 0.1)',
                                                 color: contract.status === 'VENDIDO' ? 'var(--accent-green)' : 'var(--accent-indigo)'
                                             }}>
-                                                {contract.status === 'VENDIDO' ? 'VENDIDO (100%)' : `${contract.probability}% Prob.`}
+                                                {contract.status === 'VENDIDO' ? 'VENDIDO' : `${contract.probability}% Prob.`}
                                             </span>
                                         </div>
 
                                         <div style={{ fontSize: '0.7rem', color: 'var(--text-secondary)' }}>
-                                            Início: {monthsName[contract.startMonth - 1]} / {contract.startYear}
+                                            Início em: {monthsName[contract.startMonth - 1]} / {contract.startYear}
                                         </div>
 
-                                        {/* Progress Bar of Probability */}
+                                        {/* Progress Bar */}
                                         <div style={{ width: '100%', height: '4px', background: 'var(--border-subtle)', borderRadius: '2px', overflow: 'hidden' }}>
                                             <div style={{
                                                 width: `${contract.status === 'VENDIDO' ? 100 : contract.probability}%`,
@@ -454,9 +467,38 @@ export default function ForecastPage() {
                                 ))
                             )}
                         </div>
+
+                        {/* Bottom Action */}
+                        <div style={{ borderTop: '1px solid var(--border-subtle)', paddingTop: '0.75rem', display: 'flex', justifyContent: 'flex-end' }}>
+                            <button
+                                onClick={() => {
+                                    setEditingContractId(null);
+                                    setContractName('');
+                                    setContractValue(0);
+                                    setContractStartMonth(activeMonth + 1 > 12 ? 12 : activeMonth + 1);
+                                    setContractProbability(100);
+                                    setContractStatus('PIPELINE');
+                                    setIsContractModalOpen(true);
+                                }}
+                                style={{
+                                    padding: '0.5rem 1rem',
+                                    background: 'var(--gradient-brand)',
+                                    color: '#ffffff',
+                                    border: 'none',
+                                    borderRadius: '8px',
+                                    fontSize: '0.8rem',
+                                    fontWeight: 700,
+                                    cursor: 'pointer',
+                                    width: '100%'
+                                }}
+                            >
+                                ➕ Adicionar Novo Contrato
+                            </button>
+                        </div>
+
                     </div>
                 </div>
-            </div>
+            )}
 
             {/* Contract Modal */}
             {isContractModalOpen && (

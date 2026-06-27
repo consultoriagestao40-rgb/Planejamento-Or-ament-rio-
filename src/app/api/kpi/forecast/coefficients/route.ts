@@ -164,8 +164,9 @@ export async function GET(request: Request) {
             const name = c.name || '';
             const codeMatch = name.match(/^([\d.]+)/);
             const code = codeMatch ? codeMatch[1] : '';
+            if (code === '2' || code.startsWith('2.') || code.startsWith('2')) return false;
             return code.startsWith('01.') || code.startsWith('02.') || code.startsWith('03.') ||
-                   code.startsWith('1.') || code.startsWith('2.') || code.startsWith('3.') ||
+                   code.startsWith('1.') || code.startsWith('3.') ||
                    c.id.startsWith('synth-1.') || c.id.startsWith('synth-2.') || c.id.startsWith('synth-3.');
         });
 
@@ -258,6 +259,8 @@ export async function GET(request: Request) {
                 // Match by code key directly first
                 if (defaultPcts[code] !== undefined) {
                     calculatedPercentage = defaultPcts[code];
+                } else if (code.startsWith('02.') || code.startsWith('02') || code.startsWith('2.') || code.startsWith('2')) {
+                    calculatedPercentage = 0.0; // All other tributos default to zero
                 } else if (code.includes('03.2.6') || nameLower.includes('inss')) {
                     calculatedPercentage = 5.5; // INSS
                 } else if (code.includes('03.3.2') || nameLower.includes('vale alimentação') || nameLower.includes('vale alimentacao')) {

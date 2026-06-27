@@ -81,7 +81,11 @@ export default function ForecastPage() {
         if (!viewingContractDetails) return [];
 
         const val = viewingContractDetails.value;
-        const tenantCoefs = coefficients;
+        const tenantCoefs = coefficients.filter(c => {
+            const codeMatch = c.categoryName.match(/^([\d.]+)/);
+            const code = codeMatch ? codeMatch[1] : '';
+            return !(code === '2' || code.startsWith('2.') || code.startsWith('2'));
+        });
 
         const createNode = (id: string, name: string, level: number, isFormula = false) => ({
             categoryId: id,
@@ -133,7 +137,11 @@ export default function ForecastPage() {
 
             const isRevenue = code.startsWith('01.') || code.startsWith('1.');
             const pct = coef.percentage;
-            const itemValue = (val * (pct / 100)) * (isRevenue ? 1 : -1);
+            
+            // For revenue categories, we don't multiply yet (we will distribute later).
+            // For expense/tax categories, we multiply by contract value (val).
+            const itemValue = isRevenue ? 0 : (val * (pct / 100)) * -1;
+            const itemAv = isRevenue ? pct : pct * -1;
 
             const leafNode = {
                 categoryId: coef.categoryId,
@@ -141,7 +149,7 @@ export default function ForecastPage() {
                 level: 0,
                 isFormula: false,
                 value: itemValue,
-                av: pct * (isRevenue ? 1 : -1),
+                av: itemAv,
                 children: []
             };
 
@@ -172,8 +180,40 @@ export default function ForecastPage() {
             }
         };
 
-        [recServicos, recVendas, tribSub].forEach(rollupNode);
+        // Roll up first for costs and taxes
+        [tribSub].forEach(rollupNode);
         Object.values(custosSubs).forEach(rollupNode);
+
+        // Compute revenue splits based on children AV sum relative to total contract value (val)
+        const pctServicos = recServicos.children.reduce((sum, c) => sum + Math.abs(c.av), 0);
+        const pctVendas = recVendas.children.reduce((sum, c) => sum + Math.abs(c.av), 0);
+        const totalPct = (pctServicos + pctVendas) || 100;
+
+        recServicos.value = val * (pctServicos / totalPct);
+        recServicos.av = (pctServicos / totalPct) * 100;
+
+        recVendas.value = val * (pctVendas / totalPct);
+        recVendas.av = (pctVendas / totalPct) * 100;
+
+        // Distribute revenue to children so they sum up to their parent's value
+        const distributeRevenue = (parentNode: any) => {
+            const totalChildPct = parentNode.children.reduce((sum: number, c: any) => sum + Math.abs(c.av), 0);
+            parentNode.children.forEach((c: any) => {
+                if (totalChildPct > 0) {
+                    c.value = parentNode.value * (Math.abs(c.av) / totalChildPct);
+                    c.av = parentNode.av * (Math.abs(c.av) / totalChildPct);
+                } else if (parentNode.children.length > 0 && c.categoryName.includes('01.1.1')) {
+                    c.value = parentNode.value;
+                    c.av = parentNode.av;
+                } else {
+                    c.value = 0;
+                    c.av = 0;
+                }
+            });
+        };
+
+        distributeRevenue(recServicos);
+        distributeRevenue(recVendas);
 
         // 4. If children are empty for a node (e.g. no database categories yet), fallback to getCoefPct
         const getCoefPct = (code: string) => {
@@ -832,71 +872,141 @@ export default function ForecastPage() {
                     ) : (
                         /* Coefficients Override Tab */
                         <div className="glass-card" style={{ padding: '1.25rem', background: 'var(--bg-surface)', borderRadius: '12px', border: '1px solid var(--border-default)', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                            <div>
-                                <h4 style={{ margin: 0, fontSize: '0.95rem', fontWeight: 800 }}>Configuração de Percentuais (Análise Vertical)</h4>
-                                <p style={{ margin: '0.2rem 0 0 0', fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
-                                    Defina a porcentagem de cada subcategoria operacional em relação à Receita Bruta. Esses pesos serão multiplicados pelas vendas projetadas no simulador de contratos.
-                                </p>
-                                {selectedTenant === 'ALL' && (
-                                    <div style={{ marginTop: '0.5rem', padding: '0.5rem 0.75rem', background: 'rgba(245, 158, 11, 0.1)', color: 'var(--accent-orange)', borderRadius: '6px', fontSize: '0.75rem', fontWeight: 700 }}>
-                                        ⚠️ Você está na visualização Consolidada. Alterações aqui serão aplicadas a todas as empresas do grupo.
-                                    </div>
-                                )}
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                <div>
+                                    <h4 style={{ margin: 0, fontSize: '0.95rem', fontWeight: 800 }}>Configuração de Percentuais (Análise Vertical)</h4>
+                                    <p style={{ margin: '0.2rem 0 0 0', fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
+                                        Defina a porcentagem de cada subcategoria operacional em relação à Receita Bruta. Esses pesos serão multiplicados pelas vendas projetadas no simulador de contratos.
+                                    </p>
+                                    {selectedTenant === 'ALL' && (
+                                        <div style={{ marginTop: '0.5rem', padding: '0.5rem 0.75rem', background: 'rgba(245, 158, 11, 0.1)', color: 'var(--accent-orange)', borderRadius: '6px', fontSize: '0.75rem', fontWeight: 700 }}>
+                                            ⚠️ Você está na visualização Consolidada. Alterações aqui serão aplicadas a todas as empresas do grupo.
+                                        </div>
+                                    )}
+                                </div>
+                                <div style={{ display: 'flex', gap: '0.5rem' }}>
+                                    <button 
+                                        onClick={() => setExpandedContractRows(new Set(['G-01', 'G-02', 'G-03', 'G-01.1', 'G-01.2', 'G-02.1', 'G-03.1', 'G-03.2', 'G-03.3', 'G-03.4', 'G-03.5', 'G-03.6', 'G-03.7', 'G-03.8', 'G-03.9', 'G-03.10']))}
+                                        className="btn" 
+                                        style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', fontSize: '0.75rem', fontWeight: 700, padding: '0.35rem 0.75rem', borderRadius: '6px', cursor: 'pointer', background: 'var(--bg-elevated)', border: '1px solid var(--border-subtle)', color: 'var(--text-primary)' }}
+                                    >
+                                        ↕️ Expandir Tudo
+                                    </button>
+                                    <button 
+                                        onClick={() => setExpandedContractRows(new Set())}
+                                        className="btn" 
+                                        style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', fontSize: '0.75rem', fontWeight: 700, padding: '0.35rem 0.75rem', borderRadius: '6px', cursor: 'pointer', background: 'var(--bg-elevated)', border: '1px solid var(--border-subtle)', color: 'var(--text-primary)' }}
+                                    >
+                                        ↔️ Retrair Tudo
+                                    </button>
+                                </div>
                             </div>
 
-                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '0.75rem' }}>
-                                {coefficients
-                                    .filter(c => c.categoryName.startsWith('synth-3.') || c.categoryName.startsWith('03.') || c.categoryName.startsWith('3.') || c.categoryName.startsWith('02.') || c.categoryName.startsWith('2.') || c.categoryId.startsWith('synth-3.') || c.categoryId.startsWith('03.') || c.categoryId.startsWith('02.'))
-                                    .sort((a, b) => a.categoryName.localeCompare(b.categoryName))
-                                    .map(coef => (
-                                        <div key={coef.categoryId} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0.75rem', background: 'var(--bg-elevated)', borderRadius: '8px', border: '1px solid var(--border-subtle)' }}>
-                                            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.1rem', maxWidth: '65%' }}>
-                                                <span style={{ fontSize: '0.8rem', fontWeight: 700, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{coef.categoryName}</span>
-                                                <span style={{ fontSize: '0.65rem', color: coef.isOverride ? 'var(--accent-orange)' : 'var(--text-secondary)' }}>
-                                                    {coef.isOverride ? '⚠️ Valor Personalizado' : '📊 Histórico Calculado'}
-                                                </span>
-                                            </div>
-                                            <div>
-                                                {editingCoefId === coef.categoryId ? (
-                                                    <div style={{ display: 'flex', gap: '0.25rem', alignItems: 'center' }}>
-                                                        <input
-                                                            type="number"
-                                                            step="0.01"
-                                                            value={editingCoefValue}
-                                                            onChange={(e) => setEditingCoefValue(parseFloat(e.target.value) || 0)}
-                                                            style={{ width: '60px', height: '28px', padding: '0 0.35rem', borderRadius: '4px', border: '1px solid var(--border-default)', background: 'var(--bg-surface)', color: 'var(--text-primary)', fontSize: '0.8rem', fontWeight: 700 }}
-                                                        />
-                                                        <span style={{ fontSize: '0.8rem', fontWeight: 700 }}>%</span>
-                                                        <button
-                                                            onClick={() => handleSaveCoefficientOverride(coef.categoryId, editingCoefValue)}
-                                                            style={{ background: 'var(--accent-green)', color: '#ffffff', border: 'none', borderRadius: '4px', padding: '2px 6px', fontSize: '0.7rem', fontWeight: 700, cursor: 'pointer' }}
+                            <div style={{ flex: 1, overflowY: 'auto', paddingRight: '0.25rem' }}>
+                                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.75rem', textAlign: 'left' }}>
+                                    <thead>
+                                        <tr style={{ borderBottom: '2px solid var(--border-default)', color: 'var(--text-secondary)' }}>
+                                            <th style={{ padding: '0.5rem' }}>Conta / Categoria</th>
+                                            <th style={{ padding: '0.5rem', textAlign: 'center', width: '200px' }}>Percentual (AV % da Receita)</th>
+                                            <th style={{ padding: '0.5rem', textAlign: 'center', width: '220px' }}>Origem da Taxa</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {coefTreeGrid.map(row => {
+                                            const isGroup = row.categoryId.startsWith('G-') || row.isFormula;
+                                            const hasChildren = row.children && row.children.length > 0;
+                                            
+                                            let borderBottom = '1px solid var(--border-subtle)';
+                                            let background = 'transparent';
+                                            let fontWeight = 400;
+
+                                            if (row.categoryId === 'G-02' || row.categoryId === 'G-03') {
+                                                borderBottom = '2px solid var(--border-default)';
+                                                background = 'var(--bg-surface)';
+                                                fontWeight = 800;
+                                            } else if (isGroup) {
+                                                background = 'var(--bg-elevated)';
+                                                fontWeight = 700;
+                                            }
+
+                                            return (
+                                                <tr key={row.categoryId} style={{ borderBottom, background, fontWeight }}>
+                                                    <td style={{ padding: '0.55rem 0.5rem', whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden', paddingLeft: `${row.level * 16 + 8}px` }}>
+                                                        {hasChildren && (
+                                                            <span 
+                                                                onClick={() => toggleContractRow(row.categoryId)}
+                                                                style={{ cursor: 'pointer', userSelect: 'none', marginRight: '0.5rem', display: 'inline-block', width: '12px', color: 'var(--text-secondary)' }}
+                                                            >
+                                                                {expandedContractRows.has(row.categoryId) ? '▼' : '▶'}
+                                                            </span>
+                                                        )}
+                                                        {!hasChildren && <span style={{ display: 'inline-block', width: '17px' }} />}
+                                                        <span 
+                                                            onClick={() => hasChildren && toggleContractRow(row.categoryId)}
+                                                            style={{ cursor: hasChildren ? 'pointer' : 'default' }}
                                                         >
-                                                            💾
-                                                        </button>
-                                                        <button
-                                                            onClick={() => setEditingCoefId(null)}
-                                                            style={{ background: 'var(--bg-surface)', border: '1px solid var(--border-default)', borderRadius: '4px', padding: '2px 6px', fontSize: '0.7rem', cursor: 'pointer', color: 'var(--text-primary)' }}
-                                                        >
-                                                            ❌
-                                                        </button>
-                                                    </div>
-                                                ) : (
-                                                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                                                        <span style={{ fontSize: '0.9rem', fontWeight: 800, color: 'var(--accent-indigo)' }}>{coef.percentage.toFixed(2)}%</span>
-                                                        <button
-                                                            onClick={() => {
-                                                                setEditingCoefId(coef.categoryId);
-                                                                setEditingCoefValue(coef.percentage);
-                                                            }}
-                                                            style={{ background: 'transparent', border: 'none', cursor: 'pointer', fontSize: '0.85rem' }}
-                                                        >
-                                                            ✏️
-                                                        </button>
-                                                    </div>
-                                                )}
-                                            </div>
-                                        </div>
-                                    ))}
+                                                            {row.categoryName}
+                                                        </span>
+                                                    </td>
+                                                    <td style={{ padding: '0.55rem 0.5rem', textAlign: 'center', width: '200px' }}>
+                                                        {isGroup ? (
+                                                            <span style={{ fontSize: '0.85rem', fontWeight: 800, color: 'var(--accent-indigo)' }}>
+                                                                {row.percentage.toFixed(2)}%
+                                                            </span>
+                                                        ) : (
+                                                            editingCoefId === row.categoryId ? (
+                                                                <div style={{ display: 'flex', gap: '0.25rem', alignItems: 'center', justifyContent: 'center' }}>
+                                                                    <input
+                                                                        type="number"
+                                                                        step="0.01"
+                                                                        value={editingCoefValue}
+                                                                        onChange={(e) => setEditingCoefValue(parseFloat(e.target.value) || 0)}
+                                                                        style={{ width: '60px', height: '28px', padding: '0 0.35rem', borderRadius: '4px', border: '1px solid var(--border-default)', background: 'var(--bg-surface)', color: 'var(--text-primary)', fontSize: '0.8rem', fontWeight: 700 }}
+                                                                    />
+                                                                    <span style={{ fontSize: '0.8rem', fontWeight: 700 }}>%</span>
+                                                                    <button
+                                                                        onClick={() => handleSaveCoefficientOverride(row.categoryId, editingCoefValue)}
+                                                                        style={{ background: 'var(--accent-green)', color: '#ffffff', border: 'none', borderRadius: '4px', padding: '2px 6px', fontSize: '0.7rem', fontWeight: 700, cursor: 'pointer' }}
+                                                                    >
+                                                                        💾
+                                                                    </button>
+                                                                    <button
+                                                                        onClick={() => setEditingCoefId(null)}
+                                                                        style={{ background: 'var(--bg-surface)', border: '1px solid var(--border-default)', borderRadius: '4px', padding: '2px 6px', fontSize: '0.7rem', cursor: 'pointer', color: 'var(--text-primary)' }}
+                                                                    >
+                                                                        ❌
+                                                                    </button>
+                                                                </div>
+                                                            ) : (
+                                                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem' }}>
+                                                                    <span style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--text-primary)' }}>
+                                                                        {row.percentage.toFixed(2)}%
+                                                                    </span>
+                                                                    <button
+                                                                        onClick={() => {
+                                                                            setEditingCoefId(row.categoryId);
+                                                                            setEditingCoefValue(row.percentage);
+                                                                        }}
+                                                                        style={{ background: 'transparent', border: 'none', cursor: 'pointer', fontSize: '0.85rem', padding: 0 }}
+                                                                    >
+                                                                        ✏️
+                                                                    </button>
+                                                                </div>
+                                                            )
+                                                        )}
+                                                    </td>
+                                                    <td style={{ padding: '0.55rem 0.5rem', textAlign: 'center', width: '220px', color: row.isOverride ? 'var(--accent-orange)' : 'var(--text-secondary)' }}>
+                                                        {isGroup ? (
+                                                            <span style={{ fontSize: '0.7rem', fontWeight: 700 }}>📁 Grupo de Contas</span>
+                                                        ) : (
+                                                            row.isOverride ? '⚠️ Valor Personalizado' : '📊 Histórico Calculado'
+                                                        )}
+                                                    </td>
+                                                </tr>
+                                            );
+                                        })}
+                                    </tbody>
+                                </table>
                             </div>
                         </div>
                     )}

@@ -113,10 +113,18 @@ export async function GET(request: Request) {
             .filter(r => grossRevIds.includes(r.categoryId))
             .reduce((sum, r) => sum + r.amount, 0);
 
+        const filteredLeafCategories = leafCategories.filter(c => {
+            const name = c.name || '';
+            const codeMatch = name.match(/^([\d.]+)/);
+            const code = codeMatch ? codeMatch[1] : '';
+            if (code === '2' || code.startsWith('2.') || code.startsWith('2')) return false;
+            return true;
+        });
+
         // Group categories by unified prefix code (exact leaf code)
         const uniqueCategoriesMap = new Map<string, { categoryId: string; categoryName: string; type: string; parentId: string | null }>();
         
-        leafCategories.forEach(cat => {
+        filteredLeafCategories.forEach(cat => {
             const name = cat.name;
             const codeMatch = name.match(/^([\d.]+)/);
             const code = codeMatch ? codeMatch[1] : name;
@@ -205,6 +213,8 @@ export async function GET(request: Request) {
                 // Match by code key directly first
                 if (defaultPcts[code] !== undefined) {
                     pct = defaultPcts[code];
+                } else if (code.startsWith('02.') || code.startsWith('02') || code.startsWith('2.') || code.startsWith('2')) {
+                    pct = 0.0; // All other tributos default to zero
                 } else if (code.includes('03.2.6') || nameLower.includes('inss')) {
                     pct = 5.5; // INSS
                 } else if (code.includes('03.3.2') || nameLower.includes('vale alimentação') || nameLower.includes('vale alimentacao')) {

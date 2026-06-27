@@ -6,17 +6,19 @@ export const dynamic = 'force-dynamic';
 export async function GET(request: Request) {
     try {
         const { searchParams } = new URL(request.url);
-        const tenantId = searchParams.get('tenantId');
+        const tenantIdParam = searchParams.get('tenantId');
         const month = parseInt(searchParams.get('month') || '0', 10);
         const year = parseInt(searchParams.get('year') || '0', 10);
 
-        if (!tenantId || !month || !year) {
+        if (!tenantIdParam || !month || !year) {
             return NextResponse.json({ success: false, error: 'Parâmetros ausentes' }, { status: 400 });
         }
 
+        const tenantIds = tenantIdParam.split(',').map(id => id.trim()).filter(Boolean);
+
         const analyses = await prisma.detailedAnalysis.findMany({
             where: {
-                tenantId,
+                tenantId: { in: tenantIds },
                 month,
                 year
             },

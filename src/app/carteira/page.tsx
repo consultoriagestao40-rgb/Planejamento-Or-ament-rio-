@@ -341,13 +341,12 @@ export default function PortfolioAnalysisPage() {
         if (companies.length === 0) return;
         if (!silent) setLoadingDetailed(true);
         try {
-            const promises = companies.map(async (company) => {
-                const res = await fetch(`/api/kpi/detailed-analysis?tenantId=${company.id}&month=${activeMonthNumber}&year=${selectedYear}`);
-                const json = await res.json();
-                return json.success ? json.data || [] : [];
-            });
-            const results = await Promise.all(promises);
-            setDetailedAnalyses(results.flat());
+            const tenantIdsStr = companies.map(c => c.id).join(',');
+            const res = await fetch(`/api/kpi/detailed-analysis?tenantId=${tenantIdsStr}&month=${activeMonthNumber}&year=${selectedYear}`);
+            const json = await res.json();
+            if (json.success) {
+                setDetailedAnalyses(json.data || []);
+            }
         } catch (err) {
             console.error('Error fetching detailed analyses:', err);
         } finally {

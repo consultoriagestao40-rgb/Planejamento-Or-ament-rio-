@@ -275,6 +275,106 @@ export default function ForecastPage() {
         return flatList;
     }, [viewingContractDetails, coefficients, expandedContractRows]);
 
+    const coefTreeGrid = useMemo(() => {
+        const tenantCoefs = coefficients.filter(c => {
+            const codeMatch = c.categoryName.match(/^([\d.]+)/);
+            const code = codeMatch ? codeMatch[1] : '';
+            return !(code === '2' || code.startsWith('2.') || code.startsWith('2'));
+        });
+
+        const createNode = (id: string, name: string, level: number, isFormula = false) => ({
+            categoryId: id,
+            categoryName: name,
+            level,
+            isFormula,
+            percentage: 0,
+            isOverride: false,
+            children: [] as any[]
+        });
+
+        const tributos = createNode('G-02', '02. Tributo sobre Faturamento', 0);
+        const tribSub = createNode('G-02.1', '02.1 - Tributos', 1);
+        tributos.children = [tribSub];
+
+        const custosOp = createNode('G-03', '03. CUSTOS OPERACIONAIS (TOTAL)', 0);
+        const custosSubs: Record<string, any> = {
+            '03.1': createNode('G-03.1', '03.1 Salários e Remuneração', 1),
+            '03.2': createNode('G-03.2', '03.2 Encargos Sociais', 1),
+            '03.3': createNode('G-03.3', '03.3 Benefícios', 1),
+            '03.4': createNode('G-03.4', '03.4 Diárias', 1),
+            '03.5': createNode('G-03.5', '03.5 SSMA', 1),
+            '03.6': createNode('G-03.6', '03.6 Materiais', 1),
+            '03.7': createNode('G-03.7', '03.7 Equipamentos', 1),
+            '03.8': createNode('G-03.8', '03.8 Comunicação/Sistema/Licenças', 1),
+            '03.9': createNode('G-03.9', '03.9 Custo com Veículo', 1),
+            '03.10': createNode('G-03.10', '03.10 Custos Transferidos', 1),
+        };
+        custosOp.children = Object.values(custosSubs);
+
+        // Classify leaf categories from coefficients state and populate their percentages
+        tenantCoefs.forEach(coef => {
+            const name = coef.categoryName;
+            const codeMatch = name.match(/^([\d.]+)/);
+            const code = codeMatch ? codeMatch[1] : '';
+
+            if (code === '02.1' || code === '03') return;
+
+            const leafNode = {
+                categoryId: coef.categoryId,
+                categoryName: name,
+                level: 0,
+                isFormula: false,
+                percentage: coef.percentage,
+                isOverride: coef.isOverride,
+                children: []
+            };
+
+            let parentNode = null;
+            if (code.startsWith('02.1.') || code.startsWith('2.1.')) {
+                parentNode = tribSub;
+            } else if (code.startsWith('03.')) {
+                const subPrefix = code.substring(0, 4);
+                parentNode = custosSubs[subPrefix];
+            }
+
+            if (parentNode) {
+                leafNode.level = parentNode.level + 1;
+                parentNode.children.push(leafNode);
+            }
+        });
+
+        // Roll up percentages to parent subcategories
+        const rollupPct = (node: any) => {
+            if (node.children && node.children.length > 0) {
+                node.children.forEach(rollupPct);
+                node.percentage = node.children.reduce((sum: number, c: any) => sum + c.percentage, 0);
+                node.isOverride = node.children.some((c: any) => c.isOverride);
+            }
+        };
+
+        rollupPct(tribSub);
+        Object.values(custosSubs).forEach(rollupPct);
+
+        tributos.percentage = tribSub.percentage;
+        tributos.isOverride = tribSub.isOverride;
+
+        custosOp.percentage = Object.values(custosSubs).reduce((sum, n) => sum + n.percentage, 0);
+        custosOp.isOverride = Object.values(custosSubs).some(n => n.isOverride);
+
+        const rootNodes = [tributos, custosOp];
+
+        const flatList: any[] = [];
+        const flatten = (node: any) => {
+            flatList.push(node);
+            if (node.children && node.children.length > 0 && expandedContractRows.has(node.categoryId)) {
+                node.children.forEach(flatten);
+            }
+        };
+        rootNodes.forEach(flatten);
+
+        return flatList;
+    }, [coefficients, expandedContractRows]);
+
     const fetchSetup = useCallback(async () => {
         try {
             const res = await fetch('/api/companies');

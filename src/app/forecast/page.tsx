@@ -10,7 +10,7 @@ export default function ForecastPage() {
     const [contracts, setContracts] = useState<any[]>([]);
     const [coefficients, setCoefficients] = useState<any[]>([]);
     const [forecastData, setForecastData] = useState<any[]>([]);
-    const [loadingData, setLoadingData] = useState(true);
+    const [loadingData, setLoadingData] = useState(false);
     const [activeTab, setActiveTab] = useState<'grid' | 'coefficients'>('grid');
 
     // Modal/Form States for Simulated Contract
@@ -28,11 +28,11 @@ export default function ForecastPage() {
 
     const fetchSetup = useCallback(async () => {
         try {
-            const res = await fetch('/api/kpi/setup');
+            const res = await fetch('/api/companies');
             const json = await res.json();
-            if (json.success && json.data?.companies) {
-                setCompanies(json.data.companies);
-                const cached = localStorage.getItem('selectedTenantId') || json.data.companies[0]?.id || '';
+            if (json.success && json.companies) {
+                setCompanies(json.companies);
+                const cached = localStorage.getItem('selectedTenantId') || json.companies[0]?.id || '';
                 setSelectedTenant(cached);
             }
         } catch (e) {

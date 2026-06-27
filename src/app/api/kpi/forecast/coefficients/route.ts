@@ -61,6 +61,23 @@ const formatCategoryName = (name: string): string => {
     return name;
 };
 
+const normalizeCode = (name: string): string => {
+    if (!name) return '';
+    if (name.startsWith('synth-')) {
+        const parts = name.split('|');
+        const codePart = parts[0].replace('synth-', '');
+        return codePart.startsWith('0') ? codePart : '0' + codePart;
+    }
+    const codeMatch = name.match(/^([\d.]+)/);
+    if (!codeMatch) return name;
+    const code = codeMatch[1];
+    const parts = code.split('.');
+    if (parts.length > 2) {
+        return parts.slice(0, 2).join('.');
+    }
+    return code;
+};
+
 export async function GET(request: Request) {
     try {
         const { searchParams } = new URL(request.url);
@@ -145,12 +162,32 @@ export async function GET(request: Request) {
 
         // Group categories by normalized code/name
         const uniqueCategoriesMap = new Map<string, { categoryId: string; categoryName: string }>();
-        leafCategories.forEach(cat => {
-            const name = cat.name;
-            const codeMatch = name.match(/^([\d.]+)/);
-            const code = codeMatch ? codeMatch[1] : name;
+        
+        // Prepopulate with standard codes to guarantee all standard subcategories are returned
+        const standardCodes = [
+            '01.1', '01.2', '02.1',
+            '03.1', '03.2', '03.3', '03.4', '03.5', '03.6', '03.7', '03.8', '03.9', '03.10',
+            '04.1', '04.2', '04.3', '04.4', '04.5', '04.6', '04.7', '04.8',
+            '05.1', '05.2', '05.3', '05.4', '05.5', '05.6', '05.7', '05.8', '05.9', '05.10', '05.11', '05.12', '05.13',
+            '06.1', '06.2', '06.3', '06.4', '06.5', '06.6', '06.7', '06.8',
+            '07'
+        ];
+
+        standardCodes.forEach(code => {
+            const matchedCat = categories.find(c => normalizeCode(c.name) === code);
+            const representativeId = matchedCat ? matchedCat.id : `synth-${code}`;
+            const representativeName = matchedCat ? matchedCat.name : `synth-${code}`;
             
-            if (!uniqueCategoriesMap.has(code)) {
+            uniqueCategoriesMap.set(code, {
+                categoryId: representativeId,
+                categoryName: representativeName
+            });
+        });
+
+        // Add any other custom codes that aren't standard
+        leafCategories.forEach(cat => {
+            const code = normalizeCode(cat.name);
+            if (code && !uniqueCategoriesMap.has(code)) {
                 uniqueCategoriesMap.set(code, {
                     categoryId: cat.id,
                     categoryName: cat.name
@@ -161,19 +198,21 @@ export async function GET(request: Request) {
         const coefficients = Array.from(uniqueCategoriesMap.entries()).map(([code, catInfo]) => {
             // Find all database category IDs belonging to this code prefix
             const matchedCatIds = leafCategories.filter(c => {
-                const cMatch = c.name.match(/^([\d.]+)/);
-                const cCode = cMatch ? cMatch[1] : c.name;
-                return cCode === code;
+                return normalizeCode(c.name) === code;
             }).map(c => c.id);
 
-            const isGrossRevenue = matchedCatIds.some(id => grossRevIds.includes(id));
+            const isGrossRevenue = code === '01.1' || code === '01.2' || code === '01';
             
-            // Check if any matching ID has an override (or fallback to code)
+            // Check if any matching ID or the representative ID has an override
             let overrideVal: number | undefined = undefined;
-            for (const id of matchedCatIds) {
-                if (overrideMap.has(id)) {
-                    overrideVal = overrideMap.get(id);
-                    break;
+            if (overrideMap.has(catInfo.categoryId)) {
+                overrideVal = overrideMap.get(catInfo.categoryId);
+            } else {
+                for (const id of matchedCatIds) {
+                    if (overrideMap.has(id)) {
+                        overrideVal = overrideMap.get(id);
+                        break;
+                    }
                 }
             }
 
@@ -191,15 +230,16 @@ export async function GET(request: Request) {
 
             // Apply special user rules if no override exists
             if (overrideVal === undefined) {
-                const normalizedCode = code.toLowerCase();
-                const normalizedName = catInfo.categoryName.toLowerCase();
-                
-                if (normalizedCode.includes('03.2.6') || normalizedCode.endsWith('.3.2.6') || normalizedCode.endsWith('.03.2.6')) {
-                    calculatedPercentage = 5.5; // INSS
-                } else if (normalizedName.includes('cobertura')) {
-                    calculatedPercentage = 0.5; // Diárias de Cobertura
-                } else if (normalizedName.includes('serviço extra') || normalizedName.includes('servico extra')) {
-                    calculatedPercentage = 0.0; // Diária de Serviço Extra
+                if (code === '03.2') {
+                    calculatedPercentage = 5.5; // Default INSS/Encargos
+                } else if (code === '03.4') {
+                    calculatedPercentage = 0.5; // Default Diárias (0.5% Cobertura + 0% Extra)
+                } else if (code === '03.7') {
+                    calculatedPercentage = 0.6; // Default Equipamentos
+                } else if (code === '03.8') {
+                    calculatedPercentage = 0.1; // Default Comunicação
+                } else if (code === '03.9') {
+                    calculatedPercentage = 0.4; // Default Veículos
                 }
             }
 

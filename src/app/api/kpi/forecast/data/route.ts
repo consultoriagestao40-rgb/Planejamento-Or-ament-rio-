@@ -3,6 +3,23 @@ import { prisma } from '@/lib/prisma';
 
 export const dynamic = 'force-dynamic';
 
+const normalizeCode = (name: string): string => {
+    if (!name) return '';
+    if (name.startsWith('synth-')) {
+        const parts = name.split('|');
+        const codePart = parts[0].replace('synth-', '');
+        return codePart.startsWith('0') ? codePart : '0' + codePart;
+    }
+    const codeMatch = name.match(/^([\d.]+)/);
+    if (!codeMatch) return name;
+    const code = codeMatch[1];
+    const parts = code.split('.');
+    if (parts.length > 2) {
+        return parts.slice(0, 2).join('.');
+    }
+    return code;
+};
+
 export async function GET(request: Request) {
     try {
         const { searchParams } = new URL(request.url);
@@ -98,12 +115,32 @@ export async function GET(request: Request) {
 
         // Group categories by unified prefix code
         const uniqueCategoriesMap = new Map<string, { categoryId: string; categoryName: string; type: string; parentId: string | null }>();
-        leafCategories.forEach(cat => {
-            const name = cat.name;
-            const codeMatch = name.match(/^([\d.]+)/);
-            const code = codeMatch ? codeMatch[1] : name;
+        
+        const standardCodes = [
+            '01.1', '01.2', '02.1',
+            '03.1', '03.2', '03.3', '03.4', '03.5', '03.6', '03.7', '03.8', '03.9', '03.10',
+            '04.1', '04.2', '04.3', '04.4', '04.5', '04.6', '04.7', '04.8',
+            '05.1', '05.2', '05.3', '05.4', '05.5', '05.6', '05.7', '05.8', '05.9', '05.10', '05.11', '05.12', '05.13',
+            '06.1', '06.2', '06.3', '06.4', '06.5', '06.6', '06.7', '06.8',
+            '07'
+        ];
 
-            if (!uniqueCategoriesMap.has(code)) {
+        standardCodes.forEach(code => {
+            const matchedCat = categories.find(c => normalizeCode(c.name) === code);
+            const representativeId = matchedCat ? matchedCat.id : `synth-${code}`;
+            const representativeName = matchedCat ? matchedCat.name : `synth-${code}`;
+            
+            uniqueCategoriesMap.set(code, {
+                categoryId: representativeId,
+                categoryName: representativeName,
+                type: (code.startsWith('01') || code.startsWith('1')) ? 'REVENUE' : 'EXPENSE',
+                parentId: null
+            });
+        });
+
+        leafCategories.forEach(cat => {
+            const code = normalizeCode(cat.name);
+            if (code && !uniqueCategoriesMap.has(code)) {
                 uniqueCategoriesMap.set(code, {
                     categoryId: cat.id,
                     categoryName: cat.name,
@@ -117,18 +154,20 @@ export async function GET(request: Request) {
         const coefMap = new Map<string, number>();
         uniqueCategoriesMap.forEach((catInfo, code) => {
             const matchedCatIds = leafCategories.filter(c => {
-                const cMatch = c.name.match(/^([\d.]+)/);
-                const cCode = cMatch ? cMatch[1] : c.name;
-                return cCode === code;
+                return normalizeCode(c.name) === code;
             }).map(c => c.id);
 
-            const isGrossRevenue = matchedCatIds.some(id => grossRevIds.includes(id));
+            const isGrossRevenue = code === '01.1' || code === '01.2' || code === '01';
             
             let overrideVal: number | undefined = undefined;
-            for (const id of matchedCatIds) {
-                if (overrideMap.has(id)) {
-                    overrideVal = overrideMap.get(id);
-                    break;
+            if (overrideMap.has(catInfo.categoryId)) {
+                overrideVal = overrideMap.get(catInfo.categoryId);
+            } else {
+                for (const id of matchedCatIds) {
+                    if (overrideMap.has(id)) {
+                        overrideVal = overrideMap.get(id);
+                        break;
+                    }
                 }
             }
 
@@ -146,15 +185,16 @@ export async function GET(request: Request) {
 
             // Apply special rules
             if (overrideVal === undefined) {
-                const normalizedCode = code.toLowerCase();
-                const normalizedName = catInfo.categoryName.toLowerCase();
-                
-                if (normalizedCode.includes('03.2.6') || normalizedCode.endsWith('.3.2.6') || normalizedCode.endsWith('.03.2.6')) {
-                    pct = 5.5; // INSS
-                } else if (normalizedName.includes('cobertura')) {
-                    pct = 0.5; // Cobertura
-                } else if (normalizedName.includes('serviço extra') || normalizedName.includes('servico extra')) {
-                    pct = 0.0; // Extra
+                if (code === '03.2') {
+                    pct = 5.5; // Default INSS/Encargos
+                } else if (code === '03.4') {
+                    pct = 0.5; // Default Diárias (0.5% Cobertura + 0% Extra)
+                } else if (code === '03.7') {
+                    pct = 0.6; // Default Equipamentos
+                } else if (code === '03.8') {
+                    pct = 0.1; // Default Comunicação
+                } else if (code === '03.9') {
+                    pct = 0.4; // Default Veículos
                 }
             }
 
@@ -169,9 +209,7 @@ export async function GET(request: Request) {
 
             // Find all matching database category IDs for this prefix
             const matchedCatIds = leafCategories.filter(c => {
-                const cMatch = c.name.match(/^([\d.]+)/);
-                const cCode = cMatch ? cMatch[1] : c.name;
-                return cCode === code;
+                return normalizeCode(c.name) === code;
             }).map(c => c.id);
 
             // Populate Realized and Budget

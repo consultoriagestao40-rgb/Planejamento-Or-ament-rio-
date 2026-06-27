@@ -231,7 +231,7 @@ export default function ForecastPage() {
             }
         };
 
-        const rootNodes = [recBruta, tributos, recLiquida, custosOp, margemBruta, despVendas, margemContrib, despAdmin, ebitda, despFin, lucroLiquido, invest];
+        const rootNodes = [recBruta, tributos, recLiquida, custosOp, margemBruta];
         rootNodes.forEach(calculateAv);
 
         const flatList: any[] = [];
@@ -857,7 +857,7 @@ export default function ForecastPage() {
 
                             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '0.75rem' }}>
                                 {coefficients
-                                    .filter(c => c.categoryId.startsWith('synth-3.') || c.categoryId.startsWith('03.') || c.categoryId.startsWith('3.') || c.categoryId.startsWith('02.') || c.categoryId.startsWith('2.'))
+                                    .filter(c => c.categoryName.startsWith('synth-3.') || c.categoryName.startsWith('03.') || c.categoryName.startsWith('3.') || c.categoryName.startsWith('02.') || c.categoryName.startsWith('2.') || c.categoryId.startsWith('synth-3.') || c.categoryId.startsWith('03.') || c.categoryId.startsWith('02.'))
                                     .sort((a, b) => a.categoryName.localeCompare(b.categoryName))
                                     .map(coef => (
                                         <div key={coef.categoryId} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0.75rem', background: 'var(--bg-elevated)', borderRadius: '8px', border: '1px solid var(--border-subtle)' }}>
@@ -1184,13 +1184,13 @@ export default function ForecastPage() {
                                 </span>
                             </div>
                             <div style={{ padding: '0.75rem', background: 'var(--bg-elevated)', borderRadius: '8px', border: '1px solid var(--border-subtle)', display: 'flex', flexDirection: 'column', gap: '0.15rem' }}>
-                                <span style={{ fontSize: '0.65rem', color: 'var(--text-secondary)', fontWeight: 700 }}>LUCRO LÍQUIDO SIMULADO</span>
+                                <span style={{ fontSize: '0.65rem', color: 'var(--text-secondary)', fontWeight: 700 }}>MARGEM BRUTA SIMULADA</span>
                                 <span style={{
                                     fontSize: '1.15rem',
                                     fontWeight: 800,
-                                    color: (contractDreGrid.find(row => row.categoryId === 'F-LL')?.value || 0) >= 0 ? 'var(--accent-green)' : 'var(--accent-red)'
+                                    color: (contractDreGrid.find(row => row.categoryId === 'F-MB')?.value || 0) >= 0 ? 'var(--accent-green)' : 'var(--accent-red)'
                                 }}>
-                                    {fmt(contractDreGrid.find(row => row.categoryId === 'F-LL')?.value || 0)}/mês
+                                    {fmt(contractDreGrid.find(row => row.categoryId === 'F-MB')?.value || 0)}/mês
                                 </span>
                             </div>
                         </div>

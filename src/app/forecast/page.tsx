@@ -1147,6 +1147,7 @@ export default function ForecastPage() {
                         </div>
                     </div>
                 </div>
+            )}
             {viewingContractDetails && (
                 <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.6)', zIndex: 20000, display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
                     <div className="glass-card" style={{ width: '700px', maxHeight: '85vh', padding: '1.5rem', background: 'var(--bg-surface)', borderRadius: '12px', border: '1px solid var(--border-default)', display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>

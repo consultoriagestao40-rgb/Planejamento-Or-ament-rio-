@@ -18,6 +18,20 @@ export default function ForecastPage() {
         'G-01.1', 'G-01.2', 'G-02.1', 'G-03.1', 'G-03.2', 'G-03.3', 'G-03.4', 'G-03.5', 'G-03.7', 'G-03.8', 'G-03.9'
     ]));
 
+    // Modal/Form States for Simulated Contract
+    const [isContractModalOpen, setIsContractModalOpen] = useState(false);
+    const [editingContractId, setEditingContractId] = useState<string | null>(null);
+    const [contractName, setContractName] = useState('');
+    const [contractValue, setContractValue] = useState(0);
+    const [contractStartMonth, setContractStartMonth] = useState(6);
+    const [contractProbability, setContractProbability] = useState(100);
+    const [contractStatus, setContractStatus] = useState('PIPELINE');
+    const [contractTenantId, setContractTenantId] = useState('');
+
+    // Coefficient Edit State
+    const [editingCoefId, setEditingCoefId] = useState<string | null>(null);
+    const [editingCoefValue, setEditingCoefValue] = useState(0);
+
     const toggleRow = (id: string) => {
         setExpandedRows(prev => {
             const next = new Set(prev);
@@ -30,26 +44,13 @@ export default function ForecastPage() {
         });
     };
 
-    // Modal/Form States for Simulated Contract
-    const [isContractModalOpen, setIsContractModalOpen] = useState(false);
-    const [editingContractId, setEditingContractId] = useState<string | null>(null);
-    const [contractName, setContractName] = useState('');
-    const [contractValue, setContractValue] = useState(0);
-    const [contractStartMonth, setContractStartMonth] = useState(6);
-    const [contractProbability, setContractProbability] = useState(100);
-    const [contractStatus, setContractStatus] = useState('PIPELINE');
-
-    // Coefficient Edit State
-    const [editingCoefId, setEditingCoefId] = useState<string | null>(null);
-    const [editingCoefValue, setEditingCoefValue] = useState(0);
-
     const fetchSetup = useCallback(async () => {
         try {
             const res = await fetch('/api/companies');
             const json = await res.json();
             if (json.success && json.companies) {
                 setCompanies(json.companies);
-                const cached = localStorage.getItem('selectedTenantId') || json.companies[0]?.id || '';
+                const cached = localStorage.getItem('selectedTenantId') || 'ALL';
                 setSelectedTenant(cached);
             }
         } catch (e) {
@@ -95,13 +96,20 @@ export default function ForecastPage() {
             alert('Por favor, informe o nome e um valor válido.');
             return;
         }
+
+        const targetTenant = selectedTenant === 'ALL' ? contractTenantId : selectedTenant;
+        if (!targetTenant) {
+            alert('Por favor, selecione uma empresa de destino.');
+            return;
+        }
+
         try {
             const res = await fetch('/api/kpi/forecast/contracts', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     id: editingContractId || undefined,
-                    tenantId: selectedTenant,
+                    tenantId: targetTenant,
                     name: contractName,
                     value: contractValue,
                     startMonth: contractStartMonth,
@@ -119,6 +127,7 @@ export default function ForecastPage() {
                 setContractStartMonth(6);
                 setContractProbability(100);
                 setContractStatus('PIPELINE');
+                setContractTenantId('');
                 fetchData();
             } else {
                 alert(`Erro ao salvar: ${json.error}`);
@@ -165,7 +174,6 @@ export default function ForecastPage() {
         }
     };
 
-    // Helper to format currency
     const fmt = (v: number) => {
         const absolute = Math.abs(v);
         const formatted = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(absolute);
@@ -174,7 +182,6 @@ export default function ForecastPage() {
 
     const monthsName = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
 
-    // Group forecast grid categories logically
     const displayGrid = useMemo(() => {
         if (forecastData.length === 0) return [];
 
@@ -369,7 +376,6 @@ export default function ForecastPage() {
 
         const treeRoots = buildDreTree(forecastData);
 
-        // Flatten and filter visible nodes recursively
         const resultList: any[] = [];
         const checkVisible = (node: any, parentVisible = true) => {
             if (parentVisible) {
@@ -407,6 +413,7 @@ export default function ForecastPage() {
                             }}
                             style={{ height: '36px', padding: '0 0.75rem', borderRadius: '8px', border: '1px solid var(--border-default)', background: 'var(--bg-surface)', color: 'var(--text-primary)', fontWeight: 600 }}
                         >
+                            <option value="ALL">Todas Empresas (Consolidado)</option>
                             {companies.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
                         </select>
                     </div>
@@ -575,6 +582,11 @@ export default function ForecastPage() {
                                 <p style={{ margin: '0.2rem 0 0 0', fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
                                     Defina a porcentagem de cada subcategoria operacional em relação à Receita Bruta. Esses pesos serão multiplicados pelas vendas projetadas no simulador de contratos.
                                 </p>
+                                {selectedTenant === 'ALL' && (
+                                    <div style={{ marginTop: '0.5rem', padding: '0.5rem 0.75rem', background: 'rgba(245, 158, 11, 0.1)', color: 'var(--accent-orange)', borderRadius: '6px', fontSize: '0.75rem', fontWeight: 700 }}>
+                                        ⚠️ Você está na visualização Consolidada. Para customizar coeficientes específicos, selecione uma empresa no filtro acima.
+                                    </div>
+                                )}
                             </div>
 
                             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '0.75rem' }}>
@@ -590,7 +602,7 @@ export default function ForecastPage() {
                                                 </span>
                                             </div>
                                             <div>
-                                                {editingCoefId === coef.categoryId ? (
+                                                {editingCoefId === coef.categoryId && selectedTenant !== 'ALL' ? (
                                                     <div style={{ display: 'flex', gap: '0.25rem', alignItems: 'center' }}>
                                                         <input
                                                             type="number"
@@ -616,15 +628,17 @@ export default function ForecastPage() {
                                                 ) : (
                                                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                                                         <span style={{ fontSize: '0.9rem', fontWeight: 800, color: 'var(--accent-indigo)' }}>{coef.percentage.toFixed(2)}%</span>
-                                                        <button
-                                                            onClick={() => {
-                                                                setEditingCoefId(coef.categoryId);
-                                                                setEditingCoefValue(coef.percentage);
-                                                            }}
-                                                            style={{ background: 'transparent', border: 'none', cursor: 'pointer', fontSize: '0.85rem' }}
-                                                        >
-                                                            ✏️
-                                                        </button>
+                                                        {selectedTenant !== 'ALL' && (
+                                                            <button
+                                                                onClick={() => {
+                                                                    setEditingCoefId(coef.categoryId);
+                                                                    setEditingCoefValue(coef.percentage);
+                                                                }}
+                                                                style={{ background: 'transparent', border: 'none', cursor: 'pointer', fontSize: '0.85rem' }}
+                                                            >
+                                                                ✏️
+                                                            </button>
+                                                        )}
                                                     </div>
                                                 )}
                                             </div>
@@ -663,7 +677,12 @@ export default function ForecastPage() {
                                 contracts.map(contract => (
                                     <div key={contract.id} style={{ padding: '0.85rem', background: 'var(--bg-elevated)', borderRadius: '8px', border: '1px solid var(--border-subtle)', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
                                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                                            <span style={{ fontSize: '0.85rem', fontWeight: 800 }}>{contract.name}</span>
+                                            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.1rem' }}>
+                                                <span style={{ fontSize: '0.85rem', fontWeight: 800 }}>{contract.name}</span>
+                                                <span style={{ fontSize: '0.65rem', color: 'var(--text-secondary)', fontWeight: 600 }}>
+                                                    🏢 {contract.tenant?.name || 'Empresa desconhecida'}
+                                                </span>
+                                            </div>
                                             <div style={{ display: 'flex', gap: '0.5rem' }}>
                                                 <button
                                                     onClick={() => {
@@ -673,6 +692,7 @@ export default function ForecastPage() {
                                                         setContractStartMonth(contract.startMonth);
                                                         setContractProbability(contract.probability);
                                                         setContractStatus(contract.status);
+                                                        setContractTenantId(contract.tenantId);
                                                         setIsContractModalOpen(true);
                                                     }}
                                                     style={{ border: 'none', background: 'transparent', cursor: 'pointer', fontSize: '0.85rem' }}
@@ -729,6 +749,7 @@ export default function ForecastPage() {
                                     setContractStartMonth(activeMonth + 1 > 12 ? 12 : activeMonth + 1);
                                     setContractProbability(100);
                                     setContractStatus('PIPELINE');
+                                    setContractTenantId(companies[0]?.id || '');
                                     setIsContractModalOpen(true);
                                 }}
                                 style={{
@@ -758,6 +779,19 @@ export default function ForecastPage() {
                         <h4 style={{ margin: 0, fontSize: '1rem', fontWeight: 800 }}>{editingContractId ? '✏️ Editar Contrato' : '➕ Novo Contrato de Simulação'}</h4>
                         
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
+                            {selectedTenant === 'ALL' && (
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                                    <label style={{ fontSize: '0.7rem', fontWeight: 700, color: 'var(--text-secondary)' }}>Empresa Destino</label>
+                                    <select
+                                        value={contractTenantId}
+                                        onChange={(e) => setContractTenantId(e.target.value)}
+                                        style={{ height: '36px', padding: '0 0.5rem', borderRadius: '6px', border: '1px solid var(--border-default)', background: 'var(--bg-elevated)', color: 'var(--text-primary)' }}
+                                    >
+                                        {companies.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                                    </select>
+                                </div>
+                            )}
+
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
                                 <label style={{ fontSize: '0.7rem', fontWeight: 700, color: 'var(--text-secondary)' }}>Nome do Cliente / Oportunidade</label>
                                 <input

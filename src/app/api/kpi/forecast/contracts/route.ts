@@ -13,10 +13,17 @@ export async function GET(request: Request) {
             return NextResponse.json({ success: false, error: 'Parâmetros ausentes' }, { status: 400 });
         }
 
+        const where: any = { startYear: year };
+        if (tenantId !== 'ALL') {
+            where.tenantId = tenantId;
+        }
+
         const contracts = await prisma.forecastContract.findMany({
-            where: {
-                tenantId,
-                startYear: year
+            where,
+            include: {
+                tenant: {
+                    select: { name: true }
+                }
             },
             orderBy: {
                 createdAt: 'asc'
@@ -54,6 +61,7 @@ export async function POST(request: Request) {
             contract = await prisma.forecastContract.update({
                 where: { id },
                 data: {
+                    tenantId,
                     name,
                     value: parseFloat(value),
                     startMonth: parseInt(startMonth, 10),

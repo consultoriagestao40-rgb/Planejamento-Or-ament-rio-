@@ -13,22 +13,31 @@ export async function GET(request: Request) {
             return NextResponse.json({ success: false, error: 'Parâmetros ausentes' }, { status: 400 });
         }
 
-        // 1. Fetch any overrides saved in DB
+        let tenantIds: string[] = [];
+        if (tenantId === 'ALL') {
+            const allTenants = await prisma.tenant.findMany({ select: { id: true } });
+            tenantIds = allTenants.map(t => t.id);
+        } else {
+            tenantIds = [tenantId];
+        }
+
+        // 1. Fetch overrides
         const overrides = await prisma.forecastCoefficient.findMany({
-            where: { tenantId, year }
+            where: { tenantId: { in: tenantIds }, year }
         });
         const overrideMap = new Map<string, number>();
+        // Group overrides by normalized category name/code to consolidate
         overrides.forEach(o => overrideMap.set(o.categoryId, o.percentage));
 
-        // 2. Load historical realized data for the selected year to calculate defaults
+        // 2. Load historical realized data for the selected year
         const realizedData = await prisma.realizedEntry.findMany({
-            where: { tenantId, year }
+            where: { tenantId: { in: tenantIds }, year }
         });
 
         // 3. Find Receita Bruta (01) historical sum
         const grossRevCategories = await prisma.category.findMany({
             where: {
-                tenantId,
+                tenantId: { in: tenantIds },
                 OR: [
                     { id: { startsWith: 'synth-1.' } },
                     { id: { startsWith: '01.' } },
@@ -41,14 +50,44 @@ export async function GET(request: Request) {
             .filter(r => grossRevIds.includes(r.categoryId))
             .reduce((sum, r) => sum + r.amount, 0);
 
-        // 4. Calculate default percentages for all categories relative to Receita Bruta
+        // 4. Load all categories
         const categories = await prisma.category.findMany({
-            where: { tenantId }
+            where: { tenantId: { in: tenantIds } }
         });
 
-        const coefficients = categories.map(cat => {
-            const isGrossRevenue = grossRevIds.includes(cat.id);
-            const overrideVal = overrideMap.get(cat.id);
+        // Group categories by normalized code/name
+        const uniqueCategoriesMap = new Map<string, { categoryId: string; categoryName: string }>();
+        categories.forEach(cat => {
+            const name = cat.name;
+            const codeMatch = name.match(/^([\d.]+)/);
+            const code = codeMatch ? codeMatch[1] : name;
+            
+            if (!uniqueCategoriesMap.has(code)) {
+                uniqueCategoriesMap.set(code, {
+                    categoryId: cat.id,
+                    categoryName: cat.name
+                });
+            }
+        });
+
+        const coefficients = Array.from(uniqueCategoriesMap.entries()).map(([code, catInfo]) => {
+            // Find all database category IDs belonging to this code prefix
+            const matchedCatIds = categories.filter(c => {
+                const cMatch = c.name.match(/^([\d.]+)/);
+                const cCode = cMatch ? cMatch[1] : c.name;
+                return cCode === code;
+            }).map(c => c.id);
+
+            const isGrossRevenue = matchedCatIds.some(id => grossRevIds.includes(id));
+            
+            // Check if any matching ID has an override (or fallback to code)
+            let overrideVal: number | undefined = undefined;
+            for (const id of matchedCatIds) {
+                if (overrideMap.has(id)) {
+                    overrideVal = overrideMap.get(id);
+                    break;
+                }
+            }
 
             let calculatedPercentage = 0;
             if (isGrossRevenue) {
@@ -57,17 +96,17 @@ export async function GET(request: Request) {
                 calculatedPercentage = overrideVal;
             } else if (totalGrossRevenue > 0) {
                 const catSum = realizedData
-                    .filter(r => r.categoryId === cat.id)
+                    .filter(r => matchedCatIds.includes(r.categoryId))
                     .reduce((sum, r) => sum + r.amount, 0);
                 calculatedPercentage = parseFloat(((Math.abs(catSum) / totalGrossRevenue) * 100).toFixed(2));
             }
 
             // Apply special user rules if no override exists
             if (overrideVal === undefined) {
-                const normalizedId = cat.id.toLowerCase();
-                const normalizedName = cat.name.toLowerCase();
+                const normalizedCode = code.toLowerCase();
+                const normalizedName = catInfo.categoryName.toLowerCase();
                 
-                if (normalizedId.includes('03.2.6') || normalizedId.endsWith('.3.2.6') || normalizedId.endsWith('.03.2.6')) {
+                if (normalizedCode.includes('03.2.6') || normalizedCode.endsWith('.3.2.6') || normalizedCode.endsWith('.03.2.6')) {
                     calculatedPercentage = 5.5; // INSS
                 } else if (normalizedName.includes('cobertura')) {
                     calculatedPercentage = 0.5; // Diárias de Cobertura
@@ -77,8 +116,8 @@ export async function GET(request: Request) {
             }
 
             return {
-                categoryId: cat.id,
-                categoryName: cat.name,
+                categoryId: catInfo.categoryId, // representative ID
+                categoryName: catInfo.categoryName,
                 percentage: calculatedPercentage,
                 isOverride: overrideVal !== undefined
             };
@@ -98,6 +137,10 @@ export async function POST(request: Request) {
 
         if (!tenantId || !year || !categoryId || percentage === undefined) {
             return NextResponse.json({ success: false, error: 'Parâmetros obrigatórios ausentes' }, { status: 400 });
+        }
+
+        if (tenantId === 'ALL') {
+            return NextResponse.json({ success: false, error: 'Não é permitido customizar taxas no modo consolidado. Selecione uma empresa.' }, { status: 400 });
         }
 
         const coef = await prisma.forecastCoefficient.upsert({

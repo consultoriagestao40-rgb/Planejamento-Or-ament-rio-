@@ -222,6 +222,23 @@ export default function ForecastPage() {
         distributeRevenue(recServicos);
         distributeRevenue(recVendas);
 
+        // Sort children by code prefix
+        const sortChildrenByCode = (node: any) => {
+            if (node.children && node.children.length > 0) {
+                node.children.sort((a: any, b: any) => {
+                    const aCodeMatch = a.categoryName.match(/^([\d.]+)/);
+                    const bCodeMatch = b.categoryName.match(/^([\d.]+)/);
+                    const aCode = aCodeMatch ? aCodeMatch[1] : a.categoryName;
+                    const bCode = bCodeMatch ? bCodeMatch[1] : b.categoryName;
+                    return aCode.localeCompare(bCode, undefined, { numeric: true, sensitivity: 'base' });
+                });
+                node.children.forEach(sortChildrenByCode);
+            }
+        };
+
+        [recServicos, recVendas, tribSub].forEach(sortChildrenByCode);
+        Object.values(custosSubs).forEach(sortChildrenByCode);
+
         // 4. If children are empty for a node (e.g. no database categories yet), fallback to getCoefPct
         const getCoefPct = (code: string) => {
             const match = tenantCoefs.find(c => {
@@ -374,6 +391,23 @@ export default function ForecastPage() {
 
         custosOp.percentage = Object.values(custosSubs).reduce((sum, n) => sum + n.percentage, 0);
         custosOp.isOverride = Object.values(custosSubs).some(n => n.isOverride);
+
+        // Sort children by code prefix
+        const sortChildrenByCode = (node: any) => {
+            if (node.children && node.children.length > 0) {
+                node.children.sort((a: any, b: any) => {
+                    const aCodeMatch = a.categoryName.match(/^([\d.]+)/);
+                    const bCodeMatch = b.categoryName.match(/^([\d.]+)/);
+                    const aCode = aCodeMatch ? aCodeMatch[1] : a.categoryName;
+                    const bCode = bCodeMatch ? bCodeMatch[1] : b.categoryName;
+                    return aCode.localeCompare(bCode, undefined, { numeric: true, sensitivity: 'base' });
+                });
+                node.children.forEach(sortChildrenByCode);
+            }
+        };
+
+        [tribSub].forEach(sortChildrenByCode);
+        Object.values(custosSubs).forEach(sortChildrenByCode);
 
         const rootNodes = [tributos, custosOp];
 
@@ -623,44 +657,63 @@ export default function ForecastPage() {
 
             const invest = createNode('G-07', '07. Investimentos', 0);
 
-            // Classify flat leaf categories
             flatData.forEach(cat => {
                 const name = cat.categoryName;
                 const codeMatch = name.match(/^([\d.]+)/);
                 const code = codeMatch ? codeMatch[1] : '';
 
-                let parentNode = null;
-                if (code.startsWith('01.1.') || code.startsWith('1.1.')) {
-                    parentNode = recServicos;
-                } else if (code.startsWith('01.2.') || code.startsWith('1.2.')) {
-                    parentNode = recVendas;
-                } else if (code.startsWith('02.1.') || code.startsWith('2.1.') || code.startsWith('02.') || code.startsWith('2.')) {
-                    parentNode = tribSub;
-                } else if (code.startsWith('03.')) {
-                    const subPrefix = code.substring(0, 4);
-                    parentNode = custosSubs[subPrefix];
-                } else if (code.startsWith('04.')) {
-                    const subPrefix = code.substring(0, 4);
-                    parentNode = despVendasSubs[subPrefix];
-                } else if (code.startsWith('05.')) {
-                    const subPrefix = code.substring(0, 4);
-                    parentNode = despAdminSubs[subPrefix];
-                } else if (code.startsWith('06.')) {
-                    const subPrefix = code.substring(0, 4);
-                    parentNode = despFinSubs[subPrefix];
-                } else if (code.startsWith('07.') || code.startsWith('7.')) {
-                    parentNode = invest;
-                }
+                const parts = code.split('.');
+                if (parts.length >= 2 || code.startsWith('07') || code.startsWith('7')) {
+                    const subPrefix = parts.length >= 2 ? `${parts[0]}.${parts[1]}` : code;
+                    
+                    // Skip if this node is exactly the parent prefix to avoid duplicates
+                    if (parts.length >= 2 && code === subPrefix) return;
 
-                if (parentNode) {
-                    parentNode.children.push({
-                        ...cat,
-                        level: parentNode.level + 1,
-                        isFormula: false,
-                        children: []
-                    });
+                    let parentNode = null;
+                    if (code.startsWith('01.1.') || code.startsWith('1.1.')) {
+                        parentNode = recServicos;
+                    } else if (code.startsWith('01.2.') || code.startsWith('1.2.')) {
+                        parentNode = recVendas;
+                    } else if (code.startsWith('02.1.') || code.startsWith('2.1.') || code.startsWith('02.') || code.startsWith('2.')) {
+                        parentNode = tribSub;
+                    } else if (code.startsWith('03.')) {
+                        parentNode = custosSubs[subPrefix];
+                    } else if (code.startsWith('04.')) {
+                        parentNode = despVendasSubs[subPrefix];
+                    } else if (code.startsWith('05.')) {
+                        parentNode = despAdminSubs[subPrefix];
+                    } else if (code.startsWith('06.')) {
+                        parentNode = despFinSubs[subPrefix];
+                    } else if (code.startsWith('07.') || code.startsWith('7.')) {
+                        parentNode = invest;
+                    }
+
+                    if (parentNode) {
+                        parentNode.children.push({
+                            ...cat,
+                            level: parentNode.level + 1,
+                            isFormula: false,
+                            children: []
+                        });
+                    }
                 }
             });
+
+            // Sort children by code prefix
+            const sortChildrenByCode = (node: any) => {
+                if (node.children && node.children.length > 0) {
+                    node.children.sort((a: any, b: any) => {
+                        const aCodeMatch = a.categoryName.match(/^([\d.]+)/);
+                        const bCodeMatch = b.categoryName.match(/^([\d.]+)/);
+                        const aCode = aCodeMatch ? aCodeMatch[1] : a.categoryName;
+                        const bCode = bCodeMatch ? bCodeMatch[1] : b.categoryName;
+                        return aCode.localeCompare(bCode, undefined, { numeric: true, sensitivity: 'base' });
+                    });
+                    node.children.forEach(sortChildrenByCode);
+                }
+            };
+
+            [recBruta, tributos, custosOp, despVendas, despAdmin, despFin, invest].forEach(sortChildrenByCode);
 
             // Compute parent sums
             const computeSums = (node: any): any => {

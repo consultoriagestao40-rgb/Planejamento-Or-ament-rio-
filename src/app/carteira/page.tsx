@@ -337,9 +337,9 @@ export default function PortfolioAnalysisPage() {
     }, [selectedYear]);
 
     // Fetch detailed analyses (charts) for all companies
-    const fetchDetailedAnalyses = useCallback(async () => {
+    const fetchDetailedAnalyses = useCallback(async (silent = false) => {
         if (companies.length === 0) return;
-        setLoadingDetailed(true);
+        if (!silent) setLoadingDetailed(true);
         try {
             const promises = companies.map(async (company) => {
                 const res = await fetch(`/api/kpi/detailed-analysis?tenantId=${company.id}&month=${activeMonthNumber}&year=${selectedYear}`);
@@ -351,7 +351,7 @@ export default function PortfolioAnalysisPage() {
         } catch (err) {
             console.error('Error fetching detailed analyses:', err);
         } finally {
-            setLoadingDetailed(false);
+            if (!silent) setLoadingDetailed(false);
         }
     }, [companies, activeMonthNumber, selectedYear]);
 
@@ -537,7 +537,7 @@ export default function PortfolioAnalysisPage() {
             });
             const json = await res.json();
             if (json.success) {
-                fetchDetailedAnalyses();
+                fetchDetailedAnalyses(true);
             } else {
                 alert(`Erro ao atualizar filtro de empresa: ${json.error}`);
             }

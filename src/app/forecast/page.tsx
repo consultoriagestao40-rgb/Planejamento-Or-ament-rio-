@@ -154,15 +154,22 @@ export default function ForecastPage() {
             };
 
             let parentNode = null;
-            if (code.startsWith('01.1.') || code.startsWith('1.1.')) {
-                parentNode = recServicos;
-            } else if (code.startsWith('01.2.') || code.startsWith('1.2.')) {
-                parentNode = recVendas;
-            } else if (code.startsWith('02.1.') || code.startsWith('2.1.')) {
-                parentNode = tribSub;
-            } else if (code.startsWith('03.')) {
-                const subPrefix = code.substring(0, 4);
-                parentNode = custosSubs[subPrefix];
+            const parts = code.split('.');
+            if (parts.length >= 2) {
+                const subPrefix = `${parts[0]}.${parts[1]}`;
+                
+                // Skip if this leaf node matches the parent node code exactly to avoid duplication
+                if (code === subPrefix) return;
+
+                if (code.startsWith('01.1.') || code.startsWith('1.1.')) {
+                    parentNode = recServicos;
+                } else if (code.startsWith('01.2.') || code.startsWith('1.2.')) {
+                    parentNode = recVendas;
+                } else if (code.startsWith('02.1.') || code.startsWith('2.1.')) {
+                    parentNode = tribSub;
+                } else if (code.startsWith('03.')) {
+                    parentNode = custosSubs[subPrefix];
+                }
             }
 
             if (parentNode) {
@@ -330,11 +337,18 @@ export default function ForecastPage() {
             };
 
             let parentNode = null;
-            if (code.startsWith('02.1.') || code.startsWith('2.1.')) {
-                parentNode = tribSub;
-            } else if (code.startsWith('03.')) {
-                const subPrefix = code.substring(0, 4);
-                parentNode = custosSubs[subPrefix];
+            const parts = code.split('.');
+            if (parts.length >= 2) {
+                const subPrefix = `${parts[0]}.${parts[1]}`;
+                
+                // Skip if this leaf node matches the parent node code exactly to avoid duplication
+                if (code === subPrefix) return;
+
+                if (code.startsWith('02.1.') || code.startsWith('2.1.')) {
+                    parentNode = tribSub;
+                } else if (code.startsWith('03.')) {
+                    parentNode = custosSubs[subPrefix];
+                }
             }
 
             if (parentNode) {
@@ -393,9 +407,9 @@ export default function ForecastPage() {
         fetchSetup();
     }, [fetchSetup]);
 
-    const fetchData = useCallback(async () => {
+    const fetchData = useCallback(async (silent = false) => {
         if (!selectedTenant) return;
-        setLoadingData(true);
+        if (!silent) setLoadingData(true);
         try {
             // Fetch contracts
             const resC = await fetch(`/api/kpi/forecast/contracts?tenantId=${selectedTenant}&year=${selectedYear}`);
@@ -414,7 +428,7 @@ export default function ForecastPage() {
         } catch (err) {
             console.error(err);
         } finally {
-            setLoadingData(false);
+            if (!silent) setLoadingData(false);
         }
     }, [selectedTenant, selectedYear, activeMonth]);
 
@@ -496,7 +510,7 @@ export default function ForecastPage() {
             const json = await res.json();
             if (json.success) {
                 setEditingCoefId(null);
-                fetchData();
+                fetchData(true);
             } else {
                 alert(`Erro ao salvar: ${json.error}`);
             }

@@ -55,9 +55,13 @@ export async function GET(request: Request) {
             where: { tenantId: { in: tenantIds } }
         });
 
+        // Filter out categories that are parent nodes to prevent double counting
+        const parentIds = new Set(categories.map(c => c.parentId).filter(Boolean));
+        const leafCategories = categories.filter(c => !parentIds.has(c.id));
+
         // Group categories by normalized code/name
         const uniqueCategoriesMap = new Map<string, { categoryId: string; categoryName: string }>();
-        categories.forEach(cat => {
+        leafCategories.forEach(cat => {
             const name = cat.name;
             const codeMatch = name.match(/^([\d.]+)/);
             const code = codeMatch ? codeMatch[1] : name;
@@ -72,7 +76,7 @@ export async function GET(request: Request) {
 
         const coefficients = Array.from(uniqueCategoriesMap.entries()).map(([code, catInfo]) => {
             // Find all database category IDs belonging to this code prefix
-            const matchedCatIds = categories.filter(c => {
+            const matchedCatIds = leafCategories.filter(c => {
                 const cMatch = c.name.match(/^([\d.]+)/);
                 const cCode = cMatch ? cMatch[1] : c.name;
                 return cCode === code;

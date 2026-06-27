@@ -64,9 +64,13 @@ export async function GET(request: Request) {
             where: { tenantId: { in: tenantIds } }
         });
 
+        // Filter out categories that are parent nodes to prevent double counting
+        const parentIds = new Set(categories.map(c => c.parentId).filter(Boolean));
+        const leafCategories = categories.filter(c => !parentIds.has(c.id));
+
         // Group categories by unified prefix code
         const uniqueCategoriesMap = new Map<string, { categoryId: string; categoryName: string; type: string; parentId: string | null }>();
-        categories.forEach(cat => {
+        leafCategories.forEach(cat => {
             const name = cat.name;
             const codeMatch = name.match(/^([\d.]+)/);
             const code = codeMatch ? codeMatch[1] : name;
@@ -84,7 +88,7 @@ export async function GET(request: Request) {
         // Coef Map of percentage divided by 100 for unified code prefixes
         const coefMap = new Map<string, number>();
         uniqueCategoriesMap.forEach((catInfo, code) => {
-            const matchedCatIds = categories.filter(c => {
+            const matchedCatIds = leafCategories.filter(c => {
                 const cMatch = c.name.match(/^([\d.]+)/);
                 const cCode = cMatch ? cMatch[1] : c.name;
                 return cCode === code;
@@ -136,7 +140,7 @@ export async function GET(request: Request) {
             const monthlyForecast = Array(12).fill(0);
 
             // Find all matching database category IDs for this prefix
-            const matchedCatIds = categories.filter(c => {
+            const matchedCatIds = leafCategories.filter(c => {
                 const cMatch = c.name.match(/^([\d.]+)/);
                 const cCode = cMatch ? cMatch[1] : c.name;
                 return cCode === code;

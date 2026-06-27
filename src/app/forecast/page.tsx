@@ -549,12 +549,21 @@ export default function ForecastPage() {
                                     <tr style={{ borderBottom: '2px solid var(--border-default)', color: 'var(--text-secondary)' }}>
                                         <th style={{ padding: '0.5rem', minWidth: '180px' }}>Conta / Categoria</th>
                                         {monthsName.map((name, i) => (
-                                            <th key={i} style={{ padding: '0.5rem', textAlign: 'right', background: i + 1 <= activeMonth ? 'rgba(99, 102, 241, 0.05)' : 'transparent' }}>
-                                                {name} <span style={{ fontSize: '0.6rem', display: 'block', opacity: 0.7 }}>{i + 1 <= activeMonth ? 'Real' : 'Proj'}</span>
-                                            </th>
+                                            <React.Fragment key={i}>
+                                                <th style={{ padding: '0.5rem', textAlign: 'right', background: i + 1 <= activeMonth ? 'rgba(99, 102, 241, 0.05)' : 'transparent' }}>
+                                                    {name} <span style={{ fontSize: '0.6rem', display: 'block', opacity: 0.7 }}>{i + 1 <= activeMonth ? 'Real' : 'Proj'}</span>
+                                                </th>
+                                                {showAV && (
+                                                    <th style={{ padding: '0.5rem', textAlign: 'center', width: '55px', minWidth: '55px', background: i + 1 <= activeMonth ? 'rgba(99, 102, 241, 0.03)' : 'transparent', color: 'var(--text-secondary)', fontSize: '0.65rem' }}>
+                                                        AV
+                                                    </th>
+                                                )}
+                                            </React.Fragment>
                                         ))}
                                         <th style={{ padding: '0.5rem', textAlign: 'right', fontWeight: 800 }}>Total Forecast</th>
+                                        {showAV && <th style={{ padding: '0.5rem', textAlign: 'center', width: '55px', minWidth: '55px', color: 'var(--text-secondary)', fontSize: '0.65rem' }}>AV</th>}
                                         <th style={{ padding: '0.5rem', textAlign: 'right', opacity: 0.8 }}>Budget Original</th>
+                                        {showAV && <th style={{ padding: '0.5rem', textAlign: 'center', width: '55px', minWidth: '55px', color: 'var(--text-secondary)', opacity: 0.8, fontSize: '0.65rem' }}>AV</th>}
                                         <th style={{ padding: '0.5rem', textAlign: 'right' }}>Variação</th>
                                     </tr>
                                 </thead>
@@ -611,32 +620,34 @@ export default function ForecastPage() {
                                                     const totalBruta = displayGrid.find(r => r.categoryId === 'G-01')?.forecast[i] || 0;
                                                     const avPercent = Math.abs(totalBruta) > 0.01 ? (val / totalBruta) * 100 : 0;
                                                     return (
-                                                        <td key={i} style={{ padding: '0.6rem 0.5rem', textAlign: 'right' }}>
-                                                            <div>{fmt(val)}</div>
+                                                        <React.Fragment key={i}>
+                                                            <td style={{ padding: '0.6rem 0.5rem', textAlign: 'right' }}>
+                                                                {fmt(val)}
+                                                            </td>
                                                             {showAV && (
-                                                                <div style={{ fontSize: '0.62rem', color: 'var(--text-secondary)', fontWeight: 700, marginTop: '2px' }}>
+                                                                <td style={{ padding: '0.6rem 0.5rem', textAlign: 'center', color: 'var(--text-secondary)', fontSize: '0.7rem', fontWeight: 600 }}>
                                                                     {avPercent.toFixed(1)}%
-                                                                </div>
+                                                                </td>
                                                             )}
-                                                        </td>
+                                                        </React.Fragment>
                                                     );
                                                 })}
                                                 <td style={{ padding: '0.6rem 0.5rem', textAlign: 'right', fontWeight: 800, color: 'var(--accent-indigo)' }}>
-                                                    <div>{fmt(sumForecast)}</div>
-                                                    {showAV && (
-                                                        <div style={{ fontSize: '0.62rem', color: 'var(--text-secondary)', fontWeight: 700, marginTop: '2px' }}>
-                                                            {avTotalPercent.toFixed(1)}%
-                                                        </div>
-                                                    )}
+                                                    {fmt(sumForecast)}
                                                 </td>
+                                                {showAV && (
+                                                    <td style={{ padding: '0.6rem 0.5rem', textAlign: 'center', color: 'var(--text-secondary)', fontSize: '0.7rem', fontWeight: 700 }}>
+                                                        {avTotalPercent.toFixed(1)}%
+                                                    </td>
+                                                )}
                                                 <td style={{ padding: '0.6rem 0.5rem', textAlign: 'right', opacity: 0.8 }}>
-                                                     <div>{fmt(sumBudget)}</div>
-                                                     {showAV && (
-                                                         <div style={{ fontSize: '0.62rem', color: 'var(--text-secondary)', fontWeight: 700, marginTop: '2px' }}>
-                                                             {avBudgetPercent.toFixed(1)}%
-                                                         </div>
-                                                     )}
+                                                    {fmt(sumBudget)}
                                                 </td>
+                                                {showAV && (
+                                                    <td style={{ padding: '0.6rem 0.5rem', textAlign: 'center', color: 'var(--text-secondary)', fontSize: '0.7rem', fontWeight: 700, opacity: 0.8 }}>
+                                                        {avBudgetPercent.toFixed(1)}%
+                                                    </td>
+                                                )}
                                                 <td style={{ padding: '0.6rem 0.5rem', textAlign: 'right', color: variance > 0 ? 'var(--accent-green)' : variance < 0 ? 'var(--accent-red)' : 'var(--text-secondary)' }}>
                                                     {variance > 0 ? '+' : ''}{fmt(variance)}
                                                 </td>

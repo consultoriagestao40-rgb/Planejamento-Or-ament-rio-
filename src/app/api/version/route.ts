@@ -47,7 +47,8 @@ export async function GET() {
                     categoryId: e.categoryId,
                     categoryName: e.category.name,
                     amount: e.amount,
-                    viewMode: e.viewMode
+                    viewMode: e.viewMode,
+                    externalId: e.externalId
                 }))
             });
         }

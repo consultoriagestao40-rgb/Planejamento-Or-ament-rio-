@@ -1500,134 +1500,49 @@ export default function ForecastPage() {
             {/* Contract Modal */}
             {isContractModalOpen && (
                 <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', zIndex: 20000, display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
-                    <div className="glass-card" style={{ width: '380px', padding: '1.5rem', background: 'var(--bg-surface)', borderRadius: '12px', border: '1px solid var(--border-default)', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                        <h4 style={{ margin: 0, fontSize: '1rem', fontWeight: 800 }}>{editingContractId ? '✏️ Editar Contrato' : '➕ Novo Contrato de Simulação'}</h4>
+                    <div className="glass-card" style={{ width: '680px', padding: '1.75rem', background: 'var(--bg-surface)', borderRadius: '16px', border: '1px solid var(--border-default)', display: 'flex', flexDirection: 'column', gap: '1.25rem', boxShadow: '0 20px 25px -5px rgba(0,0,0,0.3), 0 10px 10px -5px rgba(0,0,0,0.3)' }}>
+                        <h4 style={{ margin: 0, fontSize: '1.15rem', fontWeight: 800 }}>{editingContractId ? '✏️ Editar Contrato' : '➕ Novo Contrato de Simulação'}</h4>
                         
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
-                            {selectedTenant === 'ALL' && (
-                                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
-                                    <label style={{ fontSize: '0.7rem', fontWeight: 700, color: 'var(--text-secondary)' }}>Empresa Destino</label>
-                                    <select
-                                        value={contractTenantId}
-                                        onChange={(e) => setContractTenantId(e.target.value)}
-                                        style={{ height: '36px', padding: '0 0.5rem', borderRadius: '6px', border: '1px solid var(--border-default)', background: 'var(--bg-elevated)', color: 'var(--text-primary)' }}
-                                    >
-                                        {companies.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-                                    </select>
-                                </div>
-                            )}
-
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
-                                <label style={{ fontSize: '0.7rem', fontWeight: 700, color: 'var(--text-secondary)' }}>Nome do Cliente / Oportunidade</label>
-                                <input
-                                    type="text"
-                                    value={contractName}
-                                    onChange={(e) => setContractName(e.target.value)}
-                                    placeholder="Ex: Novo Cliente Alfa"
-                                    style={{ height: '36px', padding: '0 0.5rem', borderRadius: '6px', border: '1px solid var(--border-default)', background: 'var(--bg-elevated)', color: 'var(--text-primary)' }}
-                                />
-                            </div>
-
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
-                                <label style={{ fontSize: '0.7rem', fontWeight: 700, color: 'var(--text-secondary)' }}>Vendedor</label>
-                                <input
-                                    type="text"
-                                    value={contractSeller}
-                                    onChange={(e) => setContractSeller(e.target.value)}
-                                    placeholder="Ex: Carlos Silva"
-                                    style={{ height: '36px', padding: '0 0.5rem', borderRadius: '6px', border: '1px solid var(--border-default)', background: 'var(--bg-elevated)', color: 'var(--text-primary)' }}
-                                />
-                            </div>
-
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
-                                <label style={{ fontSize: '0.7rem', fontWeight: 700, color: 'var(--text-secondary)' }}>Valor Mensal Total (Soma das Contas)</label>
-                                <input
-                                    type="text"
-                                    readOnly
-                                    value={new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(contractValue)}
-                                    style={{ height: '36px', padding: '0 0.5rem', borderRadius: '6px', border: '1px solid var(--border-default)', background: 'var(--bg-elevated)', color: 'var(--accent-indigo)', fontWeight: 800, fontSize: '0.85rem' }}
-                                />
-                            </div>
-
-                            {/* Revenue Accounts Selection dropdown and input */}
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem', borderTop: '1px solid var(--border-subtle)', paddingTop: '0.6rem' }}>
-                                <label style={{ fontSize: '0.7rem', fontWeight: 700, color: 'var(--text-secondary)' }}>
-                                    Adicionar Receita por Conta
-                                </label>
-                                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.45rem' }}>
-                                    <select
-                                        value={selectedRevenueCode}
-                                        onChange={(e) => setSelectedRevenueCode(e.target.value)}
-                                        style={{ height: '36px', padding: '0 0.5rem', borderRadius: '6px', border: '1px solid var(--border-default)', background: 'var(--bg-elevated)', color: 'var(--text-primary)', fontSize: '0.75rem' }}
-                                    >
-                                        <option value="">-- Selecione a Conta de Receita --</option>
-                                        {revenueCategories.map(cat => {
-                                            const codeMatch = cat.categoryName.match(/^([\d.]+)/);
-                                            const code = codeMatch ? codeMatch[1] : '';
-                                            return <option key={cat.categoryId} value={code}>{cat.categoryName}</option>;
-                                        })}
-                                    </select>
-                                    <div style={{ display: 'flex', gap: '0.5rem' }}>
-                                        <input
-                                            type="text"
-                                            placeholder="R$ 0,00"
-                                            value={typedRevenueValue}
-                                            onChange={(e) => {
-                                                const formatted = formatCurrencyInput(e.target.value);
-                                                setTypedRevenueValue(formatted);
-                                            }}
-                                            style={{ flex: 1, height: '36px', padding: '0 0.5rem', borderRadius: '6px', border: '1px solid var(--border-default)', background: 'var(--bg-elevated)', color: 'var(--text-primary)', fontSize: '0.75rem', fontWeight: 700 }}
-                                        />
-                                        <button
-                                            type="button"
-                                            onClick={handleAddRevenue}
-                                            style={{ padding: '0 1rem', borderRadius: '6px', border: 'none', background: 'var(--accent-indigo)', color: '#ffffff', cursor: 'pointer', fontSize: '0.75rem', fontWeight: 700 }}
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                            {/* Row 1: Empresa & Cliente */}
+                            <div style={{ display: 'grid', gridTemplateColumns: selectedTenant === 'ALL' ? '1fr 1fr' : '1fr', gap: '1rem' }}>
+                                {selectedTenant === 'ALL' && (
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                                        <label style={{ fontSize: '0.7rem', fontWeight: 700, color: 'var(--text-secondary)' }}>Empresa Destino</label>
+                                        <select
+                                            value={contractTenantId}
+                                            onChange={(e) => setContractTenantId(e.target.value)}
+                                            style={{ height: '36px', padding: '0 0.5rem', borderRadius: '6px', border: '1px solid var(--border-default)', background: 'var(--bg-elevated)', color: 'var(--text-primary)' }}
                                         >
-                                            Adicionar
-                                        </button>
+                                            {companies.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                                        </select>
                                     </div>
+                                )}
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                                    <label style={{ fontSize: '0.7rem', fontWeight: 700, color: 'var(--text-secondary)' }}>Nome do Cliente / Oportunidade</label>
+                                    <input
+                                        type="text"
+                                        value={contractName}
+                                        onChange={(e) => setContractName(e.target.value)}
+                                        placeholder="Ex: Novo Cliente Alfa"
+                                        style={{ height: '36px', padding: '0 0.5rem', borderRadius: '6px', border: '1px solid var(--border-default)', background: 'var(--bg-elevated)', color: 'var(--text-primary)' }}
+                                    />
                                 </div>
                             </div>
 
-                            {/* List of Added Revenues in Contract */}
-                            {Object.entries(contractRevenueSplit).filter(([_, val]) => val > 0).length > 0 && (
+                            {/* Row 2: Vendedor, Mês Início, Status */}
+                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '1rem' }}>
                                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
-                                    <label style={{ fontSize: '0.7rem', fontWeight: 700, color: 'var(--text-secondary)' }}>
-                                        Contas Lançadas no Contrato
-                                    </label>
-                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem', maxHeight: '110px', overflowY: 'auto', padding: '0.4rem', background: 'var(--bg-elevated)', borderRadius: '8px', border: '1px solid var(--border-subtle)' }}>
-                                        {Object.entries(contractRevenueSplit)
-                                            .filter(([_, val]) => val > 0)
-                                            .map(([code, val]) => {
-                                                const cat = revenueCategories.find(c => c.categoryName.startsWith(code));
-                                                const name = cat ? cat.categoryName : `${code} - Receita`;
-                                                return (
-                                                    <div key={code} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.5rem' }}>
-                                                        <span style={{ fontSize: '0.65rem', fontWeight: 600, color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '60%' }} title={name}>
-                                                            {name}
-                                                        </span>
-                                                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                                                            <span style={{ fontSize: '0.7rem', fontWeight: 700, color: 'var(--accent-indigo)' }}>
-                                                                {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val)}
-                                                            </span>
-                                                            <button
-                                                                type="button"
-                                                                onClick={() => handleRemoveRevenue(code)}
-                                                                style={{ background: 'transparent', border: 'none', color: 'var(--accent-red)', cursor: 'pointer', fontSize: '0.85rem', padding: 0 }}
-                                                                title="Excluir"
-                                                            >
-                                                                🗑️
-                                                            </button>
-                                                        </div>
-                                                    </div>
-                                                );
-                                            })}
-                                    </div>
+                                    <label style={{ fontSize: '0.7rem', fontWeight: 700, color: 'var(--text-secondary)' }}>Vendedor</label>
+                                    <input
+                                        type="text"
+                                        value={contractSeller}
+                                        onChange={(e) => setContractSeller(e.target.value)}
+                                        placeholder="Ex: Carlos Silva"
+                                        style={{ height: '36px', padding: '0 0.5rem', borderRadius: '6px', border: '1px solid var(--border-default)', background: 'var(--bg-elevated)', color: 'var(--text-primary)' }}
+                                    />
                                 </div>
-                            )}
-
-                            <div style={{ display: 'flex', gap: '0.5rem' }}>
-                                <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
                                     <label style={{ fontSize: '0.7rem', fontWeight: 700, color: 'var(--text-secondary)' }}>Mês de Início</label>
                                     <select
                                         value={contractStartMonth}
@@ -1637,7 +1552,7 @@ export default function ForecastPage() {
                                         {monthsName.map((name, i) => <option key={i} value={i + 1}>{name}</option>)}
                                     </select>
                                 </div>
-                                <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
                                     <label style={{ fontSize: '0.7rem', fontWeight: 700, color: 'var(--text-secondary)' }}>Status</label>
                                     <select
                                         value={contractStatus}
@@ -1653,8 +1568,9 @@ export default function ForecastPage() {
                                 </div>
                             </div>
 
+                            {/* Row 3: Probability Slider (only for Pipeline) */}
                             {contractStatus === 'PIPELINE' && (
-                                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem', background: 'var(--bg-elevated)', padding: '0.75rem 1rem', borderRadius: '8px', border: '1px solid var(--border-subtle)' }}>
                                     <label style={{ fontSize: '0.7rem', fontWeight: 700, color: 'var(--text-secondary)' }}>Probabilidade de Fechamento: {contractProbability}%</label>
                                     <input
                                         type="range"
@@ -1663,10 +1579,110 @@ export default function ForecastPage() {
                                         step="10"
                                         value={contractProbability}
                                         onChange={(e) => setContractProbability(parseInt(e.target.value))}
-                                        style={{ accentColor: 'var(--accent-indigo)' }}
+                                        style={{ accentColor: 'var(--accent-indigo)', width: '100%', cursor: 'pointer' }}
                                     />
                                 </div>
                             )}
+
+                            {/* Row 4: Revenue Distribution Section */}
+                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.25rem', borderTop: '1px solid var(--border-subtle)', paddingTop: '1.25rem' }}>
+                                {/* Left Side: Add Revenue Controls & Total Value */}
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                                        <label style={{ fontSize: '0.7rem', fontWeight: 700, color: 'var(--text-primary)' }}>
+                                            1. Selecione a Conta de Receita
+                                        </label>
+                                        <select
+                                            value={selectedRevenueCode}
+                                            onChange={(e) => setSelectedRevenueCode(e.target.value)}
+                                            style={{ height: '36px', padding: '0 0.5rem', borderRadius: '6px', border: '1px solid var(--border-default)', background: 'var(--bg-elevated)', color: 'var(--text-primary)', fontSize: '0.75rem' }}
+                                        >
+                                            <option value="">-- Selecione a Conta --</option>
+                                            {revenueCategories.map(cat => {
+                                                const codeMatch = cat.categoryName.match(/^([\d.]+)/);
+                                                const code = codeMatch ? codeMatch[1] : '';
+                                                return <option key={cat.categoryId} value={code}>{cat.categoryName}</option>;
+                                            })}
+                                        </select>
+                                    </div>
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                                        <label style={{ fontSize: '0.7rem', fontWeight: 700, color: 'var(--text-primary)' }}>
+                                            2. Valor da Conta
+                                        </label>
+                                        <div style={{ display: 'flex', gap: '0.5rem' }}>
+                                            <input
+                                                type="text"
+                                                placeholder="R$ 0,00"
+                                                value={typedRevenueValue}
+                                                onChange={(e) => {
+                                                    const formatted = formatCurrencyInput(e.target.value);
+                                                    setTypedRevenueValue(formatted);
+                                                }}
+                                                style={{ flex: 1, height: '36px', padding: '0 0.5rem', borderRadius: '6px', border: '1px solid var(--border-default)', background: 'var(--bg-elevated)', color: 'var(--text-primary)', fontSize: '0.75rem', fontWeight: 700 }}
+                                            />
+                                            <button
+                                                type="button"
+                                                onClick={handleAddRevenue}
+                                                style={{ padding: '0 1rem', borderRadius: '6px', border: 'none', background: 'var(--accent-indigo)', color: '#ffffff', cursor: 'pointer', fontSize: '0.75rem', fontWeight: 700 }}
+                                            >
+                                                Adicionar
+                                            </button>
+                                        </div>
+                                    </div>
+
+                                    {/* Total Value Display */}
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem', marginTop: '0.5rem' }}>
+                                        <label style={{ fontSize: '0.7rem', fontWeight: 700, color: 'var(--text-secondary)' }}>Valor Mensal Total do Contrato</label>
+                                        <input
+                                            type="text"
+                                            readOnly
+                                            value={new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(contractValue)}
+                                            style={{ height: '36px', padding: '0 0.5rem', borderRadius: '6px', border: '1px solid var(--border-default)', background: 'var(--bg-elevated)', color: 'var(--accent-indigo)', fontWeight: 800, fontSize: '0.85rem' }}
+                                        />
+                                    </div>
+                                </div>
+
+                                {/* Right Side: Added list */}
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                                    <label style={{ fontSize: '0.7rem', fontWeight: 700, color: 'var(--text-primary)' }}>
+                                        Contas Lançadas no Contrato
+                                    </label>
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', height: '170px', overflowY: 'auto', padding: '0.5rem', background: 'var(--bg-elevated)', borderRadius: '8px', border: '1px solid var(--border-subtle)' }}>
+                                        {Object.entries(contractRevenueSplit).filter(([_, val]) => val > 0).length === 0 ? (
+                                            <div style={{ display: 'flex', flex: 1, alignItems: 'center', justifyContent: 'center', color: 'var(--text-secondary)', fontSize: '0.75rem', fontStyle: 'italic', textAlign: 'center', padding: '1rem' }}>
+                                                Nenhuma conta vinculada ainda. Adicione pelo menos uma receita ao lado.
+                                            </div>
+                                        ) : (
+                                            Object.entries(contractRevenueSplit)
+                                                .filter(([_, val]) => val > 0)
+                                                .map(([code, val]) => {
+                                                    const cat = revenueCategories.find(c => c.categoryName.startsWith(code));
+                                                    const name = cat ? cat.categoryName : `${code} - Receita`;
+                                                    return (
+                                                        <div key={code} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.5rem', background: 'var(--bg-surface)', padding: '0.4rem 0.6rem', borderRadius: '6px', border: '1px solid var(--border-subtle)' }}>
+                                                            <span style={{ fontSize: '0.65rem', fontWeight: 600, color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '60%' }} title={name}>
+                                                                {name}
+                                                            </span>
+                                                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                                                <span style={{ fontSize: '0.7rem', fontWeight: 700, color: 'var(--accent-indigo)' }}>
+                                                                    {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val)}
+                                                                </span>
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => handleRemoveRevenue(code)}
+                                                                    style={{ background: 'transparent', border: 'none', color: 'var(--accent-red)', cursor: 'pointer', fontSize: '0.85rem', padding: 0 }}
+                                                                    title="Excluir"
+                                                                >
+                                                                    🗑️
+                                                                </button>
+                                                            </div>
+                                                        </div>
+                                                    );
+                                                })
+                                        )}
+                                    </div>
+                                </div>
+                            </div>
                         </div>
 
                         <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'flex-end', marginTop: '0.5rem' }}>

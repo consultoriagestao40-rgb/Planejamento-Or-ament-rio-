@@ -1675,8 +1675,8 @@ export default function ForecastPage() {
             const range = (maxVal - minVal) || 10000;
             
             const chartPoints = cumulativeCashFlows.map((v, i) => {
-                const x = 50 + i * 55;
-                const y = 150 - ((v - minVal) / range) * 120;
+                const x = 80 + i * 85;
+                const y = 175 - ((v - minVal) / range) * 120;
                 return `${x},${y}`;
             }).join(' ');
 
@@ -1900,55 +1900,56 @@ export default function ForecastPage() {
                                     📈 Curva de Caixa Acumulado & Capital de Giro Requerido
                                 </h5>
                                 
-                                <div style={{ width: '100%', height: '180px', display: 'flex', justifyContent: 'center', background: 'var(--bg-elevated)', borderRadius: '8px', padding: '0.5rem', border: '1px solid var(--border-subtle)' }}>
-                                    <svg viewBox="0 0 700 180" width="100%" height="100%">
+                                <div style={{ width: '100%', height: '220px', display: 'flex', justifyContent: 'center', background: 'var(--bg-elevated)', borderRadius: '8px', padding: '0.5rem', border: '1px solid var(--border-subtle)' }}>
+                                    <svg viewBox="0 0 1100 220" width="100%" height="100%">
                                         {/* Grid lines */}
-                                        <line x1="50" y1="30" x2="660" y2="30" stroke="var(--border-subtle)" strokeDasharray="3 3" />
-                                        <line x1="50" y1="90" x2="660" y2="90" stroke="var(--border-subtle)" strokeDasharray="3 3" />
-                                        <line x1="50" y1="150" x2="660" y2="150" stroke="var(--border-subtle)" strokeDasharray="3 3" />
+                                        <line x1="60" y1="35" x2="1040" y2="35" stroke="var(--border-subtle)" strokeDasharray="3 3" />
+                                        <line x1="60" y1="105" x2="1040" y2="105" stroke="var(--border-subtle)" strokeDasharray="3 3" />
+                                        <line x1="60" y1="175" x2="1040" y2="175" stroke="var(--border-subtle)" strokeDasharray="3 3" />
                                         
                                         {/* Horizontal Zero line */}
-                                        <line x1="50" y1={zeroLineY} x2="660" y2={zeroLineY} stroke="var(--accent-orange)" strokeWidth="1.5" strokeDasharray="4 2" />
-                                        <text x="60" y={zeroLineY - 4} fill="var(--accent-orange)" fontSize="7" fontWeight="bold">PONTO DE EQUILÍBRIO (ZERO)</text>
+                                        <line x1="60" y1={zeroLineY} x2="1040" y2={zeroLineY} stroke="var(--accent-orange)" strokeWidth="1.5" strokeDasharray="4 2" />
+                                        <text x="70" y={zeroLineY - 5} fill="var(--accent-orange)" fontSize="9" fontWeight="bold">PONTO DE EQUILÍBRIO (ZERO)</text>
 
                                         {/* Cumulative line path */}
                                         <polyline
                                             fill="none"
                                             stroke="var(--accent-indigo)"
-                                            strokeWidth="2.5"
+                                            strokeWidth="3"
                                             points={chartPoints}
                                         />
 
                                         {/* Circular markers & text values */}
                                         {cumulativeCashFlows.map((v, i) => {
-                                            const x = 50 + i * 55;
-                                            const y = 150 - ((v - minVal) / range) * 120;
+                                            const x = 80 + i * 85;
+                                            const y = 175 - ((v - minVal) / range) * 120;
+                                            const formattedVal = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 }).format(v);
                                             return (
                                                 <g key={i}>
                                                     <circle
                                                         cx={x}
                                                         cy={y}
-                                                        r="4.5"
+                                                        r="5.5"
                                                         fill={v >= 0 ? "var(--accent-green)" : "var(--accent-red)"}
                                                         stroke="var(--bg-surface)"
-                                                        strokeWidth="1.5"
+                                                        strokeWidth="2"
                                                     />
                                                     <text
                                                         x={x}
-                                                        y={y - 8}
+                                                        y={y - 10}
                                                         textAnchor="middle"
                                                         fill="var(--text-primary)"
-                                                        fontSize="7"
+                                                        fontSize="10"
                                                         fontWeight="800"
                                                     >
-                                                        {v !== 0 ? Math.round(v / 1000) + 'k' : '0'}
+                                                        {formattedVal}
                                                     </text>
                                                     <text
                                                         x={x}
-                                                        y="174"
+                                                        y="205"
                                                         textAnchor="middle"
                                                         fill="var(--text-secondary)"
-                                                        fontSize="7"
+                                                        fontSize="10"
                                                         fontWeight="700"
                                                     >
                                                         {monthsName[i]}

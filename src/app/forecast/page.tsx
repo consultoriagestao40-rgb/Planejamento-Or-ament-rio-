@@ -1491,13 +1491,18 @@ export default function ForecastPage() {
                                                     })}
                                                 </tbody>
                                             </table>
-                                        </div>
-                                    </div>
-            );
-        }
-        if (activeTab === 'cashflow') {
+               if (activeTab === 'cashflow') {
             const activeContracts = contracts.filter(c => c.status !== 'PERDIDO');
             const selectedContractObj = activeContracts.find(c => c.id === selectedCashFlowContractId);
+
+            const timelineMonths = [];
+            const shortMonths = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
+            for (let i = 0; i < 24; i++) {
+                const mIdx = i % 12;
+                const yearOffset = Math.floor(i / 12);
+                const yr = (selectedYear + yearOffset).toString().substring(2);
+                timelineMonths.push(`${shortMonths[mIdx]}/${yr}`);
+            }
 
             const calculateSingleContractCashFlow = (contract: any, overrideConfig?: any) => {
                 const { cashFlow } = parseContractName(contract.name);
@@ -1520,16 +1525,16 @@ export default function ForecastPage() {
                 const startMonth = contract.startMonth;
                 const startMonthIdx = startMonth - 1;
 
-                const monthlyReceipts = Array(12).fill(0);
-                const monthlyPayrollOutflow = Array(12).fill(0);
-                const monthlyBenefitsOutflow = Array(12).fill(0);
-                const monthlyTaxesOutflow = Array(12).fill(0);
-                const monthlySetupOutflow = Array(12).fill(0);
-                const monthlyProvisionsOutflow = Array(12).fill(0);
+                const monthlyReceipts = Array(24).fill(0);
+                const monthlyPayrollOutflow = Array(24).fill(0);
+                const monthlyBenefitsOutflow = Array(24).fill(0);
+                const monthlyTaxesOutflow = Array(24).fill(0);
+                const monthlySetupOutflow = Array(24).fill(0);
+                const monthlyProvisionsOutflow = Array(24).fill(0);
 
                 const monthlyVal = contract.value * (contract.status === 'VENDIDO' ? 1.0 : contract.probability / 100.0);
 
-                for (let m = startMonthIdx; m < 12; m++) {
+                for (let m = startMonthIdx; m < 24; m++) {
                     const isFirstMonth = (m === startMonthIdx);
                     const fraction = isFirstMonth
                         ? Math.max(0.01, Math.min(1.0, (30 - (config.startDateDay ?? 20) + 1) / 30))
@@ -1550,19 +1555,19 @@ export default function ForecastPage() {
                     const invoiceMonth = (config.billingCycle === 'same_month') ? m : m + 1;
                     const paymentDelayMonths = Math.round((config.paymentTermDays ?? 30) / 30);
                     const receiptMonth = invoiceMonth + paymentDelayMonths;
-                    if (receiptMonth < 12) {
+                    if (receiptMonth < 24) {
                         monthlyReceipts[receiptMonth] += rev;
                     }
 
                     // 2. Taxes (Impostos)
                     const taxPaymentMonth = invoiceMonth + 1;
-                    if (taxPaymentMonth < 12) {
+                    if (taxPaymentMonth < 24) {
                         monthlyTaxesOutflow[taxPaymentMonth] += tax;
                     }
 
                     // 3. Payroll (Folha + Encargos)
                     const payrollPaymentMonth = m + 1;
-                    if (payrollPaymentMonth < 12) {
+                    if (payrollPaymentMonth < 24) {
                         monthlyPayrollOutflow[payrollPaymentMonth] += (labor + charges);
                     }
 
@@ -1572,7 +1577,7 @@ export default function ForecastPage() {
                         if (startDateDay <= 4) {
                             monthlyBenefitsOutflow[m] += benefits;
                         } else {
-                            if (m + 1 < 12) {
+                            if (m + 1 < 24) {
                                 monthlyBenefitsOutflow[m + 1] += benefits; // Deferred proportional
                             }
                         }
@@ -1596,17 +1601,17 @@ export default function ForecastPage() {
                 };
             };
 
-            let receipts = Array(12).fill(0);
-            let payroll = Array(12).fill(0);
-            let benefits = Array(12).fill(0);
-            let taxes = Array(12).fill(0);
-            let setup = Array(12).fill(0);
-            let provisions = Array(12).fill(0);
+            let receipts = Array(24).fill(0);
+            let payroll = Array(24).fill(0);
+            let benefits = Array(24).fill(0);
+            let taxes = Array(24).fill(0);
+            let setup = Array(24).fill(0);
+            let provisions = Array(24).fill(0);
 
             if (selectedCashFlowContractId === 'CONSOLIDADO') {
                 activeContracts.forEach(contract => {
                     const cf = calculateSingleContractCashFlow(contract);
-                    for (let i = 0; i < 12; i++) {
+                    for (let i = 0; i < 24; i++) {
                         receipts[i] += cf.receipts[i];
                         payroll[i] += cf.payroll[i];
                         benefits[i] += cf.benefits[i];
@@ -1642,15 +1647,15 @@ export default function ForecastPage() {
                 }
             }
 
-            const monthlyOutflows = Array(12).fill(0);
-            const netCashFlows = Array(12).fill(0);
-            const cumulativeCashFlows = Array(12).fill(0);
+            const monthlyOutflows = Array(24).fill(0);
+            const netCashFlows = Array(24).fill(0);
+            const cumulativeCashFlows = Array(24).fill(0);
             
             let cumulativeAcc = 0;
             let maxCashRequirement = 0;
             let paybackMonthIdx = -1;
 
-            for (let i = 0; i < 12; i++) {
+            for (let i = 0; i < 24; i++) {
                 monthlyOutflows[i] = payroll[i] + benefits[i] + taxes[i] + setup[i] + provisions[i];
                 netCashFlows[i] = receipts[i] - monthlyOutflows[i];
                 
@@ -1675,12 +1680,12 @@ export default function ForecastPage() {
             const range = (maxVal - minVal) || 10000;
             
             const chartPoints = cumulativeCashFlows.map((v, i) => {
-                const x = 80 + i * 85;
+                const x = 80 + i * 62.6;
                 const y = 175 - ((v - minVal) / range) * 120;
                 return `${x},${y}`;
             }).join(' ');
 
-            const zeroLineY = 150 - ((0 - minVal) / range) * 120;
+            const zeroLineY = 175 - ((0 - minVal) / range) * 120;
 
             return (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
@@ -1729,7 +1734,7 @@ export default function ForecastPage() {
                         <div style={{ padding: '1rem', background: 'linear-gradient(135deg, rgba(16, 185, 129, 0.1) 0%, rgba(16, 185, 129, 0.02) 100%)', borderRadius: '10px', border: '1px solid rgba(16, 185, 129, 0.25)', display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
                             <span style={{ fontSize: '0.65rem', color: 'var(--accent-green)', fontWeight: 800, textTransform: 'uppercase' }}>Prazo de Payback (Equilíbrio)</span>
                             <span style={{ fontSize: '1.25rem', fontWeight: 800, color: 'var(--accent-green)' }}>
-                                {paybackMonthIdx !== -1 ? `${paybackMonthIdx + 1}º mês` : 'Fora do Ano'}
+                                {paybackMonthIdx !== -1 ? `${timelineMonths[paybackMonthIdx]} (${paybackMonthIdx + 1}º mês)` : 'Fora dos 24 meses'}
                             </span>
                             <span style={{ fontSize: '0.65rem', color: 'var(--text-secondary)', fontWeight: 500 }}>Meses para recuperar o caixa inicial</span>
                         </div>
@@ -1901,16 +1906,16 @@ export default function ForecastPage() {
                                 </h5>
                                 
                                 <div style={{ width: '100%', height: '220px', display: 'flex', justifyContent: 'center', background: 'var(--bg-elevated)', borderRadius: '8px', padding: '0.5rem', border: '1px solid var(--border-subtle)' }}>
-                                    <svg viewBox="0 0 1100 220" width="100%" height="100%">
+                                    <svg viewBox="0 0 1600 220" width="100%" height="100%">
                                         {/* Grid lines */}
-                                        <line x1="60" y1="35" x2="1040" y2="35" stroke="var(--border-subtle)" strokeDasharray="3 3" />
-                                        <line x1="60" y1="105" x2="1040" y2="105" stroke="var(--border-subtle)" strokeDasharray="3 3" />
-                                        <line x1="60" y1="175" x2="1040" y2="175" stroke="var(--border-subtle)" strokeDasharray="3 3" />
+                                        <line x1="60" y1="35" x2="1540" y2="35" stroke="var(--border-subtle)" strokeDasharray="3 3" />
+                                        <line x1="60" y1="105" x2="1540" y2="105" stroke="var(--border-subtle)" strokeDasharray="3 3" />
+                                        <line x1="60" y1="175" x2="1540" y2="175" stroke="var(--border-subtle)" strokeDasharray="3 3" />
                                         
                                         {/* Horizontal Zero line */}
-                                        <line x1="60" y1={zeroLineY} x2="1040" y2={zeroLineY} stroke="var(--accent-orange)" strokeWidth="1.5" strokeDasharray="4 2" />
+                                        <line x1="60" y1={zeroLineY} x2="1540" y2={zeroLineY} stroke="var(--accent-orange)" strokeWidth="1.5" strokeDasharray="4 2" />
                                         <text x="70" y={zeroLineY - 5} fill="var(--accent-orange)" fontSize="9" fontWeight="bold">PONTO DE EQUILÍBRIO (ZERO)</text>
-
+ 
                                         {/* Cumulative line path */}
                                         <polyline
                                             fill="none"
@@ -1918,10 +1923,10 @@ export default function ForecastPage() {
                                             strokeWidth="3"
                                             points={chartPoints}
                                         />
-
+ 
                                         {/* Circular markers & text values */}
                                         {cumulativeCashFlows.map((v, i) => {
-                                            const x = 80 + i * 85;
+                                            const x = 80 + i * 62.6;
                                             const y = 175 - ((v - minVal) / range) * 120;
                                             const formattedVal = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 }).format(v);
                                             return (
@@ -1952,7 +1957,7 @@ export default function ForecastPage() {
                                                         fontSize="10"
                                                         fontWeight="700"
                                                     >
-                                                        {monthsName[i]}
+                                                        {timelineMonths[i]}
                                                     </text>
                                                 </g>
                                             );
@@ -1963,11 +1968,11 @@ export default function ForecastPage() {
 
                             {/* Detailed Table */}
                             <div className="glass-card" style={{ padding: '1rem', background: 'var(--bg-surface)', borderRadius: '12px', border: '1px solid var(--border-default)', overflowX: 'auto' }}>
-                                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.72rem', textAlign: 'left', minWidth: '1350px' }}>
+                                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.72rem', textAlign: 'left', minWidth: '2400px' }}>
                                     <thead>
                                         <tr style={{ borderBottom: '2px solid var(--border-default)', color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}>
                                             <th style={{ padding: '0.45rem', minWidth: '240px' }}>Fluxos de Caixa</th>
-                                            {monthsName.map((name, i) => (
+                                            {timelineMonths.map((name, i) => (
                                                 <th key={i} style={{ padding: '0.45rem', textAlign: 'right', width: '85px', minWidth: '85px' }}>{name}</th>
                                             ))}
                                             <th style={{ padding: '0.45rem', textAlign: 'right', width: '100px', minWidth: '100px' }}>Acumulado</th>
@@ -2096,7 +2101,6 @@ export default function ForecastPage() {
                             </div>
                         </div>
                     </div>
-                </div>
             );
         }
         // activeTab === 'simulator'

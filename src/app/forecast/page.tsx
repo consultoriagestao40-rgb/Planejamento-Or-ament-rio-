@@ -509,6 +509,16 @@ export default function ForecastPage() {
         fetchData();
     }, [fetchData]);
 
+    const handleRevenueAccountChange = (code: string, rawVal: string) => {
+        const valNum = parseFloat(rawVal) || 0;
+        setContractRevenueSplit(prev => {
+            const next = { ...prev, [code]: valNum };
+            const total = Object.values(next).reduce((sum, v) => sum + (v || 0), 0);
+            setContractValue(total);
+            return next;
+        });
+    };
+
     const handleSaveContract = async () => {
         if (!contractName.trim() || contractValue <= 0) {
             alert('Por favor, informe o nome e um valor válido.');
@@ -1442,13 +1452,7 @@ export default function ForecastPage() {
                                                         type="number"
                                                         placeholder="0.00"
                                                         value={valStr}
-                                                        onChange={(e) => {
-                                                            const valNum = parseFloat(e.target.value) || 0;
-                                                            const updated = { ...contractRevenueSplit, [code]: valNum };
-                                                            setContractRevenueSplit(updated);
-                                                            const total = Object.values(updated).reduce((sum, v) => sum + (v || 0), 0);
-                                                            setContractValue(total);
-                                                        }}
+                                                        onChange={(e) => handleRevenueAccountChange(code, e.target.value)}
                                                         style={{ width: '80px', height: '24px', padding: '0 0.25rem', borderRadius: '4px', border: '1px solid var(--border-default)', background: 'var(--bg-surface)', color: 'var(--text-primary)', fontSize: '0.7rem', fontWeight: 700 }}
                                                     />
                                                 </div>

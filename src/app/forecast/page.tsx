@@ -872,11 +872,20 @@ export default function ForecastPage() {
                         const budget = displayMode === 'projection' ? Array(12).fill(0) : [...cat.budget];
                         const forecast = [...cat.forecast];
                         if (displayMode === 'projection') {
+                            const isRevenueOrCostOrTax = 
+                                code.startsWith('01') || code.startsWith('1') ||
+                                code.startsWith('02') || code.startsWith('2') ||
+                                code.startsWith('03') || code.startsWith('3');
+
                             for (let i = 0; i < 12; i++) {
                                 if (i + 1 <= activeMonth) {
                                     forecast[i] = 0;
                                 } else {
-                                    forecast[i] = forecast[i] - cat.budget[i];
+                                    if (isRevenueOrCostOrTax) {
+                                        forecast[i] = forecast[i] - cat.budget[i];
+                                    } else {
+                                        forecast[i] = 0;
+                                    }
                                 }
                             }
                         }

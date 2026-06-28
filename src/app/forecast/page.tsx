@@ -682,7 +682,7 @@ export default function ForecastPage() {
     };
 
     const handleDeleteContract = async (id: string) => {
-        if (!confirm('Deseja excluir este contrato da simulação?')) return;
+        if (!confirm('Deseja excluir esta projeção de venda?')) return;
         try {
             const res = await fetch(`/api/kpi/forecast/contracts?id=${id}`, { method: 'DELETE' });
             const json = await res.json();
@@ -1082,7 +1082,7 @@ export default function ForecastPage() {
                                             <div>
                                                 <h4 style={{ margin: 0, fontSize: '0.95rem', fontWeight: 800 }}>Configuração de Percentuais (Análise Vertical)</h4>
                                                 <p style={{ margin: '0.2rem 0 0 0', fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
-                                                    Defina a porcentagem de cada subcategoria operacional em relação à Receita Bruta. Esses pesos serão multiplicados pelas vendas projetadas no simulador de contratos.
+                                                    Defina a porcentagem de cada subcategoria operacional em relação à Receita Bruta. Esses pesos serão multiplicados pelas vendas projetadas na Projeção de Novas Vendas.
                                                 </p>
                                                 {selectedTenant === 'ALL' && (
                                                     <div style={{ marginTop: '0.5rem', padding: '0.5rem 0.75rem', background: 'rgba(245, 158, 11, 0.1)', color: 'var(--accent-orange)', borderRadius: '6px', fontSize: '0.75rem', fontWeight: 700 }}>
@@ -1228,13 +1228,13 @@ export default function ForecastPage() {
                                 onClick={() => setViewingContractDetails(null)}
                                 style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', border: 'none', background: 'transparent', color: 'var(--accent-indigo)', cursor: 'pointer', fontSize: '0.8rem', fontWeight: 700, padding: 0, marginBottom: '0.5rem' }}
                             >
-                                ⬅️ Voltar para Contratos
+                                ⬅️ Voltar para Projeções
                             </button>
                             <h4 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 800 }}>
                                 📊 Detalhamento de Custos Mensais
                             </h4>
                             <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', fontWeight: 600 }}>
-                                Contrato: <strong>{viewingContractDetails.name.includes(' |__SPLIT__:') ? viewingContractDetails.name.substring(0, viewingContractDetails.name.indexOf(' |__SPLIT__:')) : viewingContractDetails.name}</strong> ({viewingContractDetails.tenant?.name || 'Empresa'})
+                                Venda: <strong>{viewingContractDetails.name.includes(' |__SPLIT__:') ? viewingContractDetails.name.substring(0, viewingContractDetails.name.indexOf(' |__SPLIT__:')) : viewingContractDetails.name}</strong> ({viewingContractDetails.tenant?.name || 'Empresa'})
                             </span>
                         </div>
                         <div style={{ display: 'flex', gap: '0.5rem' }}>
@@ -1349,9 +1349,9 @@ export default function ForecastPage() {
                                     <div className="glass-card" style={{ padding: '1.25rem', background: 'var(--bg-surface)', borderRadius: '12px', border: '1px solid var(--border-default)', display: 'flex', flexDirection: 'column', gap: '1rem', overflowX: 'auto' }}>
                                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                                             <div>
-                                                <h4 style={{ margin: 0, fontSize: '0.95rem', fontWeight: 800 }}>Simulador de Contratos Mensais</h4>
+                                                <h4 style={{ margin: 0, fontSize: '0.95rem', fontWeight: 800 }}>Projeção de Novas Vendas</h4>
                                                 <p style={{ margin: '0.2rem 0 0 0', fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
-                                                    Projete o faturamento mensal de novos contratos e vincule os respectivos vendedores. Os faturamentos e os custos simulados refletirão automaticamente no Forecast.
+                                                    Projete o faturamento mensal de novas vendas e vincule os respectivos vendedores. Os faturamentos e os custos projetados refletirão automaticamente no Forecast.
                                                 </p>
                                             </div>
                                             <button
@@ -1385,14 +1385,14 @@ export default function ForecastPage() {
                                                     boxShadow: '0 4px 12px rgba(99, 102, 241, 0.2)'
                                                 }}
                                             >
-                                                ➕ Adicionar Novo Contrato
+                                                ➕ Adicionar Nova Venda
                                             </button>
                                         </div>
             
                                         <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.75rem', textAlign: 'left', minWidth: '1000px' }}>
                                             <thead>
                                                 <tr style={{ borderBottom: '2px solid var(--border-default)', color: 'var(--text-secondary)' }}>
-                                                    <th style={{ padding: '0.5rem', minWidth: '150px' }}>Contrato - Cliente</th>
+                                                    <th style={{ padding: '0.5rem', minWidth: '150px' }}>Venda - Cliente</th>
                                                     <th style={{ padding: '0.5rem', minWidth: '120px' }}>Vendedor</th>
                                                     <th style={{ padding: '0.5rem', minWidth: '100px', textAlign: 'center' }}>Probabilidade - Status</th>
                                                     {monthsName.map((name, i) => (
@@ -1407,7 +1407,7 @@ export default function ForecastPage() {
                                                 {contracts.length === 0 ? (
                                                     <tr>
                                                         <td colSpan={16} style={{ padding: '3rem', textAlign: 'center', color: 'var(--text-secondary)' }}>
-                                                            Nenhum contrato simulado. Clique em "Adicionar Novo Contrato" para iniciar.
+                                                            Nenhuma venda projetada. Clique em "Adicionar Nova Venda" para iniciar.
                                                         </td>
                                                     </tr>
                                                 ) :
@@ -1454,7 +1454,7 @@ export default function ForecastPage() {
                                                                     <div style={{ display: 'flex', gap: '0.4rem', justifyContent: 'center' }}>
                                                                         <button
                                                                             onClick={() => setViewingContractDetails(contract)}
-                                                                            title="Visualizar Custos DRE do Contrato"
+                                                                            title="Visualizar Custos DRE da Venda"
                                                                             style={{ border: 'none', background: 'transparent', cursor: 'pointer', fontSize: '0.85rem', padding: 0 }}
                                                                         >
                                                                             👁️
@@ -1473,14 +1473,14 @@ export default function ForecastPage() {
                                                                                 setContractRevenueSplit(splitObj);
                                                                                 setIsContractModalOpen(true);
                                                                             }}
-                                                                            title="Editar Contrato"
+                                                                            title="Editar Venda"
                                                                             style={{ border: 'none', background: 'transparent', cursor: 'pointer', fontSize: '0.85rem', padding: 0 }}
                                                                         >
                                                                             ✏️
                                                                         </button>
                                                                         <button
                                                                             onClick={() => handleDeleteContract(contract.id)}
-                                                                            title="Excluir Contrato"
+                                                                            title="Excluir Venda"
                                                                             style={{ border: 'none', background: 'transparent', cursor: 'pointer', fontSize: '0.85rem', padding: 0 }}
                                                                         >
                                                                             🗑️
@@ -1526,7 +1526,7 @@ export default function ForecastPage() {
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
                 <div>
                     <h2 style={{ margin: 0, fontSize: '1.5rem', fontWeight: 800 }}>🔮 Projeção Forecast</h2>
-                    <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>Acompanhe o realizado consolidado e simule novos contratos para os meses restantes.</span>
+                    <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>Acompanhe o realizado consolidado e projete novas vendas para os meses restantes.</span>
                 </div>
                 <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
                     {/* Company selector */}
@@ -1590,7 +1590,7 @@ export default function ForecastPage() {
                                 boxShadow: '0 4px 12px rgba(99, 102, 241, 0.2)'
                             }}
                         >
-                            🚀 Simulador ({contracts.length})
+                            🚀 Novas Vendas ({contracts.length})
                         </button>
                     </div>
                 </div>
@@ -1621,7 +1621,7 @@ export default function ForecastPage() {
                                 onClick={() => setActiveTab('simulator')}
                                 style={{ padding: '0.5rem 1rem', borderRadius: '8px', border: 'none', background: activeTab === 'simulator' ? 'var(--accent-indigo)' : 'transparent', color: activeTab === 'simulator' ? '#ffffff' : 'var(--text-secondary)', fontWeight: 700, cursor: 'pointer' }}
                             >
-                                🚀 Simulador de Contratos ({contracts.length})
+                                🚀 Projeção de Novas Vendas ({contracts.length})
                             </button>
                         </div>
                         {activeTab === 'grid' && (
@@ -1661,7 +1661,7 @@ export default function ForecastPage() {
             {isContractModalOpen && (
                 <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', zIndex: 20000, display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
                     <div className="glass-card" style={{ width: '680px', padding: '1.75rem', background: 'var(--bg-surface)', borderRadius: '16px', border: '1px solid var(--border-default)', display: 'flex', flexDirection: 'column', gap: '1.25rem', boxShadow: '0 20px 25px -5px rgba(0,0,0,0.3), 0 10px 10px -5px rgba(0,0,0,0.3)' }}>
-                        <h4 style={{ margin: 0, fontSize: '1.15rem', fontWeight: 800 }}>{editingContractId ? '✏️ Editar Contrato' : '➕ Novo Contrato de Simulação'}</h4>
+                        <h4 style={{ margin: 0, fontSize: '1.15rem', fontWeight: 800 }}>{editingContractId ? '✏️ Editar Projeção' : '➕ Nova Projeção de Venda'}</h4>
                         
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
                             {/* Row 1: Empresa & Cliente */}
@@ -1798,7 +1798,7 @@ export default function ForecastPage() {
 
                                     {/* Total Value Display */}
                                     <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem', marginTop: '0.5rem' }}>
-                                        <label style={{ fontSize: '0.7rem', fontWeight: 700, color: 'var(--text-secondary)' }}>Valor Mensal Total do Contrato</label>
+                                        <label style={{ fontSize: '0.7rem', fontWeight: 700, color: 'var(--text-secondary)' }}>Valor Mensal Total da Venda</label>
                                         <input
                                             type="text"
                                             readOnly
@@ -1811,7 +1811,7 @@ export default function ForecastPage() {
                                 {/* Right Side: Added list */}
                                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
                                     <label style={{ fontSize: '0.7rem', fontWeight: 700, color: 'var(--text-primary)' }}>
-                                        Contas Lançadas no Contrato
+                                        Contas Lançadas na Venda
                                     </label>
                                     <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', height: '170px', overflowY: 'auto', padding: '0.5rem', background: 'var(--bg-elevated)', borderRadius: '8px', border: '1px solid var(--border-subtle)' }}>
                                         {Object.entries(contractRevenueSplit).filter(([_, val]) => val > 0).length === 0 ? (

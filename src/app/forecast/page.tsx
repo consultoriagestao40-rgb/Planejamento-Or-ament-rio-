@@ -696,12 +696,12 @@ export default function ForecastPage() {
         if (!silent) setLoadingData(true);
         try {
             // Fetch contracts
-            const resC = await fetch(`/api/kpi/forecast/contracts?tenantId=${selectedTenant}&year=${selectedYear}`);
+            const resC = await fetch(`/api/kpi/forecast/contracts?tenantId=${selectedTenant}&year=${selectedYear}&t=${Date.now()}`);
             const jsonC = await resC.json();
             if (jsonC.success) setContracts(jsonC.data || []);
 
             // Fetch coefficients
-            const resCoef = await fetch(`/api/kpi/forecast/coefficients?tenantId=${selectedTenant}&year=${selectedYear}`);
+            const resCoef = await fetch(`/api/kpi/forecast/coefficients?tenantId=${selectedTenant}&year=${selectedYear}&t=${Date.now()}`);
             const jsonCoef = await resCoef.json();
             if (jsonCoef.success) setCoefficients(jsonCoef.data || []);
 
@@ -1737,18 +1737,13 @@ export default function ForecastPage() {
                     </div>
 
                     {/* Main Layout Grid */}
-                    <div style={{ display: 'grid', gridTemplateColumns: '320px 1fr', gap: '1rem', alignItems: 'start' }}>
+                    <div style={{ display: 'grid', gridTemplateColumns: selectedCashFlowContractId === 'CONSOLIDADO' ? '1fr' : '320px 1fr', gap: '1rem', alignItems: 'start' }}>
                         {/* Left Side: Premisses Panel */}
-                        <div className="glass-card" style={{ padding: '1.25rem', background: 'var(--bg-surface)', borderRadius: '12px', border: '1px solid var(--border-default)', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                            <h5 style={{ margin: 0, fontSize: '0.85rem', fontWeight: 800, borderBottom: '1px solid var(--border-subtle)', paddingBottom: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
-                                📋 Área de Premissas
-                            </h5>
-
-                            {selectedCashFlowContractId === 'CONSOLIDADO' ? (
-                                <div style={{ padding: '1rem', background: 'rgba(99, 102, 241, 0.05)', color: 'var(--text-secondary)', borderRadius: '8px', fontSize: '0.75rem', lineHeight: '1.4', fontWeight: 600 }}>
-                                    💡 Você está no modo <strong>Consolidado</strong>. As premissas individuais de cada contrato cadastrado no simulador foram unificadas no resultado gráfico ao lado. Selecione um contrato no filtro acima para editar ou customizar seus fluxos específicos.
-                                </div>
-                            ) : (
+                        {selectedCashFlowContractId !== 'CONSOLIDADO' && (
+                            <div className="glass-card" style={{ padding: '1.25rem', background: 'var(--bg-surface)', borderRadius: '12px', border: '1px solid var(--border-default)', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                                <h5 style={{ margin: 0, fontSize: '0.85rem', fontWeight: 800, borderBottom: '1px solid var(--border-subtle)', paddingBottom: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
+                                    📋 Área de Premissas
+                                </h5>
                                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem', fontSize: '0.75rem' }}>
                                     {/* Início & Faturamento */}
                                     <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>

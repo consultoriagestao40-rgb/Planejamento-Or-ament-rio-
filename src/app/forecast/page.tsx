@@ -2157,7 +2157,7 @@ export default function ForecastPage() {
             const custosOp = displayCashFlowGrid.find(r => r.categoryId === 'G-03');
             let totalInflow = 0;
             let totalOutflow = 0;
-            for (let i = 0; i < 24; i++) {
+            for (let i = 0; i < visibleMonthsCount; i++) {
                 totalInflow += recBruta?.forecast[i] || 0;
                 totalOutflow += (tributos?.forecast[i] || 0) + (custosOp?.forecast[i] || 0);
             }
@@ -2172,13 +2172,16 @@ export default function ForecastPage() {
                 }
             }
 
+            const visibleMonthsCount = paybackMonthIdx !== -1 ? (paybackMonthIdx + 1) : 24;
+            const visibleCashFlows = cumulativeCashFlows.slice(0, visibleMonthsCount);
+
             // SVG Line Chart coordinates calculation
-            const maxVal = Math.max(...cumulativeCashFlows, 0);
-            const minVal = Math.min(...cumulativeCashFlows, 0);
+            const maxVal = Math.max(...visibleCashFlows, 0);
+            const minVal = Math.min(...visibleCashFlows, 0);
             const range = (maxVal - minVal) || 10000;
             
-            const chartPoints = cumulativeCashFlows.map((v, i) => {
-                const x = 80 + i * 62.6;
+            const chartPoints = visibleCashFlows.map((v, i) => {
+                const x = 80 + (visibleMonthsCount > 1 ? (i * (1440 / (visibleMonthsCount - 1))) : 0);
                 const y = 175 - ((v - minVal) / range) * 120;
                 return `${x},${y}`;
             }).join(' ');
@@ -2434,8 +2437,8 @@ export default function ForecastPage() {
                                         />
  
                                         {/* Circular markers & text values */}
-                                        {cumulativeCashFlows.map((v, i) => {
-                                            const x = 80 + i * 62.6;
+                                        {visibleCashFlows.map((v, i) => {
+                                            const x = 80 + (visibleMonthsCount > 1 ? (i * (1440 / (visibleMonthsCount - 1))) : 0);
                                             const y = 175 - ((v - minVal) / range) * 120;
                                             const formattedVal = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 }).format(v);
                                             return (
@@ -2477,10 +2480,10 @@ export default function ForecastPage() {
 
                             {/* Detailed Table */}
                             <div className="glass-card" style={{ padding: '1rem 0', background: 'var(--bg-surface)', borderRadius: '12px', border: '1px solid var(--border-default)', overflowX: 'auto' }}>
-                                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.72rem', textAlign: 'left', minWidth: '2400px', tableLayout: 'fixed' }}>
+                                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.72rem', textAlign: 'left', minWidth: `${340 + visibleMonthsCount * 85 + 100}px`, tableLayout: 'fixed' }}>
                                     <colgroup>
                                         <col style={{ width: '340px', minWidth: '340px' }} />
-                                        {timelineMonths.map((_, i) => (
+                                        {timelineMonths.slice(0, visibleMonthsCount).map((_, i) => (
                                             <col key={i} style={{ width: '85px', minWidth: '85px' }} />
                                         ))}
                                         <col style={{ width: '100px', minWidth: '100px' }} />
@@ -2488,7 +2491,7 @@ export default function ForecastPage() {
                                     <thead>
                                         <tr style={{ borderBottom: '2px solid var(--border-default)', color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}>
                                             <th style={{ padding: '0.45rem 0.45rem 0.45rem 1.25rem', position: 'sticky', left: 0, backgroundColor: 'var(--bg-surface)', zIndex: 30, borderRight: '1px solid var(--border-subtle)', boxShadow: '2px 2px 5px -2px rgba(0,0,0,0.15)' }}>Fluxos de Caixa</th>
-                                            {timelineMonths.map((name, i) => (
+                                            {timelineMonths.slice(0, visibleMonthsCount).map((name, i) => (
                                                 <th key={i} style={{ padding: '0.45rem', textAlign: 'right' }}>{name}</th>
                                             ))}
                                             <th style={{ padding: '0.45rem', textAlign: 'right', fontWeight: 800 }}>Acumulado</th>
@@ -2547,7 +2550,7 @@ export default function ForecastPage() {
                                                             {row.categoryName}
                                                         </span>
                                                     </td>
-                                                    {row.forecast.map((val: number, i: number) => {
+                                                    {row.forecast.slice(0, visibleMonthsCount).map((val: number, i: number) => {
                                                         const isZero = Math.abs(val) < 0.01;
                                                         let cellColor = 'var(--text-secondary)';
                                                         if (!isZero) {

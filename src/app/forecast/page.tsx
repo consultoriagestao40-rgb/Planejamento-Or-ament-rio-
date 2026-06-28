@@ -1495,7 +1495,8 @@ export default function ForecastPage() {
                                                                         <td 
                                                                             onClick={() => setDrillDownCell({ categoryId: row.categoryId, categoryName: row.categoryName, monthIndex: i, monthName: monthsName[i], value: val })}
                                                                             title="Clique para ver a composição deste valor"
-                                                                            style={{ padding: '0.6rem 0.5rem', textAlign: 'right', whiteSpace: 'nowrap', cursor: 'pointer', color: 'var(--accent-indigo)', fontWeight: isFormula ? 800 : 700 }}
+                                                                            className="dre-cell-clickable"
+                                                                            style={{ padding: '0.6rem 0.5rem', textAlign: 'right', whiteSpace: 'nowrap', fontWeight: isFormula ? 800 : 700 }}
                                                                         >
                                                                             {fmt(val)}
                                                                         </td>
@@ -2658,6 +2659,16 @@ export default function ForecastPage() {
 
     return (
         <div style={{ padding: '2rem', display: 'flex', flexDirection: 'column', gap: '1.5rem', width: '100%', boxSizing: 'border-box', background: 'var(--bg-default)', color: 'var(--text-primary)' }}>
+            <style>{`
+                .dre-cell-clickable {
+                    cursor: pointer;
+                    transition: opacity 0.2s;
+                }
+                .dre-cell-clickable:hover {
+                    text-decoration: underline;
+                    opacity: 0.75;
+                }
+            `}</style>
             
             {/* Header / Selectors */}
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>

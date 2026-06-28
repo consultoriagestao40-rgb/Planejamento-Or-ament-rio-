@@ -1628,17 +1628,17 @@ export default function ForecastPage() {
                                 } else {
                                     const defaultPcts: Record<string, number> = {
                                         '02.1.1': config.taxesPct ?? 12.5,
-                                        '03.1.1': config.laborPct ?? 30.4,
+                                        '03.1.1': 30.4,
                                         '03.1.2': 1.4,
                                         '03.1.3': 0.3,
                                         '03.1.5': 0.5,
                                         '03.1.10': 1.6,
-                                        '03.2.1': config.chargesPct ?? 2.7,
+                                        '03.2.1': 2.7,
                                         '03.2.2': 2.8,
                                         '03.2.3': 3.8,
                                         '03.2.4': 1.1,
                                         '03.2.6': 5.5,
-                                        '03.3.1': config.benefitsPct ?? 2.9,
+                                        '03.3.1': 2.9,
                                         '03.3.2': 11.3,
                                         '03.3.4': 0.9,
                                         '03.3.6': 0.9,
@@ -1655,7 +1655,19 @@ export default function ForecastPage() {
                                         '03.9.3': 0.1,
                                         '03.9.8': 0.2
                                     };
-                                    coefPct = defaultPcts[code] || 0;
+                                    const rawVal = defaultPcts[code] || 0;
+                                    if (code.startsWith('03.1') || code === '03.1') {
+                                        const scale = (config.laborPct ?? 34.2) / 34.2;
+                                        coefPct = rawVal * scale;
+                                    } else if (code.startsWith('03.2') || code === '03.2') {
+                                        const scale = (config.chargesPct ?? 15.9) / 15.9;
+                                        coefPct = rawVal * scale;
+                                    } else if (code.startsWith('03.3') || code === '03.3') {
+                                        const scale = (config.benefitsPct ?? 16.1) / 16.1;
+                                        coefPct = rawVal * scale;
+                                    } else {
+                                        coefPct = rawVal;
+                                    }
                                 }
                             }
 

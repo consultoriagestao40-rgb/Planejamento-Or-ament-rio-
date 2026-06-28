@@ -1880,8 +1880,8 @@ export default function ForecastPage() {
                                         </div>
                                     </div>
                                 </div>
-                            )}
-                        </div>
+                            </div>
+                        )}
 
                         {/* Right Side: Chart & Table */}
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>

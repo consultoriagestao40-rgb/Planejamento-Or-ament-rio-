@@ -1962,131 +1962,131 @@ export default function ForecastPage() {
 
                             {/* Detailed Table */}
                             <div className="glass-card" style={{ padding: '1rem', background: 'var(--bg-surface)', borderRadius: '12px', border: '1px solid var(--border-default)', overflowX: 'auto' }}>
-                                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.72rem', textAlign: 'left', minWidth: '850px' }}>
+                                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.72rem', textAlign: 'left', minWidth: '1350px' }}>
                                     <thead>
-                                        <tr style={{ borderBottom: '2px solid var(--border-default)', color: 'var(--text-secondary)' }}>
-                                            <th style={{ padding: '0.45rem' }}>Fluxos de Caixa</th>
+                                        <tr style={{ borderBottom: '2px solid var(--border-default)', color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}>
+                                            <th style={{ padding: '0.45rem', minWidth: '240px' }}>Fluxos de Caixa</th>
                                             {monthsName.map((name, i) => (
-                                                <th key={i} style={{ padding: '0.45rem', textAlign: 'right', width: '65px' }}>{name}</th>
+                                                <th key={i} style={{ padding: '0.45rem', textAlign: 'right', width: '85px', minWidth: '85px' }}>{name}</th>
                                             ))}
-                                            <th style={{ padding: '0.45rem', textAlign: 'right', width: '85px' }}>Acumulado</th>
+                                            <th style={{ padding: '0.45rem', textAlign: 'right', width: '100px', minWidth: '100px' }}>Acumulado</th>
                                         </tr>
                                     </thead>
                                     <tbody>
                                         {/* Inflow Row */}
-                                        <tr style={{ borderBottom: '1px solid var(--border-subtle)' }}>
-                                            <td style={{ padding: '0.5rem 0.45rem', fontWeight: 700, color: 'var(--accent-green)' }}>
+                                        <tr style={{ borderBottom: '1px solid var(--border-subtle)', whiteSpace: 'nowrap' }}>
+                                            <td style={{ padding: '0.5rem 0.45rem', fontWeight: 700, color: 'var(--accent-green)', whiteSpace: 'nowrap' }}>
                                                 (+) Recebimento de Clientes
                                             </td>
                                             {receipts.map((v, i) => (
-                                                <td key={i} style={{ padding: '0.5rem 0.45rem', textAlign: 'right', color: v > 0 ? 'var(--text-primary)' : 'var(--text-secondary)' }}>
+                                                <td key={i} style={{ padding: '0.5rem 0.45rem', textAlign: 'right', color: v > 0 ? 'var(--text-primary)' : 'var(--text-secondary)', whiteSpace: 'nowrap' }}>
                                                     {v > 0 ? fmt(v) : '-'}
                                                 </td>
                                             ))}
-                                            <td style={{ padding: '0.5rem 0.45rem', textAlign: 'right', fontWeight: 800, color: 'var(--accent-green)' }}>
+                                            <td style={{ padding: '0.5rem 0.45rem', textAlign: 'right', fontWeight: 800, color: 'var(--accent-green)', whiteSpace: 'nowrap' }}>
                                                 {fmt(totalInflow)}
                                             </td>
                                         </tr>
 
                                         {/* Outflows Rows */}
-                                        <tr style={{ borderBottom: '1px solid var(--border-subtle)' }}>
-                                            <td style={{ padding: '0.5rem 0.45rem', paddingLeft: '1rem', color: 'var(--text-secondary)' }}>
+                                        <tr style={{ borderBottom: '1px solid var(--border-subtle)', whiteSpace: 'nowrap' }}>
+                                            <td style={{ padding: '0.5rem 0.45rem', paddingLeft: '1rem', color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}>
                                                 (-) Implantação (EPIs / Equip. / Prod.)
                                             </td>
                                             {setup.map((v, i) => (
-                                                <td key={i} style={{ padding: '0.5rem 0.45rem', textAlign: 'right', color: v > 0 ? 'var(--accent-red)' : 'var(--text-secondary)' }}>
+                                                <td key={i} style={{ padding: '0.5rem 0.45rem', textAlign: 'right', color: v > 0 ? 'var(--accent-red)' : 'var(--text-secondary)', whiteSpace: 'nowrap' }}>
                                                     {v > 0 ? fmt(v) : '-'}
                                                 </td>
                                             ))}
-                                            <td style={{ padding: '0.5rem 0.45rem', textAlign: 'right', color: 'var(--text-primary)' }}>
+                                            <td style={{ padding: '0.5rem 0.45rem', textAlign: 'right', color: 'var(--text-primary)', whiteSpace: 'nowrap' }}>
                                                 {fmt(setup.reduce((s, v) => s + v, 0))}
                                             </td>
                                         </tr>
 
-                                        <tr style={{ borderBottom: '1px solid var(--border-subtle)' }}>
-                                            <td style={{ padding: '0.5rem 0.45rem', paddingLeft: '1rem', color: 'var(--text-secondary)' }}>
+                                        <tr style={{ borderBottom: '1px solid var(--border-subtle)', whiteSpace: 'nowrap' }}>
+                                            <td style={{ padding: '0.5rem 0.45rem', paddingLeft: '1rem', color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}>
                                                 (-) Salários & Encargos Sociais
                                             </td>
                                             {payroll.map((v, i) => (
-                                                <td key={i} style={{ padding: '0.5rem 0.45rem', textAlign: 'right', color: v > 0 ? 'var(--text-primary)' : 'var(--text-secondary)' }}>
+                                                <td key={i} style={{ padding: '0.5rem 0.45rem', textAlign: 'right', color: v > 0 ? 'var(--text-primary)' : 'var(--text-secondary)', whiteSpace: 'nowrap' }}>
                                                     {v > 0 ? fmt(v) : '-'}
                                                 </td>
                                             ))}
-                                            <td style={{ padding: '0.5rem 0.45rem', textAlign: 'right', color: 'var(--text-primary)' }}>
+                                            <td style={{ padding: '0.5rem 0.45rem', textAlign: 'right', color: 'var(--text-primary)', whiteSpace: 'nowrap' }}>
                                                 {fmt(payroll.reduce((s, v) => s + v, 0))}
                                             </td>
                                         </tr>
 
-                                        <tr style={{ borderBottom: '1px solid var(--border-subtle)' }}>
-                                            <td style={{ padding: '0.5rem 0.45rem', paddingLeft: '1rem', color: 'var(--text-secondary)' }}>
+                                        <tr style={{ borderBottom: '1px solid var(--border-subtle)', whiteSpace: 'nowrap' }}>
+                                            <td style={{ padding: '0.5rem 0.45rem', paddingLeft: '1rem', color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}>
                                                 (-) Benefícios (VA / VT)
                                             </td>
                                             {benefits.map((v, i) => (
-                                                <td key={i} style={{ padding: '0.5rem 0.45rem', textAlign: 'right', color: v > 0 ? 'var(--text-primary)' : 'var(--text-secondary)' }}>
+                                                <td key={i} style={{ padding: '0.5rem 0.45rem', textAlign: 'right', color: v > 0 ? 'var(--text-primary)' : 'var(--text-secondary)', whiteSpace: 'nowrap' }}>
                                                     {v > 0 ? fmt(v) : '-'}
                                                 </td>
                                             ))}
-                                            <td style={{ padding: '0.5rem 0.45rem', textAlign: 'right', color: 'var(--text-primary)' }}>
+                                            <td style={{ padding: '0.5rem 0.45rem', textAlign: 'right', color: 'var(--text-primary)', whiteSpace: 'nowrap' }}>
                                                 {fmt(benefits.reduce((s, v) => s + v, 0))}
                                             </td>
                                         </tr>
 
-                                        <tr style={{ borderBottom: '1px solid var(--border-subtle)' }}>
-                                            <td style={{ padding: '0.5rem 0.45rem', paddingLeft: '1rem', color: 'var(--text-secondary)' }}>
+                                        <tr style={{ borderBottom: '1px solid var(--border-subtle)', whiteSpace: 'nowrap' }}>
+                                            <td style={{ padding: '0.5rem 0.45rem', paddingLeft: '1rem', color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}>
                                                 (-) Impostos sobre Faturamento
                                             </td>
                                             {taxes.map((v, i) => (
-                                                <td key={i} style={{ padding: '0.5rem 0.45rem', textAlign: 'right', color: v > 0 ? 'var(--text-primary)' : 'var(--text-secondary)' }}>
+                                                <td key={i} style={{ padding: '0.5rem 0.45rem', textAlign: 'right', color: v > 0 ? 'var(--text-primary)' : 'var(--text-secondary)', whiteSpace: 'nowrap' }}>
                                                     {v > 0 ? fmt(v) : '-'}
                                                 </td>
                                             ))}
-                                            <td style={{ padding: '0.5rem 0.45rem', textAlign: 'right', color: 'var(--text-primary)' }}>
+                                            <td style={{ padding: '0.5rem 0.45rem', textAlign: 'right', color: 'var(--text-primary)', whiteSpace: 'nowrap' }}>
                                                 {fmt(taxes.reduce((s, v) => s + v, 0))}
                                             </td>
                                         </tr>
 
                                         {cfProvisionPayroll && (
-                                            <tr style={{ borderBottom: '1px solid var(--border-subtle)' }}>
-                                                <td style={{ padding: '0.5rem 0.45rem', paddingLeft: '1rem', color: 'var(--text-secondary)' }}>
+                                            <tr style={{ borderBottom: '1px solid var(--border-subtle)', whiteSpace: 'nowrap' }}>
+                                                <td style={{ padding: '0.5rem 0.45rem', paddingLeft: '1rem', color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}>
                                                     (-) Provisão Caixa (13º e Férias)
                                                 </td>
                                                 {provisions.map((v, i) => (
-                                                    <td key={i} style={{ padding: '0.5rem 0.45rem', textAlign: 'right', color: v > 0 ? 'var(--text-primary)' : 'var(--text-secondary)' }}>
+                                                    <td key={i} style={{ padding: '0.5rem 0.45rem', textAlign: 'right', color: v > 0 ? 'var(--text-primary)' : 'var(--text-secondary)', whiteSpace: 'nowrap' }}>
                                                         {v > 0 ? fmt(v) : '-'}
                                                     </td>
                                                 ))}
-                                                <td style={{ padding: '0.5rem 0.45rem', textAlign: 'right', color: 'var(--text-primary)' }}>
+                                                <td style={{ padding: '0.5rem 0.45rem', textAlign: 'right', color: 'var(--text-primary)', whiteSpace: 'nowrap' }}>
                                                     {fmt(provisions.reduce((s, v) => s + v, 0))}
                                                 </td>
                                             </tr>
                                         )}
 
                                         {/* Summary Net Flow */}
-                                        <tr style={{ borderBottom: '2px solid var(--border-default)', background: 'var(--bg-elevated)' }}>
-                                            <td style={{ padding: '0.55rem 0.45rem', fontWeight: 800 }}>
+                                        <tr style={{ borderBottom: '2px solid var(--border-default)', background: 'var(--bg-elevated)', whiteSpace: 'nowrap' }}>
+                                            <td style={{ padding: '0.55rem 0.45rem', fontWeight: 800, whiteSpace: 'nowrap' }}>
                                                 (=) Saldo de Caixa Mensal (Líquido)
                                             </td>
                                             {netCashFlows.map((v, i) => (
-                                                <td key={i} style={{ padding: '0.55rem 0.45rem', textAlign: 'right', fontWeight: 800, color: v > 0 ? 'var(--accent-green)' : v < 0 ? 'var(--accent-red)' : 'var(--text-secondary)' }}>
+                                                <td key={i} style={{ padding: '0.55rem 0.45rem', textAlign: 'right', fontWeight: 800, color: v > 0 ? 'var(--accent-green)' : v < 0 ? 'var(--accent-red)' : 'var(--text-secondary)', whiteSpace: 'nowrap' }}>
                                                     {v !== 0 ? fmt(v) : '-'}
                                                 </td>
                                             ))}
-                                            <td style={{ padding: '0.55rem 0.45rem', textAlign: 'right', fontWeight: 800, color: (totalInflow - totalOutflow) >= 0 ? 'var(--accent-green)' : 'var(--accent-red)' }}>
+                                            <td style={{ padding: '0.55rem 0.45rem', textAlign: 'right', fontWeight: 800, color: (totalInflow - totalOutflow) >= 0 ? 'var(--accent-green)' : 'var(--accent-red)', whiteSpace: 'nowrap' }}>
                                                 {fmt(totalInflow - totalOutflow)}
                                             </td>
                                         </tr>
 
                                         {/* Cumulative Row */}
-                                        <tr style={{ background: 'rgba(99, 102, 241, 0.06)' }}>
-                                            <td style={{ padding: '0.55rem 0.45rem', fontWeight: 800, color: 'var(--accent-indigo)' }}>
+                                        <tr style={{ background: 'rgba(99, 102, 241, 0.06)', whiteSpace: 'nowrap' }}>
+                                            <td style={{ padding: '0.55rem 0.45rem', fontWeight: 800, color: 'var(--accent-indigo)', whiteSpace: 'nowrap' }}>
                                                 (累積) Saldo de Caixa Acumulado
                                             </td>
                                             {cumulativeCashFlows.map((v, i) => (
-                                                <td key={i} style={{ padding: '0.55rem 0.45rem', textAlign: 'right', fontWeight: 800, color: v >= 0 ? 'var(--accent-green)' : 'var(--accent-red)' }}>
+                                                <td key={i} style={{ padding: '0.55rem 0.45rem', textAlign: 'right', fontWeight: 800, color: v >= 0 ? 'var(--accent-green)' : 'var(--accent-red)', whiteSpace: 'nowrap' }}>
                                                     {fmt(v)}
                                                 </td>
                                             ))}
-                                            <td style={{ padding: '0.55rem 0.45rem', textAlign: 'right', fontWeight: 800, color: 'var(--accent-indigo)' }}>
+                                            <td style={{ padding: '0.55rem 0.45rem', textAlign: 'right', fontWeight: 800, color: 'var(--accent-indigo)', whiteSpace: 'nowrap' }}>
                                                 -
                                             </td>
                                         </tr>

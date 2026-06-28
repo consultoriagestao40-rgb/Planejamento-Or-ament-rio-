@@ -284,44 +284,51 @@ export async function GET(request: Request) {
                     const isRevenue = catInfo.type === 'REVENUE' || matchedCatIds.some(id => grossRevIds.includes(id));
                     let simulatedImpact = 0;
 
-                    if (isRevenue) {
-                        contracts.forEach(contract => {
-                            if (monthNum >= contract.startMonth) {
-                                const multiplier = contract.status === 'VENDIDO' ? 1.0 : (contract.probability / 100.0);
-                                let customSplit: Record<string, number> = {};
-                                let hasCustomSplit = false;
-                                if (contract.name.includes(' |__SPLIT__:')) {
-                                    try {
-                                        const parts = contract.name.split(' |__SPLIT__:');
-                                        const rest = parts[1];
-                                        const splitStr = rest.includes(' |__SELLER__:') ? rest.split(' |__SELLER__:')[0] : rest;
-                                        customSplit = JSON.parse(splitStr);
-                                        hasCustomSplit = true;
-                                    } catch (e) {
-                                        console.error('Failed to parse split JSON:', e);
+                    const isRevenueOrCostOrTax = 
+                        code.startsWith('01') || code.startsWith('1') ||
+                        code.startsWith('02') || code.startsWith('2') ||
+                        code.startsWith('03') || code.startsWith('3');
+
+                    if (isRevenueOrCostOrTax) {
+                        if (isRevenue) {
+                            contracts.forEach(contract => {
+                                if (monthNum >= contract.startMonth) {
+                                    const multiplier = contract.status === 'VENDIDO' ? 1.0 : (contract.probability / 100.0);
+                                    let customSplit: Record<string, number> = {};
+                                    let hasCustomSplit = false;
+                                    if (contract.name.includes(' |__SPLIT__:')) {
+                                        try {
+                                            const parts = contract.name.split(' |__SPLIT__:');
+                                            const rest = parts[1];
+                                            const splitStr = rest.includes(' |__SELLER__:') ? rest.split(' |__SELLER__:')[0] : rest;
+                                            customSplit = JSON.parse(splitStr);
+                                            hasCustomSplit = true;
+                                        } catch (e) {
+                                            console.error('Failed to parse split JSON:', e);
+                                        }
+                                    }
+
+                                    if (hasCustomSplit) {
+                                        const splitVal = customSplit[code] || 0;
+                                        simulatedImpact += splitVal * multiplier;
+                                    } else {
+                                        // Fallback: split based on coefficient
+                                        const coef = coefMap.get(code) || 0;
+                                        simulatedImpact += contract.value * coef * multiplier;
                                     }
                                 }
-
-                                if (hasCustomSplit) {
-                                    const splitVal = customSplit[code] || 0;
-                                    simulatedImpact += splitVal * multiplier;
-                                } else {
-                                    // Fallback: split based on coefficient
-                                    const coef = coefMap.get(code) || 0;
-                                    simulatedImpact += contract.value * coef * multiplier;
+                            });
+                        } else {
+                            let totalSimulatedRevenue = 0;
+                            contracts.forEach(contract => {
+                                if (monthNum >= contract.startMonth) {
+                                    const multiplier = contract.status === 'VENDIDO' ? 1.0 : (contract.probability / 100.0);
+                                    totalSimulatedRevenue += contract.value * multiplier;
                                 }
-                            }
-                        });
-                    } else {
-                        let totalSimulatedRevenue = 0;
-                        contracts.forEach(contract => {
-                            if (monthNum >= contract.startMonth) {
-                                const multiplier = contract.status === 'VENDIDO' ? 1.0 : (contract.probability / 100.0);
-                                totalSimulatedRevenue += contract.value * multiplier;
-                            }
-                        });
-                        const coef = coefMap.get(code) || 0;
-                        simulatedImpact = totalSimulatedRevenue * coef;
+                            });
+                            const coef = coefMap.get(code) || 0;
+                            simulatedImpact = totalSimulatedRevenue * coef;
+                        }
                     }
 
                     monthlyForecast[m] = baseValue + Math.abs(simulatedImpact);

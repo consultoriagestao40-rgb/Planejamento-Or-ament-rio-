@@ -118,7 +118,7 @@ export async function GET(request: Request) {
             const name = c.name || '';
             const codeMatch = name.match(/^([\d.]+)/);
             const code = codeMatch ? codeMatch[1] : '';
-            if (code === '2' || code.startsWith('2.') || code.startsWith('2')) return false;
+            if (code === '2' || code === '2.0' || code.startsWith('2.0.')) return false;
             return true;
         });
 

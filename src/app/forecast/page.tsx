@@ -2753,6 +2753,8 @@ export default function ForecastPage() {
         );
     };
 
+    const drillDownComp = drillDownCell ? getCellComposition(drillDownCell.categoryId, drillDownCell.categoryName, drillDownCell.monthIndex) : null;
+
     return (
         <div style={{ padding: '2rem', display: 'flex', flexDirection: 'column', gap: '1.5rem', width: '100%', boxSizing: 'border-box', background: 'var(--bg-default)', color: 'var(--text-primary)' }}>
             <style>{`
@@ -2921,136 +2923,134 @@ export default function ForecastPage() {
 
 
             {/* Composition Drilldown Modal */}
-            {drillDownCell && (() => {
-                const comp = getCellComposition(drillDownCell.categoryId, drillDownCell.categoryName, drillDownCell.monthIndex);
-                return (
-                    <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', zIndex: 20000, display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
-                        <div className="glass-card" style={{ width: '750px', maxHeight: '85vh', padding: '1.75rem', background: 'var(--bg-surface)', borderRadius: '16px', border: '1px solid var(--border-default)', display: 'flex', flexDirection: 'column', gap: '1.25rem', boxShadow: '0 20px 25px -5px rgba(0,0,0,0.3), 0 10px 10px -5px rgba(0,0,0,0.3)', overflow: 'hidden' }}>
-                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                                <div>
-                                    <h4 style={{ margin: 0, fontSize: '1.15rem', fontWeight: 800, color: 'var(--text-primary)' }}>
-                                        🔍 Composição do Valor
-                                    </h4>
-                                    <p style={{ margin: '0.2rem 0 0 0', fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
-                                        Conta: <strong style={{ color: 'var(--accent-indigo)' }}>{drillDownCell.categoryName}</strong> | Período: <strong>{drillDownCell.monthName}/{selectedYear}</strong>
-                                    </p>
-                                </div>
-                                <button 
-                                    onClick={() => setDrillDownCell(null)}
-                                    style={{ border: 'none', background: 'transparent', color: 'var(--text-secondary)', cursor: 'pointer', fontSize: '1.2rem', padding: 0 }}
-                                >
-                                    ✕
-                                </button>
+            {/* Composition Drilldown Modal */}
+            {drillDownCell && drillDownComp && (
+                <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', zIndex: 20000, display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
+                    <div className="glass-card" style={{ width: '750px', maxHeight: '85vh', padding: '1.75rem', background: 'var(--bg-surface)', borderRadius: '16px', border: '1px solid var(--border-default)', display: 'flex', flexDirection: 'column', gap: '1.25rem', boxShadow: '0 20px 25px -5px rgba(0,0,0,0.3), 0 10px 10px -5px rgba(0,0,0,0.3)', overflow: 'hidden' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                            <div>
+                                <h4 style={{ margin: 0, fontSize: '1.15rem', fontWeight: 800, color: 'var(--text-primary)' }}>
+                                    🔍 Composição do Valor
+                                </h4>
+                                <p style={{ margin: '0.2rem 0 0 0', fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
+                                    Conta: <strong style={{ color: 'var(--accent-indigo)' }}>{drillDownCell.categoryName}</strong> | Período: <strong>{drillDownCell.monthName}/{selectedYear}</strong>
+                                </p>
                             </div>
+                            <button 
+                                onClick={() => setDrillDownCell(null)}
+                                style={{ border: 'none', background: 'transparent', color: 'var(--text-secondary)', cursor: 'pointer', fontSize: '1.2rem', padding: 0 }}
+                            >
+                                ✕
+                            </button>
+                        </div>
 
-                            {/* Summary cards */}
-                            <div style={{ display: 'grid', gridTemplateColumns: comp.isRealized ? '1fr' : '1fr 1fr 1fr', gap: '0.75rem' }}>
-                                <div style={{ padding: '0.75rem', background: 'var(--bg-elevated)', borderRadius: '8px', border: '1px solid var(--border-subtle)', display: 'flex', flexDirection: 'column', gap: '0.15rem' }}>
-                                    <span style={{ fontSize: '0.65rem', color: 'var(--text-secondary)', fontWeight: 700 }}>
-                                        {comp.isRealized ? 'VALOR REALIZADO (HISTÓRICO)' : 'VALOR TOTAL PROJETADO'}
-                                    </span>
-                                    <span style={{ fontSize: '1.2rem', fontWeight: 800, color: 'var(--accent-indigo)' }}>
-                                        {fmt(drillDownCell.value)}
-                                    </span>
-                                </div>
-                                {!comp.isRealized && (
-                                    <>
-                                        <div style={{ padding: '0.75rem', background: 'var(--bg-elevated)', borderRadius: '8px', border: '1px solid var(--border-subtle)', display: 'flex', flexDirection: 'column', gap: '0.15rem' }}>
-                                            <span style={{ fontSize: '0.65rem', color: 'var(--text-secondary)', fontWeight: 700 }}>ORÇAMENTO BASE (BUDGET)</span>
-                                            <span style={{ fontSize: '1.2rem', fontWeight: 800, color: 'var(--text-primary)' }}>
-                                                {fmt(comp.baseValue)}
-                                            </span>
-                                        </div>
-                                        <div style={{ padding: '0.75rem', background: 'var(--bg-elevated)', borderRadius: '8px', border: '1px solid var(--border-subtle)', display: 'flex', flexDirection: 'column', gap: '0.15rem' }}>
-                                            <span style={{ fontSize: '0.65rem', color: 'var(--text-secondary)', fontWeight: 700 }}>VENDAS SIMULADAS</span>
-                                            <span style={{ fontSize: '1.2rem', fontWeight: 800, color: 'var(--accent-green)' }}>
-                                                {fmt(comp.totalSimulated)}
-                                            </span>
-                                        </div>
-                                    </>
-                                )}
+                        {/* Summary cards */}
+                        <div style={{ display: 'grid', gridTemplateColumns: drillDownComp.isRealized ? '1fr' : '1fr 1fr 1fr', gap: '0.75rem' }}>
+                            <div style={{ padding: '0.75rem', background: 'var(--bg-elevated)', borderRadius: '8px', border: '1px solid var(--border-subtle)', display: 'flex', flexDirection: 'column', gap: '0.15rem' }}>
+                                <span style={{ fontSize: '0.65rem', color: 'var(--text-secondary)', fontWeight: 700 }}>
+                                    {drillDownComp.isRealized ? 'VALOR REALIZADO (HISTÓRICO)' : 'VALOR TOTAL PROJETADO'}
+                                </span>
+                                <span style={{ fontSize: '1.2rem', fontWeight: 800, color: 'var(--accent-indigo)' }}>
+                                    {fmt(drillDownCell.value)}
+                                </span>
                             </div>
-
-                            {/* Details section */}
-                            <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-                                {comp.isRealized ? (
-                                    <div style={{ padding: '1rem', background: 'rgba(99, 102, 241, 0.05)', borderRadius: '8px', border: '1px solid rgba(99, 102, 241, 0.15)', display: 'flex', gap: '0.5rem', alignItems: 'center', fontSize: '0.8rem', color: 'var(--text-primary)' }}>
-                                        ℹ️ Este mês é histórico (Realizado) e o valor exibido foi importado diretamente da contabilidade, sem impacto de contratos simulados.
+                            {!drillDownComp.isRealized && (
+                                <>
+                                    <div style={{ padding: '0.75rem', background: 'var(--bg-elevated)', borderRadius: '8px', border: '1px solid var(--border-subtle)', display: 'flex', flexDirection: 'column', gap: '0.15rem' }}>
+                                        <span style={{ fontSize: '0.65rem', color: 'var(--text-secondary)', fontWeight: 700 }}>ORÇAMENTO BASE (BUDGET)</span>
+                                        <span style={{ fontSize: '1.2rem', fontWeight: 800, color: 'var(--text-primary)' }}>
+                                            {fmt(drillDownComp.baseValue)}
+                                        </span>
                                     </div>
-                                ) : (
-                                    <>
-                                        <h5 style={{ margin: '0.5rem 0 0.25rem 0', fontSize: '0.8rem', fontWeight: 800, textTransform: 'uppercase', color: 'var(--text-secondary)' }}>
-                                            Contratos Simulados que impactam este mês:
-                                        </h5>
-                                        {comp.contracts.length === 0 ? (
-                                            <div style={{ padding: '1.5rem', textAlign: 'center', background: 'var(--bg-elevated)', borderRadius: '8px', border: '1px solid var(--border-subtle)', color: 'var(--text-secondary)', fontSize: '0.8rem' }}>
-                                                Nenhum contrato simulado ativo impacta esta conta no período selecionado.
-                                            </div>
-                                        ) : (
-                                            <div style={{ overflowX: 'auto' }}>
-                                                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.75rem', textAlign: 'left' }}>
-                                                    <thead>
-                                                        <tr style={{ borderBottom: '2px solid var(--border-default)', color: 'var(--text-secondary)' }}>
-                                                            <th style={{ padding: '0.5rem' }}>Contrato / Oportunidade</th>
-                                                            <th style={{ padding: '0.5rem' }}>Vendedor</th>
-                                                            <th style={{ padding: '0.5rem', textAlign: 'center' }}>Probabilidade</th>
-                                                            <th style={{ padding: '0.5rem', textAlign: 'center' }}>Status</th>
-                                                            <th style={{ padding: '0.5rem', textAlign: 'right' }}>Valor Contrato</th>
-                                                            <th style={{ padding: '0.5rem', textAlign: 'right', color: 'var(--accent-indigo)' }}>Contribuição</th>
-                                                        </tr>
-                                                    </thead>
-                                                    <tbody>
-                                                        {comp.contracts.map((c: any) => (
-                                                            <tr key={c.contractId} style={{ borderBottom: '1px solid var(--border-subtle)' }}>
-                                                                <td style={{ padding: '0.55rem 0.5rem', fontWeight: 700, color: 'var(--text-primary)' }}>
-                                                                    {c.contractName}
-                                                                </td>
-                                                                <td style={{ padding: '0.55rem 0.5rem', color: 'var(--text-secondary)' }}>
-                                                                    {c.seller || '-'}
-                                                                </td>
-                                                                <td style={{ padding: '0.55rem 0.5rem', textAlign: 'center', fontWeight: 600 }}>
-                                                                    {c.probability}%
-                                                                </td>
-                                                                <td style={{ padding: '0.55rem 0.5rem', textAlign: 'center' }}>
-                                                                    <span style={{
-                                                                        fontSize: '0.62rem',
-                                                                        fontWeight: 800,
-                                                                        padding: '2px 6px',
-                                                                        borderRadius: '4px',
-                                                                        background: c.status === 'VENDIDO' ? 'rgba(16, 185, 129, 0.1)' : 'rgba(99, 102, 241, 0.1)',
-                                                                        color: c.status === 'VENDIDO' ? 'var(--accent-green)' : 'var(--accent-indigo)'
-                                                                    }}>
-                                                                        {c.status}
-                                                                    </span>
-                                                                </td>
-                                                                <td style={{ padding: '0.55rem 0.5rem', textAlign: 'right', color: 'var(--text-primary)' }}>
-                                                                    {fmt(c.value)}/mês
-                                                                </td>
-                                                                <td style={{ padding: '0.55rem 0.5rem', textAlign: 'right', fontWeight: 700, color: 'var(--accent-indigo)' }}>
-                                                                    {fmt(c.contribution)}
-                                                                </td>
-                                                            </tr>
-                                                        ))}
-                                                    </tbody>
-                                                </table>
-                                            </div>
-                                        )}
-                                    </>
-                                )}
-                            </div>
+                                    <div style={{ padding: '0.75rem', background: 'var(--bg-elevated)', borderRadius: '8px', border: '1px solid var(--border-subtle)', display: 'flex', flexDirection: 'column', gap: '0.15rem' }}>
+                                        <span style={{ fontSize: '0.65rem', color: 'var(--text-secondary)', fontWeight: 700 }}>VENDAS SIMULADAS</span>
+                                        <span style={{ fontSize: '1.2rem', fontWeight: 800, color: 'var(--accent-green)' }}>
+                                            {fmt(drillDownComp.totalSimulated)}
+                                        </span>
+                                    </div>
+                                </>
+                            )}
+                        </div>
 
-                            <div style={{ display: 'flex', justifyContent: 'flex-end', borderTop: '1px solid var(--border-subtle)', paddingTop: '1rem' }}>
-                                <button
-                                    onClick={() => setDrillDownCell(null)}
-                                    style={{ height: '36px', padding: '0 1.25rem', borderRadius: '6px', border: 'none', background: 'var(--accent-indigo)', color: '#fff', fontWeight: 700, cursor: 'pointer' }}
-                                >
-                                    Fechar Detalhamento
-                                </button>
-                            </div>
+                        {/* Details section */}
+                        <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                            {drillDownComp.isRealized ? (
+                                <div style={{ padding: '1rem', background: 'rgba(99, 102, 241, 0.05)', borderRadius: '8px', border: '1px solid rgba(99, 102, 241, 0.15)', display: 'flex', gap: '0.5rem', alignItems: 'center', fontSize: '0.8rem', color: 'var(--text-primary)' }}>
+                                    ℹ️ Este mês é histórico (Realizado) e o valor exibido foi importado diretamente da contabilidade, sem impacto de contratos simulados.
+                                </div>
+                            ) : (
+                                <>
+                                    <h5 style={{ margin: '0.5rem 0 0.25rem 0', fontSize: '0.8rem', fontWeight: 800, textTransform: 'uppercase', color: 'var(--text-secondary)' }}>
+                                        Contratos Simulados que impactam este mês:
+                                    </h5>
+                                    {drillDownComp.contracts.length === 0 ? (
+                                        <div style={{ padding: '1.5rem', textAlign: 'center', background: 'var(--bg-elevated)', borderRadius: '8px', border: '1px solid var(--border-subtle)', color: 'var(--text-secondary)', fontSize: '0.8rem' }}>
+                                            Nenhum contrato simulado ativo impacta esta conta no período selecionado.
+                                        </div>
+                                    ) : (
+                                        <div style={{ overflowX: 'auto' }}>
+                                            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.75rem', textAlign: 'left' }}>
+                                                <thead>
+                                                    <tr style={{ borderBottom: '2px solid var(--border-default)', color: 'var(--text-secondary)' }}>
+                                                        <th style={{ padding: '0.5rem' }}>Contrato / Oportunidade</th>
+                                                        <th style={{ padding: '0.5rem' }}>Vendedor</th>
+                                                        <th style={{ padding: '0.5rem', textAlign: 'center' }}>Probabilidade</th>
+                                                        <th style={{ padding: '0.5rem', textAlign: 'center' }}>Status</th>
+                                                        <th style={{ padding: '0.5rem', textAlign: 'right' }}>Valor Contrato</th>
+                                                        <th style={{ padding: '0.5rem', textAlign: 'right', color: 'var(--accent-indigo)' }}>Contribuição</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody>
+                                                    {drillDownComp.contracts.map((c: any) => (
+                                                        <tr key={c.contractId} style={{ borderBottom: '1px solid var(--border-subtle)' }}>
+                                                            <td style={{ padding: '0.55rem 0.5rem', fontWeight: 700, color: 'var(--text-primary)' }}>
+                                                                {c.contractName}
+                                                            </td>
+                                                            <td style={{ padding: '0.55rem 0.5rem', color: 'var(--text-secondary)' }}>
+                                                                {c.seller || '-'}
+                                                            </td>
+                                                            <td style={{ padding: '0.55rem 0.5rem', textAlign: 'center', fontWeight: 600 }}>
+                                                                {c.probability}%
+                                                            </td>
+                                                            <td style={{ padding: '0.55rem 0.5rem', textAlign: 'center' }}>
+                                                                <span style={{
+                                                                    fontSize: '0.62rem',
+                                                                    fontWeight: 800,
+                                                                    padding: '2px 6px',
+                                                                    borderRadius: '4px',
+                                                                    background: c.status === 'VENDIDO' ? 'rgba(16, 185, 129, 0.1)' : 'rgba(99, 102, 241, 0.1)',
+                                                                    color: c.status === 'VENDIDO' ? 'var(--accent-green)' : 'var(--accent-indigo)'
+                                                                }}>
+                                                                    {c.status}
+                                                                </span>
+                                                            </td>
+                                                            <td style={{ padding: '0.55rem 0.5rem', textAlign: 'right', color: 'var(--text-primary)' }}>
+                                                                {fmt(c.value)}/mês
+                                                            </td>
+                                                            <td style={{ padding: '0.55rem 0.5rem', textAlign: 'right', fontWeight: 700, color: 'var(--accent-indigo)' }}>
+                                                                {fmt(c.contribution)}
+                                                            </td>
+                                                        </tr>
+                                                    ))}
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    )}
+                                </>
+                            )}
+                        </div>
+
+                        <div style={{ display: 'flex', justifyContent: 'flex-end', borderTop: '1px solid var(--border-subtle)', paddingTop: '1rem' }}>
+                            <button
+                                onClick={() => setDrillDownCell(null)}
+                                style={{ height: '36px', padding: '0 1.25rem', borderRadius: '6px', border: 'none', background: 'var(--accent-indigo)', color: '#fff', fontWeight: 700, cursor: 'pointer' }}
+                            >
+                                Fechar Detalhamento
+                            </button>
                         </div>
                     </div>
-                );
-            })()}
+                </div>
+            )}
             {/* Cash Flow Row composition modal */}
             {selectedCashFlowRow && (
                 <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', zIndex: 20000, display: 'flex', justifyContent: 'center', alignItems: 'center' }}>

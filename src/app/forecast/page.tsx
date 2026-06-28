@@ -2476,7 +2476,7 @@ export default function ForecastPage() {
                             </div>
 
                             {/* Detailed Table */}
-                            <div className="glass-card" style={{ padding: '1rem', background: 'var(--bg-surface)', borderRadius: '12px', border: '1px solid var(--border-default)', overflowX: 'auto' }}>
+                            <div className="glass-card" style={{ padding: '1rem 0', background: 'var(--bg-surface)', borderRadius: '12px', border: '1px solid var(--border-default)', overflowX: 'auto' }}>
                                 <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.72rem', textAlign: 'left', minWidth: '2400px', tableLayout: 'fixed' }}>
                                     <colgroup>
                                         <col style={{ width: '340px', minWidth: '340px' }} />

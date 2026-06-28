@@ -280,18 +280,45 @@ export async function GET(request: Request) {
                     let baseValue = monthlyBudget[m];
 
                     // Simulate new contracts impact
-                    let simulatedRevenue = 0;
-                    contracts.forEach(contract => {
-                        if (monthNum >= contract.startMonth) {
-                            const multiplier = contract.status === 'VENDIDO' ? 1.0 : (contract.probability / 100.0);
-                            simulatedRevenue += contract.value * multiplier;
-                        }
-                    });
-
-                    // Project cost or revenue impact based on coefficients
-                    const coef = coefMap.get(code) || 0;
                     const isRevenue = catInfo.type === 'REVENUE' || matchedCatIds.some(id => grossRevIds.includes(id));
-                    const simulatedImpact = simulatedRevenue * coef;
+                    let simulatedImpact = 0;
+
+                    if (isRevenue) {
+                        contracts.forEach(contract => {
+                            if (monthNum >= contract.startMonth) {
+                                const multiplier = contract.status === 'VENDIDO' ? 1.0 : (contract.probability / 100.0);
+                                let customSplit: Record<string, number> = {};
+                                let hasCustomSplit = false;
+                                if (contract.name.includes(' |__SPLIT__:')) {
+                                    try {
+                                        customSplit = JSON.parse(contract.name.substring(contract.name.indexOf(' |__SPLIT__:') + 12));
+                                        hasCustomSplit = true;
+                                    } catch (e) {
+                                        console.error('Failed to parse split JSON:', e);
+                                    }
+                                }
+
+                                if (hasCustomSplit) {
+                                    const splitVal = customSplit[code] || 0;
+                                    simulatedImpact += splitVal * multiplier;
+                                } else {
+                                    // Fallback: split based on coefficient
+                                    const coef = coefMap.get(code) || 0;
+                                    simulatedImpact += contract.value * coef * multiplier;
+                                }
+                            }
+                        });
+                    } else {
+                        let totalSimulatedRevenue = 0;
+                        contracts.forEach(contract => {
+                            if (monthNum >= contract.startMonth) {
+                                const multiplier = contract.status === 'VENDIDO' ? 1.0 : (contract.probability / 100.0);
+                                totalSimulatedRevenue += contract.value * multiplier;
+                            }
+                        });
+                        const coef = coefMap.get(code) || 0;
+                        simulatedImpact = totalSimulatedRevenue * coef;
+                    }
 
                     if (isRevenue) {
                         monthlyForecast[m] = baseValue + simulatedImpact;

@@ -28,6 +28,7 @@ export default function ForecastPage() {
     const [contractProbability, setContractProbability] = useState(100);
     const [contractStatus, setContractStatus] = useState('PIPELINE');
     const [contractTenantId, setContractTenantId] = useState('');
+    const [contractRevenueSplit, setContractRevenueSplit] = useState<Record<string, number>>({});
     const [viewingContractDetails, setViewingContractDetails] = useState<any | null>(null);
     const [expandedContractRows, setExpandedContractRows] = useState<Set<string>>(new Set([
         'G-01', 'G-02', 'G-03', 'G-04', 'G-05', 'G-06', 'G-07',
@@ -126,6 +127,19 @@ export default function ForecastPage() {
 
         const margemBruta = createNode('F-MB', '(=) MARGEM BRUTA', 0, true);
 
+        // Check if there is a custom split serialized in the contract name
+        let customSplit: Record<string, number> = {};
+        let hasCustomSplit = false;
+        if (viewingContractDetails.name.includes(' |__SPLIT__:')) {
+            try {
+                const idx = viewingContractDetails.name.indexOf(' |__SPLIT__:');
+                customSplit = JSON.parse(viewingContractDetails.name.substring(idx + 12));
+                hasCustomSplit = true;
+            } catch (e) {
+                console.error('Failed to parse split payload:', e);
+            }
+        }
+
         // 2. Classify leaf categories from coefficients state and populate their values/AV
         tenantCoefs.forEach(coef => {
             const name = coef.categoryName;
@@ -138,10 +152,22 @@ export default function ForecastPage() {
             const isRevenue = code.startsWith('01.') || code.startsWith('1.');
             const pct = coef.percentage;
             
-            // For revenue categories, we don't multiply yet (we will distribute later).
-            // For expense/tax categories, we multiply by contract value (val).
-            const itemValue = isRevenue ? 0 : (val * (pct / 100)) * -1;
-            const itemAv = isRevenue ? pct : pct * -1;
+            let itemValue = 0;
+            let itemAv = 0;
+
+            if (isRevenue) {
+                if (hasCustomSplit) {
+                    const splitVal = customSplit[code] || 0;
+                    itemValue = splitVal;
+                    itemAv = val > 0 ? (splitVal / val) * 100 : 0;
+                } else {
+                    itemValue = 0;
+                    itemAv = pct;
+                }
+            } else {
+                itemValue = (val * (pct / 100)) * -1;
+                itemAv = pct * -1;
+            }
 
             const leafNode = {
                 categoryId: coef.categoryId,
@@ -191,36 +217,41 @@ export default function ForecastPage() {
         [tribSub].forEach(rollupNode);
         Object.values(custosSubs).forEach(rollupNode);
 
-        // Compute revenue splits based on children AV sum relative to total contract value (val)
-        const pctServicos = recServicos.children.reduce((sum, c) => sum + Math.abs(c.av), 0);
-        const pctVendas = recVendas.children.reduce((sum, c) => sum + Math.abs(c.av), 0);
-        const totalPct = (pctServicos + pctVendas) || 100;
+        if (hasCustomSplit) {
+            rollupNode(recServicos);
+            rollupNode(recVendas);
+        } else {
+            // Compute revenue splits based on children AV sum relative to total contract value (val)
+            const pctServicos = recServicos.children.reduce((sum, c) => sum + Math.abs(c.av), 0);
+            const pctVendas = recVendas.children.reduce((sum, c) => sum + Math.abs(c.av), 0);
+            const totalPct = (pctServicos + pctVendas) || 100;
 
-        recServicos.value = val * (pctServicos / totalPct);
-        recServicos.av = (pctServicos / totalPct) * 100;
+            recServicos.value = val * (pctServicos / totalPct);
+            recServicos.av = (pctServicos / totalPct) * 100;
 
-        recVendas.value = val * (pctVendas / totalPct);
-        recVendas.av = (pctVendas / totalPct) * 100;
+            recVendas.value = val * (pctVendas / totalPct);
+            recVendas.av = (pctVendas / totalPct) * 100;
 
-        // Distribute revenue to children so they sum up to their parent's value
-        const distributeRevenue = (parentNode: any) => {
-            const totalChildPct = parentNode.children.reduce((sum: number, c: any) => sum + Math.abs(c.av), 0);
-            parentNode.children.forEach((c: any) => {
-                if (totalChildPct > 0) {
-                    c.value = parentNode.value * (Math.abs(c.av) / totalChildPct);
-                    c.av = parentNode.av * (Math.abs(c.av) / totalChildPct);
-                } else if (parentNode.children.length > 0 && c.categoryName.includes('01.1.1')) {
-                    c.value = parentNode.value;
-                    c.av = parentNode.av;
-                } else {
-                    c.value = 0;
-                    c.av = 0;
-                }
-            });
-        };
+            // Distribute revenue to children so they sum up to their parent's value
+            const distributeRevenue = (parentNode: any) => {
+                const totalChildPct = parentNode.children.reduce((sum: number, c: any) => sum + Math.abs(c.av), 0);
+                parentNode.children.forEach((c: any) => {
+                    if (totalChildPct > 0) {
+                        c.value = parentNode.value * (Math.abs(c.av) / totalChildPct);
+                        c.av = parentNode.av * (Math.abs(c.av) / totalChildPct);
+                    } else if (parentNode.children.length > 0 && c.categoryName.includes('01.1.1')) {
+                        c.value = parentNode.value;
+                        c.av = parentNode.av;
+                    } else {
+                        c.value = 0;
+                        c.av = 0;
+                    }
+                });
+            };
 
-        distributeRevenue(recServicos);
-        distributeRevenue(recVendas);
+            distributeRevenue(recServicos);
+            distributeRevenue(recVendas);
+        }
 
         // Sort children by code prefix
         const sortChildrenByCode = (node: any) => {
@@ -423,6 +454,14 @@ export default function ForecastPage() {
         return flatList;
     }, [coefficients, expandedContractRows]);
 
+    const revenueCategories = useMemo(() => {
+        return coefficients.filter(c => {
+            const codeMatch = c.categoryName.match(/^([\d.]+)/);
+            const code = codeMatch ? codeMatch[1] : '';
+            return code.startsWith('01.1.') || code.startsWith('01.2.') || code.startsWith('1.1.') || code.startsWith('1.2.');
+        }).sort((a, b) => a.categoryName.localeCompare(b.categoryName));
+    }, [coefficients]);
+
     const fetchSetup = useCallback(async () => {
         try {
             const res = await fetch('/api/companies');
@@ -476,6 +515,17 @@ export default function ForecastPage() {
             return;
         }
 
+        const splitPayload = Object.fromEntries(
+            Object.entries(contractRevenueSplit).filter(([_, v]) => v > 0)
+        );
+
+        if (Object.keys(splitPayload).length === 0) {
+            alert('Por favor, preencha o valor de faturamento em pelo menos uma das contas de receita na distribuição abaixo.');
+            return;
+        }
+
+        const nameWithSplit = contractName.trim() + ' |__SPLIT__:' + JSON.stringify(splitPayload);
+
         const targetTenant = selectedTenant === 'ALL' ? contractTenantId : selectedTenant;
         if (!targetTenant) {
             alert('Por favor, selecione uma empresa de destino.');
@@ -489,7 +539,7 @@ export default function ForecastPage() {
                 body: JSON.stringify({
                     id: editingContractId || undefined,
                     tenantId: targetTenant,
-                    name: contractName,
+                    name: nameWithSplit,
                     value: contractValue,
                     startMonth: contractStartMonth,
                     startYear: selectedYear,
@@ -507,6 +557,7 @@ export default function ForecastPage() {
                 setContractProbability(100);
                 setContractStatus('PIPELINE');
                 setContractTenantId('');
+                setContractRevenueSplit({});
                 fetchData();
             } else {
                 alert(`Erro ao salvar: ${json.error}`);
@@ -1208,7 +1259,7 @@ export default function ForecastPage() {
                                     <div key={contract.id} style={{ padding: '0.85rem', background: 'var(--bg-elevated)', borderRadius: '8px', border: '1px solid var(--border-subtle)', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
                                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                                             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.1rem' }}>
-                                                <span style={{ fontSize: '0.85rem', fontWeight: 800 }}>{contract.name}</span>
+                                                <span style={{ fontSize: '0.85rem', fontWeight: 800 }}>{contract.name.includes(' |__SPLIT__:') ? contract.name.substring(0, contract.name.indexOf(' |__SPLIT__:')) : contract.name}</span>
                                                 <span style={{ fontSize: '0.65rem', color: 'var(--text-secondary)', fontWeight: 600 }}>
                                                     🏢 {contract.tenant?.name || 'Empresa desconhecida'}
                                                 </span>
@@ -1225,13 +1276,30 @@ export default function ForecastPage() {
                                                 </button>
                                                 <button
                                                     onClick={() => {
+                                                        let nameOnly = contract.name;
+                                                        let splitObj: Record<string, number> = {};
+                                                        if (contract.name.includes(' |__SPLIT__:')) {
+                                                            const idx = contract.name.indexOf(' |__SPLIT__:');
+                                                            nameOnly = contract.name.substring(0, idx);
+                                                            try {
+                                                                splitObj = JSON.parse(contract.name.substring(idx + 12));
+                                                            } catch (e) {
+                                                                console.error('Failed to parse split payload:', e);
+                                                            }
+                                                        } else {
+                                                            const firstRev = revenueCategories[0]?.categoryName;
+                                                            const codeMatch = firstRev ? firstRev.match(/^([\d.]+)/) : null;
+                                                            const code = codeMatch ? codeMatch[1] : '01.1.1';
+                                                            splitObj = { [code]: contract.value };
+                                                        }
                                                         setEditingContractId(contract.id);
-                                                        setContractName(contract.name);
+                                                        setContractName(nameOnly);
                                                         setContractValue(contract.value);
                                                         setContractStartMonth(contract.startMonth);
                                                         setContractProbability(contract.probability);
                                                         setContractStatus(contract.status);
                                                         setContractTenantId(contract.tenantId);
+                                                        setContractRevenueSplit(splitObj);
                                                         setIsContractModalOpen(true);
                                                     }}
                                                     style={{ border: 'none', background: 'transparent', cursor: 'pointer', fontSize: '0.85rem' }}
@@ -1343,13 +1411,51 @@ export default function ForecastPage() {
                             </div>
 
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
-                                <label style={{ fontSize: '0.7rem', fontWeight: 700, color: 'var(--text-secondary)' }}>Valor Mensal (R$)</label>
+                                <label style={{ fontSize: '0.7rem', fontWeight: 700, color: 'var(--text-secondary)' }}>Valor Mensal Total (Soma das Contas)</label>
                                 <input
-                                    type="number"
-                                    value={contractValue}
-                                    onChange={(e) => setContractValue(parseFloat(e.target.value) || 0)}
-                                    style={{ height: '36px', padding: '0 0.5rem', borderRadius: '6px', border: '1px solid var(--border-default)', background: 'var(--bg-elevated)', color: 'var(--text-primary)' }}
+                                    type="text"
+                                    readOnly
+                                    value={new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(contractValue)}
+                                    style={{ height: '36px', padding: '0 0.5rem', borderRadius: '6px', border: '1px solid var(--border-default)', background: 'var(--bg-elevated)', color: 'var(--accent-indigo)', fontWeight: 800, fontSize: '0.85rem' }}
                                 />
+                            </div>
+
+                            {/* Revenue Accounts Split */}
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                                <label style={{ fontSize: '0.7rem', fontWeight: 700, color: 'var(--text-secondary)' }}>
+                                    Distribuição de Receita por Conta
+                                </label>
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem', maxHeight: '180px', overflowY: 'auto', padding: '0.5rem', background: 'var(--bg-elevated)', borderRadius: '8px', border: '1px solid var(--border-subtle)' }}>
+                                    {revenueCategories.map(cat => {
+                                        const codeMatch = cat.categoryName.match(/^([\d.]+)/);
+                                        const code = codeMatch ? codeMatch[1] : '';
+                                        const valStr = contractRevenueSplit[code] !== undefined && contractRevenueSplit[code] !== 0 ? contractRevenueSplit[code] : '';
+                                        
+                                        return (
+                                            <div key={cat.categoryId} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.5rem' }}>
+                                                <span style={{ fontSize: '0.65rem', fontWeight: 600, color: 'var(--text-secondary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '65%' }} title={cat.categoryName}>
+                                                    {cat.categoryName}
+                                                </span>
+                                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
+                                                    <span style={{ fontSize: '0.65rem', color: 'var(--text-secondary)' }}>R$</span>
+                                                    <input
+                                                        type="number"
+                                                        placeholder="0.00"
+                                                        value={valStr}
+                                                        onChange={(e) => {
+                                                            const valNum = parseFloat(e.target.value) || 0;
+                                                            const updated = { ...contractRevenueSplit, [code]: valNum };
+                                                            setContractRevenueSplit(updated);
+                                                            const total = Object.values(updated).reduce((sum, v) => sum + (v || 0), 0);
+                                                            setContractValue(total);
+                                                        }}
+                                                        style={{ width: '80px', height: '24px', padding: '0 0.25rem', borderRadius: '4px', border: '1px solid var(--border-default)', background: 'var(--bg-surface)', color: 'var(--text-primary)', fontSize: '0.7rem', fontWeight: 700 }}
+                                                    />
+                                                </div>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
                             </div>
 
                             <div style={{ display: 'flex', gap: '0.5rem' }}>
@@ -1422,7 +1528,7 @@ export default function ForecastPage() {
                                     📊 Detalhamento de Custos Mensais
                                 </h4>
                                 <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', fontWeight: 600 }}>
-                                    Contrato: <strong>{viewingContractDetails.name}</strong> ({viewingContractDetails.tenant?.name || 'Empresa'})
+                                    Contrato: <strong>{viewingContractDetails.name.includes(' |__SPLIT__:') ? viewingContractDetails.name.substring(0, viewingContractDetails.name.indexOf(' |__SPLIT__:')) : viewingContractDetails.name}</strong> ({viewingContractDetails.tenant?.name || 'Empresa'})
                                 </span>
                             </div>
                             <button

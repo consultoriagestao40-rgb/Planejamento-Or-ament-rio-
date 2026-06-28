@@ -965,7 +965,7 @@ export default function ForecastPage() {
                                         <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.75rem', textAlign: 'left' }}>
                                             <thead>
                                                 <tr style={{ borderBottom: '2px solid var(--border-default)', color: 'var(--text-secondary)' }}>
-                                                    <th style={{ padding: '0.5rem', minWidth: '180px' }}>Conta - Categoria</th>
+                                                    <th style={{ padding: '0.5rem', minWidth: '220px', position: 'sticky', left: 0, background: 'var(--bg-surface)', zIndex: 10, borderRight: '1px solid var(--border-subtle)', boxShadow: '2px 0 5px -2px rgba(0,0,0,0.1)' }}>Conta - Categoria</th>
                                                     {monthsName.map((name, i) => (
                                                         <React.Fragment key={i}>
                                                             <th style={{ padding: '0.5rem', textAlign: 'right', minWidth: '100px', whiteSpace: 'nowrap', background: i + 1 <= activeMonth ? 'rgba(99, 102, 241, 0.05)' : 'transparent' }}>
@@ -1017,7 +1017,19 @@ export default function ForecastPage() {
             
                                                     return (
                                                         <tr key={row.categoryId} style={{ borderBottom, background, fontWeight }}>
-                                                            <td style={{ padding: '0.6rem 0.5rem', whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden', paddingLeft: `${row.level * 16 + 8}px` }}>
+                                                            <td style={{ 
+                                                                 padding: '0.6rem 0.5rem', 
+                                                                 whiteSpace: 'nowrap', 
+                                                                 textOverflow: 'ellipsis', 
+                                                                 overflow: 'hidden', 
+                                                                 paddingLeft: `${row.level * 16 + 8}px`,
+                                                                 position: 'sticky',
+                                                                 left: 0,
+                                                                 background: background === 'transparent' ? 'var(--bg-surface)' : background,
+                                                                 zIndex: 9,
+                                                                 borderRight: '1px solid var(--border-subtle)',
+                                                                 boxShadow: '2px 0 5px -2px rgba(0,0,0,0.1)'
+                                                             }}>
                                                                 {hasChildren && (
                                                                     <span 
                                                                         onClick={() => toggleRow(row.categoryId)}

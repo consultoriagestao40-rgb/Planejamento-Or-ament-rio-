@@ -2159,7 +2159,6 @@ export default function ForecastPage() {
             const cumulativeCashFlows = cashFlowSummary.accum;
             const maxCashRequirement = Math.min(...cumulativeCashFlows, 0);
 
-            const activeContracts = contracts.filter(c => c.status !== 'PERDIDO');
             const minStartMonth = activeContracts.length > 0 
                 ? Math.min(...activeContracts.map(c => c.startMonth)) 
                 : 1;

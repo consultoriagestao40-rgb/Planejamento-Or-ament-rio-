@@ -1367,7 +1367,7 @@ export default function ForecastPage() {
                                                 Nenhum contrato simulado. Clique em "Adicionar Novo Contrato" para iniciar.
                                             </td>
                                         </tr>
-                                    ) : (
+                                    ) :
                                         contracts.map(contract => {
                                             const { name: cleanName, seller: cleanSeller } = parseContractName(contract.name);
                                             return (
@@ -1447,7 +1447,7 @@ export default function ForecastPage() {
                                                 </tr>
                                             );
                                         })
-                                    )}
+                                    }
                                     {contracts.length > 0 && (
                                         <tr style={{ borderTop: '2px solid var(--border-default)', background: 'var(--bg-elevated)', fontWeight: 800 }}>
                                             <td colSpan={3} style={{ padding: '0.65rem 0.5rem' }}>

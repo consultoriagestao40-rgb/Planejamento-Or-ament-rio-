@@ -961,28 +961,28 @@ export default function ForecastPage() {
 
         if (activeTab === 'grid') {
             return (
-                                    <div className="glass-card" style={{ padding: '1.25rem 0', background: 'var(--bg-surface)', borderRadius: '12px', border: '1px solid var(--border-default)', overflowX: 'auto', overflowY: 'auto', maxHeight: 'calc(100vh - 280px)' }}>
+                                    <div className="glass-card" style={{ padding: '1.25rem 0', background: 'var(--bg-surface)', borderRadius: '12px', border: '1px solid var(--border-default)', overflowX: 'auto', overflowY: 'clip' }}>
                                         <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.75rem', textAlign: 'left' }}>
                                             <thead>
                                                 <tr style={{ borderBottom: '2px solid var(--border-default)', color: 'var(--text-secondary)' }}>
-                                                    <th style={{ padding: '0.5rem 0.5rem 0.5rem 1.25rem', minWidth: '220px', position: 'sticky', top: 0, left: 0, background: 'var(--bg-surface)', zIndex: 30, borderRight: '1px solid var(--border-subtle)', boxShadow: '2px 2px 5px -2px rgba(0,0,0,0.15)' }}>Conta - Categoria</th>
+                                                    <th style={{ padding: '0.5rem 0.5rem 0.5rem 1.25rem', minWidth: '220px', position: 'sticky', top: 0, left: 0, backgroundColor: 'var(--bg-surface)', zIndex: 30, borderRight: '1px solid var(--border-subtle)', boxShadow: '2px 2px 5px -2px rgba(0,0,0,0.15)' }}>Conta - Categoria</th>
                                                     {monthsName.map((name, i) => (
                                                         <React.Fragment key={i}>
-                                                            <th style={{ padding: '0.5rem', textAlign: 'right', minWidth: '100px', whiteSpace: 'nowrap', position: 'sticky', top: 0, zIndex: 20, background: i + 1 <= activeMonth ? 'linear-gradient(rgba(99, 102, 241, 0.05), rgba(99, 102, 241, 0.05)), var(--bg-surface)' : 'var(--bg-surface)' }}>
+                                                            <th style={{ padding: '0.5rem', textAlign: 'right', minWidth: '100px', whiteSpace: 'nowrap', position: 'sticky', top: 0, zIndex: 20, backgroundColor: 'var(--bg-surface)', backgroundImage: i + 1 <= activeMonth ? 'linear-gradient(rgba(99, 102, 241, 0.05), rgba(99, 102, 241, 0.05))' : 'none' }}>
                                                                 {name} <span style={{ fontSize: '0.6rem', display: 'block', opacity: 0.7 }}>{i + 1 <= activeMonth ? 'Real' : 'Proj'}</span>
                                                             </th>
                                                             {showAV && (
-                                                                <th style={{ padding: '0.5rem', textAlign: 'center', width: '55px', minWidth: '55px', position: 'sticky', top: 0, zIndex: 20, background: i + 1 <= activeMonth ? 'linear-gradient(rgba(99, 102, 241, 0.03), rgba(99, 102, 241, 0.03)), var(--bg-surface)' : 'var(--bg-surface)', color: 'var(--text-secondary)', fontSize: '0.65rem' }}>
+                                                                <th style={{ padding: '0.5rem', textAlign: 'center', width: '55px', minWidth: '55px', position: 'sticky', top: 0, zIndex: 20, backgroundColor: 'var(--bg-surface)', backgroundImage: i + 1 <= activeMonth ? 'linear-gradient(rgba(99, 102, 241, 0.03), rgba(99, 102, 241, 0.03))' : 'none', color: 'var(--text-secondary)', fontSize: '0.65rem' }}>
                                                                     AV
                                                                 </th>
                                                             )}
                                                         </React.Fragment>
                                                     ))}
-                                                    <th style={{ padding: '0.5rem', textAlign: 'right', fontWeight: 800, minWidth: '110px', whiteSpace: 'nowrap', position: 'sticky', top: 0, zIndex: 20, background: 'var(--bg-surface)' }}>Total Forecast</th>
-                                                    {showAV && <th style={{ padding: '0.5rem', textAlign: 'center', width: '55px', minWidth: '55px', color: 'var(--text-secondary)', fontSize: '0.65rem', position: 'sticky', top: 0, zIndex: 20, background: 'var(--bg-surface)' }}>AV</th>}
-                                                    <th style={{ padding: '0.5rem', textAlign: 'right', opacity: 0.8, minWidth: '110px', whiteSpace: 'nowrap', position: 'sticky', top: 0, zIndex: 20, background: 'var(--bg-surface)' }}>Budget Original</th>
-                                                    {showAV && <th style={{ padding: '0.5rem', textAlign: 'center', width: '55px', minWidth: '55px', color: 'var(--text-secondary)', opacity: 0.8, fontSize: '0.65rem', position: 'sticky', top: 0, zIndex: 20, background: 'var(--bg-surface)' }}>AV</th>}
-                                                    <th style={{ padding: '0.5rem', textAlign: 'right', minWidth: '110px', whiteSpace: 'nowrap', position: 'sticky', top: 0, zIndex: 20, background: 'var(--bg-surface)' }}>Variação</th>
+                                                    <th style={{ padding: '0.5rem', textAlign: 'right', fontWeight: 800, minWidth: '110px', whiteSpace: 'nowrap', position: 'sticky', top: 0, zIndex: 20, backgroundColor: 'var(--bg-surface)' }}>Total Forecast</th>
+                                                    {showAV && <th style={{ padding: '0.5rem', textAlign: 'center', width: '55px', minWidth: '55px', color: 'var(--text-secondary)', fontSize: '0.65rem', position: 'sticky', top: 0, zIndex: 20, backgroundColor: 'var(--bg-surface)' }}>AV</th>}
+                                                    <th style={{ padding: '0.5rem', textAlign: 'right', opacity: 0.8, minWidth: '110px', whiteSpace: 'nowrap', position: 'sticky', top: 0, zIndex: 20, backgroundColor: 'var(--bg-surface)' }}>Budget Original</th>
+                                                    {showAV && <th style={{ padding: '0.5rem', textAlign: 'center', width: '55px', minWidth: '55px', color: 'var(--text-secondary)', opacity: 0.8, fontSize: '0.65rem', position: 'sticky', top: 0, zIndex: 20, backgroundColor: 'var(--bg-surface)' }}>AV</th>}
+                                                    <th style={{ padding: '0.5rem', textAlign: 'right', minWidth: '110px', whiteSpace: 'nowrap', position: 'sticky', top: 0, zIndex: 20, backgroundColor: 'var(--bg-surface)' }}>Variação</th>
                                                 </tr>
                                             </thead>
                                             <tbody>

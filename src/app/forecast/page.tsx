@@ -1219,6 +1219,116 @@ export default function ForecastPage() {
         }
 
         // activeTab === 'simulator'
+        if (viewingContractDetails) {
+            return (
+                <div className="glass-card" style={{ padding: '1.25rem', background: 'var(--bg-surface)', borderRadius: '12px', border: '1px solid var(--border-default)', display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid var(--border-subtle)', paddingBottom: '0.75rem' }}>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                            <button
+                                onClick={() => setViewingContractDetails(null)}
+                                style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', border: 'none', background: 'transparent', color: 'var(--accent-indigo)', cursor: 'pointer', fontSize: '0.8rem', fontWeight: 700, padding: 0, marginBottom: '0.5rem' }}
+                            >
+                                ⬅️ Voltar para Contratos
+                            </button>
+                            <h4 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 800 }}>
+                                📊 Detalhamento de Custos Mensais
+                            </h4>
+                            <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', fontWeight: 600 }}>
+                                Contrato: <strong>{viewingContractDetails.name.includes(' |__SPLIT__:') ? viewingContractDetails.name.substring(0, viewingContractDetails.name.indexOf(' |__SPLIT__:')) : viewingContractDetails.name}</strong> ({viewingContractDetails.tenant?.name || 'Empresa'})
+                            </span>
+                        </div>
+                    </div>
+
+                    {/* Summary Cards */}
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '0.75rem' }}>
+                        <div style={{ padding: '0.75rem', background: 'var(--bg-elevated)', borderRadius: '8px', border: '1px solid var(--border-subtle)', display: 'flex', flexDirection: 'column', gap: '0.15rem' }}>
+                            <span style={{ fontSize: '0.65rem', color: 'var(--text-secondary)', fontWeight: 700 }}>VALOR BRUTO</span>
+                            <span style={{ fontSize: '1.15rem', fontWeight: 800, color: 'var(--accent-indigo)' }}>{fmt(viewingContractDetails.value)}/mês</span>
+                        </div>
+                        <div style={{ padding: '0.75rem', background: 'var(--bg-elevated)', borderRadius: '8px', border: '1px solid var(--border-subtle)', display: 'flex', flexDirection: 'column', gap: '0.15rem' }}>
+                            <span style={{ fontSize: '0.65rem', color: 'var(--text-secondary)', fontWeight: 700 }}>
+                                IMPOSTOS ({Math.abs(contractDreGrid.find(row => row.categoryId === 'G-02.1')?.av || 0).toFixed(1)}%)
+                            </span>
+                            <span style={{ fontSize: '1.15rem', fontWeight: 800, color: 'var(--accent-red)' }}>
+                                {fmt(Math.abs(contractDreGrid.find(row => row.categoryId === 'G-02.1')?.value || 0))}/mês
+                            </span>
+                        </div>
+                        <div style={{ padding: '0.75rem', background: 'var(--bg-elevated)', borderRadius: '8px', border: '1px solid var(--border-subtle)', display: 'flex', flexDirection: 'column', gap: '0.15rem' }}>
+                            <span style={{ fontSize: '0.65rem', color: 'var(--text-secondary)', fontWeight: 700 }}>MARGEM BRUTA SIMULADA</span>
+                            <span style={{
+                                fontSize: '1.15rem',
+                                fontWeight: 800,
+                                color: (contractDreGrid.find(row => row.categoryId === 'F-MB')?.value || 0) >= 0 ? 'var(--accent-green)' : 'var(--accent-red)'
+                            }}>
+                                {fmt(contractDreGrid.find(row => row.categoryId === 'F-MB')?.value || 0)}/mês
+                            </span>
+                        </div>
+                    </div>
+
+                    {/* Table */}
+                    <div style={{ flex: 1, overflowY: 'auto', paddingRight: '0.25rem' }}>
+                        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.75rem', textAlign: 'left' }}>
+                            <thead>
+                                <tr style={{ borderBottom: '2px solid var(--border-default)', color: 'var(--text-secondary)' }}>
+                                    <th style={{ padding: '0.5rem' }}>Conta - Categoria</th>
+                                    <th style={{ padding: '0.5rem', textAlign: 'right', width: '150px' }}>Valor Mensal</th>
+                                    <th style={{ padding: '0.5rem', textAlign: 'center', width: '150px' }}>Análise Vertical (AV)</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {contractDreGrid.map(row => {
+                                    const isGroup = row.categoryId.startsWith('G-');
+                                    const isFormula = row.categoryId.startsWith('F-');
+                                    const hasChildren = row.children && row.children.length > 0;
+
+                                    let background = 'transparent';
+                                    let fontWeight = 500;
+                                    let borderBottom = '1px solid var(--border-subtle)';
+
+                                    if (isFormula) {
+                                        background = 'rgba(99, 102, 241, 0.08)';
+                                        fontWeight = 800;
+                                        borderBottom = '2px double var(--border-default)';
+                                    } else if (isGroup) {
+                                        background = 'var(--bg-elevated)';
+                                        fontWeight = 700;
+                                    }
+
+                                    return (
+                                        <tr key={row.categoryId} style={{ borderBottom, background, fontWeight }}>
+                                            <td style={{ padding: '0.55rem 0.5rem', whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden', paddingLeft: `${row.level * 16 + 8}px` }}>
+                                                {hasChildren && (
+                                                    <span 
+                                                        onClick={() => toggleContractRow(row.categoryId)}
+                                                        style={{ cursor: 'pointer', userSelect: 'none', marginRight: '0.5rem', display: 'inline-block', width: '12px', color: 'var(--text-secondary)' }}
+                                                    >
+                                                        {expandedContractRows.has(row.categoryId) ? '▼' : '▶'}
+                                                    </span>
+                                                )}
+                                                {!hasChildren && !isFormula && <span style={{ display: 'inline-block', width: '17px' }} />}
+                                                <span 
+                                                    onClick={() => hasChildren && toggleContractRow(row.categoryId)}
+                                                    style={{ cursor: hasChildren ? 'pointer' : 'default' }}
+                                                >
+                                                    {row.categoryName}
+                                                </span>
+                                            </td>
+                                            <td style={{ padding: '0.55rem 0.5rem', textAlign: 'right', whiteSpace: 'nowrap', color: 'var(--text-primary)' }}>
+                                                {fmt(Math.abs(row.value))}
+                                            </td>
+                                            <td style={{ padding: '0.55rem 0.5rem', textAlign: 'center', fontWeight: 700, color: 'var(--text-primary)' }}>
+                                                {Math.abs(row.av).toFixed(1)}%
+                                            </td>
+                                        </tr>
+                                    );
+                                })}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            );
+        }
+
         return (
                                     <div className="glass-card" style={{ padding: '1.25rem', background: 'var(--bg-surface)', borderRadius: '12px', border: '1px solid var(--border-default)', display: 'flex', flexDirection: 'column', gap: '1rem', overflowX: 'auto' }}>
                                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -1737,126 +1847,6 @@ export default function ForecastPage() {
                                 style={{ padding: '0.45rem 1rem', borderRadius: '6px', border: 'none', background: 'var(--accent-indigo)', color: '#ffffff', cursor: 'pointer', fontWeight: 700 }}
                             >
                                 Salvar
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            )}
-            {viewingContractDetails && (
-                <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.6)', zIndex: 20000, display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
-                    <div className="glass-card" style={{ width: '700px', maxHeight: '85vh', padding: '1.5rem', background: 'var(--bg-surface)', borderRadius: '12px', border: '1px solid var(--border-default)', display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-                        
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid var(--border-subtle)', paddingBottom: '0.75rem' }}>
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.15rem' }}>
-                                <h4 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 800, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                                    📊 Detalhamento de Custos Mensais
-                                </h4>
-                                <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', fontWeight: 600 }}>
-                                    Contrato: <strong>{viewingContractDetails.name.includes(' |__SPLIT__:') ? viewingContractDetails.name.substring(0, viewingContractDetails.name.indexOf(' |__SPLIT__:')) : viewingContractDetails.name}</strong> ({viewingContractDetails.tenant?.name || 'Empresa'})
-                                </span>
-                            </div>
-                            <button
-                                onClick={() => setViewingContractDetails(null)}
-                                style={{ background: 'transparent', border: 'none', color: 'var(--text-secondary)', cursor: 'pointer', fontSize: '1.1rem', fontWeight: 700 }}
-                            >
-                                ❌
-                            </button>
-                        </div>
-
-                        {/* Summary Cards */}
-                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '0.75rem' }}>
-                            <div style={{ padding: '0.75rem', background: 'var(--bg-elevated)', borderRadius: '8px', border: '1px solid var(--border-subtle)', display: 'flex', flexDirection: 'column', gap: '0.15rem' }}>
-                                <span style={{ fontSize: '0.65rem', color: 'var(--text-secondary)', fontWeight: 700 }}>VALOR BRUTO</span>
-                                <span style={{ fontSize: '1.15rem', fontWeight: 800, color: 'var(--accent-indigo)' }}>{fmt(viewingContractDetails.value)}/mês</span>
-                            </div>
-                            <div style={{ padding: '0.75rem', background: 'var(--bg-elevated)', borderRadius: '8px', border: '1px solid var(--border-subtle)', display: 'flex', flexDirection: 'column', gap: '0.15rem' }}>
-                                <span style={{ fontSize: '0.65rem', color: 'var(--text-secondary)', fontWeight: 700 }}>
-                                    IMPOSTOS ({Math.abs(contractDreGrid.find(row => row.categoryId === 'G-02.1')?.av || 0).toFixed(1)}%)
-                                </span>
-                                <span style={{ fontSize: '1.15rem', fontWeight: 800, color: 'var(--accent-red)' }}>
-                                    {fmt(Math.abs(contractDreGrid.find(row => row.categoryId === 'G-02.1')?.value || 0))}/mês
-                                </span>
-                            </div>
-                            <div style={{ padding: '0.75rem', background: 'var(--bg-elevated)', borderRadius: '8px', border: '1px solid var(--border-subtle)', display: 'flex', flexDirection: 'column', gap: '0.15rem' }}>
-                                <span style={{ fontSize: '0.65rem', color: 'var(--text-secondary)', fontWeight: 700 }}>MARGEM BRUTA SIMULADA</span>
-                                <span style={{
-                                    fontSize: '1.15rem',
-                                    fontWeight: 800,
-                                    color: (contractDreGrid.find(row => row.categoryId === 'F-MB')?.value || 0) >= 0 ? 'var(--accent-green)' : 'var(--accent-red)'
-                                }}>
-                                    {fmt(contractDreGrid.find(row => row.categoryId === 'F-MB')?.value || 0)}/mês
-                                </span>
-                            </div>
-                        </div>
-
-                        {/* Table */}
-                        <div style={{ flex: 1, overflowY: 'auto', paddingRight: '0.25rem' }}>
-                            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.75rem', textAlign: 'left' }}>
-                                <thead>
-                                    <tr style={{ borderBottom: '2px solid var(--border-default)', color: 'var(--text-secondary)' }}>
-                                        <th style={{ padding: '0.5rem' }}>Conta - Categoria</th>
-                                        <th style={{ padding: '0.5rem', textAlign: 'right', width: '150px' }}>Valor Mensal</th>
-                                        <th style={{ padding: '0.5rem', textAlign: 'center', width: '150px' }}>Análise Vertical (AV)</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {contractDreGrid.map(row => {
-                                        const isGroup = row.categoryId.startsWith('G-');
-                                        const isFormula = row.categoryId.startsWith('F-');
-                                        const hasChildren = row.children && row.children.length > 0;
-
-                                        let background = 'transparent';
-                                        let fontWeight = 500;
-                                        let borderBottom = '1px solid var(--border-subtle)';
-
-                                        if (isFormula) {
-                                            background = 'rgba(99, 102, 241, 0.08)';
-                                            fontWeight = 800;
-                                            borderBottom = '2px double var(--border-default)';
-                                        } else if (isGroup) {
-                                            background = 'var(--bg-elevated)';
-                                            fontWeight = 700;
-                                        }
-
-                                        return (
-                                            <tr key={row.categoryId} style={{ borderBottom, background, fontWeight }}>
-                                                <td style={{ padding: '0.55rem 0.5rem', whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden', paddingLeft: `${row.level * 16 + 8}px` }}>
-                                                    {hasChildren && (
-                                                        <span 
-                                                            onClick={() => toggleContractRow(row.categoryId)}
-                                                            style={{ cursor: 'pointer', userSelect: 'none', marginRight: '0.5rem', display: 'inline-block', width: '12px', color: 'var(--text-secondary)' }}
-                                                        >
-                                                            {expandedContractRows.has(row.categoryId) ? '▼' : '▶'}
-                                                        </span>
-                                                    )}
-                                                    {!hasChildren && !isFormula && <span style={{ display: 'inline-block', width: '17px' }} />}
-                                                    <span 
-                                                        onClick={() => hasChildren && toggleContractRow(row.categoryId)}
-                                                        style={{ cursor: hasChildren ? 'pointer' : 'default' }}
-                                                    >
-                                                        {row.categoryName}
-                                                    </span>
-                                                </td>
-                                                <td style={{ padding: '0.55rem 0.5rem', textAlign: 'right', whiteSpace: 'nowrap', color: 'var(--text-primary)' }}>
-                                                    {fmt(Math.abs(row.value))}
-                                                </td>
-                                                <td style={{ padding: '0.55rem 0.5rem', textAlign: 'center', fontWeight: 700, color: 'var(--text-primary)' }}>
-                                                    {Math.abs(row.av).toFixed(1)}%
-                                                </td>
-                                            </tr>
-                                        );
-                                    })}
-                                </tbody>
-                            </table>
-                        </div>
-
-                        <div style={{ display: 'flex', justifyContent: 'flex-end', borderTop: '1px solid var(--border-subtle)', paddingTop: '0.75rem' }}>
-                            <button
-                                onClick={() => setViewingContractDetails(null)}
-                                className="btn"
-                                style={{ padding: '0.45rem 1.25rem', fontSize: '0.8rem', borderRadius: '8px', cursor: 'pointer', background: 'var(--bg-elevated)', border: '1px solid var(--border-default)', color: 'var(--text-secondary)', fontWeight: 700 }}
-                            >
-                                Fechar
                             </button>
                         </div>
                     </div>

@@ -81,6 +81,7 @@ export default function ForecastPage() {
     const [cfLaborPct, setCfLaborPct] = useState<number>(40);
     const [cfChargesPct, setCfChargesPct] = useState<number>(15);
     const [cfBenefitsPct, setCfBenefitsPct] = useState<number>(8);
+    const [cfOtherOperatingPct, setCfOtherOperatingPct] = useState<number>(0);
     const [cfTaxesPct, setCfTaxesPct] = useState<number>(12.5);
     const [cfPaydayDay, setCfPaydayDay] = useState<number>(5);
     const [cfBenefitsPaydayDay, setCfBenefitsPaydayDay] = useState<number>(1);
@@ -136,6 +137,7 @@ export default function ForecastPage() {
             setCfLaborPct(40);
             setCfChargesPct(15);
             setCfBenefitsPct(8);
+            setCfOtherOperatingPct(0);
             setCfTaxesPct(12.5);
             return;
         }
@@ -150,6 +152,7 @@ export default function ForecastPage() {
         let laborPct = 0;
         let chargesPct = 0;
         let benefitsPct = 0;
+        let otherOperatingPct = 0;
 
         tenantCoefs.forEach(c => {
             const name = c.categoryName;
@@ -159,6 +162,17 @@ export default function ForecastPage() {
             else if (code.startsWith('03.1') || code === '03.1') laborPct += c.percentage;
             else if (code.startsWith('03.2') || code === '03.2') chargesPct += c.percentage;
             else if (code.startsWith('03.3') || code === '03.3') benefitsPct += c.percentage;
+            else if (
+                code.startsWith('03.4') || code === '03.4' ||
+                code.startsWith('03.5') || code === '03.5' ||
+                code.startsWith('03.6') || code === '03.6' ||
+                code.startsWith('03.7') || code === '03.7' ||
+                code.startsWith('03.8') || code === '03.8' ||
+                code.startsWith('03.9') || code === '03.9' ||
+                code.startsWith('03.10') || code === '03.10'
+            ) {
+                otherOperatingPct += c.percentage;
+            }
         });
 
         if (taxesPct === 0) taxesPct = 12.5;
@@ -179,6 +193,7 @@ export default function ForecastPage() {
             setCfLaborPct(cashFlow.laborPct ?? laborPct);
             setCfChargesPct(cashFlow.chargesPct ?? chargesPct);
             setCfBenefitsPct(cashFlow.benefitsPct ?? benefitsPct);
+            setCfOtherOperatingPct(cashFlow.otherOperatingPct ?? otherOperatingPct);
             setCfTaxesPct(cashFlow.taxesPct ?? taxesPct);
         } else {
             setCfStartDateDay(20);
@@ -193,6 +208,7 @@ export default function ForecastPage() {
             setCfLaborPct(laborPct);
             setCfChargesPct(chargesPct);
             setCfBenefitsPct(benefitsPct);
+            setCfOtherOperatingPct(otherOperatingPct);
             setCfTaxesPct(taxesPct);
         }
     }, [selectedCashFlowContractId, contracts, coefficients]);
@@ -252,6 +268,7 @@ export default function ForecastPage() {
             laborPct: cfLaborPct,
             chargesPct: cfChargesPct,
             benefitsPct: cfBenefitsPct,
+            otherOperatingPct: cfOtherOperatingPct,
             taxesPct: cfTaxesPct
         };
 
@@ -1523,6 +1540,7 @@ export default function ForecastPage() {
                     laborPct: 40,
                     chargesPct: 15,
                     benefitsPct: 8,
+                    otherOperatingPct: 0,
                     taxesPct: 12.5
                 };
 
@@ -1535,6 +1553,7 @@ export default function ForecastPage() {
                 const monthlyTaxesOutflow = Array(24).fill(0);
                 const monthlySetupOutflow = Array(24).fill(0);
                 const monthlyProvisionsOutflow = Array(24).fill(0);
+                const monthlyOtherOperatingOutflow = Array(24).fill(0);
 
                 const monthlyVal = contract.value * (contract.status === 'VENDIDO' ? 1.0 : contract.probability / 100.0);
 
@@ -1549,11 +1568,15 @@ export default function ForecastPage() {
                     const labor = monthlyVal * (config.laborPct / 100.0) * fraction;
                     const charges = monthlyVal * (config.chargesPct / 100.0) * fraction;
                     const benefits = monthlyVal * (config.benefitsPct / 100.0) * fraction;
+                    const otherOp = monthlyVal * ((config.otherOperatingPct ?? 0) / 100.0) * fraction;
                     
+                    let setup = 0;
                     if (isFirstMonth) {
-                        const setup = (config.epiUniformsCost ?? 0) + (config.equipmentCost ?? 0) + (config.suppliesCost ?? 0);
-                        monthlySetupOutflow[m] = setup;
+                        setup = (config.epiUniformsCost ?? 0) + (config.equipmentCost ?? 0) + (config.suppliesCost ?? 0);
+                    } else {
+                        setup = (config.epiUniformsCost ?? 0);
                     }
+                    monthlySetupOutflow[m] = setup;
 
                     // 1. Receipts (Inflow)
                     const invoiceMonth = (config.billingCycle === 'same_month') ? m : m + 1;
@@ -1593,6 +1616,12 @@ export default function ForecastPage() {
                     if (config.provisionPayroll) {
                         monthlyProvisionsOutflow[m] += labor * 0.1944;
                     }
+
+                    // 6. Other Operating Outflows (paid subsequent month)
+                    const otherOpPaymentMonth = m + 1;
+                    if (otherOpPaymentMonth < 24) {
+                        monthlyOtherOperatingOutflow[otherOpPaymentMonth] += otherOp;
+                    }
                 }
 
                 return {
@@ -1601,7 +1630,8 @@ export default function ForecastPage() {
                     benefits: monthlyBenefitsOutflow,
                     taxes: monthlyTaxesOutflow,
                     setup: monthlySetupOutflow,
-                    provisions: monthlyProvisionsOutflow
+                    provisions: monthlyProvisionsOutflow,
+                    otherOperating: monthlyOtherOperatingOutflow
                 };
             };
 
@@ -1611,6 +1641,7 @@ export default function ForecastPage() {
             let taxes = Array(24).fill(0);
             let setup = Array(24).fill(0);
             let provisions = Array(24).fill(0);
+            let otherOperating = Array(24).fill(0);
 
             if (selectedCashFlowContractId === 'CONSOLIDADO') {
                 activeContracts.forEach(contract => {
@@ -1622,6 +1653,7 @@ export default function ForecastPage() {
                         taxes[i] += cf.taxes[i];
                         setup[i] += cf.setup[i];
                         provisions[i] += cf.provisions[i];
+                        otherOperating[i] += cf.otherOperating[i];
                     }
                 });
             } else {
@@ -1639,6 +1671,7 @@ export default function ForecastPage() {
                         laborPct: cfLaborPct,
                         chargesPct: cfChargesPct,
                         benefitsPct: cfBenefitsPct,
+                        otherOperatingPct: cfOtherOperatingPct,
                         taxesPct: cfTaxesPct
                     };
                     const cf = calculateSingleContractCashFlow(selectedContractObj, overrideConfig);
@@ -1648,6 +1681,7 @@ export default function ForecastPage() {
                     taxes = cf.taxes;
                     setup = cf.setup;
                     provisions = cf.provisions;
+                    otherOperating = cf.otherOperating;
                 }
             }
 
@@ -1660,7 +1694,7 @@ export default function ForecastPage() {
             let paybackMonthIdx = -1;
 
             for (let i = 0; i < 24; i++) {
-                monthlyOutflows[i] = payroll[i] + benefits[i] + taxes[i] + setup[i] + provisions[i];
+                monthlyOutflows[i] = payroll[i] + benefits[i] + taxes[i] + setup[i] + provisions[i] + otherOperating[i];
                 netCashFlows[i] = receipts[i] - monthlyOutflows[i];
                 
                 cumulativeAcc += netCashFlows[i];
@@ -1884,6 +1918,17 @@ export default function ForecastPage() {
                                             </div>
                                         </div>
 
+                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
+                                            <label style={{ fontWeight: 600, color: 'var(--text-secondary)' }}>Outros Custos Op (%)</label>
+                                            <input
+                                                type="number"
+                                                step="0.01"
+                                                value={cfOtherOperatingPct}
+                                                onChange={(e) => setCfOtherOperatingPct(parseFloat(e.target.value) || 0)}
+                                                style={{ height: '32px', padding: '0 0.5rem', borderRadius: '6px', border: '1px solid var(--border-default)', background: 'var(--bg-elevated)', color: 'var(--text-primary)', fontWeight: 700 }}
+                                            />
+                                        </div>
+
                                         <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginTop: '0.25rem' }}>
                                             <input
                                                 type="checkbox"
@@ -2001,7 +2046,7 @@ export default function ForecastPage() {
                                         {/* Outflows Rows */}
                                         <tr style={{ borderBottom: '1px solid var(--border-subtle)', whiteSpace: 'nowrap' }}>
                                             <td style={{ padding: '0.5rem 0.45rem', paddingLeft: '1rem', color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}>
-                                                (-) Implantação (EPIs / Equip. / Prod.)
+                                                (-) Implantação & EPIs/Uniformes Mensais
                                             </td>
                                             {setup.map((v, i) => (
                                                 <td key={i} style={{ padding: '0.5rem 0.45rem', textAlign: 'right', color: v > 0 ? 'var(--accent-red)' : 'var(--text-secondary)', whiteSpace: 'nowrap' }}>
@@ -2052,6 +2097,20 @@ export default function ForecastPage() {
                                             ))}
                                             <td style={{ padding: '0.5rem 0.45rem', textAlign: 'right', color: 'var(--text-primary)', whiteSpace: 'nowrap' }}>
                                                 {fmt(taxes.reduce((s, v) => s + v, 0))}
+                                            </td>
+                                        </tr>
+
+                                        <tr style={{ borderBottom: '1px solid var(--border-subtle)', whiteSpace: 'nowrap' }}>
+                                            <td style={{ padding: '0.5rem 0.45rem', paddingLeft: '1rem', color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}>
+                                                (-) Outros Custos Operacionais (Diárias, Materiais, etc.)
+                                            </td>
+                                            {otherOperating.map((v, i) => (
+                                                <td key={i} style={{ padding: '0.5rem 0.45rem', textAlign: 'right', color: v > 0 ? 'var(--text-primary)' : 'var(--text-secondary)', whiteSpace: 'nowrap' }}>
+                                                    {v > 0 ? fmt(v) : '-'}
+                                                </td>
+                                            ))}
+                                            <td style={{ padding: '0.5rem 0.45rem', textAlign: 'right', color: 'var(--text-primary)', whiteSpace: 'nowrap' }}>
+                                                {fmt(otherOperating.reduce((s, v) => s + v, 0))}
                                             </td>
                                         </tr>
 

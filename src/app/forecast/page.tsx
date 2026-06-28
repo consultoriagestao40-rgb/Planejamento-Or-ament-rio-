@@ -29,6 +29,8 @@ export default function ForecastPage() {
     const [contractStatus, setContractStatus] = useState('PIPELINE');
     const [contractTenantId, setContractTenantId] = useState('');
     const [contractRevenueSplit, setContractRevenueSplit] = useState<Record<string, number>>({});
+    const [selectedRevenueCode, setSelectedRevenueCode] = useState('');
+    const [typedRevenueValue, setTypedRevenueValue] = useState('');
     const [viewingContractDetails, setViewingContractDetails] = useState<any | null>(null);
     const [expandedContractRows, setExpandedContractRows] = useState<Set<string>>(new Set([
         'G-01', 'G-02', 'G-03', 'G-04', 'G-05', 'G-06', 'G-07',
@@ -509,10 +511,45 @@ export default function ForecastPage() {
         fetchData();
     }, [fetchData]);
 
-    const handleRevenueAccountChange = (code: string, rawVal: string) => {
-        const valNum = parseFloat(rawVal) || 0;
+    const formatCurrencyInput = (valueStr: string) => {
+        const digits = valueStr.replace(/\D/g, '');
+        if (!digits) return '';
+        const numberValue = parseFloat(digits) / 100;
+        return new Intl.NumberFormat('pt-BR', {
+            style: 'currency',
+            currency: 'BRL'
+        }).format(numberValue);
+    };
+
+    const parseCurrencyInput = (formattedStr: string) => {
+        const digits = formattedStr.replace(/\D/g, '');
+        if (!digits) return 0;
+        return parseFloat(digits) / 100;
+    };
+
+    const handleAddRevenue = () => {
+        if (!selectedRevenueCode) {
+            alert('Por favor, selecione uma conta de receita.');
+            return;
+        }
+        const valNum = parseCurrencyInput(typedRevenueValue);
+        if (valNum <= 0) {
+            alert('Por favor, informe um valor de receita válido.');
+            return;
+        }
         setContractRevenueSplit(prev => {
-            const next = { ...prev, [code]: valNum };
+            const next = { ...prev, [selectedRevenueCode]: valNum };
+            const total = Object.values(next).reduce((sum, v) => sum + (v || 0), 0);
+            setContractValue(total);
+            return next;
+        });
+        setTypedRevenueValue('');
+    };
+
+    const handleRemoveRevenue = (code: string) => {
+        setContractRevenueSplit(prev => {
+            const next = { ...prev };
+            delete next[code];
             const total = Object.values(next).reduce((sum, v) => sum + (v || 0), 0);
             setContractValue(total);
             return next;
@@ -568,6 +605,8 @@ export default function ForecastPage() {
                 setContractStatus('PIPELINE');
                 setContractTenantId('');
                 setContractRevenueSplit({});
+                setSelectedRevenueCode('');
+                setTypedRevenueValue('');
                 fetchData();
             } else {
                 alert(`Erro ao salvar: ${json.error}`);
@@ -1367,6 +1406,9 @@ export default function ForecastPage() {
                                     setContractProbability(100);
                                     setContractStatus('PIPELINE');
                                     setContractTenantId(companies[0]?.id || '');
+                                    setContractRevenueSplit({});
+                                    setSelectedRevenueCode('');
+                                    setTypedRevenueValue('');
                                     setIsContractModalOpen(true);
                                 }}
                                 style={{
@@ -1430,37 +1472,82 @@ export default function ForecastPage() {
                                 />
                             </div>
 
-                            {/* Revenue Accounts Split */}
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                            {/* Revenue Accounts Selection dropdown and input */}
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem', borderTop: '1px solid var(--border-subtle)', paddingTop: '0.6rem' }}>
                                 <label style={{ fontSize: '0.7rem', fontWeight: 700, color: 'var(--text-secondary)' }}>
-                                    Distribuição de Receita por Conta
+                                    Adicionar Receita por Conta
                                 </label>
-                                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem', maxHeight: '180px', overflowY: 'auto', padding: '0.5rem', background: 'var(--bg-elevated)', borderRadius: '8px', border: '1px solid var(--border-subtle)' }}>
-                                    {revenueCategories.map(cat => {
-                                        const codeMatch = cat.categoryName.match(/^([\d.]+)/);
-                                        const code = codeMatch ? codeMatch[1] : '';
-                                        const valStr = contractRevenueSplit[code] !== undefined && contractRevenueSplit[code] !== 0 ? contractRevenueSplit[code] : '';
-                                        
-                                        return (
-                                            <div key={cat.categoryId} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.5rem' }}>
-                                                <span style={{ fontSize: '0.65rem', fontWeight: 600, color: 'var(--text-secondary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '65%' }} title={cat.categoryName}>
-                                                    {cat.categoryName}
-                                                </span>
-                                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
-                                                    <span style={{ fontSize: '0.65rem', color: 'var(--text-secondary)' }}>R$</span>
-                                                    <input
-                                                        type="number"
-                                                        placeholder="0.00"
-                                                        value={valStr}
-                                                        onChange={(e) => handleRevenueAccountChange(code, e.target.value)}
-                                                        style={{ width: '80px', height: '24px', padding: '0 0.25rem', borderRadius: '4px', border: '1px solid var(--border-default)', background: 'var(--bg-surface)', color: 'var(--text-primary)', fontSize: '0.7rem', fontWeight: 700 }}
-                                                    />
-                                                </div>
-                                            </div>
-                                        );
-                                    })}
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.45rem' }}>
+                                    <select
+                                        value={selectedRevenueCode}
+                                        onChange={(e) => setSelectedRevenueCode(e.target.value)}
+                                        style={{ height: '36px', padding: '0 0.5rem', borderRadius: '6px', border: '1px solid var(--border-default)', background: 'var(--bg-elevated)', color: 'var(--text-primary)', fontSize: '0.75rem' }}
+                                    >
+                                        <option value="">-- Selecione a Conta de Receita --</option>
+                                        {revenueCategories.map(cat => {
+                                            const codeMatch = cat.categoryName.match(/^([\d.]+)/);
+                                            const code = codeMatch ? codeMatch[1] : '';
+                                            return <option key={cat.categoryId} value={code}>{cat.categoryName}</option>;
+                                        })}
+                                    </select>
+                                    <div style={{ display: 'flex', gap: '0.5rem' }}>
+                                        <input
+                                            type="text"
+                                            placeholder="R$ 0,00"
+                                            value={typedRevenueValue}
+                                            onChange={(e) => {
+                                                const formatted = formatCurrencyInput(e.target.value);
+                                                setTypedRevenueValue(formatted);
+                                            }}
+                                            style={{ flex: 1, height: '36px', padding: '0 0.5rem', borderRadius: '6px', border: '1px solid var(--border-default)', background: 'var(--bg-elevated)', color: 'var(--text-primary)', fontSize: '0.75rem', fontWeight: 700 }}
+                                        />
+                                        <button
+                                            type="button"
+                                            onClick={handleAddRevenue}
+                                            style={{ padding: '0 1rem', borderRadius: '6px', border: 'none', background: 'var(--accent-indigo)', color: '#ffffff', cursor: 'pointer', fontSize: '0.75rem', fontWeight: 700 }}
+                                        >
+                                            Adicionar
+                                        </button>
+                                    </div>
                                 </div>
                             </div>
+
+                            {/* List of Added Revenues in Contract */}
+                            {Object.entries(contractRevenueSplit).filter(([_, val]) => val > 0).length > 0 && (
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                                    <label style={{ fontSize: '0.7rem', fontWeight: 700, color: 'var(--text-secondary)' }}>
+                                        Contas Lançadas no Contrato
+                                    </label>
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem', maxHeight: '110px', overflowY: 'auto', padding: '0.4rem', background: 'var(--bg-elevated)', borderRadius: '8px', border: '1px solid var(--border-subtle)' }}>
+                                        {Object.entries(contractRevenueSplit)
+                                            .filter(([_, val]) => val > 0)
+                                            .map(([code, val]) => {
+                                                const cat = revenueCategories.find(c => c.categoryName.startsWith(code));
+                                                const name = cat ? cat.categoryName : `${code} - Receita`;
+                                                return (
+                                                    <div key={code} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.5rem' }}>
+                                                        <span style={{ fontSize: '0.65rem', fontWeight: 600, color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '60%' }} title={name}>
+                                                            {name}
+                                                        </span>
+                                                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                                            <span style={{ fontSize: '0.7rem', fontWeight: 700, color: 'var(--accent-indigo)' }}>
+                                                                {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val)}
+                                                            </span>
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => handleRemoveRevenue(code)}
+                                                                style={{ background: 'transparent', border: 'none', color: 'var(--accent-red)', cursor: 'pointer', fontSize: '0.85rem', padding: 0 }}
+                                                                title="Excluir"
+                                                            >
+                                                                🗑️
+                                                            </button>
+                                                        </div>
+                                                    </div>
+                                                );
+                                            })}
+                                    </div>
+                                </div>
+                            )}
 
                             <div style={{ display: 'flex', gap: '0.5rem' }}>
                                 <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>

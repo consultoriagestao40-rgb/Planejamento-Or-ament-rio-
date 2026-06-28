@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 
 const parseContractName = (rawName: string) => {
     let name = rawName;
@@ -47,6 +47,15 @@ export default function ForecastPage() {
     const [contracts, setContracts] = useState<any[]>([]);
     const [coefficients, setCoefficients] = useState<any[]>([]);
     const [forecastData, setForecastData] = useState<any[]>([]);
+    const headerScrollRef = useRef<HTMLDivElement>(null);
+    const bodyScrollRef = useRef<HTMLDivElement>(null);
+
+    const handleBodyScroll = () => {
+        if (bodyScrollRef.current && headerScrollRef.current) {
+            headerScrollRef.current.scrollLeft = bodyScrollRef.current.scrollLeft;
+        }
+    };
+
     const [loadingData, setLoadingData] = useState(false);
     const [activeTab, setActiveTab] = useState<'grid' | 'coefficients' | 'simulator'>('grid');
     const [showAV, setShowAV] = useState(false);
@@ -567,31 +576,7 @@ export default function ForecastPage() {
         fetchData();
     }, [fetchData]);
 
-    useEffect(() => {
-        const handleScroll = () => {
-            const table = document.querySelector('.spreadsheet-table-forecast');
-            if (!table) return;
-            const rect = table.getBoundingClientRect();
-            const headerCells = table.querySelectorAll('thead th');
-            
-            if (rect.top < 0) {
-                const maxOffset = rect.height - 40;
-                const offset = Math.min(-rect.top, maxOffset);
-                headerCells.forEach((th: any) => {
-                    th.style.transform = `translateY(${offset}px)`;
-                });
-            } else {
-                headerCells.forEach((th: any) => {
-                    th.style.transform = 'translateY(0)';
-                });
-            }
-        };
-        
-        window.addEventListener('scroll', handleScroll, { capture: true, passive: true });
-        handleScroll();
-        
-        return () => window.removeEventListener('scroll', handleScroll, { capture: true });
-    }, []);
+
 
     const formatCurrencyInput = (valueStr: string) => {
         const digits = valueStr.replace(/\D/g, '');
@@ -987,32 +972,86 @@ export default function ForecastPage() {
 
         if (activeTab === 'grid') {
             return (
-                                    <div className="glass-card" style={{ padding: '1.25rem 0', background: 'var(--bg-surface)', borderRadius: '12px', border: '1px solid var(--border-default)', overflowX: 'auto', overflowY: 'clip' }}>
-                                        <table className="spreadsheet-table-forecast" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.75rem', textAlign: 'left' }}>
-                                            <thead>
-                                                <tr style={{ borderBottom: '2px solid var(--border-default)', color: 'var(--text-secondary)' }}>
-                                                    <th style={{ padding: '0.5rem 0.5rem 0.5rem 1.25rem', minWidth: '220px', position: 'sticky', top: 0, left: 0, backgroundColor: 'var(--bg-surface)', zIndex: 30, borderRight: '1px solid var(--border-subtle)', boxShadow: '2px 2px 5px -2px rgba(0,0,0,0.15)' }}>Conta - Categoria</th>
-                                                    {monthsName.map((name, i) => (
+                                    <div className="glass-card" style={{ padding: '1.25rem 0', background: 'var(--bg-surface)', borderRadius: '12px', border: '1px solid var(--border-default)', overflow: 'visible' }}>
+                                        {/* Cabeçalho Sticky no Topo da Janela */}
+                                        <div 
+                                            ref={headerScrollRef}
+                                            style={{ 
+                                                overflowX: 'hidden', 
+                                                position: 'sticky', 
+                                                top: 0, 
+                                                zIndex: 40, 
+                                                background: 'var(--bg-surface)', 
+                                                width: '100%',
+                                                borderBottom: '2px solid var(--border-default)'
+                                            }}
+                                        >
+                                            <table style={{ width: showAV ? '2520px' : '1750px', borderCollapse: 'collapse', fontSize: '0.75rem', textAlign: 'left', tableLayout: 'fixed' }}>
+                                                <colgroup>
+                                                    <col style={{ width: '220px', minWidth: '220px' }} />
+                                                    {monthsName.map((_, i) => (
                                                         <React.Fragment key={i}>
-                                                            <th style={{ padding: '0.5rem', textAlign: 'right', minWidth: '100px', whiteSpace: 'nowrap', position: 'sticky', top: 0, zIndex: 20, backgroundColor: 'var(--bg-surface)', backgroundImage: i + 1 <= activeMonth ? 'linear-gradient(rgba(99, 102, 241, 0.05), rgba(99, 102, 241, 0.05))' : 'none' }}>
-                                                                {name} <span style={{ fontSize: '0.6rem', display: 'block', opacity: 0.7 }}>{i + 1 <= activeMonth ? 'Real' : 'Proj'}</span>
-                                                            </th>
-                                                            {showAV && (
-                                                                <th style={{ padding: '0.5rem', textAlign: 'center', width: '55px', minWidth: '55px', position: 'sticky', top: 0, zIndex: 20, backgroundColor: 'var(--bg-surface)', backgroundImage: i + 1 <= activeMonth ? 'linear-gradient(rgba(99, 102, 241, 0.03), rgba(99, 102, 241, 0.03))' : 'none', color: 'var(--text-secondary)', fontSize: '0.65rem' }}>
-                                                                    AV
-                                                                </th>
-                                                            )}
+                                                            <col style={{ width: '100px', minWidth: '100px' }} />
+                                                            {showAV && <col style={{ width: '55px', minWidth: '55px' }} />}
                                                         </React.Fragment>
                                                     ))}
-                                                    <th style={{ padding: '0.5rem', textAlign: 'right', fontWeight: 800, minWidth: '110px', whiteSpace: 'nowrap', position: 'sticky', top: 0, zIndex: 20, backgroundColor: 'var(--bg-surface)' }}>Total Forecast</th>
-                                                    {showAV && <th style={{ padding: '0.5rem', textAlign: 'center', width: '55px', minWidth: '55px', color: 'var(--text-secondary)', fontSize: '0.65rem', position: 'sticky', top: 0, zIndex: 20, backgroundColor: 'var(--bg-surface)' }}>AV</th>}
-                                                    <th style={{ padding: '0.5rem', textAlign: 'right', opacity: 0.8, minWidth: '110px', whiteSpace: 'nowrap', position: 'sticky', top: 0, zIndex: 20, backgroundColor: 'var(--bg-surface)' }}>Budget Original</th>
-                                                    {showAV && <th style={{ padding: '0.5rem', textAlign: 'center', width: '55px', minWidth: '55px', color: 'var(--text-secondary)', opacity: 0.8, fontSize: '0.65rem', position: 'sticky', top: 0, zIndex: 20, backgroundColor: 'var(--bg-surface)' }}>AV</th>}
-                                                    <th style={{ padding: '0.5rem', textAlign: 'right', minWidth: '110px', whiteSpace: 'nowrap', position: 'sticky', top: 0, zIndex: 20, backgroundColor: 'var(--bg-surface)' }}>Variação</th>
-                                                </tr>
-                                            </thead>
-                                            <tbody>
-                                                {displayGrid.map(row => {
+                                                    <col style={{ width: '110px', minWidth: '110px' }} />
+                                                    {showAV && <col style={{ width: '55px', minWidth: '55px' }} />}
+                                                    <col style={{ width: '110px', minWidth: '110px' }} />
+                                                    {showAV && <col style={{ width: '55px', minWidth: '55px' }} />}
+                                                    <col style={{ width: '110px', minWidth: '110px' }} />
+                                                </colgroup>
+                                                <thead>
+                                                    <tr style={{ color: 'var(--text-secondary)' }}>
+                                                        <th style={{ padding: '0.5rem 0.5rem 0.5rem 1.25rem', position: 'sticky', left: 0, backgroundColor: 'var(--bg-surface)', zIndex: 30, borderRight: '1px solid var(--border-subtle)', boxShadow: '2px 2px 5px -2px rgba(0,0,0,0.15)' }}>Conta - Categoria</th>
+                                                        {monthsName.map((name, i) => (
+                                                            <React.Fragment key={i}>
+                                                                <th style={{ padding: '0.5rem', textAlign: 'right', whiteSpace: 'nowrap', backgroundColor: 'var(--bg-surface)', backgroundImage: i + 1 <= activeMonth ? 'linear-gradient(rgba(99, 102, 241, 0.05), rgba(99, 102, 241, 0.05))' : 'none' }}>
+                                                                    {name} <span style={{ fontSize: '0.6rem', display: 'block', opacity: 0.7 }}>{i + 1 <= activeMonth ? 'Real' : 'Proj'}</span>
+                                                                </th>
+                                                                {showAV && (
+                                                                    <th style={{ padding: '0.5rem', textAlign: 'center', backgroundColor: 'var(--bg-surface)', backgroundImage: i + 1 <= activeMonth ? 'linear-gradient(rgba(99, 102, 241, 0.03), rgba(99, 102, 241, 0.03))' : 'none', color: 'var(--text-secondary)', fontSize: '0.65rem' }}>
+                                                                        AV
+                                                                    </th>
+                                                                )}
+                                                            </React.Fragment>
+                                                        ))}
+                                                        <th style={{ padding: '0.5rem', textAlign: 'right', fontWeight: 800, backgroundColor: 'var(--bg-surface)' }}>Total Forecast</th>
+                                                        {showAV && <th style={{ padding: '0.5rem', textAlign: 'center', color: 'var(--text-secondary)', fontSize: '0.65rem', backgroundColor: 'var(--bg-surface)' }}>AV</th>}
+                                                        <th style={{ padding: '0.5rem', textAlign: 'right', opacity: 0.8, backgroundColor: 'var(--bg-surface)' }}>Budget Original</th>
+                                                        {showAV && <th style={{ padding: '0.5rem', textAlign: 'center', color: 'var(--text-secondary)', opacity: 0.8, fontSize: '0.65rem', backgroundColor: 'var(--bg-surface)' }}>AV</th>}
+                                                        <th style={{ padding: '0.5rem', textAlign: 'right', backgroundColor: 'var(--bg-surface)' }}>Variação</th>
+                                                    </tr>
+                                                </thead>
+                                            </table>
+                                        </div>
+
+                                        {/* Corpo da Tabela Rolável */}
+                                        <div 
+                                            ref={bodyScrollRef}
+                                            onScroll={handleBodyScroll}
+                                            style={{ 
+                                                overflowX: 'auto', 
+                                                width: '100%' 
+                                            }}
+                                        >
+                                            <table style={{ width: showAV ? '2520px' : '1750px', borderCollapse: 'collapse', fontSize: '0.75rem', textAlign: 'left', tableLayout: 'fixed' }}>
+                                                <colgroup>
+                                                    <col style={{ width: '220px', minWidth: '220px' }} />
+                                                    {monthsName.map((_, i) => (
+                                                        <React.Fragment key={i}>
+                                                            <col style={{ width: '100px', minWidth: '100px' }} />
+                                                            {showAV && <col style={{ width: '55px', minWidth: '55px' }} />}
+                                                        </React.Fragment>
+                                                    ))}
+                                                    <col style={{ width: '110px', minWidth: '110px' }} />
+                                                    {showAV && <col style={{ width: '55px', minWidth: '55px' }} />}
+                                                    <col style={{ width: '110px', minWidth: '110px' }} />
+                                                    {showAV && <col style={{ width: '55px', minWidth: '55px' }} />}
+                                                    <col style={{ width: '110px', minWidth: '110px' }} />
+                                                </colgroup>
+                                                <tbody>
+                                                    {displayGrid.map(row => {
                                                     const sumForecast = row.forecast.reduce((a: number, b: number) => a + b, 0);
                                                     const sumBudget = row.budget.reduce((a: number, b: number) => a + b, 0);
                                                     const variance = sumForecast - sumBudget;
@@ -1115,6 +1154,7 @@ export default function ForecastPage() {
                                             </tbody>
                                         </table>
                                     </div>
+                                </div>
             );
         }
 

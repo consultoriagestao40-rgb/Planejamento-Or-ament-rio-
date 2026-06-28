@@ -290,7 +290,16 @@ export default function ForecastPage() {
     const [drillDownCell, setDrillDownCell] = useState<{ categoryId: string; categoryName: string; monthIndex: number; monthName: string; value: number } | null>(null);
 
     // Cash Flow Row Drilldown State
-    const [selectedCashFlowRow, setSelectedCashFlowRow] = useState<{ name: string; type: string; data: number[] } | null>(null);
+    const [selectedCashFlowRow, setSelectedCashFlowRow] = useState<{ 
+        name: string; 
+        type: string; 
+        data: number[]; 
+        contracts?: any[]; 
+        selectedMonthIndex?: number; 
+    } | null>(null);
+
+    // Cash Flow Expanded Rows State (collapsed by default)
+    const [expandedCashFlowRows, setExpandedCashFlowRows] = useState<Set<string>>(new Set());
 
     const getCellComposition = (categoryId: string, categoryName: string, monthIndex: number) => {
         const monthNum = monthIndex + 1;
@@ -462,6 +471,158 @@ export default function ForecastPage() {
             return next;
         });
     };
+
+    const toggleCashFlowRow = (id: string) => {
+        setExpandedCashFlowRows(prev => {
+            const next = new Set(prev);
+            if (next.has(id)) {
+                next.delete(id);
+            } else {
+                next.add(id);
+            }
+            return next;
+        });
+    };
+
+    const handleCashFlowCellClick = useCallback((row: any, monthIndex?: number) => {
+        const activeContracts = contracts.filter(c => c.status !== 'PERDIDO');
+        const selectedContractObj = activeContracts.find(c => c.id === selectedCashFlowContractId);
+        const targetContracts = selectedCashFlowContractId === 'CONSOLIDADO' ? activeContracts : (selectedContractObj ? [selectedContractObj] : []);
+        
+        const name = row.categoryName;
+        const codeMatch = name.match(/^([\d.]+)/);
+        const codeClean = codeMatch ? codeMatch[1] : '';
+
+        const contractsBreakdown = targetContracts.map(contract => {
+            const { cashFlow } = parseContractName(contract.name);
+            const config = (selectedCashFlowContractId !== 'CONSOLIDADO')
+                ? {
+                    startDateDay: cfStartDateDay,
+                    billingCycle: cfBillingCycle,
+                    paymentTermDays: cfPaymentTermDays,
+                    epiUniformsCost: cfEpiUniformsCost,
+                    equipmentCost: cfEquipmentCost,
+                    suppliesCost: cfSuppliesCost,
+                    paydayDay: cfPaydayDay,
+                    benefitsPaydayDay: cfBenefitsPaydayDay,
+                    provisionPayroll: cfProvisionPayroll,
+                    laborPct: cfLaborPct,
+                    chargesPct: cfChargesPct,
+                    benefitsPct: cfBenefitsPct,
+                    otherOperatingPct: cfOtherOperatingPct,
+                    taxesPct: cfTaxesPct
+                  }
+                : (cashFlow || {
+                    startDateDay: 20,
+                    billingCycle: 'subsequent_first_business_day',
+                    paymentTermDays: 30,
+                    epiUniformsCost: 1200,
+                    equipmentCost: 2500,
+                    suppliesCost: 800,
+                    paydayDay: 5,
+                    benefitsPaydayDay: 1,
+                    provisionPayroll: true,
+                    laborPct: 40,
+                    chargesPct: 15,
+                    benefitsPct: 8,
+                    otherOperatingPct: 3.0,
+                    taxesPct: 12.5
+                  });
+
+            const tenantCoefs = coefficients.filter(c => c.tenantId === contract.tenantId);
+            let coefPct = 0;
+            const matchedCoef = tenantCoefs.find(c => {
+                const cMatch = c.categoryName.match(/^([\d.]+)/);
+                const cCode = cMatch ? cMatch[1] : c.categoryName;
+                return cCode === codeClean;
+            });
+            if (matchedCoef) {
+                coefPct = matchedCoef.percentage;
+            } else {
+                const defaultPcts: Record<string, number> = {
+                    '02.1.1': config.taxesPct ?? 12.5,
+                    '03.1.1': config.laborPct ?? 30.4,
+                    '03.1.2': 1.4,
+                    '03.1.3': 0.3,
+                    '03.1.5': 0.5,
+                    '03.1.10': 1.6,
+                    '03.2.1': config.chargesPct ?? 2.7,
+                    '03.2.2': 2.8,
+                    '03.2.3': 3.8,
+                    '03.2.4': 1.1,
+                    '03.2.6': 5.5,
+                    '03.3.1': config.benefitsPct ?? 2.9,
+                    '03.3.2': 11.3,
+                    '03.3.4': 0.9,
+                    '03.3.6': 0.9,
+                    '03.3.7': 0.1,
+                    '03.4.1': 0.5,
+                    '03.5.1': 0.6,
+                    '03.5.2': 0.6,
+                    '03.5.3': 0.2,
+                    '03.7.1': 0.1,
+                    '03.7.2': 0.1,
+                    '03.7.4': 0.3,
+                    '03.8.2': 0.1,
+                    '03.9.2': 0.1,
+                    '03.9.3': 0.1,
+                    '03.9.8': 0.2
+                };
+                coefPct = defaultPcts[codeClean] || 0;
+            }
+
+            const coefficient = coefPct / 100.0;
+            const monthlyVal = contract.value * coefficient * (contract.status === 'VENDIDO' ? 1.0 : contract.probability / 100.0);
+
+            const startMonth = contract.startMonth;
+            const startMonthIdx = startMonth - 1;
+            const monthlyCF = Array(24).fill(0);
+
+            for (let m = startMonthIdx; m < 24; m++) {
+                const isFirstMonth = (m === startMonthIdx);
+                const fraction = isFirstMonth
+                    ? Math.max(0.01, Math.min(1.0, (30 - (config.startDateDay ?? 20) + 1) / 30))
+                    : 1.0;
+                let baseVal = monthlyVal * fraction;
+                if (isFirstMonth && (codeClean.startsWith('03.5') || codeClean.startsWith('03.6') || codeClean.startsWith('3.5') || codeClean.startsWith('3.6'))) {
+                    baseVal = baseVal * 3.0;
+                }
+                let payMonth = m + 1;
+                if (codeClean.startsWith('01.') || codeClean.startsWith('1.')) {
+                    const invoiceMonth = (config.billingCycle === 'same_month') ? m : m + 1;
+                    const paymentDelayMonths = Math.round((config.paymentTermDays ?? 30) / 30);
+                    payMonth = invoiceMonth + paymentDelayMonths;
+                } else if (codeClean.startsWith('03.3') || codeClean.startsWith('3.3')) {
+                    payMonth = m;
+                } else if (codeClean.startsWith('07') || codeClean.startsWith('7')) {
+                    payMonth = m;
+                }
+
+                if (payMonth < 24) {
+                    monthlyCF[payMonth] += baseVal;
+                }
+            }
+
+            const { name: parsedName } = parseContractName(contract.name);
+            return {
+                contractId: contract.id,
+                contractName: parsedName,
+                value: contract.value,
+                probability: contract.probability,
+                status: contract.status,
+                contribution: monthIndex !== undefined ? monthlyCF[monthIndex] : monthlyCF.reduce((s, v) => s + v, 0),
+                allMonths: monthlyCF
+            };
+        });
+
+        setSelectedCashFlowRow({
+            name: row.categoryName,
+            type: row.categoryId,
+            data: row.forecast,
+            contracts: contractsBreakdown as any,
+            selectedMonthIndex: monthIndex
+        });
+    }, [contracts, selectedCashFlowContractId, coefficients, cfStartDateDay, cfBillingCycle, cfPaymentTermDays, cfEpiUniformsCost, cfEquipmentCost, cfSuppliesCost, cfPaydayDay, cfBenefitsPaydayDay, cfProvisionPayroll, cfLaborPct, cfChargesPct, cfBenefitsPct, cfOtherOperatingPct, cfTaxesPct]);
 
     const handleExpandAll = () => {
         const allIds = new Set<string>();
@@ -1338,6 +1499,365 @@ export default function ForecastPage() {
         return resultList;
     }, [forecastData, expandedRows, displayMode, activeMonth]);
 
+    const displayCashFlowGrid = useMemo(() => {
+        if (activeTab !== 'cashflow') return [];
+
+        const activeContracts = contracts.filter(c => c.status !== 'PERDIDO');
+        const selectedContractObj = activeContracts.find(c => c.id === selectedCashFlowContractId);
+
+        const buildCashFlowTree = (flatData: any[]) => {
+            const createNode = (id: string, name: string, level: number, isFormula = false) => ({
+                categoryId: id,
+                categoryName: name,
+                level,
+                isFormula,
+                realized: Array(24).fill(0),
+                budget: Array(24).fill(0),
+                forecast: Array(24).fill(0),
+                children: [] as any[]
+            });
+
+            const recBruta = createNode('G-01', '01. RECEITA BRUTA', 0);
+            const recServicos = createNode('G-01.1', '01.1 - Receita de Serviços', 1);
+            const recVendas = createNode('G-01.2', '01.2 - Receitas de Vendas', 1);
+            recBruta.children = [recServicos, recVendas];
+
+            const tributos = createNode('G-02', '02. Tributo sobre Faturamento', 0);
+            const tribSub = createNode('G-02.1', '02.1 - Tributos', 1);
+            tributos.children = [tribSub];
+
+            const recLiquida = createNode('F-RL', '(=) RECEITA LÍQUIDA', 0, true);
+
+            const custosOp = createNode('G-03', '03. Custos Operacionais (Total)', 0);
+            const custosSubs: Record<string, any> = {
+                '03.1': createNode('G-03.1', '03.1 Salários e Remunerações', 1),
+                '03.2': createNode('G-03.2', '03.2 Encargos Sociais', 1),
+                '03.3': createNode('G-03.3', '03.3 Benefícios', 1),
+                '03.4': createNode('G-03.4', '03.4 Diárias', 1),
+                '03.5': createNode('G-03.5', '03.5 SSMA (EPI/Uniforme)', 1),
+                '03.6': createNode('G-03.6', '03.6 Materiais e Consumo', 1),
+                '03.7': createNode('G-03.7', '03.7 Equipamentos', 1),
+                '03.8': createNode('G-03.8', '03.8 Comunicação/Sistema/Licenças', 1),
+                '03.9': createNode('G-03.9', '03.9 Custo com Veículos', 1),
+                '03.10': createNode('G-03.10', '03.10 Custos Transferidos', 1),
+            };
+            custosOp.children = Object.values(custosSubs);
+
+            const margemBruta = createNode('F-MB', '(=) MARGEM BRUTA', 0, true);
+
+            const despVendas = createNode('G-04', '04. Despesa Operacional', 0);
+            const despVendasSubs: Record<string, any> = {
+                '04.1': createNode('G-04.1', '04.1 Salários e Remunerações', 1),
+                '04.2': createNode('G-04.2', '04.2 Encargos Sociais', 1),
+                '04.3': createNode('G-04.3', '04.3 Benefícios', 1),
+                '04.4': createNode('G-04.4', '04.4 SSMA', 1),
+                '04.5': createNode('G-04.5', '04.5 Viagens', 1),
+                '04.6': createNode('G-04.6', '04.6 Custo com Veículos', 1),
+                '04.7': createNode('G-04.7', '04.7 Cartão Corporativo', 1),
+                '04.8': createNode('G-04.8', '04.8 Serviços Terceirizados', 1),
+            };
+            despVendas.children = Object.values(despVendasSubs);
+
+            const margemContrib = createNode('F-MC', '(=) MARGEM DE CONTRIBUIÇÃO', 0, true);
+
+            const despAdmin = createNode('G-05', '05. Despesas Administrativas', 0);
+            const despAdminSubs: Record<string, any> = {
+                '05.1': createNode('G-05.1', '05.1 Salário e Remuneração', 1),
+                '05.2': createNode('G-05.2', '05.2 Encargos Sociais', 1),
+                '05.3': createNode('G-05.3', '05.3 Benefícios', 1),
+                '05.4': createNode('G-05.4', '05.4 SSMA', 1),
+                '05.5': createNode('G-05.5', '05.5 Viagens', 1),
+                '05.6': createNode('G-05.6', '05.6 Despesa com Sócios', 1),
+                '05.7': createNode('G-05.7', '05.7 Serviços Contratados', 1),
+                '05.8': createNode('G-05.8', '05.8 Despesa Comercial/Marketing', 1),
+                '05.9': createNode('G-05.9', '05.9 Despesa com Estrutura', 1),
+                '05.10': createNode('G-05.10', '05.10 Despesa Copa e Cozinha', 1),
+                '05.11': createNode('G-05.11', '05.11 Despesa com Veículos', 1),
+                '05.12': createNode('G-05.12', '05.12 Despesa de Informática', 1),
+                '05.13': createNode('G-05.13', '05.13 Taxas e Despesas Legais', 1),
+            };
+            despAdmin.children = Object.values(despAdminSubs);
+
+            const ebitda = createNode('F-EBITDA', '(=) EBITDA', 0, true);
+
+            const despFin = createNode('G-06', '06. Despesas Financeiras', 0);
+            const despFinSubs: Record<string, any> = {
+                '06.1': createNode('G-06.1', '06.1 Entradas Financeiras', 1),
+                '06.2': createNode('G-06.2', '06.2 Saídas Financeiras', 1),
+                '06.3': createNode('G-06.3', '06.3 Financiamento', 1),
+                '06.4': createNode('G-06.4', '06.4 Juros/Multas', 1),
+                '06.5': createNode('G-06.5', '06.5 Passivo Trabalhista', 1),
+                '06.6': createNode('G-06.6', '06.6 Depreciação', 1),
+                '06.7': createNode('G-06.7', '06.7 Cartão de Crédito', 1),
+                '06.8': createNode('G-06.8', '06.8 PDD', 1),
+            };
+            despFin.children = Object.values(despFinSubs);
+
+            const lucroLiquido = createNode('F-LL', '(=) LUCRO LÍQUIDO', 0, true);
+            const invest = createNode('G-07', '07. Investimentos', 0);
+
+            flatData.forEach(cat => {
+                const name = cat.categoryName;
+                const codeMatch = name.match(/^([\d.]+)/);
+                const code = codeMatch ? codeMatch[1] : '';
+
+                const parts = code.split('.');
+                if (parts.length >= 2 || code.startsWith('07') || code.startsWith('7')) {
+                    const subPrefix = parts.length >= 2 ? `${parts[0]}.${parts[1]}` : code;
+
+                    let parentNode = null;
+                    if (code.startsWith('01.1.') || code.startsWith('1.1.')) {
+                        parentNode = recServicos;
+                    } else if (code.startsWith('01.2.') || code.startsWith('1.2.')) {
+                        parentNode = recVendas;
+                    } else if (code.startsWith('02.1.') || code.startsWith('2.1.') || code.startsWith('02.') || code.startsWith('2.')) {
+                        parentNode = tribSub;
+                    } else if (code.startsWith('03.')) {
+                        parentNode = custosSubs[subPrefix];
+                    } else if (code.startsWith('04.')) {
+                        parentNode = despVendasSubs[subPrefix];
+                    } else if (code.startsWith('05.')) {
+                        parentNode = despAdminSubs[subPrefix];
+                    } else if (code.startsWith('06.')) {
+                        parentNode = despFinSubs[subPrefix];
+                    } else if (code.startsWith('07.') || code.startsWith('7.')) {
+                        parentNode = invest;
+                    }
+
+                    if (parentNode) {
+                        const monthlyCF = Array(24).fill(0);
+
+                        const targetContracts = selectedCashFlowContractId === 'CONSOLIDADO'
+                            ? activeContracts
+                            : (selectedContractObj ? [selectedContractObj] : []);
+
+                        targetContracts.forEach(contract => {
+                            const { cashFlow } = parseContractName(contract.name);
+                            const config = (selectedCashFlowContractId !== 'CONSOLIDADO')
+                                ? {
+                                    startDateDay: cfStartDateDay,
+                                    billingCycle: cfBillingCycle,
+                                    paymentTermDays: cfPaymentTermDays,
+                                    epiUniformsCost: cfEpiUniformsCost,
+                                    equipmentCost: cfEquipmentCost,
+                                    suppliesCost: cfSuppliesCost,
+                                    paydayDay: cfPaydayDay,
+                                    benefitsPaydayDay: cfBenefitsPaydayDay,
+                                    provisionPayroll: cfProvisionPayroll,
+                                    laborPct: cfLaborPct,
+                                    chargesPct: cfChargesPct,
+                                    benefitsPct: cfBenefitsPct,
+                                    otherOperatingPct: cfOtherOperatingPct,
+                                    taxesPct: cfTaxesPct
+                                  }
+                                : (cashFlow || {
+                                    startDateDay: 20,
+                                    billingCycle: 'subsequent_first_business_day',
+                                    paymentTermDays: 30,
+                                    epiUniformsCost: 1200,
+                                    equipmentCost: 2500,
+                                    suppliesCost: 800,
+                                    paydayDay: 5,
+                                    benefitsPaydayDay: 1,
+                                    provisionPayroll: true,
+                                    laborPct: 40,
+                                    chargesPct: 15,
+                                    benefitsPct: 8,
+                                    otherOperatingPct: 3.0,
+                                    taxesPct: 12.5
+                                  });
+
+                            const tenantCoefs = coefficients.filter(c => c.tenantId === contract.tenantId);
+                            let coefPct = 0;
+                            const matchedCoef = tenantCoefs.find(c => {
+                                const cMatch = c.categoryName.match(/^([\d.]+)/);
+                                const cCode = cMatch ? cMatch[1] : c.categoryName;
+                                return cCode === code;
+                            });
+
+                            if (matchedCoef) {
+                                coefPct = matchedCoef.percentage;
+                            } else {
+                                const defaultPcts: Record<string, number> = {
+                                    '02.1.1': config.taxesPct ?? 12.5,
+                                    '03.1.1': config.laborPct ?? 30.4,
+                                    '03.1.2': 1.4,
+                                    '03.1.3': 0.3,
+                                    '03.1.5': 0.5,
+                                    '03.1.10': 1.6,
+                                    '03.2.1': config.chargesPct ?? 2.7,
+                                    '03.2.2': 2.8,
+                                    '03.2.3': 3.8,
+                                    '03.2.4': 1.1,
+                                    '03.2.6': 5.5,
+                                    '03.3.1': config.benefitsPct ?? 2.9,
+                                    '03.3.2': 11.3,
+                                    '03.3.4': 0.9,
+                                    '03.3.6': 0.9,
+                                    '03.3.7': 0.1,
+                                    '03.4.1': 0.5,
+                                    '03.5.1': 0.6,
+                                    '03.5.2': 0.6,
+                                    '03.5.3': 0.2,
+                                    '03.7.1': 0.1,
+                                    '03.7.2': 0.1,
+                                    '03.7.4': 0.3,
+                                    '03.8.2': 0.1,
+                                    '03.9.2': 0.1,
+                                    '03.9.3': 0.1,
+                                    '03.9.8': 0.2
+                                };
+                                coefPct = defaultPcts[code] || 0;
+                            }
+
+                            const coefficient = coefPct / 100.0;
+                            const monthlyVal = contract.value * coefficient * (contract.status === 'VENDIDO' ? 1.0 : contract.probability / 100.0);
+
+                            const startMonth = contract.startMonth;
+                            const startMonthIdx = startMonth - 1;
+
+                            for (let m = startMonthIdx; m < 24; m++) {
+                                const isFirstMonth = (m === startMonthIdx);
+                                const fraction = isFirstMonth
+                                    ? Math.max(0.01, Math.min(1.0, (30 - (config.startDateDay ?? 20) + 1) / 30))
+                                    : 1.0;
+
+                                let baseVal = monthlyVal * fraction;
+
+                                // In the first month (implantation month), multiply uniforms (03.5) and materials (03.6) by 3
+                                if (isFirstMonth && (code.startsWith('03.5') || code.startsWith('03.6') || code.startsWith('3.5') || code.startsWith('3.6'))) {
+                                    baseVal = baseVal * 3.0;
+                                }
+
+                                let payMonth = m + 1; // default subsequent month
+                                if (code.startsWith('01.') || code.startsWith('1.')) {
+                                    const invoiceMonth = (config.billingCycle === 'same_month') ? m : m + 1;
+                                    const paymentDelayMonths = Math.round((config.paymentTermDays ?? 30) / 30);
+                                    payMonth = invoiceMonth + paymentDelayMonths;
+                                } else if (code.startsWith('03.3') || code.startsWith('3.3')) {
+                                    payMonth = m;
+                                } else if (code.startsWith('07') || code.startsWith('7')) {
+                                    payMonth = m;
+                                }
+
+                                if (payMonth < 24) {
+                                    monthlyCF[payMonth] += baseVal;
+                                }
+                            }
+                        });
+
+                        parentNode.children.push({
+                            ...cat,
+                            realized: Array(24).fill(0),
+                            budget: Array(24).fill(0),
+                            forecast: monthlyCF,
+                            level: parentNode.level + 1,
+                            isFormula: false,
+                            children: []
+                        });
+                    }
+                }
+            });
+
+            const sortChildrenByCode = (node: any) => {
+                if (node.children && node.children.length > 0) {
+                    node.children.sort((a: any, b: any) => {
+                        const aCodeMatch = a.categoryName.match(/^([\d.]+)/);
+                        const bCodeMatch = b.categoryName.match(/^([\d.]+)/);
+                        const aCode = aCodeMatch ? aCodeMatch[1] : a.categoryName;
+                        const bCode = bCodeMatch ? bCodeMatch[1] : b.categoryName;
+                        return aCode.localeCompare(bCode, undefined, { numeric: true, sensitivity: 'base' });
+                    });
+                    node.children.forEach(sortChildrenByCode);
+                }
+            };
+
+            [recBruta, tributos, custosOp, despVendas, despAdmin, despFin, invest].forEach(sortChildrenByCode);
+
+            const computeSums = (node: any): any => {
+                if (!node.children || node.children.length === 0) {
+                    return { forecast: node.forecast };
+                }
+
+                node.children.forEach((child: any) => {
+                    const childData = computeSums(child);
+                    const isFinancialRevenue = child.categoryId.includes('06.1') || child.categoryName.includes('06.1');
+                    const sign = isFinancialRevenue ? -1 : 1;
+                    for (let i = 0; i < 24; i++) {
+                        node.forecast[i] += sign * childData.forecast[i];
+                    }
+                });
+
+                return { forecast: node.forecast };
+            };
+
+            computeSums(recBruta);
+            computeSums(tributos);
+            computeSums(custosOp);
+            computeSums(despVendas);
+            computeSums(despAdmin);
+            computeSums(despFin);
+            computeSums(invest);
+
+            for (let i = 0; i < 24; i++) {
+                recLiquida.forecast[i] = recBruta.forecast[i] - tributos.forecast[i];
+                margemBruta.forecast[i] = recLiquida.forecast[i] - custosOp.forecast[i];
+                margemContrib.forecast[i] = margemBruta.forecast[i] - despVendas.forecast[i];
+                ebitda.forecast[i] = margemContrib.forecast[i] - despAdmin.forecast[i];
+                lucroLiquido.forecast[i] = ebitda.forecast[i] - despFin.forecast[i];
+            }
+
+            return [
+                recBruta, tributos, recLiquida, custosOp, margemBruta,
+                despVendas, margemContrib, despAdmin, ebitda, despFin, lucroLiquido, invest
+            ];
+        };
+
+        const treeRoots = buildCashFlowTree(forecastData);
+        const resultList: any[] = [];
+        const checkVisible = (node: any, parentVisible = true) => {
+            if (parentVisible) {
+                resultList.push(node);
+            }
+            if (node.children && node.children.length > 0) {
+                const isOpen = expandedCashFlowRows.has(node.categoryId);
+                node.children.sort((a: any, b: any) => a.categoryName.localeCompare(b.categoryName));
+                node.children.forEach((c: any) => checkVisible(c, parentVisible && isOpen));
+            }
+        };
+
+        treeRoots.forEach(r => checkVisible(r, true));
+        return resultList;
+    }, [forecastData, expandedCashFlowRows, contracts, selectedCashFlowContractId, coefficients, cfStartDateDay, cfBillingCycle, cfPaymentTermDays, cfEpiUniformsCost, cfEquipmentCost, cfSuppliesCost, cfPaydayDay, cfBenefitsPaydayDay, cfProvisionPayroll, cfLaborPct, cfChargesPct, cfBenefitsPct, cfOtherOperatingPct, cfTaxesPct, activeTab]);
+
+    const cashFlowSummary = useMemo(() => {
+        if (displayCashFlowGrid.length === 0) return { net: Array(24).fill(0), accum: Array(24).fill(0) };
+        const recBruta = displayCashFlowGrid.find(r => r.categoryId === 'G-01');
+        const tributos = displayCashFlowGrid.find(r => r.categoryId === 'G-02');
+        const custosOp = displayCashFlowGrid.find(r => r.categoryId === 'G-03');
+        const despVendas = displayCashFlowGrid.find(r => r.categoryId === 'G-04');
+        const despAdmin = displayCashFlowGrid.find(r => r.categoryId === 'G-05');
+        const despFin = displayCashFlowGrid.find(r => r.categoryId === 'G-06');
+        const invest = displayCashFlowGrid.find(r => r.categoryId === 'G-07');
+
+        const net = Array(24).fill(0);
+        const accum = Array(24).fill(0);
+        let run = 0;
+        for (let i = 0; i < 24; i++) {
+            const inf = recBruta?.forecast[i] || 0;
+            const out = (tributos?.forecast[i] || 0) +
+                        (custosOp?.forecast[i] || 0) +
+                        (despVendas?.forecast[i] || 0) +
+                        (despAdmin?.forecast[i] || 0) +
+                        (despFin?.forecast[i] || 0) +
+                        (invest?.forecast[i] || 0);
+            net[i] = inf - out;
+            run += net[i];
+            accum[i] = run;
+        }
+        return { net, accum };
+    }, [displayCashFlowGrid]);
+
     const renderTabContent = () => {
         if (loadingData) {
             return (
@@ -1695,260 +2215,35 @@ export default function ForecastPage() {
                 timelineMonths.push(`${shortMonths[mIdx]}/${yr}`);
             }
 
-            const calculateSingleContractCashFlow = (contract: any, overrideConfig?: any) => {
-                const { cashFlow } = parseContractName(contract.name);
-                const config = overrideConfig || cashFlow || {
-                    startDateDay: 20,
-                    billingCycle: 'subsequent_first_business_day',
-                    paymentTermDays: 30,
-                    epiUniformsCost: 1200,
-                    equipmentCost: 2500,
-                    suppliesCost: 800,
-                    paydayDay: 5,
-                    benefitsPaydayDay: 1,
-                    provisionPayroll: true,
-                    laborPct: 40,
-                    chargesPct: 15,
-                    benefitsPct: 8,
-                    otherOperatingPct: 0,
-                    taxesPct: 12.5
-                };
+            const recBruta = displayCashFlowGrid.find(r => r.categoryId === 'G-01');
+            const tributos = displayCashFlowGrid.find(r => r.categoryId === 'G-02');
+            const custosOp = displayCashFlowGrid.find(r => r.categoryId === 'G-03');
+            const despVendas = displayCashFlowGrid.find(r => r.categoryId === 'G-04');
+            const despAdmin = displayCashFlowGrid.find(r => r.categoryId === 'G-05');
+            const despFin = displayCashFlowGrid.find(r => r.categoryId === 'G-06');
+            const invest = displayCashFlowGrid.find(r => r.categoryId === 'G-07');
 
-                const startMonth = contract.startMonth;
-                const startMonthIdx = startMonth - 1;
-
-                const monthlyReceipts = Array(24).fill(0);
-                const monthlyPayrollOutflow = Array(24).fill(0);
-                const monthlyChargesOutflow = Array(24).fill(0);
-                const monthlyBenefitsOutflow = Array(24).fill(0);
-                const monthlyTaxesOutflow = Array(24).fill(0);
-                const monthlySetupOutflow = Array(24).fill(0);
-                const monthlyProvisionsOutflow = Array(24).fill(0);
-                const monthlyOtherOperatingOutflow = Array(24).fill(0);
-
-                const monthlyVal = contract.value * (contract.status === 'VENDIDO' ? 1.0 : contract.probability / 100.0);
-
-                for (let m = startMonthIdx; m < 24; m++) {
-                    const isFirstMonth = (m === startMonthIdx);
-                    const fraction = isFirstMonth
-                        ? Math.max(0.01, Math.min(1.0, (30 - (config.startDateDay ?? 20) + 1) / 30))
-                        : 1.0;
-
-                    const rev = monthlyVal * fraction;
-                    const tax = monthlyVal * (config.taxesPct / 100.0) * fraction;
-                    const labor = monthlyVal * (config.laborPct / 100.0) * fraction;
-                    const charges = monthlyVal * (config.chargesPct / 100.0) * fraction;
-                    const benefits = monthlyVal * (config.benefitsPct / 100.0) * fraction;
-                    const otherOp = monthlyVal * ((config.otherOperatingPct ?? 0) / 100.0) * fraction;
-                    
-                    let setup = 0;
-                    if (isFirstMonth) {
-                        setup = (config.epiUniformsCost ?? 0) + (config.equipmentCost ?? 0) + (config.suppliesCost ?? 0);
-                    }
-                    monthlySetupOutflow[m] = setup;
-
-                    // 1. Receipts (Inflow)
-                    const invoiceMonth = (config.billingCycle === 'same_month') ? m : m + 1;
-                    const paymentDelayMonths = Math.round((config.paymentTermDays ?? 30) / 30);
-                    const receiptMonth = invoiceMonth + paymentDelayMonths;
-                    if (receiptMonth < 24) {
-                        monthlyReceipts[receiptMonth] += rev;
-                    }
-
-                    // 2. Taxes (Impostos)
-                    const taxPaymentMonth = invoiceMonth + 1;
-                    if (taxPaymentMonth < 24) {
-                        monthlyTaxesOutflow[taxPaymentMonth] += tax;
-                    }
-
-                    // 3. Payroll (Folha de Pagamento)
-                    const payrollPaymentMonth = m + 1;
-                    if (payrollPaymentMonth < 24) {
-                        monthlyPayrollOutflow[payrollPaymentMonth] += labor;
-                    }
-
-                    // 3b. Charges (Encargos Mensais)
-                    if (payrollPaymentMonth < 24) {
-                        monthlyChargesOutflow[payrollPaymentMonth] += charges;
-                    }
-
-                    // 4. VA / VT (Benefícios) - Paid on 5th business day
-                    const startDateDay = config.startDateDay ?? 20;
-                    if (isFirstMonth) {
-                        if (startDateDay <= 4) {
-                            monthlyBenefitsOutflow[m] += benefits;
-                        } else {
-                            if (m + 1 < 24) {
-                                monthlyBenefitsOutflow[m + 1] += benefits; // Deferred proportional
-                            }
-                        }
-                    } else {
-                        monthlyBenefitsOutflow[m] += benefits;
-                    }
-
-                    // 5. Provisions (13º and Férias)
-                    if (config.provisionPayroll) {
-                        monthlyProvisionsOutflow[m] += labor * 0.1944;
-                    }
-
-                    // 6. Other Operating Outflows (paid subsequent month)
-                    const otherOpPaymentMonth = m + 1;
-                    if (otherOpPaymentMonth < 24) {
-                        monthlyOtherOperatingOutflow[otherOpPaymentMonth] += otherOp;
-                    }
-                }
-
-                return {
-                    receipts: monthlyReceipts,
-                    payroll: monthlyPayrollOutflow,
-                    charges: monthlyChargesOutflow,
-                    benefits: monthlyBenefitsOutflow,
-                    taxes: monthlyTaxesOutflow,
-                    setup: monthlySetupOutflow,
-                    provisions: monthlyProvisionsOutflow,
-                    otherOperating: monthlyOtherOperatingOutflow
-                };
-            };
-
-            let receipts = Array(24).fill(0);
-            let payroll = Array(24).fill(0);
-            let charges = Array(24).fill(0);
-            let benefits = Array(24).fill(0);
-            let taxes = Array(24).fill(0);
-            let setup = Array(24).fill(0);
-            let provisions = Array(24).fill(0);
-            let otherOperating = Array(24).fill(0);
-
-            if (selectedCashFlowContractId === 'CONSOLIDADO') {
-                activeContracts.forEach(contract => {
-                    const cf = calculateSingleContractCashFlow(contract);
-                    for (let i = 0; i < 24; i++) {
-                        receipts[i] += cf.receipts[i];
-                        payroll[i] += cf.payroll[i];
-                        charges[i] += cf.charges[i];
-                        benefits[i] += cf.benefits[i];
-                        taxes[i] += cf.taxes[i];
-                        setup[i] += cf.setup[i];
-                        provisions[i] += cf.provisions[i];
-                        otherOperating[i] += cf.otherOperating[i];
-                    }
-                });
-
-                // Add base company budget & realized DRE lines
-                const getBaseCompanyDREValue = (codePrefix: string, monthIndex: number) => {
-                    const mIdx = monthIndex % 12;
-                    const matchedCats = forecastData.filter(c => {
-                        const cMatch = c.categoryName.match(/^([\d.]+)/);
-                        const cCode = cMatch ? cMatch[1] : c.categoryName;
-                        return cCode.startsWith(codePrefix) || cCode === codePrefix;
-                    });
-
-                    let sum = 0;
-                    matchedCats.forEach(c => {
-                        const isRealized = (mIdx + 1 <= activeMonth) && (monthIndex < 12);
-                        if (isRealized) {
-                            sum += c.realized[mIdx] || 0;
-                        } else {
-                            sum += c.budget[mIdx] || 0;
-                        }
-                    });
-                    return sum;
-                };
-
-                for (let i = 0; i < 24; i++) {
-                    const baseRev = getBaseCompanyDREValue('01', i);
-                    const baseTax = getBaseCompanyDREValue('02', i);
-                    const baseLabor = getBaseCompanyDREValue('03.1', i);
-                    const baseCharges = getBaseCompanyDREValue('03.2', i);
-                    const baseBenefits = getBaseCompanyDREValue('03.3', i);
-                    
-                    const total03 = getBaseCompanyDREValue('03', i);
-                    const baseOtherOp = Math.max(0, total03 - baseLabor - baseCharges - baseBenefits);
-
-                    // Receipts (subsequent month delay)
-                    if (i + 1 < 24) {
-                        receipts[i + 1] += baseRev;
-                    }
-
-                    // Taxes (paid subsequent month)
-                    if (i + 1 < 24) {
-                        taxes[i + 1] += baseTax;
-                    }
-
-                    // Payroll (paid subsequent month)
-                    if (i + 1 < 24) {
-                        payroll[i + 1] += baseLabor;
-                    }
-
-                    // Charges (paid subsequent month)
-                    if (i + 1 < 24) {
-                        charges[i + 1] += baseCharges;
-                    }
-
-                    // Benefits (paid same month)
-                    benefits[i] += baseBenefits;
-
-                    // Other Operating (paid subsequent month)
-                    if (i + 1 < 24) {
-                        otherOperating[i + 1] += baseOtherOp;
-                    }
-                }
-            } else {
-                if (selectedContractObj) {
-                    const overrideConfig = {
-                        startDateDay: cfStartDateDay,
-                        billingCycle: cfBillingCycle,
-                        paymentTermDays: cfPaymentTermDays,
-                        epiUniformsCost: cfEpiUniformsCost,
-                        equipmentCost: cfEquipmentCost,
-                        suppliesCost: cfSuppliesCost,
-                        paydayDay: cfPaydayDay,
-                        benefitsPaydayDay: cfBenefitsPaydayDay,
-                        provisionPayroll: cfProvisionPayroll,
-                        laborPct: cfLaborPct,
-                        chargesPct: cfChargesPct,
-                        benefitsPct: cfBenefitsPct,
-                        otherOperatingPct: cfOtherOperatingPct,
-                        taxesPct: cfTaxesPct
-                    };
-                    const cf = calculateSingleContractCashFlow(selectedContractObj, overrideConfig);
-                    receipts = cf.receipts;
-                    payroll = cf.payroll;
-                    charges = cf.charges;
-                    benefits = cf.benefits;
-                    taxes = cf.taxes;
-                    setup = cf.setup;
-                    provisions = cf.provisions;
-                    otherOperating = cf.otherOperating;
-                }
+            let totalInflow = 0;
+            let totalOutflow = 0;
+            for (let i = 0; i < 24; i++) {
+                totalInflow += recBruta?.forecast[i] || 0;
+                totalOutflow += (tributos?.forecast[i] || 0) +
+                                (custosOp?.forecast[i] || 0) +
+                                (despVendas?.forecast[i] || 0) +
+                                (despAdmin?.forecast[i] || 0) +
+                                (despFin?.forecast[i] || 0) +
+                                (invest?.forecast[i] || 0);
             }
 
-            const monthlyOutflows = Array(24).fill(0);
-            const netCashFlows = Array(24).fill(0);
-            const cumulativeCashFlows = Array(24).fill(0);
-            
-            let cumulativeAcc = 0;
-            let maxCashRequirement = 0;
-            let paybackMonthIdx = -1;
+            const cumulativeCashFlows = cashFlowSummary.accum;
+            const maxCashRequirement = Math.min(...cumulativeCashFlows, 0);
 
+            let paybackMonthIdx = -1;
             for (let i = 0; i < 24; i++) {
-                monthlyOutflows[i] = payroll[i] + charges[i] + benefits[i] + taxes[i] + setup[i] + provisions[i] + otherOperating[i];
-                netCashFlows[i] = receipts[i] - monthlyOutflows[i];
-                
-                cumulativeAcc += netCashFlows[i];
-                cumulativeCashFlows[i] = cumulativeAcc;
-                
-                if (cumulativeAcc < maxCashRequirement) {
-                    maxCashRequirement = cumulativeAcc;
-                }
-                
-                if (cumulativeAcc >= 0 && paybackMonthIdx === -1 && i >= (selectedContractObj ? selectedContractObj.startMonth - 1 : 0)) {
+                if (cumulativeCashFlows[i] >= 0 && paybackMonthIdx === -1 && i >= (selectedContractObj ? selectedContractObj.startMonth - 1 : 0)) {
                     paybackMonthIdx = i;
                 }
             }
-
-            const totalInflow = receipts.reduce((sum, v) => sum + v, 0);
-            const totalOutflow = monthlyOutflows.reduce((sum, v) => sum + v, 0);
 
             // SVG Line Chart coordinates calculation
             const maxVal = Math.max(...cumulativeCashFlows, 0);
@@ -2255,191 +2550,158 @@ export default function ForecastPage() {
 
                             {/* Detailed Table */}
                             <div className="glass-card" style={{ padding: '1rem', background: 'var(--bg-surface)', borderRadius: '12px', border: '1px solid var(--border-default)', overflowX: 'auto' }}>
-                                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.72rem', textAlign: 'left', minWidth: '2400px' }}>
+                                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.72rem', textAlign: 'left', minWidth: '2400px', tableLayout: 'fixed' }}>
+                                    <colgroup>
+                                        <col style={{ width: '340px', minWidth: '340px' }} />
+                                        {timelineMonths.map((_, i) => (
+                                            <col key={i} style={{ width: '85px', minWidth: '85px' }} />
+                                        ))}
+                                        <col style={{ width: '100px', minWidth: '100px' }} />
+                                    </colgroup>
                                     <thead>
                                         <tr style={{ borderBottom: '2px solid var(--border-default)', color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}>
-                                            <th style={{ padding: '0.45rem', minWidth: '240px' }}>Fluxos de Caixa</th>
+                                            <th style={{ padding: '0.45rem 0.45rem 0.45rem 1.25rem', position: 'sticky', left: 0, backgroundColor: 'var(--bg-surface)', zIndex: 30, borderRight: '1px solid var(--border-subtle)', boxShadow: '2px 2px 5px -2px rgba(0,0,0,0.15)' }}>Fluxos de Caixa</th>
                                             {timelineMonths.map((name, i) => (
-                                                <th key={i} style={{ padding: '0.45rem', textAlign: 'right', width: '85px', minWidth: '85px' }}>{name}</th>
+                                                <th key={i} style={{ padding: '0.45rem', textAlign: 'right' }}>{name}</th>
                                             ))}
-                                            <th style={{ padding: '0.45rem', textAlign: 'right', width: '100px', minWidth: '100px' }}>Acumulado</th>
+                                            <th style={{ padding: '0.45rem', textAlign: 'right', fontWeight: 800 }}>Acumulado</th>
                                         </tr>
                                     </thead>
                                     <tbody>
-                                        {/* Inflow Row */}
-                                        <tr style={{ borderBottom: '1px solid var(--border-subtle)', whiteSpace: 'nowrap' }}>
-                                            <td 
-                                                onClick={() => setSelectedCashFlowRow({ name: 'Recebimento de Clientes', type: 'receipts', data: receipts })}
-                                                className="dre-cell-clickable"
-                                                style={{ padding: '0.5rem 0.45rem', fontWeight: 700, color: 'var(--accent-green)', whiteSpace: 'nowrap' }}
-                                            >
-                                                (+) Recebimento de Clientes
-                                            </td>
-                                            {receipts.map((v, i) => (
-                                                <td key={i} style={{ padding: '0.5rem 0.45rem', textAlign: 'right', color: v > 0 ? 'var(--text-primary)' : 'var(--text-secondary)', whiteSpace: 'nowrap' }}>
-                                                    {v > 0 ? fmt(v) : '-'}
-                                                </td>
-                                            ))}
-                                            <td style={{ padding: '0.5rem 0.45rem', textAlign: 'right', fontWeight: 800, color: 'var(--accent-green)', whiteSpace: 'nowrap' }}>
-                                                {fmt(totalInflow)}
-                                            </td>
-                                        </tr>
+                                        {displayCashFlowGrid.map(row => {
+                                            const sumForecast = row.forecast.reduce((a: number, b: number) => a + b, 0);
+                                            const isGroup = row.categoryId.startsWith('G-');
+                                            const isFormula = row.categoryId.startsWith('F-');
+                                            const hasChildren = row.children && row.children.length > 0;
 
-                                        {/* Outflows Rows */}
-                                        <tr style={{ borderBottom: '1px solid var(--border-subtle)', whiteSpace: 'nowrap' }}>
-                                            <td 
-                                                onClick={() => setSelectedCashFlowRow({ name: 'Implantação (EPIs / Equip. / Prod.)', type: 'setup', data: setup })}
-                                                className="dre-cell-clickable"
-                                                style={{ padding: '0.5rem 0.45rem', paddingLeft: '1rem', color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}
-                                            >
-                                                (-) Implantação (EPIs / Equip. / Prod.)
-                                            </td>
-                                            {setup.map((v, i) => (
-                                                <td key={i} style={{ padding: '0.5rem 0.45rem', textAlign: 'right', color: v > 0 ? 'var(--accent-red)' : 'var(--text-secondary)', whiteSpace: 'nowrap' }}>
-                                                    {v > 0 ? fmt(v) : '-'}
-                                                </td>
-                                            ))}
-                                            <td style={{ padding: '0.5rem 0.45rem', textAlign: 'right', color: 'var(--text-primary)', whiteSpace: 'nowrap' }}>
-                                                {fmt(setup.reduce((s, v) => s + v, 0))}
-                                            </td>
-                                        </tr>
+                                            let background = 'transparent';
+                                            let fontWeight = 500;
+                                            let borderBottom = '1px solid var(--border-subtle)';
 
-                                        <tr style={{ borderBottom: '1px solid var(--border-subtle)', whiteSpace: 'nowrap' }}>
-                                            <td 
-                                                onClick={() => setSelectedCashFlowRow({ name: 'Salários e Remuneração', type: 'payroll', data: payroll })}
-                                                className="dre-cell-clickable"
-                                                style={{ padding: '0.5rem 0.45rem', paddingLeft: '1rem', color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}
-                                            >
-                                                (-) Salários e Remuneração
-                                            </td>
-                                            {payroll.map((v, i) => (
-                                                <td key={i} style={{ padding: '0.5rem 0.45rem', textAlign: 'right', color: v > 0 ? 'var(--text-primary)' : 'var(--text-secondary)', whiteSpace: 'nowrap' }}>
-                                                    {v > 0 ? fmt(v) : '-'}
-                                                </td>
-                                            ))}
-                                            <td style={{ padding: '0.5rem 0.45rem', textAlign: 'right', color: 'var(--text-primary)', whiteSpace: 'nowrap' }}>
-                                                {fmt(payroll.reduce((s, v) => s + v, 0))}
-                                            </td>
-                                        </tr>
+                                            if (isFormula) {
+                                                background = 'rgba(99, 102, 241, 0.08)';
+                                                fontWeight = 800;
+                                                borderBottom = '2px double var(--border-default)';
+                                            } else if (isGroup) {
+                                                background = 'var(--bg-elevated)';
+                                                fontWeight = 700;
+                                            }
 
-                                        <tr style={{ borderBottom: '1px solid var(--border-subtle)', whiteSpace: 'nowrap' }}>
-                                            <td 
-                                                onClick={() => setSelectedCashFlowRow({ name: 'Encargos Sociais (Mensais - FGTS/INSS)', type: 'charges', data: charges })}
-                                                className="dre-cell-clickable"
-                                                style={{ padding: '0.5rem 0.45rem', paddingLeft: '1rem', color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}
-                                            >
-                                                (-) Encargos Sociais (Mensais - FGTS/INSS)
-                                            </td>
-                                            {charges.map((v, i) => (
-                                                <td key={i} style={{ padding: '0.5rem 0.45rem', textAlign: 'right', color: v > 0 ? 'var(--text-primary)' : 'var(--text-secondary)', whiteSpace: 'nowrap' }}>
-                                                    {v > 0 ? fmt(v) : '-'}
-                                                </td>
-                                            ))}
-                                            <td style={{ padding: '0.5rem 0.45rem', textAlign: 'right', color: 'var(--text-primary)', whiteSpace: 'nowrap' }}>
-                                                {fmt(charges.reduce((s, v) => s + v, 0))}
-                                            </td>
-                                        </tr>
-
-                                        <tr style={{ borderBottom: '1px solid var(--border-subtle)', whiteSpace: 'nowrap' }}>
-                                            <td 
-                                                onClick={() => setSelectedCashFlowRow({ name: 'Benefícios (VA / VT)', type: 'benefits', data: benefits })}
-                                                className="dre-cell-clickable"
-                                                style={{ padding: '0.5rem 0.45rem', paddingLeft: '1rem', color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}
-                                            >
-                                                (-) Benefícios (VA / VT)
-                                            </td>
-                                            {benefits.map((v, i) => (
-                                                <td key={i} style={{ padding: '0.5rem 0.45rem', textAlign: 'right', color: v > 0 ? 'var(--text-primary)' : 'var(--text-secondary)', whiteSpace: 'nowrap' }}>
-                                                    {v > 0 ? fmt(v) : '-'}
-                                                </td>
-                                            ))}
-                                            <td style={{ padding: '0.5rem 0.45rem', textAlign: 'right', color: 'var(--text-primary)', whiteSpace: 'nowrap' }}>
-                                                {fmt(benefits.reduce((s, v) => s + v, 0))}
-                                            </td>
-                                        </tr>
-
-                                        <tr style={{ borderBottom: '1px solid var(--border-subtle)', whiteSpace: 'nowrap' }}>
-                                            <td 
-                                                onClick={() => setSelectedCashFlowRow({ name: 'Impostos sobre Faturamento', type: 'taxes', data: taxes })}
-                                                className="dre-cell-clickable"
-                                                style={{ padding: '0.5rem 0.45rem', paddingLeft: '1rem', color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}
-                                            >
-                                                (-) Impostos sobre Faturamento
-                                            </td>
-                                            {taxes.map((v, i) => (
-                                                <td key={i} style={{ padding: '0.5rem 0.45rem', textAlign: 'right', color: v > 0 ? 'var(--text-primary)' : 'var(--text-secondary)', whiteSpace: 'nowrap' }}>
-                                                    {v > 0 ? fmt(v) : '-'}
-                                                </td>
-                                            ))}
-                                            <td style={{ padding: '0.5rem 0.45rem', textAlign: 'right', color: 'var(--text-primary)', whiteSpace: 'nowrap' }}>
-                                                {fmt(taxes.reduce((s, v) => s + v, 0))}
-                                            </td>
-                                        </tr>
-
-                                        <tr style={{ borderBottom: '1px solid var(--border-subtle)', whiteSpace: 'nowrap' }}>
-                                            <td 
-                                                onClick={() => setSelectedCashFlowRow({ name: 'Outros Custos Operacionais (Diárias, Materiais, etc.)', type: 'otherOperating', data: otherOperating })}
-                                                className="dre-cell-clickable"
-                                                style={{ padding: '0.5rem 0.45rem', paddingLeft: '1rem', color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}
-                                            >
-                                                (-) Outros Custos Operacionais (Diárias, Materiais, etc.)
-                                            </td>
-                                            {otherOperating.map((v, i) => (
-                                                <td key={i} style={{ padding: '0.5rem 0.45rem', textAlign: 'right', color: v > 0 ? 'var(--text-primary)' : 'var(--text-secondary)', whiteSpace: 'nowrap' }}>
-                                                    {v > 0 ? fmt(v) : '-'}
-                                                </td>
-                                            ))}
-                                            <td style={{ padding: '0.5rem 0.45rem', textAlign: 'right', color: 'var(--text-primary)', whiteSpace: 'nowrap' }}>
-                                                {fmt(otherOperating.reduce((s, v) => s + v, 0))}
-                                            </td>
-                                        </tr>
-
-                                        {cfProvisionPayroll && (
-                                            <tr style={{ borderBottom: '1px solid var(--border-subtle)', whiteSpace: 'nowrap' }}>
-                                                <td 
-                                                    onClick={() => setSelectedCashFlowRow({ name: 'Encargos Sociais - (13º e Férias)', type: 'provisions', data: provisions })}
-                                                    className="dre-cell-clickable"
-                                                    style={{ padding: '0.5rem 0.45rem', paddingLeft: '1rem', color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}
-                                                >
-                                                    (-) Encargos Sociais - (13º e Férias)
-                                                </td>
-                                                {provisions.map((v, i) => (
-                                                    <td key={i} style={{ padding: '0.5rem 0.45rem', textAlign: 'right', color: v > 0 ? 'var(--text-primary)' : 'var(--text-secondary)', whiteSpace: 'nowrap' }}>
-                                                        {v > 0 ? fmt(v) : '-'}
+                                            return (
+                                                <tr key={row.categoryId} style={{ borderBottom, background, fontWeight }}>
+                                                    <td style={{ 
+                                                         padding: '0.6rem 0.5rem', 
+                                                         whiteSpace: 'nowrap', 
+                                                         textOverflow: 'ellipsis', 
+                                                         overflow: 'hidden', 
+                                                         paddingLeft: `${row.level * 16 + 20}px`,
+                                                         position: 'sticky',
+                                                         left: 0,
+                                                         backgroundColor: background === 'transparent' ? 'var(--bg-surface)' : (background.startsWith('rgba') ? 'var(--bg-surface)' : background),
+                                                         background: background === 'transparent' ? 'var(--bg-surface)' : (background.startsWith('rgba') ? `linear-gradient(${background}, ${background}), var(--bg-surface)` : background),
+                                                         backgroundClip: 'padding-box',
+                                                         zIndex: 9,
+                                                         borderRight: '1px solid var(--border-subtle)',
+                                                         boxShadow: '2px 0 5px -2px rgba(0,0,0,0.1)'
+                                                    }}>
+                                                        {hasChildren && (
+                                                            <span 
+                                                                onClick={() => toggleCashFlowRow(row.categoryId)}
+                                                                style={{ cursor: 'pointer', userSelect: 'none', marginRight: '0.5rem', display: 'inline-block', width: '12px', color: 'var(--text-secondary)' }}
+                                                            >
+                                                                 {expandedCashFlowRows.has(row.categoryId) ? '▼' : '▶'}
+                                                            </span>
+                                                        )}
+                                                        {!hasChildren && !isFormula && <span style={{ display: 'inline-block', width: '17px' }} />}
+                                                        <span 
+                                                            onClick={() => hasChildren && toggleCashFlowRow(row.categoryId)}
+                                                            style={{ cursor: hasChildren ? 'pointer' : 'default' }}
+                                                        >
+                                                            {row.categoryName}
+                                                        </span>
                                                     </td>
-                                                ))}
-                                                <td style={{ padding: '0.5rem 0.45rem', textAlign: 'right', color: 'var(--text-primary)', whiteSpace: 'nowrap' }}>
-                                                    {fmt(provisions.reduce((s, v) => s + v, 0))}
-                                                </td>
-                                            </tr>
-                                        )}
+                                                    {row.forecast.map((val: number, i: number) => {
+                                                        const isZero = Math.abs(val) < 0.01;
+                                                        let cellColor = 'var(--text-secondary)';
+                                                        if (!isZero) {
+                                                            if (row.categoryId === 'G-01' || row.categoryId.startsWith('G-01.')) {
+                                                                cellColor = 'var(--accent-green)';
+                                                            } else if (row.categoryId === 'G-02' || row.categoryId.startsWith('G-02.') ||
+                                                                       row.categoryId === 'G-03' || row.categoryId.startsWith('G-03.') ||
+                                                                       row.categoryId === 'G-04' || row.categoryId.startsWith('G-04.') ||
+                                                                       row.categoryId === 'G-05' || row.categoryId.startsWith('G-05.') ||
+                                                                       row.categoryId === 'G-06' || row.categoryId.startsWith('G-06.') ||
+                                                                       row.categoryId === 'G-07') {
+                                                                cellColor = 'var(--accent-red)';
+                                                            } else if (isFormula) {
+                                                                cellColor = val >= 0 ? 'var(--accent-green)' : 'var(--accent-red)';
+                                                            } else {
+                                                                cellColor = 'var(--text-primary)';
+                                                            }
+                                                        }
+                                                        return (
+                                                            <td 
+                                                                key={i}
+                                                                onClick={() => !isFormula && handleCashFlowCellClick(row, i)}
+                                                                className={isFormula ? "" : "dre-cell-clickable"}
+                                                                style={{ padding: '0.6rem 0.5rem', textAlign: 'right', whiteSpace: 'nowrap', color: cellColor, fontWeight: isFormula ? 800 : 700 }}
+                                                            >
+                                                                {val !== 0 ? fmt(val) : '-'}
+                                                            </td>
+                                                        );
+                                                    })}
+                                                    <td style={{ padding: '0.6rem 0.5rem', textAlign: 'right', fontWeight: 800, whiteSpace: 'nowrap', color: isFormula ? (sumForecast >= 0 ? 'var(--accent-green)' : 'var(--accent-red)') : 'var(--text-primary)' }}>
+                                                        {fmt(sumForecast)}
+                                                    </td>
+                                                </tr>
+                                            );
+                                        })}
 
                                         {/* Summary Net Flow */}
-                                        <tr style={{ borderBottom: '2px solid var(--border-default)', background: 'var(--bg-elevated)', whiteSpace: 'nowrap' }}>
-                                            <td style={{ padding: '0.55rem 0.45rem', fontWeight: 800, whiteSpace: 'nowrap' }}>
+                                        <tr style={{ borderBottom: '2px solid var(--border-default)', background: 'var(--bg-elevated)', whiteSpace: 'nowrap', fontWeight: 800 }}>
+                                            <td style={{ 
+                                                padding: '0.6rem 0.5rem', 
+                                                paddingLeft: '20px',
+                                                position: 'sticky', 
+                                                left: 0, 
+                                                backgroundColor: 'var(--bg-elevated)', 
+                                                zIndex: 9, 
+                                                borderRight: '1px solid var(--border-subtle)', 
+                                                boxShadow: '2px 0 5px -2px rgba(0,0,0,0.1)' 
+                                            }}>
                                                 (=) Saldo de Caixa Mensal (Líquido)
                                             </td>
-                                            {netCashFlows.map((v, i) => (
-                                                <td key={i} style={{ padding: '0.55rem 0.45rem', textAlign: 'right', fontWeight: 800, color: v > 0 ? 'var(--accent-green)' : v < 0 ? 'var(--accent-red)' : 'var(--text-secondary)', whiteSpace: 'nowrap' }}>
+                                            {cashFlowSummary.net.map((v, i) => (
+                                                <td key={i} style={{ padding: '0.6rem 0.5rem', textAlign: 'right', color: v > 0 ? 'var(--accent-green)' : v < 0 ? 'var(--accent-red)' : 'var(--text-secondary)' }}>
                                                     {v !== 0 ? fmt(v) : '-'}
                                                 </td>
                                             ))}
-                                            <td style={{ padding: '0.55rem 0.45rem', textAlign: 'right', fontWeight: 800, color: (totalInflow - totalOutflow) >= 0 ? 'var(--accent-green)' : 'var(--accent-red)', whiteSpace: 'nowrap' }}>
+                                            <td style={{ padding: '0.6rem 0.5rem', textAlign: 'right', color: (totalInflow - totalOutflow) >= 0 ? 'var(--accent-green)' : 'var(--accent-red)' }}>
                                                 {fmt(totalInflow - totalOutflow)}
                                             </td>
                                         </tr>
 
                                         {/* Cumulative Row */}
-                                        <tr style={{ background: 'rgba(99, 102, 241, 0.06)', whiteSpace: 'nowrap' }}>
-                                            <td style={{ padding: '0.55rem 0.45rem', fontWeight: 800, color: 'var(--accent-indigo)', whiteSpace: 'nowrap' }}>
-                                                (累積) Saldo de Caixa Acumulado
+                                        <tr style={{ background: 'rgba(99, 102, 241, 0.06)', whiteSpace: 'nowrap', fontWeight: 800 }}>
+                                            <td style={{ 
+                                                padding: '0.6rem 0.5rem', 
+                                                paddingLeft: '20px',
+                                                position: 'sticky', 
+                                                left: 0, 
+                                                backgroundColor: '#f1f2fc',
+                                                zIndex: 9, 
+                                                borderRight: '1px solid var(--border-subtle)', 
+                                                boxShadow: '2px 0 5px -2px rgba(0,0,0,0.1)',
+                                                color: 'var(--accent-indigo)'
+                                            }}>
+                                                (Acumulado) Saldo de Caixa Acumulado
                                             </td>
                                             {cumulativeCashFlows.map((v, i) => (
-                                                <td key={i} style={{ padding: '0.55rem 0.45rem', textAlign: 'right', fontWeight: 800, color: v >= 0 ? 'var(--accent-green)' : 'var(--accent-red)', whiteSpace: 'nowrap' }}>
+                                                <td key={i} style={{ padding: '0.6rem 0.5rem', textAlign: 'right', color: v >= 0 ? 'var(--accent-green)' : 'var(--accent-red)' }}>
                                                     {fmt(v)}
                                                 </td>
                                             ))}
-                                            <td style={{ padding: '0.55rem 0.45rem', textAlign: 'right', fontWeight: 800, color: 'var(--accent-indigo)', whiteSpace: 'nowrap' }}>
+                                            <td style={{ padding: '0.6rem 0.5rem', textAlign: 'right', color: 'var(--accent-indigo)' }}>
                                                 -
                                             </td>
                                         </tr>
@@ -3053,14 +3315,14 @@ export default function ForecastPage() {
             {/* Cash Flow Row composition modal */}
             {selectedCashFlowRow && (
                 <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', zIndex: 20000, display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
-                    <div className="glass-card" style={{ width: '800px', maxHeight: '85vh', padding: '1.75rem', background: 'var(--bg-surface)', borderRadius: '16px', border: '1px solid var(--border-default)', display: 'flex', flexDirection: 'column', gap: '1.25rem', boxShadow: '0 20px 25px -5px rgba(0,0,0,0.3), 0 10px 10px -5px rgba(0,0,0,0.3)', overflow: 'hidden' }}>
+                    <div className="glass-card" style={{ width: '820px', maxHeight: '85vh', padding: '1.75rem', background: 'var(--bg-surface)', borderRadius: '16px', border: '1px solid var(--border-default)', display: 'flex', flexDirection: 'column', gap: '1.25rem', boxShadow: '0 20px 25px -5px rgba(0,0,0,0.3), 0 10px 10px -5px rgba(0,0,0,0.3)', overflow: 'hidden' }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                             <div>
                                 <h4 style={{ margin: 0, fontSize: '1.15rem', fontWeight: 800, color: 'var(--text-primary)' }}>
-                                    📋 Detalhamento da Conta de Caixa
+                                    📋 Composição do Fluxo de Caixa
                                 </h4>
                                 <span style={{ fontSize: '0.85rem', color: 'var(--accent-indigo)', fontWeight: 700 }}>
-                                    {selectedCashFlowRow.name}
+                                    {selectedCashFlowRow.name} {selectedCashFlowRow.selectedMonthIndex !== undefined ? `— Período: ${timelineMonths[selectedCashFlowRow.selectedMonthIndex]}` : ''}
                                 </span>
                             </div>
                             <button 
@@ -3073,59 +3335,114 @@ export default function ForecastPage() {
 
                         {/* Description Box */}
                         <div style={{ padding: '0.85rem', background: 'var(--bg-elevated)', borderRadius: '8px', border: '1px solid var(--border-subtle)', fontSize: '0.8rem', lineHeight: '1.4', color: 'var(--text-secondary)' }}>
-                            <strong>Regra de Cálculo e Lógica:</strong><br/>
-                            {selectedCashFlowRow.type === 'receipts' && "Entrada de caixa proveniente do faturamento de clientes (competência deslocada conforme ciclo de faturamento e prazo médio de pagamento configurado)."}
-                            {selectedCashFlowRow.type === 'setup' && "Desembolsos pontuais de implantação de EPIs, uniformes, equipamentos e insumos necessários no mês de início de cada contrato simulado."}
-                            {selectedCashFlowRow.type === 'payroll' && "Saída de caixa para pagamento de salários brutos e adicionais. A competência correspondente do DRE é paga no mês subsequente (regime de caixa, geralmente no 5º dia útil)."}
-                            {selectedCashFlowRow.type === 'charges' && "Desembolsos para pagamento de encargos sociais recorrentes (INSS patronal, FGTS, contribuições previdenciárias) correspondentes à folha do mês anterior."}
-                            {selectedCashFlowRow.type === 'benefits' && "Saídas de caixa referentes a benefícios operacionais (VA/VT e alimentação sobre férias) pagos no próprio mês de competência da prestação de serviços."}
-                            {selectedCashFlowRow.type === 'taxes' && "Desembolsos de impostos sobre faturamento (Simples Nacional, ISS, PIS/COFINS) retidos ou recolhidos no mês subsequente ao faturamento."}
-                            {selectedCashFlowRow.type === 'otherOperating' && "Saídas de caixa referentes a todas as outras despesas de suporte operacional (como diárias de cobertura, combustíveis de veículos, SSMA recorrente, etc.) pagas no mês subsequente à competência."}
-                            {selectedCashFlowRow.type === 'provisions' && "Provisão interna de caixa (reserva financeira) calculada como 19,44% sobre a folha de salários do mês para amortizar o desembolso futuro de 13º e férias dos colaboradores."}
+                            <strong>Regra de Lógica Financeira:</strong><br/>
+                            {selectedCashFlowRow.type.startsWith('G-01') && "Entrada de caixa (Recebimento de Clientes) proveniente do faturamento das novas vendas simuladas (ajustado pelo prazo médio de pagamento configurado)."}
+                            {selectedCashFlowRow.type.startsWith('G-02') && "Desembolso de impostos incidentes sobre o faturamento, pago no mês subsequente à competência."}
+                            {selectedCashFlowRow.type.startsWith('G-03.1') && "Saídas de caixa referentes a salários operacionais brutos pagos aos colaboradores no mês subsequente ao trabalhado."}
+                            {selectedCashFlowRow.type.startsWith('G-03.2') && "Desembolsos para pagamento de encargos sociais (FGTS, INSS patronal, provisões salariais) gerados sobre a folha."}
+                            {selectedCashFlowRow.type.startsWith('G-03.3') && "Pagamento imediato de benefícios (vale alimentação, vale transporte) para os colaboradores no próprio mês de prestação."}
+                            {selectedCashFlowRow.type.startsWith('G-03.5') && "Investimento recorrente e setup de uniformes e EPIs operacionais. No mês de implantação do contrato, o valor padrão é multiplicado por 3."}
+                            {selectedCashFlowRow.type.startsWith('G-03.6') && "Investimento recorrente e setup de materiais de consumo e limpeza. No mês de implantação do contrato, o valor padrão é multiplicado por 3."}
+                            {!(selectedCashFlowRow.type.startsWith('G-01') || selectedCashFlowRow.type.startsWith('G-02') || selectedCashFlowRow.type.startsWith('G-03.1') || selectedCashFlowRow.type.startsWith('G-03.2') || selectedCashFlowRow.type.startsWith('G-03.3') || selectedCashFlowRow.type.startsWith('G-03.5') || selectedCashFlowRow.type.startsWith('G-03.6')) && "Projeção de fluxo de caixa operacional associada às despesas simuladas do contrato subsequente ou provisão financeira."}
                         </div>
 
-                        {/* Timeline Scrollable Table */}
-                        <div style={{ flex: 1, overflowY: 'auto' }}>
+                        {/* Breakdown by Contract Table */}
+                        <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                            <div style={{ fontWeight: 800, fontSize: '0.8rem', color: 'var(--text-primary)', borderBottom: '1px solid var(--border-subtle)', paddingBottom: '0.25rem' }}>
+                                🚀 Contratos Simulados Contribuintes
+                            </div>
                             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.75rem', textAlign: 'left' }}>
                                 <thead>
-                                    <tr style={{ borderBottom: '2px solid var(--border-default)', color: 'var(--text-secondary)', position: 'sticky', top: 0, backgroundColor: 'var(--bg-surface)' }}>
-                                        <th style={{ padding: '0.5rem' }}>Período</th>
-                                        <th style={{ padding: '0.5rem', textAlign: 'right' }}>Valor Desembolsado/Recebido</th>
-                                        <th style={{ padding: '0.5rem', paddingLeft: '1.5rem' }}>Status e Lógica do Período</th>
+                                    <tr style={{ borderBottom: '2px solid var(--border-default)', color: 'var(--text-secondary)', fontWeight: 700 }}>
+                                        <th style={{ padding: '0.50rem' }}>Contrato</th>
+                                        <th style={{ padding: '0.50rem', textAlign: 'center' }}>Mês Início</th>
+                                        <th style={{ padding: '0.50rem', textAlign: 'center' }}>Status</th>
+                                        <th style={{ padding: '0.50rem', textAlign: 'center' }}>Probabilidade</th>
+                                        <th style={{ padding: '0.50rem', textAlign: 'right' }}>Valor Contrato</th>
+                                        <th style={{ padding: '0.50rem', textAlign: 'right', fontWeight: 800, color: 'var(--accent-indigo)' }}>Contribuição de Caixa</th>
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    {selectedCashFlowRow.data.map((val, idx) => {
-                                        const isZero = Math.abs(val) < 0.01;
-                                        return (
-                                            <tr key={idx} style={{ borderBottom: '1px solid var(--border-subtle)', background: isZero ? 'transparent' : 'rgba(99,102,241,0.02)' }}>
-                                                <td style={{ padding: '0.5rem', fontWeight: 700 }}>
-                                                    {timelineMonths[idx]}
-                                                </td>
-                                                <td style={{ padding: '0.5rem', textAlign: 'right', fontWeight: 800, color: val > 0 ? (selectedCashFlowRow.type === 'receipts' ? 'var(--accent-green)' : 'var(--accent-red)') : 'var(--text-secondary)' }}>
-                                                    {val > 0 ? fmt(val) : '-'}
-                                                </td>
-                                                <td style={{ padding: '0.5rem', paddingLeft: '1.5rem', color: 'var(--text-secondary)' }}>
-                                                    {!isZero ? (
-                                                        <>
-                                                            {selectedCashFlowRow.type === 'receipts' && `Referente ao faturamento de meses anteriores recebido neste período.`}
-                                                            {selectedCashFlowRow.type === 'setup' && `Investimento inicial de implantação realizado neste mês.`}
-                                                            {selectedCashFlowRow.type === 'payroll' && `Salários da competência anterior pagos no dia de folha de pagamento.`}
-                                                            {selectedCashFlowRow.type === 'charges' && `Encargos sociais da competência anterior recolhidos neste mês.`}
-                                                            {selectedCashFlowRow.type === 'benefits' && `Pagamento antecipado de benefícios (VA/VT) para os colaboradores deste mês.`}
-                                                            {selectedCashFlowRow.type === 'taxes' && `Recolhimento dos tributos incidentes sobre o faturamento anterior.`}
-                                                            {selectedCashFlowRow.type === 'otherOperating' && `Outros custos operacionais acumulados da competência anterior pagos neste período.`}
-                                                            {selectedCashFlowRow.type === 'provisions' && `Reserva de 19,44% retida em caixa referente à folha deste mês.`}
-                                                        </>
-                                                    ) : (
-                                                        "Sem movimentações de caixa neste período."
-                                                    )}
-                                                </td>
-                                            </tr>
-                                        );
-                                    })}
+                                    {selectedCashFlowRow.contracts && selectedCashFlowRow.contracts.length > 0 ? (
+                                        selectedCashFlowRow.contracts.map((c: any) => {
+                                            const isZero = Math.abs(c.contribution) < 0.01;
+                                            return (
+                                                <tr key={c.contractId} style={{ borderBottom: '1px solid var(--border-subtle)', background: isZero ? 'transparent' : 'rgba(99,102,241,0.01)' }}>
+                                                    <td style={{ padding: '0.55rem 0.5rem', fontWeight: 700, color: 'var(--text-primary)' }}>
+                                                        {c.contractName}
+                                                    </td>
+                                                    <td style={{ padding: '0.55rem 0.5rem', textAlign: 'center', fontWeight: 600 }}>
+                                                        Mês {c.allMonths.findIndex((v: number) => v > 0) !== -1 ? timelineMonths[c.allMonths.findIndex((v: number) => v > 0)] : '-'}
+                                                    </td>
+                                                    <td style={{ padding: '0.55rem 0.5rem', textAlign: 'center' }}>
+                                                        <span style={{
+                                                            fontSize: '0.62rem',
+                                                            fontWeight: 800,
+                                                            padding: '2px 6px',
+                                                            borderRadius: '4px',
+                                                            background: c.status === 'VENDIDO' ? 'rgba(16, 185, 129, 0.1)' : 'rgba(99, 102, 241, 0.1)',
+                                                            color: c.status === 'VENDIDO' ? 'var(--accent-green)' : 'var(--accent-indigo)'
+                                                        }}>
+                                                            {c.status}
+                                                        </span>
+                                                    </td>
+                                                    <td style={{ padding: '0.55rem 0.5rem', textAlign: 'center', fontWeight: 600 }}>
+                                                        {c.probability}%
+                                                    </td>
+                                                    <td style={{ padding: '0.55rem 0.5rem', textAlign: 'right', color: 'var(--text-primary)' }}>
+                                                        {fmt(c.value)}/mês
+                                                    </td>
+                                                    <td style={{ padding: '0.55rem 0.5rem', textAlign: 'right', fontWeight: 800, color: c.contribution > 0 ? (selectedCashFlowRow.type.startsWith('G-01') ? 'var(--accent-green)' : 'var(--accent-red)') : 'var(--text-secondary)' }}>
+                                                        {c.contribution > 0 ? fmt(c.contribution) : '-'}
+                                                    </td>
+                                                </tr>
+                                            );
+                                        })
+                                    ) : (
+                                        <tr>
+                                            <td colSpan={6} style={{ padding: '1rem', textAlign: 'center', color: 'var(--text-secondary)' }}>
+                                                Nenhum contrato ativo contribuindo para este fluxo de caixa.
+                                            </td>
+                                        </tr>
+                                    )}
+                                    <tr style={{ borderTop: '2px solid var(--border-default)', background: 'var(--bg-elevated)', fontWeight: 800 }}>
+                                        <td colSpan={5} style={{ padding: '0.6rem 0.5rem' }}>Total da Categoria</td>
+                                        <td style={{ padding: '0.6rem 0.5rem', textAlign: 'right', color: (selectedCashFlowRow.contracts?.reduce((s, v) => s + v.contribution, 0) || 0) > 0 ? (selectedCashFlowRow.type.startsWith('G-01') ? 'var(--accent-green)' : 'var(--accent-red)') : 'var(--text-secondary)' }}>
+                                            {fmt(selectedCashFlowRow.contracts?.reduce((s, v) => s + v.contribution, 0) || 0)}
+                                        </td>
+                                    </tr>
                                 </tbody>
                             </table>
+
+                            {/* Timeline table inside modal for detailed months view */}
+                            {selectedCashFlowRow.selectedMonthIndex === undefined && (
+                                <div style={{ marginTop: '1.25rem' }}>
+                                    <div style={{ fontWeight: 800, fontSize: '0.8rem', color: 'var(--text-primary)', borderBottom: '1px solid var(--border-subtle)', paddingBottom: '0.25rem', marginBottom: '0.5rem' }}>
+                                        📅 Projeção Completa da Conta (24 Meses)
+                                    </div>
+                                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.75rem', textAlign: 'left' }}>
+                                        <thead>
+                                            <tr style={{ borderBottom: '1px solid var(--border-default)', color: 'var(--text-secondary)' }}>
+                                                <th style={{ padding: '0.5rem' }}>Período</th>
+                                                <th style={{ padding: '0.5rem', textAlign: 'right' }}>Valor Desembolsado/Recebido</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {selectedCashFlowRow.data.map((val, idx) => {
+                                                const isZero = Math.abs(val) < 0.01;
+                                                return (
+                                                    <tr key={idx} style={{ borderBottom: '1px solid var(--border-subtle)', background: isZero ? 'transparent' : 'rgba(99,102,241,0.01)' }}>
+                                                        <td style={{ padding: '0.4rem 0.5rem', fontWeight: 700 }}>{timelineMonths[idx]}</td>
+                                                        <td style={{ padding: '0.4rem 0.5rem', textAlign: 'right', fontWeight: 800, color: val > 0 ? (selectedCashFlowRow.type.startsWith('G-01') ? 'var(--accent-green)' : 'var(--accent-red)') : 'var(--text-secondary)' }}>
+                                                            {val > 0 ? fmt(val) : '-'}
+                                                        </td>
+                                                    </tr>
+                                                );
+                                            })}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            )}
                         </div>
 
                         <div style={{ display: 'flex', justifyContent: 'flex-end', borderTop: '1px solid var(--border-subtle)', paddingTop: '1rem' }}>

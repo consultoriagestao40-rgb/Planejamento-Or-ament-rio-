@@ -1025,7 +1025,9 @@ export default function ForecastPage() {
                                                                  paddingLeft: `${row.level * 16 + 8}px`,
                                                                  position: 'sticky',
                                                                  left: 0,
-                                                                 background: background === 'transparent' ? 'var(--bg-surface)' : background,
+                                                                 backgroundColor: background === 'transparent' ? 'var(--bg-surface)' : (background.startsWith('rgba') ? 'var(--bg-surface)' : background),
+                                                                 background: background === 'transparent' ? 'var(--bg-surface)' : (background.startsWith('rgba') ? `linear-gradient(${background}, ${background}), var(--bg-surface)` : background),
+                                                                 backgroundClip: 'padding-box',
                                                                  zIndex: 9,
                                                                  borderRight: '1px solid var(--border-subtle)',
                                                                  boxShadow: '2px 0 5px -2px rgba(0,0,0,0.1)'

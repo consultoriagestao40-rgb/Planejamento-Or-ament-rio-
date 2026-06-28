@@ -2159,9 +2159,17 @@ export default function ForecastPage() {
             const cumulativeCashFlows = cashFlowSummary.accum;
             const maxCashRequirement = Math.min(...cumulativeCashFlows, 0);
 
+            const activeContracts = contracts.filter(c => c.status !== 'PERDIDO');
+            const minStartMonth = activeContracts.length > 0 
+                ? Math.min(...activeContracts.map(c => c.startMonth)) 
+                : 1;
+            const startSearchIdx = selectedContractObj 
+                ? (selectedContractObj.startMonth - 1) 
+                : (minStartMonth - 1);
+
             let paybackMonthIdx = -1;
             for (let i = 0; i < 24; i++) {
-                if (cumulativeCashFlows[i] >= 0 && paybackMonthIdx === -1 && i >= (selectedContractObj ? selectedContractObj.startMonth - 1 : 0)) {
+                if (cumulativeCashFlows[i] >= 0 && paybackMonthIdx === -1 && i >= startSearchIdx) {
                     paybackMonthIdx = i;
                 }
             }
@@ -2602,7 +2610,7 @@ export default function ForecastPage() {
                                             }}>
                                                 (=) Saldo de Caixa Mensal (Líquido)
                                             </td>
-                                            {cashFlowSummary.net.map((v, i) => (
+                                            {cashFlowSummary.net.slice(0, visibleMonthsCount).map((v, i) => (
                                                 <td key={i} style={{ padding: '0.6rem 0.5rem', textAlign: 'right', color: v > 0 ? 'var(--accent-green)' : v < 0 ? 'var(--accent-red)' : 'var(--text-secondary)' }}>
                                                     {v !== 0 ? fmt(v) : '-'}
                                                 </td>
@@ -2627,7 +2635,7 @@ export default function ForecastPage() {
                                             }}>
                                                 (Acumulado) Saldo de Caixa Acumulado
                                             </td>
-                                            {cumulativeCashFlows.map((v, i) => (
+                                            {cumulativeCashFlows.slice(0, visibleMonthsCount).map((v, i) => (
                                                 <td key={i} style={{ padding: '0.6rem 0.5rem', textAlign: 'right', color: v >= 0 ? 'var(--accent-green)' : 'var(--accent-red)' }}>
                                                     {fmt(v)}
                                                 </td>

@@ -914,6 +914,450 @@ export default function ForecastPage() {
         return resultList;
     }, [forecastData, expandedRows]);
 
+    const renderTabContent = () => {
+        if (loadingData) {
+            return (
+                                    <div style={{ padding: '4rem', display: 'flex', justifyContent: 'center' }}>
+                                        <div style={{ border: '3px solid var(--border-default)', borderTopColor: 'var(--accent-indigo)', borderRadius: '50%', width: '36px', height: '36px', animation: 'spin 1s linear infinite' }} />
+                                    </div>
+            );
+        }
+
+        if (activeTab === 'grid') {
+            return (
+                                    <div className="glass-card" style={{ padding: '1.25rem', background: 'var(--bg-surface)', borderRadius: '12px', border: '1px solid var(--border-default)', overflowX: 'auto' }}>
+                                        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.75rem', textAlign: 'left' }}>
+                                            <thead>
+                                                <tr style={{ borderBottom: '2px solid var(--border-default)', color: 'var(--text-secondary)' }}>
+                                                    <th style={{ padding: '0.5rem', minWidth: '180px' }}>Conta - Categoria</th>
+                                                    {monthsName.map((name, i) => (
+                                                        <React.Fragment key={i}>
+                                                            <th style={{ padding: '0.5rem', textAlign: 'right', minWidth: '100px', whiteSpace: 'nowrap', background: i + 1 <= activeMonth ? 'rgba(99, 102, 241, 0.05)' : 'transparent' }}>
+                                                                {name} <span style={{ fontSize: '0.6rem', display: 'block', opacity: 0.7 }}>{i + 1 <= activeMonth ? 'Real' : 'Proj'}</span>
+                                                            </th>
+                                                            {showAV && (
+                                                                <th style={{ padding: '0.5rem', textAlign: 'center', width: '55px', minWidth: '55px', background: i + 1 <= activeMonth ? 'rgba(99, 102, 241, 0.03)' : 'transparent', color: 'var(--text-secondary)', fontSize: '0.65rem' }}>
+                                                                    AV
+                                                                </th>
+                                                            )}
+                                                        </React.Fragment>
+                                                    ))}
+                                                    <th style={{ padding: '0.5rem', textAlign: 'right', fontWeight: 800, minWidth: '110px', whiteSpace: 'nowrap' }}>Total Forecast</th>
+                                                    {showAV && <th style={{ padding: '0.5rem', textAlign: 'center', width: '55px', minWidth: '55px', color: 'var(--text-secondary)', fontSize: '0.65rem' }}>AV</th>}
+                                                    <th style={{ padding: '0.5rem', textAlign: 'right', opacity: 0.8, minWidth: '110px', whiteSpace: 'nowrap' }}>Budget Original</th>
+                                                    {showAV && <th style={{ padding: '0.5rem', textAlign: 'center', width: '55px', minWidth: '55px', color: 'var(--text-secondary)', opacity: 0.8, fontSize: '0.65rem' }}>AV</th>}
+                                                    <th style={{ padding: '0.5rem', textAlign: 'right', minWidth: '110px', whiteSpace: 'nowrap' }}>Variação</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                {displayGrid.map(row => {
+                                                    const sumForecast = row.forecast.reduce((a: number, b: number) => a + b, 0);
+                                                    const sumBudget = row.budget.reduce((a: number, b: number) => a + b, 0);
+                                                    const variance = sumForecast - sumBudget;
+                                                    
+                                                    // Análise Vertical (AV) Totais
+                                                    const groupBruta = displayGrid.find(r => r.categoryId === 'G-01');
+                                                    const sumForecastBruta = groupBruta?.forecast.reduce((a: number, b: number) => a + b, 0) || 0;
+                                                    const sumBudgetBruta = groupBruta?.budget.reduce((a: number, b: number) => a + b, 0) || 0;
+                                                    const avTotalPercent = Math.abs(sumForecastBruta) > 0.01 ? (sumForecast / sumForecastBruta) * 100 : 0;
+                                                    const avBudgetPercent = Math.abs(sumBudgetBruta) > 0.01 ? (sumBudget / sumBudgetBruta) * 100 : 0;
+                                                    
+                                                    const isGroup = row.categoryId.startsWith('G-');
+                                                    const isFormula = row.categoryId.startsWith('F-');
+                                                    const hasChildren = row.children && row.children.length > 0;
+            
+                                                    let background = 'transparent';
+                                                    let fontWeight = 500;
+                                                    let borderBottom = '1px solid var(--border-subtle)';
+            
+                                                    if (isFormula) {
+                                                        background = 'rgba(99, 102, 241, 0.08)';
+                                                        fontWeight = 800;
+                                                        borderBottom = '2px double var(--border-default)';
+                                                    } else if (isGroup) {
+                                                        background = 'var(--bg-elevated)';
+                                                        fontWeight = 700;
+                                                    }
+            
+                                                    return (
+                                                        <tr key={row.categoryId} style={{ borderBottom, background, fontWeight }}>
+                                                            <td style={{ padding: '0.6rem 0.5rem', whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden', paddingLeft: `${row.level * 16 + 8}px` }}>
+                                                                {hasChildren && (
+                                                                    <span 
+                                                                        onClick={() => toggleRow(row.categoryId)}
+                                                                        style={{ cursor: 'pointer', userSelect: 'none', marginRight: '0.5rem', display: 'inline-block', width: '12px', color: 'var(--text-secondary)' }}
+                                                                    >
+                                                                         {expandedRows.has(row.categoryId) ? '▼' : '▶'}
+                                                                    </span>
+                                                                )}
+                                                                {!hasChildren && !isFormula && <span style={{ display: 'inline-block', width: '17px' }} />}
+                                                                <span 
+                                                                    onClick={() => hasChildren && toggleRow(row.categoryId)}
+                                                                    style={{ cursor: hasChildren ? 'pointer' : 'default' }}
+                                                                >
+                                                                    {row.categoryName}
+                                                                </span>
+                                                            </td>
+                                                            {row.forecast.map((val: number, i: number) => {
+                                                                const totalBruta = displayGrid.find(r => r.categoryId === 'G-01')?.forecast[i] || 0;
+                                                                const avPercent = Math.abs(totalBruta) > 0.01 ? (val / totalBruta) * 100 : 0;
+                                                                return (
+                                                                    <React.Fragment key={i}>
+                                                                        <td style={{ padding: '0.6rem 0.5rem', textAlign: 'right', whiteSpace: 'nowrap' }}>
+                                                                            {fmt(val)}
+                                                                        </td>
+                                                                        {showAV && (
+                                                                            <td style={{ padding: '0.6rem 0.5rem', textAlign: 'center', color: 'var(--text-secondary)', fontSize: '0.7rem', fontWeight: 600 }}>
+                                                                                {avPercent.toFixed(1)}%
+                                                                            </td>
+                                                                        )}
+                                                                    </React.Fragment>
+                                                                );
+                                                            })}
+                                                            <td style={{ padding: '0.6rem 0.5rem', textAlign: 'right', fontWeight: 800, color: 'var(--accent-indigo)', whiteSpace: 'nowrap' }}>
+                                                                {fmt(sumForecast)}
+                                                            </td>
+                                                            {showAV && (
+                                                                <td style={{ padding: '0.6rem 0.5rem', textAlign: 'center', color: 'var(--text-secondary)', fontSize: '0.7rem', fontWeight: 700 }}>
+                                                                    {avTotalPercent.toFixed(1)}%
+                                                                </td>
+                                                            )}
+                                                            <td style={{ padding: '0.6rem 0.5rem', textAlign: 'right', opacity: 0.8, whiteSpace: 'nowrap' }}>
+                                                                {fmt(sumBudget)}
+                                                            </td>
+                                                            {showAV && (
+                                                                <td style={{ padding: '0.6rem 0.5rem', textAlign: 'center', color: 'var(--text-secondary)', fontSize: '0.7rem', fontWeight: 700, opacity: 0.8 }}>
+                                                                    {avBudgetPercent.toFixed(1)}%
+                                                                </td>
+                                                            )}
+                                                            <td style={{ padding: '0.6rem 0.5rem', textAlign: 'right', color: variance > 0 ? 'var(--accent-green)' : variance < 0 ? 'var(--accent-red)' : 'var(--text-secondary)', whiteSpace: 'nowrap' }}>
+                                                                {variance > 0 ? '+' : ''}{fmt(variance)}
+                                                            </td>
+                                                        </tr>
+                                                    );
+                                                })}
+                                            </tbody>
+                                        </table>
+                                    </div>
+            );
+        }
+
+        if (activeTab === 'coefficients') {
+            return (
+                                    <div className="glass-card" style={{ padding: '1.25rem', background: 'var(--bg-surface)', borderRadius: '12px', border: '1px solid var(--border-default)', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                            <div>
+                                                <h4 style={{ margin: 0, fontSize: '0.95rem', fontWeight: 800 }}>Configuração de Percentuais (Análise Vertical)</h4>
+                                                <p style={{ margin: '0.2rem 0 0 0', fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
+                                                    Defina a porcentagem de cada subcategoria operacional em relação à Receita Bruta. Esses pesos serão multiplicados pelas vendas projetadas no simulador de contratos.
+                                                </p>
+                                                {selectedTenant === 'ALL' && (
+                                                    <div style={{ marginTop: '0.5rem', padding: '0.5rem 0.75rem', background: 'rgba(245, 158, 11, 0.1)', color: 'var(--accent-orange)', borderRadius: '6px', fontSize: '0.75rem', fontWeight: 700 }}>
+                                                        ⚠️ Você está na visualização Consolidada. Alterações aqui serão aplicadas a todas as empresas do grupo.
+                                                    </div>
+                                                )}
+                                            </div>
+                                            <div style={{ display: 'flex', gap: '0.5rem' }}>
+                                                <button 
+                                                    onClick={() => setExpandedContractRows(new Set(['G-01', 'G-02', 'G-03', 'G-01.1', 'G-01.2', 'G-02.1', 'G-03.1', 'G-03.2', 'G-03.3', 'G-03.4', 'G-03.5', 'G-03.6', 'G-03.7', 'G-03.8', 'G-03.9', 'G-03.10']))}
+                                                    className="btn" 
+                                                    style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', fontSize: '0.75rem', fontWeight: 700, padding: '0.35rem 0.75rem', borderRadius: '6px', cursor: 'pointer', background: 'var(--bg-elevated)', border: '1px solid var(--border-subtle)', color: 'var(--text-primary)' }}
+                                                >
+                                                    ↕️ Expandir Tudo
+                                                </button>
+                                                <button 
+                                                    onClick={() => setExpandedContractRows(new Set())}
+                                                    className="btn" 
+                                                    style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', fontSize: '0.75rem', fontWeight: 700, padding: '0.35rem 0.75rem', borderRadius: '6px', cursor: 'pointer', background: 'var(--bg-elevated)', border: '1px solid var(--border-subtle)', color: 'var(--text-primary)' }}
+                                                >
+                                                    ↔️ Retrair Tudo
+                                                </button>
+                                            </div>
+                                        </div>
+            
+                                        <div style={{ flex: 1, overflowY: 'auto', paddingRight: '0.25rem' }}>
+                                            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.75rem', textAlign: 'left' }}>
+                                                <thead>
+                                                    <tr style={{ borderBottom: '2px solid var(--border-default)', color: 'var(--text-secondary)' }}>
+                                                        <th style={{ padding: '0.5rem' }}>Conta - Categoria</th>
+                                                        <th style={{ padding: '0.5rem', textAlign: 'center', width: '200px' }}>Percentual (AV % da Receita)</th>
+                                                        <th style={{ padding: '0.5rem', textAlign: 'center', width: '220px' }}>Origem da Taxa</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody>
+                                                    {coefTreeGrid.map(row => {
+                                                        const isGroup = row.categoryId.startsWith('G-') || row.isFormula;
+                                                        const hasChildren = row.children && row.children.length > 0;
+                                                        
+                                                        let borderBottom = '1px solid var(--border-subtle)';
+                                                        let background = 'transparent';
+                                                        let fontWeight = 400;
+            
+                                                        if (row.categoryId === 'G-02' || row.categoryId === 'G-03') {
+                                                            borderBottom = '2px solid var(--border-default)';
+                                                            background = 'var(--bg-surface)';
+                                                            fontWeight = 800;
+                                                        } else if (isGroup) {
+                                                            background = 'var(--bg-elevated)';
+                                                            fontWeight = 700;
+                                                        }
+            
+                                                        return (
+                                                            <tr key={row.categoryId} style={{ borderBottom, background, fontWeight }}>
+                                                                <td style={{ padding: '0.55rem 0.5rem', whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden', paddingLeft: `${row.level * 16 + 8}px` }}>
+                                                                    {hasChildren && (
+                                                                        <span 
+                                                                            onClick={() => toggleContractRow(row.categoryId)}
+                                                                            style={{ cursor: 'pointer', userSelect: 'none', marginRight: '0.5rem', display: 'inline-block', width: '12px', color: 'var(--text-secondary)' }}
+                                                                        >
+                                                                            {expandedContractRows.has(row.categoryId) ? '▼' : '▶'}
+                                                                        </span>
+                                                                    )}
+                                                                    {!hasChildren && <span style={{ display: 'inline-block', width: '17px' }} />}
+                                                                    <span 
+                                                                        onClick={() => hasChildren && toggleContractRow(row.categoryId)}
+                                                                        style={{ cursor: hasChildren ? 'pointer' : 'default' }}
+                                                                    >
+                                                                        {row.categoryName}
+                                                                    </span>
+                                                                </td>
+                                                                <td style={{ padding: '0.55rem 0.5rem', textAlign: 'center', width: '200px' }}>
+                                                                    {isGroup ? (
+                                                                        <span style={{ fontSize: '0.85rem', fontWeight: 800, color: 'var(--accent-indigo)' }}>
+                                                                            {row.percentage.toFixed(2)}%
+                                                                        </span>
+                                                                    ) : (
+                                                                        editingCoefId === row.categoryId ? (
+                                                                            <div style={{ display: 'flex', gap: '0.25rem', alignItems: 'center', justifyContent: 'center' }}>
+                                                                                <input
+                                                                                    type="number"
+                                                                                    step="0.01"
+                                                                                    value={editingCoefValue}
+                                                                                    onChange={(e) => setEditingCoefValue(parseFloat(e.target.value) || 0)}
+                                                                                    style={{ width: '60px', height: '28px', padding: '0 0.35rem', borderRadius: '4px', border: '1px solid var(--border-default)', background: 'var(--bg-surface)', color: 'var(--text-primary)', fontSize: '0.8rem', fontWeight: 700 }}
+                                                                                />
+                                                                                <span style={{ fontSize: '0.8rem', fontWeight: 700 }}>%</span>
+                                                                                <button
+                                                                                    onClick={() => handleSaveCoefficientOverride(row.categoryId, editingCoefValue)}
+                                                                                    style={{ background: 'var(--accent-green)', color: '#ffffff', border: 'none', borderRadius: '4px', padding: '2px 6px', fontSize: '0.7rem', fontWeight: 700, cursor: 'pointer' }}
+                                                                                >
+                                                                                    💾
+                                                                                </button>
+                                                                                <button
+                                                                                    onClick={() => setEditingCoefId(null)}
+                                                                                    style={{ background: 'var(--bg-surface)', border: '1px solid var(--border-default)', borderRadius: '4px', padding: '2px 6px', fontSize: '0.7rem', cursor: 'pointer', color: 'var(--text-primary)' }}
+                                                                                >
+                                                                                    ❌
+                                                                                </button>
+                                                                            </div>
+                                                                        ) : (
+                                                                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem' }}>
+                                                                                <span style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--text-primary)' }}>
+                                                                                    {row.percentage.toFixed(2)}%
+                                                                                </span>
+                                                                                <button
+                                                                                    onClick={() => {
+                                                                                        setEditingCoefId(row.categoryId);
+                                                                                        setEditingCoefValue(row.percentage);
+                                                                                    }}
+                                                                                    style={{ background: 'transparent', border: 'none', cursor: 'pointer', fontSize: '0.85rem', padding: 0 }}
+                                                                                >
+                                                                                    ✏️
+                                                                                </button>
+                                                                            </div>
+                                                                        )
+                                                                    )}
+                                                                </td>
+                                                                <td style={{ padding: '0.55rem 0.5rem', textAlign: 'center', width: '220px', color: row.isOverride ? 'var(--accent-orange)' : 'var(--text-secondary)' }}>
+                                                                    {isGroup ? (
+                                                                        <span style={{ fontSize: '0.7rem', fontWeight: 700 }}>📁 Grupo de Contas</span>
+                                                                    ) : (
+                                                                        row.isOverride ? '⚠️ Valor Personalizado' : '📊 Histórico Calculado'
+                                                                    )}
+                                                                </td>
+                                                            </tr>
+                                                        );
+                                                    })}
+                                                </tbody>
+                                            </table>
+                                        </div>
+            );
+        }
+
+        // activeTab === 'simulator'
+        return (
+                                    <div className="glass-card" style={{ padding: '1.25rem', background: 'var(--bg-surface)', borderRadius: '12px', border: '1px solid var(--border-default)', display: 'flex', flexDirection: 'column', gap: '1rem', overflowX: 'auto' }}>
+                                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                            <div>
+                                                <h4 style={{ margin: 0, fontSize: '0.95rem', fontWeight: 800 }}>Simulador de Contratos Mensais</h4>
+                                                <p style={{ margin: '0.2rem 0 0 0', fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
+                                                    Projete o faturamento mensal de novos contratos e vincule os respectivos vendedores. Os faturamentos e os custos simulados refletirão automaticamente no Forecast.
+                                                </p>
+                                            </div>
+                                            <button
+                                                onClick={() => {
+                                                    setEditingContractId(null);
+                                                    setContractName('');
+                                                    setContractValue(0);
+                                                    setContractStartMonth(activeMonth + 1 > 12 ? 12 : activeMonth + 1);
+                                                    setContractProbability(100);
+                                                    setContractStatus('PIPELINE');
+                                                    setContractTenantId(companies[0]?.id || '');
+                                                    setContractSeller('');
+                                                    setContractRevenueSplit({});
+                                                    setSelectedRevenueCode('');
+                                                    setTypedRevenueValue('');
+                                                    setIsContractModalOpen(true);
+                                                }}
+                                                style={{
+                                                    padding: '0.5rem 1rem',
+                                                    background: 'var(--gradient-brand)',
+                                                    color: '#ffffff',
+                                                    border: 'none',
+                                                    borderRadius: '8px',
+                                                    fontSize: '0.8rem',
+                                                    fontWeight: 700,
+                                                    cursor: 'pointer',
+                                                    display: 'flex',
+                                                    alignItems: 'center',
+                                                    gap: '0.25rem',
+                                                    boxShadow: '0 4px 12px rgba(99, 102, 241, 0.2)'
+                                                }}
+                                            >
+                                                ➕ Adicionar Novo Contrato
+                                            </button>
+                                        </div>
+            
+                                        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.75rem', textAlign: 'left', minWidth: '1000px' }}>
+                                            <thead>
+                                                <tr style={{ borderBottom: '2px solid var(--border-default)', color: 'var(--text-secondary)' }}>
+                                                    <th style={{ padding: '0.5rem', minWidth: '150px' }}>Contrato - Cliente</th>
+                                                    <th style={{ padding: '0.5rem', minWidth: '120px' }}>Vendedor</th>
+                                                    <th style={{ padding: '0.5rem', minWidth: '100px', textAlign: 'center' }}>Probabilidade - Status</th>
+                                                    {monthsName.map((name, i) => (
+                                                        <th key={i} style={{ padding: '0.5rem', textAlign: 'right', minWidth: '85px', background: i + 1 >= activeMonth + 1 ? 'rgba(99, 102, 241, 0.04)' : 'transparent' }}>
+                                                            {name}
+                                                        </th>
+                                                    ))}
+                                                    <th style={{ padding: '0.5rem', textAlign: 'center', width: '100px' }}>Ações</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                {contracts.length === 0 ? (
+                                                    <tr>
+                                                        <td colSpan={16} style={{ padding: '3rem', textAlign: 'center', color: 'var(--text-secondary)' }}>
+                                                            Nenhum contrato simulado. Clique em "Adicionar Novo Contrato" para iniciar.
+                                                        </td>
+                                                    </tr>
+                                                ) :
+                                                    contracts.map(contract => {
+                                                        const { name: cleanName, seller: cleanSeller } = parseContractName(contract.name);
+                                                        return (
+                                                            <tr key={contract.id} style={{ borderBottom: '1px solid var(--border-subtle)' }}>
+                                                                <td style={{ padding: '0.6rem 0.5rem', fontWeight: 700 }}>
+                                                                    {cleanName}
+                                                                    {selectedTenant === 'ALL' && (
+                                                                        <span style={{ display: 'block', fontSize: '0.65rem', fontWeight: 600, color: 'var(--text-secondary)' }}>
+                                                                            🏢 {contract.tenant?.name}
+                                                                        </span>
+                                                                    )}
+                                                                </td>
+                                                                <td style={{ padding: '0.6rem 0.5rem', color: cleanSeller ? 'var(--text-primary)' : 'var(--text-secondary)', fontWeight: 600 }}>
+                                                                    {cleanSeller || '-'}
+                                                                </td>
+                                                                <td style={{ padding: '0.6rem 0.5rem', textAlign: 'center' }}>
+                                                                    <span style={{
+                                                                        fontSize: '0.65rem',
+                                                                        fontWeight: 800,
+                                                                        padding: '2px 6px',
+                                                                        borderRadius: '4px',
+                                                                        background: contract.status === 'VENDIDO' ? 'rgba(16, 185, 129, 0.1)' : 'rgba(99, 102, 241, 0.1)',
+                                                                        color: contract.status === 'VENDIDO' ? 'var(--accent-green)' : 'var(--accent-indigo)'
+                                                                    }}>
+                                                                        {contract.status === 'VENDIDO' ? 'VENDIDO' : `${contract.probability}% Prob.`}
+                                                                    </span>
+                                                                </td>
+                                                                {monthsName.map((_, i) => {
+                                                                    const monthNum = i + 1;
+                                                                    const isActive = monthNum >= contract.startMonth;
+                                                                    const multiplier = contract.status === 'VENDIDO' ? 1.0 : (contract.probability * 0.01);
+                                                                    const val = isActive ? contract.value * multiplier : 0;
+                                                                    
+                                                                    return (
+                                                                        <td key={i} style={{ padding: '0.6rem 0.5rem', textAlign: 'right', fontWeight: isActive ? 700 : 400, color: isActive ? 'var(--text-primary)' : 'var(--text-secondary)', background: monthNum >= activeMonth + 1 ? 'rgba(99, 102, 241, 0.02)' : 'transparent' }}>
+                                                                            {val > 0 ? fmt(val) : '-'}
+                                                                        </td>
+                                                                    );
+                                                                })}
+                                                                <td style={{ padding: '0.6rem 0.5rem', textAlign: 'center' }}>
+                                                                    <div style={{ display: 'flex', gap: '0.4rem', justifyContent: 'center' }}>
+                                                                        <button
+                                                                            onClick={() => setViewingContractDetails(contract)}
+                                                                            title="Visualizar Custos DRE do Contrato"
+                                                                            style={{ border: 'none', background: 'transparent', cursor: 'pointer', fontSize: '0.85rem', padding: 0 }}
+                                                                        >
+                                                                            👁️
+                                                                        </button>
+                                                                        <button
+                                                                            onClick={() => {
+                                                                                const { name: nameOnly, split: splitObj, seller: sellerStr } = parseContractName(contract.name);
+                                                                                setEditingContractId(contract.id);
+                                                                                setContractName(nameOnly);
+                                                                                setContractValue(contract.value);
+                                                                                setContractStartMonth(contract.startMonth);
+                                                                                setContractProbability(contract.probability);
+                                                                                setContractStatus(contract.status);
+                                                                                setContractTenantId(contract.tenantId);
+                                                                                setContractSeller(sellerStr);
+                                                                                setContractRevenueSplit(splitObj);
+                                                                                setIsContractModalOpen(true);
+                                                                            }}
+                                                                            title="Editar Contrato"
+                                                                            style={{ border: 'none', background: 'transparent', cursor: 'pointer', fontSize: '0.85rem', padding: 0 }}
+                                                                        >
+                                                                            ✏️
+                                                                        </button>
+                                                                        <button
+                                                                            onClick={() => handleDeleteContract(contract.id)}
+                                                                            title="Excluir Contrato"
+                                                                            style={{ border: 'none', background: 'transparent', cursor: 'pointer', fontSize: '0.85rem', padding: 0 }}
+                                                                        >
+                                                                            🗑️
+                                                                        </button>
+                                                                    </div>
+                                                                </td>
+                                                            </tr>
+                                                        );
+                                                    })
+                                                }
+                                                {contracts.length > 0 && (
+                                                    <tr style={{ borderTop: '2px solid var(--border-default)', background: 'var(--bg-elevated)', fontWeight: 800 }}>
+                                                        <td colSpan={3} style={{ padding: '0.65rem 0.5rem' }}>
+                                                            Total Receita Simulada
+                                                        </td>
+                                                        {monthsName.map((_, i) => {
+                                                            const monthNum = i + 1;
+                                                            const totalMonthVal = contracts.reduce((sum, contract) => {
+                                                                const isVal = monthNum >= contract.startMonth;
+                                                                const multiplier = contract.status === 'VENDIDO' ? 1.0 : (contract.probability * 0.01);
+                                                                return sum + (isVal ? contract.value * multiplier : 0);
+                                                            }, 0);
+                                                            
+                                                            return (
+                                                                <td key={i} style={{ padding: '0.65rem 0.5rem', textAlign: 'right', color: 'var(--accent-indigo)' }}>
+                                                                    {totalMonthVal > 0 ? fmt(totalMonthVal) : '-'}
+                                                                </td>
+                                                            );
+                                                        })}
+                                                        <td></td>
+                                                    </tr>
+                                                )}
+                                            </tbody>
+                                        </table>
+                                    </div>
+        );
+    };
+
     return (
         <div style={{ padding: '2rem', display: 'flex', flexDirection: 'column', gap: '1.5rem', width: '100%', boxSizing: 'border-box', background: 'var(--bg-default)', color: 'var(--text-primary)' }}>
             
@@ -1046,434 +1490,7 @@ export default function ForecastPage() {
                         )}
                     </div>
 
-                    {loadingData ? (
-                        <div style={{ padding: '4rem', display: 'flex', justifyContent: 'center' }}>
-                            <div style={{ border: '3px solid var(--border-default)', borderTopColor: 'var(--accent-indigo)', borderRadius: '50%', width: '36px', height: '36px', animation: 'spin 1s linear infinite' }} />
-                        </div>
-                    ) : activeTab === 'grid' ? (
-                        <div className="glass-card" style={{ padding: '1.25rem', background: 'var(--bg-surface)', borderRadius: '12px', border: '1px solid var(--border-default)', overflowX: 'auto' }}>
-                            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.75rem', textAlign: 'left' }}>
-                                <thead>
-                                    <tr style={{ borderBottom: '2px solid var(--border-default)', color: 'var(--text-secondary)' }}>
-                                        <th style={{ padding: '0.5rem', minWidth: '180px' }}>Conta - Categoria</th>
-                                        {monthsName.map((name, i) => (
-                                            <React.Fragment key={i}>
-                                                <th style={{ padding: '0.5rem', textAlign: 'right', minWidth: '100px', whiteSpace: 'nowrap', background: i + 1 <= activeMonth ? 'rgba(99, 102, 241, 0.05)' : 'transparent' }}>
-                                                    {name} <span style={{ fontSize: '0.6rem', display: 'block', opacity: 0.7 }}>{i + 1 <= activeMonth ? 'Real' : 'Proj'}</span>
-                                                </th>
-                                                {showAV && (
-                                                    <th style={{ padding: '0.5rem', textAlign: 'center', width: '55px', minWidth: '55px', background: i + 1 <= activeMonth ? 'rgba(99, 102, 241, 0.03)' : 'transparent', color: 'var(--text-secondary)', fontSize: '0.65rem' }}>
-                                                        AV
-                                                    </th>
-                                                )}
-                                            </React.Fragment>
-                                        ))}
-                                        <th style={{ padding: '0.5rem', textAlign: 'right', fontWeight: 800, minWidth: '110px', whiteSpace: 'nowrap' }}>Total Forecast</th>
-                                        {showAV && <th style={{ padding: '0.5rem', textAlign: 'center', width: '55px', minWidth: '55px', color: 'var(--text-secondary)', fontSize: '0.65rem' }}>AV</th>}
-                                        <th style={{ padding: '0.5rem', textAlign: 'right', opacity: 0.8, minWidth: '110px', whiteSpace: 'nowrap' }}>Budget Original</th>
-                                        {showAV && <th style={{ padding: '0.5rem', textAlign: 'center', width: '55px', minWidth: '55px', color: 'var(--text-secondary)', opacity: 0.8, fontSize: '0.65rem' }}>AV</th>}
-                                        <th style={{ padding: '0.5rem', textAlign: 'right', minWidth: '110px', whiteSpace: 'nowrap' }}>Variação</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {displayGrid.map(row => {
-                                        const sumForecast = row.forecast.reduce((a: number, b: number) => a + b, 0);
-                                        const sumBudget = row.budget.reduce((a: number, b: number) => a + b, 0);
-                                        const variance = sumForecast - sumBudget;
-                                        
-                                        // Análise Vertical (AV) Totais
-                                        const groupBruta = displayGrid.find(r => r.categoryId === 'G-01');
-                                        const sumForecastBruta = groupBruta?.forecast.reduce((a: number, b: number) => a + b, 0) || 0;
-                                        const sumBudgetBruta = groupBruta?.budget.reduce((a: number, b: number) => a + b, 0) || 0;
-                                        const avTotalPercent = Math.abs(sumForecastBruta) > 0.01 ? (sumForecast / sumForecastBruta) * 100 : 0;
-                                        const avBudgetPercent = Math.abs(sumBudgetBruta) > 0.01 ? (sumBudget / sumBudgetBruta) * 100 : 0;
-                                        
-                                        const isGroup = row.categoryId.startsWith('G-');
-                                        const isFormula = row.categoryId.startsWith('F-');
-                                        const hasChildren = row.children && row.children.length > 0;
-
-                                        let background = 'transparent';
-                                        let fontWeight = 500;
-                                        let borderBottom = '1px solid var(--border-subtle)';
-
-                                        if (isFormula) {
-                                            background = 'rgba(99, 102, 241, 0.08)';
-                                            fontWeight = 800;
-                                            borderBottom = '2px double var(--border-default)';
-                                        } else if (isGroup) {
-                                            background = 'var(--bg-elevated)';
-                                            fontWeight = 700;
-                                        }
-
-                                        return (
-                                            <tr key={row.categoryId} style={{ borderBottom, background, fontWeight }}>
-                                                <td style={{ padding: '0.6rem 0.5rem', whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden', paddingLeft: `${row.level * 16 + 8}px` }}>
-                                                    {hasChildren && (
-                                                        <span 
-                                                            onClick={() => toggleRow(row.categoryId)}
-                                                            style={{ cursor: 'pointer', userSelect: 'none', marginRight: '0.5rem', display: 'inline-block', width: '12px', color: 'var(--text-secondary)' }}
-                                                        >
-                                                             {expandedRows.has(row.categoryId) ? '▼' : '▶'}
-                                                        </span>
-                                                    )}
-                                                    {!hasChildren && !isFormula && <span style={{ display: 'inline-block', width: '17px' }} />}
-                                                    <span 
-                                                        onClick={() => hasChildren && toggleRow(row.categoryId)}
-                                                        style={{ cursor: hasChildren ? 'pointer' : 'default' }}
-                                                    >
-                                                        {row.categoryName}
-                                                    </span>
-                                                </td>
-                                                {row.forecast.map((val: number, i: number) => {
-                                                    const totalBruta = displayGrid.find(r => r.categoryId === 'G-01')?.forecast[i] || 0;
-                                                    const avPercent = Math.abs(totalBruta) > 0.01 ? (val / totalBruta) * 100 : 0;
-                                                    return (
-                                                        <React.Fragment key={i}>
-                                                            <td style={{ padding: '0.6rem 0.5rem', textAlign: 'right', whiteSpace: 'nowrap' }}>
-                                                                {fmt(val)}
-                                                            </td>
-                                                            {showAV && (
-                                                                <td style={{ padding: '0.6rem 0.5rem', textAlign: 'center', color: 'var(--text-secondary)', fontSize: '0.7rem', fontWeight: 600 }}>
-                                                                    {avPercent.toFixed(1)}%
-                                                                </td>
-                                                            )}
-                                                        </React.Fragment>
-                                                    );
-                                                })}
-                                                <td style={{ padding: '0.6rem 0.5rem', textAlign: 'right', fontWeight: 800, color: 'var(--accent-indigo)', whiteSpace: 'nowrap' }}>
-                                                    {fmt(sumForecast)}
-                                                </td>
-                                                {showAV && (
-                                                    <td style={{ padding: '0.6rem 0.5rem', textAlign: 'center', color: 'var(--text-secondary)', fontSize: '0.7rem', fontWeight: 700 }}>
-                                                        {avTotalPercent.toFixed(1)}%
-                                                    </td>
-                                                )}
-                                                <td style={{ padding: '0.6rem 0.5rem', textAlign: 'right', opacity: 0.8, whiteSpace: 'nowrap' }}>
-                                                    {fmt(sumBudget)}
-                                                </td>
-                                                {showAV && (
-                                                    <td style={{ padding: '0.6rem 0.5rem', textAlign: 'center', color: 'var(--text-secondary)', fontSize: '0.7rem', fontWeight: 700, opacity: 0.8 }}>
-                                                        {avBudgetPercent.toFixed(1)}%
-                                                    </td>
-                                                )}
-                                                <td style={{ padding: '0.6rem 0.5rem', textAlign: 'right', color: variance > 0 ? 'var(--accent-green)' : variance < 0 ? 'var(--accent-red)' : 'var(--text-secondary)', whiteSpace: 'nowrap' }}>
-                                                    {variance > 0 ? '+' : ''}{fmt(variance)}
-                                                </td>
-                                            </tr>
-                                        );
-                                    })}
-                                </tbody>
-                            </table>
-                        </div>
-                    ) : activeTab === 'coefficients' ? (
-                        <div className="glass-card" style={{ padding: '1.25rem', background: 'var(--bg-surface)', borderRadius: '12px', border: '1px solid var(--border-default)', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                <div>
-                                    <h4 style={{ margin: 0, fontSize: '0.95rem', fontWeight: 800 }}>Configuração de Percentuais (Análise Vertical)</h4>
-                                    <p style={{ margin: '0.2rem 0 0 0', fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
-                                        Defina a porcentagem de cada subcategoria operacional em relação à Receita Bruta. Esses pesos serão multiplicados pelas vendas projetadas no simulador de contratos.
-                                    </p>
-                                    {selectedTenant === 'ALL' && (
-                                        <div style={{ marginTop: '0.5rem', padding: '0.5rem 0.75rem', background: 'rgba(245, 158, 11, 0.1)', color: 'var(--accent-orange)', borderRadius: '6px', fontSize: '0.75rem', fontWeight: 700 }}>
-                                            ⚠️ Você está na visualização Consolidada. Alterações aqui serão aplicadas a todas as empresas do grupo.
-                                        </div>
-                                    )}
-                                </div>
-                                <div style={{ display: 'flex', gap: '0.5rem' }}>
-                                    <button 
-                                        onClick={() => setExpandedContractRows(new Set(['G-01', 'G-02', 'G-03', 'G-01.1', 'G-01.2', 'G-02.1', 'G-03.1', 'G-03.2', 'G-03.3', 'G-03.4', 'G-03.5', 'G-03.6', 'G-03.7', 'G-03.8', 'G-03.9', 'G-03.10']))}
-                                        className="btn" 
-                                        style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', fontSize: '0.75rem', fontWeight: 700, padding: '0.35rem 0.75rem', borderRadius: '6px', cursor: 'pointer', background: 'var(--bg-elevated)', border: '1px solid var(--border-subtle)', color: 'var(--text-primary)' }}
-                                    >
-                                        ↕️ Expandir Tudo
-                                    </button>
-                                    <button 
-                                        onClick={() => setExpandedContractRows(new Set())}
-                                        className="btn" 
-                                        style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', fontSize: '0.75rem', fontWeight: 700, padding: '0.35rem 0.75rem', borderRadius: '6px', cursor: 'pointer', background: 'var(--bg-elevated)', border: '1px solid var(--border-subtle)', color: 'var(--text-primary)' }}
-                                    >
-                                        ↔️ Retrair Tudo
-                                    </button>
-                                </div>
-                            </div>
-
-                            <div style={{ flex: 1, overflowY: 'auto', paddingRight: '0.25rem' }}>
-                                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.75rem', textAlign: 'left' }}>
-                                    <thead>
-                                        <tr style={{ borderBottom: '2px solid var(--border-default)', color: 'var(--text-secondary)' }}>
-                                            <th style={{ padding: '0.5rem' }}>Conta - Categoria</th>
-                                            <th style={{ padding: '0.5rem', textAlign: 'center', width: '200px' }}>Percentual (AV % da Receita)</th>
-                                            <th style={{ padding: '0.5rem', textAlign: 'center', width: '220px' }}>Origem da Taxa</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        {coefTreeGrid.map(row => {
-                                            const isGroup = row.categoryId.startsWith('G-') || row.isFormula;
-                                            const hasChildren = row.children && row.children.length > 0;
-                                            
-                                            let borderBottom = '1px solid var(--border-subtle)';
-                                            let background = 'transparent';
-                                            let fontWeight = 400;
-
-                                            if (row.categoryId === 'G-02' || row.categoryId === 'G-03') {
-                                                borderBottom = '2px solid var(--border-default)';
-                                                background = 'var(--bg-surface)';
-                                                fontWeight = 800;
-                                            } else if (isGroup) {
-                                                background = 'var(--bg-elevated)';
-                                                fontWeight = 700;
-                                            }
-
-                                            return (
-                                                <tr key={row.categoryId} style={{ borderBottom, background, fontWeight }}>
-                                                    <td style={{ padding: '0.55rem 0.5rem', whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden', paddingLeft: `${row.level * 16 + 8}px` }}>
-                                                        {hasChildren && (
-                                                            <span 
-                                                                onClick={() => toggleContractRow(row.categoryId)}
-                                                                style={{ cursor: 'pointer', userSelect: 'none', marginRight: '0.5rem', display: 'inline-block', width: '12px', color: 'var(--text-secondary)' }}
-                                                            >
-                                                                {expandedContractRows.has(row.categoryId) ? '▼' : '▶'}
-                                                            </span>
-                                                        )}
-                                                        {!hasChildren && <span style={{ display: 'inline-block', width: '17px' }} />}
-                                                        <span 
-                                                            onClick={() => hasChildren && toggleContractRow(row.categoryId)}
-                                                            style={{ cursor: hasChildren ? 'pointer' : 'default' }}
-                                                        >
-                                                            {row.categoryName}
-                                                        </span>
-                                                    </td>
-                                                    <td style={{ padding: '0.55rem 0.5rem', textAlign: 'center', width: '200px' }}>
-                                                        {isGroup ? (
-                                                            <span style={{ fontSize: '0.85rem', fontWeight: 800, color: 'var(--accent-indigo)' }}>
-                                                                {row.percentage.toFixed(2)}%
-                                                            </span>
-                                                        ) : (
-                                                            editingCoefId === row.categoryId ? (
-                                                                <div style={{ display: 'flex', gap: '0.25rem', alignItems: 'center', justifyContent: 'center' }}>
-                                                                    <input
-                                                                        type="number"
-                                                                        step="0.01"
-                                                                        value={editingCoefValue}
-                                                                        onChange={(e) => setEditingCoefValue(parseFloat(e.target.value) || 0)}
-                                                                        style={{ width: '60px', height: '28px', padding: '0 0.35rem', borderRadius: '4px', border: '1px solid var(--border-default)', background: 'var(--bg-surface)', color: 'var(--text-primary)', fontSize: '0.8rem', fontWeight: 700 }}
-                                                                    />
-                                                                    <span style={{ fontSize: '0.8rem', fontWeight: 700 }}>%</span>
-                                                                    <button
-                                                                        onClick={() => handleSaveCoefficientOverride(row.categoryId, editingCoefValue)}
-                                                                        style={{ background: 'var(--accent-green)', color: '#ffffff', border: 'none', borderRadius: '4px', padding: '2px 6px', fontSize: '0.7rem', fontWeight: 700, cursor: 'pointer' }}
-                                                                    >
-                                                                        💾
-                                                                    </button>
-                                                                    <button
-                                                                        onClick={() => setEditingCoefId(null)}
-                                                                        style={{ background: 'var(--bg-surface)', border: '1px solid var(--border-default)', borderRadius: '4px', padding: '2px 6px', fontSize: '0.7rem', cursor: 'pointer', color: 'var(--text-primary)' }}
-                                                                    >
-                                                                        ❌
-                                                                    </button>
-                                                                </div>
-                                                            ) : (
-                                                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem' }}>
-                                                                    <span style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--text-primary)' }}>
-                                                                        {row.percentage.toFixed(2)}%
-                                                                    </span>
-                                                                    <button
-                                                                        onClick={() => {
-                                                                            setEditingCoefId(row.categoryId);
-                                                                            setEditingCoefValue(row.percentage);
-                                                                        }}
-                                                                        style={{ background: 'transparent', border: 'none', cursor: 'pointer', fontSize: '0.85rem', padding: 0 }}
-                                                                    >
-                                                                        ✏️
-                                                                    </button>
-                                                                </div>
-                                                            )
-                                                        )}
-                                                    </td>
-                                                    <td style={{ padding: '0.55rem 0.5rem', textAlign: 'center', width: '220px', color: row.isOverride ? 'var(--accent-orange)' : 'var(--text-secondary)' }}>
-                                                        {isGroup ? (
-                                                            <span style={{ fontSize: '0.7rem', fontWeight: 700 }}>📁 Grupo de Contas</span>
-                                                        ) : (
-                                                            row.isOverride ? '⚠️ Valor Personalizado' : '📊 Histórico Calculado'
-                                                        )}
-                                                    </td>
-                                                </tr>
-                                            );
-                                        })}
-                                    </tbody>
-                                </table>
-                            </div>
-                    ) : (
-                        <div className="glass-card" style={{ padding: '1.25rem', background: 'var(--bg-surface)', borderRadius: '12px', border: '1px solid var(--border-default)', display: 'flex', flexDirection: 'column', gap: '1rem', overflowX: 'auto' }}>
-                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                <div>
-                                    <h4 style={{ margin: 0, fontSize: '0.95rem', fontWeight: 800 }}>Simulador de Contratos Mensais</h4>
-                                    <p style={{ margin: '0.2rem 0 0 0', fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
-                                        Projete o faturamento mensal de novos contratos e vincule os respectivos vendedores. Os faturamentos e os custos simulados refletirão automaticamente no Forecast.
-                                    </p>
-                                </div>
-                                <button
-                                    onClick={() => {
-                                        setEditingContractId(null);
-                                        setContractName('');
-                                        setContractValue(0);
-                                        setContractStartMonth(activeMonth + 1 > 12 ? 12 : activeMonth + 1);
-                                        setContractProbability(100);
-                                        setContractStatus('PIPELINE');
-                                        setContractTenantId(companies[0]?.id || '');
-                                        setContractSeller('');
-                                        setContractRevenueSplit({});
-                                        setSelectedRevenueCode('');
-                                        setTypedRevenueValue('');
-                                        setIsContractModalOpen(true);
-                                    }}
-                                    style={{
-                                        padding: '0.5rem 1rem',
-                                        background: 'var(--gradient-brand)',
-                                        color: '#ffffff',
-                                        border: 'none',
-                                        borderRadius: '8px',
-                                        fontSize: '0.8rem',
-                                        fontWeight: 700,
-                                        cursor: 'pointer',
-                                        display: 'flex',
-                                        alignItems: 'center',
-                                        gap: '0.25rem',
-                                        boxShadow: '0 4px 12px rgba(99, 102, 241, 0.2)'
-                                    }}
-                                >
-                                    ➕ Adicionar Novo Contrato
-                                </button>
-                            </div>
-
-                            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.75rem', textAlign: 'left', minWidth: '1000px' }}>
-                                <thead>
-                                    <tr style={{ borderBottom: '2px solid var(--border-default)', color: 'var(--text-secondary)' }}>
-                                        <th style={{ padding: '0.5rem', minWidth: '150px' }}>Contrato - Cliente</th>
-                                        <th style={{ padding: '0.5rem', minWidth: '120px' }}>Vendedor</th>
-                                        <th style={{ padding: '0.5rem', minWidth: '100px', textAlign: 'center' }}>Probabilidade - Status</th>
-                                        {monthsName.map((name, i) => (
-                                            <th key={i} style={{ padding: '0.5rem', textAlign: 'right', minWidth: '85px', background: i + 1 >= activeMonth + 1 ? 'rgba(99, 102, 241, 0.04)' : 'transparent' }}>
-                                                {name}
-                                            </th>
-                                        ))}
-                                        <th style={{ padding: '0.5rem', textAlign: 'center', width: '100px' }}>Ações</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {contracts.length === 0 ? (
-                                        <tr>
-                                            <td colSpan={16} style={{ padding: '3rem', textAlign: 'center', color: 'var(--text-secondary)' }}>
-                                                Nenhum contrato simulado. Clique em "Adicionar Novo Contrato" para iniciar.
-                                            </td>
-                                        </tr>
-                                    ) :
-                                        contracts.map(contract => {
-                                            const { name: cleanName, seller: cleanSeller } = parseContractName(contract.name);
-                                            return (
-                                                <tr key={contract.id} style={{ borderBottom: '1px solid var(--border-subtle)' }}>
-                                                    <td style={{ padding: '0.6rem 0.5rem', fontWeight: 700 }}>
-                                                        {cleanName}
-                                                        {selectedTenant === 'ALL' && (
-                                                            <span style={{ display: 'block', fontSize: '0.65rem', fontWeight: 600, color: 'var(--text-secondary)' }}>
-                                                                🏢 {contract.tenant?.name}
-                                                            </span>
-                                                        )}
-                                                    </td>
-                                                    <td style={{ padding: '0.6rem 0.5rem', color: cleanSeller ? 'var(--text-primary)' : 'var(--text-secondary)', fontWeight: 600 }}>
-                                                        {cleanSeller || '-'}
-                                                    </td>
-                                                    <td style={{ padding: '0.6rem 0.5rem', textAlign: 'center' }}>
-                                                        <span style={{
-                                                            fontSize: '0.65rem',
-                                                            fontWeight: 800,
-                                                            padding: '2px 6px',
-                                                            borderRadius: '4px',
-                                                            background: contract.status === 'VENDIDO' ? 'rgba(16, 185, 129, 0.1)' : 'rgba(99, 102, 241, 0.1)',
-                                                            color: contract.status === 'VENDIDO' ? 'var(--accent-green)' : 'var(--accent-indigo)'
-                                                        }}>
-                                                            {contract.status === 'VENDIDO' ? 'VENDIDO' : `${contract.probability}% Prob.`}
-                                                        </span>
-                                                    </td>
-                                                    {monthsName.map((_, i) => {
-                                                        const monthNum = i + 1;
-                                                        const isActive = monthNum >= contract.startMonth;
-                                                        const multiplier = contract.status === 'VENDIDO' ? 1.0 : (contract.probability * 0.01);
-                                                        const val = isActive ? contract.value * multiplier : 0;
-                                                        
-                                                        return (
-                                                            <td key={i} style={{ padding: '0.6rem 0.5rem', textAlign: 'right', fontWeight: isActive ? 700 : 400, color: isActive ? 'var(--text-primary)' : 'var(--text-secondary)', background: monthNum >= activeMonth + 1 ? 'rgba(99, 102, 241, 0.02)' : 'transparent' }}>
-                                                                {val > 0 ? fmt(val) : '-'}
-                                                            </td>
-                                                        );
-                                                    })}
-                                                    <td style={{ padding: '0.6rem 0.5rem', textAlign: 'center' }}>
-                                                        <div style={{ display: 'flex', gap: '0.4rem', justifyContent: 'center' }}>
-                                                            <button
-                                                                onClick={() => setViewingContractDetails(contract)}
-                                                                title="Visualizar Custos DRE do Contrato"
-                                                                style={{ border: 'none', background: 'transparent', cursor: 'pointer', fontSize: '0.85rem', padding: 0 }}
-                                                            >
-                                                                👁️
-                                                            </button>
-                                                            <button
-                                                                onClick={() => {
-                                                                    const { name: nameOnly, split: splitObj, seller: sellerStr } = parseContractName(contract.name);
-                                                                    setEditingContractId(contract.id);
-                                                                    setContractName(nameOnly);
-                                                                    setContractValue(contract.value);
-                                                                    setContractStartMonth(contract.startMonth);
-                                                                    setContractProbability(contract.probability);
-                                                                    setContractStatus(contract.status);
-                                                                    setContractTenantId(contract.tenantId);
-                                                                    setContractSeller(sellerStr);
-                                                                    setContractRevenueSplit(splitObj);
-                                                                    setIsContractModalOpen(true);
-                                                                }}
-                                                                title="Editar Contrato"
-                                                                style={{ border: 'none', background: 'transparent', cursor: 'pointer', fontSize: '0.85rem', padding: 0 }}
-                                                            >
-                                                                ✏️
-                                                            </button>
-                                                            <button
-                                                                onClick={() => handleDeleteContract(contract.id)}
-                                                                title="Excluir Contrato"
-                                                                style={{ border: 'none', background: 'transparent', cursor: 'pointer', fontSize: '0.85rem', padding: 0 }}
-                                                            >
-                                                                🗑️
-                                                            </button>
-                                                        </div>
-                                                    </td>
-                                                </tr>
-                                            );
-                                        })
-                                    }
-                                    {contracts.length > 0 && (
-                                        <tr style={{ borderTop: '2px solid var(--border-default)', background: 'var(--bg-elevated)', fontWeight: 800 }}>
-                                            <td colSpan={3} style={{ padding: '0.65rem 0.5rem' }}>
-                                                Total Receita Simulada
-                                            </td>
-                                            {monthsName.map((_, i) => {
-                                                const monthNum = i + 1;
-                                                const totalMonthVal = contracts.reduce((sum, contract) => {
-                                                    const isVal = monthNum >= contract.startMonth;
-                                                    const multiplier = contract.status === 'VENDIDO' ? 1.0 : (contract.probability * 0.01);
-                                                    return sum + (isVal ? contract.value * multiplier : 0);
-                                                }, 0);
-                                                
-                                                return (
-                                                    <td key={i} style={{ padding: '0.65rem 0.5rem', textAlign: 'right', color: 'var(--accent-indigo)' }}>
-                                                        {totalMonthVal > 0 ? fmt(totalMonthVal) : '-'}
-                                                    </td>
-                                                );
-                                            })}
-                                            <td></td>
-                                        </tr>
-                                    )}
-                                </tbody>
-                            </table>
-                        </div>
-                    )}
+                    {renderTabContent()}
                 </div>
             </div>
 

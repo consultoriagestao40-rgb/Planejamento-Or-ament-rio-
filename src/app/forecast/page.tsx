@@ -2155,12 +2155,6 @@ export default function ForecastPage() {
             const recBruta = displayCashFlowGrid.find(r => r.categoryId === 'G-01');
             const tributos = displayCashFlowGrid.find(r => r.categoryId === 'G-02');
             const custosOp = displayCashFlowGrid.find(r => r.categoryId === 'G-03');
-            let totalInflow = 0;
-            let totalOutflow = 0;
-            for (let i = 0; i < visibleMonthsCount; i++) {
-                totalInflow += recBruta?.forecast[i] || 0;
-                totalOutflow += (tributos?.forecast[i] || 0) + (custosOp?.forecast[i] || 0);
-            }
 
             const cumulativeCashFlows = cashFlowSummary.accum;
             const maxCashRequirement = Math.min(...cumulativeCashFlows, 0);
@@ -2174,6 +2168,13 @@ export default function ForecastPage() {
 
             const visibleMonthsCount = paybackMonthIdx !== -1 ? (paybackMonthIdx + 1) : 24;
             const visibleCashFlows = cumulativeCashFlows.slice(0, visibleMonthsCount);
+
+            let totalInflow = 0;
+            let totalOutflow = 0;
+            for (let i = 0; i < visibleMonthsCount; i++) {
+                totalInflow += recBruta?.forecast[i] || 0;
+                totalOutflow += (tributos?.forecast[i] || 0) + (custosOp?.forecast[i] || 0);
+            }
 
             // SVG Line Chart coordinates calculation
             const maxVal = Math.max(...visibleCashFlows, 0);

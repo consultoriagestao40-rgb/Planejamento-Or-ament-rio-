@@ -1401,7 +1401,7 @@ export default function ForecastPage() {
                                                     {monthsName.map((_, i) => {
                                                         const monthNum = i + 1;
                                                         const isActive = monthNum >= contract.startMonth;
-                                                        const multiplier = contract.status === 'VENDIDO' ? 1.0 : (contract.probability / 100);
+                                                        const multiplier = contract.status === 'VENDIDO' ? 1.0 : (contract.probability * 0.01);
                                                         const val = isActive ? contract.value * multiplier : 0;
                                                         
                                                         return (
@@ -1460,7 +1460,7 @@ export default function ForecastPage() {
                                                 const monthNum = i + 1;
                                                 const totalMonthVal = contracts.reduce((sum, contract) => {
                                                     const isVal = monthNum >= contract.startMonth;
-                                                    const multiplier = contract.status === 'VENDIDO' ? 1.0 : (contract.probability / 100);
+                                                    const multiplier = contract.status === 'VENDIDO' ? 1.0 : (contract.probability * 0.01);
                                                     return sum + (isVal ? contract.value * multiplier : 0);
                                                 }, 0);
                                                 

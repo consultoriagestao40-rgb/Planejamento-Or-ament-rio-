@@ -1491,7 +1491,11 @@ export default function ForecastPage() {
                                                     })}
                                                 </tbody>
                                             </table>
-               if (activeTab === 'cashflow') {
+                                        </div>
+                                    </div>
+            );
+        }
+        if (activeTab === 'cashflow') {
             const activeContracts = contracts.filter(c => c.status !== 'PERDIDO');
             const selectedContractObj = activeContracts.find(c => c.id === selectedCashFlowContractId);
 

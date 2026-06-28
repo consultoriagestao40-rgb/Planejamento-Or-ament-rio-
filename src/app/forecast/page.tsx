@@ -1166,7 +1166,7 @@ export default function ForecastPage() {
                                 </tbody>
                             </table>
                         </div>
-                    ) : (
+                    ) : activeTab === 'coefficients' ? (
                         /* Coefficients Override Tab */
                         <div className="glass-card" style={{ padding: '1.25rem', background: 'var(--bg-surface)', borderRadius: '12px', border: '1px solid var(--border-default)', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>

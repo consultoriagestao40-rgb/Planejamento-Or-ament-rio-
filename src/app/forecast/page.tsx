@@ -285,6 +285,168 @@ export default function ForecastPage() {
     // Coefficient Edit State
     const [editingCoefId, setEditingCoefId] = useState<string | null>(null);
     const [editingCoefValue, setEditingCoefValue] = useState(0);
+    
+    // Cell Drilldown State
+    const [drillDownCell, setDrillDownCell] = useState<{ categoryId: string; categoryName: string; monthIndex: number; monthName: string; value: number } | null>(null);
+
+    const getCellComposition = (categoryId: string, categoryName: string, monthIndex: number) => {
+        const monthNum = monthIndex + 1;
+        const isRealized = monthNum <= activeMonth;
+        
+        // Find matching db category codes
+        const cat = forecastData.find(c => c.categoryId === categoryId);
+        const baseBudget = cat?.budget[monthIndex] || 0;
+        const baseRealized = cat?.realized[monthIndex] || 0;
+        
+        const name = categoryName;
+        const codeMatch = name.match(/^([\d.]+)/);
+        const code = codeMatch ? codeMatch[1] : name;
+        
+        // Find active contracts
+        const activeContracts = contracts.filter(c => c.status !== 'PERDIDO');
+        const list: any[] = [];
+        let totalSimulated = 0;
+
+        const isRevenue = categoryId === 'G-01.1' || categoryId === 'G-01.2' || categoryId === 'G-01' || categoryId.startsWith('G-01.');
+        const isRevenueOrCostOrTax = 
+            code.startsWith('01') || code.startsWith('1') ||
+            code.startsWith('02') || code.startsWith('2') ||
+            code.startsWith('03') || code.startsWith('3');
+
+        if (!isRealized && isRevenueOrCostOrTax) {
+            // Find matching category codes
+            const getCoefForContract = (contract: any) => {
+                const tenantCoefs = coefficients.filter(c => c.tenantId === contract.tenantId);
+                let overrideVal: number | undefined = undefined;
+                
+                const matched = tenantCoefs.find(c => {
+                    const cMatch = c.categoryName.match(/^([\d.]+)/);
+                    const cCode = cMatch ? cMatch[1] : c.categoryName;
+                    return cCode === code;
+                });
+                if (matched) {
+                    overrideVal = matched.percentage;
+                }
+
+                if (overrideVal === undefined) {
+                    // Fallback to defaults
+                    const defaultPcts: Record<string, number> = {
+                        '02.1.1': 12.5,
+                        '03.1.1': 30.4,
+                        '03.1.2': 1.4,
+                        '03.1.3': 0.3,
+                        '03.1.5': 0.5,
+                        '03.1.10': 1.6,
+                        '03.2.1': 2.7,
+                        '03.2.2': 2.8,
+                        '03.2.3': 3.8,
+                        '03.2.4': 1.1,
+                        '03.2.6': 5.5,
+                        '03.3.1': 2.9,
+                        '03.3.2': 11.3,
+                        '03.3.4': 0.9,
+                        '03.3.6': 0.9,
+                        '03.3.7': 0.1,
+                        '03.4.1': 0.5,
+                        '03.4.2': 0.0,
+                        '03.5.1': 0.6,
+                        '03.5.2': 0.6,
+                        '03.5.3': 0.2,
+                        '03.5.5': 0.0,
+                        '03.7.1': 0.1,
+                        '03.7.2': 0.1,
+                        '03.7.4': 0.3,
+                        '03.8.2': 0.1,
+                        '03.9.2': 0.1,
+                        '03.9.3': 0.1,
+                        '03.9.8': 0.2
+                    };
+                    const nameLower = categoryName.toLowerCase();
+                    if (defaultPcts[code] !== undefined) {
+                        overrideVal = defaultPcts[code];
+                    } else if (code.startsWith('02.') || code.startsWith('02') || code.startsWith('2.') || code.startsWith('2')) {
+                        overrideVal = 0.0;
+                    } else if (code.includes('03.2.6') || nameLower.includes('inss')) {
+                        overrideVal = 5.5;
+                    } else if (code.includes('03.3.2') || nameLower.includes('vale alimentação')) {
+                        overrideVal = 11.3;
+                    } else if (code.includes('03.3.4') || nameLower.includes('vale alimentação sobre férias')) {
+                        overrideVal = 0.9;
+                    }
+                }
+                return (overrideVal ?? 0) / 100.0;
+            };
+
+            if (isRevenue) {
+                activeContracts.forEach(contract => {
+                    if (monthNum >= contract.startMonth) {
+                        const multiplier = contract.status === 'VENDIDO' ? 1.0 : (contract.probability / 100.0);
+                        let customSplit: Record<string, number> = {};
+                        let hasCustomSplit = false;
+                        if (contract.name.includes(' |__SPLIT__:')) {
+                            try {
+                                const parts = contract.name.split(' |__SPLIT__:');
+                                const rest = parts[1];
+                                const splitStr = rest.includes(' |__SELLER__:') ? rest.split(' |__SELLER__:')[0] : rest;
+                                customSplit = JSON.parse(splitStr);
+                                hasCustomSplit = true;
+                            } catch (e) {
+                                console.error('Failed to parse split JSON:', e);
+                            }
+                        }
+
+                        let contribution = 0;
+                        if (hasCustomSplit) {
+                            const splitVal = customSplit[code] || 0;
+                            contribution = splitVal * multiplier;
+                        } else {
+                            const coef = getCoefForContract(contract) || (code === '01.1' ? 1.0 : 0);
+                            contribution = contract.value * coef * multiplier;
+                        }
+                        totalSimulated += contribution;
+                        if (contribution > 0.01) {
+                            list.push({
+                                contractId: contract.id,
+                                contractName: parseContractName(contract.name).name,
+                                seller: parseContractName(contract.name).seller,
+                                probability: contract.probability,
+                                status: contract.status,
+                                value: contract.value,
+                                contribution
+                            });
+                        }
+                    }
+                });
+            } else {
+                activeContracts.forEach(contract => {
+                    if (monthNum >= contract.startMonth) {
+                        const multiplier = contract.status === 'VENDIDO' ? 1.0 : (contract.probability / 100.0);
+                        const coef = getCoefForContract(contract);
+                        const contribution = contract.value * coef * multiplier;
+                        totalSimulated += contribution;
+                        if (contribution > 0.01) {
+                            list.push({
+                                contractId: contract.id,
+                                contractName: parseContractName(contract.name).name,
+                                seller: parseContractName(contract.name).seller,
+                                probability: contract.probability,
+                                status: contract.status,
+                                value: contract.value,
+                                contribution
+                            });
+                        }
+                    }
+                });
+            }
+        }
+
+        return {
+            isRealized,
+            baseValue: isRealized ? baseRealized : baseBudget,
+            totalSimulated,
+            contracts: list
+        };
+    };
 
     const toggleRow = (id: string) => {
         setExpandedRows(prev => {
@@ -1198,9 +1360,9 @@ export default function ForecastPage() {
                                                 borderBottom: '2px solid var(--border-default)'
                                             }}
                                         >
-                                            <table style={{ width: showAV ? '2520px' : '1750px', borderCollapse: 'collapse', fontSize: '0.75rem', textAlign: 'left', tableLayout: 'fixed' }}>
+                                            <table style={{ width: showAV ? '2640px' : '1870px', borderCollapse: 'collapse', fontSize: '0.75rem', textAlign: 'left', tableLayout: 'fixed' }}>
                                                 <colgroup>
-                                                    <col style={{ width: '220px', minWidth: '220px' }} />
+                                                    <col style={{ width: '340px', minWidth: '340px' }} />
                                                     {monthsName.map((_, i) => (
                                                         <React.Fragment key={i}>
                                                             <col style={{ width: '100px', minWidth: '100px' }} />
@@ -1247,9 +1409,9 @@ export default function ForecastPage() {
                                                 width: '100%' 
                                             }}
                                         >
-                                            <table style={{ width: showAV ? '2520px' : '1750px', borderCollapse: 'collapse', fontSize: '0.75rem', textAlign: 'left', tableLayout: 'fixed' }}>
+                                            <table style={{ width: showAV ? '2640px' : '1870px', borderCollapse: 'collapse', fontSize: '0.75rem', textAlign: 'left', tableLayout: 'fixed' }}>
                                                 <colgroup>
-                                                    <col style={{ width: '220px', minWidth: '220px' }} />
+                                                    <col style={{ width: '340px', minWidth: '340px' }} />
                                                     {monthsName.map((_, i) => (
                                                         <React.Fragment key={i}>
                                                             <col style={{ width: '100px', minWidth: '100px' }} />
@@ -1330,7 +1492,11 @@ export default function ForecastPage() {
                                                                 const avPercent = Math.abs(totalBruta) > 0.01 ? (val / totalBruta) * 100 : 0;
                                                                 return (
                                                                     <React.Fragment key={i}>
-                                                                        <td style={{ padding: '0.6rem 0.5rem', textAlign: 'right', whiteSpace: 'nowrap' }}>
+                                                                        <td 
+                                                                            onClick={() => setDrillDownCell({ categoryId: row.categoryId, categoryName: row.categoryName, monthIndex: i, monthName: monthsName[i], value: val })}
+                                                                            title="Clique para ver a composição deste valor"
+                                                                            style={{ padding: '0.6rem 0.5rem', textAlign: 'right', whiteSpace: 'nowrap', cursor: 'pointer', color: 'var(--accent-indigo)', fontWeight: isFormula ? 800 : 700 }}
+                                                                        >
                                                                             {fmt(val)}
                                                                         </td>
                                                                         {showAV && (
@@ -1549,6 +1715,7 @@ export default function ForecastPage() {
 
                 const monthlyReceipts = Array(24).fill(0);
                 const monthlyPayrollOutflow = Array(24).fill(0);
+                const monthlyChargesOutflow = Array(24).fill(0);
                 const monthlyBenefitsOutflow = Array(24).fill(0);
                 const monthlyTaxesOutflow = Array(24).fill(0);
                 const monthlySetupOutflow = Array(24).fill(0);
@@ -1573,8 +1740,6 @@ export default function ForecastPage() {
                     let setup = 0;
                     if (isFirstMonth) {
                         setup = (config.epiUniformsCost ?? 0) + (config.equipmentCost ?? 0) + (config.suppliesCost ?? 0);
-                    } else {
-                        setup = (config.epiUniformsCost ?? 0);
                     }
                     monthlySetupOutflow[m] = setup;
 
@@ -1592,10 +1757,15 @@ export default function ForecastPage() {
                         monthlyTaxesOutflow[taxPaymentMonth] += tax;
                     }
 
-                    // 3. Payroll (Folha + Encargos)
+                    // 3. Payroll (Folha de Pagamento)
                     const payrollPaymentMonth = m + 1;
                     if (payrollPaymentMonth < 24) {
-                        monthlyPayrollOutflow[payrollPaymentMonth] += (labor + charges);
+                        monthlyPayrollOutflow[payrollPaymentMonth] += labor;
+                    }
+
+                    // 3b. Charges (Encargos Mensais)
+                    if (payrollPaymentMonth < 24) {
+                        monthlyChargesOutflow[payrollPaymentMonth] += charges;
                     }
 
                     // 4. VA / VT (Benefícios) - Paid on 5th business day
@@ -1627,6 +1797,7 @@ export default function ForecastPage() {
                 return {
                     receipts: monthlyReceipts,
                     payroll: monthlyPayrollOutflow,
+                    charges: monthlyChargesOutflow,
                     benefits: monthlyBenefitsOutflow,
                     taxes: monthlyTaxesOutflow,
                     setup: monthlySetupOutflow,
@@ -1637,6 +1808,7 @@ export default function ForecastPage() {
 
             let receipts = Array(24).fill(0);
             let payroll = Array(24).fill(0);
+            let charges = Array(24).fill(0);
             let benefits = Array(24).fill(0);
             let taxes = Array(24).fill(0);
             let setup = Array(24).fill(0);
@@ -1649,6 +1821,7 @@ export default function ForecastPage() {
                     for (let i = 0; i < 24; i++) {
                         receipts[i] += cf.receipts[i];
                         payroll[i] += cf.payroll[i];
+                        charges[i] += cf.charges[i];
                         benefits[i] += cf.benefits[i];
                         taxes[i] += cf.taxes[i];
                         setup[i] += cf.setup[i];
@@ -1677,6 +1850,7 @@ export default function ForecastPage() {
                     const cf = calculateSingleContractCashFlow(selectedContractObj, overrideConfig);
                     receipts = cf.receipts;
                     payroll = cf.payroll;
+                    charges = cf.charges;
                     benefits = cf.benefits;
                     taxes = cf.taxes;
                     setup = cf.setup;
@@ -1694,7 +1868,7 @@ export default function ForecastPage() {
             let paybackMonthIdx = -1;
 
             for (let i = 0; i < 24; i++) {
-                monthlyOutflows[i] = payroll[i] + benefits[i] + taxes[i] + setup[i] + provisions[i] + otherOperating[i];
+                monthlyOutflows[i] = payroll[i] + charges[i] + benefits[i] + taxes[i] + setup[i] + provisions[i] + otherOperating[i];
                 netCashFlows[i] = receipts[i] - monthlyOutflows[i];
                 
                 cumulativeAcc += netCashFlows[i];
@@ -2046,7 +2220,7 @@ export default function ForecastPage() {
                                         {/* Outflows Rows */}
                                         <tr style={{ borderBottom: '1px solid var(--border-subtle)', whiteSpace: 'nowrap' }}>
                                             <td style={{ padding: '0.5rem 0.45rem', paddingLeft: '1rem', color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}>
-                                                (-) Implantação & EPIs/Uniformes Mensais
+                                                (-) Implantação (EPIs / Equip. / Prod.)
                                             </td>
                                             {setup.map((v, i) => (
                                                 <td key={i} style={{ padding: '0.5rem 0.45rem', textAlign: 'right', color: v > 0 ? 'var(--accent-red)' : 'var(--text-secondary)', whiteSpace: 'nowrap' }}>
@@ -2060,7 +2234,7 @@ export default function ForecastPage() {
 
                                         <tr style={{ borderBottom: '1px solid var(--border-subtle)', whiteSpace: 'nowrap' }}>
                                             <td style={{ padding: '0.5rem 0.45rem', paddingLeft: '1rem', color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}>
-                                                (-) Salários & Encargos Sociais
+                                                (-) Salários e Remuneração
                                             </td>
                                             {payroll.map((v, i) => (
                                                 <td key={i} style={{ padding: '0.5rem 0.45rem', textAlign: 'right', color: v > 0 ? 'var(--text-primary)' : 'var(--text-secondary)', whiteSpace: 'nowrap' }}>
@@ -2069,6 +2243,20 @@ export default function ForecastPage() {
                                             ))}
                                             <td style={{ padding: '0.5rem 0.45rem', textAlign: 'right', color: 'var(--text-primary)', whiteSpace: 'nowrap' }}>
                                                 {fmt(payroll.reduce((s, v) => s + v, 0))}
+                                            </td>
+                                        </tr>
+
+                                        <tr style={{ borderBottom: '1px solid var(--border-subtle)', whiteSpace: 'nowrap' }}>
+                                            <td style={{ padding: '0.5rem 0.45rem', paddingLeft: '1rem', color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}>
+                                                (-) Encargos Sociais (Mensais - FGTS/INSS)
+                                            </td>
+                                            {charges.map((v, i) => (
+                                                <td key={i} style={{ padding: '0.5rem 0.45rem', textAlign: 'right', color: v > 0 ? 'var(--text-primary)' : 'var(--text-secondary)', whiteSpace: 'nowrap' }}>
+                                                    {v > 0 ? fmt(v) : '-'}
+                                                </td>
+                                            ))}
+                                            <td style={{ padding: '0.5rem 0.45rem', textAlign: 'right', color: 'var(--text-primary)', whiteSpace: 'nowrap' }}>
+                                                {fmt(charges.reduce((s, v) => s + v, 0))}
                                             </td>
                                         </tr>
 
@@ -2624,6 +2812,138 @@ export default function ForecastPage() {
             </div>
 
 
+
+            {/* Composition Drilldown Modal */}
+            {drillDownCell && (() => {
+                const comp = getCellComposition(drillDownCell.categoryId, drillDownCell.categoryName, drillDownCell.monthIndex);
+                return (
+                    <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', zIndex: 20000, display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
+                        <div className="glass-card" style={{ width: '750px', maxHeight: '85vh', padding: '1.75rem', background: 'var(--bg-surface)', borderRadius: '16px', border: '1px solid var(--border-default)', display: 'flex', flexDirection: 'column', gap: '1.25rem', boxShadow: '0 20px 25px -5px rgba(0,0,0,0.3), 0 10px 10px -5px rgba(0,0,0,0.3)', overflow: 'hidden' }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                                <div>
+                                    <h4 style={{ margin: 0, fontSize: '1.15rem', fontWeight: 800, color: 'var(--text-primary)' }}>
+                                        🔍 Composição do Valor
+                                    </h4>
+                                    <p style={{ margin: '0.2rem 0 0 0', fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
+                                        Conta: <strong style={{ color: 'var(--accent-indigo)' }}>{drillDownCell.categoryName}</strong> | Período: <strong>{drillDownCell.monthName}/{selectedYear}</strong>
+                                    </p>
+                                </div>
+                                <button 
+                                    onClick={() => setDrillDownCell(null)}
+                                    style={{ border: 'none', background: 'transparent', color: 'var(--text-secondary)', cursor: 'pointer', fontSize: '1.2rem', padding: 0 }}
+                                >
+                                    ✕
+                                </button>
+                            </div>
+
+                            {/* Summary cards */}
+                            <div style={{ display: 'grid', gridTemplateColumns: comp.isRealized ? '1fr' : '1fr 1fr 1fr', gap: '0.75rem' }}>
+                                <div style={{ padding: '0.75rem', background: 'var(--bg-elevated)', borderRadius: '8px', border: '1px solid var(--border-subtle)', display: 'flex', flexDirection: 'column', gap: '0.15rem' }}>
+                                    <span style={{ fontSize: '0.65rem', color: 'var(--text-secondary)', fontWeight: 700 }}>
+                                        {comp.isRealized ? 'VALOR REALIZADO (HISTÓRICO)' : 'VALOR TOTAL PROJETADO'}
+                                    </span>
+                                    <span style={{ fontSize: '1.2rem', fontWeight: 800, color: 'var(--accent-indigo)' }}>
+                                        {fmt(drillDownCell.value)}
+                                    </span>
+                                </div>
+                                {!comp.isRealized && (
+                                    <>
+                                        <div style={{ padding: '0.75rem', background: 'var(--bg-elevated)', borderRadius: '8px', border: '1px solid var(--border-subtle)', display: 'flex', flexDirection: 'column', gap: '0.15rem' }}>
+                                            <span style={{ fontSize: '0.65rem', color: 'var(--text-secondary)', fontWeight: 700 }}>ORÇAMENTO BASE (BUDGET)</span>
+                                            <span style={{ fontSize: '1.2rem', fontWeight: 800, color: 'var(--text-primary)' }}>
+                                                {fmt(comp.baseValue)}
+                                            </span>
+                                        </div>
+                                        <div style={{ padding: '0.75rem', background: 'var(--bg-elevated)', borderRadius: '8px', border: '1px solid var(--border-subtle)', display: 'flex', flexDirection: 'column', gap: '0.15rem' }}>
+                                            <span style={{ fontSize: '0.65rem', color: 'var(--text-secondary)', fontWeight: 700 }}>VENDAS SIMULADAS</span>
+                                            <span style={{ fontSize: '1.2rem', fontWeight: 800, color: 'var(--accent-green)' }}>
+                                                {fmt(comp.totalSimulated)}
+                                            </span>
+                                        </div>
+                                    </>
+                                )}
+                            </div>
+
+                            {/* Details section */}
+                            <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                                {comp.isRealized ? (
+                                    <div style={{ padding: '1rem', background: 'rgba(99, 102, 241, 0.05)', borderRadius: '8px', border: '1px solid rgba(99, 102, 241, 0.15)', display: 'flex', gap: '0.5rem', alignItems: 'center', fontSize: '0.8rem', color: 'var(--text-primary)' }}>
+                                        ℹ️ Este mês é histórico (Realizado) e o valor exibido foi importado diretamente da contabilidade, sem impacto de contratos simulados.
+                                    </div>
+                                ) : (
+                                    <>
+                                        <h5 style={{ margin: '0.5rem 0 0.25rem 0', fontSize: '0.8rem', fontWeight: 800, textTransform: 'uppercase', color: 'var(--text-secondary)' }}>
+                                            Contratos Simulados que impactam este mês:
+                                        </h5>
+                                        {comp.contracts.length === 0 ? (
+                                            <div style={{ padding: '1.5rem', textAlign: 'center', background: 'var(--bg-elevated)', borderRadius: '8px', border: '1px solid var(--border-subtle)', color: 'var(--text-secondary)', fontSize: '0.8rem' }}>
+                                                Nenhum contrato simulado ativo impacta esta conta no período selecionado.
+                                            </div>
+                                        ) : (
+                                            <div style={{ overflowX: 'auto' }}>
+                                                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.75rem', textAlign: 'left' }}>
+                                                    <thead>
+                                                        <tr style={{ borderBottom: '2px solid var(--border-default)', color: 'var(--text-secondary)' }}>
+                                                            <th style={{ padding: '0.5rem' }}>Contrato / Oportunidade</th>
+                                                            <th style={{ padding: '0.5rem' }}>Vendedor</th>
+                                                            <th style={{ padding: '0.5rem', textAlign: 'center' }}>Probabilidade</th>
+                                                            <th style={{ padding: '0.5rem', textAlign: 'center' }}>Status</th>
+                                                            <th style={{ padding: '0.5rem', textAlign: 'right' }}>Valor Contrato</th>
+                                                            <th style={{ padding: '0.5rem', textAlign: 'right', color: 'var(--accent-indigo)' }}>Contribuição</th>
+                                                        </tr>
+                                                    </thead>
+                                                    <tbody>
+                                                        {comp.contracts.map((c: any) => (
+                                                            <tr key={c.contractId} style={{ borderBottom: '1px solid var(--border-subtle)' }}>
+                                                                <td style={{ padding: '0.55rem 0.5rem', fontWeight: 700, color: 'var(--text-primary)' }}>
+                                                                    {c.contractName}
+                                                                </td>
+                                                                <td style={{ padding: '0.55rem 0.5rem', color: 'var(--text-secondary)' }}>
+                                                                    {c.seller || '-'}
+                                                                </td>
+                                                                <td style={{ padding: '0.55rem 0.5rem', textAlign: 'center', fontWeight: 600 }}>
+                                                                    {c.probability}%
+                                                                </td>
+                                                                <td style={{ padding: '0.55rem 0.5rem', textAlign: 'center' }}>
+                                                                    <span style={{
+                                                                        fontSize: '0.62rem',
+                                                                        fontWeight: 800,
+                                                                        padding: '2px 6px',
+                                                                        borderRadius: '4px',
+                                                                        background: c.status === 'VENDIDO' ? 'rgba(16, 185, 129, 0.1)' : 'rgba(99, 102, 241, 0.1)',
+                                                                        color: c.status === 'VENDIDO' ? 'var(--accent-green)' : 'var(--accent-indigo)'
+                                                                    }}>
+                                                                        {c.status}
+                                                                    </span>
+                                                                </td>
+                                                                <td style={{ padding: '0.55rem 0.5rem', textAlign: 'right', color: 'var(--text-primary)' }}>
+                                                                    {fmt(c.value)}/mês
+                                                                </td>
+                                                                <td style={{ padding: '0.55rem 0.5rem', textAlign: 'right', fontWeight: 700, color: 'var(--accent-indigo)' }}>
+                                                                    {fmt(c.contribution)}
+                                                                </td>
+                                                            </tr>
+                                                        ))}
+                                                    </tbody>
+                                                </table>
+                                            </div>
+                                        )}
+                                    </>
+                                )}
+                            </div>
+
+                            <div style={{ display: 'flex', justifyContent: 'flex-end', borderTop: '1px solid var(--border-subtle)', paddingTop: '1rem' }}>
+                                <button
+                                    onClick={() => setDrillDownCell(null)}
+                                    style={{ height: '36px', padding: '0 1.25rem', borderRadius: '6px', border: 'none', background: 'var(--accent-indigo)', color: '#fff', fontWeight: 700, cursor: 'pointer' }}
+                                >
+                                    Fechar Detalhamento
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                );
+            })()}
 
             {/* Contract Modal */}
             {isContractModalOpen && (

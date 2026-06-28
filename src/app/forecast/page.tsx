@@ -1051,7 +1051,6 @@ export default function ForecastPage() {
                             <div style={{ border: '3px solid var(--border-default)', borderTopColor: 'var(--accent-indigo)', borderRadius: '50%', width: '36px', height: '36px', animation: 'spin 1s linear infinite' }} />
                         </div>
                     ) : activeTab === 'grid' ? (
-                        /* Forecast DRE Grid */
                         <div className="glass-card" style={{ padding: '1.25rem', background: 'var(--bg-surface)', borderRadius: '12px', border: '1px solid var(--border-default)', overflowX: 'auto' }}>
                             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.75rem', textAlign: 'left' }}>
                                 <thead>
@@ -1167,7 +1166,6 @@ export default function ForecastPage() {
                             </table>
                         </div>
                     ) : activeTab === 'coefficients' ? (
-                        /* Coefficients Override Tab */
                         <div className="glass-card" style={{ padding: '1.25rem', background: 'var(--bg-surface)', borderRadius: '12px', border: '1px solid var(--border-default)', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                                 <div>
@@ -1306,7 +1304,6 @@ export default function ForecastPage() {
                                 </table>
                             </div>
                     ) : (
-                        /* Simulator Tab */
                         <div className="glass-card" style={{ padding: '1.25rem', background: 'var(--bg-surface)', borderRadius: '12px', border: '1px solid var(--border-default)', display: 'flex', flexDirection: 'column', gap: '1rem', overflowX: 'auto' }}>
                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                                 <div>
@@ -1352,9 +1349,9 @@ export default function ForecastPage() {
                             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.75rem', textAlign: 'left', minWidth: '1000px' }}>
                                 <thead>
                                     <tr style={{ borderBottom: '2px solid var(--border-default)', color: 'var(--text-secondary)' }}>
-                                        <th style={{ padding: '0.5rem', minWidth: '150px' }}>Contrato / Cliente</th>
+                                        <th style={{ padding: '0.5rem', minWidth: '150px' }}>Contrato - Cliente</th>
                                         <th style={{ padding: '0.5rem', minWidth: '120px' }}>Vendedor</th>
-                                        <th style={{ padding: '0.5rem', minWidth: '100px', textAlign: 'center' }}>Probabilidade / Status</th>
+                                        <th style={{ padding: '0.5rem', minWidth: '100px', textAlign: 'center' }}>Probabilidade - Status</th>
                                         {monthsName.map((name, i) => (
                                             <th key={i} style={{ padding: '0.5rem', textAlign: 'right', minWidth: '85px', background: i + 1 >= activeMonth + 1 ? 'rgba(99, 102, 241, 0.04)' : 'transparent' }}>
                                                 {name}

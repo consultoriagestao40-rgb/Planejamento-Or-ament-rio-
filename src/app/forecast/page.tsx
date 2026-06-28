@@ -1181,6 +1181,7 @@ export default function ForecastPage() {
                                                 </tbody>
                                             </table>
                                         </div>
+                                    </div>
             );
         }
 

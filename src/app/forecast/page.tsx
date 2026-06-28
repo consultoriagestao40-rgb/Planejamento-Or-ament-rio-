@@ -2,6 +2,43 @@
 
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 
+const parseContractName = (rawName: string) => {
+    let name = rawName;
+    let split: Record<string, number> = {};
+    let seller = '';
+
+    if (name.includes(' |__SPLIT__:')) {
+        const parts = name.split(' |__SPLIT__:');
+        name = parts[0];
+        const rest = parts[1];
+        if (rest.includes(' |__SELLER__:')) {
+            const subParts = rest.split(' |__SELLER__:');
+            try {
+                split = JSON.parse(subParts[0]);
+            } catch (e) {}
+            seller = subParts[1];
+        } else {
+            try {
+                split = JSON.parse(rest);
+            } catch (e) {}
+        }
+    } else if (name.includes(' |__SELLER__:')) {
+        const parts = name.split(' |__SELLER__:');
+        name = parts[0];
+        seller = parts[1];
+    }
+
+    return { name, split, seller };
+};
+
+const monthsName = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
+
+const fmt = (v: number) => {
+    const absolute = Math.abs(v);
+    const formatted = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(absolute);
+    return v < 0 ? `- ${formatted}` : formatted;
+};
+
 export default function ForecastPage() {
     const [companies, setCompanies] = useState<any[]>([]);
     const [selectedTenant, setSelectedTenant] = useState('');
@@ -546,35 +583,6 @@ export default function ForecastPage() {
         });
     };
 
-    const parseContractName = (rawName: string) => {
-        let name = rawName;
-        let split: Record<string, number> = {};
-        let seller = '';
-
-        if (name.includes(' |__SPLIT__:')) {
-            const parts = name.split(' |__SPLIT__:');
-            name = parts[0];
-            const rest = parts[1];
-            if (rest.includes(' |__SELLER__:')) {
-                const subParts = rest.split(' |__SELLER__:');
-                try {
-                    split = JSON.parse(subParts[0]);
-                } catch (e) {}
-                seller = subParts[1];
-            } else {
-                try {
-                    split = JSON.parse(rest);
-                } catch (e) {}
-            }
-        } else if (name.includes(' |__SELLER__:')) {
-            const parts = name.split(' |__SELLER__:');
-            name = parts[0];
-            seller = parts[1];
-        }
-
-        return { name, split, seller };
-    };
-
     const handleSaveContract = async () => {
         if (!contractName.trim() || contractValue <= 0) {
             alert('Por favor, informe o nome e um valor válido.');
@@ -676,14 +684,6 @@ export default function ForecastPage() {
             console.error(e);
         }
     };
-
-    const fmt = (v: number) => {
-        const absolute = Math.abs(v);
-        const formatted = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(absolute);
-        return v < 0 ? `- ${formatted}` : formatted;
-    };
-
-    const monthsName = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
 
     const displayGrid = useMemo(() => {
         if (forecastData.length === 0) return [];

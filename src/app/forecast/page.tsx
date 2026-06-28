@@ -68,6 +68,32 @@ export default function ForecastPage() {
     const [contractRevenueSplit, setContractRevenueSplit] = useState<Record<string, number>>({});
     const [selectedRevenueCode, setSelectedRevenueCode] = useState('');
     const [typedRevenueValue, setTypedRevenueValue] = useState('');
+    const [systemUsers, setSystemUsers] = useState<any[]>([]);
+    const [currentUser, setCurrentUser] = useState<any>(null);
+
+    useEffect(() => {
+        const loadInitialData = async () => {
+            try {
+                // Fetch logged-in user
+                const authRes = await fetch('/api/auth/me');
+                const authJson = await authRes.json();
+                if (authJson.success) {
+                    setCurrentUser(authJson.user);
+                }
+
+                // Fetch system users
+                const usersRes = await fetch('/api/kpi/forecast/users');
+                const usersJson = await usersRes.json();
+                if (usersJson.success) {
+                    setSystemUsers(usersJson.users);
+                }
+            } catch (e) {
+                console.error("Error loading system users/auth:", e);
+            }
+        };
+        loadInitialData();
+    }, []);
+
     const [viewingContractDetails, setViewingContractDetails] = useState<any | null>(null);
     const [expandedContractRows, setExpandedContractRows] = useState<Set<string>>(new Set([
         'G-01', 'G-02', 'G-03', 'G-04', 'G-05', 'G-06', 'G-07',
@@ -584,17 +610,24 @@ export default function ForecastPage() {
     };
 
     const handleSaveContract = async () => {
-        if (!contractName.trim() || contractValue <= 0) {
-            alert('Por favor, informe o nome e um valor válido.');
-            return;
+        let currentSplit = { ...contractRevenueSplit };
+        
+        // Auto-add typed revenue if not added yet
+        if (selectedRevenueCode && typedRevenueValue) {
+            const valNum = parseCurrencyInput(typedRevenueValue);
+            if (valNum > 0) {
+                currentSplit[selectedRevenueCode] = valNum;
+            }
         }
 
         const splitPayload = Object.fromEntries(
-            Object.entries(contractRevenueSplit).filter(([_, v]) => v > 0)
+            Object.entries(currentSplit).filter(([_, v]) => v > 0)
         );
 
-        if (Object.keys(splitPayload).length === 0) {
-            alert('Por favor, preencha o valor de faturamento em pelo menos uma das contas de receita na distribuição abaixo.');
+        const calculatedValue = Object.values(splitPayload).reduce((sum, v) => sum + (v || 0), 0);
+
+        if (!contractName.trim() || calculatedValue <= 0) {
+            alert('Por favor, informe o nome e um valor válido (preencha e adicione pelo menos uma conta de receita).');
             return;
         }
 
@@ -618,7 +651,7 @@ export default function ForecastPage() {
                     id: editingContractId || undefined,
                     tenantId: targetTenant,
                     name: nameWithMeta,
-                    value: contractValue,
+                    value: calculatedValue,
                     startMonth: contractStartMonth,
                     startYear: selectedYear,
                     probability: contractProbability,
@@ -1204,7 +1237,8 @@ export default function ForecastPage() {
                                                     setContractProbability(100);
                                                     setContractStatus('PIPELINE');
                                                     setContractTenantId(companies[0]?.id || '');
-                                                    setContractSeller('');
+                                                    const loggedInUserObj = systemUsers.find(u => u.id === currentUser?.id);
+                                                    setContractSeller(loggedInUserObj ? loggedInUserObj.name : '');
                                                     setContractRevenueSplit({});
                                                     setSelectedRevenueCode('');
                                                     setTypedRevenueValue('');
@@ -1534,13 +1568,19 @@ export default function ForecastPage() {
                             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '1rem' }}>
                                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
                                     <label style={{ fontSize: '0.7rem', fontWeight: 700, color: 'var(--text-secondary)' }}>Vendedor</label>
-                                    <input
-                                        type="text"
+                                    <select
                                         value={contractSeller}
                                         onChange={(e) => setContractSeller(e.target.value)}
-                                        placeholder="Ex: Carlos Silva"
                                         style={{ height: '36px', padding: '0 0.5rem', borderRadius: '6px', border: '1px solid var(--border-default)', background: 'var(--bg-elevated)', color: 'var(--text-primary)' }}
-                                    />
+                                    >
+                                        <option value="">-- Selecione o Vendedor --</option>
+                                        {systemUsers.map(u => (
+                                            <option key={u.id} value={u.name}>{u.name}</option>
+                                        ))}
+                                        {contractSeller && !systemUsers.some(u => u.name === contractSeller) && (
+                                            <option value={contractSeller}>{contractSeller}</option>
+                                        )}
+                                    </select>
                                 </div>
                                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
                                     <label style={{ fontSize: '0.7rem', fontWeight: 700, color: 'var(--text-secondary)' }}>Mês de Início</label>

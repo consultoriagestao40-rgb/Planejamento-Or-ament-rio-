@@ -2048,7 +2048,7 @@ export default function ForecastPage() {
                                         {cfProvisionPayroll && (
                                             <tr style={{ borderBottom: '1px solid var(--border-subtle)', whiteSpace: 'nowrap' }}>
                                                 <td style={{ padding: '0.5rem 0.45rem', paddingLeft: '1rem', color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}>
-                                                    (-) Provisão Caixa (13º e Férias)
+                                                    (-) Encargos Sociais - (13º e Férias)
                                                 </td>
                                                 {provisions.map((v, i) => (
                                                     <td key={i} style={{ padding: '0.5rem 0.45rem', textAlign: 'right', color: v > 0 ? 'var(--text-primary)' : 'var(--text-secondary)', whiteSpace: 'nowrap' }}>

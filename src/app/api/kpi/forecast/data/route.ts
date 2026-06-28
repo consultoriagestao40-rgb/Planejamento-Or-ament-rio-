@@ -36,7 +36,8 @@ export async function GET(request: Request) {
             const allTenants = await prisma.tenant.findMany({ select: { id: true } });
             tenantIds = allTenants.map(t => t.id);
         } else {
-            tenantIds = [tenantId];
+            const { getAllVariantIds } = await import('@/lib/tenant-utils');
+            tenantIds = await getAllVariantIds(tenantId);
         }
 
         // 1. Fetch Realized data

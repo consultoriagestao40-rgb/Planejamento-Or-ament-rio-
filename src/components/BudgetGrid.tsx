@@ -4415,8 +4415,8 @@ export default function BudgetGrid({
                     className="sticky-col" 
                     style={{ 
                         fontWeight: 900, 
-                        color: isLucroLiquido ? '#ffffff !important' : '#0f172a',
-                        background: isLucroLiquido ? 'linear-gradient(135deg, #2563eb, #1d4ed8) !important' : '#f8fafc',
+                        color: isLucroLiquido ? '#ffffff' : '#0f172a',
+                        background: isLucroLiquido ? 'linear-gradient(135deg, #2563eb, #1d4ed8)' : '#f8fafc',
                         fontSize: '0.88rem',
                         zIndex: 25,
                         boxShadow: isLucroLiquido ? '0 4px 6px -1px rgba(37, 99, 235, 0.2)' : 'none',

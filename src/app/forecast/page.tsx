@@ -59,6 +59,7 @@ export default function ForecastPage() {
     const [loadingData, setLoadingData] = useState(false);
     const [activeTab, setActiveTab] = useState<'grid' | 'coefficients' | 'simulator'>('grid');
     const [showAV, setShowAV] = useState(false);
+    const [displayMode, setDisplayMode] = useState<'complete' | 'projection'>('complete');
     const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set([
         'G-01', 'G-02', 'G-03', 'G-04', 'G-05', 'G-06', 'G-07',
         'G-01.1', 'G-01.2', 'G-02.1', 'G-03.1', 'G-03.2', 'G-03.3', 'G-03.4', 'G-03.5', 'G-03.7', 'G-03.8', 'G-03.9'
@@ -867,8 +868,24 @@ export default function ForecastPage() {
                     }
 
                     if (parentNode) {
+                        const realized = displayMode === 'projection' ? Array(12).fill(0) : [...cat.realized];
+                        const budget = displayMode === 'projection' ? Array(12).fill(0) : [...cat.budget];
+                        const forecast = [...cat.forecast];
+                        if (displayMode === 'projection') {
+                            for (let i = 0; i < 12; i++) {
+                                if (i + 1 <= activeMonth) {
+                                    forecast[i] = 0;
+                                } else {
+                                    forecast[i] = forecast[i] - cat.budget[i];
+                                }
+                            }
+                        }
+
                         parentNode.children.push({
                             ...cat,
+                            realized,
+                            budget,
+                            forecast,
                             level: parentNode.level + 1,
                             isFormula: false,
                             children: []
@@ -966,7 +983,7 @@ export default function ForecastPage() {
 
         treeRoots.forEach(r => checkVisible(r, true));
         return resultList;
-    }, [forecastData, expandedRows]);
+    }, [forecastData, expandedRows, displayMode, activeMonth]);
 
     const renderTabContent = () => {
         if (loadingData) {
@@ -1656,6 +1673,19 @@ export default function ForecastPage() {
                             style={{ height: '36px', padding: '0 0.75rem', borderRadius: '8px', border: '1px solid var(--border-default)', background: 'var(--bg-surface)', color: 'var(--text-primary)', fontWeight: 600 }}
                         >
                             {monthsName.map((name, i) => <option key={i} value={i + 1}>{name} (Realizado até {name})</option>)}
+                        </select>
+                    </div>
+
+                    {/* View mode selector */}
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
+                        <span style={{ fontSize: '0.7rem', fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase' }}>Visualização</span>
+                        <select
+                            value={displayMode}
+                            onChange={(e) => setDisplayMode(e.target.value as 'complete' | 'projection')}
+                            style={{ height: '36px', padding: '0 0.75rem', borderRadius: '8px', border: '1px solid var(--border-default)', background: 'var(--bg-surface)', color: 'var(--text-primary)', fontWeight: 600 }}
+                        >
+                            <option value="complete">DRE Completo (Orçado + Projeção)</option>
+                            <option value="projection">Apenas Novas Vendas (Projeção)</option>
                         </select>
                     </div>
 

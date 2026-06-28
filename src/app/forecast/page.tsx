@@ -1893,7 +1893,6 @@ export default function ForecastPage() {
                         otherOperating[i + 1] += baseOtherOp;
                     }
                 }
-            }
             } else {
                 if (selectedContractObj) {
                     const overrideConfig = {

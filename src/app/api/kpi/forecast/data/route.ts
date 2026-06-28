@@ -164,10 +164,17 @@ export async function GET(request: Request) {
             }
 
             let pct = 0;
-            if (isGrossRevenue) {
-                pct = 100.0;
-            } else if (overrideVal !== undefined) {
+            if (overrideVal !== undefined) {
                 pct = overrideVal;
+            } else if (isGrossRevenue) {
+                if (totalGrossRevenueRealized > 0) {
+                    const catSum = filteredRealized
+                        .filter(r => matchedCatIds.includes(r.categoryId))
+                        .reduce((sum, r) => sum + r.amount, 0);
+                    pct = (Math.abs(catSum) / totalGrossRevenueRealized) * 100;
+                } else {
+                    pct = (code === '01.1.1' || code === '1.1.1') ? 100.0 : 0.0;
+                }
             } else if (totalGrossRevenueRealized > 0) {
                 const catSum = filteredRealized
                     .filter(r => matchedCatIds.includes(r.categoryId))
@@ -294,15 +301,25 @@ export async function GET(request: Request) {
                             contracts.forEach(contract => {
                                 if (monthNum >= contract.startMonth) {
                                     const multiplier = contract.status === 'VENDIDO' ? 1.0 : (contract.probability / 100.0);
+                                    let cleanName = contract.name;
+                                    if (cleanName.includes(' |__CASHFLOW__Reference:')) {
+                                        cleanName = cleanName.split(' |__CASHFLOW__Reference:')[0];
+                                    }
+                                    if (cleanName.includes(' |__CASHFLOW__:')) {
+                                        cleanName = cleanName.split(' |__CASHFLOW__:')[0];
+                                    }
+
                                     let customSplit: Record<string, number> = {};
                                     let hasCustomSplit = false;
-                                    if (contract.name.includes(' |__SPLIT__:')) {
+                                    if (cleanName.includes(' |__SPLIT__:')) {
                                         try {
-                                            const parts = contract.name.split(' |__SPLIT__:');
+                                            const parts = cleanName.split(' |__SPLIT__:');
                                             const rest = parts[1];
                                             const splitStr = rest.includes(' |__SELLER__:') ? rest.split(' |__SELLER__:')[0] : rest;
                                             customSplit = JSON.parse(splitStr);
-                                            hasCustomSplit = true;
+                                            if (Object.keys(customSplit).length > 0) {
+                                                hasCustomSplit = true;
+                                            }
                                         } catch (e) {
                                             console.error('Failed to parse split JSON:', e);
                                         }

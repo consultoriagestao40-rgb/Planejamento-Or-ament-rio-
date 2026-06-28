@@ -209,10 +209,17 @@ export async function GET(request: Request) {
             }
 
             let calculatedPercentage = 0;
-            if (isGrossRevenue) {
-                calculatedPercentage = 100.0;
-            } else if (overrideVal !== undefined) {
+            if (overrideVal !== undefined) {
                 calculatedPercentage = overrideVal;
+            } else if (isGrossRevenue) {
+                if (totalGrossRevenue > 0) {
+                    const catSum = filteredRealized
+                        .filter(r => matchedCatIds.includes(r.categoryId))
+                        .reduce((sum, r) => sum + r.amount, 0);
+                    calculatedPercentage = parseFloat(((Math.abs(catSum) / totalGrossRevenue) * 100).toFixed(2));
+                } else {
+                    calculatedPercentage = (code === '01.1.1' || code === '1.1.1') ? 100.0 : 0.0;
+                }
             } else if (totalGrossRevenue > 0) {
                 const catSum = filteredRealized
                     .filter(r => matchedCatIds.includes(r.categoryId))

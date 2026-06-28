@@ -2105,6 +2105,7 @@ export default function ForecastPage() {
                             </div>
                         </div>
                     </div>
+                </div>
             );
         }
         // activeTab === 'simulator'

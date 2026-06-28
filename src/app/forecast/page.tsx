@@ -11,9 +11,8 @@ export default function ForecastPage() {
     const [coefficients, setCoefficients] = useState<any[]>([]);
     const [forecastData, setForecastData] = useState<any[]>([]);
     const [loadingData, setLoadingData] = useState(false);
-    const [activeTab, setActiveTab] = useState<'grid' | 'coefficients'>('grid');
+    const [activeTab, setActiveTab] = useState<'grid' | 'coefficients' | 'simulator'>('grid');
     const [showAV, setShowAV] = useState(false);
-    const [isSimulatorOpen, setIsSimulatorOpen] = useState(false);
     const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set([
         'G-01', 'G-02', 'G-03', 'G-04', 'G-05', 'G-06', 'G-07',
         'G-01.1', 'G-01.2', 'G-02.1', 'G-03.1', 'G-03.2', 'G-03.3', 'G-03.4', 'G-03.5', 'G-03.7', 'G-03.8', 'G-03.9'
@@ -28,6 +27,7 @@ export default function ForecastPage() {
     const [contractProbability, setContractProbability] = useState(100);
     const [contractStatus, setContractStatus] = useState('PIPELINE');
     const [contractTenantId, setContractTenantId] = useState('');
+    const [contractSeller, setContractSeller] = useState('');
     const [contractRevenueSplit, setContractRevenueSplit] = useState<Record<string, number>>({});
     const [selectedRevenueCode, setSelectedRevenueCode] = useState('');
     const [typedRevenueValue, setTypedRevenueValue] = useState('');
@@ -129,18 +129,8 @@ export default function ForecastPage() {
 
         const margemBruta = createNode('F-MB', '(=) MARGEM BRUTA', 0, true);
 
-        // Check if there is a custom split serialized in the contract name
-        let customSplit: Record<string, number> = {};
-        let hasCustomSplit = false;
-        if (viewingContractDetails.name.includes(' |__SPLIT__:')) {
-            try {
-                const idx = viewingContractDetails.name.indexOf(' |__SPLIT__:');
-                customSplit = JSON.parse(viewingContractDetails.name.substring(idx + 12));
-                hasCustomSplit = true;
-            } catch (e) {
-                console.error('Failed to parse split payload:', e);
-            }
-        }
+        const { name: cleanName, split: customSplit } = parseContractName(viewingContractDetails.name);
+        const hasCustomSplit = Object.keys(customSplit).length > 0;
 
         // 2. Classify leaf categories from coefficients state and populate their values/AV
         tenantCoefs.forEach(coef => {
@@ -556,6 +546,35 @@ export default function ForecastPage() {
         });
     };
 
+    const parseContractName = (rawName: string) => {
+        let name = rawName;
+        let split: Record<string, number> = {};
+        let seller = '';
+
+        if (name.includes(' |__SPLIT__:')) {
+            const parts = name.split(' |__SPLIT__:');
+            name = parts[0];
+            const rest = parts[1];
+            if (rest.includes(' |__SELLER__:')) {
+                const subParts = rest.split(' |__SELLER__:');
+                try {
+                    split = JSON.parse(subParts[0]);
+                } catch (e) {}
+                seller = subParts[1];
+            } else {
+                try {
+                    split = JSON.parse(rest);
+                } catch (e) {}
+            }
+        } else if (name.includes(' |__SELLER__:')) {
+            const parts = name.split(' |__SELLER__:');
+            name = parts[0];
+            seller = parts[1];
+        }
+
+        return { name, split, seller };
+    };
+
     const handleSaveContract = async () => {
         if (!contractName.trim() || contractValue <= 0) {
             alert('Por favor, informe o nome e um valor válido.');
@@ -571,7 +590,11 @@ export default function ForecastPage() {
             return;
         }
 
-        const nameWithSplit = contractName.trim() + ' |__SPLIT__:' + JSON.stringify(splitPayload);
+        let nameWithMeta = contractName.trim();
+        nameWithMeta += ' |__SPLIT__:' + JSON.stringify(splitPayload);
+        if (contractSeller.trim()) {
+            nameWithMeta += ' |__SELLER__:' + contractSeller.trim();
+        }
 
         const targetTenant = selectedTenant === 'ALL' ? contractTenantId : selectedTenant;
         if (!targetTenant) {
@@ -586,7 +609,7 @@ export default function ForecastPage() {
                 body: JSON.stringify({
                     id: editingContractId || undefined,
                     tenantId: targetTenant,
-                    name: nameWithSplit,
+                    name: nameWithMeta,
                     value: contractValue,
                     startMonth: contractStartMonth,
                     startYear: selectedYear,
@@ -604,6 +627,7 @@ export default function ForecastPage() {
                 setContractProbability(100);
                 setContractStatus('PIPELINE');
                 setContractTenantId('');
+                setContractSeller('');
                 setContractRevenueSplit({});
                 setSelectedRevenueCode('');
                 setTypedRevenueValue('');
@@ -944,7 +968,7 @@ export default function ForecastPage() {
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem', justifyContent: 'flex-end' }}>
                         <span style={{ fontSize: '0.7rem', fontWeight: 700, color: 'transparent', textTransform: 'uppercase', userSelect: 'none' }}>Simulador</span>
                         <button
-                            onClick={() => setIsSimulatorOpen(true)}
+                            onClick={() => setActiveTab('simulator')}
                             style={{
                                 height: '36px',
                                 padding: '0 1rem',
@@ -987,6 +1011,12 @@ export default function ForecastPage() {
                                 style={{ padding: '0.5rem 1rem', borderRadius: '8px', border: 'none', background: activeTab === 'coefficients' ? 'var(--accent-indigo)' : 'transparent', color: activeTab === 'coefficients' ? '#ffffff' : 'var(--text-secondary)', fontWeight: 700, cursor: 'pointer' }}
                             >
                                 ⚙️ Coeficientes de Custos (Análise Vertical)
+                            </button>
+                            <button
+                                onClick={() => setActiveTab('simulator')}
+                                style={{ padding: '0.5rem 1rem', borderRadius: '8px', border: 'none', background: activeTab === 'simulator' ? 'var(--accent-indigo)' : 'transparent', color: activeTab === 'simulator' ? '#ffffff' : 'var(--text-secondary)', fontWeight: 700, cursor: 'pointer' }}
+                            >
+                                🚀 Simulador de Contratos ({contracts.length})
                             </button>
                         </div>
                         {activeTab === 'grid' && (
@@ -1275,161 +1305,182 @@ export default function ForecastPage() {
                                     </tbody>
                                 </table>
                             </div>
+                    ) : (
+                        /* Simulator Tab */
+                        <div className="glass-card" style={{ padding: '1.25rem', background: 'var(--bg-surface)', borderRadius: '12px', border: '1px solid var(--border-default)', display: 'flex', flexDirection: 'column', gap: '1rem', overflowX: 'auto' }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                <div>
+                                    <h4 style={{ margin: 0, fontSize: '0.95rem', fontWeight: 800 }}>Simulador de Contratos Mensais</h4>
+                                    <p style={{ margin: '0.2rem 0 0 0', fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
+                                        Projete o faturamento mensal de novos contratos e vincule os respectivos vendedores. Os faturamentos e os custos simulados refletirão automaticamente no Forecast.
+                                    </p>
+                                </div>
+                                <button
+                                    onClick={() => {
+                                        setEditingContractId(null);
+                                        setContractName('');
+                                        setContractValue(0);
+                                        setContractStartMonth(activeMonth + 1 > 12 ? 12 : activeMonth + 1);
+                                        setContractProbability(100);
+                                        setContractStatus('PIPELINE');
+                                        setContractTenantId(companies[0]?.id || '');
+                                        setContractSeller('');
+                                        setContractRevenueSplit({});
+                                        setSelectedRevenueCode('');
+                                        setTypedRevenueValue('');
+                                        setIsContractModalOpen(true);
+                                    }}
+                                    style={{
+                                        padding: '0.5rem 1rem',
+                                        background: 'var(--gradient-brand)',
+                                        color: '#ffffff',
+                                        border: 'none',
+                                        borderRadius: '8px',
+                                        fontSize: '0.8rem',
+                                        fontWeight: 700,
+                                        cursor: 'pointer',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        gap: '0.25rem',
+                                        boxShadow: '0 4px 12px rgba(99, 102, 241, 0.2)'
+                                    }}
+                                >
+                                    ➕ Adicionar Novo Contrato
+                                </button>
+                            </div>
+
+                            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.75rem', textAlign: 'left', minWidth: '1000px' }}>
+                                <thead>
+                                    <tr style={{ borderBottom: '2px solid var(--border-default)', color: 'var(--text-secondary)' }}>
+                                        <th style={{ padding: '0.5rem', minWidth: '150px' }}>Contrato / Cliente</th>
+                                        <th style={{ padding: '0.5rem', minWidth: '120px' }}>Vendedor</th>
+                                        <th style={{ padding: '0.5rem', minWidth: '100px', textAlign: 'center' }}>Probabilidade / Status</th>
+                                        {monthsName.map((name, i) => (
+                                            <th key={i} style={{ padding: '0.5rem', textAlign: 'right', minWidth: '85px', background: i + 1 >= activeMonth + 1 ? 'rgba(99, 102, 241, 0.04)' : 'transparent' }}>
+                                                {name}
+                                            </th>
+                                        ))}
+                                        <th style={{ padding: '0.5rem', textAlign: 'center', width: '100px' }}>Ações</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {contracts.length === 0 ? (
+                                        <tr>
+                                            <td colSpan={16} style={{ padding: '3rem', textAlign: 'center', color: 'var(--text-secondary)' }}>
+                                                Nenhum contrato simulado. Clique em "Adicionar Novo Contrato" para iniciar.
+                                            </td>
+                                        </tr>
+                                    ) : (
+                                        contracts.map(contract => {
+                                            const { name: cleanName, seller: cleanSeller } = parseContractName(contract.name);
+                                            return (
+                                                <tr key={contract.id} style={{ borderBottom: '1px solid var(--border-subtle)' }}>
+                                                    <td style={{ padding: '0.6rem 0.5rem', fontWeight: 700 }}>
+                                                        {cleanName}
+                                                        {selectedTenant === 'ALL' && (
+                                                            <span style={{ display: 'block', fontSize: '0.65rem', fontWeight: 600, color: 'var(--text-secondary)' }}>
+                                                                🏢 {contract.tenant?.name}
+                                                            </span>
+                                                        )}
+                                                    </td>
+                                                    <td style={{ padding: '0.6rem 0.5rem', color: cleanSeller ? 'var(--text-primary)' : 'var(--text-secondary)', fontWeight: 600 }}>
+                                                        {cleanSeller || '-'}
+                                                    </td>
+                                                    <td style={{ padding: '0.6rem 0.5rem', textAlign: 'center' }}>
+                                                        <span style={{
+                                                            fontSize: '0.65rem',
+                                                            fontWeight: 800,
+                                                            padding: '2px 6px',
+                                                            borderRadius: '4px',
+                                                            background: contract.status === 'VENDIDO' ? 'rgba(16, 185, 129, 0.1)' : 'rgba(99, 102, 241, 0.1)',
+                                                            color: contract.status === 'VENDIDO' ? 'var(--accent-green)' : 'var(--accent-indigo)'
+                                                        }}>
+                                                            {contract.status === 'VENDIDO' ? 'VENDIDO' : `${contract.probability}% Prob.`}
+                                                        </span>
+                                                    </td>
+                                                    {monthsName.map((_, i) => {
+                                                        const monthNum = i + 1;
+                                                        const isActive = monthNum >= contract.startMonth;
+                                                        const multiplier = contract.status === 'VENDIDO' ? 1.0 : (contract.probability / 100);
+                                                        const val = isActive ? contract.value * multiplier : 0;
+                                                        
+                                                        return (
+                                                            <td key={i} style={{ padding: '0.6rem 0.5rem', textAlign: 'right', fontWeight: isActive ? 700 : 400, color: isActive ? 'var(--text-primary)' : 'var(--text-secondary)', background: monthNum >= activeMonth + 1 ? 'rgba(99, 102, 241, 0.02)' : 'transparent' }}>
+                                                                {val > 0 ? fmt(val) : '-'}
+                                                            </td>
+                                                        );
+                                                    })}
+                                                    <td style={{ padding: '0.6rem 0.5rem', textAlign: 'center' }}>
+                                                        <div style={{ display: 'flex', gap: '0.4rem', justifyContent: 'center' }}>
+                                                            <button
+                                                                onClick={() => setViewingContractDetails(contract)}
+                                                                title="Visualizar Custos DRE do Contrato"
+                                                                style={{ border: 'none', background: 'transparent', cursor: 'pointer', fontSize: '0.85rem', padding: 0 }}
+                                                            >
+                                                                👁️
+                                                            </button>
+                                                            <button
+                                                                onClick={() => {
+                                                                    const { name: nameOnly, split: splitObj, seller: sellerStr } = parseContractName(contract.name);
+                                                                    setEditingContractId(contract.id);
+                                                                    setContractName(nameOnly);
+                                                                    setContractValue(contract.value);
+                                                                    setContractStartMonth(contract.startMonth);
+                                                                    setContractProbability(contract.probability);
+                                                                    setContractStatus(contract.status);
+                                                                    setContractTenantId(contract.tenantId);
+                                                                    setContractSeller(sellerStr);
+                                                                    setContractRevenueSplit(splitObj);
+                                                                    setIsContractModalOpen(true);
+                                                                }}
+                                                                title="Editar Contrato"
+                                                                style={{ border: 'none', background: 'transparent', cursor: 'pointer', fontSize: '0.85rem', padding: 0 }}
+                                                            >
+                                                                ✏️
+                                                            </button>
+                                                            <button
+                                                                onClick={() => handleDeleteContract(contract.id)}
+                                                                title="Excluir Contrato"
+                                                                style={{ border: 'none', background: 'transparent', cursor: 'pointer', fontSize: '0.85rem', padding: 0 }}
+                                                            >
+                                                                🗑️
+                                                            </button>
+                                                        </div>
+                                                    </td>
+                                                </tr>
+                                            );
+                                        })
+                                    )}
+                                    {contracts.length > 0 && (
+                                        <tr style={{ borderTop: '2px solid var(--border-default)', background: 'var(--bg-elevated)', fontWeight: 800 }}>
+                                            <td colSpan={3} style={{ padding: '0.65rem 0.5rem' }}>
+                                                Total Receita Simulada
+                                            </td>
+                                            {monthsName.map((_, i) => {
+                                                const monthNum = i + 1;
+                                                const totalMonthVal = contracts.reduce((sum, contract) => {
+                                                    const isVal = monthNum >= contract.startMonth;
+                                                    const multiplier = contract.status === 'VENDIDO' ? 1.0 : (contract.probability / 100);
+                                                    return sum + (isVal ? contract.value * multiplier : 0);
+                                                }, 0);
+                                                
+                                                return (
+                                                    <td key={i} style={{ padding: '0.65rem 0.5rem', textAlign: 'right', color: 'var(--accent-indigo)' }}>
+                                                        {totalMonthVal > 0 ? fmt(totalMonthVal) : '-'}
+                                                    </td>
+                                                );
+                                            })}
+                                            <td />
+                                        </tr>
+                                    )}
+                                </tbody>
+                            </table>
                         </div>
                     )}
                 </div>
             </div>
 
-            {/* Simulator Overlay Modal */}
-            {isSimulatorOpen && (
-                <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.6)', zIndex: 19000, display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
-                    <div className="glass-card" style={{ width: '450px', maxHeight: '80vh', padding: '1.5rem', background: 'var(--bg-surface)', borderRadius: '12px', border: '1px solid var(--border-default)', display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-                        
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid var(--border-subtle)', paddingBottom: '0.75rem' }}>
-                            <h4 style={{ margin: 0, fontSize: '1rem', fontWeight: 800, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                                🚀 Simulador de Contratos ({contracts.length})
-                            </h4>
-                            <button
-                                onClick={() => setIsSimulatorOpen(false)}
-                                style={{ background: 'transparent', border: 'none', color: 'var(--text-secondary)', cursor: 'pointer', fontSize: '1.1rem', fontWeight: 700 }}
-                            >
-                                ❌
-                            </button>
-                        </div>
 
-                        {/* List of Simulated Contracts */}
-                        <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '0.75rem', paddingRight: '0.25rem' }}>
-                            {contracts.length === 0 ? (
-                                <div style={{ padding: '3rem 1rem', textAlign: 'center', color: 'var(--text-secondary)', fontSize: '0.85rem' }}>
-                                    Nenhum contrato simulado no momento. Adicione um novo contrato para ver as projeções de faturamento e custos.
-                                </div>
-                            ) : (
-                                contracts.map(contract => (
-                                    <div key={contract.id} style={{ padding: '0.85rem', background: 'var(--bg-elevated)', borderRadius: '8px', border: '1px solid var(--border-subtle)', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                                            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.1rem' }}>
-                                                <span style={{ fontSize: '0.85rem', fontWeight: 800 }}>{contract.name.includes(' |__SPLIT__:') ? contract.name.substring(0, contract.name.indexOf(' |__SPLIT__:')) : contract.name}</span>
-                                                <span style={{ fontSize: '0.65rem', color: 'var(--text-secondary)', fontWeight: 600 }}>
-                                                    🏢 {contract.tenant?.name || 'Empresa desconhecida'}
-                                                </span>
-                                            </div>
-                                            <div style={{ display: 'flex', gap: '0.5rem' }}>
-                                                <button
-                                                    onClick={() => {
-                                                        setViewingContractDetails(contract);
-                                                    }}
-                                                    title="Visualizar Custos do Contrato"
-                                                    style={{ border: 'none', background: 'transparent', cursor: 'pointer', fontSize: '0.85rem' }}
-                                                >
-                                                    👁️
-                                                </button>
-                                                <button
-                                                    onClick={() => {
-                                                        let nameOnly = contract.name;
-                                                        let splitObj: Record<string, number> = {};
-                                                        if (contract.name.includes(' |__SPLIT__:')) {
-                                                            const idx = contract.name.indexOf(' |__SPLIT__:');
-                                                            nameOnly = contract.name.substring(0, idx);
-                                                            try {
-                                                                splitObj = JSON.parse(contract.name.substring(idx + 12));
-                                                            } catch (e) {
-                                                                console.error('Failed to parse split payload:', e);
-                                                            }
-                                                        } else {
-                                                            const firstRev = revenueCategories[0]?.categoryName;
-                                                            const codeMatch = firstRev ? firstRev.match(/^([\d.]+)/) : null;
-                                                            const code = codeMatch ? codeMatch[1] : '01.1.1';
-                                                            splitObj = { [code]: contract.value };
-                                                        }
-                                                        setEditingContractId(contract.id);
-                                                        setContractName(nameOnly);
-                                                        setContractValue(contract.value);
-                                                        setContractStartMonth(contract.startMonth);
-                                                        setContractProbability(contract.probability);
-                                                        setContractStatus(contract.status);
-                                                        setContractTenantId(contract.tenantId);
-                                                        setContractRevenueSplit(splitObj);
-                                                        setIsContractModalOpen(true);
-                                                    }}
-                                                    style={{ border: 'none', background: 'transparent', cursor: 'pointer', fontSize: '0.85rem' }}
-                                                >
-                                                    ✏️
-                                                </button>
-                                                <button
-                                                    onClick={() => handleDeleteContract(contract.id)}
-                                                    style={{ border: 'none', background: 'transparent', cursor: 'pointer', fontSize: '0.85rem' }}
-                                                >
-                                                    🗑️
-                                                </button>
-                                            </div>
-                                        </div>
-
-                                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                            <span style={{ fontSize: '0.9rem', fontWeight: 800, color: 'var(--accent-indigo)' }}>{fmt(contract.value)}/mês</span>
-                                            <span style={{
-                                                fontSize: '0.65rem',
-                                                fontWeight: 800,
-                                                padding: '2px 6px',
-                                                borderRadius: '4px',
-                                                background: contract.status === 'VENDIDO' ? 'rgba(16, 185, 129, 0.1)' : 'rgba(99, 102, 241, 0.1)',
-                                                color: contract.status === 'VENDIDO' ? 'var(--accent-green)' : 'var(--accent-indigo)'
-                                            }}>
-                                                {contract.status === 'VENDIDO' ? 'VENDIDO' : `${contract.probability}% Prob.`}
-                                            </span>
-                                        </div>
-
-                                        <div style={{ fontSize: '0.7rem', color: 'var(--text-secondary)' }}>
-                                            Início em: {monthsName[contract.startMonth - 1]} / {contract.startYear}
-                                        </div>
-
-                                        {/* Progress Bar */}
-                                        <div style={{ width: '100%', height: '4px', background: 'var(--border-subtle)', borderRadius: '2px', overflow: 'hidden' }}>
-                                            <div style={{
-                                                width: `${contract.status === 'VENDIDO' ? 100 : contract.probability}%`,
-                                                height: '100%',
-                                                background: contract.status === 'VENDIDO' ? 'var(--accent-green)' : 'var(--accent-indigo)'
-                                            }} />
-                                        </div>
-                                    </div>
-                                ))
-                            )}
-                        </div>
-
-                        {/* Bottom Action */}
-                        <div style={{ borderTop: '1px solid var(--border-subtle)', paddingTop: '0.75rem', display: 'flex', justifyContent: 'flex-end' }}>
-                            <button
-                                onClick={() => {
-                                    setEditingContractId(null);
-                                    setContractName('');
-                                    setContractValue(0);
-                                    setContractStartMonth(activeMonth + 1 > 12 ? 12 : activeMonth + 1);
-                                    setContractProbability(100);
-                                    setContractStatus('PIPELINE');
-                                    setContractTenantId(companies[0]?.id || '');
-                                    setContractRevenueSplit({});
-                                    setSelectedRevenueCode('');
-                                    setTypedRevenueValue('');
-                                    setIsContractModalOpen(true);
-                                }}
-                                style={{
-                                    padding: '0.5rem 1rem',
-                                    background: 'var(--gradient-brand)',
-                                    color: '#ffffff',
-                                    border: 'none',
-                                    borderRadius: '8px',
-                                    fontSize: '0.8rem',
-                                    fontWeight: 700,
-                                    cursor: 'pointer',
-                                    width: '100%'
-                                }}
-                            >
-                                ➕ Adicionar Novo Contrato
-                            </button>
-                        </div>
-
-                    </div>
-                </div>
-            )}
 
             {/* Contract Modal */}
             {isContractModalOpen && (
@@ -1458,6 +1509,17 @@ export default function ForecastPage() {
                                     value={contractName}
                                     onChange={(e) => setContractName(e.target.value)}
                                     placeholder="Ex: Novo Cliente Alfa"
+                                    style={{ height: '36px', padding: '0 0.5rem', borderRadius: '6px', border: '1px solid var(--border-default)', background: 'var(--bg-elevated)', color: 'var(--text-primary)' }}
+                                />
+                            </div>
+
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                                <label style={{ fontSize: '0.7rem', fontWeight: 700, color: 'var(--text-secondary)' }}>Vendedor</label>
+                                <input
+                                    type="text"
+                                    value={contractSeller}
+                                    onChange={(e) => setContractSeller(e.target.value)}
+                                    placeholder="Ex: Carlos Silva"
                                     style={{ height: '36px', padding: '0 0.5rem', borderRadius: '6px', border: '1px solid var(--border-default)', background: 'var(--bg-elevated)', color: 'var(--text-primary)' }}
                                 />
                             </div>

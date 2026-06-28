@@ -291,7 +291,10 @@ export async function GET(request: Request) {
                                 let hasCustomSplit = false;
                                 if (contract.name.includes(' |__SPLIT__:')) {
                                     try {
-                                        customSplit = JSON.parse(contract.name.substring(contract.name.indexOf(' |__SPLIT__:') + 12));
+                                        const parts = contract.name.split(' |__SPLIT__:');
+                                        const rest = parts[1];
+                                        const splitStr = rest.includes(' |__SELLER__:') ? rest.split(' |__SELLER__:')[0] : rest;
+                                        customSplit = JSON.parse(splitStr);
                                         hasCustomSplit = true;
                                     } catch (e) {
                                         console.error('Failed to parse split JSON:', e);

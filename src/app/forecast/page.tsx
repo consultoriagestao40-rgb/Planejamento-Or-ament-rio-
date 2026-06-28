@@ -567,6 +567,32 @@ export default function ForecastPage() {
         fetchData();
     }, [fetchData]);
 
+    useEffect(() => {
+        const handleScroll = () => {
+            const table = document.querySelector('.spreadsheet-table-forecast');
+            if (!table) return;
+            const rect = table.getBoundingClientRect();
+            const headerCells = table.querySelectorAll('thead th');
+            
+            if (rect.top < 0) {
+                const maxOffset = rect.height - 40;
+                const offset = Math.min(-rect.top, maxOffset);
+                headerCells.forEach((th: any) => {
+                    th.style.transform = `translateY(${offset}px)`;
+                });
+            } else {
+                headerCells.forEach((th: any) => {
+                    th.style.transform = 'translateY(0)';
+                });
+            }
+        };
+        
+        window.addEventListener('scroll', handleScroll, { capture: true, passive: true });
+        handleScroll();
+        
+        return () => window.removeEventListener('scroll', handleScroll, { capture: true });
+    }, []);
+
     const formatCurrencyInput = (valueStr: string) => {
         const digits = valueStr.replace(/\D/g, '');
         if (!digits) return '';
@@ -962,7 +988,7 @@ export default function ForecastPage() {
         if (activeTab === 'grid') {
             return (
                                     <div className="glass-card" style={{ padding: '1.25rem 0', background: 'var(--bg-surface)', borderRadius: '12px', border: '1px solid var(--border-default)', overflowX: 'auto', overflowY: 'clip' }}>
-                                        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.75rem', textAlign: 'left' }}>
+                                        <table className="spreadsheet-table-forecast" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.75rem', textAlign: 'left' }}>
                                             <thead>
                                                 <tr style={{ borderBottom: '2px solid var(--border-default)', color: 'var(--text-secondary)' }}>
                                                     <th style={{ padding: '0.5rem 0.5rem 0.5rem 1.25rem', minWidth: '220px', position: 'sticky', top: 0, left: 0, backgroundColor: 'var(--bg-surface)', zIndex: 30, borderRight: '1px solid var(--border-subtle)', boxShadow: '2px 2px 5px -2px rgba(0,0,0,0.15)' }}>Conta - Categoria</th>

@@ -57,9 +57,25 @@ export default function ForecastPage() {
     };
 
     const [loadingData, setLoadingData] = useState(false);
-    const [activeTab, setActiveTab] = useState<'grid' | 'coefficients' | 'simulator'>('grid');
+    const [activeTab, setActiveTab] = useState<'grid' | 'coefficients' | 'simulator' | 'cashflow'>('grid');
     const [showAV, setShowAV] = useState(false);
     const [displayMode, setDisplayMode] = useState<'complete' | 'projection'>('complete');
+
+    // Cash Flow simulation states
+    const [selectedCashFlowContractId, setSelectedCashFlowContractId] = useState<string>('CONSOLIDADO');
+    const [cfStartDateDay, setCfStartDateDay] = useState<number>(20);
+    const [cfBillingCycle, setCfBillingCycle] = useState<string>('subsequent_first_business_day');
+    const [cfPaymentTermDays, setCfPaymentTermDays] = useState<number>(30);
+    const [cfEpiUniformsCost, setCfEpiUniformsCost] = useState<number>(1200);
+    const [cfEquipmentCost, setCfEquipmentCost] = useState<number>(2500);
+    const [cfSuppliesCost, setCfSuppliesCost] = useState<number>(800);
+    const [cfLaborPct, setCfLaborPct] = useState<number>(40);
+    const [cfChargesPct, setCfChargesPct] = useState<number>(15);
+    const [cfBenefitsPct, setCfBenefitsPct] = useState<number>(8);
+    const [cfTaxesPct, setCfTaxesPct] = useState<number>(12.5);
+    const [cfPaydayDay, setCfPaydayDay] = useState<number>(5);
+    const [cfBenefitsPaydayDay, setCfBenefitsPaydayDay] = useState<number>(1);
+    const [cfProvisionPayroll, setCfProvisionPayroll] = useState<boolean>(true);
     const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set([
         'G-01', 'G-02', 'G-03', 'G-04', 'G-05', 'G-06', 'G-07',
         'G-01.1', 'G-01.2', 'G-02.1', 'G-03.1', 'G-03.2', 'G-03.3', 'G-03.4', 'G-03.5', 'G-03.7', 'G-03.8', 'G-03.9'
@@ -96,6 +112,143 @@ export default function ForecastPage() {
         };
         loadInitialData();
     }, []);
+
+    useEffect(() => {
+        if (selectedCashFlowContractId === 'CONSOLIDADO') {
+            setCfStartDateDay(20);
+            setCfBillingCycle('subsequent_first_business_day');
+            setCfPaymentTermDays(30);
+            setCfEpiUniformsCost(1200);
+            setCfEquipmentCost(2500);
+            setCfSuppliesCost(800);
+            setCfPaydayDay(5);
+            setCfBenefitsPaydayDay(1);
+            setCfProvisionPayroll(true);
+            setCfLaborPct(40);
+            setCfChargesPct(15);
+            setCfBenefitsPct(8);
+            setCfTaxesPct(12.5);
+            return;
+        }
+
+        const contract = contracts.find(c => c.id === selectedCashFlowContractId);
+        if (!contract) return;
+
+        const { cashFlow } = parseContractName(contract.name);
+
+        const tenantCoefs = coefficients.filter(c => c.tenantId === contract.tenantId);
+        let taxesPct = 0;
+        let laborPct = 0;
+        let chargesPct = 0;
+        let benefitsPct = 0;
+
+        tenantCoefs.forEach(c => {
+            const name = c.categoryName;
+            const codeMatch = name.match(/^([\d.]+)/);
+            const code = codeMatch ? codeMatch[1] : '';
+            if (code.startsWith('02.1') || code === '02.1') taxesPct += c.percentage;
+            else if (code.startsWith('03.1') || code === '03.1') laborPct += c.percentage;
+            else if (code.startsWith('03.2') || code === '03.2') chargesPct += c.percentage;
+            else if (code.startsWith('03.3') || code === '03.3') benefitsPct += c.percentage;
+        });
+
+        if (taxesPct === 0) taxesPct = 12.5;
+        if (laborPct === 0) laborPct = 40.0;
+        if (chargesPct === 0) chargesPct = 15.0;
+        if (benefitsPct === 0) benefitsPct = 8.0;
+
+        if (cashFlow) {
+            setCfStartDateDay(cashFlow.startDateDay ?? 20);
+            setCfBillingCycle(cashFlow.billingCycle ?? 'subsequent_first_business_day');
+            setCfPaymentTermDays(cashFlow.paymentTermDays ?? 30);
+            setCfEpiUniformsCost(cashFlow.epiUniformsCost ?? 1200);
+            setCfEquipmentCost(cashFlow.equipmentCost ?? 2500);
+            setCfSuppliesCost(cashFlow.suppliesCost ?? 800);
+            setCfPaydayDay(cashFlow.paydayDay ?? 5);
+            setCfBenefitsPaydayDay(cashFlow.benefitsPaydayDay ?? 1);
+            setCfProvisionPayroll(cashFlow.provisionPayroll ?? true);
+            setCfLaborPct(cashFlow.laborPct ?? laborPct);
+            setCfChargesPct(cashFlow.chargesPct ?? chargesPct);
+            setCfBenefitsPct(cashFlow.benefitsPct ?? benefitsPct);
+            setCfTaxesPct(cashFlow.taxesPct ?? taxesPct);
+        } else {
+            setCfStartDateDay(20);
+            setCfBillingCycle('subsequent_first_business_day');
+            setCfPaymentTermDays(30);
+            setCfEpiUniformsCost(1200);
+            setCfEquipmentCost(2500);
+            setCfSuppliesCost(800);
+            setCfPaydayDay(5);
+            setCfBenefitsPaydayDay(1);
+            setCfProvisionPayroll(true);
+            setCfLaborPct(laborPct);
+            setCfChargesPct(chargesPct);
+            setCfBenefitsPct(benefitsPct);
+            setCfTaxesPct(taxesPct);
+        }
+    }, [selectedCashFlowContractId, contracts, coefficients]);
+
+    const handleSaveCashFlowConfig = async (contract: any, config: any) => {
+        const { name: cleanName, split: splitObj, seller: sellerStr } = parseContractName(contract.name);
+        
+        let nameWithMeta = cleanName.trim();
+        nameWithMeta += ' |__SPLIT__:' + JSON.stringify(splitObj);
+        if (sellerStr.trim()) {
+            nameWithMeta += ' |__SELLER__:' + sellerStr.trim();
+        }
+        nameWithMeta += ' |__CASHFLOW__:' + JSON.stringify(config);
+
+        try {
+            const res = await fetch('/api/kpi/forecast/contracts', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    id: contract.id,
+                    tenantId: contract.tenantId,
+                    name: nameWithMeta,
+                    value: contract.value,
+                    startMonth: contract.startMonth,
+                    startYear: contract.startYear,
+                    probability: contract.probability,
+                    status: contract.status
+                })
+            });
+            const json = await res.json();
+            if (json.success) {
+                // Refresh local contracts state
+                fetchData();
+            } else {
+                alert(`Erro ao salvar premissas de caixa: ${json.error}`);
+            }
+        } catch (e) {
+            console.error('Failed to save cashflow config:', e);
+        }
+    };
+
+    const handleSaveCurrentCashFlowConfig = async () => {
+        if (selectedCashFlowContractId === 'CONSOLIDADO') return;
+        const contract = contracts.find(c => c.id === selectedCashFlowContractId);
+        if (!contract) return;
+
+        const config = {
+            startDateDay: cfStartDateDay,
+            billingCycle: cfBillingCycle,
+            paymentTermDays: cfPaymentTermDays,
+            epiUniformsCost: cfEpiUniformsCost,
+            equipmentCost: cfEquipmentCost,
+            suppliesCost: cfSuppliesCost,
+            paydayDay: cfPaydayDay,
+            benefitsPaydayDay: cfBenefitsPaydayDay,
+            provisionPayroll: cfProvisionPayroll,
+            laborPct: cfLaborPct,
+            chargesPct: cfChargesPct,
+            benefitsPct: cfBenefitsPct,
+            taxesPct: cfTaxesPct
+        };
+
+        await handleSaveCashFlowConfig(contract, config);
+        alert('Premissas de Fluxo de Caixa salvas com sucesso!');
+    };
 
     const [viewingContractDetails, setViewingContractDetails] = useState<any | null>(null);
     const [expandedContractRows, setExpandedContractRows] = useState<Set<string>>(new Set([
@@ -1333,7 +1486,614 @@ export default function ForecastPage() {
                                     </div>
             );
         }
+        if (activeTab === 'cashflow') {
+            const activeContracts = contracts.filter(c => c.status !== 'PERDIDO');
+            const selectedContractObj = activeContracts.find(c => c.id === selectedCashFlowContractId);
 
+            const calculateSingleContractCashFlow = (contract: any, overrideConfig?: any) => {
+                const { cashFlow } = parseContractName(contract.name);
+                const config = overrideConfig || cashFlow || {
+                    startDateDay: 20,
+                    billingCycle: 'subsequent_first_business_day',
+                    paymentTermDays: 30,
+                    epiUniformsCost: 1200,
+                    equipmentCost: 2500,
+                    suppliesCost: 800,
+                    paydayDay: 5,
+                    benefitsPaydayDay: 1,
+                    provisionPayroll: true,
+                    laborPct: 40,
+                    chargesPct: 15,
+                    benefitsPct: 8,
+                    taxesPct: 12.5
+                };
+
+                const startMonth = contract.startMonth;
+                const startMonthIdx = startMonth - 1;
+
+                const monthlyReceipts = Array(12).fill(0);
+                const monthlyPayrollOutflow = Array(12).fill(0);
+                const monthlyBenefitsOutflow = Array(12).fill(0);
+                const monthlyTaxesOutflow = Array(12).fill(0);
+                const monthlySetupOutflow = Array(12).fill(0);
+                const monthlyProvisionsOutflow = Array(12).fill(0);
+
+                const monthlyVal = contract.value * (contract.status === 'VENDIDO' ? 1.0 : contract.probability / 100.0);
+
+                for (let m = startMonthIdx; m < 12; m++) {
+                    const isFirstMonth = (m === startMonthIdx);
+                    const fraction = isFirstMonth
+                        ? Math.max(0.01, Math.min(1.0, (30 - (config.startDateDay ?? 20) + 1) / 30))
+                        : 1.0;
+
+                    const rev = monthlyVal * fraction;
+                    const tax = monthlyVal * (config.taxesPct / 100.0) * fraction;
+                    const labor = monthlyVal * (config.laborPct / 100.0) * fraction;
+                    const charges = monthlyVal * (config.chargesPct / 100.0) * fraction;
+                    const benefits = monthlyVal * (config.benefitsPct / 100.0) * fraction;
+                    
+                    if (isFirstMonth) {
+                        const setup = (config.epiUniformsCost ?? 0) + (config.equipmentCost ?? 0) + (config.suppliesCost ?? 0);
+                        monthlySetupOutflow[m] = setup;
+                    }
+
+                    // 1. Receipts (Inflow)
+                    const invoiceMonth = (config.billingCycle === 'same_month') ? m : m + 1;
+                    const paymentDelayMonths = Math.round((config.paymentTermDays ?? 30) / 30);
+                    const receiptMonth = invoiceMonth + paymentDelayMonths;
+                    if (receiptMonth < 12) {
+                        monthlyReceipts[receiptMonth] += rev;
+                    }
+
+                    // 2. Taxes (Impostos)
+                    const taxPaymentMonth = invoiceMonth + 1;
+                    if (taxPaymentMonth < 12) {
+                        monthlyTaxesOutflow[taxPaymentMonth] += tax;
+                    }
+
+                    // 3. Payroll (Folha + Encargos)
+                    const payrollPaymentMonth = m + 1;
+                    if (payrollPaymentMonth < 12) {
+                        monthlyPayrollOutflow[payrollPaymentMonth] += (labor + charges);
+                    }
+
+                    // 4. VA / VT (Benefícios) - Paid on 5th business day
+                    const startDateDay = config.startDateDay ?? 20;
+                    if (isFirstMonth) {
+                        if (startDateDay <= 4) {
+                            monthlyBenefitsOutflow[m] += benefits;
+                        } else {
+                            if (m + 1 < 12) {
+                                monthlyBenefitsOutflow[m + 1] += benefits; // Deferred proportional
+                            }
+                        }
+                    } else {
+                        monthlyBenefitsOutflow[m] += benefits;
+                    }
+
+                    // 5. Provisions (13º and Férias)
+                    if (config.provisionPayroll) {
+                        monthlyProvisionsOutflow[m] += labor * 0.1944;
+                    }
+                }
+
+                return {
+                    receipts: monthlyReceipts,
+                    payroll: monthlyPayrollOutflow,
+                    benefits: monthlyBenefitsOutflow,
+                    taxes: monthlyTaxesOutflow,
+                    setup: monthlySetupOutflow,
+                    provisions: monthlyProvisionsOutflow
+                };
+            };
+
+            let receipts = Array(12).fill(0);
+            let payroll = Array(12).fill(0);
+            let benefits = Array(12).fill(0);
+            let taxes = Array(12).fill(0);
+            let setup = Array(12).fill(0);
+            let provisions = Array(12).fill(0);
+
+            if (selectedCashFlowContractId === 'CONSOLIDADO') {
+                activeContracts.forEach(contract => {
+                    const cf = calculateSingleContractCashFlow(contract);
+                    for (let i = 0; i < 12; i++) {
+                        receipts[i] += cf.receipts[i];
+                        payroll[i] += cf.payroll[i];
+                        benefits[i] += cf.benefits[i];
+                        taxes[i] += cf.taxes[i];
+                        setup[i] += cf.setup[i];
+                        provisions[i] += cf.provisions[i];
+                    }
+                });
+            } else {
+                if (selectedContractObj) {
+                    const overrideConfig = {
+                        startDateDay: cfStartDateDay,
+                        billingCycle: cfBillingCycle,
+                        paymentTermDays: cfPaymentTermDays,
+                        epiUniformsCost: cfEpiUniformsCost,
+                        equipmentCost: cfEquipmentCost,
+                        suppliesCost: cfSuppliesCost,
+                        paydayDay: cfPaydayDay,
+                        benefitsPaydayDay: cfBenefitsPaydayDay,
+                        provisionPayroll: cfProvisionPayroll,
+                        laborPct: cfLaborPct,
+                        chargesPct: cfChargesPct,
+                        benefitsPct: cfBenefitsPct,
+                        taxesPct: cfTaxesPct
+                    };
+                    const cf = calculateSingleContractCashFlow(selectedContractObj, overrideConfig);
+                    receipts = cf.receipts;
+                    payroll = cf.payroll;
+                    benefits = cf.benefits;
+                    taxes = cf.taxes;
+                    setup = cf.setup;
+                    provisions = cf.provisions;
+                }
+            }
+
+            const monthlyOutflows = Array(12).fill(0);
+            const netCashFlows = Array(12).fill(0);
+            const cumulativeCashFlows = Array(12).fill(0);
+            
+            let cumulativeAcc = 0;
+            let maxCashRequirement = 0;
+            let paybackMonthIdx = -1;
+
+            for (let i = 0; i < 12; i++) {
+                monthlyOutflows[i] = payroll[i] + benefits[i] + taxes[i] + setup[i] + provisions[i];
+                netCashFlows[i] = receipts[i] - monthlyOutflows[i];
+                
+                cumulativeAcc += netCashFlows[i];
+                cumulativeCashFlows[i] = cumulativeAcc;
+                
+                if (cumulativeAcc < maxCashRequirement) {
+                    maxCashRequirement = cumulativeAcc;
+                }
+                
+                if (cumulativeAcc >= 0 && paybackMonthIdx === -1 && i >= (selectedContractObj ? selectedContractObj.startMonth - 1 : 0)) {
+                    paybackMonthIdx = i;
+                }
+            }
+
+            const totalInflow = receipts.reduce((sum, v) => sum + v, 0);
+            const totalOutflow = monthlyOutflows.reduce((sum, v) => sum + v, 0);
+
+            // SVG Line Chart coordinates calculation
+            const maxVal = Math.max(...cumulativeCashFlows, 0);
+            const minVal = Math.min(...cumulativeCashFlows, 0);
+            const range = (maxVal - minVal) || 10000;
+            
+            const chartPoints = cumulativeCashFlows.map((v, i) => {
+                const x = 50 + i * 55;
+                const y = 150 - ((v - minVal) / range) * 120;
+                return `${x},${y}`;
+            }).join(' ');
+
+            const zeroLineY = 150 - ((0 - minVal) / range) * 120;
+
+            return (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+                    {/* Header Controls */}
+                    <div className="glass-card" style={{ padding: '1rem', background: 'var(--bg-surface)', borderRadius: '12px', border: '1px solid var(--border-default)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
+                            <h4 style={{ margin: 0, fontSize: '0.95rem', fontWeight: 800 }}>Fluxo de Caixa & Capital de Giro de Implantação</h4>
+                            <p style={{ margin: 0, fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
+                                Monitore a necessidade de capital de giro e o payback para a entrada em operação dos novos contratos projetados.
+                            </p>
+                        </div>
+                        <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
+                                <span style={{ fontSize: '0.65rem', fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase' }}>Selecionar Contrato Simulador</span>
+                                <select
+                                    value={selectedCashFlowContractId}
+                                    onChange={(e) => setSelectedCashFlowContractId(e.target.value)}
+                                    style={{ height: '36px', padding: '0 0.5rem', borderRadius: '6px', border: '1px solid var(--border-default)', background: 'var(--bg-elevated)', color: 'var(--text-primary)', fontWeight: 600, fontSize: '0.75rem' }}
+                                >
+                                    <option value="CONSOLIDADO">📂 Consolidado (Todas Novas Vendas)</option>
+                                    {activeContracts.map(c => {
+                                        const { name } = parseContractName(c.name);
+                                        return <option key={c.id} value={c.id}>🚀 {name} ({fmt(c.value)}/mês)</option>;
+                                    })}
+                                </select>
+                            </div>
+                            {selectedCashFlowContractId !== 'CONSOLIDADO' && (
+                                <button
+                                    onClick={handleSaveCurrentCashFlowConfig}
+                                    className="btn"
+                                    style={{ height: '36px', padding: '0 1rem', display: 'flex', alignItems: 'center', gap: '0.35rem', background: 'var(--accent-green)', color: '#ffffff', border: 'none', borderRadius: '6px', fontWeight: 700, fontSize: '0.75rem', cursor: 'pointer', marginTop: '1rem' }}
+                                >
+                                    💾 Salvar Premissas
+                                </button>
+                            )}
+                        </div>
+                    </div>
+
+                    {/* KPI Cards */}
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: '0.75rem' }}>
+                        <div style={{ padding: '1rem', background: 'linear-gradient(135deg, rgba(239, 68, 68, 0.1) 0%, rgba(239, 68, 68, 0.02) 100%)', borderRadius: '10px', border: '1px solid rgba(239, 68, 68, 0.25)', display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
+                            <span style={{ fontSize: '0.65rem', color: 'var(--accent-red)', fontWeight: 800, textTransform: 'uppercase' }}>Necessidade Máxima de Caixa</span>
+                            <span style={{ fontSize: '1.25rem', fontWeight: 800, color: 'var(--accent-red)' }}>{fmt(Math.abs(maxCashRequirement))}</span>
+                            <span style={{ fontSize: '0.65rem', color: 'var(--text-secondary)', fontWeight: 500 }}>Maior saldo negativo acumulado</span>
+                        </div>
+                        <div style={{ padding: '1rem', background: 'linear-gradient(135deg, rgba(16, 185, 129, 0.1) 0%, rgba(16, 185, 129, 0.02) 100%)', borderRadius: '10px', border: '1px solid rgba(16, 185, 129, 0.25)', display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
+                            <span style={{ fontSize: '0.65rem', color: 'var(--accent-green)', fontWeight: 800, textTransform: 'uppercase' }}>Prazo de Payback (Equilíbrio)</span>
+                            <span style={{ fontSize: '1.25rem', fontWeight: 800, color: 'var(--accent-green)' }}>
+                                {paybackMonthIdx !== -1 ? `${paybackMonthIdx + 1}º mês` : 'Fora do Ano'}
+                            </span>
+                            <span style={{ fontSize: '0.65rem', color: 'var(--text-secondary)', fontWeight: 500 }}>Meses para recuperar o caixa inicial</span>
+                        </div>
+                        <div style={{ padding: '1rem', background: 'var(--bg-surface)', borderRadius: '10px', border: '1px solid var(--border-default)', display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
+                            <span style={{ fontSize: '0.65rem', color: 'var(--text-secondary)', fontWeight: 800, textTransform: 'uppercase' }}>Total Recebido</span>
+                            <span style={{ fontSize: '1.25rem', fontWeight: 800, color: 'var(--accent-indigo)' }}>{fmt(totalInflow)}</span>
+                            <span style={{ fontSize: '0.65rem', color: 'var(--text-secondary)', fontWeight: 500 }}>Soma de recebimentos de clientes</span>
+                        </div>
+                        <div style={{ padding: '1rem', background: 'var(--bg-surface)', borderRadius: '10px', border: '1px solid var(--border-default)', display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
+                            <span style={{ fontSize: '0.65rem', color: 'var(--text-secondary)', fontWeight: 800, textTransform: 'uppercase' }}>Total Desembolsado</span>
+                            <span style={{ fontSize: '1.25rem', fontWeight: 800, color: 'var(--text-primary)' }}>{fmt(totalOutflow)}</span>
+                            <span style={{ fontSize: '0.65rem', color: 'var(--text-secondary)', fontWeight: 500 }}>Soma de custos, folha e impostos</span>
+                        </div>
+                    </div>
+
+                    {/* Main Layout Grid */}
+                    <div style={{ display: 'grid', gridTemplateColumns: '320px 1fr', gap: '1rem', alignItems: 'start' }}>
+                        {/* Left Side: Premisses Panel */}
+                        <div className="glass-card" style={{ padding: '1.25rem', background: 'var(--bg-surface)', borderRadius: '12px', border: '1px solid var(--border-default)', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                            <h5 style={{ margin: 0, fontSize: '0.85rem', fontWeight: 800, borderBottom: '1px solid var(--border-subtle)', paddingBottom: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
+                                📋 Área de Premissas
+                            </h5>
+
+                            {selectedCashFlowContractId === 'CONSOLIDADO' ? (
+                                <div style={{ padding: '1rem', background: 'rgba(99, 102, 241, 0.05)', color: 'var(--text-secondary)', borderRadius: '8px', fontSize: '0.75rem', lineHeight: '1.4', fontWeight: 600 }}>
+                                    💡 Você está no modo <strong>Consolidado</strong>. As premissas individuais de cada contrato cadastrado no simulador foram unificadas no resultado gráfico ao lado. Selecione um contrato no filtro acima para editar ou customizar seus fluxos específicos.
+                                </div>
+                            ) : (
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem', fontSize: '0.75rem' }}>
+                                    {/* Início & Faturamento */}
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
+                                        <label style={{ fontWeight: 700, color: 'var(--text-primary)' }}>📅 Início dos Serviços (Dia do Mês)</label>
+                                        <input
+                                            type="number"
+                                            min="1"
+                                            max="31"
+                                            value={cfStartDateDay}
+                                            onChange={(e) => setCfStartDateDay(parseInt(e.target.value) || 20)}
+                                            style={{ height: '32px', padding: '0 0.5rem', borderRadius: '6px', border: '1px solid var(--border-default)', background: 'var(--bg-elevated)', color: 'var(--text-primary)', fontWeight: 700 }}
+                                        />
+                                    </div>
+
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
+                                        <label style={{ fontWeight: 700, color: 'var(--text-primary)' }}>🧾 Ciclo de Faturamento / Emissão</label>
+                                        <select
+                                            value={cfBillingCycle}
+                                            onChange={(e) => setCfBillingCycle(e.target.value)}
+                                            style={{ height: '32px', padding: '0 0.5rem', borderRadius: '6px', border: '1px solid var(--border-default)', background: 'var(--bg-elevated)', color: 'var(--text-primary)', fontWeight: 600 }}
+                                        >
+                                            <option value="subsequent_first_business_day">No 1º dia útil do mês subsequente</option>
+                                            <option value="same_month">No último dia do próprio mês</option>
+                                        </select>
+                                    </div>
+
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
+                                        <label style={{ fontWeight: 700, color: 'var(--text-primary)' }}>⏳ Prazo de Pagamento (Dias Cliente)</label>
+                                        <input
+                                            type="number"
+                                            min="0"
+                                            value={cfPaymentTermDays}
+                                            onChange={(e) => setCfPaymentTermDays(parseInt(e.target.value) || 0)}
+                                            style={{ height: '32px', padding: '0 0.5rem', borderRadius: '6px', border: '1px solid var(--border-default)', background: 'var(--bg-elevated)', color: 'var(--text-primary)', fontWeight: 700 }}
+                                        />
+                                    </div>
+
+                                    {/* Setup Costs */}
+                                    <div style={{ borderTop: '1px solid var(--border-subtle)', paddingTop: '0.85rem', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                                        <span style={{ fontWeight: 800, color: 'var(--text-secondary)', fontSize: '0.65rem', textTransform: 'uppercase' }}>🛠️ Investimento Inicial de Implantação</span>
+                                        
+                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
+                                            <label style={{ fontWeight: 600, color: 'var(--text-secondary)' }}>EPIs & Uniformes (R$)</label>
+                                            <input
+                                                type="number"
+                                                value={cfEpiUniformsCost}
+                                                onChange={(e) => setCfEpiUniformsCost(parseFloat(e.target.value) || 0)}
+                                                style={{ height: '32px', padding: '0 0.5rem', borderRadius: '6px', border: '1px solid var(--border-default)', background: 'var(--bg-elevated)', color: 'var(--text-primary)', fontWeight: 700 }}
+                                            />
+                                        </div>
+
+                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
+                                            <label style={{ fontWeight: 600, color: 'var(--text-secondary)' }}>Equipamentos Iniciais (R$)</label>
+                                            <input
+                                                type="number"
+                                                value={cfEquipmentCost}
+                                                onChange={(e) => setCfEquipmentCost(parseFloat(e.target.value) || 0)}
+                                                style={{ height: '32px', padding: '0 0.5rem', borderRadius: '6px', border: '1px solid var(--border-default)', background: 'var(--bg-elevated)', color: 'var(--text-primary)', fontWeight: 700 }}
+                                            />
+                                        </div>
+
+                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
+                                            <label style={{ fontWeight: 600, color: 'var(--text-secondary)' }}>Produtos & Consumos Setup (R$)</label>
+                                            <input
+                                                type="number"
+                                                value={cfSuppliesCost}
+                                                onChange={(e) => setCfSuppliesCost(parseFloat(e.target.value) || 0)}
+                                                style={{ height: '32px', padding: '0 0.5rem', borderRadius: '6px', border: '1px solid var(--border-default)', background: 'var(--bg-elevated)', color: 'var(--text-primary)', fontWeight: 700 }}
+                                            />
+                                        </div>
+                                    </div>
+
+                                    {/* Operational Cost % (Overrides) */}
+                                    <div style={{ borderTop: '1px solid var(--border-subtle)', paddingTop: '0.85rem', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                                        <span style={{ fontWeight: 800, color: 'var(--text-secondary)', fontSize: '0.65rem', textTransform: 'uppercase' }}>💰 Custos e Alíquotas (% da Receita)</span>
+                                        
+                                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem' }}>
+                                            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
+                                                <label style={{ fontWeight: 600, color: 'var(--text-secondary)' }}>Mão de Obra (%)</label>
+                                                <input
+                                                    type="number"
+                                                    step="0.01"
+                                                    value={cfLaborPct}
+                                                    onChange={(e) => setCfLaborPct(parseFloat(e.target.value) || 0)}
+                                                    style={{ height: '32px', padding: '0 0.5rem', borderRadius: '6px', border: '1px solid var(--border-default)', background: 'var(--bg-elevated)', color: 'var(--text-primary)', fontWeight: 700 }}
+                                                />
+                                            </div>
+                                            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
+                                                <label style={{ fontWeight: 600, color: 'var(--text-secondary)' }}>Encargos (%)</label>
+                                                <input
+                                                    type="number"
+                                                    step="0.01"
+                                                    value={cfChargesPct}
+                                                    onChange={(e) => setCfChargesPct(parseFloat(e.target.value) || 0)}
+                                                    style={{ height: '32px', padding: '0 0.5rem', borderRadius: '6px', border: '1px solid var(--border-default)', background: 'var(--bg-elevated)', color: 'var(--text-primary)', fontWeight: 700 }}
+                                                />
+                                            </div>
+                                        </div>
+
+                                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem' }}>
+                                            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
+                                                <label style={{ fontWeight: 600, color: 'var(--text-secondary)' }}>VA / VT (%)</label>
+                                                <input
+                                                    type="number"
+                                                    step="0.01"
+                                                    value={cfBenefitsPct}
+                                                    onChange={(e) => setCfBenefitsPct(parseFloat(e.target.value) || 0)}
+                                                    style={{ height: '32px', padding: '0 0.5rem', borderRadius: '6px', border: '1px solid var(--border-default)', background: 'var(--bg-elevated)', color: 'var(--text-primary)', fontWeight: 700 }}
+                                                />
+                                            </div>
+                                            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
+                                                <label style={{ fontWeight: 600, color: 'var(--text-secondary)' }}>Impostos (%)</label>
+                                                <input
+                                                    type="number"
+                                                    step="0.01"
+                                                    value={cfTaxesPct}
+                                                    onChange={(e) => setCfTaxesPct(parseFloat(e.target.value) || 0)}
+                                                    style={{ height: '32px', padding: '0 0.5rem', borderRadius: '6px', border: '1px solid var(--border-default)', background: 'var(--bg-elevated)', color: 'var(--text-primary)', fontWeight: 700 }}
+                                                />
+                                            </div>
+                                        </div>
+
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginTop: '0.25rem' }}>
+                                            <input
+                                                type="checkbox"
+                                                id="cfProvisionCheck"
+                                                checked={cfProvisionPayroll}
+                                                onChange={(e) => setCfProvisionPayroll(e.target.checked)}
+                                                style={{ width: '16px', height: '16px', cursor: 'pointer' }}
+                                            />
+                                            <label htmlFor="cfProvisionCheck" style={{ fontWeight: 700, cursor: 'pointer', color: 'var(--text-primary)' }}>
+                                                🔒 Provisionar 13º e Férias mensal?
+                                            </label>
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+
+                        {/* Right Side: Chart & Table */}
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                            {/* Chart Card */}
+                            <div className="glass-card" style={{ padding: '1rem', background: 'var(--bg-surface)', borderRadius: '12px', border: '1px solid var(--border-default)', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                                <h5 style={{ margin: 0, fontSize: '0.8rem', fontWeight: 800, color: 'var(--text-secondary)', textTransform: 'uppercase' }}>
+                                    📈 Curva de Caixa Acumulado & Capital de Giro Requerido
+                                </h5>
+                                
+                                <div style={{ width: '100%', height: '180px', display: 'flex', justifyContent: 'center', background: 'var(--bg-elevated)', borderRadius: '8px', padding: '0.5rem', border: '1px solid var(--border-subtle)' }}>
+                                    <svg viewBox="0 0 700 180" width="100%" height="100%">
+                                        {/* Grid lines */}
+                                        <line x1="50" y1="30" x2="660" y2="30" stroke="var(--border-subtle)" strokeDasharray="3 3" />
+                                        <line x1="50" y1="90" x2="660" y2="90" stroke="var(--border-subtle)" strokeDasharray="3 3" />
+                                        <line x1="50" y1="150" x2="660" y2="150" stroke="var(--border-subtle)" strokeDasharray="3 3" />
+                                        
+                                        {/* Horizontal Zero line */}
+                                        <line x1="50" y1={zeroLineY} x2="660" y2={zeroLineY} stroke="var(--accent-orange)" strokeWidth="1.5" strokeDasharray="4 2" />
+                                        <text x="60" y={zeroLineY - 4} fill="var(--accent-orange)" fontSize="7" fontWeight="bold">PONTO DE EQUILÍBRIO (ZERO)</text>
+
+                                        {/* Cumulative line path */}
+                                        <polyline
+                                            fill="none"
+                                            stroke="var(--accent-indigo)"
+                                            strokeWidth="2.5"
+                                            points={chartPoints}
+                                        />
+
+                                        {/* Circular markers & text values */}
+                                        {cumulativeCashFlows.map((v, i) => {
+                                            const x = 50 + i * 55;
+                                            const y = 150 - ((v - minVal) / range) * 120;
+                                            return (
+                                                <g key={i}>
+                                                    <circle
+                                                        cx={x}
+                                                        cy={y}
+                                                        r="4.5"
+                                                        fill={v >= 0 ? "var(--accent-green)" : "var(--accent-red)"}
+                                                        stroke="var(--bg-surface)"
+                                                        strokeWidth="1.5"
+                                                    />
+                                                    <text
+                                                        x={x}
+                                                        y={y - 8}
+                                                        textAnchor="middle"
+                                                        fill="var(--text-primary)"
+                                                        fontSize="7"
+                                                        fontWeight="800"
+                                                    >
+                                                        {v !== 0 ? Math.round(v / 1000) + 'k' : '0'}
+                                                    </text>
+                                                    <text
+                                                        x={x}
+                                                        y="174"
+                                                        textAnchor="middle"
+                                                        fill="var(--text-secondary)"
+                                                        fontSize="7"
+                                                        fontWeight="700"
+                                                    >
+                                                        {monthsName[i]}
+                                                    </text>
+                                                </g>
+                                            );
+                                        })}
+                                    </svg>
+                                </div>
+                            </div>
+
+                            {/* Detailed Table */}
+                            <div className="glass-card" style={{ padding: '1rem', background: 'var(--bg-surface)', borderRadius: '12px', border: '1px solid var(--border-default)', overflowX: 'auto' }}>
+                                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.72rem', textAlign: 'left', minWidth: '850px' }}>
+                                    <thead>
+                                        <tr style={{ borderBottom: '2px solid var(--border-default)', color: 'var(--text-secondary)' }}>
+                                            <th style={{ padding: '0.45rem' }}>Fluxos de Caixa</th>
+                                            {monthsName.map((name, i) => (
+                                                <th key={i} style={{ padding: '0.45rem', textAlign: 'right', width: '65px' }}>{name}</th>
+                                            ))}
+                                            <th style={{ padding: '0.45rem', textAlign: 'right', width: '85px' }}>Acumulado</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {/* Inflow Row */}
+                                        <tr style={{ borderBottom: '1px solid var(--border-subtle)' }}>
+                                            <td style={{ padding: '0.5rem 0.45rem', fontWeight: 700, color: 'var(--accent-green)' }}>
+                                                (+) Recebimento de Clientes
+                                            </td>
+                                            {receipts.map((v, i) => (
+                                                <td key={i} style={{ padding: '0.5rem 0.45rem', textAlign: 'right', color: v > 0 ? 'var(--text-primary)' : 'var(--text-secondary)' }}>
+                                                    {v > 0 ? fmt(v) : '-'}
+                                                </td>
+                                            ))}
+                                            <td style={{ padding: '0.5rem 0.45rem', textAlign: 'right', fontWeight: 800, color: 'var(--accent-green)' }}>
+                                                {fmt(totalInflow)}
+                                            </td>
+                                        </tr>
+
+                                        {/* Outflows Rows */}
+                                        <tr style={{ borderBottom: '1px solid var(--border-subtle)' }}>
+                                            <td style={{ padding: '0.5rem 0.45rem', paddingLeft: '1rem', color: 'var(--text-secondary)' }}>
+                                                (-) Implantação (EPIs / Equip. / Prod.)
+                                            </td>
+                                            {setup.map((v, i) => (
+                                                <td key={i} style={{ padding: '0.5rem 0.45rem', textAlign: 'right', color: v > 0 ? 'var(--accent-red)' : 'var(--text-secondary)' }}>
+                                                    {v > 0 ? fmt(v) : '-'}
+                                                </td>
+                                            ))}
+                                            <td style={{ padding: '0.5rem 0.45rem', textAlign: 'right', color: 'var(--text-primary)' }}>
+                                                {fmt(setup.reduce((s, v) => s + v, 0))}
+                                            </td>
+                                        </tr>
+
+                                        <tr style={{ borderBottom: '1px solid var(--border-subtle)' }}>
+                                            <td style={{ padding: '0.5rem 0.45rem', paddingLeft: '1rem', color: 'var(--text-secondary)' }}>
+                                                (-) Salários & Encargos Sociais
+                                            </td>
+                                            {payroll.map((v, i) => (
+                                                <td key={i} style={{ padding: '0.5rem 0.45rem', textAlign: 'right', color: v > 0 ? 'var(--text-primary)' : 'var(--text-secondary)' }}>
+                                                    {v > 0 ? fmt(v) : '-'}
+                                                </td>
+                                            ))}
+                                            <td style={{ padding: '0.5rem 0.45rem', textAlign: 'right', color: 'var(--text-primary)' }}>
+                                                {fmt(payroll.reduce((s, v) => s + v, 0))}
+                                            </td>
+                                        </tr>
+
+                                        <tr style={{ borderBottom: '1px solid var(--border-subtle)' }}>
+                                            <td style={{ padding: '0.5rem 0.45rem', paddingLeft: '1rem', color: 'var(--text-secondary)' }}>
+                                                (-) Benefícios (VA / VT)
+                                            </td>
+                                            {benefits.map((v, i) => (
+                                                <td key={i} style={{ padding: '0.5rem 0.45rem', textAlign: 'right', color: v > 0 ? 'var(--text-primary)' : 'var(--text-secondary)' }}>
+                                                    {v > 0 ? fmt(v) : '-'}
+                                                </td>
+                                            ))}
+                                            <td style={{ padding: '0.5rem 0.45rem', textAlign: 'right', color: 'var(--text-primary)' }}>
+                                                {fmt(benefits.reduce((s, v) => s + v, 0))}
+                                            </td>
+                                        </tr>
+
+                                        <tr style={{ borderBottom: '1px solid var(--border-subtle)' }}>
+                                            <td style={{ padding: '0.5rem 0.45rem', paddingLeft: '1rem', color: 'var(--text-secondary)' }}>
+                                                (-) Impostos sobre Faturamento
+                                            </td>
+                                            {taxes.map((v, i) => (
+                                                <td key={i} style={{ padding: '0.5rem 0.45rem', textAlign: 'right', color: v > 0 ? 'var(--text-primary)' : 'var(--text-secondary)' }}>
+                                                    {v > 0 ? fmt(v) : '-'}
+                                                </td>
+                                            ))}
+                                            <td style={{ padding: '0.5rem 0.45rem', textAlign: 'right', color: 'var(--text-primary)' }}>
+                                                {fmt(taxes.reduce((s, v) => s + v, 0))}
+                                            </td>
+                                        </tr>
+
+                                        {cfProvisionPayroll && (
+                                            <tr style={{ borderBottom: '1px solid var(--border-subtle)' }}>
+                                                <td style={{ padding: '0.5rem 0.45rem', paddingLeft: '1rem', color: 'var(--text-secondary)' }}>
+                                                    (-) Provisão Caixa (13º e Férias)
+                                                </td>
+                                                {provisions.map((v, i) => (
+                                                    <td key={i} style={{ padding: '0.5rem 0.45rem', textAlign: 'right', color: v > 0 ? 'var(--text-primary)' : 'var(--text-secondary)' }}>
+                                                        {v > 0 ? fmt(v) : '-'}
+                                                    </td>
+                                                ))}
+                                                <td style={{ padding: '0.5rem 0.45rem', textAlign: 'right', color: 'var(--text-primary)' }}>
+                                                    {fmt(provisions.reduce((s, v) => s + v, 0))}
+                                                </td>
+                                            </tr>
+                                        )}
+
+                                        {/* Summary Net Flow */}
+                                        <tr style={{ borderBottom: '2px solid var(--border-default)', background: 'var(--bg-elevated)' }}>
+                                            <td style={{ padding: '0.55rem 0.45rem', fontWeight: 800 }}>
+                                                (=) Saldo de Caixa Mensal (Líquido)
+                                            </td>
+                                            {netCashFlows.map((v, i) => (
+                                                <td key={i} style={{ padding: '0.55rem 0.45rem', textAlign: 'right', fontWeight: 800, color: v > 0 ? 'var(--accent-green)' : v < 0 ? 'var(--accent-red)' : 'var(--text-secondary)' }}>
+                                                    {v !== 0 ? fmt(v) : '-'}
+                                                </td>
+                                            ))}
+                                            <td style={{ padding: '0.55rem 0.45rem', textAlign: 'right', fontWeight: 800, color: (totalInflow - totalOutflow) >= 0 ? 'var(--accent-green)' : 'var(--accent-red)' }}>
+                                                {fmt(totalInflow - totalOutflow)}
+                                            </td>
+                                        </tr>
+
+                                        {/* Cumulative Row */}
+                                        <tr style={{ background: 'rgba(99, 102, 241, 0.06)' }}>
+                                            <td style={{ padding: '0.55rem 0.45rem', fontWeight: 800, color: 'var(--accent-indigo)' }}>
+                                                (累積) Saldo de Caixa Acumulado
+                                            </td>
+                                            {cumulativeCashFlows.map((v, i) => (
+                                                <td key={i} style={{ padding: '0.55rem 0.45rem', textAlign: 'right', fontWeight: 800, color: v >= 0 ? 'var(--accent-green)' : 'var(--accent-red)' }}>
+                                                    {fmt(v)}
+                                                </td>
+                                            ))}
+                                            <td style={{ padding: '0.55rem 0.45rem', textAlign: 'right', fontWeight: 800, color: 'var(--accent-indigo)' }}>
+                                                -
+                                            </td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            );
+        }
         // activeTab === 'simulator'
         if (viewingContractDetails) {
             return (
@@ -1751,6 +2511,12 @@ export default function ForecastPage() {
                                 style={{ padding: '0.5rem 1rem', borderRadius: '8px', border: 'none', background: activeTab === 'simulator' ? 'var(--accent-indigo)' : 'transparent', color: activeTab === 'simulator' ? '#ffffff' : 'var(--text-secondary)', fontWeight: 700, cursor: 'pointer' }}
                             >
                                 🚀 Projeção de Novas Vendas ({contracts.length})
+                            </button>
+                            <button
+                                onClick={() => setActiveTab('cashflow')}
+                                style={{ padding: '0.5rem 1rem', borderRadius: '8px', border: 'none', background: activeTab === 'cashflow' ? 'var(--accent-indigo)' : 'transparent', color: activeTab === 'cashflow' ? '#ffffff' : 'var(--text-secondary)', fontWeight: 700, cursor: 'pointer' }}
+                            >
+                                💸 Fluxo de Caixa de Implantação
                             </button>
                         </div>
                         {activeTab === 'grid' && (

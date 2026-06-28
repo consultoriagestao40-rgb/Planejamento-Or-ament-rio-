@@ -289,6 +289,9 @@ export default function ForecastPage() {
     // Cell Drilldown State
     const [drillDownCell, setDrillDownCell] = useState<{ categoryId: string; categoryName: string; monthIndex: number; monthName: string; value: number } | null>(null);
 
+    // Cash Flow Row Drilldown State
+    const [selectedCashFlowRow, setSelectedCashFlowRow] = useState<{ name: string; type: string; data: number[] } | null>(null);
+
     const getCellComposition = (categoryId: string, categoryName: string, monthIndex: number) => {
         const monthNum = monthIndex + 1;
         const isRealized = monthNum <= activeMonth;
@@ -1830,6 +1833,67 @@ export default function ForecastPage() {
                         otherOperating[i] += cf.otherOperating[i];
                     }
                 });
+
+                // Add base company budget & realized DRE lines
+                const getBaseCompanyDREValue = (codePrefix: string, monthIndex: number) => {
+                    const mIdx = monthIndex % 12;
+                    const matchedCats = forecastData.filter(c => {
+                        const cMatch = c.categoryName.match(/^([\d.]+)/);
+                        const cCode = cMatch ? cMatch[1] : c.categoryName;
+                        return cCode.startsWith(codePrefix) || cCode === codePrefix;
+                    });
+
+                    let sum = 0;
+                    matchedCats.forEach(c => {
+                        const isRealized = (mIdx + 1 <= activeMonth) && (monthIndex < 12);
+                        if (isRealized) {
+                            sum += c.realized[mIdx] || 0;
+                        } else {
+                            sum += c.budget[mIdx] || 0;
+                        }
+                    });
+                    return sum;
+                };
+
+                for (let i = 0; i < 24; i++) {
+                    const baseRev = getBaseCompanyDREValue('01', i);
+                    const baseTax = getBaseCompanyDREValue('02', i);
+                    const baseLabor = getBaseCompanyDREValue('03.1', i);
+                    const baseCharges = getBaseCompanyDREValue('03.2', i);
+                    const baseBenefits = getBaseCompanyDREValue('03.3', i);
+                    
+                    const total03 = getBaseCompanyDREValue('03', i);
+                    const baseOtherOp = Math.max(0, total03 - baseLabor - baseCharges - baseBenefits);
+
+                    // Receipts (subsequent month delay)
+                    if (i + 1 < 24) {
+                        receipts[i + 1] += baseRev;
+                    }
+
+                    // Taxes (paid subsequent month)
+                    if (i + 1 < 24) {
+                        taxes[i + 1] += baseTax;
+                    }
+
+                    // Payroll (paid subsequent month)
+                    if (i + 1 < 24) {
+                        payroll[i + 1] += baseLabor;
+                    }
+
+                    // Charges (paid subsequent month)
+                    if (i + 1 < 24) {
+                        charges[i + 1] += baseCharges;
+                    }
+
+                    // Benefits (paid same month)
+                    benefits[i] += baseBenefits;
+
+                    // Other Operating (paid subsequent month)
+                    if (i + 1 < 24) {
+                        otherOperating[i + 1] += baseOtherOp;
+                    }
+                }
+            }
             } else {
                 if (selectedContractObj) {
                     const overrideConfig = {
@@ -2205,7 +2269,11 @@ export default function ForecastPage() {
                                     <tbody>
                                         {/* Inflow Row */}
                                         <tr style={{ borderBottom: '1px solid var(--border-subtle)', whiteSpace: 'nowrap' }}>
-                                            <td style={{ padding: '0.5rem 0.45rem', fontWeight: 700, color: 'var(--accent-green)', whiteSpace: 'nowrap' }}>
+                                            <td 
+                                                onClick={() => setSelectedCashFlowRow({ name: 'Recebimento de Clientes', type: 'receipts', data: receipts })}
+                                                className="dre-cell-clickable"
+                                                style={{ padding: '0.5rem 0.45rem', fontWeight: 700, color: 'var(--accent-green)', whiteSpace: 'nowrap' }}
+                                            >
                                                 (+) Recebimento de Clientes
                                             </td>
                                             {receipts.map((v, i) => (
@@ -2220,7 +2288,11 @@ export default function ForecastPage() {
 
                                         {/* Outflows Rows */}
                                         <tr style={{ borderBottom: '1px solid var(--border-subtle)', whiteSpace: 'nowrap' }}>
-                                            <td style={{ padding: '0.5rem 0.45rem', paddingLeft: '1rem', color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}>
+                                            <td 
+                                                onClick={() => setSelectedCashFlowRow({ name: 'Implantação (EPIs / Equip. / Prod.)', type: 'setup', data: setup })}
+                                                className="dre-cell-clickable"
+                                                style={{ padding: '0.5rem 0.45rem', paddingLeft: '1rem', color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}
+                                            >
                                                 (-) Implantação (EPIs / Equip. / Prod.)
                                             </td>
                                             {setup.map((v, i) => (
@@ -2234,7 +2306,11 @@ export default function ForecastPage() {
                                         </tr>
 
                                         <tr style={{ borderBottom: '1px solid var(--border-subtle)', whiteSpace: 'nowrap' }}>
-                                            <td style={{ padding: '0.5rem 0.45rem', paddingLeft: '1rem', color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}>
+                                            <td 
+                                                onClick={() => setSelectedCashFlowRow({ name: 'Salários e Remuneração', type: 'payroll', data: payroll })}
+                                                className="dre-cell-clickable"
+                                                style={{ padding: '0.5rem 0.45rem', paddingLeft: '1rem', color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}
+                                            >
                                                 (-) Salários e Remuneração
                                             </td>
                                             {payroll.map((v, i) => (
@@ -2248,7 +2324,11 @@ export default function ForecastPage() {
                                         </tr>
 
                                         <tr style={{ borderBottom: '1px solid var(--border-subtle)', whiteSpace: 'nowrap' }}>
-                                            <td style={{ padding: '0.5rem 0.45rem', paddingLeft: '1rem', color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}>
+                                            <td 
+                                                onClick={() => setSelectedCashFlowRow({ name: 'Encargos Sociais (Mensais - FGTS/INSS)', type: 'charges', data: charges })}
+                                                className="dre-cell-clickable"
+                                                style={{ padding: '0.5rem 0.45rem', paddingLeft: '1rem', color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}
+                                            >
                                                 (-) Encargos Sociais (Mensais - FGTS/INSS)
                                             </td>
                                             {charges.map((v, i) => (
@@ -2262,7 +2342,11 @@ export default function ForecastPage() {
                                         </tr>
 
                                         <tr style={{ borderBottom: '1px solid var(--border-subtle)', whiteSpace: 'nowrap' }}>
-                                            <td style={{ padding: '0.5rem 0.45rem', paddingLeft: '1rem', color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}>
+                                            <td 
+                                                onClick={() => setSelectedCashFlowRow({ name: 'Benefícios (VA / VT)', type: 'benefits', data: benefits })}
+                                                className="dre-cell-clickable"
+                                                style={{ padding: '0.5rem 0.45rem', paddingLeft: '1rem', color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}
+                                            >
                                                 (-) Benefícios (VA / VT)
                                             </td>
                                             {benefits.map((v, i) => (
@@ -2276,7 +2360,11 @@ export default function ForecastPage() {
                                         </tr>
 
                                         <tr style={{ borderBottom: '1px solid var(--border-subtle)', whiteSpace: 'nowrap' }}>
-                                            <td style={{ padding: '0.5rem 0.45rem', paddingLeft: '1rem', color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}>
+                                            <td 
+                                                onClick={() => setSelectedCashFlowRow({ name: 'Impostos sobre Faturamento', type: 'taxes', data: taxes })}
+                                                className="dre-cell-clickable"
+                                                style={{ padding: '0.5rem 0.45rem', paddingLeft: '1rem', color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}
+                                            >
                                                 (-) Impostos sobre Faturamento
                                             </td>
                                             {taxes.map((v, i) => (
@@ -2290,7 +2378,11 @@ export default function ForecastPage() {
                                         </tr>
 
                                         <tr style={{ borderBottom: '1px solid var(--border-subtle)', whiteSpace: 'nowrap' }}>
-                                            <td style={{ padding: '0.5rem 0.45rem', paddingLeft: '1rem', color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}>
+                                            <td 
+                                                onClick={() => setSelectedCashFlowRow({ name: 'Outros Custos Operacionais (Diárias, Materiais, etc.)', type: 'otherOperating', data: otherOperating })}
+                                                className="dre-cell-clickable"
+                                                style={{ padding: '0.5rem 0.45rem', paddingLeft: '1rem', color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}
+                                            >
                                                 (-) Outros Custos Operacionais (Diárias, Materiais, etc.)
                                             </td>
                                             {otherOperating.map((v, i) => (
@@ -2305,7 +2397,11 @@ export default function ForecastPage() {
 
                                         {cfProvisionPayroll && (
                                             <tr style={{ borderBottom: '1px solid var(--border-subtle)', whiteSpace: 'nowrap' }}>
-                                                <td style={{ padding: '0.5rem 0.45rem', paddingLeft: '1rem', color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}>
+                                                <td 
+                                                    onClick={() => setSelectedCashFlowRow({ name: 'Encargos Sociais - (13º e Férias)', type: 'provisions', data: provisions })}
+                                                    className="dre-cell-clickable"
+                                                    style={{ padding: '0.5rem 0.45rem', paddingLeft: '1rem', color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}
+                                                >
                                                     (-) Encargos Sociais - (13º e Férias)
                                                 </td>
                                                 {provisions.map((v, i) => (
@@ -2955,7 +3051,95 @@ export default function ForecastPage() {
                     </div>
                 );
             })()}
+            {/* Cash Flow Row composition modal */}
+            {selectedCashFlowRow && (
+                <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', zIndex: 20000, display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
+                    <div className="glass-card" style={{ width: '800px', maxHeight: '85vh', padding: '1.75rem', background: 'var(--bg-surface)', borderRadius: '16px', border: '1px solid var(--border-default)', display: 'flex', flexDirection: 'column', gap: '1.25rem', boxShadow: '0 20px 25px -5px rgba(0,0,0,0.3), 0 10px 10px -5px rgba(0,0,0,0.3)', overflow: 'hidden' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                            <div>
+                                <h4 style={{ margin: 0, fontSize: '1.15rem', fontWeight: 800, color: 'var(--text-primary)' }}>
+                                    📋 Detalhamento da Conta de Caixa
+                                </h4>
+                                <span style={{ fontSize: '0.85rem', color: 'var(--accent-indigo)', fontWeight: 700 }}>
+                                    {selectedCashFlowRow.name}
+                                </span>
+                            </div>
+                            <button 
+                                onClick={() => setSelectedCashFlowRow(null)}
+                                style={{ border: 'none', background: 'transparent', color: 'var(--text-secondary)', cursor: 'pointer', fontSize: '1.2rem', padding: 0 }}
+                            >
+                                ✕
+                            </button>
+                        </div>
 
+                        {/* Description Box */}
+                        <div style={{ padding: '0.85rem', background: 'var(--bg-elevated)', borderRadius: '8px', border: '1px solid var(--border-subtle)', fontSize: '0.8rem', lineHeight: '1.4', color: 'var(--text-secondary)' }}>
+                            <strong>Regra de Cálculo e Lógica:</strong><br/>
+                            {selectedCashFlowRow.type === 'receipts' && "Entrada de caixa proveniente do faturamento de clientes (competência deslocada conforme ciclo de faturamento e prazo médio de pagamento configurado)."}
+                            {selectedCashFlowRow.type === 'setup' && "Desembolsos pontuais de implantação de EPIs, uniformes, equipamentos e insumos necessários no mês de início de cada contrato simulado."}
+                            {selectedCashFlowRow.type === 'payroll' && "Saída de caixa para pagamento de salários brutos e adicionais. A competência correspondente do DRE é paga no mês subsequente (regime de caixa, geralmente no 5º dia útil)."}
+                            {selectedCashFlowRow.type === 'charges' && "Desembolsos para pagamento de encargos sociais recorrentes (INSS patronal, FGTS, contribuições previdenciárias) correspondentes à folha do mês anterior."}
+                            {selectedCashFlowRow.type === 'benefits' && "Saídas de caixa referentes a benefícios operacionais (VA/VT e alimentação sobre férias) pagos no próprio mês de competência da prestação de serviços."}
+                            {selectedCashFlowRow.type === 'taxes' && "Desembolsos de impostos sobre faturamento (Simples Nacional, ISS, PIS/COFINS) retidos ou recolhidos no mês subsequente ao faturamento."}
+                            {selectedCashFlowRow.type === 'otherOperating' && "Saídas de caixa referentes a todas as outras despesas de suporte operacional (como diárias de cobertura, combustíveis de veículos, SSMA recorrente, etc.) pagas no mês subsequente à competência."}
+                            {selectedCashFlowRow.type === 'provisions' && "Provisão interna de caixa (reserva financeira) calculada como 19,44% sobre a folha de salários do mês para amortizar o desembolso futuro de 13º e férias dos colaboradores."}
+                        </div>
+
+                        {/* Timeline Scrollable Table */}
+                        <div style={{ flex: 1, overflowY: 'auto' }}>
+                            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.75rem', textAlign: 'left' }}>
+                                <thead>
+                                    <tr style={{ borderBottom: '2px solid var(--border-default)', color: 'var(--text-secondary)', position: 'sticky', top: 0, backgroundColor: 'var(--bg-surface)' }}>
+                                        <th style={{ padding: '0.5rem' }}>Período</th>
+                                        <th style={{ padding: '0.5rem', textAlign: 'right' }}>Valor Desembolsado/Recebido</th>
+                                        <th style={{ padding: '0.5rem', paddingLeft: '1.5rem' }}>Status e Lógica do Período</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {selectedCashFlowRow.data.map((val, idx) => {
+                                        const isZero = Math.abs(val) < 0.01;
+                                        return (
+                                            <tr key={idx} style={{ borderBottom: '1px solid var(--border-subtle)', background: isZero ? 'transparent' : 'rgba(99,102,241,0.02)' }}>
+                                                <td style={{ padding: '0.5rem', fontWeight: 700 }}>
+                                                    {timelineMonths[idx]}
+                                                </td>
+                                                <td style={{ padding: '0.5rem', textAlign: 'right', fontWeight: 800, color: val > 0 ? (selectedCashFlowRow.type === 'receipts' ? 'var(--accent-green)' : 'var(--accent-red)') : 'var(--text-secondary)' }}>
+                                                    {val > 0 ? fmt(val) : '-'}
+                                                </td>
+                                                <td style={{ padding: '0.5rem', paddingLeft: '1.5rem', color: 'var(--text-secondary)' }}>
+                                                    {!isZero ? (
+                                                        <>
+                                                            {selectedCashFlowRow.type === 'receipts' && `Referente ao faturamento de meses anteriores recebido neste período.`}
+                                                            {selectedCashFlowRow.type === 'setup' && `Investimento inicial de implantação realizado neste mês.`}
+                                                            {selectedCashFlowRow.type === 'payroll' && `Salários da competência anterior pagos no dia de folha de pagamento.`}
+                                                            {selectedCashFlowRow.type === 'charges' && `Encargos sociais da competência anterior recolhidos neste mês.`}
+                                                            {selectedCashFlowRow.type === 'benefits' && `Pagamento antecipado de benefícios (VA/VT) para os colaboradores deste mês.`}
+                                                            {selectedCashFlowRow.type === 'taxes' && `Recolhimento dos tributos incidentes sobre o faturamento anterior.`}
+                                                            {selectedCashFlowRow.type === 'otherOperating' && `Outros custos operacionais acumulados da competência anterior pagos neste período.`}
+                                                            {selectedCashFlowRow.type === 'provisions' && `Reserva de 19,44% retida em caixa referente à folha deste mês.`}
+                                                        </>
+                                                    ) : (
+                                                        "Sem movimentações de caixa neste período."
+                                                    )}
+                                                </td>
+                                            </tr>
+                                        );
+                                    })}
+                                </tbody>
+                            </table>
+                        </div>
+
+                        <div style={{ display: 'flex', justifyContent: 'flex-end', borderTop: '1px solid var(--border-subtle)', paddingTop: '1rem' }}>
+                            <button
+                                onClick={() => setSelectedCashFlowRow(null)}
+                                style={{ height: '36px', padding: '0 1.25rem', borderRadius: '6px', border: 'none', background: 'var(--accent-indigo)', color: '#fff', fontWeight: 700, cursor: 'pointer' }}
+                            >
+                                Fechar Composição
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
             {/* Contract Modal */}
             {isContractModalOpen && (
                 <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', zIndex: 20000, display: 'flex', justifyContent: 'center', alignItems: 'center' }}>

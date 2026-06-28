@@ -1055,7 +1055,7 @@ export default function ForecastPage() {
                             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.75rem', textAlign: 'left' }}>
                                 <thead>
                                     <tr style={{ borderBottom: '2px solid var(--border-default)', color: 'var(--text-secondary)' }}>
-                                        <th style={{ padding: '0.5rem', minWidth: '180px' }}>Conta / Categoria</th>
+                                        <th style={{ padding: '0.5rem', minWidth: '180px' }}>Conta - Categoria</th>
                                         {monthsName.map((name, i) => (
                                             <React.Fragment key={i}>
                                                 <th style={{ padding: '0.5rem', textAlign: 'right', minWidth: '100px', whiteSpace: 'nowrap', background: i + 1 <= activeMonth ? 'rgba(99, 102, 241, 0.05)' : 'transparent' }}>
@@ -1201,7 +1201,7 @@ export default function ForecastPage() {
                                 <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.75rem', textAlign: 'left' }}>
                                     <thead>
                                         <tr style={{ borderBottom: '2px solid var(--border-default)', color: 'var(--text-secondary)' }}>
-                                            <th style={{ padding: '0.5rem' }}>Conta / Categoria</th>
+                                            <th style={{ padding: '0.5rem' }}>Conta - Categoria</th>
                                             <th style={{ padding: '0.5rem', textAlign: 'center', width: '200px' }}>Percentual (AV % da Receita)</th>
                                             <th style={{ padding: '0.5rem', textAlign: 'center', width: '220px' }}>Origem da Taxa</th>
                                         </tr>
@@ -1467,7 +1467,7 @@ export default function ForecastPage() {
                                                     </td>
                                                 );
                                             })}
-                                            <td />
+                                            <td></td>
                                         </tr>
                                     )}
                                 </tbody>
@@ -1720,7 +1720,7 @@ export default function ForecastPage() {
                             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.75rem', textAlign: 'left' }}>
                                 <thead>
                                     <tr style={{ borderBottom: '2px solid var(--border-default)', color: 'var(--text-secondary)' }}>
-                                        <th style={{ padding: '0.5rem' }}>Conta / Categoria</th>
+                                        <th style={{ padding: '0.5rem' }}>Conta - Categoria</th>
                                         <th style={{ padding: '0.5rem', textAlign: 'right', width: '150px' }}>Valor Mensal</th>
                                         <th style={{ padding: '0.5rem', textAlign: 'center', width: '150px' }}>Análise Vertical (AV)</th>
                                     </tr>

@@ -838,7 +838,14 @@ export default function ForecastPage() {
                     const subPrefix = parts.length >= 2 ? `${parts[0]}.${parts[1]}` : code;
                     
                     // Skip if this node is exactly the parent prefix to avoid duplicates
-                    if (parts.length >= 2 && code === subPrefix) return;
+                    // BUT only if it does not have any non-zero values (to prevent data loss for leaf categories like 02.1 - Tributos)
+                    if (parts.length >= 2 && code === subPrefix) {
+                        const hasValues = 
+                            (cat.realized && cat.realized.some((v: number) => Math.abs(v) > 0.01)) || 
+                            (cat.budget && cat.budget.some((v: number) => Math.abs(v) > 0.01)) || 
+                            (cat.forecast && cat.forecast.some((v: number) => Math.abs(v) > 0.01));
+                        if (!hasValues) return;
+                    }
 
                     let parentNode = null;
                     if (code.startsWith('01.1.') || code.startsWith('1.1.')) {

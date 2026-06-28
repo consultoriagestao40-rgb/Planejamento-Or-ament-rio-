@@ -6,6 +6,15 @@ const parseContractName = (rawName: string) => {
     let name = rawName;
     let split: Record<string, number> = {};
     let seller = '';
+    let cashFlow: any = null;
+
+    if (name.includes(' |__CASHFLOW__:')) {
+        const parts = name.split(' |__CASHFLOW__:');
+        name = parts[0];
+        try {
+            cashFlow = JSON.parse(parts[1]);
+        } catch (e) {}
+    }
 
     if (name.includes(' |__SPLIT__:')) {
         const parts = name.split(' |__SPLIT__:');
@@ -28,7 +37,7 @@ const parseContractName = (rawName: string) => {
         seller = parts[1];
     }
 
-    return { name, split, seller };
+    return { name, split, seller, cashFlow };
 };
 
 const monthsName = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];

@@ -80,15 +80,8 @@ export default function ForecastPage() {
                 if (authJson.success) {
                     setCurrentUser(authJson.user);
                 }
-
-                // Fetch system users
-                const usersRes = await fetch('/api/kpi/forecast/users');
-                const usersJson = await usersRes.json();
-                if (usersJson.success) {
-                    setSystemUsers(usersJson.users);
-                }
             } catch (e) {
-                console.error("Error loading system users/auth:", e);
+                console.error("Error loading auth:", e);
             }
         };
         loadInitialData();
@@ -553,12 +546,22 @@ export default function ForecastPage() {
             const resD = await fetch(`/api/kpi/forecast/data?tenantId=${selectedTenant}&year=${selectedYear}&activeMonth=${activeMonth}`);
             const jsonD = await resD.json();
             if (jsonD.success) setForecastData(jsonD.data || []);
+
+            // Fetch system users for this tenant
+            const targetTenant = selectedTenant === 'ALL' ? (companies[0]?.id || '') : selectedTenant;
+            if (targetTenant) {
+                const usersRes = await fetch(`/api/users/list?tenantId=${targetTenant}&t=${Date.now()}`);
+                const usersJson = await usersRes.json();
+                if (usersJson.success) {
+                    setSystemUsers(usersJson.data || []);
+                }
+            }
         } catch (err) {
             console.error(err);
         } finally {
             if (!silent) setLoadingData(false);
         }
-    }, [selectedTenant, selectedYear, activeMonth]);
+    }, [selectedTenant, selectedYear, activeMonth, companies]);
 
     useEffect(() => {
         fetchData();
@@ -1394,7 +1397,7 @@ export default function ForecastPage() {
                                                 <tr style={{ borderBottom: '2px solid var(--border-default)', color: 'var(--text-secondary)' }}>
                                                     <th style={{ padding: '0.5rem', minWidth: '150px' }}>Venda - Cliente</th>
                                                     <th style={{ padding: '0.5rem', minWidth: '120px' }}>Vendedor</th>
-                                                    <th style={{ padding: '0.5rem', minWidth: '100px', textAlign: 'center' }}>Probabilidade - Status</th>
+                                                    <th style={{ padding: '0.5rem', minWidth: '100px', textAlign: 'center' }}>Status</th>
                                                     {monthsName.map((name, i) => (
                                                         <th key={i} style={{ padding: '0.5rem', textAlign: 'right', minWidth: '85px', background: i + 1 >= activeMonth + 1 ? 'rgba(99, 102, 241, 0.04)' : 'transparent' }}>
                                                             {name}
@@ -1432,10 +1435,10 @@ export default function ForecastPage() {
                                                                         fontWeight: 800,
                                                                         padding: '2px 6px',
                                                                         borderRadius: '4px',
-                                                                        background: contract.status === 'VENDIDO' ? 'rgba(16, 185, 129, 0.1)' : 'rgba(99, 102, 241, 0.1)',
-                                                                        color: contract.status === 'VENDIDO' ? 'var(--accent-green)' : 'var(--accent-indigo)'
+                                                                        background: contract.status === 'VENDIDO' ? 'rgba(16, 185, 129, 0.1)' : contract.status === 'PERDIDO' ? 'rgba(239, 68, 68, 0.1)' : 'rgba(99, 102, 241, 0.1)',
+                                                                        color: contract.status === 'VENDIDO' ? 'var(--accent-green)' : contract.status === 'PERDIDO' ? 'var(--accent-red)' : 'var(--accent-indigo)'
                                                                     }}>
-                                                                        {contract.status === 'VENDIDO' ? 'VENDIDO' : `${contract.probability}% Prob.`}
+                                                                        {contract.status}
                                                                     </span>
                                                                 </td>
                                                                 {monthsName.map((_, i) => {
@@ -1733,22 +1736,6 @@ export default function ForecastPage() {
                                     </select>
                                 </div>
                             </div>
-
-                            {/* Row 3: Probability Slider (only for Pipeline) */}
-                            {contractStatus === 'PIPELINE' && (
-                                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem', background: 'var(--bg-elevated)', padding: '0.75rem 1rem', borderRadius: '8px', border: '1px solid var(--border-subtle)' }}>
-                                    <label style={{ fontSize: '0.7rem', fontWeight: 700, color: 'var(--text-secondary)' }}>Probabilidade de Fechamento: {contractProbability}%</label>
-                                    <input
-                                        type="range"
-                                        min="10"
-                                        max="100"
-                                        step="10"
-                                        value={contractProbability}
-                                        onChange={(e) => setContractProbability(parseInt(e.target.value))}
-                                        style={{ accentColor: 'var(--accent-indigo)', width: '100%', cursor: 'pointer' }}
-                                    />
-                                </div>
-                            )}
 
                             {/* Row 4: Revenue Distribution Section */}
                             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.25rem', borderTop: '1px solid var(--border-subtle)', paddingTop: '1.25rem' }}>

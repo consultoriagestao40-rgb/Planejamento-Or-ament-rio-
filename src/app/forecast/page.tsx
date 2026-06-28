@@ -961,11 +961,11 @@ export default function ForecastPage() {
 
         if (activeTab === 'grid') {
             return (
-                                    <div className="glass-card" style={{ padding: '1.25rem', background: 'var(--bg-surface)', borderRadius: '12px', border: '1px solid var(--border-default)', overflowX: 'auto' }}>
+                                    <div className="glass-card" style={{ padding: '1.25rem 0', background: 'var(--bg-surface)', borderRadius: '12px', border: '1px solid var(--border-default)', overflowX: 'auto' }}>
                                         <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.75rem', textAlign: 'left' }}>
                                             <thead>
                                                 <tr style={{ borderBottom: '2px solid var(--border-default)', color: 'var(--text-secondary)' }}>
-                                                    <th style={{ padding: '0.5rem', minWidth: '220px', position: 'sticky', left: 0, background: 'var(--bg-surface)', zIndex: 10, borderRight: '1px solid var(--border-subtle)', boxShadow: '2px 0 5px -2px rgba(0,0,0,0.1)' }}>Conta - Categoria</th>
+                                                    <th style={{ padding: '0.5rem 0.5rem 0.5rem 1.25rem', minWidth: '220px', position: 'sticky', left: 0, background: 'var(--bg-surface)', zIndex: 10, borderRight: '1px solid var(--border-subtle)', boxShadow: '2px 0 5px -2px rgba(0,0,0,0.1)' }}>Conta - Categoria</th>
                                                     {monthsName.map((name, i) => (
                                                         <React.Fragment key={i}>
                                                             <th style={{ padding: '0.5rem', textAlign: 'right', minWidth: '100px', whiteSpace: 'nowrap', background: i + 1 <= activeMonth ? 'rgba(99, 102, 241, 0.05)' : 'transparent' }}>
@@ -1022,7 +1022,7 @@ export default function ForecastPage() {
                                                                  whiteSpace: 'nowrap', 
                                                                  textOverflow: 'ellipsis', 
                                                                  overflow: 'hidden', 
-                                                                 paddingLeft: `${row.level * 16 + 8}px`,
+                                                                 paddingLeft: `${row.level * 16 + 20}px`,
                                                                  position: 'sticky',
                                                                  left: 0,
                                                                  backgroundColor: background === 'transparent' ? 'var(--bg-surface)' : (background.startsWith('rgba') ? 'var(--bg-surface)' : background),

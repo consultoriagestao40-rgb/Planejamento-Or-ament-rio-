@@ -1543,66 +1543,13 @@ export default function ForecastPage() {
             };
             custosOp.children = Object.values(custosSubs);
 
-            const margemBruta = createNode('F-MB', '(=) MARGEM BRUTA', 0, true);
-
-            const despVendas = createNode('G-04', '04. Despesa Operacional', 0);
-            const despVendasSubs: Record<string, any> = {
-                '04.1': createNode('G-04.1', '04.1 Salários e Remunerações', 1),
-                '04.2': createNode('G-04.2', '04.2 Encargos Sociais', 1),
-                '04.3': createNode('G-04.3', '04.3 Benefícios', 1),
-                '04.4': createNode('G-04.4', '04.4 SSMA', 1),
-                '04.5': createNode('G-04.5', '04.5 Viagens', 1),
-                '04.6': createNode('G-04.6', '04.6 Custo com Veículos', 1),
-                '04.7': createNode('G-04.7', '04.7 Cartão Corporativo', 1),
-                '04.8': createNode('G-04.8', '04.8 Serviços Terceirizados', 1),
-            };
-            despVendas.children = Object.values(despVendasSubs);
-
-            const margemContrib = createNode('F-MC', '(=) MARGEM DE CONTRIBUIÇÃO', 0, true);
-
-            const despAdmin = createNode('G-05', '05. Despesas Administrativas', 0);
-            const despAdminSubs: Record<string, any> = {
-                '05.1': createNode('G-05.1', '05.1 Salário e Remuneração', 1),
-                '05.2': createNode('G-05.2', '05.2 Encargos Sociais', 1),
-                '05.3': createNode('G-05.3', '05.3 Benefícios', 1),
-                '05.4': createNode('G-05.4', '05.4 SSMA', 1),
-                '05.5': createNode('G-05.5', '05.5 Viagens', 1),
-                '05.6': createNode('G-05.6', '05.6 Despesa com Sócios', 1),
-                '05.7': createNode('G-05.7', '05.7 Serviços Contratados', 1),
-                '05.8': createNode('G-05.8', '05.8 Despesa Comercial/Marketing', 1),
-                '05.9': createNode('G-05.9', '05.9 Despesa com Estrutura', 1),
-                '05.10': createNode('G-05.10', '05.10 Despesa Copa e Cozinha', 1),
-                '05.11': createNode('G-05.11', '05.11 Despesa com Veículos', 1),
-                '05.12': createNode('G-05.12', '05.12 Despesa de Informática', 1),
-                '05.13': createNode('G-05.13', '05.13 Taxas e Despesas Legais', 1),
-            };
-            despAdmin.children = Object.values(despAdminSubs);
-
-            const ebitda = createNode('F-EBITDA', '(=) EBITDA', 0, true);
-
-            const despFin = createNode('G-06', '06. Despesas Financeiras', 0);
-            const despFinSubs: Record<string, any> = {
-                '06.1': createNode('G-06.1', '06.1 Entradas Financeiras', 1),
-                '06.2': createNode('G-06.2', '06.2 Saídas Financeiras', 1),
-                '06.3': createNode('G-06.3', '06.3 Financiamento', 1),
-                '06.4': createNode('G-06.4', '06.4 Juros/Multas', 1),
-                '06.5': createNode('G-06.5', '06.5 Passivo Trabalhista', 1),
-                '06.6': createNode('G-06.6', '06.6 Depreciação', 1),
-                '06.7': createNode('G-06.7', '06.7 Cartão de Crédito', 1),
-                '06.8': createNode('G-06.8', '06.8 PDD', 1),
-            };
-            despFin.children = Object.values(despFinSubs);
-
-            const lucroLiquido = createNode('F-LL', '(=) LUCRO LÍQUIDO', 0, true);
-            const invest = createNode('G-07', '07. Investimentos', 0);
-
             flatData.forEach(cat => {
                 const name = cat.categoryName;
                 const codeMatch = name.match(/^([\d.]+)/);
                 const code = codeMatch ? codeMatch[1] : '';
 
                 const parts = code.split('.');
-                if (parts.length >= 2 || code.startsWith('07') || code.startsWith('7')) {
+                if (parts.length >= 2 && (code.startsWith('01') || code.startsWith('1') || code.startsWith('02') || code.startsWith('2') || code.startsWith('03') || code.startsWith('3'))) {
                     const subPrefix = parts.length >= 2 ? `${parts[0]}.${parts[1]}` : code;
 
                     let parentNode = null;
@@ -1614,14 +1561,6 @@ export default function ForecastPage() {
                         parentNode = tribSub;
                     } else if (code.startsWith('03.')) {
                         parentNode = custosSubs[subPrefix];
-                    } else if (code.startsWith('04.')) {
-                        parentNode = despVendasSubs[subPrefix];
-                    } else if (code.startsWith('05.')) {
-                        parentNode = despAdminSubs[subPrefix];
-                    } else if (code.startsWith('06.')) {
-                        parentNode = despFinSubs[subPrefix];
-                    } else if (code.startsWith('07.') || code.startsWith('7.')) {
-                        parentNode = invest;
                     }
 
                     if (parentNode) {
@@ -1675,39 +1614,49 @@ export default function ForecastPage() {
                                 return cCode === code;
                             });
 
-                            if (matchedCoef) {
-                                coefPct = matchedCoef.percentage;
+                            if (code.startsWith('01.') || code.startsWith('1.')) {
+                                if (code === '01.1.1' || code === '1.1.1') {
+                                    coefPct = 100.0;
+                                } else if (matchedCoef) {
+                                    coefPct = matchedCoef.percentage;
+                                } else {
+                                    coefPct = 0;
+                                }
                             } else {
-                                const defaultPcts: Record<string, number> = {
-                                    '02.1.1': config.taxesPct ?? 12.5,
-                                    '03.1.1': config.laborPct ?? 30.4,
-                                    '03.1.2': 1.4,
-                                    '03.1.3': 0.3,
-                                    '03.1.5': 0.5,
-                                    '03.1.10': 1.6,
-                                    '03.2.1': config.chargesPct ?? 2.7,
-                                    '03.2.2': 2.8,
-                                    '03.2.3': 3.8,
-                                    '03.2.4': 1.1,
-                                    '03.2.6': 5.5,
-                                    '03.3.1': config.benefitsPct ?? 2.9,
-                                    '03.3.2': 11.3,
-                                    '03.3.4': 0.9,
-                                    '03.3.6': 0.9,
-                                    '03.3.7': 0.1,
-                                    '03.4.1': 0.5,
-                                    '03.5.1': 0.6,
-                                    '03.5.2': 0.6,
-                                    '03.5.3': 0.2,
-                                    '03.7.1': 0.1,
-                                    '03.7.2': 0.1,
-                                    '03.7.4': 0.3,
-                                    '03.8.2': 0.1,
-                                    '03.9.2': 0.1,
-                                    '03.9.3': 0.1,
-                                    '03.9.8': 0.2
-                                };
-                                coefPct = defaultPcts[code] || 0;
+                                if (matchedCoef) {
+                                    coefPct = matchedCoef.percentage;
+                                } else {
+                                    const defaultPcts: Record<string, number> = {
+                                        '02.1.1': config.taxesPct ?? 12.5,
+                                        '03.1.1': config.laborPct ?? 30.4,
+                                        '03.1.2': 1.4,
+                                        '03.1.3': 0.3,
+                                        '03.1.5': 0.5,
+                                        '03.1.10': 1.6,
+                                        '03.2.1': config.chargesPct ?? 2.7,
+                                        '03.2.2': 2.8,
+                                        '03.2.3': 3.8,
+                                        '03.2.4': 1.1,
+                                        '03.2.6': 5.5,
+                                        '03.3.1': config.benefitsPct ?? 2.9,
+                                        '03.3.2': 11.3,
+                                        '03.3.4': 0.9,
+                                        '03.3.6': 0.9,
+                                        '03.3.7': 0.1,
+                                        '03.4.1': 0.5,
+                                        '03.5.1': 0.6,
+                                        '03.5.2': 0.6,
+                                        '03.5.3': 0.2,
+                                        '03.7.1': 0.1,
+                                        '03.7.2': 0.1,
+                                        '03.7.4': 0.3,
+                                        '03.8.2': 0.1,
+                                        '03.9.2': 0.1,
+                                        '03.9.3': 0.1,
+                                        '03.9.8': 0.2
+                                    };
+                                    coefPct = defaultPcts[code] || 0;
+                                }
                             }
 
                             const coefficient = coefPct / 100.0;
@@ -1735,8 +1684,6 @@ export default function ForecastPage() {
                                     const paymentDelayMonths = Math.round((config.paymentTermDays ?? 30) / 30);
                                     payMonth = invoiceMonth + paymentDelayMonths;
                                 } else if (code.startsWith('03.3') || code.startsWith('3.3')) {
-                                    payMonth = m;
-                                } else if (code.startsWith('07') || code.startsWith('7')) {
                                     payMonth = m;
                                 }
 
@@ -1772,7 +1719,7 @@ export default function ForecastPage() {
                 }
             };
 
-            [recBruta, tributos, custosOp, despVendas, despAdmin, despFin, invest].forEach(sortChildrenByCode);
+            [recBruta, tributos, custosOp].forEach(sortChildrenByCode);
 
             const computeSums = (node: any): any => {
                 if (!node.children || node.children.length === 0) {
@@ -1781,10 +1728,8 @@ export default function ForecastPage() {
 
                 node.children.forEach((child: any) => {
                     const childData = computeSums(child);
-                    const isFinancialRevenue = child.categoryId.includes('06.1') || child.categoryName.includes('06.1');
-                    const sign = isFinancialRevenue ? -1 : 1;
                     for (let i = 0; i < 24; i++) {
-                        node.forecast[i] += sign * childData.forecast[i];
+                        node.forecast[i] += childData.forecast[i];
                     }
                 });
 
@@ -1794,23 +1739,12 @@ export default function ForecastPage() {
             computeSums(recBruta);
             computeSums(tributos);
             computeSums(custosOp);
-            computeSums(despVendas);
-            computeSums(despAdmin);
-            computeSums(despFin);
-            computeSums(invest);
 
             for (let i = 0; i < 24; i++) {
                 recLiquida.forecast[i] = recBruta.forecast[i] - tributos.forecast[i];
-                margemBruta.forecast[i] = recLiquida.forecast[i] - custosOp.forecast[i];
-                margemContrib.forecast[i] = margemBruta.forecast[i] - despVendas.forecast[i];
-                ebitda.forecast[i] = margemContrib.forecast[i] - despAdmin.forecast[i];
-                lucroLiquido.forecast[i] = ebitda.forecast[i] - despFin.forecast[i];
             }
 
-            return [
-                recBruta, tributos, recLiquida, custosOp, margemBruta,
-                despVendas, margemContrib, despAdmin, ebitda, despFin, lucroLiquido, invest
-            ];
+            return [recBruta, tributos, recLiquida, custosOp];
         };
 
         const treeRoots = buildCashFlowTree(forecastData);
@@ -1835,22 +1769,13 @@ export default function ForecastPage() {
         const recBruta = displayCashFlowGrid.find(r => r.categoryId === 'G-01');
         const tributos = displayCashFlowGrid.find(r => r.categoryId === 'G-02');
         const custosOp = displayCashFlowGrid.find(r => r.categoryId === 'G-03');
-        const despVendas = displayCashFlowGrid.find(r => r.categoryId === 'G-04');
-        const despAdmin = displayCashFlowGrid.find(r => r.categoryId === 'G-05');
-        const despFin = displayCashFlowGrid.find(r => r.categoryId === 'G-06');
-        const invest = displayCashFlowGrid.find(r => r.categoryId === 'G-07');
 
         const net = Array(24).fill(0);
         const accum = Array(24).fill(0);
         let run = 0;
         for (let i = 0; i < 24; i++) {
             const inf = recBruta?.forecast[i] || 0;
-            const out = (tributos?.forecast[i] || 0) +
-                        (custosOp?.forecast[i] || 0) +
-                        (despVendas?.forecast[i] || 0) +
-                        (despAdmin?.forecast[i] || 0) +
-                        (despFin?.forecast[i] || 0) +
-                        (invest?.forecast[i] || 0);
+            const out = (tributos?.forecast[i] || 0) + (custosOp?.forecast[i] || 0);
             net[i] = inf - out;
             run += net[i];
             accum[i] = run;
@@ -2218,21 +2143,11 @@ export default function ForecastPage() {
             const recBruta = displayCashFlowGrid.find(r => r.categoryId === 'G-01');
             const tributos = displayCashFlowGrid.find(r => r.categoryId === 'G-02');
             const custosOp = displayCashFlowGrid.find(r => r.categoryId === 'G-03');
-            const despVendas = displayCashFlowGrid.find(r => r.categoryId === 'G-04');
-            const despAdmin = displayCashFlowGrid.find(r => r.categoryId === 'G-05');
-            const despFin = displayCashFlowGrid.find(r => r.categoryId === 'G-06');
-            const invest = displayCashFlowGrid.find(r => r.categoryId === 'G-07');
-
             let totalInflow = 0;
             let totalOutflow = 0;
             for (let i = 0; i < 24; i++) {
                 totalInflow += recBruta?.forecast[i] || 0;
-                totalOutflow += (tributos?.forecast[i] || 0) +
-                                (custosOp?.forecast[i] || 0) +
-                                (despVendas?.forecast[i] || 0) +
-                                (despAdmin?.forecast[i] || 0) +
-                                (despFin?.forecast[i] || 0) +
-                                (invest?.forecast[i] || 0);
+                totalOutflow += (tributos?.forecast[i] || 0) + (custosOp?.forecast[i] || 0);
             }
 
             const cumulativeCashFlows = cashFlowSummary.accum;

@@ -281,6 +281,10 @@ export async function GET(request: Request) {
 
                     // Simulate new contracts impact
                     const isRevenue = catInfo.type === 'REVENUE' || matchedCatIds.some(id => grossRevIds.includes(id));
+                    const isPositiveCategory = 
+                         code.startsWith('01') || code.startsWith('1') ||
+                         code.startsWith('02') || code.startsWith('2') ||
+                         code.startsWith('03') || code.startsWith('3');
                     let simulatedImpact = 0;
 
                     if (isRevenue) {
@@ -323,11 +327,13 @@ export async function GET(request: Request) {
                         simulatedImpact = totalSimulatedRevenue * coef;
                     }
 
-                    if (isRevenue) {
-                        monthlyForecast[m] = baseValue + simulatedImpact;
+                    if (!isPositiveCategory) {
+                        simulatedImpact = -Math.abs(simulatedImpact);
                     } else {
-                        monthlyForecast[m] = baseValue - simulatedImpact;
+                        simulatedImpact = Math.abs(simulatedImpact);
                     }
+
+                    monthlyForecast[m] = baseValue + simulatedImpact;
                 }
             }
 

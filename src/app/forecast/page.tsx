@@ -1032,7 +1032,8 @@ export default function ForecastPage() {
             if (json.success && json.companies) {
                 setCompanies(json.companies);
                 const cached = localStorage.getItem('selectedTenantId') || 'ALL';
-                setSelectedTenant(cached);
+                const isValid = cached === 'ALL' || json.companies.some((c: any) => c.id === cached);
+                setSelectedTenant(isValid ? cached : 'ALL');
             }
         } catch (e) {
             console.error('Error in setup fetch:', e);

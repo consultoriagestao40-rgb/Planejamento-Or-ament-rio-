@@ -965,7 +965,7 @@ export default function PortfolioAnalysisPage() {
 
     return (
         <div style={{ minHeight: '100vh', backgroundColor: 'var(--bg-base)', color: 'var(--text-primary)', fontFamily: 'Inter, system-ui, sans-serif', padding: '2.5rem 2rem' }}>
-            <div className="container" style={{ maxWidth: '1400px', margin: '0 auto' }}>
+            <div className="container" style={{ maxWidth: '100%', margin: '0 auto' }}>
                 
                 {/* Cabeçalho */}
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: '2.5rem', borderBottom: '1px solid var(--border-default)', paddingBottom: '1.5rem', gap: '2rem', flexWrap: 'wrap' }}>

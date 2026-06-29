@@ -2278,7 +2278,7 @@ export default function ForecastPage() {
                                             max="31"
                                             value={cfStartDateDay}
                                             onChange={(e) => setCfStartDateDay(parseInt(e.target.value) || 20)}
-                                            style={{ height: '32px', padding: '0 0.5rem', borderRadius: '6px', border: '1px solid var(--border-default)', background: 'var(--bg-elevated)', color: 'var(--text-primary)', fontWeight: 700 }}
+                                            style={{ width: '100%', boxSizing: 'border-box', height: '32px', padding: '0 0.5rem', borderRadius: '6px', border: '1px solid var(--border-default)', background: 'var(--bg-elevated)', color: 'var(--text-primary)', fontWeight: 700 }}
                                         />
                                     </div>
 
@@ -2287,7 +2287,7 @@ export default function ForecastPage() {
                                         <select
                                             value={cfBillingCycle}
                                             onChange={(e) => setCfBillingCycle(e.target.value)}
-                                            style={{ height: '32px', padding: '0 0.5rem', borderRadius: '6px', border: '1px solid var(--border-default)', background: 'var(--bg-elevated)', color: 'var(--text-primary)', fontWeight: 600 }}
+                                            style={{ width: '100%', boxSizing: 'border-box', height: '32px', padding: '0 0.5rem', borderRadius: '6px', border: '1px solid var(--border-default)', background: 'var(--bg-elevated)', color: 'var(--text-primary)', fontWeight: 600 }}
                                         >
                                             <option value="subsequent_first_business_day">No 1º dia útil do mês subsequente</option>
                                             <option value="same_month">No último dia do próprio mês</option>
@@ -2301,7 +2301,7 @@ export default function ForecastPage() {
                                             min="0"
                                             value={cfPaymentTermDays}
                                             onChange={(e) => setCfPaymentTermDays(parseInt(e.target.value) || 0)}
-                                            style={{ height: '32px', padding: '0 0.5rem', borderRadius: '6px', border: '1px solid var(--border-default)', background: 'var(--bg-elevated)', color: 'var(--text-primary)', fontWeight: 700 }}
+                                            style={{ width: '100%', boxSizing: 'border-box', height: '32px', padding: '0 0.5rem', borderRadius: '6px', border: '1px solid var(--border-default)', background: 'var(--bg-elevated)', color: 'var(--text-primary)', fontWeight: 700 }}
                                         />
                                     </div>
 
@@ -2315,7 +2315,7 @@ export default function ForecastPage() {
                                                 type="number"
                                                 value={cfEpiUniformsCost}
                                                 onChange={(e) => setCfEpiUniformsCost(parseFloat(e.target.value) || 0)}
-                                                style={{ height: '32px', padding: '0 0.5rem', borderRadius: '6px', border: '1px solid var(--border-default)', background: 'var(--bg-elevated)', color: 'var(--text-primary)', fontWeight: 700 }}
+                                                style={{ width: '100%', boxSizing: 'border-box', height: '32px', padding: '0 0.5rem', borderRadius: '6px', border: '1px solid var(--border-default)', background: 'var(--bg-elevated)', color: 'var(--text-primary)', fontWeight: 700 }}
                                             />
                                         </div>
 
@@ -2325,7 +2325,7 @@ export default function ForecastPage() {
                                                 type="number"
                                                 value={cfEquipmentCost}
                                                 onChange={(e) => setCfEquipmentCost(parseFloat(e.target.value) || 0)}
-                                                style={{ height: '32px', padding: '0 0.5rem', borderRadius: '6px', border: '1px solid var(--border-default)', background: 'var(--bg-elevated)', color: 'var(--text-primary)', fontWeight: 700 }}
+                                                style={{ width: '100%', boxSizing: 'border-box', height: '32px', padding: '0 0.5rem', borderRadius: '6px', border: '1px solid var(--border-default)', background: 'var(--bg-elevated)', color: 'var(--text-primary)', fontWeight: 700 }}
                                             />
                                         </div>
 
@@ -2335,7 +2335,7 @@ export default function ForecastPage() {
                                                 type="number"
                                                 value={cfSuppliesCost}
                                                 onChange={(e) => setCfSuppliesCost(parseFloat(e.target.value) || 0)}
-                                                style={{ height: '32px', padding: '0 0.5rem', borderRadius: '6px', border: '1px solid var(--border-default)', background: 'var(--bg-elevated)', color: 'var(--text-primary)', fontWeight: 700 }}
+                                                style={{ width: '100%', boxSizing: 'border-box', height: '32px', padding: '0 0.5rem', borderRadius: '6px', border: '1px solid var(--border-default)', background: 'var(--bg-elevated)', color: 'var(--text-primary)', fontWeight: 700 }}
                                             />
                                         </div>
                                     </div>
@@ -2352,7 +2352,7 @@ export default function ForecastPage() {
                                                     step="0.01"
                                                     value={cfLaborPct}
                                                     onChange={(e) => setCfLaborPct(parseFloat(e.target.value) || 0)}
-                                                    style={{ height: '32px', padding: '0 0.5rem', borderRadius: '6px', border: '1px solid var(--border-default)', background: 'var(--bg-elevated)', color: 'var(--text-primary)', fontWeight: 700 }}
+                                                    style={{ width: '100%', boxSizing: 'border-box', height: '32px', padding: '0 0.5rem', borderRadius: '6px', border: '1px solid var(--border-default)', background: 'var(--bg-elevated)', color: 'var(--text-primary)', fontWeight: 700 }}
                                                 />
                                             </div>
                                             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
@@ -2362,7 +2362,7 @@ export default function ForecastPage() {
                                                     step="0.01"
                                                     value={cfChargesPct}
                                                     onChange={(e) => setCfChargesPct(parseFloat(e.target.value) || 0)}
-                                                    style={{ height: '32px', padding: '0 0.5rem', borderRadius: '6px', border: '1px solid var(--border-default)', background: 'var(--bg-elevated)', color: 'var(--text-primary)', fontWeight: 700 }}
+                                                    style={{ width: '100%', boxSizing: 'border-box', height: '32px', padding: '0 0.5rem', borderRadius: '6px', border: '1px solid var(--border-default)', background: 'var(--bg-elevated)', color: 'var(--text-primary)', fontWeight: 700 }}
                                                 />
                                             </div>
                                         </div>
@@ -2375,7 +2375,7 @@ export default function ForecastPage() {
                                                     step="0.01"
                                                     value={cfBenefitsPct}
                                                     onChange={(e) => setCfBenefitsPct(parseFloat(e.target.value) || 0)}
-                                                    style={{ height: '32px', padding: '0 0.5rem', borderRadius: '6px', border: '1px solid var(--border-default)', background: 'var(--bg-elevated)', color: 'var(--text-primary)', fontWeight: 700 }}
+                                                    style={{ width: '100%', boxSizing: 'border-box', height: '32px', padding: '0 0.5rem', borderRadius: '6px', border: '1px solid var(--border-default)', background: 'var(--bg-elevated)', color: 'var(--text-primary)', fontWeight: 700 }}
                                                 />
                                             </div>
                                             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
@@ -2385,7 +2385,7 @@ export default function ForecastPage() {
                                                     step="0.01"
                                                     value={cfTaxesPct}
                                                     onChange={(e) => setCfTaxesPct(parseFloat(e.target.value) || 0)}
-                                                    style={{ height: '32px', padding: '0 0.5rem', borderRadius: '6px', border: '1px solid var(--border-default)', background: 'var(--bg-elevated)', color: 'var(--text-primary)', fontWeight: 700 }}
+                                                    style={{ width: '100%', boxSizing: 'border-box', height: '32px', padding: '0 0.5rem', borderRadius: '6px', border: '1px solid var(--border-default)', background: 'var(--bg-elevated)', color: 'var(--text-primary)', fontWeight: 700 }}
                                                 />
                                             </div>
                                         </div>
@@ -2397,7 +2397,7 @@ export default function ForecastPage() {
                                                 step="0.01"
                                                 value={cfOtherOperatingPct}
                                                 onChange={(e) => setCfOtherOperatingPct(parseFloat(e.target.value) || 0)}
-                                                style={{ height: '32px', padding: '0 0.5rem', borderRadius: '6px', border: '1px solid var(--border-default)', background: 'var(--bg-elevated)', color: 'var(--text-primary)', fontWeight: 700 }}
+                                                style={{ width: '100%', boxSizing: 'border-box', height: '32px', padding: '0 0.5rem', borderRadius: '6px', border: '1px solid var(--border-default)', background: 'var(--bg-elevated)', color: 'var(--text-primary)', fontWeight: 700 }}
                                             />
                                         </div>
 

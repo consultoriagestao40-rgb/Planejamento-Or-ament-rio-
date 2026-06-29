@@ -725,3 +725,7 @@ select.premium-select:focus {
   width: calc(100vw - 260px);
   box-sizing: border-box;
 }
+
+.spreadsheet-value-negative {
+  color: #ef4444 !important;
+}

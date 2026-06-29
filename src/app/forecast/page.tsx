@@ -1027,7 +1027,7 @@ export default function ForecastPage() {
 
     const fetchSetup = useCallback(async () => {
         try {
-            const res = await fetch('/api/companies');
+            const res = await fetch(`/api/companies?t=${Date.now()}`);
             const json = await res.json();
             if (json.success && json.companies) {
                 setCompanies(json.companies);
@@ -1058,7 +1058,7 @@ export default function ForecastPage() {
             if (jsonCoef.success) setCoefficients(jsonCoef.data || []);
 
             // Fetch DRE forecast data
-            const resD = await fetch(`/api/kpi/forecast/data?tenantId=${selectedTenant}&year=${selectedYear}&activeMonth=${activeMonth}`);
+            const resD = await fetch(`/api/kpi/forecast/data?tenantId=${selectedTenant}&year=${selectedYear}&activeMonth=${activeMonth}&t=${Date.now()}`);
             const jsonD = await resD.json();
             if (jsonD.success) setForecastData(jsonD.data || []);
 

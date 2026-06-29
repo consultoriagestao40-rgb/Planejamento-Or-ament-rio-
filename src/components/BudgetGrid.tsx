@@ -4507,7 +4507,7 @@ export default function BudgetGrid({
                     return (
                         <React.Fragment key={i}>
                             <td 
-                                className="spreadsheet-value" 
+                                className={`spreadsheet-value ${budgetVal < 0 ? 'spreadsheet-value-negative' : ''}`}
                                 style={{ 
                                     borderLeft: '2px solid #cbd5e1', 
                                     color: isHighlighted ? '#ffffff' : bColor, 
@@ -4540,7 +4540,7 @@ export default function BudgetGrid({
                                 </td>
                             )}
                             <td 
-                                className="spreadsheet-value" 
+                                className={`spreadsheet-value ${realizedVal < 0 ? 'spreadsheet-value-negative' : ''}`}
                                 style={{ 
                                     color: isHighlighted ? '#0b579f' : rColor, 
                                     fontWeight: 900, 

@@ -2244,7 +2244,7 @@ export default function ForecastPage() {
                         <div style={{ padding: '1rem', background: 'linear-gradient(135deg, rgba(16, 185, 129, 0.1) 0%, rgba(16, 185, 129, 0.02) 100%)', borderRadius: '10px', border: '1px solid rgba(16, 185, 129, 0.25)', display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
                             <span style={{ fontSize: '0.65rem', color: 'var(--accent-green)', fontWeight: 800, textTransform: 'uppercase' }}>Prazo de Payback (Equilíbrio)</span>
                             <span style={{ fontSize: '1.25rem', fontWeight: 800, color: 'var(--accent-green)' }}>
-                                {paybackMonthIdx !== -1 ? `${timelineMonths[paybackMonthIdx]} (${paybackMonthIdx + 1}º mês)` : 'Fora dos 24 meses'}
+                                {paybackMonthIdx !== -1 ? `${timelineMonths[paybackMonthIdx]} (${paybackMonthIdx - startSearchIdx + 1}º mês)` : 'Fora dos 24 meses'}
                             </span>
                             <span style={{ fontSize: '0.65rem', color: 'var(--text-secondary)', fontWeight: 500 }}>Meses para recuperar o caixa inicial</span>
                         </div>

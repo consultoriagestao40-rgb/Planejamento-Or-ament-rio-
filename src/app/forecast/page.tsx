@@ -2174,6 +2174,13 @@ export default function ForecastPage() {
                 }
             }
 
+            let cashFlowBreakEvenIdx = -1;
+            for (let i = 0; i < 24; i++) {
+                if (cashFlowSummary.net[i] > 0 && cashFlowBreakEvenIdx === -1 && i >= startSearchIdx) {
+                    cashFlowBreakEvenIdx = i;
+                }
+            }
+
             const visibleMonthsCount = paybackMonthIdx !== -1 ? (paybackMonthIdx + 1) : 24;
             const visibleCashFlows = cumulativeCashFlows.slice(0, visibleMonthsCount);
 
@@ -2235,11 +2242,18 @@ export default function ForecastPage() {
                     </div>
 
                     {/* KPI Cards */}
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: '0.75rem' }}>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr 1fr', gap: '0.75rem' }}>
                         <div style={{ padding: '1rem', background: 'linear-gradient(135deg, rgba(239, 68, 68, 0.1) 0%, rgba(239, 68, 68, 0.02) 100%)', borderRadius: '10px', border: '1px solid rgba(239, 68, 68, 0.25)', display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
                             <span style={{ fontSize: '0.65rem', color: 'var(--accent-red)', fontWeight: 800, textTransform: 'uppercase' }}>Necessidade Máxima de Caixa</span>
                             <span style={{ fontSize: '1.25rem', fontWeight: 800, color: 'var(--accent-red)' }}>{fmt(Math.abs(maxCashRequirement))}</span>
                             <span style={{ fontSize: '0.65rem', color: 'var(--text-secondary)', fontWeight: 500 }}>Maior saldo negativo acumulado</span>
+                        </div>
+                        <div style={{ padding: '1rem', background: 'linear-gradient(135deg, rgba(99, 102, 241, 0.1) 0%, rgba(99, 102, 241, 0.02) 100%)', borderRadius: '10px', border: '1px solid rgba(99, 102, 241, 0.25)', display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
+                            <span style={{ fontSize: '0.65rem', color: 'var(--accent-indigo)', fontWeight: 800, textTransform: 'uppercase' }}>Equilíbrio de Cash Flow</span>
+                            <span style={{ fontSize: '1.25rem', fontWeight: 800, color: 'var(--accent-indigo)' }}>
+                                {cashFlowBreakEvenIdx !== -1 ? `${timelineMonths[cashFlowBreakEvenIdx]} (${cashFlowBreakEvenIdx - startSearchIdx + 1}º mês)` : 'Fora dos 24 meses'}
+                            </span>
+                            <span style={{ fontSize: '0.65rem', color: 'var(--text-secondary)', fontWeight: 500 }}>Primeiro mês de saldo mensal positivo</span>
                         </div>
                         <div style={{ padding: '1rem', background: 'linear-gradient(135deg, rgba(16, 185, 129, 0.1) 0%, rgba(16, 185, 129, 0.02) 100%)', borderRadius: '10px', border: '1px solid rgba(16, 185, 129, 0.25)', display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
                             <span style={{ fontSize: '0.65rem', color: 'var(--accent-green)', fontWeight: 800, textTransform: 'uppercase' }}>Prazo de Payback (Equilíbrio)</span>

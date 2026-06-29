@@ -6,7 +6,7 @@ import ClientLayoutWrapper from '@/components/ClientLayoutWrapper'
 const inter = Inter({ subsets: ['latin'], variable: '--font-inter' })
 
 export const metadata: Metadata = {
-  title: 'Financial Budget Dashboard',
+  title: 'BudgetHub',
   description: 'Consolidated view for Multi-Tenant Finance',
   icons: {
     icon: '/favicon.png',

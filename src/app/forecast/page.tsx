@@ -2449,7 +2449,7 @@ export default function ForecastPage() {
                                         
                                         {/* Horizontal Zero line */}
                                         <line x1="60" y1={zeroLineY} x2="1540" y2={zeroLineY} stroke="var(--accent-orange)" strokeWidth="1.5" strokeDasharray="4 2" />
-                                        <text x="70" y={zeroLineY - 5} fill="var(--accent-orange)" fontSize="9" fontWeight="bold">PONTO DE EQUILÍBRIO (ZERO)</text>
+                                        <text x="70" y={zeroLineY + 12} fill="var(--accent-orange)" fontSize="9" fontWeight="bold">PONTO DE EQUILÍBRIO (ZERO)</text>
  
                                         {/* Cumulative line path */}
                                         <polyline

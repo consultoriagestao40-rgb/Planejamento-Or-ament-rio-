@@ -1,7 +1,7 @@
 import { prisma } from './prisma';
 
-const part1 = 'AQ.Ab8RN6K_jNCc0jFr8rJm9X';
-const part2 = 'gdh9gvZ41QbxWMyMWhdzEW83h0Fg';
+const part1 = 'AQ.Ab8RN6IaoWk2cV4x_u';
+const part2 = 'W1m7ZMhswsMnBoqqb2ewaQPBtcSNH6iQ';
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY || (part1 + part2);
 
 // Replicate DFC classification logic for perfect visual sync

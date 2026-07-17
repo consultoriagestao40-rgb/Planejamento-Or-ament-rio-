@@ -4173,7 +4173,12 @@ export default function BudgetGrid({
                         const getAH = (val: number, base: number) => {
                             if (Math.abs(base) < 0.01) return 0;
                             return ((val / base) - 1) * 100;
-                               <React.Fragment key={i}>
+                        };
+
+                        const isHighlighted = viewPeriod === 'month' && i === highlightedMonth;
+
+                        return (
+                            <React.Fragment key={i}>
                                 {showOrcado && (
                                     <td 
                                         className="spreadsheet-value"

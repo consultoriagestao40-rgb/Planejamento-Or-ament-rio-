@@ -7387,7 +7387,13 @@ export default function BudgetGrid({
                         )}
                     </div>
                     {(loading || isExternalLoading) && (
-                        <div style={{ position: 'absolute', inset: 0, background: 'rgba(255, 255, 255, 0.4)', zIndex: 100, display: 'flex', flexDirection: 'column', justifyContent:                    {/* Container Único do Grid (BI Matrix) */}
+                        <div style={{ position: 'absolute', inset: 0, background: 'rgba(255, 255, 255, 0.4)', zIndex: 100, display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', backdropFilter: 'blur(1px)' }}>
+                            <div className="spinner" />
+                            <span style={{ marginTop: '0.5rem', color: 'var(--text-primary)', fontWeight: 700, fontSize: '0.75rem' }}>CARREGANDO...</span>
+                        </div>
+                    )}
+
+                    {/* Container Único do Grid (BI Matrix) */}
                     <div 
                         ref={bodyScrollRef}
                         onScroll={handleScrollSync}

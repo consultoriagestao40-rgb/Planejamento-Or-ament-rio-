@@ -4388,9 +4388,6 @@ export default function BudgetGrid({
                                     </React.Fragment>
                                 );
                             })}
-                            <td className="spreadsheet-value" style={{ background: 'rgba(241, 245, 249, 0.6)', fontSize: '0.74rem', fontWeight: 600, color: '#1e293b' }}>
-                                {formatCurrency(Array.from(Object.values(itemsMap.get(itemName) || {})).reduce((a, b) => a + b, 0))}
-                            </td>
                         </tr>
                     ));
                 })()}

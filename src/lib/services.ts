@@ -364,10 +364,13 @@ async function collectDetailedTransactions(
                 ? (item.pago + item.nao_pago)
                 : (item.valor_total || item.total || item.valor || item.pago || 0);
             
-            // Para PDD, a data que define o reconhecimento contábil na competência é a data da baixa/pagamento da perda
-            const dateStr = hasPDD
-                ? (item.data_baixa || item.data_pagamento || item.data_competencia || item.data_emissao || item.data)
-                : (item.data_competencia || item.data_emissao || item.venda_em || item.data_pagamento || item.data);
+            // Se for regime de caixa, a data principal é a data de pagamento/baixa.
+            // Se for regime de competência, a data principal é a data de competência/emissão.
+            const dateStr = viewMode === 'caixa'
+                ? (item.data_pagamento || item.data_baixa || item.data_competencia || item.data_emissao || item.data)
+                : (hasPDD
+                    ? (item.data_baixa || item.data_pagamento || item.data_competencia || item.data_emissao || item.data)
+                    : (item.data_competencia || item.data_emissao || item.venda_em || item.data_pagamento || item.data));
 
             if (!dateStr) continue;
             const dateObj = new Date(dateStr);

@@ -4051,39 +4051,35 @@ export default function BudgetGrid({
 
         return (
             <React.Fragment key={node.id}>
-                <tr>
+                <tr className={isInteractiveTree ? 'spreadsheet-parent-row' : ''}>
                     <td 
                         className="sticky-col"
                         onClick={() => isInteractiveTree && toggleRow(node.id)}
                         style={{ 
                             cursor: isInteractiveTree ? 'pointer' : 'default', 
-                            fontWeight: isInteractiveTree ? 800 : 600,
-                            paddingLeft: `${0.75 + (node.level * 1.75)}rem`,
-                            borderBottom: '1px solid #f1f5f9',
+                            fontWeight: isInteractiveTree ? 700 : 400,
+                            paddingLeft: `${0.5 + (node.level * 1.2)}rem`,
+                            borderBottom: '1px solid #e2e8f0',
                             transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
                             width: '400px',
                             minWidth: '400px',
                             maxWidth: '400px',
-                            fontSize: '0.95rem'
+                            fontSize: isInteractiveTree ? '0.8rem' : '0.74rem'
                         }}
                     >
                         <div style={{ display: 'flex', alignItems: 'center', color: '#0f172a' }}>
                             {isInteractiveTree && (
-                                <span style={{ 
-                                    marginRight: '0.65rem', 
-                                    fontSize: '0.92rem', 
-                                    color: hasCompositionChildren ? '#8b5cf6' : '#3b82f6', 
-                                    width: '1rem',
-                                    display: 'inline-flex',
-                                    alignItems: 'center',
-                                    justifyContent: 'center',
-                                    fontWeight: 'bold',
-                                    userSelect: 'none'
-                                }}>
+                                <span 
+                                    className="bi-tree-btn"
+                                    style={{ 
+                                        color: hasCompositionChildren ? '#8b5cf6' : '#475569',
+                                        borderColor: hasCompositionChildren ? '#cbd5e1' : '#94a3b8'
+                                    }}
+                                >
                                     {isExpanded ? '−' : '+'}
                                 </span>
                             )}
-                            {!isInteractiveTree && <span style={{ width: '1.65rem' }}></span>}
+                            {!isInteractiveTree && <span style={{ display: 'inline-block', width: '20px' }}></span>}
                             <span style={{ 
                                 whiteSpace: 'normal',
                                 overflowWrap: 'break-word',
@@ -4108,7 +4104,7 @@ export default function BudgetGrid({
                                         border: 'none',
                                         cursor: 'pointer',
                                         padding: '2px 4px',
-                                        fontSize: '0.85rem',
+                                        fontSize: '0.75rem',
                                         opacity: 0.7,
                                         transition: 'all 0.2s',
                                         marginLeft: '6px',
@@ -4189,19 +4185,18 @@ export default function BudgetGrid({
                                         }
                                     }}
                                     style={{ 
-                                        borderLeft: '2px solid #cbd5e1', 
+                                        borderLeft: '1px solid #cbd5e1', 
                                         cursor: viewPeriod === 'month' ? 'pointer' : 'default',
                                         color: isHighlighted ? '#ffffff' : (bVal < 0 ? '#dc2626' : '#1e293b'),
                                         width: '130px',
                                         minWidth: '130px',
                                         maxWidth: '130px',
-                                        padding: '0.65rem 0.5rem',
-                                        fontWeight: 600,
+                                        fontWeight: isInteractiveTree ? 700 : 400,
                                         background: isHighlighted ? '#0b579f' : undefined
                                     }}
                                 >
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: '2px', justifyContent: 'flex-end', fontSize: '0.94rem' }}>
-                                        {isLocked && <span style={{ fontSize: '0.7rem', color: isHighlighted ? '#ffffff' : 'inherit' }}>🔒</span>}
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '2px', justifyContent: 'flex-end' }}>
+                                        {isLocked && <span style={{ fontSize: '0.65rem', color: isHighlighted ? '#ffffff' : 'inherit' }}>🔒</span>}
                                         {formatGridValue(bVal, isHighlighted)}
                                     </div>
                                 </td>
@@ -4210,12 +4205,11 @@ export default function BudgetGrid({
                                         className="spreadsheet-value" 
                                         style={{ 
                                             color: isHighlighted ? '#0b579f' : '#64748b', 
-                                            fontSize: '0.84rem', 
-                                            fontWeight: 800, 
                                             textAlign: 'center', 
                                             width: '60px',
                                             minWidth: '60px', 
                                             maxWidth: '60px',
+                                            fontWeight: isInteractiveTree ? 700 : 400,
                                             background: isHighlighted ? '#f0f9ff' : undefined
                                         }} 
                                         title="AV Orçado"
@@ -4230,14 +4224,12 @@ export default function BudgetGrid({
                                     style={{ 
                                         cursor: viewPeriod === 'month' ? 'pointer' : 'default',
                                         color: isHighlighted ? '#0b579f' : (rVal < 0 ? '#ef4444' : 'var(--accent-blue)'),
-                                        fontWeight: 800,
+                                        fontWeight: isInteractiveTree ? 700 : 400,
                                         position: 'relative',
                                         background: isHighlighted ? '#e0f2fe' : ((hasJustificationMap[`${node.id}-${i}`] && node.children.length === 0) ? '#eff6ff' : undefined),
                                         width: '140px',
                                         minWidth: '140px',
-                                        maxWidth: '140px',
-                                        padding: '0.65rem 0.5rem',
-                                        fontSize: '0.96rem'
+                                        maxWidth: '140px'
                                     }}
                                 >
                                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end' }}>
@@ -4249,12 +4241,11 @@ export default function BudgetGrid({
                                         className="spreadsheet-value" 
                                         style={{ 
                                             color: isHighlighted ? '#0b579f' : '#475569', 
-                                            fontSize: '0.84rem', 
-                                            fontWeight: 800, 
                                             textAlign: 'center',
                                             width: '60px',
                                             minWidth: '60px',
                                             maxWidth: '60px',
+                                            fontWeight: isInteractiveTree ? 700 : 400,
                                             background: isHighlighted ? '#f0f9ff' : undefined
                                         }} 
                                         title="AV Real"
@@ -4272,12 +4263,11 @@ export default function BudgetGrid({
                                             return val > 0 ? '#e11d48' : '#059669';
                                         })(), 
                                         background: isHighlighted ? '#f0f9ff' : undefined,
-                                        fontSize: '0.86rem', 
-                                        fontWeight: 900,
                                         textAlign: 'center',
                                         width: '70px',
                                         minWidth: '70px',
-                                        maxWidth: '70px'
+                                        maxWidth: '70px',
+                                        fontWeight: isInteractiveTree ? 700 : 400
                                     }}>
                                         {getAH(rVal, bVal).toFixed(1)}%
                                     </td>
@@ -4292,12 +4282,11 @@ export default function BudgetGrid({
                                             return val > 0 ? '#e11d48' : '#059669';
                                         })(), 
                                         background: isHighlighted ? '#f0f9ff' : undefined,
-                                        fontSize: '0.86rem', 
-                                        fontWeight: 900,
                                         textAlign: 'center',
                                         width: '70px',
                                         minWidth: '70px',
-                                        maxWidth: '70px'
+                                        maxWidth: '70px',
+                                        fontWeight: isInteractiveTree ? 700 : 400
                                     }}>
                                         {i === 0 ? '-' : `${getMoMPercent().toFixed(1)}%`}
                                     </td>
@@ -4340,10 +4329,10 @@ export default function BudgetGrid({
 
                     return Array.from(allItemNames).sort().map(itemName => (
                         <tr key={`${node.id}-${itemName}`} style={{ background: 'rgba(241, 245, 249, 0.4)' }}>
-                            <td className="sticky-col" style={{ paddingLeft: `${2.5 + (node.level * 1.75)}rem`, fontSize: '0.9rem', color: '#334155', borderBottom: '1px solid #f1f5f9', width: '400px', minWidth: '400px', maxWidth: '400px' }}>
+                            <td className="sticky-col" style={{ paddingLeft: `${1.5 + (node.level * 1.2)}rem`, fontSize: '0.74rem', color: '#475569', borderBottom: '1px solid #e2e8f0', width: '400px', minWidth: '400px', maxWidth: '400px' }}>
                                 <div style={{ display: 'flex', alignItems: 'center', width: '100%', overflow: 'hidden' }}>
                                     <span style={{ marginRight: '0.5rem', color: '#cbd5e1', flexShrink: 0 }}>└</span>
-                                    <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', fontSize: '0.85rem' }} title={itemName}>
+                                    <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', fontSize: '0.74rem' }} title={itemName}>
                                         {itemName}
                                     </span>
                                 </div>
@@ -4352,18 +4341,18 @@ export default function BudgetGrid({
                                 const val = itemsMap.get(itemName)?.[i] || 0;
                                 return (
                                     <React.Fragment key={i}>
-                                        <td className="spreadsheet-value" style={{ fontSize: '0.9rem', color: '#334155', borderLeft: '2px solid #e2e8f0', borderBottom: '1px solid #f1f5f9', width: '130px', minWidth: '130px', maxWidth: '130px' }}>
+                                        <td className="spreadsheet-value" style={{ fontSize: '0.74rem', color: '#475569', borderLeft: '1px solid #e2e8f0', borderBottom: '1px solid #e2e8f0', width: '130px', minWidth: '130px', maxWidth: '130px' }}>
                                             {val === 0 ? '-' : formatCurrency(val)}
                                         </td>
                                         {showAV && <td className="spreadsheet-value" style={{ color: 'transparent', fontSize: '0.7rem', width: '60px', minWidth: '60px', maxWidth: '60px' }}>-</td>}
-                                        <td className="spreadsheet-value" style={{ fontSize: '0.9rem', color: 'transparent', width: '140px', minWidth: '140px', maxWidth: '140px' }}>-</td>
+                                        <td className="spreadsheet-value" style={{ fontSize: '0.74rem', color: 'transparent', width: '140px', minWidth: '140px', maxWidth: '140px' }}>-</td>
                                         {showAV && <td className="spreadsheet-value" style={{ color: 'transparent', width: '60px', minWidth: '60px', maxWidth: '60px' }}>-</td>}
                                         {showAH && <td className="spreadsheet-value" style={{ color: 'transparent', width: '70px', minWidth: '70px', maxWidth: '70px' }}>-</td>}
                                         {showAH_MoM && <td className="spreadsheet-value" style={{ color: 'transparent', width: '70px', minWidth: '70px', maxWidth: '70px' }}>-</td>}
                                     </React.Fragment>
                                 );
                             })}
-                            <td className="spreadsheet-value" style={{ background: 'rgba(241, 245, 249, 0.6)', fontSize: '0.9rem', fontWeight: 600, color: '#1e293b' }}>
+                            <td className="spreadsheet-value" style={{ background: 'rgba(241, 245, 249, 0.6)', fontSize: '0.74rem', fontWeight: 600, color: '#1e293b' }}>
                                 {formatCurrency(Array.from(Object.values(itemsMap.get(itemName) || {})).reduce((a, b) => a + b, 0))}
                             </td>
                         </tr>
@@ -4376,27 +4365,22 @@ export default function BudgetGrid({
     const renderGroupHeaderRow = (label: string, _isExpanded?: boolean, _onToggle?: () => void) => {
         const colsCount = 1 + (viewPeriod === 'month' ? MONTHS : [1, 2, 3, 4]).length * (2 + (showAV ? 2 : 0) + (showAH ? 1 : 0) + (showAH_MoM ? 1 : 0));
         return (
-            <tr style={{ background: '#e6f2fd' }} className="spreadsheet-group-header">
+            <tr className="spreadsheet-group-header">
                 <td 
                     className="sticky-col" 
                     style={{ 
-                        fontWeight: 800, 
-                        color: '#0b579f', 
-                        background: '#e6f2fd', 
                         zIndex: 25, 
-                        fontSize: '0.98rem',
                         width: '400px',
                         minWidth: '400px',
                         maxWidth: '400px',
-                        padding: '0.5rem 0.75rem',
                         cursor: 'default'
                     }}
                 >
                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                        <span style={{ fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.05em' }}>{label}</span>
+                        <span style={{ textTransform: 'uppercase', letterSpacing: '0.05em' }}>{label}</span>
                     </div>
                 </td>
-                <td colSpan={colsCount - 1} style={{ background: '#e6f2fd' }}></td>
+                <td colSpan={colsCount - 1}></td>
             </tr>
         );
     };
@@ -4414,12 +4398,8 @@ export default function BudgetGrid({
                 <td 
                     className="sticky-col" 
                     style={{ 
-                        fontWeight: 900, 
                         color: isLucroLiquido ? '#ffffff' : '#0f172a',
-                        background: isLucroLiquido ? 'linear-gradient(135deg, #2563eb, #1d4ed8)' : '#f8fafc',
-                        fontSize: '0.88rem',
                         zIndex: 25,
-                        boxShadow: isLucroLiquido ? '0 4px 6px -1px rgba(37, 99, 235, 0.2)' : 'none',
                         width: '400px',
                         minWidth: '400px',
                         maxWidth: '400px'
@@ -4427,21 +4407,11 @@ export default function BudgetGrid({
                 >
                     <div style={{ display: 'flex', alignItems: 'center', opacity: 1, visibility: 'visible' }}>
                         {groupId && (
-                            <span style={{ 
-                                marginRight: '0.65rem', 
-                                fontSize: '0.92rem', 
-                                color: '#3b82f6', 
-                                width: '1rem',
-                                display: 'inline-flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                fontWeight: 'bold',
-                                userSelect: 'none'
-                            }}>
+                            <span className="bi-tree-btn">
                                 {isGroupExpanded ? '−' : '+'}
                             </span>
                         )}
-                        {!groupId && <span style={{ width: '1.65rem' }}></span>}
+                        {!groupId && <span style={{ display: 'inline-block', width: '20px' }}></span>}
                         <span style={{ color: 'inherit' }}>{label}</span>
                     </div>
                 </td>
@@ -4509,14 +4479,12 @@ export default function BudgetGrid({
                             <td 
                                 className={`spreadsheet-value ${budgetVal < 0 ? 'spreadsheet-value-negative' : ''}`}
                                 style={{ 
-                                    borderLeft: '2px solid #cbd5e1', 
+                                    borderLeft: '1px solid #cbd5e1', 
                                     color: isHighlighted ? '#ffffff' : bColor, 
-                                    fontWeight: 700, 
-                                    background: isLucroLiquido ? '#2563eb' : (isHighlighted ? '#0b579f' : undefined), 
+                                    background: isLucroLiquido ? undefined : (isHighlighted ? '#0b579f' : undefined), 
                                     width: '130px', 
                                     minWidth: '130px', 
-                                    maxWidth: '130px', 
-                                    padding: '0.5rem 0.25rem' 
+                                    maxWidth: '130px'
                                 }}
                             >
                                 {formatGridValue(budgetVal, isHighlighted)}
@@ -4526,14 +4494,11 @@ export default function BudgetGrid({
                                     className="spreadsheet-value" 
                                     style={{ 
                                         color: isLucroLiquido ? '#fff' : (isHighlighted ? '#0b579f' : '#64748b'), 
-                                        fontSize: '0.84rem', 
-                                        fontWeight: 900, 
                                         textAlign: 'center', 
                                         width: '60px', 
                                         minWidth: '60px', 
                                         maxWidth: '60px', 
-                                        padding: '0.5rem 0.25rem',
-                                        background: isLucroLiquido ? '#2563eb' : (isHighlighted ? '#f0f9ff' : undefined)
+                                        background: isLucroLiquido ? undefined : (isHighlighted ? '#f0f9ff' : undefined)
                                     }}
                                 >
                                     {avBudget.toFixed(1)}%
@@ -4543,13 +4508,11 @@ export default function BudgetGrid({
                                 className={`spreadsheet-value ${realizedVal < 0 ? 'spreadsheet-value-negative' : ''}`}
                                 style={{ 
                                     color: isHighlighted ? '#0b579f' : rColor, 
-                                    fontWeight: 900, 
-                                    background: isLucroLiquido ? '#2563eb' : (isHighlighted ? '#e0f2fe' : undefined), 
+                                    background: isLucroLiquido ? undefined : (isHighlighted ? '#e0f2fe' : undefined), 
                                     position: 'relative', 
                                     width: '140px', 
                                     minWidth: '140px', 
-                                    maxWidth: '140px', 
-                                    padding: '0.5rem 0.25rem' 
+                                    maxWidth: '140px'
                                 }}
                             >
                                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end' }}>
@@ -4561,14 +4524,11 @@ export default function BudgetGrid({
                                     className="spreadsheet-value" 
                                     style={{ 
                                         color: isLucroLiquido ? '#fff' : (isHighlighted ? '#0b579f' : '#475569'), 
-                                        fontSize: '0.84rem', 
-                                        fontWeight: 900, 
                                         textAlign: 'center', 
                                         width: '60px', 
                                         minWidth: '60px', 
                                         maxWidth: '60px', 
-                                        padding: '0.5rem 0.25rem',
-                                        background: isLucroLiquido ? '#2563eb' : (isHighlighted ? '#f0f9ff' : undefined)
+                                        background: isLucroLiquido ? undefined : (isHighlighted ? '#f0f9ff' : undefined)
                                     }}
                                 >
                                     {avReal.toFixed(1)}%
@@ -4583,14 +4543,11 @@ export default function BudgetGrid({
                                         if (isProfitRow) return val < 0 ? '#e11d48' : (isLucroLiquido ? '#fff' : '#059669');
                                         return val > 0 ? '#e11d48' : (isLucroLiquido ? '#fff' : '#059669');
                                     })(),
-                                    background: isLucroLiquido ? '#2563eb' : (isHighlighted ? '#f0f9ff' : undefined),
-                                    fontSize: '0.86rem', 
-                                    fontWeight: 900,
+                                    background: isLucroLiquido ? undefined : (isHighlighted ? '#f0f9ff' : undefined),
                                     textAlign: 'center',
                                     width: '70px',
                                     minWidth: '70px',
-                                    maxWidth: '70px',
-                                    padding: '0.5rem 0.25rem'
+                                    maxWidth: '70px'
                                 }}>
                                     {getAH(realizedVal, budgetVal).toFixed(1)}%
                                 </td>
@@ -4604,14 +4561,11 @@ export default function BudgetGrid({
                                         if (isProfitRow) return val < 0 ? '#e11d48' : (isLucroLiquido ? '#fff' : '#059669');
                                         return val > 0 ? '#e11d48' : (isLucroLiquido ? '#fff' : '#059669');
                                     })(),
-                                    background: isLucroLiquido ? '#2563eb' : (isHighlighted ? '#f0f9ff' : undefined),
-                                    fontSize: '0.86rem', 
-                                    fontWeight: 900,
+                                    background: isLucroLiquido ? undefined : (isHighlighted ? '#f0f9ff' : undefined),
                                     textAlign: 'center',
                                     width: '70px',
                                     minWidth: '70px',
-                                    maxWidth: '70px',
-                                    padding: '0.5rem 0.25rem'
+                                    maxWidth: '70px'
                                 }}>
                                     {i === 0 ? '-' : `${getMoMPercent().toFixed(1)}%`}
                                 </td>
@@ -7447,13 +7401,13 @@ export default function BudgetGrid({
                             position: 'sticky', 
                             top: 0, 
                             zIndex: 40, 
-                            background: '#e6f2fd', 
+                            background: '#f1f5f9', 
                             width: '100%',
                             borderBottom: '2px solid var(--border-strong)'
                         }}
                     >
                         <table 
-                            className="spreadsheet-table" 
+                            className="spreadsheet-table dre-compact-table" 
                             style={{ 
                                 width: 'max-content', 
                                 tableLayout: 'fixed', 
@@ -7462,16 +7416,16 @@ export default function BudgetGrid({
                         >
                         <thead>
                             <tr>
-                                <th className="sticky-col" style={{ width: '400px', minWidth: '400px', maxWidth: '400px', backgroundColor: '#e6f2fd', color: '#0b579f' }}>
+                                <th className="sticky-col" style={{ width: '400px', minWidth: '400px', maxWidth: '400px', backgroundColor: '#f1f5f9', color: '#1e293b' }}>
                                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', padding: '0 0.5rem' }}>
                                         <button
                                             onClick={handleToggleAll}
-                                            className="spreadsheet-btn-expand"
-                                            style={{ background: '#fff', border: '1px solid #a5d0f5', color: '#0b579f', fontSize: '0.9rem' }}
+                                            className="spreadsheet-btn-expand bi-tree-btn"
+                                            style={{ background: '#fff', border: '1px solid #cbd5e1', color: '#475569', fontSize: '0.7rem', width: '16px', height: '16px', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}
                                         >
                                             {isAnyExpanded ? '−' : '+'}
                                         </button>
-                                        <span style={{ fontSize: '0.88rem', fontWeight: 800 }}>ESTRUTURA DRE — {selectedYear}</span>
+                                        <span style={{ fontSize: '0.8rem', fontWeight: 700 }}>ESTRUTURA DRE — {selectedYear}</span>
                                     </div>
                                 </th>
                                 {(viewPeriod === 'month' ? MONTHS : ['1º Tri', '2º Tri', '3º Tri', '4º Tri']).map((c, i) => {
@@ -7484,11 +7438,11 @@ export default function BudgetGrid({
                                             style={{ 
                                                 textAlign: 'center', 
                                                 padding: '0.4rem', 
-                                                borderLeft: '2px solid #cbd5e1', 
-                                                fontSize: '0.8rem',
-                                                backgroundColor: isHighlighted ? '#bae6fd' : '#e6f2fd',
-                                                color: '#0b579f',
-                                                fontWeight: 900
+                                                borderLeft: '1px solid #cbd5e1', 
+                                                fontSize: '0.76rem',
+                                                backgroundColor: isHighlighted ? '#dbeafe' : '#f1f5f9',
+                                                color: isHighlighted ? '#1e40af' : '#334155',
+                                                fontWeight: 700
                                             }}
                                         >
                                             {c}
@@ -7497,20 +7451,20 @@ export default function BudgetGrid({
                                 })}
                             </tr>
                             <tr>
-                                <th className="sticky-col" style={{ width: '400px', minWidth: '400px', maxWidth: '400px', backgroundColor: '#e6f2fd' }}></th>
+                                <th className="sticky-col" style={{ width: '400px', minWidth: '400px', maxWidth: '400px', backgroundColor: '#f1f5f9' }}></th>
                                 {(viewPeriod === 'month' ? MONTHS : [1, 2, 3, 4]).map((_, i) => {
                                     const isHighlighted = viewPeriod === 'month' && i === highlightedMonth;
-                                    const highlightBgOrç = isHighlighted ? '#0b579f' : '#e6f2fd';
-                                    const highlightTextOrç = isHighlighted ? '#ffffff' : '#0b579f';
-                                    const highlightBgReal = isHighlighted ? '#bae6fd' : '#e6f2fd';
-                                    const highlightTextReal = isHighlighted ? '#0b579f' : '#0b579f';
-                                    const highlightBgOther = isHighlighted ? '#e0f2fe' : '#e6f2fd';
-                                    const highlightTextOther = isHighlighted ? '#0b579f' : '#64748b';
+                                    const highlightBgOrç = isHighlighted ? '#1e40af' : '#f1f5f9';
+                                    const highlightTextOrç = isHighlighted ? '#ffffff' : '#334155';
+                                    const highlightBgReal = isHighlighted ? '#dbeafe' : '#f1f5f9';
+                                    const highlightTextReal = isHighlighted ? '#1e40af' : '#334155';
+                                    const highlightBgOther = isHighlighted ? '#eff6ff' : '#f1f5f9';
+                                    const highlightTextOther = isHighlighted ? '#1e40af' : '#475569';
                                     return (
                                         <React.Fragment key={i}>
-                                            <th style={{ fontSize: '0.72rem', color: highlightTextOrç, borderLeft: '2px solid #cbd5e1', textAlign: 'center', padding: '0.2rem', width: '130px', minWidth: '130px', maxWidth: '130px', backgroundColor: highlightBgOrç }}>ORÇ</th>
+                                            <th style={{ fontSize: '0.7rem', color: highlightTextOrç, borderLeft: '1px solid #cbd5e1', textAlign: 'center', padding: '0.2rem', width: '130px', minWidth: '130px', maxWidth: '130px', backgroundColor: highlightBgOrç }}>ORÇ</th>
                                             {showAV && <th style={{ fontSize: '0.68rem', color: highlightTextOther, textAlign: 'center', padding: '0.2rem', width: '60px', minWidth: '60px', maxWidth: '60px', backgroundColor: highlightBgOther }}>AV OR</th>}
-                                            <th style={{ fontSize: '0.72rem', color: highlightTextReal, textAlign: 'center', padding: '0.2rem', width: '140px', minWidth: '140px', maxWidth: '140px', backgroundColor: highlightBgReal }}>REAL</th>
+                                            <th style={{ fontSize: '0.7rem', color: highlightTextReal, textAlign: 'center', padding: '0.2rem', width: '140px', minWidth: '140px', maxWidth: '140px', backgroundColor: highlightBgReal }}>REAL</th>
                                             {showAV && <th style={{ fontSize: '0.68rem', color: highlightTextOther, textAlign: 'center', padding: '0.2rem', width: '60px', minWidth: '60px', maxWidth: '60px', backgroundColor: highlightBgOther }}>AV RL</th>}
                                             {showAH && <th style={{ fontSize: '0.68rem', color: highlightTextOther, textAlign: 'center', padding: '0.2rem', width: '70px', minWidth: '70px', maxWidth: '70px', backgroundColor: highlightBgOther }}>AH %</th>}
                                             {showAH_MoM && (
@@ -7538,18 +7492,17 @@ export default function BudgetGrid({
                         width: '100%'
                     }}
                 >
-                    <div style={{ width: 'max-content', display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '6px' }}>
-                        
-                        {/* Card 1: Receitas */}
+                    <div style={{ width: 'max-content', display: 'flex', flexDirection: 'column', marginTop: '6px' }}>
+                        {/* Unified DRE Table - BI Style */}
                         <div style={{
                             background: '#ffffff',
-                            borderRadius: '12px',
-                            border: '1px solid #e2e8f0',
-                            boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03)',
+                            borderRadius: '8px',
+                            border: '1px solid #cbd5e1',
+                            boxShadow: '0 1px 3px 0 rgba(0, 0, 0, 0.05)',
                             overflow: 'visible',
                             width: '100%'
                         }}>
-                            <table className="spreadsheet-table" style={{ width: 'max-content', tableLayout: 'fixed', borderCollapse: 'collapse' }}>
+                            <table className="spreadsheet-table dre-compact-table" style={{ width: 'max-content', tableLayout: 'fixed', borderCollapse: 'collapse' }}>
                                 <tbody>
                                     {renderGroupHeaderRow('RECEITAS', isReceitasExpanded, () => setIsReceitasExpanded(!isReceitasExpanded))}
                                     {isReceitasExpanded && (
@@ -7561,21 +7514,7 @@ export default function BudgetGrid({
                                             {renderSummaryRow('(=) RECEITA LÍQUIDA', 'vRecLiq', true)}
                                         </>
                                     )}
-                                </tbody>
-                            </table>
-                        </div>
-
-                        {/* Card 2: Custos e Despesas */}
-                        <div style={{
-                            background: '#ffffff',
-                            borderRadius: '12px',
-                            border: '1px solid #e2e8f0',
-                            boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03)',
-                            overflow: 'visible',
-                            width: '100%'
-                        }}>
-                            <table className="spreadsheet-table" style={{ width: 'max-content', tableLayout: 'fixed', borderCollapse: 'collapse' }}>
-                                <tbody>
+                                    
                                     {renderGroupHeaderRow('CUSTOS E DESPESAS', isCustosExpanded, () => setIsCustosExpanded(!isCustosExpanded))}
                                     {isCustosExpanded && (
                                         <>
@@ -7590,21 +7529,7 @@ export default function BudgetGrid({
                                             {renderSummaryRow('(=) EBITDA', 'vEbitda', true)}
                                         </>
                                     )}
-                                </tbody>
-                            </table>
-                        </div>
-
-                        {/* Card 3: Resultado Financeiro */}
-                        <div style={{
-                            background: '#ffffff',
-                            borderRadius: '12px',
-                            border: '1px solid #e2e8f0',
-                            boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03)',
-                            overflow: 'visible',
-                            width: '100%'
-                        }}>
-                            <table className="spreadsheet-table" style={{ width: 'max-content', tableLayout: 'fixed', borderCollapse: 'collapse' }}>
-                                <tbody>
+                                    
                                     {renderGroupHeaderRow('RESULTADO FINANCEIRO', isResultadosExpanded, () => setIsResultadosExpanded(!isResultadosExpanded))}
                                     {isResultadosExpanded && (
                                         <>
@@ -7618,7 +7543,6 @@ export default function BudgetGrid({
                                 </tbody>
                             </table>
                         </div>
-
                     </div>
                 </div>
             </div>

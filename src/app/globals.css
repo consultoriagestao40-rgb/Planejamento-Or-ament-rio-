@@ -729,3 +729,97 @@ select.premium-select:focus {
 .spreadsheet-value-negative {
   color: #ef4444 !important;
 }
+
+/* === BI MATRIX VIEW ADJUSTMENTS === */
+.dre-compact-table {
+  font-size: 0.76rem !important;
+  border: 1px solid #cbd5e1 !important;
+}
+
+.dre-compact-table th,
+.dre-compact-table td {
+  padding: 0.3rem 0.5rem !important;
+  font-size: 0.74rem !important;
+  border: 1px solid #e2e8f0 !important;
+}
+
+/* Remover efeito zebra padrão para focar nos destaques de contas pais */
+.dre-compact-table tbody tr,
+.dre-compact-table tbody tr .sticky-col {
+  background-color: #ffffff !important;
+}
+
+.dre-compact-table tbody tr .sticky-col {
+  box-shadow: 2px 0 0 0 #e2e8f0, 2px 0 4px -2px rgba(0,0,0,0.05) !important;
+  border-right: 1px solid #cbd5e1 !important;
+}
+
+/* Destaque para Contas Pais (Categorias que possuem filhos) */
+.dre-compact-table tbody tr.spreadsheet-parent-row,
+.dre-compact-table tbody tr.spreadsheet-parent-row .sticky-col {
+  background-color: #f8fafc !important; /* Cinza claro suave */
+  font-weight: 700 !important;
+}
+.dre-compact-table tbody tr.spreadsheet-parent-row .sticky-col {
+  box-shadow: 2px 0 0 0 #f8fafc, 2px 0 4px -2px rgba(0,0,0,0.05) !important;
+}
+
+/* Destaque para Linhas de Resumos (01. Receita Bruta, Receita Líquida, etc) */
+.dre-compact-table tbody tr.spreadsheet-summary-row,
+.dre-compact-table tbody tr.spreadsheet-summary-row .sticky-col {
+  background-color: #f0f7ff !important; /* Azul BI muito suave */
+  font-weight: 700 !important;
+}
+.dre-compact-table tbody tr.spreadsheet-summary-row .sticky-col {
+  box-shadow: 2px 0 0 0 #f0f7ff, 2px 0 4px -2px rgba(0,0,0,0.05) !important;
+}
+
+/* Cabeçalho de Grupos (RECEITAS, CUSTOS E DESPESAS, RESULTADO FINANCEIRO) */
+.dre-compact-table tbody tr.spreadsheet-group-header,
+.dre-compact-table tbody tr.spreadsheet-group-header .sticky-col {
+  background-color: #f1f5f9 !important; /* Cinza de cabeçalho corporativo */
+  font-weight: 800 !important;
+  color: #1e293b !important;
+}
+.dre-compact-table tbody tr.spreadsheet-group-header .sticky-col {
+  box-shadow: 2px 0 0 0 #f1f5f9, 2px 0 4px -2px rgba(0,0,0,0.05) !important;
+}
+
+/* Lucro Líquido - Estilo Power BI clássico */
+.dre-compact-table tbody tr.spreadsheet-net-profit-row,
+.dre-compact-table tbody tr.spreadsheet-net-profit-row td,
+.dre-compact-table tbody tr.spreadsheet-net-profit-row .sticky-col {
+  background-color: #1e40af !important; /* Azul Escuro BI */
+  background-image: none !important;
+  color: #ffffff !important;
+  font-weight: 800 !important;
+}
+.dre-compact-table tbody tr.spreadsheet-net-profit-row .sticky-col {
+  box-shadow: 2px 0 0 0 #1e40af, 2px 0 4px -2px rgba(0,0,0,0.05) !important;
+}
+
+/* Caixinha de controle de árvore (+ / -) */
+.bi-tree-btn {
+  width: 12px;
+  height: 12px;
+  border: 1px solid #94a3b8;
+  border-radius: 2px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.65rem;
+  line-height: 1;
+  color: #475569;
+  font-weight: bold;
+  background-color: #ffffff;
+  margin-right: 0.5rem;
+  user-select: none;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.bi-tree-btn:hover {
+  background-color: #e2e8f0;
+  border-color: #64748b;
+  color: #0f172a;
+}

@@ -737,8 +737,16 @@ select.premium-select:focus {
 }
 
 .dre-compact-table th,
-.dre-compact-table td {
+.dre-compact-table td:not(.sticky-col) {
   padding: 0.3rem 0.5rem !important;
+  font-size: 0.74rem !important;
+  border: 1px solid #e2e8f0 !important;
+}
+
+.dre-compact-table td.sticky-col {
+  padding-top: 0.3rem !important;
+  padding-bottom: 0.3rem !important;
+  padding-right: 0.5rem !important;
   font-size: 0.74rem !important;
   border: 1px solid #e2e8f0 !important;
 }

@@ -4298,6 +4298,7 @@ export default function BudgetGrid({
                                     }}>
                                         {i === 0 ? '-' : `${getMoMPercent().toFixed(1)}%`}
                                     </td>
+                                )}
                             </React.Fragment>
                         );
                     })}

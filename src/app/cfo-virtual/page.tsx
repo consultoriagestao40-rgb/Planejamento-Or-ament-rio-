@@ -24,6 +24,7 @@ export default function CFOVirtualPage() {
     const [sessions, setSessions] = useState<any[]>([]);
     const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
     const [isChatOpen, setIsChatOpen] = useState(false); // Controls the AI Chat Advisor drawer!
+    const [expiredTenants, setExpiredTenants] = useState<string[]>([]);
 
     // Dashboard Data
     const [dashboardData, setDashboardData] = useState<any>(null);
@@ -51,6 +52,16 @@ export default function CFOVirtualPage() {
                     } else {
                         setSelectedTenant('all'); // Default to consolidated/all
                     }
+                }
+
+                // Verificar conexões expiradas
+                const compRes = await fetch('/api/companies');
+                const compData = await compRes.json();
+                if (compData.success && compData.companies) {
+                    const expired = compData.companies
+                        .filter((t: any) => !t.tokenExpiresAt || new Date(t.tokenExpiresAt) < new Date())
+                        .map((t: any) => t.name);
+                    setExpiredTenants(expired);
                 }
             } catch (err) {
                 console.error('Erro ao carregar tenants:', err);
@@ -473,6 +484,44 @@ export default function CFOVirtualPage() {
 
     return (
         <div style={{ backgroundColor: '#0b0f19', minHeight: '100vh', width: '100%', color: '#f8fafc', fontFamily: 'Inter, system-ui, sans-serif', padding: '1.5rem', boxSizing: 'border-box', overflowX: 'hidden', position: 'relative' }}>
+            
+            {/* Warning Banner for Expired Connections */}
+            {expiredTenants.length > 0 && (
+                <div style={{
+                    backgroundColor: '#7f1d1d',
+                    border: '1px solid #b91c1c',
+                    borderRadius: '12px',
+                    padding: '1rem 1.25rem',
+                    marginBottom: '1.5rem',
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    fontSize: '0.85rem',
+                    color: '#fca5a5',
+                    fontWeight: 600,
+                    boxShadow: '0 2px 4px rgba(220, 38, 38, 0.05)'
+                }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <span style={{ fontSize: '1.2rem' }}>⚠️</span>
+                        <span>
+                            Conexão expirada com o Conta Azul para: <strong>{expiredTenants.join(', ')}</strong>. Os dados de fluxo de caixa estão desatualizados e os títulos pagos/recebidos recentemente não foram processados.
+                        </span>
+                    </div>
+                    <a href="/sync" style={{
+                        backgroundColor: '#dc2626',
+                        color: '#ffffff',
+                        padding: '0.5rem 1rem',
+                        borderRadius: '8px',
+                        textDecoration: 'none',
+                        fontSize: '0.8rem',
+                        fontWeight: 700,
+                        transition: 'background-color 0.2s',
+                        whiteSpace: 'nowrap'
+                    }}>
+                        Reconectar Conta Azul
+                    </a>
+                </div>
+            )}
             
             {/* 1. TOP HEADER & FILTERS */}
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #1f2937', paddingBottom: '1rem', marginBottom: '1.5rem', flexWrap: 'wrap', gap: '1rem' }}>

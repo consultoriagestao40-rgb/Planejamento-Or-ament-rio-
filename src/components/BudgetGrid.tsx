@@ -7474,42 +7474,27 @@ export default function BudgetGrid({
                                 </tr>
                             </thead>
                             <tbody>
-                                {renderGroupHeaderRow('RECEITAS', isReceitasExpanded, () => setIsReceitasExpanded(!isReceitasExpanded))}
-                                {isReceitasExpanded && (
-                                    <>
-                                        {renderSummaryRow('💵 01. RECEITA BRUTA', 'vRev', true, 'rev')}
-                                        {expandedGroups.has('rev') && dreStructure.buckets.rev.map(root => renderNode(root))}
-                                        {renderSummaryRow('💰 02. TRIBUTO SOBRE FATURAMENTO', 'vTaxes', true, 'taxes')}
-                                        {expandedGroups.has('taxes') && dreStructure.buckets.taxes.map(root => renderNode(root))}
-                                        {renderSummaryRow('(=) RECEITA LÍQUIDA', 'vRecLiq', true)}
-                                    </>
-                                )}
+                                {renderSummaryRow('💵 01. RECEITA BRUTA', 'vRev', true, 'rev')}
+                                {expandedGroups.has('rev') && dreStructure.buckets.rev.map(root => renderNode(root))}
+                                {renderSummaryRow('💰 02. TRIBUTO SOBRE FATURAMENTO', 'vTaxes', true, 'taxes')}
+                                {expandedGroups.has('taxes') && dreStructure.buckets.taxes.map(root => renderNode(root))}
+                                {renderSummaryRow('(=) RECEITA LÍQUIDA', 'vRecLiq', true)}
                                 
-                                {renderGroupHeaderRow('CUSTOS E DESPESAS', isCustosExpanded, () => setIsCustosExpanded(!isCustosExpanded))}
-                                {isCustosExpanded && (
-                                    <>
-                                        {renderSummaryRow('🗓️ 03. CUSTOS OPERACIONAIS', 'vCosts', true, 'costs')}
-                                        {expandedGroups.has('costs') && dreStructure.buckets.costs.map(root => renderNode(root))}
-                                        {renderSummaryRow('(=) MARGEM BRUTA', 'vGrossMarg', true)}
-                                        {renderSummaryRow('04. DESPESAS OPERACIONAIS', 'vOpExp', true, 'opExp')}
-                                        {expandedGroups.has('opExp') && dreStructure.buckets.opExp.map(root => renderNode(root))}
-                                        {renderSummaryRow('(=) MARGEM DE CONTRIBUIÇÃO', 'vContribMarg', true)}
-                                        {renderSummaryRow('📂 05. DESPESAS ADMINISTRATIVAS', 'vAdminExp', true, 'adminExp')}
-                                        {expandedGroups.has('adminExp') && dreStructure.buckets.adminExp.map(root => renderNode(root))}
-                                        {renderSummaryRow('(=) EBITDA', 'vEbitda', true)}
-                                    </>
-                                )}
+                                {renderSummaryRow('🗓️ 03. CUSTOS OPERACIONAIS', 'vCosts', true, 'costs')}
+                                {expandedGroups.has('costs') && dreStructure.buckets.costs.map(root => renderNode(root))}
+                                {renderSummaryRow('(=) MARGEM BRUTA', 'vGrossMarg', true)}
+                                {renderSummaryRow('04. DESPESAS OPERACIONAIS', 'vOpExp', true, 'opExp')}
+                                {expandedGroups.has('opExp') && dreStructure.buckets.opExp.map(root => renderNode(root))}
+                                {renderSummaryRow('(=) MARGEM DE CONTRIBUIÇÃO', 'vContribMarg', true)}
+                                {renderSummaryRow('📂 05. DESPESAS ADMINISTRATIVAS', 'vAdminExp', true, 'adminExp')}
+                                {expandedGroups.has('adminExp') && dreStructure.buckets.adminExp.map(root => renderNode(root))}
+                                {renderSummaryRow('(=) EBITDA', 'vEbitda', true)}
                                 
-                                {renderGroupHeaderRow('RESULTADO FINANCEIRO', isResultadosExpanded, () => setIsResultadosExpanded(!isResultadosExpanded))}
-                                {isResultadosExpanded && (
-                                    <>
-                                        {renderSummaryRow('📉 06. DESPESAS FINANCEIRAS', 'vFin', true, 'fin')}
-                                        {expandedGroups.has('fin') && dreStructure.buckets.fin.map(root => renderNode(root))}
-                                        {renderSummaryRow('(=) LUCRO LÍQUIDO', 'vNetProfit', true)}
-                                        {renderSummaryRow('07. Investimentos', 'vInvest', true, 'invest')}
-                                        {expandedGroups.has('invest') && dreStructure.buckets.invest.map(root => renderNode(root))}
-                                    </>
-                                )}
+                                {renderSummaryRow('📉 06. DESPESAS FINANCEIRAS', 'vFin', true, 'fin')}
+                                {expandedGroups.has('fin') && dreStructure.buckets.fin.map(root => renderNode(root))}
+                                {renderSummaryRow('(=) LUCRO LÍQUIDO', 'vNetProfit', true)}
+                                {renderSummaryRow('07. Investimentos', 'vInvest', true, 'invest')}
+                                {expandedGroups.has('invest') && dreStructure.buckets.invest.map(root => renderNode(root))}
                             </tbody>
                         </table>
                     </div>

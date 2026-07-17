@@ -243,6 +243,28 @@ export default function BudgetGrid({
         }
     };
 
+    const handlePrevMonth = () => {
+        if (startMonth > 0) {
+            setSelectedPeriodOption('personalizado');
+            setStartMonth(prev => prev - 1);
+            setEndMonth(prev => prev - 1);
+        }
+    };
+
+    const handleNextMonth = () => {
+        if (endMonth < 11) {
+            setSelectedPeriodOption('personalizado');
+            setStartMonth(prev => prev + 1);
+            setEndMonth(prev => prev + 1);
+        }
+    };
+
+    const handleFullYear = () => {
+        setSelectedPeriodOption('ano_todo');
+        setStartMonth(0);
+        setEndMonth(11);
+    };
+
     // --- Transaction Drill-down State ---
     const [selectedCell, setSelectedCell] = useState<{ categoryId: string, month: number, categoryName: string } | null>(null);
     const [transactions, setTransactions] = useState<any[]>([]);
@@ -4126,7 +4148,8 @@ export default function BudgetGrid({
                             )}
                         </div>
                     </td>
-                    {(viewPeriod === 'month' ? MONTHS : [1, 2, 3, 4]).map((_, i) => {
+                    {(viewPeriod === 'month' ? MONTHS.slice(startMonth, endMonth + 1) : [1, 2, 3, 4]).map((_, idx) => {
+                        const i = viewPeriod === 'month' ? (startMonth + idx) : idx;
                         let bVal = 0, rVal = 0;
                         let isLocked = false;
 
@@ -4345,7 +4368,8 @@ export default function BudgetGrid({
                                     </span>
                                 </div>
                             </td>
-                            {months.map((_, i) => {
+                            {(viewPeriod === 'month' ? months.slice(startMonth, endMonth + 1) : months).map((_, idx) => {
+                                const i = viewPeriod === 'month' ? (startMonth + idx) : idx;
                                 const val = itemsMap.get(itemName)?.[i] || 0;
                                 return (
                                     <React.Fragment key={i}>
@@ -4428,7 +4452,8 @@ export default function BudgetGrid({
                         <span style={{ color: 'inherit' }}>{label}</span>
                     </div>
                 </td>
-                {(viewPeriod === 'month' ? MONTHS : [1, 2, 3, 4]).map((_, i) => {
+                {(viewPeriod === 'month' ? MONTHS.slice(startMonth, endMonth + 1) : [1, 2, 3, 4]).map((_, idx) => {
+                    const i = viewPeriod === 'month' ? (startMonth + idx) : idx;
                     const sums = precomputedDreTotals[i];
                     const rowData = sums[validx];
                     let budgetVal = 0, realizedVal = 0;
@@ -6617,6 +6642,72 @@ export default function BudgetGrid({
                                 <option value="ano_todo">Ano Todo (Jan-Dez)</option>
                                 <option value="personalizado">Personalizado</option>
                             </select>
+
+                            {/* Botões de Navegação Rápida de Competência */}
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', background: 'var(--bg-surface)', padding: '2px', borderRadius: '8px', border: '1px solid var(--border-default)', height: '32px', boxSizing: 'border-box' }}>
+                                <button 
+                                    onClick={handlePrevMonth}
+                                    disabled={startMonth === 0}
+                                    style={{
+                                        border: 'none',
+                                        background: 'transparent',
+                                        cursor: startMonth === 0 ? 'not-allowed' : 'pointer',
+                                        padding: '0 0.5rem',
+                                        fontSize: '0.7rem',
+                                        fontWeight: 'bold',
+                                        height: '26px',
+                                        borderRadius: '6px',
+                                        color: startMonth === 0 ? 'var(--text-secondary)' : 'var(--text-primary)',
+                                        display: 'inline-flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                        transition: 'all 0.15s'
+                                    }}
+                                    title="Voltar 1 Mês"
+                                >
+                                    ◀
+                                </button>
+                                <button 
+                                    onClick={handleFullYear}
+                                    style={{
+                                        border: 'none',
+                                        background: selectedPeriodOption === 'ano_todo' ? 'var(--bg-base)' : 'transparent',
+                                        cursor: 'pointer',
+                                        padding: '0 0.5rem',
+                                        fontSize: '0.65rem',
+                                        fontWeight: 700,
+                                        height: '26px',
+                                        borderRadius: '6px',
+                                        color: 'var(--text-primary)',
+                                        boxShadow: selectedPeriodOption === 'ano_todo' ? '0 1px 3px rgba(0,0,0,0.05)' : 'none',
+                                        transition: 'all 0.15s'
+                                    }}
+                                >
+                                    Ano Todo
+                                </button>
+                                <button 
+                                    onClick={handleNextMonth}
+                                    disabled={endMonth === 11}
+                                    style={{
+                                        border: 'none',
+                                        background: 'transparent',
+                                        cursor: endMonth === 11 ? 'not-allowed' : 'pointer',
+                                        padding: '0 0.5rem',
+                                        fontSize: '0.7rem',
+                                        fontWeight: 'bold',
+                                        height: '26px',
+                                        borderRadius: '6px',
+                                        color: endMonth === 11 ? 'var(--text-secondary)' : 'var(--text-primary)',
+                                        display: 'inline-flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                        transition: 'all 0.15s'
+                                    }}
+                                    title="Avançar 1 Mês"
+                                >
+                                    ▶
+                                </button>
+                            </div>
                         </div>
 
                         {selectedPeriodOption === 'personalizado' && (
@@ -7379,6 +7470,72 @@ export default function BudgetGrid({
                                 <option value="ano_todo">Ano Todo (Jan-Dez)</option>
                                 <option value="personalizado">Personalizado</option>
                             </select>
+
+                            {/* Botões de Navegação Rápida de Competência */}
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', background: '#f1f5f9', padding: '2px', borderRadius: '8px', border: '1px solid #e2e8f0', height: '32px', boxSizing: 'border-box' }}>
+                                <button 
+                                    onClick={handlePrevMonth}
+                                    disabled={startMonth === 0}
+                                    style={{
+                                        border: 'none',
+                                        background: 'transparent',
+                                        cursor: startMonth === 0 ? 'not-allowed' : 'pointer',
+                                        padding: '0 0.5rem',
+                                        fontSize: '0.75rem',
+                                        fontWeight: 'bold',
+                                        height: '26px',
+                                        borderRadius: '6px',
+                                        color: startMonth === 0 ? '#94a3b8' : '#334155',
+                                        display: 'inline-flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                        transition: 'all 0.15s'
+                                    }}
+                                    title="Voltar 1 Mês"
+                                >
+                                    ◀
+                                </button>
+                                <button 
+                                    onClick={handleFullYear}
+                                    style={{
+                                        border: 'none',
+                                        background: selectedPeriodOption === 'ano_todo' ? '#ffffff' : 'transparent',
+                                        cursor: 'pointer',
+                                        padding: '0 0.5rem',
+                                        fontSize: '0.7rem',
+                                        fontWeight: 700,
+                                        height: '26px',
+                                        borderRadius: '6px',
+                                        color: '#334155',
+                                        boxShadow: selectedPeriodOption === 'ano_todo' ? '0 1px 3px rgba(0,0,0,0.1)' : 'none',
+                                        transition: 'all 0.15s'
+                                    }}
+                                >
+                                    Ano Todo
+                                </button>
+                                <button 
+                                    onClick={handleNextMonth}
+                                    disabled={endMonth === 11}
+                                    style={{
+                                        border: 'none',
+                                        background: 'transparent',
+                                        cursor: endMonth === 11 ? 'not-allowed' : 'pointer',
+                                        padding: '0 0.5rem',
+                                        fontSize: '0.75rem',
+                                        fontWeight: 'bold',
+                                        height: '26px',
+                                        borderRadius: '6px',
+                                        color: endMonth === 11 ? '#94a3b8' : '#334155',
+                                        display: 'inline-flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                        transition: 'all 0.15s'
+                                    }}
+                                    title="Avançar 1 Mês"
+                                >
+                                    ▶
+                                </button>
+                            </div>
                         </div>
 
                         {selectedPeriodOption === 'personalizado' && (
@@ -7477,7 +7634,8 @@ export default function BudgetGrid({
                                             <span style={{ fontSize: '0.8rem', fontWeight: 700 }}>ESTRUTURA DRE — {selectedYear}</span>
                                         </div>
                                     </th>
-                                    {(viewPeriod === 'month' ? MONTHS : ['1º Tri', '2º Tri', '3º Tri', '4º Tri']).map((c, i) => {
+                                    {(viewPeriod === 'month' ? MONTHS.slice(startMonth, endMonth + 1) : ['1º Tri', '2º Tri', '3º Tri', '4º Tri']).map((c, idx) => {
+                                        const i = viewPeriod === 'month' ? (startMonth + idx) : idx;
                                         const colsPerMonth = 
                                             (showOrcado ? 1 : 0) + 
                                             (showRealizado ? 1 : 0) + 
@@ -7507,7 +7665,8 @@ export default function BudgetGrid({
                                 </tr>
                                 <tr>
                                     <th className="sticky-col" style={{ width: '400px', minWidth: '400px', maxWidth: '400px', backgroundColor: '#f1f5f9' }}></th>
-                                    {(viewPeriod === 'month' ? MONTHS : [1, 2, 3, 4]).map((_, i) => {
+                                    {(viewPeriod === 'month' ? MONTHS.slice(startMonth, endMonth + 1) : [1, 2, 3, 4]).map((_, idx) => {
+                                        const i = viewPeriod === 'month' ? (startMonth + idx) : idx;
                                         const isHighlighted = viewPeriod === 'month' && i === highlightedMonth;
                                         const highlightBgOrç = isHighlighted ? '#1e40af' : '#f1f5f9';
                                         const highlightTextOrç = isHighlighted ? '#ffffff' : '#334155';

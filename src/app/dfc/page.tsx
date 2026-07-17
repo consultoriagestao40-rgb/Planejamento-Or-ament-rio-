@@ -58,6 +58,7 @@ export default function DFCPage() {
     const [activeTab, setActiveTab] = useState<'projection' | 'table' | 'audit' | 'car' | 'cap'>('projection');
     const [hoveredPoint, setHoveredPoint] = useState<any | null>(null);
     const [chartView, setChartView] = useState<'day' | 'week' | 'quinzena' | 'month'>('week');
+    const [sidebarTab, setSidebarTab] = useState<'faturamento' | 'deducoes'>('faturamento');
 
     // Filtros e estados das novas abas CAR e CAP
     const [carSearch, setCarSearch] = useState<string>('');
@@ -334,256 +335,369 @@ export default function DFCPage() {
     const renderChart = () => {
         if (!data || !data.dailyProjection || data.dailyProjection.length === 0) return null;
 
-        // Limitar visualização diária para 45 dias para legibilidade
-        const points = chartView === 'day' 
-            ? groupedProjection.slice(0, 45) 
-            : groupedProjection;
+        // --- CALCULATE DASHBOARD TOTALS & AGGREGATIONS ---
+        const totalFaturamento = data.monthlyData.reduce((sum, m) => sum + m.recebimentosOperacionais, 0);
+        const totalDespesas = data.monthlyData.reduce((sum, m) => sum + m.pagamentosOperacionais, 0);
+        const totalLucro = totalFaturamento - totalDespesas;
 
-        const width = 1000;
-        const height = 320;
-        const paddingLeft = 70;
-        const paddingRight = 70;
-        const paddingTop = 40;
-        const paddingBottom = 40;
-        const chartWidth = width - paddingLeft - paddingRight;
-        const chartHeight = height - paddingTop - paddingBottom;
-        const baselineY = paddingTop + chartHeight / 2; // Linha de zero para as barras (Y = 160)
+        // Deduções (Tributos / Grupo 02 ou 2.)
+        const totalDeducoes = data.monthlyData.reduce((sum, m) => {
+            return sum + Object.values(m.categories).reduce((acc, c) => {
+                const nameUpper = c.name.toUpperCase();
+                const isTax = nameUpper.startsWith('02') || nameUpper.startsWith('2.') || 
+                              nameUpper.includes('SIMPLES NACIONAL') || nameUpper.includes('DAS') ||
+                              nameUpper.includes('TRIBUTO') || nameUpper.includes('IMPOSTO');
+                return acc + (isTax ? c.amount : 0);
+            }, 0);
+        }, 0);
 
-        // Escala das Barras (Entradas e Saídas)
-        const maxBarVal = Math.max(...points.map(p => Math.max(p.inflows, p.outflows)), 1000) * 1.1;
-        const barScale = (chartHeight / 2) / maxBarVal; // Altura máxima de cada barra é metade do gráfico
-
-        // Escala da Linha de Saldo (Simétrica em torno de zero para alinhar a linha zero com as barras)
-        const balances = points.map(p => p.balance);
-        const absoluteMaxBal = Math.max(...balances.map(b => Math.abs(b)), 1000) * 1.05;
-        const maxBal = absoluteMaxBal;
-        const minBal = -absoluteMaxBal;
-        const balRange = maxBal - minBal;
-        const balScale = chartHeight / (balRange || 1);
-
-        const getX = (index: number) => {
-            if (points.length <= 1) return paddingLeft + chartWidth / 2;
-            return paddingLeft + (index / (points.length - 1)) * chartWidth;
-        };
-
-        const getBalY = (val: number) => {
-            return paddingTop + chartHeight - ((val - minBal) * balScale);
-        };
-
-        // Gerar string do path da linha de saldo
-        let pathD = '';
-        points.forEach((p, idx) => {
-            const x = getX(idx);
-            const y = getBalY(p.balance);
-            if (idx === 0) pathD += `M ${x} ${y}`;
-            else pathD += ` L ${x} ${y}`;
+        // Aggregate Revenues
+        const revenueMap: Record<string, number> = {};
+        data.monthlyData.forEach(m => {
+            Object.values(m.categories).forEach(c => {
+                if (c.dfcClass === 'OPERATIONAL_IN') {
+                    revenueMap[c.name] = (revenueMap[c.name] || 0) + c.amount;
+                }
+            });
         });
+        const revenueCats = Object.entries(revenueMap)
+            .map(([name, amount]) => ({ name, amount }))
+            .sort((a, b) => b.amount - a.amount);
 
-        // Configuração de hover do ponto
-        const barWidth = Math.max(2, (chartWidth / points.length) * 0.4);
+        // Aggregate Deduções (Taxes)
+        const taxMap: Record<string, number> = {};
+        data.monthlyData.forEach(m => {
+            Object.values(m.categories).forEach(c => {
+                const nameUpper = c.name.toUpperCase();
+                const isTax = nameUpper.startsWith('02') || nameUpper.startsWith('2.') || 
+                              nameUpper.includes('SIMPLES NACIONAL') || nameUpper.includes('DAS') ||
+                              nameUpper.includes('TRIBUTO') || nameUpper.includes('IMPOSTO');
+                if (isTax) {
+                    taxMap[c.name] = (taxMap[c.name] || 0) + c.amount;
+                }
+            });
+        });
+        const taxCats = Object.entries(taxMap)
+            .map(([name, amount]) => ({ name, amount }))
+            .sort((a, b) => b.amount - a.amount);
+
+        // Aggregate Expenses (Operational Outflows without Taxes)
+        const expenseMap: Record<string, number> = {};
+        data.monthlyData.forEach(m => {
+            Object.values(m.categories).forEach(c => {
+                const nameUpper = c.name.toUpperCase();
+                const isTax = nameUpper.startsWith('02') || nameUpper.startsWith('2.') || 
+                              nameUpper.includes('SIMPLES NACIONAL') || nameUpper.includes('DAS') ||
+                              nameUpper.includes('TRIBUTO') || nameUpper.includes('IMPOSTO');
+                if (c.dfcClass === 'OPERATIONAL_OUT' && !isTax) {
+                    expenseMap[c.name] = (expenseMap[c.name] || 0) + c.amount;
+                }
+            });
+        });
+        const expenseCats = Object.entries(expenseMap)
+            .map(([name, amount]) => ({ name, amount }))
+            .sort((a, b) => b.amount - a.amount);
 
         return (
-            <div style={{ position: 'relative', width: '100%', boxSizing: 'border-box', backgroundColor: '#ffffff', borderRadius: '12px', padding: '1.5rem', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)' }}>
-                {/* Controles de Visualização */}
-                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '1.5rem', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
-                    <div>
-                        <h3 style={{ fontSize: '1rem', fontWeight: 700, color: '#0f172a', margin: 0 }}>Fluxo de Caixa Projetado</h3>
-                        <p style={{ margin: '0.1rem 0 0', fontSize: '0.8rem', color: '#64748b' }}>
-                            Visualização gráfica das entradas, saídas e evolução do saldo acumulado.
-                        </p>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', width: '100%', boxSizing: 'border-box' }}>
+                {/* 1. TOP STATS BAR (Faturamento, Despesas, Lucro, Donut Chart) */}
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '1.5rem', width: '100%' }}>
+                    {/* Left block: 3 KPI Cards */}
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                        {/* KPI Faturamento */}
+                        <div style={{ backgroundColor: '#ffffff', borderRadius: '12px', padding: '1.25rem 1.5rem', border: '1px solid #e2e8f0', boxShadow: '0 1px 3px rgba(0,0,0,0.02)', display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                            <div style={{ width: '40px', height: '40px', borderRadius: '8px', backgroundColor: '#e6f4ea', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#137333', fontSize: '1.2rem' }}>
+                                💰
+                            </div>
+                            <div>
+                                <span style={{ fontSize: '0.75rem', color: '#64748b', fontWeight: 600, textTransform: 'uppercase' }}>Faturamento</span>
+                                <h2 style={{ fontSize: '1.4rem', fontWeight: 800, color: '#137333', margin: 0 }}>{formatCurrency(totalFaturamento)}</h2>
+                            </div>
+                        </div>
+                        {/* KPI Despesas */}
+                        <div style={{ backgroundColor: '#ffffff', borderRadius: '12px', padding: '1.25rem 1.5rem', border: '1px solid #e2e8f0', boxShadow: '0 1px 3px rgba(0,0,0,0.02)', display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                            <div style={{ width: '40px', height: '40px', borderRadius: '8px', backgroundColor: '#fce8e6', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#c5221f', fontSize: '1.2rem' }}>
+                                📉
+                            </div>
+                            <div>
+                                <span style={{ fontSize: '0.75rem', color: '#64748b', fontWeight: 600, textTransform: 'uppercase' }}>Despesas</span>
+                                <h2 style={{ fontSize: '1.4rem', fontWeight: 800, color: '#c5221f', margin: 0 }}>{formatCurrency(totalDespesas)}</h2>
+                            </div>
+                        </div>
+                        {/* KPI Lucro */}
+                        <div style={{ backgroundColor: '#ffffff', borderRadius: '12px', padding: '1.25rem 1.5rem', border: '1px solid #e2e8f0', boxShadow: '0 1px 3px rgba(0,0,0,0.02)', display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                            <div style={{ width: '40px', height: '40px', borderRadius: '8px', backgroundColor: '#e8f0fe', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#1a73e8', fontSize: '1.2rem' }}>
+                                📈
+                            </div>
+                            <div>
+                                <span style={{ fontSize: '0.75rem', color: '#64748b', fontWeight: 600, textTransform: 'uppercase' }}>Fluxo Operacional (Lucro)</span>
+                                <h2 style={{ fontSize: '1.4rem', fontWeight: 800, color: totalLucro >= 0 ? '#1a73e8' : '#c5221f', margin: 0 }}>{formatCurrency(totalLucro)}</h2>
+                            </div>
+                        </div>
                     </div>
-                    
-                    {/* Botões de Agrupamento */}
-                    <div style={{ display: 'flex', backgroundColor: '#f1f5f9', padding: '0.25rem', borderRadius: '8px', gap: '0.25rem' }}>
-                        {(['day', 'week', 'quinzena', 'month'] as const).map((view) => {
-                            const labelMap = { day: 'Dia', week: 'Semana', quinzena: 'Quinzena', month: 'Mês' };
-                            const isActive = chartView === view;
-                            return (
-                                <button
-                                    key={view}
-                                    onClick={() => setChartView(view)}
-                                    style={{
-                                        padding: '0.35rem 0.75rem',
-                                        borderRadius: '6px',
-                                        border: 'none',
-                                        backgroundColor: isActive ? '#ffffff' : 'transparent',
-                                        color: isActive ? '#0f172a' : '#64748b',
-                                        fontWeight: 600,
-                                        fontSize: '0.75rem',
-                                        cursor: 'pointer',
-                                        boxShadow: isActive ? '0 1px 3px rgba(0,0,0,0.08)' : 'none',
-                                        transition: 'all 0.15s'
-                                    }}
-                                >
-                                    {labelMap[view]}
-                                </button>
-                            );
-                        })}
+
+                    {/* Donut Chart block for expense breakout */}
+                    <div style={{ backgroundColor: '#ffffff', borderRadius: '12px', padding: '1.25rem 1.5rem', border: '1px solid #e2e8f0', boxShadow: '0 1px 3px rgba(0,0,0,0.02)', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                        <span style={{ fontSize: '0.75rem', color: '#64748b', fontWeight: 600, textTransform: 'uppercase' }}>Distribuição de Despesas Operacionais</span>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '1.5rem', height: '100%' }}>
+                            {/* SVG Donut */}
+                            <div style={{ position: 'relative', width: '100px', height: '100px', flexShrink: 0 }}>
+                                <svg width="100" height="100" viewBox="0 0 36 36">
+                                    <circle cx="18" cy="18" r="15.915" fill="none" stroke="#f1f5f9" strokeWidth="4" />
+                                    {(() => {
+                                        let accumulatedPercent = 0;
+                                        const colors = ['#3b82f6', '#f59e0b', '#10b981', '#ec4899', '#6366f1'];
+                                        const totalOpExpenses = expenseCats.reduce((sum, c) => sum + c.amount, 0) || 1;
+                                        return expenseCats.slice(0, 4).map((c, idx) => {
+                                            const pct = (c.amount / totalOpExpenses) * 100;
+                                            const dashArray = `${pct} ${100 - pct}`;
+                                            const dashOffset = 100 - accumulatedPercent + 25; // 25 to start at top
+                                            accumulatedPercent += pct;
+                                            return (
+                                                <circle
+                                                    key={idx}
+                                                    cx="18"
+                                                    cy="18"
+                                                    r="15.915"
+                                                    fill="none"
+                                                    stroke={colors[idx % colors.length]}
+                                                    strokeWidth="4"
+                                                    strokeDasharray={dashArray}
+                                                    strokeDashoffset={dashOffset}
+                                                />
+                                            );
+                                        });
+                                    })()}
+                                </svg>
+                                <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.65rem', fontWeight: 700, color: '#64748b', textTransform: 'uppercase' }}>DFC</div>
+                            </div>
+                            {/* Legends and Shares */}
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem', width: '100%' }}>
+                                {(() => {
+                                    const colors = ['#3b82f6', '#f59e0b', '#10b981', '#ec4899', '#6366f1'];
+                                    const totalOpExpenses = expenseCats.reduce((sum, c) => sum + c.amount, 0) || 1;
+                                    return expenseCats.slice(0, 4).map((c, idx) => {
+                                        const pct = (c.amount / totalOpExpenses) * 100;
+                                        return (
+                                            <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.7rem' }}>
+                                                <span style={{ display: 'flex', alignItems: 'center', gap: '4px', color: '#475569', fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '120px' }}>
+                                                    <span style={{ display: 'inline-block', width: '8px', height: '8px', backgroundColor: colors[idx % colors.length], borderRadius: '50%', flexShrink: 0 }}></span>
+                                                    {c.name.replace(/^\d+(\.\d+)*\s*-?\s*/, '')}
+                                                </span>
+                                                <span style={{ fontWeight: 700, color: '#0f172a' }}>{pct.toFixed(1)}%</span>
+                                            </div>
+                                        );
+                                    });
+                                })()}
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Right block: Deduções KPI & Sidebar tab toggles */}
+                    <div style={{ backgroundColor: '#ffffff', borderRadius: '12px', padding: '1.25rem 1.5rem', border: '1px solid #e2e8f0', boxShadow: '0 1px 3px rgba(0,0,0,0.02)', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
+                        <div>
+                            <span style={{ fontSize: '0.75rem', color: '#64748b', fontWeight: 600, textTransform: 'uppercase' }}>% Deduções (Tributos)</span>
+                            <h2 style={{ fontSize: '1.6rem', fontWeight: 800, color: '#d97706', margin: '0.2rem 0 0' }}>{formatCurrency(totalDeducoes)}</h2>
+                            <p style={{ margin: '0.25rem 0 0', fontSize: '0.7rem', color: '#64748b' }}>
+                                {totalFaturamento > 0 ? `${((totalDeducoes / totalFaturamento) * 100).toFixed(1)}% do faturamento total` : '0%'}
+                            </p>
+                        </div>
+                        {/* Sidebar Toggles */}
+                        <div style={{ display: 'flex', backgroundColor: '#f1f5f9', padding: '2px', borderRadius: '8px', gap: '2px', marginTop: '1rem' }}>
+                            <button 
+                                onClick={() => setSidebarTab('faturamento')}
+                                style={{
+                                    flex: 1,
+                                    border: 'none',
+                                    background: sidebarTab === 'faturamento' ? '#ffffff' : 'transparent',
+                                    color: sidebarTab === 'faturamento' ? '#0f172a' : '#64748b',
+                                    fontWeight: 700,
+                                    fontSize: '0.72rem',
+                                    padding: '0.35rem 0',
+                                    borderRadius: '6px',
+                                    cursor: 'pointer',
+                                    boxShadow: sidebarTab === 'faturamento' ? '0 1px 2px rgba(0,0,0,0.05)' : 'none',
+                                    transition: 'all 0.15s'
+                                }}
+                            >
+                                Faturamento
+                            </button>
+                            <button 
+                                onClick={() => setSidebarTab('deducoes')}
+                                style={{
+                                    flex: 1,
+                                    border: 'none',
+                                    background: sidebarTab === 'deducoes' ? '#ffffff' : 'transparent',
+                                    color: sidebarTab === 'deducoes' ? '#0f172a' : '#64748b',
+                                    fontWeight: 700,
+                                    fontSize: '0.72rem',
+                                    padding: '0.35rem 0',
+                                    borderRadius: '6px',
+                                    cursor: 'pointer',
+                                    boxShadow: sidebarTab === 'deducoes' ? '0 1px 2px rgba(0,0,0,0.05)' : 'none',
+                                    transition: 'all 0.15s'
+                                }}
+                            >
+                                Deduções
+                            </button>
+                        </div>
                     </div>
                 </div>
 
-                {/* Legendas de Cores */}
-                <div style={{ display: 'flex', gap: '1.5rem', fontSize: '0.8rem', marginBottom: '1.5rem', flexWrap: 'wrap', borderBottom: '1px solid #f1f5f9', paddingBottom: '0.75rem' }}>
-                    <span style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', color: '#475569', fontWeight: 500 }}>
-                        <span style={{ display: 'inline-block', width: '12px', height: '12px', backgroundColor: '#10b981', borderRadius: '3px' }}></span> Entradas (Recebimentos)
-                    </span>
-                    <span style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', color: '#475569', fontWeight: 500 }}>
-                        <span style={{ display: 'inline-block', width: '12px', height: '12px', backgroundColor: '#ef4444', borderRadius: '3px' }}></span> Saídas (Custos / Despesas)
-                    </span>
-                    <span style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', color: '#475569', fontWeight: 500 }}>
-                        <span style={{ display: 'inline-block', width: '16px', height: '3px', backgroundColor: '#2563eb', borderRadius: '2px' }}></span> Saldo Acumulado
-                    </span>
-                </div>
-
-                <div style={{ overflowX: 'auto', width: '100%' }}>
-                    <svg viewBox={`0 0 ${width} ${height}`} width="100%" height={height} style={{ overflow: 'visible', minWidth: '800px' }}>
-                        {/* Linhas de Grade de Fundo */}
-                        {[0.1, 0.3, 0.5, 0.7, 0.9].map((ratio, idx) => {
-                            const y = paddingTop + ratio * chartHeight;
-                            return (
-                                <line key={idx} x1={paddingLeft} y1={y} x2={width - paddingRight} y2={y} stroke="#f1f5f9" strokeWidth="1" />
-                            );
-                        })}
-
-                        {/* Linha Central de Baseline zero (para barras) */}
-                        <line x1={paddingLeft} y1={baselineY} x2={width - paddingRight} y2={baselineY} stroke="#cbd5e1" strokeWidth="1.5" />
-
-                        {/* Y-Axis Esquerda (Entradas / Saídas) */}
-                        <text x={paddingLeft - 10} y={paddingTop + 5} textAnchor="end" fontSize="9" fill="#10b981" fontWeight="700">+{new Intl.NumberFormat('pt-BR', { notation: 'compact' }).format(maxBarVal)}</text>
-                        <text x={paddingLeft - 10} y={baselineY + 3} textAnchor="end" fontSize="9" fill="#64748b" fontWeight="600">0</text>
-                        <text x={paddingLeft - 10} y={paddingTop + chartHeight} textAnchor="end" fontSize="9" fill="#ef4444" fontWeight="700">-{new Intl.NumberFormat('pt-BR', { notation: 'compact' }).format(maxBarVal)}</text>
-
-                        {/* Y-Axis Direita (Saldo Acumulado) */}
-                        <text x={width - paddingRight + 10} y={paddingTop + 5} textAnchor="start" fontSize="9" fill="#2563eb" fontWeight="700">+{new Intl.NumberFormat('pt-BR', { notation: 'compact' }).format(maxBal)}</text>
-                        <text x={width - paddingRight + 10} y={baselineY + 3} textAnchor="start" fontSize="9" fill="#64748b" fontWeight="600">0</text>
-                        <text x={width - paddingRight + 10} y={paddingTop + chartHeight} textAnchor="start" fontSize="9" fill="#2563eb" fontWeight="700">-{new Intl.NumberFormat('pt-BR', { notation: 'compact' }).format(maxBal)}</text>
-
-                        {/* 1. Desenhar Barras de Entradas e Saídas */}
-                        {points.map((p, idx) => {
-                            const x = getX(idx);
-                            
-                            // Inflows Bar (Green, goes UP from baselineY)
-                            const inflowHeight = p.inflows * barScale;
-                            const inflowY = baselineY - inflowHeight;
-
-                            // Outflows Bar (Red, goes DOWN from baselineY)
-                            const outflowHeight = p.outflows * barScale;
-
-                            return (
-                                <g key={idx}>
-                                    {/* Barra de Entradas */}
-                                    {p.inflows > 0 && (
-                                        <rect
-                                            x={x - barWidth / 2}
-                                            y={inflowY}
-                                            width={barWidth}
-                                            height={inflowHeight}
-                                            fill="#10b981"
-                                            opacity="0.85"
-                                            rx="1"
-                                        />
-                                    )}
-                                    {/* Barra de Saídas */}
-                                    {p.outflows > 0 && (
-                                        <rect
-                                            x={x - barWidth / 2}
-                                            y={baselineY}
-                                            width={barWidth}
-                                            height={outflowHeight}
-                                            fill="#ef4444"
-                                            opacity="0.85"
-                                            rx="1"
-                                        />
-                                    )}
-                                </g>
-                            );
-                        })}
-
-                        {/* 2. Desenhar Linha de Saldo Acumulado */}
-                        <path d={pathD} fill="none" stroke="#2563eb" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
-
-                        {/* 3. Desenhar Pontos e Área de Interação da Linha de Saldo */}
-                        {points.map((p, idx) => {
-                            const x = getX(idx);
-                            const y = getBalY(p.balance);
-
-                            return (
-                                <g key={`dot-${idx}`}>
-                                    {/* Círculo da linha de saldo */}
-                                    <circle
-                                        cx={x}
-                                        cy={y}
-                                        r={hoveredPoint && hoveredPoint.idx === idx ? 6 : 2.5}
-                                        fill={hoveredPoint && hoveredPoint.idx === idx ? '#1d4ed8' : '#2563eb'}
-                                        stroke="#ffffff"
-                                        strokeWidth={2}
-                                        style={{ cursor: 'pointer', transition: 'r 0.1s, fill 0.1s' }}
-                                        onMouseEnter={() => setHoveredPoint({ idx, ...p })}
-                                        onMouseLeave={() => setHoveredPoint(null)}
-                                    />
-
-                                    {/* Rótulos do Eixo X (Datas) - Exibir a cada N pontos dependendo do tamanho */}
-                                    {((points.length < 15) || (points.length < 35 && idx % 3 === 0) || (idx % 6 === 0)) && (
-                                        <text
-                                            x={x}
-                                            y={height - paddingBottom + 18}
-                                            textAnchor="middle"
-                                            fontSize="9"
-                                            fill="#64748b"
-                                            fontWeight="600"
-                                        >
-                                            {p.formattedDate}
-                                        </text>
-                                    )}
-                                </g>
-                            );
-                        })}
-                    </svg>
-                </div>
-
-                {/* Tooltip interativo */}
-                {hoveredPoint && (
-                    <div style={{
-                        position: 'absolute',
-                        top: '80px',
-                        left: '50%',
-                        transform: 'translateX(-50%)',
-                        backgroundColor: '#1e293b',
-                        color: '#ffffff',
-                        padding: '0.85rem 1.2rem',
-                        borderRadius: '10px',
-                        fontSize: '0.8rem',
-                        boxShadow: '0 10px 15px -3px rgba(0,0,0,0.3)',
-                        border: '1px solid #334155',
-                        zIndex: 10,
-                        pointerEvents: 'none',
-                        display: 'flex',
-                        flexDirection: 'column',
-                        gap: '0.35rem'
-                    }}>
-                        <div style={{ fontWeight: 700, borderBottom: '1px solid #334155', paddingBottom: '0.35rem', color: '#93c5fd', fontSize: '0.85rem' }}>
-                            Período: {chartView === 'day' ? new Date(hoveredPoint.date).toLocaleDateString('pt-BR', { dateStyle: 'long' }) : `A partir de ${new Date(hoveredPoint.date).toLocaleDateString('pt-BR')}`}
+                {/* 2. BOTTOM MAIN GRID (Charts + Sidebar Lists) */}
+                <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) 300px', gap: '1.5rem', width: '100%', alignItems: 'stretch' }}>
+                    {/* Left Column: Visual Charts (Bar Chart and Line Chart) */}
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', minWidth: 0 }}>
+                        {/* Chart 1: Faturamento e Despesas (Bar Chart) */}
+                        <div style={{ backgroundColor: '#ffffff', borderRadius: '12px', padding: '1.5rem', border: '1px solid #e2e8f0', boxShadow: '0 1px 3px rgba(0,0,0,0.02)' }}>
+                            <h3 style={{ fontSize: '0.85rem', fontWeight: 700, color: '#0f172a', margin: '0 0 1.25rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Faturamento vs Despesas (Mensal)</h3>
+                            <div style={{ overflowX: 'auto', width: '100%' }}>
+                                <svg width="100%" height="160" viewBox="0 0 600 160" style={{ overflow: 'visible', minWidth: '450px' }}>
+                                    {/* Monthly comparison bars */}
+                                    {(() => {
+                                        const months = data.monthlyData;
+                                        const maxVal = Math.max(...months.map(m => Math.max(m.recebimentosOperacionais, m.pagamentosOperacionais)), 1000) * 1.1;
+                                        const heightScale = 110 / maxVal;
+                                        const colWidth = 600 / months.length;
+                                        const barW = Math.max(4, colWidth * 0.25);
+                                        return months.map((m, idx) => {
+                                            const x = idx * colWidth + colWidth / 2;
+                                            const inH = m.recebimentosOperacionais * heightScale;
+                                            const outH = m.pagamentosOperacionais * heightScale;
+                                            const inY = 120 - inH;
+                                            const outY = 120 - outH;
+                                            return (
+                                                <g key={m.month}>
+                                                    {/* Faturamento Bar (Green) */}
+                                                    <rect x={x - barW - 1} y={inY} width={barW} height={inH} fill="#10b981" rx="2" />
+                                                    {/* Despesas Bar (Red) */}
+                                                    <rect x={x + 1} y={outY} width={barW} height={outH} fill="#ef4444" rx="2" />
+                                                    {/* Month label */}
+                                                    <text x={x} y="138" textAnchor="middle" fontSize="9" fill="#64748b" fontWeight="600">{m.name}</text>
+                                                </g>
+                                            );
+                                        });
+                                    })()}
+                                    <line x1="0" y1="120" x2="600" y2="120" stroke="#e2e8f0" strokeWidth="1.5" />
+                                </svg>
+                            </div>
                         </div>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', gap: '2rem' }}>
-                            <span>Entradas no Período:</span>
-                            <span style={{ fontWeight: 700, color: '#4ade80' }}>
-                                +{formatCurrency(hoveredPoint.inflows)}
-                            </span>
-                        </div>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', gap: '2rem' }}>
-                            <span>Saídas no Período:</span>
-                            <span style={{ fontWeight: 700, color: '#f87171' }}>
-                                -{formatCurrency(hoveredPoint.outflows)}
-                            </span>
-                        </div>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', gap: '2rem', borderTop: '1px solid #334155', paddingTop: '0.35rem', marginTop: '0.15rem' }}>
-                            <span>Saldo Acumulado:</span>
-                            <span style={{ fontWeight: 800, color: '#60a5fa', fontSize: '0.85rem' }}>
-                                {formatCurrency(hoveredPoint.balance)}
-                            </span>
+
+                        {/* Chart 2: Saldo por dia (Line Chart) */}
+                        <div style={{ backgroundColor: '#ffffff', borderRadius: '12px', padding: '1.5rem', border: '1px solid #e2e8f0', boxShadow: '0 1px 3px rgba(0,0,0,0.02)' }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '1.25rem', alignItems: 'center' }}>
+                                <h3 style={{ fontSize: '0.85rem', fontWeight: 700, color: '#0f172a', margin: 0, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Saldo Bancário Diário (Projeção)</h3>
+                                {/* Controls */}
+                                <div style={{ display: 'flex', backgroundColor: '#f1f5f9', padding: '2px', borderRadius: '6px', gap: '2px' }}>
+                                    {(['day', 'week', 'quinzena', 'month'] as const).map((view) => {
+                                        const labelMap = { day: 'Dia', week: 'Sem', quinzena: 'Quin', month: 'Mês' };
+                                        const isActive = chartView === view;
+                                        return (
+                                            <button
+                                                key={view}
+                                                onClick={() => setChartView(view)}
+                                                style={{
+                                                    padding: '0.25rem 0.5rem',
+                                                    borderRadius: '4px',
+                                                    border: 'none',
+                                                    backgroundColor: isActive ? '#ffffff' : 'transparent',
+                                                    color: isActive ? '#0f172a' : '#64748b',
+                                                    fontWeight: 600,
+                                                    fontSize: '0.65rem',
+                                                    cursor: 'pointer',
+                                                    boxShadow: isActive ? '0 1px 2px rgba(0,0,0,0.05)' : 'none',
+                                                    transition: 'all 0.15s'
+                                                }}
+                                            >
+                                                {labelMap[view]}
+                                            </button>
+                                        );
+                                    })}
+                                </div>
+                            </div>
+                            <div style={{ overflowX: 'auto', width: '100%' }}>
+                                <svg width="100%" height="150" viewBox="0 0 600 150" style={{ overflow: 'visible', minWidth: '450px' }}>
+                                    {/* Daily Projection Line & Area */}
+                                    {(() => {
+                                        const chartPoints = chartView === 'day' ? groupedProjection.slice(0, 45) : groupedProjection;
+                                        if (chartPoints.length === 0) return null;
+                                        const balances = chartPoints.map(p => p.balance);
+                                        const maxBal = Math.max(...balances, 1000);
+                                        const minBal = Math.min(...balances, -1000);
+                                        const range = maxBal - minBal || 1;
+                                        const getX = (idx: number) => (idx / (chartPoints.length - 1)) * 600;
+                                        const getY = (val: number) => 120 - ((val - minBal) / range) * 100;
+
+                                        let dPath = '';
+                                        let areaPath = `M 0 120`;
+                                        chartPoints.forEach((p, idx) => {
+                                            const x = getX(idx);
+                                            const y = getY(p.balance);
+                                            if (idx === 0) {
+                                                dPath += `M ${x} ${y}`;
+                                                areaPath += ` L ${x} ${y}`;
+                                            } else {
+                                                dPath += ` L ${x} ${y}`;
+                                                areaPath += ` L ${x} ${y}`;
+                                            }
+                                        });
+                                        areaPath += ` L ${getX(chartPoints.length - 1)} 120 Z`;
+
+                                        return (
+                                            <g>
+                                                {/* Gradient fill */}
+                                                <path d={areaPath} fill="rgba(37, 99, 235, 0.08)" />
+                                                {/* Baseline zero */}
+                                                <line x1="0" y1={getY(0)} x2="600" y2={getY(0)} stroke="#e2e8f0" strokeWidth="1" strokeDasharray="3,3" />
+                                                {/* Main Balance Line */}
+                                                <path d={dPath} fill="none" stroke="#2563eb" strokeWidth="2.5" strokeLinecap="round" />
+                                                {/* Start/End labels */}
+                                                <text x="5" y={getY(balances[0]) - 8} fontSize="8" fontWeight="700" fill="#2563eb">{formatCurrency(balances[0])}</text>
+                                                <text x="595" y={getY(balances[balances.length - 1]) - 8} textAnchor="end" fontSize="8" fontWeight="700" fill="#2563eb">{formatCurrency(balances[balances.length - 1])}</text>
+                                            </g>
+                                        );
+                                    })()}
+                                </svg>
+                            </div>
                         </div>
                     </div>
-                )}
+
+                    {/* Right Column: Progress Bars list for Faturamento or Deduções */}
+                    <div style={{ backgroundColor: '#ffffff', borderRadius: '12px', padding: '1.25rem 1.5rem', border: '1px solid #e2e8f0', boxShadow: '0 1px 3px rgba(0,0,0,0.02)', display: 'flex', flexDirection: 'column', gap: '1rem', boxSizing: 'border-box' }}>
+                        <span style={{ fontSize: '0.8rem', fontWeight: 800, color: '#0f172a', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                            {sidebarTab === 'faturamento' ? 'Faturamento por Categoria' : 'Deduções por Categoria'}
+                        </span>
+                        
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', overflowY: 'auto', maxHeight: '350px', paddingRight: '4px' }}>
+                            {(() => {
+                                const list = sidebarTab === 'faturamento' ? revenueCats : taxCats;
+                                const maxAmount = list.length > 0 ? list[0].amount : 1;
+                                return list.slice(0, 10).map((cat, idx) => {
+                                    const pctWidth = (cat.amount / maxAmount) * 100;
+                                    const barColor = sidebarTab === 'faturamento' ? '#10b981' : '#f59e0b';
+                                    return (
+                                        <div key={idx} style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                                            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.72rem', fontWeight: 600 }}>
+                                                <span style={{ color: '#475569', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '160px' }} title={cat.name}>
+                                                    {cat.name.replace(/^\d+(\.\d+)*\s*-?\s*/, '')}
+                                                </span>
+                                                <span style={{ color: '#0f172a' }}>{formatCurrency(cat.amount)}</span>
+                                            </div>
+                                            <div style={{ height: '7px', width: '100%', background: '#f1f5f9', borderRadius: '4px', overflow: 'hidden' }}>
+                                                <div style={{ height: '100%', width: `${Math.max(1, pctWidth)}%`, background: barColor, borderRadius: '4px' }} />
+                                            </div>
+                                        </div>
+                                    );
+                                });
+                            })()}
+                            {((sidebarTab === 'faturamento' && revenueCats.length === 0) || (sidebarTab === 'deducoes' && taxCats.length === 0)) && (
+                                <div style={{ fontSize: '0.75rem', color: '#94a3b8', textAlign: 'center', padding: '2rem 0' }}>
+                                    Sem dados para este período.
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                </div>
             </div>
         );
     };

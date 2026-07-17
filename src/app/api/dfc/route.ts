@@ -10,6 +10,15 @@ function classifyCategory(
 ): 'OPERATIONAL_IN' | 'OPERATIONAL_OUT' | 'CAPEX' | 'FINANCING' | 'TRANSFER' {
     const name = categoryName.toUpperCase().trim();
     
+    // Verificar Tributos/Deduções (Grupo 02, DAS, Simples Nacional, etc.) -> Sempre saídas operacionais (OPERATIONAL_OUT)
+    const isTax = 
+        name.startsWith('02') || name.startsWith('2.') || 
+        name.includes('SIMPLES NACIONAL') || name.includes(' DAS') || name.includes('- DAS') ||
+        name.includes('TRIBUTO') || name.includes('IMPOSTO');
+    if (isTax) {
+        return 'OPERATIONAL_OUT';
+    }
+    
     // 1. Verificar Transferências Internas (mesmo CNPJ): Grupo 06.1.2 e 06.2.2 (ou 6.1.2 / 6.2.2)
     const isInternalTransfer = 
         name.startsWith('06.1.2') || name.startsWith('06.2.2') || 

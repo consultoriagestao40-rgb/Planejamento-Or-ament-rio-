@@ -424,6 +424,9 @@ export default function BudgetGrid({
     const [isCustosExpanded, setIsCustosExpanded] = useState(true);
     const [isResultadosExpanded, setIsResultadosExpanded] = useState(true);
 
+    const [showOrcado, setShowOrcado] = useState(true);
+    const [showRealizado, setShowRealizado] = useState(true);
+
     const highlightedMonth = -1; // Desativar destaque de mês vigente
 
     const headerScrollRef = useRef<HTMLDivElement>(null);
@@ -4170,37 +4173,34 @@ export default function BudgetGrid({
                         const getAH = (val: number, base: number) => {
                             if (Math.abs(base) < 0.01) return 0;
                             return ((val / base) - 1) * 100;
-                        };
-
-                        const isHighlighted = viewPeriod === 'month' && i === highlightedMonth;
-
-                        return (
-                            <React.Fragment key={i}>
-                                <td
-                                    className="spreadsheet-value"
-                                    onClick={() => {
-                                        if (viewPeriod === 'month') {
-                                            if (isCellEditable) openBudgetModal(node.id, node.name, i, 'budget');
-                                            else handleBudgetDrillDown(node.id, node.name, i);
-                                        }
-                                    }}
-                                    style={{ 
-                                        borderLeft: '1px solid #cbd5e1', 
-                                        cursor: viewPeriod === 'month' ? 'pointer' : 'default',
-                                        color: isHighlighted ? '#ffffff' : (bVal < 0 ? '#dc2626' : '#1e293b'),
-                                        width: '130px',
-                                        minWidth: '130px',
-                                        maxWidth: '130px',
-                                        fontWeight: isInteractiveTree ? 700 : 400,
-                                        background: isHighlighted ? '#0b579f' : undefined
-                                    }}
-                                >
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: '2px', justifyContent: 'flex-end' }}>
-                                        {isLocked && <span style={{ fontSize: '0.65rem', color: isHighlighted ? '#ffffff' : 'inherit' }}>🔒</span>}
-                                        {formatGridValue(bVal, isHighlighted)}
-                                    </div>
-                                </td>
-                                {showAV && (
+                               <React.Fragment key={i}>
+                                {showOrcado && (
+                                    <td 
+                                        className="spreadsheet-value"
+                                        onClick={() => {
+                                            if (viewPeriod === 'month') {
+                                                if (isCellEditable) openBudgetModal(node.id, node.name, i, 'budget');
+                                                else handleBudgetDrillDown(node.id, node.name, i);
+                                            }
+                                        }}
+                                        style={{ 
+                                            borderLeft: '1px solid #cbd5e1', 
+                                            cursor: viewPeriod === 'month' ? 'pointer' : 'default',
+                                            color: isHighlighted ? '#ffffff' : (bVal < 0 ? '#dc2626' : '#1e293b'),
+                                            width: '130px',
+                                            minWidth: '130px',
+                                            maxWidth: '130px',
+                                            fontWeight: isInteractiveTree ? 700 : 400,
+                                            background: isHighlighted ? '#0b579f' : undefined
+                                        }}
+                                    >
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '2px', justifyContent: 'flex-end' }}>
+                                            {isLocked && <span style={{ fontSize: '0.65rem', color: isHighlighted ? '#ffffff' : 'inherit' }}>🔒</span>}
+                                            {formatGridValue(bVal, isHighlighted)}
+                                        </div>
+                                    </td>
+                                )}
+                                {showAV && showOrcado && (
                                     <td 
                                         className="spreadsheet-value" 
                                         style={{ 
@@ -4218,25 +4218,28 @@ export default function BudgetGrid({
                                     </td>
                                 )}
 
-                                <td 
-                                    className="spreadsheet-value"
-                                    onClick={() => viewPeriod === 'month' && handleCellClick(node.id, i, node.name)} 
-                                    style={{ 
-                                        cursor: viewPeriod === 'month' ? 'pointer' : 'default',
-                                        color: isHighlighted ? '#0b579f' : (rVal < 0 ? '#ef4444' : 'var(--accent-blue)'),
-                                        fontWeight: isInteractiveTree ? 700 : 400,
-                                        position: 'relative',
-                                        background: isHighlighted ? '#e0f2fe' : ((hasJustificationMap[`${node.id}-${i}`] && node.children.length === 0) ? '#eff6ff' : undefined),
-                                        width: '140px',
-                                        minWidth: '140px',
-                                        maxWidth: '140px'
-                                    }}
-                                >
-                                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end' }}>
-                                        {formatGridValue(rVal, isHighlighted)}
-                                    </div>
-                                </td>
-                                {showAV && (
+                                {showRealizado && (
+                                    <td 
+                                        className="spreadsheet-value"
+                                        onClick={() => viewPeriod === 'month' && handleCellClick(node.id, i, node.name)} 
+                                        style={{ 
+                                            borderLeft: !showOrcado ? '1px solid #cbd5e1' : undefined,
+                                            cursor: viewPeriod === 'month' ? 'pointer' : 'default',
+                                            color: isHighlighted ? '#0b579f' : (rVal < 0 ? '#ef4444' : 'var(--accent-blue)'),
+                                            fontWeight: isInteractiveTree ? 700 : 400,
+                                            position: 'relative',
+                                            background: isHighlighted ? '#e0f2fe' : ((hasJustificationMap[`${node.id}-${i}`] && node.children.length === 0) ? '#eff6ff' : undefined),
+                                            width: '140px',
+                                            minWidth: '140px',
+                                            maxWidth: '140px'
+                                        }}
+                                    >
+                                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end' }}>
+                                            {formatGridValue(rVal, isHighlighted)}
+                                        </div>
+                                    </td>
+                                )}
+                                {showAV && showRealizado && (
                                     <td 
                                         className="spreadsheet-value" 
                                         style={{ 
@@ -4253,7 +4256,7 @@ export default function BudgetGrid({
                                         {avReal.toFixed(1)}%
                                     </td>
                                 )}
-                                {showAH && (
+                                {showAH && showOrcado && showRealizado && (
                                     <td className="spreadsheet-value" style={{ 
                                         color: (() => {
                                             const val = getAH(rVal, bVal);
@@ -4290,7 +4293,6 @@ export default function BudgetGrid({
                                     }}>
                                         {i === 0 ? '-' : `${getMoMPercent().toFixed(1)}%`}
                                     </td>
-                                )}
                             </React.Fragment>
                         );
                     })}
@@ -4341,13 +4343,17 @@ export default function BudgetGrid({
                                 const val = itemsMap.get(itemName)?.[i] || 0;
                                 return (
                                     <React.Fragment key={i}>
-                                        <td className="spreadsheet-value" style={{ fontSize: '0.74rem', color: '#475569', borderLeft: '1px solid #e2e8f0', borderBottom: '1px solid #e2e8f0', width: '130px', minWidth: '130px', maxWidth: '130px' }}>
-                                            {val === 0 ? '-' : formatCurrency(val)}
-                                        </td>
-                                        {showAV && <td className="spreadsheet-value" style={{ color: 'transparent', fontSize: '0.7rem', width: '60px', minWidth: '60px', maxWidth: '60px' }}>-</td>}
-                                        <td className="spreadsheet-value" style={{ fontSize: '0.74rem', color: 'transparent', width: '140px', minWidth: '140px', maxWidth: '140px' }}>-</td>
-                                        {showAV && <td className="spreadsheet-value" style={{ color: 'transparent', width: '60px', minWidth: '60px', maxWidth: '60px' }}>-</td>}
-                                        {showAH && <td className="spreadsheet-value" style={{ color: 'transparent', width: '70px', minWidth: '70px', maxWidth: '70px' }}>-</td>}
+                                        {showOrcado && (
+                                            <td className="spreadsheet-value" style={{ fontSize: '0.74rem', color: '#475569', borderLeft: '1px solid #e2e8f0', borderBottom: '1px solid #e2e8f0', width: '130px', minWidth: '130px', maxWidth: '130px' }}>
+                                                {val === 0 ? '-' : formatCurrency(val)}
+                                            </td>
+                                        )}
+                                        {showAV && showOrcado && <td className="spreadsheet-value" style={{ color: 'transparent', fontSize: '0.7rem', width: '60px', minWidth: '60px', maxWidth: '60px' }}>-</td>}
+                                        {showRealizado && (
+                                            <td className="spreadsheet-value" style={{ borderLeft: !showOrcado ? '1px solid #e2e8f0' : undefined, fontSize: '0.74rem', color: 'transparent', width: '140px', minWidth: '140px', maxWidth: '140px' }}>-</td>
+                                        )}
+                                        {showAV && showRealizado && <td className="spreadsheet-value" style={{ color: 'transparent', width: '60px', minWidth: '60px', maxWidth: '60px' }}>-</td>}
+                                        {showAH && showOrcado && showRealizado && <td className="spreadsheet-value" style={{ color: 'transparent', width: '70px', minWidth: '70px', maxWidth: '70px' }}>-</td>}
                                         {showAH_MoM && <td className="spreadsheet-value" style={{ color: 'transparent', width: '70px', minWidth: '70px', maxWidth: '70px' }}>-</td>}
                                     </React.Fragment>
                                 );
@@ -4402,7 +4408,8 @@ export default function BudgetGrid({
                         zIndex: 25,
                         width: '400px',
                         minWidth: '400px',
-                        maxWidth: '400px'
+                        maxWidth: '400px',
+                        paddingLeft: '0px'
                     }}
                 >
                     <div style={{ display: 'flex', alignItems: 'center', opacity: 1, visibility: 'visible' }}>
@@ -4476,20 +4483,22 @@ export default function BudgetGrid({
 
                     return (
                         <React.Fragment key={i}>
-                            <td 
-                                className={`spreadsheet-value ${budgetVal < 0 ? 'spreadsheet-value-negative' : ''}`}
-                                style={{ 
-                                    borderLeft: '1px solid #cbd5e1', 
-                                    color: isHighlighted ? '#ffffff' : bColor, 
-                                    background: isLucroLiquido ? undefined : (isHighlighted ? '#0b579f' : undefined), 
-                                    width: '130px', 
-                                    minWidth: '130px', 
-                                    maxWidth: '130px'
-                                }}
-                            >
-                                {formatGridValue(budgetVal, isHighlighted)}
-                            </td>
-                            {showAV && (
+                            {showOrcado && (
+                                <td 
+                                    className={`spreadsheet-value ${budgetVal < 0 ? 'spreadsheet-value-negative' : ''}`}
+                                    style={{ 
+                                        borderLeft: '1px solid #cbd5e1', 
+                                        color: isHighlighted ? '#ffffff' : bColor, 
+                                        background: isLucroLiquido ? undefined : (isHighlighted ? '#0b579f' : undefined), 
+                                        width: '130px', 
+                                        minWidth: '130px', 
+                                        maxWidth: '130px'
+                                    }}
+                                >
+                                    {formatGridValue(budgetVal, isHighlighted)}
+                                </td>
+                            )}
+                            {showAV && showOrcado && (
                                 <td 
                                     className="spreadsheet-value" 
                                     style={{ 
@@ -4504,22 +4513,25 @@ export default function BudgetGrid({
                                     {avBudget.toFixed(1)}%
                                 </td>
                             )}
-                            <td 
-                                className={`spreadsheet-value ${realizedVal < 0 ? 'spreadsheet-value-negative' : ''}`}
-                                style={{ 
-                                    color: isHighlighted ? '#0b579f' : rColor, 
-                                    background: isLucroLiquido ? undefined : (isHighlighted ? '#e0f2fe' : undefined), 
-                                    position: 'relative', 
-                                    width: '140px', 
-                                    minWidth: '140px', 
-                                    maxWidth: '140px'
-                                }}
-                            >
-                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end' }}>
-                                    {formatGridValue(realizedVal, isHighlighted)}
-                                </div>
-                            </td>
-                            {showAV && (
+                            {showRealizado && (
+                                <td 
+                                    className={`spreadsheet-value ${realizedVal < 0 ? 'spreadsheet-value-negative' : ''}`}
+                                    style={{ 
+                                        borderLeft: !showOrcado ? '1px solid #cbd5e1' : undefined,
+                                        color: isHighlighted ? '#0b579f' : rColor, 
+                                        background: isLucroLiquido ? undefined : (isHighlighted ? '#e0f2fe' : undefined), 
+                                        position: 'relative', 
+                                        width: '140px', 
+                                        minWidth: '140px', 
+                                        maxWidth: '140px'
+                                    }}
+                                >
+                                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end' }}>
+                                        {formatGridValue(realizedVal, isHighlighted)}
+                                    </div>
+                                </td>
+                            )}
+                            {showAV && showRealizado && (
                                 <td 
                                     className="spreadsheet-value" 
                                     style={{ 
@@ -4534,7 +4546,7 @@ export default function BudgetGrid({
                                     {avReal.toFixed(1)}%
                                 </td>
                             )}
-                            {showAH && (
+                            {showAH && showOrcado && showRealizado && (
                                 <td className="spreadsheet-value" style={{ 
                                     color: (() => {
                                         const val = getAH(realizedVal, budgetVal);
@@ -6664,6 +6676,41 @@ export default function BudgetGrid({
                     </div>
                 ) : (
                     <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                        {/* Colunas Visíveis Checkboxes Premium */}
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', borderRight: '1px solid var(--border-default)', paddingRight: '1rem' }}>
+                            <span style={{ fontSize: '0.65rem', fontWeight: 800, color: 'var(--accent-blue)', textTransform: 'uppercase', letterSpacing: '0.05em', marginRight: '0.2rem' }}>Colunas</span>
+
+                            {[
+                                { label: 'Orçado', state: showOrcado, setState: (val: boolean) => {
+                                    if (!val && !showRealizado) return; // Impedir que ambos fiquem ocultos
+                                    setShowOrcado(val);
+                                }},
+                                { label: 'Realizado', state: showRealizado, setState: (val: boolean) => {
+                                    if (!val && !showOrcado) return; // Impedir que ambos fiquem ocultos
+                                    setShowRealizado(val);
+                                }}
+                            ].map((item, idx) => (
+                                <label key={idx} style={{ 
+                                    display: 'flex', alignItems: 'center', gap: '0.3rem', fontSize: '0.7rem', cursor: 'pointer', 
+                                    color: item.state ? 'var(--text-primary)' : 'var(--text-secondary)', 
+                                    fontWeight: item.state ? 600 : 500, padding: '0.2rem 0.4rem', borderRadius: '6px', 
+                                    background: item.state ? 'var(--bg-surface)' : 'transparent', 
+                                    transition: 'all 0.2s', border: item.state ? '1px solid var(--border-default)' : '1px solid transparent'
+                                }}>
+                                    <input type="checkbox" checked={item.state} onChange={(e) => item.setState(e.target.checked)} style={{ display: 'none' }} />
+                                    <div style={{ 
+                                        width: '12px', height: '12px', borderRadius: '3px', 
+                                        border: `1px solid ${item.state ? 'var(--accent-blue)' : 'var(--border-darker)'}`, 
+                                        background: item.state ? 'var(--accent-blue)' : 'var(--bg-surface)', 
+                                        display: 'flex', alignItems: 'center', justifyContent: 'center' 
+                                    }}>
+                                        {item.state && <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>}
+                                    </div>
+                                    {item.label}
+                                </label>
+                            ))}
+                        </div>
+
                         {/* Análises Checkboxes Premium */}
                         <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                             <span style={{ fontSize: '0.65rem', fontWeight: 800, color: 'var(--accent-blue)', textTransform: 'uppercase', letterSpacing: '0.05em', marginRight: '0.2rem' }}>Análises</span>
@@ -7425,7 +7472,13 @@ export default function BudgetGrid({
                                         </div>
                                     </th>
                                     {(viewPeriod === 'month' ? MONTHS : ['1º Tri', '2º Tri', '3º Tri', '4º Tri']).map((c, i) => {
-                                        const colsPerMonth = 2 + (showAV ? 2 : 0) + (showAH ? 1 : 0) + (showAH_MoM ? 1 : 0);
+                                        const colsPerMonth = 
+                                            (showOrcado ? 1 : 0) + 
+                                            (showRealizado ? 1 : 0) + 
+                                            (showAV && showOrcado ? 1 : 0) + 
+                                            (showAV && showRealizado ? 1 : 0) + 
+                                            (showAH && showOrcado && showRealizado ? 1 : 0) + 
+                                            (showAH_MoM ? 1 : 0);
                                         const isHighlighted = viewPeriod === 'month' && i === highlightedMonth;
                                         return (
                                             <th 
@@ -7458,11 +7511,15 @@ export default function BudgetGrid({
                                         const highlightTextOther = isHighlighted ? '#1e40af' : '#475569';
                                         return (
                                             <React.Fragment key={i}>
-                                                <th style={{ fontSize: '0.7rem', color: highlightTextOrç, borderLeft: '1px solid #cbd5e1', textAlign: 'center', padding: '0.2rem', width: '130px', minWidth: '130px', maxWidth: '130px', backgroundColor: highlightBgOrç }}>ORÇ</th>
-                                                {showAV && <th style={{ fontSize: '0.68rem', color: highlightTextOther, textAlign: 'center', padding: '0.2rem', width: '60px', minWidth: '60px', maxWidth: '60px', backgroundColor: highlightBgOther }}>AV OR</th>}
-                                                <th style={{ fontSize: '0.7rem', color: highlightTextReal, textAlign: 'center', padding: '0.2rem', width: '140px', minWidth: '140px', maxWidth: '140px', backgroundColor: highlightBgReal }}>REAL</th>
-                                                {showAV && <th style={{ fontSize: '0.68rem', color: highlightTextOther, textAlign: 'center', padding: '0.2rem', width: '60px', minWidth: '60px', maxWidth: '60px', backgroundColor: highlightBgOther }}>AV RL</th>}
-                                                {showAH && <th style={{ fontSize: '0.68rem', color: highlightTextOther, textAlign: 'center', padding: '0.2rem', width: '70px', minWidth: '70px', maxWidth: '70px', backgroundColor: highlightBgOther }}>AH %</th>}
+                                                {showOrcado && (
+                                                    <th style={{ fontSize: '0.7rem', color: highlightTextOrç, borderLeft: '1px solid #cbd5e1', textAlign: 'center', padding: '0.2rem', width: '130px', minWidth: '130px', maxWidth: '130px', backgroundColor: highlightBgOrç }}>ORÇ</th>
+                                                )}
+                                                {showAV && showOrcado && <th style={{ fontSize: '0.68rem', color: highlightTextOther, textAlign: 'center', padding: '0.2rem', width: '60px', minWidth: '60px', maxWidth: '60px', backgroundColor: highlightBgOther }}>AV OR</th>}
+                                                {showRealizado && (
+                                                    <th style={{ borderLeft: !showOrcado ? '1px solid #cbd5e1' : undefined, fontSize: '0.7rem', color: highlightTextReal, textAlign: 'center', padding: '0.2rem', width: '140px', minWidth: '140px', maxWidth: '140px', backgroundColor: highlightBgReal }}>REAL</th>
+                                                )}
+                                                {showAV && showRealizado && <th style={{ fontSize: '0.68rem', color: highlightTextOther, textAlign: 'center', padding: '0.2rem', width: '60px', minWidth: '60px', maxWidth: '60px', backgroundColor: highlightBgOther }}>AV RL</th>}
+                                                {showAH && showOrcado && showRealizado && <th style={{ fontSize: '0.68rem', color: highlightTextOther, textAlign: 'center', padding: '0.2rem', width: '70px', minWidth: '70px', maxWidth: '70px', backgroundColor: highlightBgOther }}>AH %</th>}
                                                 {showAH_MoM && (
                                                     <th style={{ fontSize: '0.68rem', color: highlightTextOther, textAlign: 'center', padding: '0.2rem', width: '70px', minWidth: '70px', maxWidth: '70px', backgroundColor: highlightBgOther }}>
                                                         {viewPeriod === 'month' ? 'MoM' : 'QoQ'}

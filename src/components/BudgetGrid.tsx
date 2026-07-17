@@ -7387,165 +7387,127 @@ export default function BudgetGrid({
                         )}
                     </div>
                     {(loading || isExternalLoading) && (
-                        <div style={{ position: 'absolute', inset: 0, background: 'rgba(255, 255, 255, 0.4)', zIndex: 100, display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', backdropFilter: 'blur(1px)' }}>
-                            <div className="spinner" />
-                            <span style={{ marginTop: '0.5rem', color: 'var(--text-primary)', fontWeight: 700, fontSize: '0.75rem' }}>CARREGANDO...</span>
-                        </div>
-                    )}
-
-                    {/* Container do Cabeçalho Sticky no Topo da Tela */}
+                        <div style={{ position: 'absolute', inset: 0, background: 'rgba(255, 255, 255, 0.4)', zIndex: 100, display: 'flex', flexDirection: 'column', justifyContent:                    {/* Container Único do Grid (BI Matrix) */}
                     <div 
-                        ref={headerScrollRef}
+                        ref={bodyScrollRef}
+                        onScroll={handleScrollSync}
+                        className="spreadsheet-container" 
                         style={{ 
-                            overflowX: 'hidden', 
-                            position: 'sticky', 
-                            top: 0, 
-                            zIndex: 40, 
-                            background: '#f1f5f9', 
+                            minHeight: '300px', 
+                            overflow: 'auto', 
+                            position: 'relative',
                             width: '100%',
-                            borderBottom: '2px solid var(--border-strong)'
-                        }}
-                    >
-                        <table 
-                            className="spreadsheet-table dre-compact-table" 
-                            style={{ 
-                                width: 'max-content', 
-                                tableLayout: 'fixed', 
-                                borderCollapse: 'collapse'
-                            }}
-                        >
-                        <thead>
-                            <tr>
-                                <th className="sticky-col" style={{ width: '400px', minWidth: '400px', maxWidth: '400px', backgroundColor: '#f1f5f9', color: '#1e293b' }}>
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', padding: '0 0.5rem' }}>
-                                        <button
-                                            onClick={handleToggleAll}
-                                            className="spreadsheet-btn-expand bi-tree-btn"
-                                            style={{ background: '#fff', border: '1px solid #cbd5e1', color: '#475569', fontSize: '0.7rem', width: '16px', height: '16px', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}
-                                        >
-                                            {isAnyExpanded ? '−' : '+'}
-                                        </button>
-                                        <span style={{ fontSize: '0.8rem', fontWeight: 700 }}>ESTRUTURA DRE — {selectedYear}</span>
-                                    </div>
-                                </th>
-                                {(viewPeriod === 'month' ? MONTHS : ['1º Tri', '2º Tri', '3º Tri', '4º Tri']).map((c, i) => {
-                                    const colsPerMonth = 2 + (showAV ? 2 : 0) + (showAH ? 1 : 0) + (showAH_MoM ? 1 : 0);
-                                    const isHighlighted = viewPeriod === 'month' && i === highlightedMonth;
-                                    return (
-                                        <th 
-                                            key={i} 
-                                            colSpan={colsPerMonth} 
-                                            style={{ 
-                                                textAlign: 'center', 
-                                                padding: '0.4rem', 
-                                                borderLeft: '1px solid #cbd5e1', 
-                                                fontSize: '0.76rem',
-                                                backgroundColor: isHighlighted ? '#dbeafe' : '#f1f5f9',
-                                                color: isHighlighted ? '#1e40af' : '#334155',
-                                                fontWeight: 700
-                                            }}
-                                        >
-                                            {c}
-                                        </th>
-                                    );
-                                })}
-                            </tr>
-                            <tr>
-                                <th className="sticky-col" style={{ width: '400px', minWidth: '400px', maxWidth: '400px', backgroundColor: '#f1f5f9' }}></th>
-                                {(viewPeriod === 'month' ? MONTHS : [1, 2, 3, 4]).map((_, i) => {
-                                    const isHighlighted = viewPeriod === 'month' && i === highlightedMonth;
-                                    const highlightBgOrç = isHighlighted ? '#1e40af' : '#f1f5f9';
-                                    const highlightTextOrç = isHighlighted ? '#ffffff' : '#334155';
-                                    const highlightBgReal = isHighlighted ? '#dbeafe' : '#f1f5f9';
-                                    const highlightTextReal = isHighlighted ? '#1e40af' : '#334155';
-                                    const highlightBgOther = isHighlighted ? '#eff6ff' : '#f1f5f9';
-                                    const highlightTextOther = isHighlighted ? '#1e40af' : '#475569';
-                                    return (
-                                        <React.Fragment key={i}>
-                                            <th style={{ fontSize: '0.7rem', color: highlightTextOrç, borderLeft: '1px solid #cbd5e1', textAlign: 'center', padding: '0.2rem', width: '130px', minWidth: '130px', maxWidth: '130px', backgroundColor: highlightBgOrç }}>ORÇ</th>
-                                            {showAV && <th style={{ fontSize: '0.68rem', color: highlightTextOther, textAlign: 'center', padding: '0.2rem', width: '60px', minWidth: '60px', maxWidth: '60px', backgroundColor: highlightBgOther }}>AV OR</th>}
-                                            <th style={{ fontSize: '0.7rem', color: highlightTextReal, textAlign: 'center', padding: '0.2rem', width: '140px', minWidth: '140px', maxWidth: '140px', backgroundColor: highlightBgReal }}>REAL</th>
-                                            {showAV && <th style={{ fontSize: '0.68rem', color: highlightTextOther, textAlign: 'center', padding: '0.2rem', width: '60px', minWidth: '60px', maxWidth: '60px', backgroundColor: highlightBgOther }}>AV RL</th>}
-                                            {showAH && <th style={{ fontSize: '0.68rem', color: highlightTextOther, textAlign: 'center', padding: '0.2rem', width: '70px', minWidth: '70px', maxWidth: '70px', backgroundColor: highlightBgOther }}>AH %</th>}
-                                            {showAH_MoM && (
-                                                <th style={{ fontSize: '0.68rem', color: highlightTextOther, textAlign: 'center', padding: '0.2rem', width: '70px', minWidth: '70px', maxWidth: '70px', backgroundColor: highlightBgOther }}>
-                                                    {viewPeriod === 'month' ? 'MoM' : 'QoQ'}
-                                                </th>
-                                            )}
-                                        </React.Fragment>
-                                    );
-                                })}
-                            </tr>
-                        </thead>
-                    </table>
-                </div> {/* fecha a div headerScrollRef */}
-
-                {/* Container do Corpo com Scroll Horizontal Independente */}
-                <div 
-                    ref={bodyScrollRef}
-                    onScroll={handleScrollSync}
-                    className="spreadsheet-container" 
-                    style={{ 
-                        minHeight: '300px', 
-                        overflowX: 'auto', 
-                        position: 'relative',
-                        width: '100%'
-                    }}
-                >
-                    <div style={{ width: 'max-content', display: 'flex', flexDirection: 'column', marginTop: '6px' }}>
-                        {/* Unified DRE Table - BI Style */}
-                        <div style={{
                             background: '#ffffff',
                             borderRadius: '8px',
                             border: '1px solid #cbd5e1',
-                            boxShadow: '0 1px 3px 0 rgba(0, 0, 0, 0.05)',
-                            overflow: 'visible',
-                            width: '100%'
-                        }}>
-                            <table className="spreadsheet-table dre-compact-table" style={{ width: 'max-content', tableLayout: 'fixed', borderCollapse: 'collapse' }}>
-                                <tbody>
-                                    {renderGroupHeaderRow('RECEITAS', isReceitasExpanded, () => setIsReceitasExpanded(!isReceitasExpanded))}
-                                    {isReceitasExpanded && (
-                                        <>
-                                            {renderSummaryRow('💵 01. RECEITA BRUTA', 'vRev', true, 'rev')}
-                                            {expandedGroups.has('rev') && dreStructure.buckets.rev.map(root => renderNode(root))}
-                                            {renderSummaryRow('💰 02. TRIBUTO SOBRE FATURAMENTO', 'vTaxes', true, 'taxes')}
-                                            {expandedGroups.has('taxes') && dreStructure.buckets.taxes.map(root => renderNode(root))}
-                                            {renderSummaryRow('(=) RECEITA LÍQUIDA', 'vRecLiq', true)}
-                                        </>
-                                    )}
-                                    
-                                    {renderGroupHeaderRow('CUSTOS E DESPESAS', isCustosExpanded, () => setIsCustosExpanded(!isCustosExpanded))}
-                                    {isCustosExpanded && (
-                                        <>
-                                            {renderSummaryRow('🗓️ 03. CUSTOS OPERACIONAIS', 'vCosts', true, 'costs')}
-                                            {expandedGroups.has('costs') && dreStructure.buckets.costs.map(root => renderNode(root))}
-                                            {renderSummaryRow('(=) MARGEM BRUTA', 'vGrossMarg', true)}
-                                            {renderSummaryRow('04. DESPESAS OPERACIONAIS', 'vOpExp', true, 'opExp')}
-                                            {expandedGroups.has('opExp') && dreStructure.buckets.opExp.map(root => renderNode(root))}
-                                            {renderSummaryRow('(=) MARGEM DE CONTRIBUIÇÃO', 'vContribMarg', true)}
-                                            {renderSummaryRow('📂 05. DESPESAS ADMINISTRATIVAS', 'vAdminExp', true, 'adminExp')}
-                                            {expandedGroups.has('adminExp') && dreStructure.buckets.adminExp.map(root => renderNode(root))}
-                                            {renderSummaryRow('(=) EBITDA', 'vEbitda', true)}
-                                        </>
-                                    )}
-                                    
-                                    {renderGroupHeaderRow('RESULTADO FINANCEIRO', isResultadosExpanded, () => setIsResultadosExpanded(!isResultadosExpanded))}
-                                    {isResultadosExpanded && (
-                                        <>
-                                            {renderSummaryRow('📉 06. DESPESAS FINANCEIRAS', 'vFin', true, 'fin')}
-                                            {expandedGroups.has('fin') && dreStructure.buckets.fin.map(root => renderNode(root))}
-                                            {renderSummaryRow('(=) LUCRO LÍQUIDO', 'vNetProfit', true)}
-                                            {renderSummaryRow('07. Investimentos', 'vInvest', true, 'invest')}
-                                            {expandedGroups.has('invest') && dreStructure.buckets.invest.map(root => renderNode(root))}
-                                        </>
-                                    )}
-                                </tbody>
-                            </table>
-                        </div>
+                            boxShadow: '0 1px 3px 0 rgba(0, 0, 0, 0.05)'
+                        }}
+                    >
+                        <table className="spreadsheet-table dre-compact-table" style={{ width: 'max-content', tableLayout: 'fixed', borderCollapse: 'collapse' }}>
+                            <thead>
+                                <tr>
+                                    <th className="sticky-col" style={{ width: '400px', minWidth: '400px', maxWidth: '400px', backgroundColor: '#f1f5f9', color: '#1e293b' }}>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', padding: '0 0.5rem' }}>
+                                            <button
+                                                onClick={handleToggleAll}
+                                                className="spreadsheet-btn-expand bi-tree-btn"
+                                                style={{ background: '#fff', border: '1px solid #cbd5e1', color: '#475569', fontSize: '0.7rem', width: '16px', height: '16px', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}
+                                            >
+                                                {isAnyExpanded ? '−' : '+'}
+                                            </button>
+                                            <span style={{ fontSize: '0.8rem', fontWeight: 700 }}>ESTRUTURA DRE — {selectedYear}</span>
+                                        </div>
+                                    </th>
+                                    {(viewPeriod === 'month' ? MONTHS : ['1º Tri', '2º Tri', '3º Tri', '4º Tri']).map((c, i) => {
+                                        const colsPerMonth = 2 + (showAV ? 2 : 0) + (showAH ? 1 : 0) + (showAH_MoM ? 1 : 0);
+                                        const isHighlighted = viewPeriod === 'month' && i === highlightedMonth;
+                                        return (
+                                            <th 
+                                                key={i} 
+                                                colSpan={colsPerMonth} 
+                                                style={{ 
+                                                    textAlign: 'center', 
+                                                    padding: '0.4rem', 
+                                                    borderLeft: '1px solid #cbd5e1', 
+                                                    fontSize: '0.76rem',
+                                                    backgroundColor: isHighlighted ? '#dbeafe' : '#f1f5f9',
+                                                    color: isHighlighted ? '#1e40af' : '#334155',
+                                                    fontWeight: 700
+                                                }}
+                                            >
+                                                {c}
+                                            </th>
+                                        );
+                                    })}
+                                </tr>
+                                <tr>
+                                    <th className="sticky-col" style={{ width: '400px', minWidth: '400px', maxWidth: '400px', backgroundColor: '#f1f5f9' }}></th>
+                                    {(viewPeriod === 'month' ? MONTHS : [1, 2, 3, 4]).map((_, i) => {
+                                        const isHighlighted = viewPeriod === 'month' && i === highlightedMonth;
+                                        const highlightBgOrç = isHighlighted ? '#1e40af' : '#f1f5f9';
+                                        const highlightTextOrç = isHighlighted ? '#ffffff' : '#334155';
+                                        const highlightBgReal = isHighlighted ? '#dbeafe' : '#f1f5f9';
+                                        const highlightTextReal = isHighlighted ? '#1e40af' : '#334155';
+                                        const highlightBgOther = isHighlighted ? '#eff6ff' : '#f1f5f9';
+                                        const highlightTextOther = isHighlighted ? '#1e40af' : '#475569';
+                                        return (
+                                            <React.Fragment key={i}>
+                                                <th style={{ fontSize: '0.7rem', color: highlightTextOrç, borderLeft: '1px solid #cbd5e1', textAlign: 'center', padding: '0.2rem', width: '130px', minWidth: '130px', maxWidth: '130px', backgroundColor: highlightBgOrç }}>ORÇ</th>
+                                                {showAV && <th style={{ fontSize: '0.68rem', color: highlightTextOther, textAlign: 'center', padding: '0.2rem', width: '60px', minWidth: '60px', maxWidth: '60px', backgroundColor: highlightBgOther }}>AV OR</th>}
+                                                <th style={{ fontSize: '0.7rem', color: highlightTextReal, textAlign: 'center', padding: '0.2rem', width: '140px', minWidth: '140px', maxWidth: '140px', backgroundColor: highlightBgReal }}>REAL</th>
+                                                {showAV && <th style={{ fontSize: '0.68rem', color: highlightTextOther, textAlign: 'center', padding: '0.2rem', width: '60px', minWidth: '60px', maxWidth: '60px', backgroundColor: highlightBgOther }}>AV RL</th>}
+                                                {showAH && <th style={{ fontSize: '0.68rem', color: highlightTextOther, textAlign: 'center', padding: '0.2rem', width: '70px', minWidth: '70px', maxWidth: '70px', backgroundColor: highlightBgOther }}>AH %</th>}
+                                                {showAH_MoM && (
+                                                    <th style={{ fontSize: '0.68rem', color: highlightTextOther, textAlign: 'center', padding: '0.2rem', width: '70px', minWidth: '70px', maxWidth: '70px', backgroundColor: highlightBgOther }}>
+                                                        {viewPeriod === 'month' ? 'MoM' : 'QoQ'}
+                                                    </th>
+                                                )}
+                                            </React.Fragment>
+                                        );
+                                    })}
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {renderGroupHeaderRow('RECEITAS', isReceitasExpanded, () => setIsReceitasExpanded(!isReceitasExpanded))}
+                                {isReceitasExpanded && (
+                                    <>
+                                        {renderSummaryRow('💵 01. RECEITA BRUTA', 'vRev', true, 'rev')}
+                                        {expandedGroups.has('rev') && dreStructure.buckets.rev.map(root => renderNode(root))}
+                                        {renderSummaryRow('💰 02. TRIBUTO SOBRE FATURAMENTO', 'vTaxes', true, 'taxes')}
+                                        {expandedGroups.has('taxes') && dreStructure.buckets.taxes.map(root => renderNode(root))}
+                                        {renderSummaryRow('(=) RECEITA LÍQUIDA', 'vRecLiq', true)}
+                                    </>
+                                )}
+                                
+                                {renderGroupHeaderRow('CUSTOS E DESPESAS', isCustosExpanded, () => setIsCustosExpanded(!isCustosExpanded))}
+                                {isCustosExpanded && (
+                                    <>
+                                        {renderSummaryRow('🗓️ 03. CUSTOS OPERACIONAIS', 'vCosts', true, 'costs')}
+                                        {expandedGroups.has('costs') && dreStructure.buckets.costs.map(root => renderNode(root))}
+                                        {renderSummaryRow('(=) MARGEM BRUTA', 'vGrossMarg', true)}
+                                        {renderSummaryRow('04. DESPESAS OPERACIONAIS', 'vOpExp', true, 'opExp')}
+                                        {expandedGroups.has('opExp') && dreStructure.buckets.opExp.map(root => renderNode(root))}
+                                        {renderSummaryRow('(=) MARGEM DE CONTRIBUIÇÃO', 'vContribMarg', true)}
+                                        {renderSummaryRow('📂 05. DESPESAS ADMINISTRATIVAS', 'vAdminExp', true, 'adminExp')}
+                                        {expandedGroups.has('adminExp') && dreStructure.buckets.adminExp.map(root => renderNode(root))}
+                                        {renderSummaryRow('(=) EBITDA', 'vEbitda', true)}
+                                    </>
+                                )}
+                                
+                                {renderGroupHeaderRow('RESULTADO FINANCEIRO', isResultadosExpanded, () => setIsResultadosExpanded(!isResultadosExpanded))}
+                                {isResultadosExpanded && (
+                                    <>
+                                        {renderSummaryRow('📉 06. DESPESAS FINANCEIRAS', 'vFin', true, 'fin')}
+                                        {expandedGroups.has('fin') && dreStructure.buckets.fin.map(root => renderNode(root))}
+                                        {renderSummaryRow('(=) LUCRO LÍQUIDO', 'vNetProfit', true)}
+                                        {renderSummaryRow('07. Investimentos', 'vInvest', true, 'invest')}
+                                        {expandedGroups.has('invest') && dreStructure.buckets.invest.map(root => renderNode(root))}
+                                    </>
+                                )}
+                            </tbody>
+                        </table>
                     </div>
                 </div>
-            </div>
             )}
             {/* Budget Drill-Down Modal — 3-Step */}
                 {budgetDrillModal && (() => {

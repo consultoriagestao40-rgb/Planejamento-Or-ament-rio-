@@ -823,3 +823,34 @@ select.premium-select:focus {
   border-color: #64748b;
   color: #0f172a;
 }
+
+/* Sticky headers support for DRE compact integrated table */
+.dre-compact-table thead tr:nth-child(1) th {
+  position: sticky !important;
+  top: 0 !important;
+  z-index: 35 !important;
+  background-color: #f1f5f9 !important;
+  height: 25px !important;
+  max-height: 25px !important;
+}
+
+.dre-compact-table thead tr:nth-child(2) th {
+  position: sticky !important;
+  top: 25px !important;
+  z-index: 35 !important;
+  background-color: #f1f5f9 !important;
+}
+
+.dre-compact-table thead tr:nth-child(1) th.sticky-col {
+  z-index: 45 !important;
+  left: -2px !important;
+  background-color: #f1f5f9 !important;
+  box-shadow: 2px 0 0 0 #f1f5f9, 2px 0 4px -2px rgba(0,0,0,0.05) !important;
+}
+
+.dre-compact-table thead tr:nth-child(2) th.sticky-col {
+  z-index: 45 !important;
+  left: -2px !important;
+  background-color: #f1f5f9 !important;
+  box-shadow: 2px 0 0 0 #f1f5f9, 2px 0 4px -2px rgba(0,0,0,0.05) !important;
+}

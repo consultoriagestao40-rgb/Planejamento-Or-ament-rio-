@@ -227,6 +227,9 @@ export async function GET(request: Request) {
         });
 
         // 7. Processar Previstos (Projeções)
+        const sixtyDaysAgo = new Date(todayTime);
+        sixtyDaysAgo.setDate(sixtyDaysAgo.getDate() - 60);
+
         expectedEntries.forEach(entry => {
             const origDate = entry.date ? new Date(entry.date) : new Date(year, entry.month - 1, 15);
             const isRevenue = entry.viewMode === 'previsto_receber';
@@ -236,6 +239,11 @@ export async function GET(request: Request) {
 
             // Tratamento de Atrasados
             if (isOverdue) {
+                // Desconsiderar atrasados muito antigos (mais de 60 dias) para evitar inflar o fluxo de caixa
+                if (origDate.getTime() < sixtyDaysAgo.getTime()) {
+                    return;
+                }
+
                 if (overdueAction === 'ignore') {
                     return;
                 } else if (overdueAction === 'today') {
@@ -335,6 +343,11 @@ export async function GET(request: Request) {
             let isOverdue = origDate.getTime() < todayTime;
 
             if (isOverdue) {
+                // Desconsiderar atrasados muito antigos (mais de 60 dias) para evitar inflar o fluxo de caixa
+                if (origDate.getTime() < sixtyDaysAgo.getTime()) {
+                    return;
+                }
+
                 if (overdueAction === 'ignore') return;
                 else if (overdueAction === 'today') projDate = new Date(today);
             }

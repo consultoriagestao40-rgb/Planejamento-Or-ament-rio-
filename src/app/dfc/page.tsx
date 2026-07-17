@@ -309,10 +309,8 @@ export default function DFCPage() {
             });
         });
 
-        // Use the last element of the daily projection as the projected final balance
-        const projectedBalance = data.dailyProjection && data.dailyProjection.length > 0
-            ? data.dailyProjection[data.dailyProjection.length - 1].balance
-            : (data.currentBankBalance + allFutureInflows - allFutureOutflows);
+        // Saldo Final Projetado = Saldo Atual + Recebimentos em Aberto - Pagamentos em Aberto
+        const projectedBalance = data.currentBankBalance + inflows - outflows;
 
         return {
             current: data.currentBankBalance,

@@ -7716,8 +7716,8 @@ export default function BudgetGrid({
                         className="spreadsheet-container" 
                         style={{ 
                             minHeight: '300px', 
-                            maxHeight: 'calc(100vh - 290px)',
-                            overflow: 'auto', 
+                            overflowX: 'auto',
+                            overflowY: 'clip',
                             position: 'relative',
                             width: '100%',
                             background: '#ffffff',

@@ -4421,7 +4421,7 @@ export default function BudgetGrid({
     const renderSummaryRow = (label: string, validx: keyof ReturnType<typeof dreStructure.calculateTotals>, isBold = false, groupId?: string) => {
         const isGroupExpanded = groupId ? expandedGroups.has(groupId) : true;
         const isLucroLiquido = validx === 'vNetProfit';
-        const isWhiteText = isLucroLiquido || !groupId;
+        const isWhiteText = isLucroLiquido;
 
         return (
             <tr 

@@ -768,37 +768,37 @@ select.premium-select:focus {
   font-weight: 700 !important;
 }
 
-/* Degradê Azul de acordo com o nível na árvore DRE */
+/* Degradê Neutro Slate de acordo com o nível na árvore DRE */
 .dre-compact-table tbody tr.spreadsheet-parent-row-level-0,
 .dre-compact-table tbody tr.spreadsheet-parent-row-level-0 .sticky-col {
-  background-color: #cbe2fc !important; /* Azul médio/escuro suave */
+  background-color: #e2e8f0 !important; /* Slate-200 (Cinza médio-suave) */
 }
 .dre-compact-table tbody tr.spreadsheet-parent-row-level-0 .sticky-col {
-  box-shadow: 2px 0 0 0 #cbe2fc, 2px 0 4px -2px rgba(0,0,0,0.05) !important;
+  box-shadow: 2px 0 0 0 #e2e8f0, 2px 0 4px -2px rgba(0,0,0,0.05) !important;
 }
 
 .dre-compact-table tbody tr.spreadsheet-parent-row-level-1,
 .dre-compact-table tbody tr.spreadsheet-parent-row-level-1 .sticky-col {
-  background-color: #e0edfe !important; /* Azul claro */
+  background-color: #f1f5f9 !important; /* Slate-100 (Cinza claro) */
 }
 .dre-compact-table tbody tr.spreadsheet-parent-row-level-1 .sticky-col {
-  box-shadow: 2px 0 0 0 #e0edfe, 2px 0 4px -2px rgba(0,0,0,0.05) !important;
+  box-shadow: 2px 0 0 0 #f1f5f9, 2px 0 4px -2px rgba(0,0,0,0.05) !important;
 }
 
 .dre-compact-table tbody tr.spreadsheet-parent-row-level-2,
 .dre-compact-table tbody tr.spreadsheet-parent-row-level-2 .sticky-col {
-  background-color: #f1f7ff !important; /* Azul muito claro */
+  background-color: #f8fafc !important; /* Slate-50 (Cinza muito claro) */
 }
 .dre-compact-table tbody tr.spreadsheet-parent-row-level-2 .sticky-col {
-  box-shadow: 2px 0 0 0 #f1f7ff, 2px 0 4px -2px rgba(0,0,0,0.05) !important;
+  box-shadow: 2px 0 0 0 #f8fafc, 2px 0 4px -2px rgba(0,0,0,0.05) !important;
 }
 
 .dre-compact-table tbody tr.spreadsheet-parent-row-level-3,
 .dre-compact-table tbody tr.spreadsheet-parent-row-level-3 .sticky-col {
-  background-color: #f8fafc !important; /* Quase branco com tom frio */
+  background-color: #ffffff !important; /* Branco total */
 }
 .dre-compact-table tbody tr.spreadsheet-parent-row-level-3 .sticky-col {
-  box-shadow: 2px 0 0 0 #f8fafc, 2px 0 4px -2px rgba(0,0,0,0.05) !important;
+  box-shadow: 2px 0 0 0 #ffffff, 2px 0 4px -2px rgba(0,0,0,0.05) !important;
 }
 
 /* Fallback ou níveis muito profundos */
@@ -816,12 +816,12 @@ select.premium-select:focus {
 /* Destaque para Linhas de Resumos (01. Receita Bruta, Receita Líquida, etc) */
 .dre-compact-table tbody tr.spreadsheet-summary-row,
 .dre-compact-table tbody tr.spreadsheet-summary-row .sticky-col {
-  background-color: #245d94 !important; /* Azul escuro corporativo */
-  color: #ffffff !important;
+  background-color: #cbd5e1 !important; /* Slate-300 (Cinza sólido corporativo) */
+  color: #0f172a !important; /* Texto escuro padrão */
   font-weight: 700 !important;
 }
 .dre-compact-table tbody tr.spreadsheet-summary-row .sticky-col {
-  box-shadow: 2px 0 0 0 #245d94, 2px 0 4px -2px rgba(0,0,0,0.05) !important;
+  box-shadow: 2px 0 0 0 #cbd5e1, 2px 0 4px -2px rgba(0,0,0,0.05) !important;
 }
 
 /* Cabeçalho de Grupos (RECEITAS, CUSTOS E DESPESAS, RESULTADO FINANCEIRO) */

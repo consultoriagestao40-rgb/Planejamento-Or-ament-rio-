@@ -7710,23 +7710,24 @@ export default function BudgetGrid({
                         </div>
                     )}
 
+                    {/* DIV DO CABEÇALHO CONGELADO NO TOPO DA TELA (STICKY VIEWPORT) */}
                     <div 
-                        ref={bodyScrollRef}
-                        onScroll={handleScrollSync}
-                        className="spreadsheet-container" 
-                        style={{ 
-                            minHeight: '300px', 
-                            overflowX: 'auto',
-                            overflowY: 'clip',
-                            position: 'relative',
+                        ref={headerScrollRef}
+                        style={{
+                            overflowX: 'hidden',
+                            position: 'sticky',
+                            top: '0px',
+                            zIndex: 49,
                             width: '100%',
-                            background: '#ffffff',
-                            borderRadius: '8px',
-                            border: '1px solid #cbd5e1',
-                            boxShadow: '0 1px 3px 0 rgba(0, 0, 0, 0.05)'
+                            background: '#1e40af',
+                            borderTopLeftRadius: '8px',
+                            borderTopRightRadius: '8px',
+                            borderLeft: '1px solid #cbd5e1',
+                            borderRight: '1px solid #cbd5e1',
+                            borderTop: '1px solid #cbd5e1'
                         }}
                     >
-                        <table className="spreadsheet-table dre-compact-table" style={{ width: 'max-content', tableLayout: 'fixed', borderCollapse: 'collapse' }}>
+                        <table className="spreadsheet-table dre-compact-table" style={{ width: 'max-content', tableLayout: 'fixed', borderCollapse: 'collapse', marginBottom: 0 }}>
                             <thead>
                                 <tr>
                                     <th 
@@ -7808,7 +7809,94 @@ export default function BudgetGrid({
                                                         <th style={{ fontSize: '0.68rem', color: highlightTextOther, textAlign: 'center', padding: '0.2rem', width: '80px', minWidth: '80px', maxWidth: '80px', backgroundColor: highlightBgOther }}>
                                                             {viewPeriod === 'month' ? 'MoM %' : 'QoQ %'}
                                                         </th>
-                                                      </>
+                                                    </>
+                                                )}
+                                            </React.Fragment>
+                                        );
+                                    })}
+                                </tr>
+                            </thead>
+                        </table>
+                    </div>
+ 
+                    {/* DIV DO CORPO DA PLANILHA */}
+                    <div 
+                        ref={bodyScrollRef}
+                        onScroll={handleScrollSync}
+                        className="spreadsheet-container" 
+                        style={{ 
+                            minHeight: '300px', 
+                            overflowX: 'auto',
+                            position: 'relative',
+                            width: '100%',
+                            background: '#ffffff',
+                            borderBottomLeftRadius: '8px',
+                            borderBottomRightRadius: '8px',
+                            borderLeft: '1px solid #cbd5e1',
+                            borderRight: '1px solid #cbd5e1',
+                            borderBottom: '1px solid #cbd5e1',
+                            boxShadow: '0 1px 3px 0 rgba(0, 0, 0, 0.05)'
+                        }}
+                    >
+                        <table className="spreadsheet-table dre-compact-table" style={{ width: 'max-content', tableLayout: 'fixed', borderCollapse: 'collapse', marginTop: 0 }}>
+                            <thead style={{ visibility: 'collapse' }}>
+                                <tr>
+                                    <th 
+                                        rowSpan={2} 
+                                        className="sticky-col" 
+                                        style={{ 
+                                            width: '400px', 
+                                            minWidth: '400px', 
+                                            maxWidth: '400px', 
+                                            padding: '0 0.5rem',
+                                            textAlign: 'center',
+                                            verticalAlign: 'middle'
+                                        }}
+                                    >
+                                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '100%', height: '100%' }}>
+                                            <span style={{ fontSize: '0.8rem', fontWeight: 700 }}>ESTRUTURA DRE — {selectedYear}</span>
+                                        </div>
+                                    </th>
+                                    {(viewPeriod === 'month' ? MONTHS.slice(startMonth, endMonth + 1) : ['1º Tri', '2º Tri', '3º Tri', '4º Tri']).map((c, idx) => {
+                                        const i = viewPeriod === 'month' ? (startMonth + idx) : idx;
+                                        const colsPerMonth = 
+                                            (showOrcado ? 1 : 0) + 
+                                            (showRealizado ? 1 : 0) + 
+                                            (showAV && showOrcado ? 1 : 0) + 
+                                            (showAV && showRealizado ? 1 : 0) + 
+                                            (showAH && showOrcado && showRealizado ? 2 : 0) + 
+                                            (showAH_MoM ? 2 : 0);
+                                        return (
+                                            <th key={i} colSpan={colsPerMonth}>
+                                                {c}
+                                            </th>
+                                        );
+                                    })}
+                                </tr>
+                                <tr>
+                                    {(viewPeriod === 'month' ? MONTHS.slice(startMonth, endMonth + 1) : [1, 2, 3, 4]).map((_, idx) => {
+                                        const i = viewPeriod === 'month' ? (startMonth + idx) : idx;
+                                        return (
+                                            <React.Fragment key={i}>
+                                                {showOrcado && (
+                                                    <th style={{ width: '130px', minWidth: '130px', maxWidth: '130px' }}>ORÇ</th>
+                                                )}
+                                                {showAV && showOrcado && <th style={{ width: '60px', minWidth: '60px', maxWidth: '60px' }}>AV OR</th>}
+                                                {showRealizado && (
+                                                    <th style={{ width: '140px', minWidth: '140px', maxWidth: '140px' }}>REAL</th>
+                                                )}
+                                                {showAV && showRealizado && <th style={{ width: '60px', minWidth: '60px', maxWidth: '60px' }}>AV RL</th>}
+                                                {showAH && showOrcado && showRealizado && (
+                                                    <>
+                                                        <th style={{ width: '120px', minWidth: '120px', maxWidth: '120px' }}>AH Abs</th>
+                                                        <th style={{ width: '80px', minWidth: '80px', maxWidth: '80px' }}>AH %</th>
+                                                    </>
+                                                )}
+                                                {showAH_MoM && (
+                                                    <>
+                                                        <th style={{ width: '120px', minWidth: '120px', maxWidth: '120px' }}>MoM Abs</th>
+                                                        <th style={{ width: '80px', minWidth: '80px', maxWidth: '80px' }}>MoM %</th>
+                                                    </>
                                                 )}
                                             </React.Fragment>
                                         );

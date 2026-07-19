@@ -4068,6 +4068,39 @@ export default function BudgetGrid({
         const totals = nodeTotals.get(node.id) || { budget: new Array(12).fill(0), realized: new Array(12).fill(0), radar: new Array(12).fill(0) };
         const isEditable = !hasChildren && !node.isSynthetic;
 
+        // Calculate accumulated values for the node
+        let accumReal = 0;
+        let accumBudget = 0;
+        let accumRevReal = 0;
+        let accumRevBudget = 0;
+
+        const revNodeTotals = nodeTotals.get(dreStructure.buckets.rev[0]?.id);
+        if (viewPeriod === 'month') {
+            for (let m = startMonth; m <= endMonth; m++) {
+                accumReal += totals.realized[m] || 0;
+                accumBudget += totals.budget[m] || 0;
+                if (revNodeTotals) {
+                    accumRevReal += revNodeTotals.realized[m] || 0;
+                    accumRevBudget += revNodeTotals.budget[m] || 0;
+                }
+            }
+        } else {
+            // Quarter view: sum over all 12 months
+            for (let m = 0; m < 12; m++) {
+                accumReal += totals.realized[m] || 0;
+                accumBudget += totals.budget[m] || 0;
+                if (revNodeTotals) {
+                    accumRevReal += revNodeTotals.realized[m] || 0;
+                    accumRevBudget += revNodeTotals.budget[m] || 0;
+                }
+            }
+        }
+
+        const accumAVReal = Math.abs(accumRevReal) > 0.01 ? (accumReal / accumRevReal) * 100 : 0;
+        const accumAVBudget = Math.abs(accumRevBudget) > 0.01 ? (accumBudget / accumRevBudget) * 100 : 0;
+        const accumAHPercent = Math.abs(accumBudget) > 0.01 ? ((accumReal / accumBudget) - 1) * 100 : 0;
+        const accumAHAbs = accumReal - accumBudget;
+
         return (
             <React.Fragment key={node.id}>
                 <tr className={isInteractiveTree ? `spreadsheet-parent-row spreadsheet-parent-row-level-${node.level + 1}` : ''}>
@@ -4367,6 +4400,102 @@ export default function BudgetGrid({
                             </React.Fragment>
                         );
                     })}
+
+                    {/* --- COLUNAS ACUMULADAS --- */}
+                    {showOrcado && (
+                        <td className="spreadsheet-value" style={{ 
+                            borderLeft: '1px solid #cbd5e1', 
+                            color: accumBudget < 0 ? '#dc2626' : '#1e293b',
+                            width: '130px',
+                            minWidth: '130px',
+                            maxWidth: '130px',
+                            fontWeight: 700
+                        }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '2px', justifyContent: 'flex-end' }}>
+                                {formatGridValue(accumBudget, false)}
+                            </div>
+                        </td>
+                    )}
+                    {showAV && showOrcado && (
+                        <td className="spreadsheet-value" style={{ 
+                            color: '#64748b', 
+                            textAlign: 'center', 
+                            width: '60px',
+                            minWidth: '60px', 
+                            maxWidth: '60px',
+                            fontWeight: 700
+                        }}>
+                            {accumAVBudget.toFixed(1)}%
+                        </td>
+                    )}
+                    {showRealizado && (
+                        <td className="spreadsheet-value" style={{ 
+                            borderLeft: !showOrcado ? '1px solid #cbd5e1' : undefined,
+                            color: accumReal < 0 ? '#ef4444' : 'var(--accent-blue)',
+                            fontWeight: 700,
+                            width: '140px',
+                            minWidth: '140px',
+                            maxWidth: '140px'
+                        }}>
+                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end' }}>
+                                {formatGridValue(accumReal, false)}
+                            </div>
+                        </td>
+                    )}
+                    {showAV && showRealizado && (
+                        <td className="spreadsheet-value" style={{ 
+                            color: '#475569', 
+                            textAlign: 'center', 
+                            width: '60px',
+                            minWidth: '60px', 
+                            maxWidth: '60px',
+                            fontWeight: 700
+                        }}>
+                            {accumAVReal.toFixed(1)}%
+                        </td>
+                    )}
+                    {showAH && showOrcado && showRealizado && (
+                        <>
+                            <td className="spreadsheet-value" style={{ 
+                                color: (() => {
+                                    const isRevenue = node.code?.startsWith('01') || node.code?.startsWith('1');
+                                    if (accumAHAbs === 0) return '#64748b';
+                                    if (isRevenue) return accumAHAbs < 0 ? '#e11d48' : '#059669';
+                                    return accumAHAbs > 0 ? '#e11d48' : '#059669';
+                                })(), 
+                                textAlign: 'right',
+                                paddingRight: '0.4rem',
+                                width: '120px',
+                                minWidth: '120px',
+                                maxWidth: '120px',
+                                fontWeight: 700
+                            }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '4px', justifyContent: 'flex-end' }}>
+                                    {accumAHAbs === 0 ? 'R$ 0,00' : (
+                                        <>
+                                            <span style={{ fontSize: '0.7rem' }}>{accumAHAbs > 0 ? '▲' : '▼'}</span>
+                                            {formatGridValue(accumAHAbs, false)}
+                                        </>
+                                    )}
+                                </div>
+                            </td>
+                            <td className="spreadsheet-value" style={{ 
+                                color: (() => {
+                                    const isRevenue = node.code?.startsWith('01') || node.code?.startsWith('1');
+                                    if (accumAHPercent === 0) return '#64748b';
+                                    if (isRevenue) return accumAHPercent < 0 ? '#e11d48' : '#059669';
+                                    return accumAHPercent > 0 ? '#e11d48' : '#059669';
+                                })(), 
+                                textAlign: 'center',
+                                width: '80px',
+                                minWidth: '80px',
+                                maxWidth: '80px',
+                                fontWeight: 700
+                            }}>
+                                {accumAHPercent === 0 ? '0,0%' : `${accumAHPercent > 0 ? '▲ ' : '▼ '}${Math.abs(accumAHPercent).toFixed(1)}%`}
+                            </td>
+                        </>
+                    )}
                 </tr>
                 {isExpanded && node.children.map(child => renderNode(child))}
                 {isExpanded && node.children.length === 0 && (() => {
@@ -4440,6 +4569,38 @@ export default function BudgetGrid({
                                     </React.Fragment>
                                 );
                             })}
+
+                            {/* Spacers/Totals for ACUMULADO block in composition details */}
+                            {showOrcado && (() => {
+                                let accumVal = 0;
+                                if (viewPeriod === 'month') {
+                                    for (let m = startMonth; m <= endMonth; m++) {
+                                        accumVal += itemsMap.get(itemName)?.[m] || 0;
+                                    }
+                                } else {
+                                    for (let m = 0; m < 4; m++) {
+                                        accumVal += itemsMap.get(itemName)?.[m] || 0;
+                                    }
+                                }
+                                return (
+                                    <td className="spreadsheet-value" style={{ borderLeft: '1px solid #cbd5e1', fontSize: '0.74rem', color: '#475569', fontWeight: 700, width: '130px', minWidth: '130px', maxWidth: '130px' }}>
+                                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end' }}>
+                                            {accumVal === 0 ? '-' : formatGridValue(accumVal, false)}
+                                        </div>
+                                    </td>
+                                );
+                            })()}
+                            {showAV && showOrcado && <td className="spreadsheet-value" style={{ color: 'transparent', fontSize: '0.7rem', width: '60px', minWidth: '60px', maxWidth: '60px' }}>-</td>}
+                            {showRealizado && (
+                                <td className="spreadsheet-value" style={{ borderLeft: !showOrcado ? '1px solid #cbd5e1' : undefined, fontSize: '0.74rem', color: 'transparent', width: '140px', minWidth: '140px', maxWidth: '140px' }}>-</td>
+                            )}
+                            {showAV && showRealizado && <td className="spreadsheet-value" style={{ color: 'transparent', width: '60px', minWidth: '60px', maxWidth: '60px' }}>-</td>}
+                            {showAH && showOrcado && showRealizado && (
+                                <>
+                                    <td className="spreadsheet-value" style={{ color: 'transparent', width: '120px', minWidth: '120px', maxWidth: '120px' }}>-</td>
+                                    <td className="spreadsheet-value" style={{ color: 'transparent', width: '80px', minWidth: '80px', maxWidth: '80px' }}>-</td>
+                                </>
+                            )}
                         </tr>
                     ));
                 })()}
@@ -4448,7 +4609,13 @@ export default function BudgetGrid({
     };
 
     const renderGroupHeaderRow = (label: string, _isExpanded?: boolean, _onToggle?: () => void) => {
-        const colsCount = 1 + (viewPeriod === 'month' ? MONTHS : [1, 2, 3, 4]).length * (2 + (showAV ? 2 : 0) + (showAH ? 2 : 0) + (showAH_MoM ? 2 : 0));
+        const colsPerMonthTotal = 
+            (showOrcado ? 1 : 0) + 
+            (showRealizado ? 1 : 0) + 
+            (showAV && showOrcado ? 1 : 0) + 
+            (showAV && showRealizado ? 1 : 0) + 
+            (showAH && showOrcado && showRealizado ? 2 : 0);
+        const colsCount = 1 + (viewPeriod === 'month' ? MONTHS : [1, 2, 3, 4]).length * (2 + (showAV ? 2 : 0) + (showAH ? 2 : 0) + (showAH_MoM ? 2 : 0)) + colsPerMonthTotal;
         return (
             <tr className="spreadsheet-group-header">
                 <td 
@@ -4474,6 +4641,42 @@ export default function BudgetGrid({
         const isGroupExpanded = groupId ? expandedGroups.has(groupId) : true;
         const isLucroLiquido = validx === 'vNetProfit';
         const isWhiteText = isLucroLiquido || !groupId;
+
+        // Calculate accumulated values for summary row
+        let accumReal = 0;
+        let accumBudget = 0;
+        let accumRevReal = 0;
+        let accumRevBudget = 0;
+
+        if (viewPeriod === 'month') {
+            for (let m = startMonth; m <= endMonth; m++) {
+                const monthSums = precomputedDreTotals[m];
+                const monthRow = monthSums[validx];
+                accumReal += monthRow?.r || 0;
+                accumBudget += monthRow?.b || 0;
+
+                const revRow = monthSums.vRev;
+                accumRevReal += revRow?.r || 0;
+                accumRevBudget += revRow?.b || 0;
+            }
+        } else {
+            // Quarter view: sum over all 12 months
+            for (let m = 0; m < 12; m++) {
+                const monthSums = precomputedDreTotals[m];
+                const monthRow = monthSums[validx];
+                accumReal += monthRow?.r || 0;
+                accumBudget += monthRow?.b || 0;
+
+                const revRow = monthSums.vRev;
+                accumRevReal += revRow?.r || 0;
+                accumRevBudget += revRow?.b || 0;
+            }
+        }
+
+        const accumAVReal = Math.abs(accumRevReal) > 0.01 ? (accumReal / accumRevReal) * 100 : 0;
+        const accumAVBudget = Math.abs(accumRevBudget) > 0.01 ? (accumBudget / accumRevBudget) * 100 : 0;
+        const accumAHPercent = Math.abs(accumBudget) > 0.01 ? ((accumReal / accumBudget) - 1) * 100 : 0;
+        const accumAHAbs = accumReal - accumBudget;
 
         return (
             <tr 
@@ -4723,6 +4926,102 @@ export default function BudgetGrid({
                         </React.Fragment>
                     );
                 })}
+
+                {/* --- COLUNAS ACUMULADAS DE RESUMO --- */}
+                {showOrcado && (
+                    <td className="spreadsheet-value" style={{ 
+                        borderLeft: '1px solid #cbd5e1', 
+                        color: isWhiteText ? '#fff' : (accumBudget < 0 ? '#dc2626' : '#1e293b'),
+                        width: '130px',
+                        minWidth: '130px',
+                        maxWidth: '130px',
+                        fontWeight: 700
+                    }}>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end' }}>
+                            {formatGridValue(accumBudget, isWhiteText)}
+                        </div>
+                    </td>
+                )}
+                {showAV && showOrcado && (
+                    <td className="spreadsheet-value" style={{ 
+                        color: isWhiteText ? '#fff' : '#64748b', 
+                        textAlign: 'center', 
+                        width: '60px',
+                        minWidth: '60px', 
+                        maxWidth: '60px',
+                        fontWeight: 700
+                    }}>
+                        {accumAVBudget.toFixed(1)}%
+                    </td>
+                )}
+                {showRealizado && (
+                    <td className="spreadsheet-value" style={{ 
+                        borderLeft: !showOrcado ? '1px solid #cbd5e1' : undefined,
+                        color: isWhiteText ? '#fff' : (accumReal < 0 ? '#ef4444' : 'var(--accent-blue)'),
+                        fontWeight: 700,
+                        width: '140px',
+                        minWidth: '140px',
+                        maxWidth: '140px'
+                    }}>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end' }}>
+                            {formatGridValue(accumReal, isWhiteText)}
+                        </div>
+                    </td>
+                )}
+                {showAV && showRealizado && (
+                    <td className="spreadsheet-value" style={{ 
+                        color: isWhiteText ? '#fff' : '#475569', 
+                        textAlign: 'center', 
+                        width: '60px',
+                        minWidth: '60px', 
+                        maxWidth: '60px',
+                        fontWeight: 700
+                    }}>
+                        {accumAVReal.toFixed(1)}%
+                    </td>
+                )}
+                {showAH && showOrcado && showRealizado && (
+                    <>
+                        <td className="spreadsheet-value" style={{ 
+                            color: (() => {
+                                const isProfitRow = ['vRev', 'vRecLiq', 'vGrossMarg', 'vContribMarg', 'vEbitda', 'vNetProfit'].includes(validx as string);
+                                if (accumAHAbs === 0) return isWhiteText ? '#fff' : '#64748b';
+                                if (isProfitRow) return accumAHAbs < 0 ? '#e11d48' : (isWhiteText ? '#fff' : '#059669');
+                                return accumAHAbs > 0 ? '#e11d48' : (isWhiteText ? '#fff' : '#059669');
+                            })(),
+                            textAlign: 'right',
+                            paddingRight: '0.4rem',
+                            width: '120px',
+                            minWidth: '120px',
+                            maxWidth: '120px',
+                            fontWeight: 700
+                        }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '4px', justifyContent: 'flex-end' }}>
+                                {accumAHAbs === 0 ? 'R$ 0,00' : (
+                                    <>
+                                        <span style={{ fontSize: '0.7rem' }}>{accumAHAbs > 0 ? '▲' : '▼'}</span>
+                                        {formatGridValue(accumAHAbs, isWhiteText)}
+                                    </>
+                                )}
+                            </div>
+                        </td>
+                        <td className="spreadsheet-value" style={{ 
+                            color: (() => {
+                                const isProfitRow = ['vRev', 'vRecLiq', 'vGrossMarg', 'vContribMarg', 'vEbitda', 'vNetProfit'].includes(validx as string);
+                                if (accumAHPercent === 0) return isWhiteText ? '#fff' : '#64748b';
+                                if (isProfitRow) return accumAHPercent < 0 ? '#e11d48' : (isWhiteText ? '#fff' : '#059669');
+                                return accumAHPercent > 0 ? '#e11d48' : (isWhiteText ? '#fff' : '#059669');
+                            })(),
+                            textAlign: 'center',
+                            width: '80px',
+                            minWidth: '80px',
+                            maxWidth: '80px',
+                            fontWeight: 700
+                        }}>
+                            {accumAHPercent === 0 ? '0,0%' : `${accumAHPercent > 0 ? '▲ ' : '▼ '}${Math.abs(accumAHPercent).toFixed(1)}%`}
+                        </td>
+                    </>
+                )}
             </tr>
         );
     };
@@ -7711,113 +8010,156 @@ export default function BudgetGrid({
                     )}
 
                     {/* DIV DO CABEÇALHO CONGELADO NO TOPO DA TELA (STICKY VIEWPORT) */}
-                    <div 
-                        ref={headerScrollRef}
-                        style={{
-                            overflowX: 'hidden',
-                            position: 'sticky',
-                            top: '0px',
-                            zIndex: 49,
-                            width: '100%',
-                            background: '#0f62ac',
-                            borderTopLeftRadius: '8px',
-                            borderTopRightRadius: '8px',
-                            borderLeft: '1px solid #cbd5e1',
-                            borderRight: '1px solid #cbd5e1',
-                            borderTop: '1px solid #cbd5e1'
-                        }}
-                    >
-                        <table className="spreadsheet-table dre-compact-table" style={{ width: 'max-content', tableLayout: 'fixed', borderCollapse: 'collapse', marginBottom: 0 }}>
-                            <thead>
-                                <tr>
-                                    <th 
-                                        rowSpan={2} 
-                                        className="sticky-col" 
-                                        style={{ 
-                                            width: '400px', 
-                                            minWidth: '400px', 
-                                            maxWidth: '400px', 
-                                            padding: '0 0.5rem',
-                                            textAlign: 'center',
-                                            verticalAlign: 'middle'
-                                        }}
-                                    >
-                                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '100%', height: '100%' }}>
-                                            <span style={{ fontSize: '0.8rem', fontWeight: 700 }}>ESTRUTURA DRE — {selectedYear}</span>
-                                        </div>
-                                    </th>
-                                    {(viewPeriod === 'month' ? MONTHS.slice(startMonth, endMonth + 1) : ['1º Tri', '2º Tri', '3º Tri', '4º Tri']).map((c, idx) => {
-                                        const i = viewPeriod === 'month' ? (startMonth + idx) : idx;
-                                        const colsPerMonth = 
-                                            (showOrcado ? 1 : 0) + 
-                                            (showRealizado ? 1 : 0) + 
-                                            (showAV && showOrcado ? 1 : 0) + 
-                                            (showAV && showRealizado ? 1 : 0) + 
-                                            (showAH && showOrcado && showRealizado ? 2 : 0) + 
-                                            (showAH_MoM ? 2 : 0);
-                                        const isHighlighted = viewPeriod === 'month' && i === highlightedMonth;
-                                        return (
+                    {(() => {
+                        const colsPerMonthTotal = 
+                            (showOrcado ? 1 : 0) + 
+                            (showRealizado ? 1 : 0) + 
+                            (showAV && showOrcado ? 1 : 0) + 
+                            (showAV && showRealizado ? 1 : 0) + 
+                            (showAH && showOrcado && showRealizado ? 2 : 0);
+
+                        return (
+                            <div 
+                                ref={headerScrollRef}
+                                style={{
+                                    overflowX: 'hidden',
+                                    position: 'sticky',
+                                    top: '0px',
+                                    zIndex: 49,
+                                    width: '100%',
+                                    background: '#0f62ac',
+                                    borderTopLeftRadius: '8px',
+                                    borderTopRightRadius: '8px',
+                                    borderLeft: '1px solid #cbd5e1',
+                                    borderRight: '1px solid #cbd5e1',
+                                    borderTop: '1px solid #cbd5e1'
+                                }}
+                            >
+                                <table className="spreadsheet-table dre-compact-table" style={{ width: 'max-content', tableLayout: 'fixed', borderCollapse: 'collapse', marginBottom: 0 }}>
+                                    <thead>
+                                        <tr>
                                             <th 
-                                                key={i} 
-                                                colSpan={colsPerMonth} 
+                                                rowSpan={2} 
+                                                className="sticky-col" 
                                                 style={{ 
-                                                    textAlign: 'center', 
-                                                    padding: '0.4rem', 
-                                                    borderLeft: '1px solid #cbd5e1', 
-                                                    fontSize: '0.76rem',
-                                                    backgroundColor: isHighlighted ? '#dbeafe' : '#f1f5f9',
-                                                    color: isHighlighted ? '#1e40af' : '#334155',
-                                                    fontWeight: 700
+                                                    width: '400px', 
+                                                    minWidth: '400px', 
+                                                    maxWidth: '400px', 
+                                                    padding: '0 0.5rem',
+                                                    textAlign: 'center',
+                                                    verticalAlign: 'middle'
                                                 }}
                                             >
-                                                {c}
+                                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '100%', height: '100%' }}>
+                                                    <span style={{ fontSize: '0.8rem', fontWeight: 700 }}>ESTRUTURA DRE — {selectedYear}</span>
+                                                </div>
                                             </th>
-                                        );
-                                    })}
-                                </tr>
-                                <tr>
-                                    {(viewPeriod === 'month' ? MONTHS.slice(startMonth, endMonth + 1) : [1, 2, 3, 4]).map((_, idx) => {
-                                        const i = viewPeriod === 'month' ? (startMonth + idx) : idx;
-                                        const isHighlighted = viewPeriod === 'month' && i === highlightedMonth;
-                                        const highlightBgOrç = isHighlighted ? '#1e40af' : '#f1f5f9';
-                                        const highlightTextOrç = isHighlighted ? '#ffffff' : '#334155';
-                                        const highlightBgReal = isHighlighted ? '#dbeafe' : '#f1f5f9';
-                                        const highlightTextReal = isHighlighted ? '#1e40af' : '#334155';
-                                        const highlightBgOther = isHighlighted ? '#eff6ff' : '#f1f5f9';
-                                        const highlightTextOther = isHighlighted ? '#1e40af' : '#475569';
-                                        return (
-                                            <React.Fragment key={i}>
-                                                {showOrcado && (
-                                                    <th style={{ fontSize: '0.7rem', color: highlightTextOrç, borderLeft: '1px solid #cbd5e1', textAlign: 'center', padding: '0.2rem', width: '130px', minWidth: '130px', maxWidth: '130px', backgroundColor: highlightBgOrç }}>ORÇ</th>
-                                                )}
-                                                {showAV && showOrcado && <th style={{ fontSize: '0.68rem', color: highlightTextOther, textAlign: 'center', padding: '0.2rem', width: '60px', minWidth: '60px', maxWidth: '60px', backgroundColor: highlightBgOther }}>AV OR</th>}
-                                                {showRealizado && (
-                                                    <th style={{ borderLeft: !showOrcado ? '1px solid #cbd5e1' : undefined, fontSize: '0.7rem', color: highlightTextReal, textAlign: 'center', padding: '0.2rem', width: '140px', minWidth: '140px', maxWidth: '140px', backgroundColor: highlightBgReal }}>REAL</th>
-                                                )}
-                                                {showAV && showRealizado && <th style={{ fontSize: '0.68rem', color: highlightTextOther, textAlign: 'center', padding: '0.2rem', width: '60px', minWidth: '60px', maxWidth: '60px', backgroundColor: highlightBgOther }}>AV RL</th>}
-                                                {showAH && showOrcado && showRealizado && (
-                                                    <>
-                                                        <th style={{ fontSize: '0.68rem', color: highlightTextOther, borderLeft: '1px solid rgba(255,255,255,0.15)', textAlign: 'center', padding: '0.2rem', width: '120px', minWidth: '120px', maxWidth: '120px', backgroundColor: highlightBgOther }}>AH Abs</th>
-                                                        <th style={{ fontSize: '0.68rem', color: highlightTextOther, textAlign: 'center', padding: '0.2rem', width: '80px', minWidth: '80px', maxWidth: '80px', backgroundColor: highlightBgOther }}>AH %</th>
-                                                    </>
-                                                )}
-                                                {showAH_MoM && (
-                                                    <>
-                                                        <th style={{ fontSize: '0.68rem', color: highlightTextOther, borderLeft: '1px solid rgba(255,255,255,0.15)', textAlign: 'center', padding: '0.2rem', width: '120px', minWidth: '120px', maxWidth: '120px', backgroundColor: highlightBgOther }}>
-                                                            {viewPeriod === 'month' ? 'MoM Abs' : 'QoQ Abs'}
-                                                        </th>
-                                                        <th style={{ fontSize: '0.68rem', color: highlightTextOther, textAlign: 'center', padding: '0.2rem', width: '80px', minWidth: '80px', maxWidth: '80px', backgroundColor: highlightBgOther }}>
-                                                            {viewPeriod === 'month' ? 'MoM %' : 'QoQ %'}
-                                                        </th>
-                                                    </>
-                                                )}
-                                            </React.Fragment>
-                                        );
-                                    })}
-                                </tr>
-                            </thead>
-                        </table>
-                    </div>
+                                            {(viewPeriod === 'month' ? MONTHS.slice(startMonth, endMonth + 1) : ['1º Tri', '2º Tri', '3º Tri', '4º Tri']).map((c, idx) => {
+                                                const i = viewPeriod === 'month' ? (startMonth + idx) : idx;
+                                                const colsPerMonth = 
+                                                    (showOrcado ? 1 : 0) + 
+                                                    (showRealizado ? 1 : 0) + 
+                                                    (showAV && showOrcado ? 1 : 0) + 
+                                                    (showAV && showRealizado ? 1 : 0) + 
+                                                    (showAH && showOrcado && showRealizado ? 2 : 0) + 
+                                                    (showAH_MoM ? 2 : 0);
+                                                const isHighlighted = viewPeriod === 'month' && i === highlightedMonth;
+                                                return (
+                                                    <th 
+                                                        key={i} 
+                                                        colSpan={colsPerMonth} 
+                                                        style={{ 
+                                                            textAlign: 'center', 
+                                                            padding: '0.4rem', 
+                                                            borderLeft: '1px solid #cbd5e1', 
+                                                            fontSize: '0.76rem',
+                                                            backgroundColor: isHighlighted ? '#dbeafe' : '#f1f5f9',
+                                                            color: isHighlighted ? '#1e40af' : '#334155',
+                                                            fontWeight: 700
+                                                        }}
+                                                    >
+                                                        {c}
+                                                    </th>
+                                                );
+                                            })}
+                                            {/* Coluna de Total Acumulado */}
+                                            {colsPerMonthTotal > 0 && (
+                                                <th 
+                                                    colSpan={colsPerMonthTotal} 
+                                                    style={{ 
+                                                        textAlign: 'center', 
+                                                        padding: '0.4rem', 
+                                                        borderLeft: '1px solid #cbd5e1', 
+                                                        fontSize: '0.76rem',
+                                                        backgroundColor: '#f1f5f9',
+                                                        color: '#334155',
+                                                        fontWeight: 700
+                                                    }}
+                                                >
+                                                    ACUMULADO
+                                                </th>
+                                            )}
+                                        </tr>
+                                        <tr>
+                                            {(viewPeriod === 'month' ? MONTHS.slice(startMonth, endMonth + 1) : [1, 2, 3, 4]).map((_, idx) => {
+                                                const i = viewPeriod === 'month' ? (startMonth + idx) : idx;
+                                                const isHighlighted = viewPeriod === 'month' && i === highlightedMonth;
+                                                const highlightBgOrç = isHighlighted ? '#1e40af' : '#f1f5f9';
+                                                const highlightTextOrç = isHighlighted ? '#ffffff' : '#334155';
+                                                const highlightBgReal = isHighlighted ? '#dbeafe' : '#f1f5f9';
+                                                const highlightTextReal = isHighlighted ? '#1e40af' : '#334155';
+                                                const highlightBgOther = isHighlighted ? '#eff6ff' : '#f1f5f9';
+                                                const highlightTextOther = isHighlighted ? '#1e40af' : '#475569';
+                                                return (
+                                                    <React.Fragment key={i}>
+                                                        {showOrcado && (
+                                                            <th style={{ fontSize: '0.7rem', color: highlightTextOrç, borderLeft: '1px solid #cbd5e1', textAlign: 'center', padding: '0.2rem', width: '130px', minWidth: '130px', maxWidth: '130px', backgroundColor: highlightBgOrç }}>ORÇ</th>
+                                                        )}
+                                                        {showAV && showOrcado && <th style={{ fontSize: '0.68rem', color: highlightTextOther, textAlign: 'center', padding: '0.2rem', width: '60px', minWidth: '60px', maxWidth: '60px', backgroundColor: highlightBgOther }}>AV OR</th>}
+                                                        {showRealizado && (
+                                                            <th style={{ borderLeft: !showOrcado ? '1px solid #cbd5e1' : undefined, fontSize: '0.7rem', color: highlightTextReal, textAlign: 'center', padding: '0.2rem', width: '140px', minWidth: '140px', maxWidth: '140px', backgroundColor: highlightBgReal }}>REAL</th>
+                                                        )}
+                                                        {showAV && showRealizado && <th style={{ fontSize: '0.68rem', color: highlightTextOther, textAlign: 'center', padding: '0.2rem', width: '60px', minWidth: '60px', maxWidth: '60px', backgroundColor: highlightBgOther }}>AV RL</th>}
+                                                        {showAH && showOrcado && showRealizado && (
+                                                            <>
+                                                                <th style={{ fontSize: '0.68rem', color: highlightTextOther, borderLeft: '1px solid rgba(255,255,255,0.15)', textAlign: 'center', padding: '0.2rem', width: '120px', minWidth: '120px', maxWidth: '120px', backgroundColor: highlightBgOther }}>AH Abs</th>
+                                                                <th style={{ fontSize: '0.68rem', color: highlightTextOther, textAlign: 'center', padding: '0.2rem', width: '80px', minWidth: '80px', maxWidth: '80px', backgroundColor: highlightBgOther }}>AH %</th>
+                                                            </>
+                                                        )}
+                                                        {showAH_MoM && (
+                                                            <>
+                                                                <th style={{ fontSize: '0.68rem', color: highlightTextOther, borderLeft: '1px solid rgba(255,255,255,0.15)', textAlign: 'center', padding: '0.2rem', width: '120px', minWidth: '120px', maxWidth: '120px', backgroundColor: highlightBgOther }}>
+                                                                    {viewPeriod === 'month' ? 'MoM Abs' : 'QoQ Abs'}
+                                                                </th>
+                                                                <th style={{ fontSize: '0.68rem', color: highlightTextOther, textAlign: 'center', padding: '0.2rem', width: '80px', minWidth: '80px', maxWidth: '80px', backgroundColor: highlightBgOther }}>
+                                                                    {viewPeriod === 'month' ? 'MoM %' : 'QoQ %'}
+                                                                </th>
+                                                            </>
+                                                        )}
+                                                    </React.Fragment>
+                                                );
+                                            })}
+                                            {/* Sub-cabeçalhos do Acumulado */}
+                                            {showOrcado && (
+                                                <th style={{ fontSize: '0.7rem', color: '#334155', borderLeft: '1px solid #cbd5e1', textAlign: 'center', padding: '0.2rem', width: '130px', minWidth: '130px', maxWidth: '130px', backgroundColor: '#f1f5f9', fontWeight: 700 }}>ORÇ</th>
+                                            )}
+                                            {showAV && showOrcado && <th style={{ fontSize: '0.68rem', color: '#475569', textAlign: 'center', padding: '0.2rem', width: '60px', minWidth: '60px', maxWidth: '60px', backgroundColor: '#f1f5f9', fontWeight: 700 }}>AV OR</th>}
+                                            {showRealizado && (
+                                                <th style={{ borderLeft: !showOrcado ? '1px solid #cbd5e1' : undefined, fontSize: '0.7rem', color: '#334155', textAlign: 'center', padding: '0.2rem', width: '140px', minWidth: '140px', maxWidth: '140px', backgroundColor: '#f1f5f9', fontWeight: 700 }}>REAL</th>
+                                            )}
+                                            {showAV && showRealizado && <th style={{ fontSize: '0.68rem', color: '#475569', textAlign: 'center', padding: '0.2rem', width: '60px', minWidth: '60px', maxWidth: '60px', backgroundColor: '#f1f5f9', fontWeight: 700 }}>AV RL</th>}
+                                            {showAH && showOrcado && showRealizado && (
+                                                <>
+                                                    <th style={{ fontSize: '0.68rem', color: '#475569', borderLeft: '1px solid rgba(255,255,255,0.15)', textAlign: 'center', padding: '0.2rem', width: '120px', minWidth: '120px', maxWidth: '120px', backgroundColor: '#f1f5f9', fontWeight: 700 }}>AH Abs</th>
+                                                    <th style={{ fontSize: '0.68rem', color: '#475569', textAlign: 'center', padding: '0.2rem', width: '80px', minWidth: '80px', maxWidth: '80px', backgroundColor: '#f1f5f9', fontWeight: 700 }}>AH %</th>
+                                                </>
+                                            )}
+                                        </tr>
+                                    </thead>
+                                </table>
+                            </div>
+                        );
+                    })()}
  
                     {/* DIV DO CORPO DA PLANILHA */}
                     <div 
@@ -7872,6 +8214,18 @@ export default function BudgetGrid({
                                             </th>
                                         );
                                     })}
+                                    {/* Coluna ACUMULADO duplicada */}
+                                    {(() => {
+                                        const colsPerMonthTotal = 
+                                            (showOrcado ? 1 : 0) + 
+                                            (showRealizado ? 1 : 0) + 
+                                            (showAV && showOrcado ? 1 : 0) + 
+                                            (showAV && showRealizado ? 1 : 0) + 
+                                            (showAH && showOrcado && showRealizado ? 2 : 0);
+                                        return colsPerMonthTotal > 0 ? (
+                                            <th colSpan={colsPerMonthTotal}>ACUMULADO</th>
+                                        ) : null;
+                                    })()}
                                 </tr>
                                 <tr>
                                     {(viewPeriod === 'month' ? MONTHS.slice(startMonth, endMonth + 1) : [1, 2, 3, 4]).map((_, idx) => {
@@ -7901,6 +8255,21 @@ export default function BudgetGrid({
                                             </React.Fragment>
                                         );
                                     })}
+                                    {/* Sub-cabeçalhos ACUMULADO duplicados */}
+                                    {showOrcado && (
+                                        <th style={{ width: '130px', minWidth: '130px', maxWidth: '130px' }}>ORÇ</th>
+                                    )}
+                                    {showAV && showOrcado && <th style={{ width: '60px', minWidth: '60px', maxWidth: '60px' }}>AV OR</th>}
+                                    {showRealizado && (
+                                        <th style={{ width: '140px', minWidth: '140px', maxWidth: '140px' }}>REAL</th>
+                                    )}
+                                    {showAV && showRealizado && <th style={{ width: '60px', minWidth: '60px', maxWidth: '60px' }}>AV RL</th>}
+                                    {showAH && showOrcado && showRealizado && (
+                                        <>
+                                            <th style={{ width: '120px', minWidth: '120px', maxWidth: '120px' }}>AH Abs</th>
+                                            <th style={{ width: '80px', minWidth: '80px', maxWidth: '80px' }}>AH %</th>
+                                        </>
+                                    )}
                                 </tr>
                             </thead>
                             <tbody>

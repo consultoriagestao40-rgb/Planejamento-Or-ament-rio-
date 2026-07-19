@@ -97,10 +97,10 @@ export default function FinancialDashboard({
             boxSizing: 'border-box'
         }}>
             {/* Mockup Header Bar */}
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem', flexWrap: 'wrap', gap: '1rem', background: '#f8fafc', padding: '0.5rem 1.25rem', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem', flexWrap: 'wrap', gap: '1rem', background: '#0f62ac', padding: '0.5rem 1.25rem', borderRadius: '12px', border: '1px solid #0b579f', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1), 0 2px 4px -1px rgba(0,0,0,0.06)' }}>
                     {/* Left side: Tabs & Year Selector */}
                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '2px', background: '#e2e8f0', padding: '3px', borderRadius: '8px', height: '34px', boxSizing: 'border-box' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '2px', background: 'rgba(255, 255, 255, 0.15)', padding: '3px', borderRadius: '8px', height: '34px', boxSizing: 'border-box' }}>
                             <button 
                                 onClick={() => {
                                     setActiveTab('visao');
@@ -118,7 +118,7 @@ export default function FinancialDashboard({
                                     cursor: 'pointer', 
                                     height: '28px',
                                     background: activeTab === 'visao' ? '#ffffff' : 'transparent',
-                                    color: activeTab === 'visao' ? '#0f172a' : '#64748b',
+                                    color: activeTab === 'visao' ? '#0f62ac' : 'rgba(255, 255, 255, 0.8)',
                                     boxShadow: activeTab === 'visao' ? '0 1px 3px rgba(0,0,0,0.1)' : 'none',
                                     transition: 'all 0.15s ease'
                                 }}
@@ -143,7 +143,7 @@ export default function FinancialDashboard({
                                     cursor: 'pointer', 
                                     height: '28px',
                                     background: activeTab === 'graficos' ? '#ffffff' : 'transparent',
-                                    color: activeTab === 'graficos' ? '#0f172a' : '#64748b',
+                                    color: activeTab === 'graficos' ? '#0f62ac' : 'rgba(255, 255, 255, 0.8)',
                                     boxShadow: activeTab === 'graficos' ? '0 1px 3px rgba(0,0,0,0.1)' : 'none',
                                     transition: 'all 0.15s ease'
                                 }}
@@ -168,7 +168,7 @@ export default function FinancialDashboard({
                                     cursor: 'pointer', 
                                     height: '28px',
                                     background: activeTab === 'kpi' ? '#ffffff' : 'transparent',
-                                    color: activeTab === 'kpi' ? '#0f172a' : '#64748b',
+                                    color: activeTab === 'kpi' ? '#0f62ac' : 'rgba(255, 255, 255, 0.8)',
                                     boxShadow: activeTab === 'kpi' ? '0 1px 3px rgba(0,0,0,0.1)' : 'none',
                                     transition: 'all 0.15s ease'
                                 }}

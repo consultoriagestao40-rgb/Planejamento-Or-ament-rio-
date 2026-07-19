@@ -1,5 +1,18 @@
 import { prisma } from './prisma';
 
+// Override global fetch inside services.ts to guarantee a 15s timeout on all Conta Azul requests
+const originalFetch = global.fetch;
+global.fetch = function (url: any, options: any = {}) {
+    if (!options.signal) {
+        try {
+            options.signal = AbortSignal.timeout(15000);
+        } catch (e) {
+            // Fallback
+        }
+    }
+    return originalFetch(url, options);
+} as any;
+
 // Helper para execução paralela com limite de concorrência
 async function fetchInParallelWithLimit<T, R>(
     items: T[],
@@ -258,9 +271,11 @@ async function collectDetailedTransactions(
                 const isLoss = item.status === 'LOST' || item.status === 'PERDIDO';
                 const cats = item.categorias || (item.categoria ? [item.categoria] : []);
                 const hasMultipleCats = cats.length > 1;
-                return isLoss || hasMultipleCats;
+                const isCaixaAcquitted = viewMode === 'caixa' && (item.status === 'ACQUITTED' || item.status === 'QUITADO');
+                return isLoss || hasMultipleCats || isCaixaAcquitted;
             })
             .map((item: any) => item.id);
+
 
         const parcelDetailsMap = new Map<string, any>();
         if (idsToFetch.length > 0) {
@@ -366,11 +381,23 @@ async function collectDetailedTransactions(
             
             // Se for regime de caixa, a data principal é a data de pagamento/baixa.
             // Se for regime de competência, a data principal é a data de competência/emissão.
-            const dateStr = viewMode === 'caixa'
-                ? (item.data_pagamento || item.data_baixa || item.data_competencia || item.data_emissao || item.data)
-                : (hasPDD
+            let dateStr = null;
+            if (viewMode === 'caixa') {
+                const detail = parcelDetailsMap.get(item.id);
+                if (detail && detail.baixas && detail.baixas.length > 0) {
+                    dateStr = detail.baixas[0].data_pagamento;
+                }
+                if (!dateStr && detail) {
+                    dateStr = detail.data_pagamento_previsto;
+                }
+                if (!dateStr) {
+                    dateStr = item.data_pagamento || item.data_baixa || item.data_competencia || item.data_emissao || item.data;
+                }
+            } else {
+                dateStr = hasPDD
                     ? (item.data_baixa || item.data_pagamento || item.data_competencia || item.data_emissao || item.data)
-                    : (item.data_competencia || item.data_emissao || item.venda_em || item.data_pagamento || item.data));
+                    : (item.data_competencia || item.data_emissao || item.venda_em || item.data_pagamento || item.data);
+            }
 
             if (!dateStr) continue;
             const dateObj = new Date(dateStr);

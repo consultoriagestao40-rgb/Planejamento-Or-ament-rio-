@@ -36,6 +36,12 @@ interface DFCResponse {
     bankAccounts: BankAccount[];
 }
 
+const parseDateLocal = (dateStr: string) => {
+    if (!dateStr) return new Date();
+    const [y, m, d] = dateStr.split('-').map(Number);
+    return new Date(y, m - 1, d);
+};
+
 export default function DFCPage() {
     // State de filtros e parâmetros
     const [tenants, setTenants] = useState<any[]>([]);
@@ -239,7 +245,7 @@ export default function DFCPage() {
         let daysInGroup = 0;
 
         rawPoints.forEach((p, idx) => {
-            const date = new Date(p.date);
+            const date = parseDateLocal(p.date);
             let belongsToNewGroup = false;
 
             if (!currentGroup) {
@@ -250,7 +256,7 @@ export default function DFCPage() {
                 } else if (chartView === 'quinzena') {
                     belongsToNewGroup = daysInGroup >= 15;
                 } else if (chartView === 'month') {
-                    const prevDate = new Date(currentGroup.rawDate);
+                    const prevDate = parseDateLocal(currentGroup.rawDate);
                     belongsToNewGroup = date.getMonth() !== prevDate.getMonth();
                 }
             }
@@ -961,7 +967,7 @@ export default function DFCPage() {
                                                                 <g>
                                                                     <rect x={tx} y={ty} width={tooltipW} height={tooltipH} fill="#1f2937" stroke="#38bdf8" strokeWidth="1.5" rx="6" />
                                                                     <text x={tx + 8} y={ty + 12} fill="#94a3b8" fontSize="7.5" fontWeight="700">
-                                                                        {new Date(hoveredPoint.date).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', year: 'numeric' })}
+                                                                        {parseDateLocal(hoveredPoint.date).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', year: 'numeric' })}
                                                                     </text>
                                                                     <text x={tx + 8} y={ty + 25} fill="#f8fafc" fontSize="8.5" fontWeight="800">
                                                                         {formatCurrency(hoveredPoint.balance)}

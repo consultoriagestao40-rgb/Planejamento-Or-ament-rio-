@@ -349,7 +349,10 @@ export async function GET(request: Request) {
                 }
 
                 if (overdueAction === 'ignore') return;
-                else if (overdueAction === 'today') projDate = new Date(today);
+                else if (overdueAction === 'today') {
+                    projDate = new Date(today);
+                    projDate.setDate(projDate.getDate() + 1); // Move overdue collections/payments to tomorrow so Day 0 matches actual current bank balance!
+                }
             }
 
             let amount = entry.amount;
@@ -379,7 +382,10 @@ export async function GET(request: Request) {
             dailyRunningBalance += netDayFlow;
             dailyProjection.push({
                 date: dayStr,
-                formattedDate: new Date(dayStr).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }),
+                formattedDate: (() => {
+                    const [y, m, d] = dayStr.split('-').map(Number);
+                    return new Date(y, m - 1, d).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
+                })(),
                 inflows: dayData.inflows,
                 outflows: dayData.outflows,
                 netFlow: netDayFlow,

@@ -771,38 +771,38 @@ select.premium-select:focus {
 /* Degradê Azul de acordo com o nível na árvore DRE */
 .dre-compact-table tbody tr.spreadsheet-parent-row-level-0,
 .dre-compact-table tbody tr.spreadsheet-parent-row-level-0 .sticky-col {
-  background-color: #8db4e2 !important; /* Azul médio/escuro inicial para linhas raízes */
+  background-color: #b4c7e7 !important; /* Azul pastel médio-suave (Primeiro nível de pais) */
   color: #0f172a !important;
 }
 .dre-compact-table tbody tr.spreadsheet-parent-row-level-0 .sticky-col {
-  box-shadow: 2px 0 0 0 #8db4e2, 2px 0 4px -2px rgba(0,0,0,0.05) !important;
+  box-shadow: 2px 0 0 0 #b4c7e7, 2px 0 4px -2px rgba(0,0,0,0.05) !important;
 }
 
 .dre-compact-table tbody tr.spreadsheet-parent-row-level-1,
 .dre-compact-table tbody tr.spreadsheet-parent-row-level-1 .sticky-col {
-  background-color: #b8cce4 !important; /* Azul claro */
+  background-color: #c6d9f1 !important; /* Azul pastel claro */
   color: #0f172a !important;
 }
 .dre-compact-table tbody tr.spreadsheet-parent-row-level-1 .sticky-col {
-  box-shadow: 2px 0 0 0 #b8cce4, 2px 0 4px -2px rgba(0,0,0,0.05) !important;
+  box-shadow: 2px 0 0 0 #c6d9f1, 2px 0 4px -2px rgba(0,0,0,0.05) !important;
 }
 
 .dre-compact-table tbody tr.spreadsheet-parent-row-level-2,
 .dre-compact-table tbody tr.spreadsheet-parent-row-level-2 .sticky-col {
-  background-color: #dbe5f1 !important; /* Azul muito claro */
+  background-color: #d9e2f3 !important; /* Azul pastel muito claro */
   color: #0f172a !important;
 }
 .dre-compact-table tbody tr.spreadsheet-parent-row-level-2 .sticky-col {
-  box-shadow: 2px 0 0 0 #dbe5f1, 2px 0 4px -2px rgba(0,0,0,0.05) !important;
+  box-shadow: 2px 0 0 0 #d9e2f3, 2px 0 4px -2px rgba(0,0,0,0.05) !important;
 }
 
 .dre-compact-table tbody tr.spreadsheet-parent-row-level-3,
 .dre-compact-table tbody tr.spreadsheet-parent-row-level-3 .sticky-col {
-  background-color: #f2f5f9 !important; /* Azul quase branco/gelo */
+  background-color: #eef2f7 !important; /* Azul pastel quase branco/gelo */
   color: #0f172a !important;
 }
 .dre-compact-table tbody tr.spreadsheet-parent-row-level-3 .sticky-col {
-  box-shadow: 2px 0 0 0 #f2f5f9, 2px 0 4px -2px rgba(0,0,0,0.05) !important;
+  box-shadow: 2px 0 0 0 #eef2f7, 2px 0 4px -2px rgba(0,0,0,0.05) !important;
 }
 
 /* Fallback ou níveis muito profundos */

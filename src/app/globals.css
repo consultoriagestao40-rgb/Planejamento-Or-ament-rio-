@@ -753,11 +753,16 @@ select.premium-select:focus {
 
 /* Remover efeito zebra padrão para focar nos destaques de contas pais */
 .dre-compact-table tbody tr,
-.dre-compact-table tbody tr .sticky-col {
+.dre-compact-table tbody tr td,
+.dre-compact-table tbody tr .sticky-col,
+.dre-compact-table tbody tr:nth-child(even):not(.spreadsheet-parent-row):not(.spreadsheet-summary-row):not(.spreadsheet-net-profit-row),
+.dre-compact-table tbody tr:nth-child(even):not(.spreadsheet-parent-row):not(.spreadsheet-summary-row):not(.spreadsheet-net-profit-row) td,
+.dre-compact-table tbody tr:nth-child(even):not(.spreadsheet-parent-row):not(.spreadsheet-summary-row):not(.spreadsheet-net-profit-row) .sticky-col {
   background-color: #ffffff !important;
 }
 
-.dre-compact-table tbody tr .sticky-col {
+.dre-compact-table tbody tr .sticky-col,
+.dre-compact-table tbody tr:not(.spreadsheet-parent-row):not(.spreadsheet-summary-row):not(.spreadsheet-net-profit-row) .sticky-col {
   box-shadow: 2px 0 0 0 #e2e8f0, 2px 0 4px -2px rgba(0,0,0,0.05) !important;
   border-right: 1px solid #cbd5e1 !important;
 }

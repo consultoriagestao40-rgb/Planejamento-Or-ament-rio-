@@ -4421,6 +4421,8 @@ export default function BudgetGrid({
     const renderSummaryRow = (label: string, validx: keyof ReturnType<typeof dreStructure.calculateTotals>, isBold = false, groupId?: string) => {
         const isGroupExpanded = groupId ? expandedGroups.has(groupId) : true;
         const isLucroLiquido = validx === 'vNetProfit';
+        const isWhiteText = isLucroLiquido || !groupId;
+
         return (
             <tr 
                 onClick={() => groupId && toggleGroup(groupId)}
@@ -4436,7 +4438,7 @@ export default function BudgetGrid({
                 <td 
                     className="sticky-col" 
                     style={{ 
-                        color: isLucroLiquido ? '#ffffff' : '#0f172a',
+                        color: isWhiteText ? '#ffffff' : '#0f172a',
                         zIndex: 25,
                         width: '400px',
                         minWidth: '400px',
@@ -4473,8 +4475,8 @@ export default function BudgetGrid({
                         }
                     }
 
-                    const bColor = budgetVal < 0 ? '#ef4444' : (isLucroLiquido ? '#fff' : '#64748b');
-                    const rColor = realizedVal < 0 ? '#ef4444' : (isLucroLiquido ? '#fff' : 'var(--accent-blue)');
+                    const bColor = budgetVal < 0 ? '#ef4444' : (isWhiteText ? '#fff' : '#64748b');
+                    const rColor = realizedVal < 0 ? '#ef4444' : (isWhiteText ? '#fff' : 'var(--accent-blue)');
 
                     const getMoMPercent = () => {
                         if (i === 0) return 0;
@@ -4535,7 +4537,7 @@ export default function BudgetGrid({
                                 <td 
                                     className="spreadsheet-value" 
                                     style={{ 
-                                        color: isLucroLiquido ? '#fff' : (isHighlighted ? '#0b579f' : '#64748b'), 
+                                        color: isWhiteText ? '#fff' : (isHighlighted ? '#0b579f' : '#64748b'), 
                                         textAlign: 'center', 
                                         width: '60px', 
                                         minWidth: '60px', 
@@ -4568,7 +4570,7 @@ export default function BudgetGrid({
                                 <td 
                                     className="spreadsheet-value" 
                                     style={{ 
-                                        color: isLucroLiquido ? '#fff' : (isHighlighted ? '#0b579f' : '#475569'), 
+                                        color: isWhiteText ? '#fff' : (isHighlighted ? '#0b579f' : '#475569'), 
                                         textAlign: 'center', 
                                         width: '60px', 
                                         minWidth: '60px', 
@@ -4584,9 +4586,9 @@ export default function BudgetGrid({
                                     color: (() => {
                                         const val = getAH(realizedVal, budgetVal);
                                         const isProfitRow = ['vRev', 'vRecLiq', 'vGrossMarg', 'vContribMarg', 'vEbitda', 'vNetProfit'].includes(validx as string);
-                                        if (val === 0) return isLucroLiquido ? '#fff' : '#64748b';
-                                        if (isProfitRow) return val < 0 ? '#e11d48' : (isLucroLiquido ? '#fff' : '#059669');
-                                        return val > 0 ? '#e11d48' : (isLucroLiquido ? '#fff' : '#059669');
+                                        if (val === 0) return isWhiteText ? '#fff' : '#64748b';
+                                        if (isProfitRow) return val < 0 ? '#e11d48' : (isWhiteText ? '#fff' : '#059669');
+                                        return val > 0 ? '#e11d48' : (isWhiteText ? '#fff' : '#059669');
                                     })(),
                                     background: isLucroLiquido ? undefined : (isHighlighted ? '#f0f9ff' : undefined),
                                     textAlign: 'center',
@@ -4602,9 +4604,9 @@ export default function BudgetGrid({
                                     color: (() => {
                                         const val = getMoMPercent();
                                         const isProfitRow = ['vRev', 'vRecLiq', 'vGrossMarg', 'vContribMarg', 'vEbitda', 'vNetProfit'].includes(validx as string);
-                                        if (val === 0) return isLucroLiquido ? '#fff' : '#64748b';
-                                        if (isProfitRow) return val < 0 ? '#e11d48' : (isLucroLiquido ? '#fff' : '#059669');
-                                        return val > 0 ? '#e11d48' : (isLucroLiquido ? '#fff' : '#059669');
+                                        if (val === 0) return isWhiteText ? '#fff' : '#64748b';
+                                        if (isProfitRow) return val < 0 ? '#e11d48' : (isWhiteText ? '#fff' : '#059669');
+                                        return val > 0 ? '#e11d48' : (isWhiteText ? '#fff' : '#059669');
                                     })(),
                                     background: isLucroLiquido ? undefined : (isHighlighted ? '#f0f9ff' : undefined),
                                     textAlign: 'center',

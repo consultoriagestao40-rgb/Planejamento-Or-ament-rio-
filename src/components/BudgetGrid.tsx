@@ -7719,7 +7719,7 @@ export default function BudgetGrid({
                             top: '0px',
                             zIndex: 49,
                             width: '100%',
-                            background: '#1e40af',
+                            background: '#0f62ac',
                             borderTopLeftRadius: '8px',
                             borderTopRightRadius: '8px',
                             borderLeft: '1px solid #cbd5e1',

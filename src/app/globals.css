@@ -846,7 +846,7 @@ select.premium-select:focus {
 .dre-compact-table tbody tr.spreadsheet-summary-row,
 .dre-compact-table tbody tr.spreadsheet-summary-row td,
 .dre-compact-table tbody tr.spreadsheet-summary-row .sticky-col {
-  background-color: #1e40af !important; /* Azul escuro corporativo (Tom mais escuro) */
+  background-color: #0f62ac !important; /* Azul escuro corporativo (Tom mais escuro) */
   font-weight: 700 !important;
 }
 .dre-compact-table tbody tr.spreadsheet-summary-row td {
@@ -854,14 +854,14 @@ select.premium-select:focus {
 }
 .dre-compact-table tbody tr.spreadsheet-summary-row .sticky-col {
   color: #ffffff !important;
-  box-shadow: 2px 0 0 0 #1e40af, 2px 0 4px -2px rgba(0,0,0,0.05) !important;
+  box-shadow: 2px 0 0 0 #0f62ac, 2px 0 4px -2px rgba(0,0,0,0.05) !important;
 }
 
 /* Lucro Líquido - Alinhado ao degradê neutro */
 .dre-compact-table tbody tr.spreadsheet-net-profit-row,
 .dre-compact-table tbody tr.spreadsheet-net-profit-row td,
 .dre-compact-table tbody tr.spreadsheet-net-profit-row .sticky-col {
-  background-color: #1e40af !important; /* Azul escuro corporativo (Tom mais escuro) */
+  background-color: #0f62ac !important; /* Azul escuro corporativo (Tom mais escuro) */
   background-image: none !important;
   font-weight: 800 !important;
 }
@@ -870,7 +870,7 @@ select.premium-select:focus {
 }
 .dre-compact-table tbody tr.spreadsheet-net-profit-row .sticky-col {
   color: #ffffff !important;
-  box-shadow: 2px 0 0 0 #1e40af, 2px 0 4px -2px rgba(0,0,0,0.05) !important;
+  box-shadow: 2px 0 0 0 #0f62ac, 2px 0 4px -2px rgba(0,0,0,0.05) !important;
 }
 
 /* Cabeçalho de Grupos (RECEITAS, CUSTOS E DESPESAS, RESULTADO FINANCEIRO) */
@@ -888,13 +888,13 @@ select.premium-select:focus {
 .dre-compact-table tbody tr.spreadsheet-net-profit-row,
 .dre-compact-table tbody tr.spreadsheet-net-profit-row td,
 .dre-compact-table tbody tr.spreadsheet-net-profit-row .sticky-col {
-  background-color: #1e40af !important; /* Azul Escuro BI */
+  background-color: #0f62ac !important; /* Azul Escuro BI */
   background-image: none !important;
   color: #ffffff !important;
   font-weight: 800 !important;
 }
 .dre-compact-table tbody tr.spreadsheet-net-profit-row .sticky-col {
-  box-shadow: 2px 0 0 0 #1e40af, 2px 0 4px -2px rgba(0,0,0,0.05) !important;
+  box-shadow: 2px 0 0 0 #0f62ac, 2px 0 4px -2px rgba(0,0,0,0.05) !important;
 }
 
 /* Caixinha de controle de árvore (+ / -) */
@@ -925,7 +925,7 @@ select.premium-select:focus {
 
 /* Sticky headers support for DRE compact integrated table */
 .dre-compact-table thead th {
-  background-color: #1e40af !important;
+  background-color: #0f62ac !important;
   color: #ffffff !important;
   border-left: 1px solid rgba(255, 255, 255, 0.15) !important;
 }
@@ -947,13 +947,13 @@ select.premium-select:focus {
 .dre-compact-table thead tr:nth-child(1) th.sticky-col {
   z-index: 45 !important;
   left: -2px !important;
-  background-color: #1e40af !important;
-  box-shadow: 2px 0 0 0 #1e40af, 2px 0 4px -2px rgba(0,0,0,0.05) !important;
+  background-color: #0f62ac !important;
+  box-shadow: 2px 0 0 0 #0f62ac, 2px 0 4px -2px rgba(0,0,0,0.05) !important;
 }
 
 .dre-compact-table thead tr:nth-child(2) th.sticky-col {
   z-index: 45 !important;
   left: -2px !important;
-  background-color: #1e40af !important;
-  box-shadow: 2px 0 0 0 #1e40af, 2px 0 4px -2px rgba(0,0,0,0.05) !important;
+  background-color: #0f62ac !important;
+  box-shadow: 2px 0 0 0 #0f62ac, 2px 0 4px -2px rgba(0,0,0,0.05) !important;
 }

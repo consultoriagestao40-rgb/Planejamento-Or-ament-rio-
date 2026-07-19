@@ -768,47 +768,52 @@ select.premium-select:focus {
   font-weight: 700 !important;
 }
 
-/* Degradê Neutro Slate de acordo com o nível na árvore DRE */
+/* Degradê Azul de acordo com o nível na árvore DRE */
 .dre-compact-table tbody tr.spreadsheet-parent-row-level-0,
-.dre-compact-table tbody tr.spreadsheet-parent-row-level-0 .sticky-col,
+.dre-compact-table tbody tr.spreadsheet-parent-row-level-0 .sticky-col {
+  background-color: #8db4e2 !important; /* Azul médio/escuro inicial para linhas raízes */
+  color: #0f172a !important;
+}
+.dre-compact-table tbody tr.spreadsheet-parent-row-level-0 .sticky-col {
+  box-shadow: 2px 0 0 0 #8db4e2, 2px 0 4px -2px rgba(0,0,0,0.05) !important;
+}
+
 .dre-compact-table tbody tr.spreadsheet-parent-row-level-1,
 .dre-compact-table tbody tr.spreadsheet-parent-row-level-1 .sticky-col {
-  background-color: #cbd5e1 !important; /* Slate-300 (Cinza inicial mais forte para linhas raízes) */
+  background-color: #b8cce4 !important; /* Azul claro */
+  color: #0f172a !important;
 }
-.dre-compact-table tbody tr.spreadsheet-parent-row-level-0 .sticky-col,
 .dre-compact-table tbody tr.spreadsheet-parent-row-level-1 .sticky-col {
-  box-shadow: 2px 0 0 0 #cbd5e1, 2px 0 4px -2px rgba(0,0,0,0.05) !important;
+  box-shadow: 2px 0 0 0 #b8cce4, 2px 0 4px -2px rgba(0,0,0,0.05) !important;
 }
 
 .dre-compact-table tbody tr.spreadsheet-parent-row-level-2,
 .dre-compact-table tbody tr.spreadsheet-parent-row-level-2 .sticky-col {
-  background-color: #e2e8f0 !important; /* Slate-200 (Cinza médio) */
+  background-color: #dbe5f1 !important; /* Azul muito claro */
+  color: #0f172a !important;
 }
 .dre-compact-table tbody tr.spreadsheet-parent-row-level-2 .sticky-col {
-  box-shadow: 2px 0 0 0 #e2e8f0, 2px 0 4px -2px rgba(0,0,0,0.05) !important;
+  box-shadow: 2px 0 0 0 #dbe5f1, 2px 0 4px -2px rgba(0,0,0,0.05) !important;
 }
 
 .dre-compact-table tbody tr.spreadsheet-parent-row-level-3,
 .dre-compact-table tbody tr.spreadsheet-parent-row-level-3 .sticky-col {
-  background-color: #f1f5f9 !important; /* Slate-100 (Cinza claro) */
+  background-color: #f2f5f9 !important; /* Azul quase branco/gelo */
+  color: #0f172a !important;
 }
 .dre-compact-table tbody tr.spreadsheet-parent-row-level-3 .sticky-col {
-  box-shadow: 2px 0 0 0 #f1f5f9, 2px 0 4px -2px rgba(0,0,0,0.05) !important;
-}
-
-.dre-compact-table tbody tr.spreadsheet-parent-row-level-4,
-.dre-compact-table tbody tr.spreadsheet-parent-row-level-4 .sticky-col {
-  background-color: #f8fafc !important; /* Slate-50 (Cinza muito claro) */
-}
-.dre-compact-table tbody tr.spreadsheet-parent-row-level-4 .sticky-col {
-  box-shadow: 2px 0 0 0 #f8fafc, 2px 0 4px -2px rgba(0,0,0,0.05) !important;
+  box-shadow: 2px 0 0 0 #f2f5f9, 2px 0 4px -2px rgba(0,0,0,0.05) !important;
 }
 
 /* Fallback ou níveis muito profundos */
+.dre-compact-table tbody tr.spreadsheet-parent-row-level-4,
+.dre-compact-table tbody tr.spreadsheet-parent-row-level-4 .sticky-col,
 .dre-compact-table tbody tr.spreadsheet-parent-row-level-5,
 .dre-compact-table tbody tr.spreadsheet-parent-row-level-5 .sticky-col {
   background-color: #ffffff !important;
+  color: #0f172a !important;
 }
+.dre-compact-table tbody tr.spreadsheet-parent-row-level-4 .sticky-col,
 .dre-compact-table tbody tr.spreadsheet-parent-row-level-5 .sticky-col {
   box-shadow: 2px 0 0 0 #ffffff, 2px 0 4px -2px rgba(0,0,0,0.05) !important;
 }
@@ -816,25 +821,25 @@ select.premium-select:focus {
 /* Destaque para Linhas de Resumos (01. Receita Bruta, Receita Líquida, etc) */
 .dre-compact-table tbody tr.spreadsheet-summary-row,
 .dre-compact-table tbody tr.spreadsheet-summary-row .sticky-col {
-  background-color: #cbd5e1 !important; /* Slate-300 (Cinza sólido corporativo - Mais Escuro) */
-  color: #0f172a !important; /* Texto escuro padrão */
+  background-color: #1f4e78 !important; /* Azul escuro corporativo */
+  color: #ffffff !important;
   font-weight: 700 !important;
 }
 .dre-compact-table tbody tr.spreadsheet-summary-row .sticky-col {
-  box-shadow: 2px 0 0 0 #cbd5e1, 2px 0 4px -2px rgba(0,0,0,0.05) !important;
+  box-shadow: 2px 0 0 0 #1f4e78, 2px 0 4px -2px rgba(0,0,0,0.05) !important;
 }
 
 /* Lucro Líquido - Alinhado ao degradê neutro */
 .dre-compact-table tbody tr.spreadsheet-net-profit-row,
 .dre-compact-table tbody tr.spreadsheet-net-profit-row td,
 .dre-compact-table tbody tr.spreadsheet-net-profit-row .sticky-col {
-  background-color: #cbd5e1 !important; /* Slate-300 (Cinza sólido corporativo) */
+  background-color: #1f4e78 !important; /* Azul escuro corporativo */
   background-image: none !important;
-  color: #0f172a !important; /* Texto escuro */
+  color: #ffffff !important;
   font-weight: 800 !important;
 }
 .dre-compact-table tbody tr.spreadsheet-net-profit-row .sticky-col {
-  box-shadow: 2px 0 0 0 #cbd5e1, 2px 0 4px -2px rgba(0,0,0,0.05) !important;
+  box-shadow: 2px 0 0 0 #1f4e78, 2px 0 4px -2px rgba(0,0,0,0.05) !important;
 }
 
 /* Cabeçalho de Grupos (RECEITAS, CUSTOS E DESPESAS, RESULTADO FINANCEIRO) */
@@ -888,11 +893,16 @@ select.premium-select:focus {
 }
 
 /* Sticky headers support for DRE compact integrated table */
+.dre-compact-table thead th {
+  background-color: #1f4e78 !important;
+  color: #ffffff !important;
+  border-left: 1px solid rgba(255, 255, 255, 0.15) !important;
+}
+
 .dre-compact-table thead tr:nth-child(1) th {
   position: sticky !important;
   top: 0 !important;
   z-index: 35 !important;
-  background-color: #f1f5f9 !important;
   height: 25px !important;
   max-height: 25px !important;
 }
@@ -901,19 +911,18 @@ select.premium-select:focus {
   position: sticky !important;
   top: 25px !important;
   z-index: 35 !important;
-  background-color: #f1f5f9 !important;
 }
 
 .dre-compact-table thead tr:nth-child(1) th.sticky-col {
   z-index: 45 !important;
   left: -2px !important;
-  background-color: #f1f5f9 !important;
-  box-shadow: 2px 0 0 0 #f1f5f9, 2px 0 4px -2px rgba(0,0,0,0.05) !important;
+  background-color: #1f4e78 !important;
+  box-shadow: 2px 0 0 0 #1f4e78, 2px 0 4px -2px rgba(0,0,0,0.05) !important;
 }
 
 .dre-compact-table thead tr:nth-child(2) th.sticky-col {
   z-index: 45 !important;
   left: -2px !important;
-  background-color: #f1f5f9 !important;
-  box-shadow: 2px 0 0 0 #f1f5f9, 2px 0 4px -2px rgba(0,0,0,0.05) !important;
+  background-color: #1f4e78 !important;
+  box-shadow: 2px 0 0 0 #1f4e78, 2px 0 4px -2px rgba(0,0,0,0.05) !important;
 }

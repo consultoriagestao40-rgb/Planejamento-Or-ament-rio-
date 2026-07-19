@@ -4299,9 +4299,9 @@ export default function BudgetGrid({
                                             background: isHighlighted ? '#f0f9ff' : undefined,
                                             textAlign: 'right',
                                             paddingRight: '0.4rem',
-                                            width: '90px',
-                                            minWidth: '90px',
-                                            maxWidth: '90px',
+                                            width: '120px',
+                                            minWidth: '120px',
+                                            maxWidth: '120px',
                                             fontWeight: isInteractiveTree ? 700 : 400
                                         }}>
                                             {rVal - bVal === 0 ? 'R$ 0,00' : `${rVal - bVal > 0 ? '▲ ' : '▼ '}${formatCurrency(Math.abs(rVal - bVal))}`}
@@ -4316,9 +4316,9 @@ export default function BudgetGrid({
                                             })(), 
                                             background: isHighlighted ? '#f0f9ff' : undefined,
                                             textAlign: 'center',
-                                            width: '70px',
-                                            minWidth: '70px',
-                                            maxWidth: '70px',
+                                            width: '80px',
+                                            minWidth: '80px',
+                                            maxWidth: '80px',
                                             fontWeight: isInteractiveTree ? 700 : 400
                                         }}>
                                             {getAH(rVal, bVal) === 0 ? '0,0%' : `${getAH(rVal, bVal) > 0 ? '▲ ' : '▼ '}${Math.abs(getAH(rVal, bVal)).toFixed(1)}%`}
@@ -4338,9 +4338,9 @@ export default function BudgetGrid({
                                             background: isHighlighted ? '#f0f9ff' : undefined,
                                             textAlign: 'right',
                                             paddingRight: '0.4rem',
-                                            width: '90px',
-                                            minWidth: '90px',
-                                            maxWidth: '90px',
+                                            width: '120px',
+                                            minWidth: '120px',
+                                            maxWidth: '120px',
                                             fontWeight: isInteractiveTree ? 700 : 400
                                         }}>
                                             {i === 0 ? '-' : (getMoMAbs() === 0 ? 'R$ 0,00' : `${getMoMAbs() > 0 ? '▲ ' : '▼ '}${formatCurrency(Math.abs(getMoMAbs()))}`)}
@@ -4355,9 +4355,9 @@ export default function BudgetGrid({
                                             })(), 
                                             background: isHighlighted ? '#f0f9ff' : undefined,
                                             textAlign: 'center',
-                                            width: '70px',
-                                            minWidth: '70px',
-                                            maxWidth: '70px',
+                                            width: '80px',
+                                            minWidth: '80px',
+                                            maxWidth: '80px',
                                             fontWeight: isInteractiveTree ? 700 : 400
                                         }}>
                                             {i === 0 ? '-' : (getMoMPercent() === 0 ? '0,0%' : `${getMoMPercent() > 0 ? '▲ ' : '▼ '}${Math.abs(getMoMPercent()).toFixed(1)}%`)}
@@ -4425,8 +4425,18 @@ export default function BudgetGrid({
                                             <td className="spreadsheet-value" style={{ borderLeft: !showOrcado ? '1px solid #e2e8f0' : undefined, fontSize: '0.74rem', color: 'transparent', width: '140px', minWidth: '140px', maxWidth: '140px' }}>-</td>
                                         )}
                                         {showAV && showRealizado && <td className="spreadsheet-value" style={{ color: 'transparent', width: '60px', minWidth: '60px', maxWidth: '60px' }}>-</td>}
-                                        {showAH && showOrcado && showRealizado && <td className="spreadsheet-value" style={{ color: 'transparent', width: '70px', minWidth: '70px', maxWidth: '70px' }}>-</td>}
-                                        {showAH_MoM && <td className="spreadsheet-value" style={{ color: 'transparent', width: '70px', minWidth: '70px', maxWidth: '70px' }}>-</td>}
+                                        {showAH && showOrcado && showRealizado && (
+                                            <>
+                                                <td className="spreadsheet-value" style={{ color: 'transparent', width: '120px', minWidth: '120px', maxWidth: '120px' }}>-</td>
+                                                <td className="spreadsheet-value" style={{ color: 'transparent', width: '80px', minWidth: '80px', maxWidth: '80px' }}>-</td>
+                                            </>
+                                        )}
+                                        {showAH_MoM && (
+                                            <>
+                                                <td className="spreadsheet-value" style={{ color: 'transparent', width: '120px', minWidth: '120px', maxWidth: '120px' }}>-</td>
+                                                <td className="spreadsheet-value" style={{ color: 'transparent', width: '80px', minWidth: '80px', maxWidth: '80px' }}>-</td>
+                                            </>
+                                        )}
                                     </React.Fragment>
                                 );
                             })}
@@ -4645,9 +4655,9 @@ export default function BudgetGrid({
                                         background: isLucroLiquido ? undefined : (isHighlighted ? '#f0f9ff' : undefined),
                                         textAlign: 'right',
                                         paddingRight: '0.4rem',
-                                        width: '90px',
-                                        minWidth: '90px',
-                                        maxWidth: '90px',
+                                        width: '120px',
+                                        minWidth: '120px',
+                                        maxWidth: '120px',
                                         fontWeight: 700
                                     }}>
                                         {(realizedVal || 0) - (budgetVal || 0) === 0 ? 'R$ 0,00' : `${(realizedVal || 0) - (budgetVal || 0) > 0 ? '▲ ' : '▼ '}${formatCurrency(Math.abs((realizedVal || 0) - (budgetVal || 0)))}`}
@@ -4662,9 +4672,9 @@ export default function BudgetGrid({
                                         })(),
                                         background: isLucroLiquido ? undefined : (isHighlighted ? '#f0f9ff' : undefined),
                                         textAlign: 'center',
-                                        width: '70px',
-                                        minWidth: '70px',
-                                        maxWidth: '70px',
+                                        width: '80px',
+                                        minWidth: '80px',
+                                        maxWidth: '80px',
                                         fontWeight: 700
                                     }}>
                                         {getAH(realizedVal, budgetVal) === 0 ? '0,0%' : `${getAH(realizedVal, budgetVal) > 0 ? '▲ ' : '▼ '}${Math.abs(getAH(realizedVal, budgetVal)).toFixed(1)}%`}
@@ -4684,9 +4694,9 @@ export default function BudgetGrid({
                                         background: isLucroLiquido ? undefined : (isHighlighted ? '#f0f9ff' : undefined),
                                         textAlign: 'right',
                                         paddingRight: '0.4rem',
-                                        width: '90px',
-                                        minWidth: '90px',
-                                        maxWidth: '90px',
+                                        width: '120px',
+                                        minWidth: '120px',
+                                        maxWidth: '120px',
                                         fontWeight: 700
                                     }}>
                                         {i === 0 ? '-' : (getMoMAbs() === 0 ? 'R$ 0,00' : `${getMoMAbs() > 0 ? '▲ ' : '▼ '}${formatCurrency(Math.abs(getMoMAbs()))}`)}
@@ -4701,9 +4711,9 @@ export default function BudgetGrid({
                                         })(),
                                         background: isLucroLiquido ? undefined : (isHighlighted ? '#f0f9ff' : undefined),
                                         textAlign: 'center',
-                                        width: '70px',
-                                        minWidth: '70px',
-                                        maxWidth: '70px',
+                                        width: '80px',
+                                        minWidth: '80px',
+                                        maxWidth: '80px',
                                         fontWeight: 700
                                     }}>
                                         {i === 0 ? '-' : (getMoMPercent() === 0 ? '0,0%' : `${getMoMPercent() > 0 ? '▲ ' : '▼ '}${Math.abs(getMoMPercent()).toFixed(1)}%`)}
@@ -7786,16 +7796,16 @@ export default function BudgetGrid({
                                                 {showAV && showRealizado && <th style={{ fontSize: '0.68rem', color: highlightTextOther, textAlign: 'center', padding: '0.2rem', width: '60px', minWidth: '60px', maxWidth: '60px', backgroundColor: highlightBgOther }}>AV RL</th>}
                                                 {showAH && showOrcado && showRealizado && (
                                                     <>
-                                                        <th style={{ fontSize: '0.68rem', color: highlightTextOther, borderLeft: '1px solid rgba(255,255,255,0.15)', textAlign: 'center', padding: '0.2rem', width: '90px', minWidth: '90px', maxWidth: '90px', backgroundColor: highlightBgOther }}>AH Abs</th>
-                                                        <th style={{ fontSize: '0.68rem', color: highlightTextOther, textAlign: 'center', padding: '0.2rem', width: '70px', minWidth: '70px', maxWidth: '70px', backgroundColor: highlightBgOther }}>AH %</th>
+                                                        <th style={{ fontSize: '0.68rem', color: highlightTextOther, borderLeft: '1px solid rgba(255,255,255,0.15)', textAlign: 'center', padding: '0.2rem', width: '120px', minWidth: '120px', maxWidth: '120px', backgroundColor: highlightBgOther }}>AH Abs</th>
+                                                        <th style={{ fontSize: '0.68rem', color: highlightTextOther, textAlign: 'center', padding: '0.2rem', width: '80px', minWidth: '80px', maxWidth: '80px', backgroundColor: highlightBgOther }}>AH %</th>
                                                     </>
                                                 )}
                                                 {showAH_MoM && (
                                                     <>
-                                                        <th style={{ fontSize: '0.68rem', color: highlightTextOther, borderLeft: '1px solid rgba(255,255,255,0.15)', textAlign: 'center', padding: '0.2rem', width: '90px', minWidth: '90px', maxWidth: '90px', backgroundColor: highlightBgOther }}>
+                                                        <th style={{ fontSize: '0.68rem', color: highlightTextOther, borderLeft: '1px solid rgba(255,255,255,0.15)', textAlign: 'center', padding: '0.2rem', width: '120px', minWidth: '120px', maxWidth: '120px', backgroundColor: highlightBgOther }}>
                                                             {viewPeriod === 'month' ? 'MoM Abs' : 'QoQ Abs'}
                                                         </th>
-                                                        <th style={{ fontSize: '0.68rem', color: highlightTextOther, textAlign: 'center', padding: '0.2rem', width: '70px', minWidth: '70px', maxWidth: '70px', backgroundColor: highlightBgOther }}>
+                                                        <th style={{ fontSize: '0.68rem', color: highlightTextOther, textAlign: 'center', padding: '0.2rem', width: '80px', minWidth: '80px', maxWidth: '80px', backgroundColor: highlightBgOther }}>
                                                             {viewPeriod === 'month' ? 'MoM %' : 'QoQ %'}
                                                         </th>
                                                       </>

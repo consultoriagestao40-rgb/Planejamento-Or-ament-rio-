@@ -93,11 +93,26 @@ export default function FinancialDashboard({
             width: '100%',
             minHeight: '100vh',
             backgroundColor: 'var(--bg-base)',
-            padding: '1.25rem 1.5rem 2rem',
+            padding: 0,
             boxSizing: 'border-box'
         }}>
             {/* Mockup Header Bar */}
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem', flexWrap: 'wrap', gap: '1rem', background: '#0f62ac', padding: '0.5rem 1.25rem', borderRadius: '12px', border: '1px solid #0b579f', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1), 0 2px 4px -1px rgba(0,0,0,0.06)' }}>
+                <div style={{ 
+                    display: 'flex', 
+                    justifyContent: 'space-between', 
+                    alignItems: 'center', 
+                    marginBottom: '1.25rem', 
+                    flexWrap: 'wrap', 
+                    gap: '1rem', 
+                    background: '#0f62ac', 
+                    padding: '0.65rem 1.5rem', 
+                    borderRadius: '0px', 
+                    borderBottom: '1px solid #0b579f',
+                    borderTop: 'none',
+                    borderLeft: 'none',
+                    borderRight: 'none',
+                    boxShadow: '0 2px 4px rgba(0,0,0,0.08)'
+                }}>
                     {/* Left side: Tabs & Year Selector */}
                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '2px', background: 'rgba(255, 255, 255, 0.15)', padding: '3px', borderRadius: '8px', height: '34px', boxSizing: 'border-box' }}>
@@ -177,7 +192,7 @@ export default function FinancialDashboard({
                                 KPI
                             </button>
                         </div>
-
+ 
                         {isConnected && (
                             <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', background: '#ffffff', border: '1px solid #e2e8f0', borderRadius: '8px', padding: '0 0.5rem', height: '34px', userSelect: 'none', marginLeft: '0.5rem' }}>
                                 <button 
@@ -200,7 +215,7 @@ export default function FinancialDashboard({
                             </div>
                         )}
                     </div>
-
+ 
                     {/* Center: Search input */}
                     <div style={{ display: 'flex', justifyContent: 'center', flex: 1, minWidth: '220px', maxWidth: '360px' }}>
                         <div style={{ position: 'relative', width: '100%' }}>
@@ -214,9 +229,10 @@ export default function FinancialDashboard({
                             />
                         </div>
                     </div>
-
-
                 </div>
+
+            {/* Dashboard Inner Content Container with Padding */}
+            <div style={{ padding: '0 1.5rem 2rem' }}>
                 {params.error && (
                     <div style={{
                         padding: '1rem 1.25rem',
@@ -277,6 +293,7 @@ export default function FinancialDashboard({
                         activeTab={activeTab}
                     />
                 </section>
+            </div>
         </main>
     );
 }

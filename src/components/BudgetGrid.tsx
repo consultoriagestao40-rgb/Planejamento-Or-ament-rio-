@@ -4176,6 +4176,14 @@ export default function BudgetGrid({
                             return ((rVal / prevVal) - 1) * 100;
                         };
 
+                        const getMoMAbs = () => {
+                            if (i === 0) return 0;
+                            let prevVal = 0;
+                            if (viewPeriod === 'month') prevVal = totals.realized[i - 1];
+                            else for (let m = (i - 1) * 3; m < (i - 1) * 3 + 3; m++) prevVal += totals.realized[m];
+                            return rVal - prevVal;
+                        };
+
                         let totalRevReal = 0, totalRevBudget = 0;
                         const revNodeTotals = nodeTotals.get(dreStructure.buckets.rev[0]?.id);
                         if (revNodeTotals) {
@@ -4285,42 +4293,82 @@ export default function BudgetGrid({
                                     </td>
                                 )}
                                 {showAH && showOrcado && showRealizado && (
-                                    <td className="spreadsheet-value" style={{ 
-                                        color: (() => {
-                                            const val = getAH(rVal, bVal);
-                                            const isRevenue = node.code?.startsWith('01') || node.code?.startsWith('1');
-                                            if (val === 0) return '#64748b';
-                                            if (isRevenue) return val < 0 ? '#e11d48' : '#059669';
-                                            return val > 0 ? '#e11d48' : '#059669';
-                                        })(), 
-                                        background: isHighlighted ? '#f0f9ff' : undefined,
-                                        textAlign: 'center',
-                                        width: '70px',
-                                        minWidth: '70px',
-                                        maxWidth: '70px',
-                                        fontWeight: isInteractiveTree ? 700 : 400
-                                    }}>
-                                        {getAH(rVal, bVal).toFixed(1)}%
-                                    </td>
+                                    <>
+                                        <td className="spreadsheet-value" style={{ 
+                                            color: (() => {
+                                                const diff = rVal - bVal;
+                                                const isRevenue = node.code?.startsWith('01') || node.code?.startsWith('1');
+                                                if (diff === 0) return '#64748b';
+                                                if (isRevenue) return diff < 0 ? '#e11d48' : '#059669';
+                                                return diff > 0 ? '#e11d48' : '#059669';
+                                            })(), 
+                                            background: isHighlighted ? '#f0f9ff' : undefined,
+                                            textAlign: 'right',
+                                            paddingRight: '0.4rem',
+                                            width: '90px',
+                                            minWidth: '90px',
+                                            maxWidth: '90px',
+                                            fontWeight: isInteractiveTree ? 700 : 400
+                                        }}>
+                                            {rVal - bVal === 0 ? 'R$ 0,00' : formatCurrency(rVal - bVal)}
+                                        </td>
+                                        <td className="spreadsheet-value" style={{ 
+                                            color: (() => {
+                                                const val = getAH(rVal, bVal);
+                                                const isRevenue = node.code?.startsWith('01') || node.code?.startsWith('1');
+                                                if (val === 0) return '#64748b';
+                                                if (isRevenue) return val < 0 ? '#e11d48' : '#059669';
+                                                return val > 0 ? '#e11d48' : '#059669';
+                                            })(), 
+                                            background: isHighlighted ? '#f0f9ff' : undefined,
+                                            textAlign: 'center',
+                                            width: '70px',
+                                            minWidth: '70px',
+                                            maxWidth: '70px',
+                                            fontWeight: isInteractiveTree ? 700 : 400
+                                        }}>
+                                            {getAH(rVal, bVal).toFixed(1)}%
+                                        </td>
+                                    </>
                                 )}
                                 {showAH_MoM && (
-                                    <td className="spreadsheet-value" style={{ 
-                                        color: (() => {
-                                            const val = getMoMPercent();
-                                            const isRevenue = node.code?.startsWith('01') || node.code?.startsWith('1');
-                                            if (val === 0) return '#64748b';
-                                            if (isRevenue) return val < 0 ? '#e11d48' : '#059669';
-                                            return val > 0 ? '#e11d48' : '#059669';
-                                        })(), 
-                                        background: isHighlighted ? '#f0f9ff' : undefined,
-                                        textAlign: 'center',
-                                        width: '70px',
-                                        minWidth: '70px',
-                                        maxWidth: '70px',
-                                        fontWeight: isInteractiveTree ? 700 : 400
-                                    }}>
-                                        {i === 0 ? '-' : `${getMoMPercent().toFixed(1)}%`}
-                                    </td>
+                                    <>
+                                        <td className="spreadsheet-value" style={{ 
+                                            color: (() => {
+                                                const diff = getMoMAbs();
+                                                const isRevenue = node.code?.startsWith('01') || node.code?.startsWith('1');
+                                                if (diff === 0) return '#64748b';
+                                                if (isRevenue) return diff < 0 ? '#e11d48' : '#059669';
+                                                return diff > 0 ? '#e11d48' : '#059669';
+                                            })(), 
+                                            background: isHighlighted ? '#f0f9ff' : undefined,
+                                            textAlign: 'right',
+                                            paddingRight: '0.4rem',
+                                            width: '90px',
+                                            minWidth: '90px',
+                                            maxWidth: '90px',
+                                            fontWeight: isInteractiveTree ? 700 : 400
+                                        }}>
+                                            {i === 0 ? '-' : (getMoMAbs() === 0 ? 'R$ 0,00' : formatCurrency(getMoMAbs()))}
+                                        </td>
+                                        <td className="spreadsheet-value" style={{ 
+                                            color: (() => {
+                                                const val = getMoMPercent();
+                                                const isRevenue = node.code?.startsWith('01') || node.code?.startsWith('1');
+                                                if (val === 0) return '#64748b';
+                                                if (isRevenue) return val < 0 ? '#e11d48' : '#059669';
+                                                return val > 0 ? '#e11d48' : '#059669';
+                                            })(), 
+                                            background: isHighlighted ? '#f0f9ff' : undefined,
+                                            textAlign: 'center',
+                                            width: '70px',
+                                            minWidth: '70px',
+                                            maxWidth: '70px',
+                                            fontWeight: isInteractiveTree ? 700 : 400
+                                        }}>
+                                            {i === 0 ? '-' : `${getMoMPercent().toFixed(1)}%`}
+                                        </td>
+                                    </>
                                 )}
                             </React.Fragment>
                         );
@@ -4396,7 +4444,7 @@ export default function BudgetGrid({
     };
 
     const renderGroupHeaderRow = (label: string, _isExpanded?: boolean, _onToggle?: () => void) => {
-        const colsCount = 1 + (viewPeriod === 'month' ? MONTHS : [1, 2, 3, 4]).length * (2 + (showAV ? 2 : 0) + (showAH ? 1 : 0) + (showAH_MoM ? 1 : 0));
+        const colsCount = 1 + (viewPeriod === 'month' ? MONTHS : [1, 2, 3, 4]).length * (2 + (showAV ? 2 : 0) + (showAH ? 2 : 0) + (showAH_MoM ? 2 : 0));
         return (
             <tr className="spreadsheet-group-header">
                 <td 
@@ -4494,6 +4542,21 @@ export default function BudgetGrid({
                         return ((realizedVal / prevVal) - 1) * 100;
                     };
 
+                    const getMoMAbs = () => {
+                        if (i === 0) return 0;
+                        let prevVal = 0;
+                        if (viewPeriod === 'month') {
+                            const prevSums = precomputedDreTotals[i - 1];
+                            prevVal = (prevSums[validx] as any)?.r || 0;
+                        } else {
+                            for (let m = (i - 1) * 3; m < (i - 1) * 3 + 3; m++) {
+                                const qSums = precomputedDreTotals[m];
+                                prevVal += (qSums[validx] as any)?.r || 0;
+                            }
+                        }
+                        return realizedVal - prevVal;
+                    };
+
                     let totalRevReal = 0, totalRevBudget = 0;
                     if (viewPeriod === 'month') {
                         totalRevReal = sums.vRev.r || 0;
@@ -4582,40 +4645,82 @@ export default function BudgetGrid({
                                 </td>
                             )}
                             {showAH && showOrcado && showRealizado && (
-                                <td className="spreadsheet-value" style={{ 
-                                    color: (() => {
-                                        const val = getAH(realizedVal, budgetVal);
-                                        const isProfitRow = ['vRev', 'vRecLiq', 'vGrossMarg', 'vContribMarg', 'vEbitda', 'vNetProfit'].includes(validx as string);
-                                        if (val === 0) return isWhiteText ? '#fff' : '#64748b';
-                                        if (isProfitRow) return val < 0 ? '#e11d48' : (isWhiteText ? '#fff' : '#059669');
-                                        return val > 0 ? '#e11d48' : (isWhiteText ? '#fff' : '#059669');
-                                    })(),
-                                    background: isLucroLiquido ? undefined : (isHighlighted ? '#f0f9ff' : undefined),
-                                    textAlign: 'center',
-                                    width: '70px',
-                                    minWidth: '70px',
-                                    maxWidth: '70px'
-                                }}>
-                                    {getAH(realizedVal, budgetVal).toFixed(1)}%
-                                </td>
+                                <>
+                                    <td className="spreadsheet-value" style={{ 
+                                        color: (() => {
+                                            const diff = (realizedVal || 0) - (budgetVal || 0);
+                                            const isProfitRow = ['vRev', 'vRecLiq', 'vGrossMarg', 'vContribMarg', 'vEbitda', 'vNetProfit'].includes(validx as string);
+                                            if (diff === 0) return isWhiteText ? '#fff' : '#64748b';
+                                            if (isProfitRow) return diff < 0 ? '#e11d48' : (isWhiteText ? '#fff' : '#059669');
+                                            return diff > 0 ? '#e11d48' : (isWhiteText ? '#fff' : '#059669');
+                                        })(),
+                                        background: isLucroLiquido ? undefined : (isHighlighted ? '#f0f9ff' : undefined),
+                                        textAlign: 'right',
+                                        paddingRight: '0.4rem',
+                                        width: '90px',
+                                        minWidth: '90px',
+                                        maxWidth: '90px',
+                                        fontWeight: 700
+                                    }}>
+                                        {(realizedVal || 0) - (budgetVal || 0) === 0 ? 'R$ 0,00' : formatCurrency((realizedVal || 0) - (budgetVal || 0))}
+                                    </td>
+                                    <td className="spreadsheet-value" style={{ 
+                                        color: (() => {
+                                            const val = getAH(realizedVal, budgetVal);
+                                            const isProfitRow = ['vRev', 'vRecLiq', 'vGrossMarg', 'vContribMarg', 'vEbitda', 'vNetProfit'].includes(validx as string);
+                                            if (val === 0) return isWhiteText ? '#fff' : '#64748b';
+                                            if (isProfitRow) return val < 0 ? '#e11d48' : (isWhiteText ? '#fff' : '#059669');
+                                            return val > 0 ? '#e11d48' : (isWhiteText ? '#fff' : '#059669');
+                                        })(),
+                                        background: isLucroLiquido ? undefined : (isHighlighted ? '#f0f9ff' : undefined),
+                                        textAlign: 'center',
+                                        width: '70px',
+                                        minWidth: '70px',
+                                        maxWidth: '70px',
+                                        fontWeight: 700
+                                    }}>
+                                        {getAH(realizedVal, budgetVal).toFixed(1)}%
+                                    </td>
+                                </>
                             )}
                              {showAH_MoM && (
-                                <td className="spreadsheet-value" style={{ 
-                                    color: (() => {
-                                        const val = getMoMPercent();
-                                        const isProfitRow = ['vRev', 'vRecLiq', 'vGrossMarg', 'vContribMarg', 'vEbitda', 'vNetProfit'].includes(validx as string);
-                                        if (val === 0) return isWhiteText ? '#fff' : '#64748b';
-                                        if (isProfitRow) return val < 0 ? '#e11d48' : (isWhiteText ? '#fff' : '#059669');
-                                        return val > 0 ? '#e11d48' : (isWhiteText ? '#fff' : '#059669');
-                                    })(),
-                                    background: isLucroLiquido ? undefined : (isHighlighted ? '#f0f9ff' : undefined),
-                                    textAlign: 'center',
-                                    width: '70px',
-                                    minWidth: '70px',
-                                    maxWidth: '70px'
-                                }}>
-                                    {i === 0 ? '-' : `${getMoMPercent().toFixed(1)}%`}
-                                </td>
+                                <>
+                                    <td className="spreadsheet-value" style={{ 
+                                        color: (() => {
+                                            const diff = getMoMAbs();
+                                            const isProfitRow = ['vRev', 'vRecLiq', 'vGrossMarg', 'vContribMarg', 'vEbitda', 'vNetProfit'].includes(validx as string);
+                                            if (diff === 0) return isWhiteText ? '#fff' : '#64748b';
+                                            if (isProfitRow) return diff < 0 ? '#e11d48' : (isWhiteText ? '#fff' : '#059669');
+                                            return diff > 0 ? '#e11d48' : (isWhiteText ? '#fff' : '#059669');
+                                        })(),
+                                        background: isLucroLiquido ? undefined : (isHighlighted ? '#f0f9ff' : undefined),
+                                        textAlign: 'right',
+                                        paddingRight: '0.4rem',
+                                        width: '90px',
+                                        minWidth: '90px',
+                                        maxWidth: '90px',
+                                        fontWeight: 700
+                                    }}>
+                                        {i === 0 ? '-' : (getMoMAbs() === 0 ? 'R$ 0,00' : formatCurrency(getMoMAbs()))}
+                                    </td>
+                                    <td className="spreadsheet-value" style={{ 
+                                        color: (() => {
+                                            const val = getMoMPercent();
+                                            const isProfitRow = ['vRev', 'vRecLiq', 'vGrossMarg', 'vContribMarg', 'vEbitda', 'vNetProfit'].includes(validx as string);
+                                            if (val === 0) return isWhiteText ? '#fff' : '#64748b';
+                                            if (isProfitRow) return val < 0 ? '#e11d48' : (isWhiteText ? '#fff' : '#059669');
+                                            return val > 0 ? '#e11d48' : (isWhiteText ? '#fff' : '#059669');
+                                        })(),
+                                        background: isLucroLiquido ? undefined : (isHighlighted ? '#f0f9ff' : undefined),
+                                        textAlign: 'center',
+                                        width: '70px',
+                                        minWidth: '70px',
+                                        maxWidth: '70px',
+                                        fontWeight: 700
+                                    }}>
+                                        {i === 0 ? '-' : `${getMoMPercent().toFixed(1)}%`}
+                                    </td>
+                                </>
                             )}
                         </React.Fragment>
                     );
@@ -7645,8 +7750,8 @@ export default function BudgetGrid({
                                             (showRealizado ? 1 : 0) + 
                                             (showAV && showOrcado ? 1 : 0) + 
                                             (showAV && showRealizado ? 1 : 0) + 
-                                            (showAH && showOrcado && showRealizado ? 1 : 0) + 
-                                            (showAH_MoM ? 1 : 0);
+                                            (showAH && showOrcado && showRealizado ? 2 : 0) + 
+                                            (showAH_MoM ? 2 : 0);
                                         const isHighlighted = viewPeriod === 'month' && i === highlightedMonth;
                                         return (
                                             <th 
@@ -7688,11 +7793,21 @@ export default function BudgetGrid({
                                                     <th style={{ borderLeft: !showOrcado ? '1px solid #cbd5e1' : undefined, fontSize: '0.7rem', color: highlightTextReal, textAlign: 'center', padding: '0.2rem', width: '140px', minWidth: '140px', maxWidth: '140px', backgroundColor: highlightBgReal }}>REAL</th>
                                                 )}
                                                 {showAV && showRealizado && <th style={{ fontSize: '0.68rem', color: highlightTextOther, textAlign: 'center', padding: '0.2rem', width: '60px', minWidth: '60px', maxWidth: '60px', backgroundColor: highlightBgOther }}>AV RL</th>}
-                                                {showAH && showOrcado && showRealizado && <th style={{ fontSize: '0.68rem', color: highlightTextOther, textAlign: 'center', padding: '0.2rem', width: '70px', minWidth: '70px', maxWidth: '70px', backgroundColor: highlightBgOther }}>AH %</th>}
+                                                {showAH && showOrcado && showRealizado && (
+                                                    <>
+                                                        <th style={{ fontSize: '0.68rem', color: highlightTextOther, borderLeft: '1px solid rgba(255,255,255,0.15)', textAlign: 'center', padding: '0.2rem', width: '90px', minWidth: '90px', maxWidth: '90px', backgroundColor: highlightBgOther }}>AH Abs</th>
+                                                        <th style={{ fontSize: '0.68rem', color: highlightTextOther, textAlign: 'center', padding: '0.2rem', width: '70px', minWidth: '70px', maxWidth: '70px', backgroundColor: highlightBgOther }}>AH %</th>
+                                                    </>
+                                                )}
                                                 {showAH_MoM && (
-                                                    <th style={{ fontSize: '0.68rem', color: highlightTextOther, textAlign: 'center', padding: '0.2rem', width: '70px', minWidth: '70px', maxWidth: '70px', backgroundColor: highlightBgOther }}>
-                                                        {viewPeriod === 'month' ? 'MoM' : 'QoQ'}
-                                                    </th>
+                                                    <>
+                                                        <th style={{ fontSize: '0.68rem', color: highlightTextOther, borderLeft: '1px solid rgba(255,255,255,0.15)', textAlign: 'center', padding: '0.2rem', width: '90px', minWidth: '90px', maxWidth: '90px', backgroundColor: highlightBgOther }}>
+                                                            {viewPeriod === 'month' ? 'MoM Abs' : 'QoQ Abs'}
+                                                        </th>
+                                                        <th style={{ fontSize: '0.68rem', color: highlightTextOther, textAlign: 'center', padding: '0.2rem', width: '70px', minWidth: '70px', maxWidth: '70px', backgroundColor: highlightBgOther }}>
+                                                            {viewPeriod === 'month' ? 'MoM %' : 'QoQ %'}
+                                                        </th>
+                                                      </>
                                                 )}
                                             </React.Fragment>
                                         );

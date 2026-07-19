@@ -751,13 +751,9 @@ select.premium-select:focus {
   border: 1px solid #e2e8f0 !important;
 }
 
-/* Remover efeito zebra padrão para focar nos destaques de contas pais */
-.dre-compact-table tbody tr,
-.dre-compact-table tbody tr td,
-.dre-compact-table tbody tr .sticky-col,
-.dre-compact-table tbody tr:nth-child(even):not(.spreadsheet-parent-row):not(.spreadsheet-summary-row):not(.spreadsheet-net-profit-row),
-.dre-compact-table tbody tr:nth-child(even):not(.spreadsheet-parent-row):not(.spreadsheet-summary-row):not(.spreadsheet-net-profit-row) td,
-.dre-compact-table tbody tr:nth-child(even):not(.spreadsheet-parent-row):not(.spreadsheet-summary-row):not(.spreadsheet-net-profit-row) .sticky-col {
+/* Remover efeito zebra padrão para focar nos destaques de contas pais e manter folhas brancas */
+.dre-compact-table tbody tr:not(.spreadsheet-parent-row):not(.spreadsheet-summary-row):not(.spreadsheet-net-profit-row) td,
+.dre-compact-table tbody tr:not(.spreadsheet-parent-row):not(.spreadsheet-summary-row):not(.spreadsheet-net-profit-row) .sticky-col {
   background-color: #ffffff !important;
 }
 
@@ -769,12 +765,14 @@ select.premium-select:focus {
 
 /* Destaque para Contas Pais (Categorias que possuem filhos) */
 .dre-compact-table tbody tr.spreadsheet-parent-row,
+.dre-compact-table tbody tr.spreadsheet-parent-row td,
 .dre-compact-table tbody tr.spreadsheet-parent-row .sticky-col {
   font-weight: 700 !important;
 }
 
-/* Degradê Azul de acordo com o nível na árvore DRE */
+/* Degradê Azul de acordo com o nível na árvore DRE - A linha inteira herda a cor */
 .dre-compact-table tbody tr.spreadsheet-parent-row-level-0,
+.dre-compact-table tbody tr.spreadsheet-parent-row-level-0 td,
 .dre-compact-table tbody tr.spreadsheet-parent-row-level-0 .sticky-col {
   background-color: #b4c7e7 !important; /* Azul pastel médio-suave (Primeiro nível de pais) */
   color: #0f172a !important;
@@ -784,6 +782,7 @@ select.premium-select:focus {
 }
 
 .dre-compact-table tbody tr.spreadsheet-parent-row-level-1,
+.dre-compact-table tbody tr.spreadsheet-parent-row-level-1 td,
 .dre-compact-table tbody tr.spreadsheet-parent-row-level-1 .sticky-col {
   background-color: #c6d9f1 !important; /* Azul pastel claro */
   color: #0f172a !important;
@@ -793,6 +792,7 @@ select.premium-select:focus {
 }
 
 .dre-compact-table tbody tr.spreadsheet-parent-row-level-2,
+.dre-compact-table tbody tr.spreadsheet-parent-row-level-2 td,
 .dre-compact-table tbody tr.spreadsheet-parent-row-level-2 .sticky-col {
   background-color: #d9e2f3 !important; /* Azul pastel muito claro */
   color: #0f172a !important;
@@ -802,6 +802,7 @@ select.premium-select:focus {
 }
 
 .dre-compact-table tbody tr.spreadsheet-parent-row-level-3,
+.dre-compact-table tbody tr.spreadsheet-parent-row-level-3 td,
 .dre-compact-table tbody tr.spreadsheet-parent-row-level-3 .sticky-col {
   background-color: #eef2f7 !important; /* Azul pastel quase branco/gelo */
   color: #0f172a !important;
@@ -812,8 +813,10 @@ select.premium-select:focus {
 
 /* Fallback ou níveis muito profundos */
 .dre-compact-table tbody tr.spreadsheet-parent-row-level-4,
+.dre-compact-table tbody tr.spreadsheet-parent-row-level-4 td,
 .dre-compact-table tbody tr.spreadsheet-parent-row-level-4 .sticky-col,
 .dre-compact-table tbody tr.spreadsheet-parent-row-level-5,
+.dre-compact-table tbody tr.spreadsheet-parent-row-level-5 td,
 .dre-compact-table tbody tr.spreadsheet-parent-row-level-5 .sticky-col {
   background-color: #ffffff !important;
   color: #0f172a !important;
@@ -825,6 +828,7 @@ select.premium-select:focus {
 
 /* Destaque para Linhas de Resumos (01. Receita Bruta, Receita Líquida, etc) */
 .dre-compact-table tbody tr.spreadsheet-summary-row,
+.dre-compact-table tbody tr.spreadsheet-summary-row td,
 .dre-compact-table tbody tr.spreadsheet-summary-row .sticky-col {
   background-color: #1e40af !important; /* Azul escuro corporativo (Tom mais escuro) */
   color: #ffffff !important;

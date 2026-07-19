@@ -609,13 +609,13 @@ select.premium-select:focus {
 .spreadsheet-table tbody tr.spreadsheet-net-profit-row .sticky-col,
 .spreadsheet-table tbody tr.spreadsheet-net-profit-row:nth-child(even) .sticky-col,
 .spreadsheet-table tbody tr.spreadsheet-net-profit-row:nth-child(odd) .sticky-col {
-  background-color: #2563eb !important;
-  background-image: linear-gradient(135deg, #2563eb, #1d4ed8) !important;
+  background-color: #0f62ac !important;
+  background-image: none !important;
   color: #ffffff !important;
   font-weight: 800;
 }
 .spreadsheet-table tbody tr.spreadsheet-net-profit-row .sticky-col {
-  box-shadow: 3px 0 0 0 #2563eb, 2px 0 4px -2px rgba(0,0,0,0.1);
+  box-shadow: 3px 0 0 0 #0f62ac, 2px 0 4px -2px rgba(0,0,0,0.1);
 }
 
 .spreadsheet-table tr.spreadsheet-net-profit-row .spreadsheet-value {

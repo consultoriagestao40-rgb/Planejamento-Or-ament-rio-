@@ -142,7 +142,7 @@ export default function BudgetGrid({
     const [contractsAnnualTotal, setContractsAnnualTotal] = useState<number>(0);
 
     const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
-    const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set()); // New state for main groups
+    const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set(['rev', 'taxes', 'costs', 'opExp', 'adminExp', 'fin', 'invest'])); // New state for main groups
 
     const [loading, setLoading] = useState(true);
     const [selectedCompany, setSelectedCompany] = useState<string[]>(['DEFAULT']);
@@ -3143,26 +3143,20 @@ export default function BudgetGrid({
         setExpandedRows(newSet);
     };
 
-    const toggleGroup = (groupName: string) => {
-        const newSet = new Set(expandedGroups);
-        if (newSet.has(groupName)) newSet.delete(groupName);
-        else newSet.add(groupName);
-        setExpandedGroups(newSet);
+    const toggleGroup = (_groupName: string) => {
+        // Main DRE groups are now static and always expanded
     };
 
-    const allGroupKeys = ['rev', 'taxes', 'costs', 'opExp', 'adminExp', 'fin'];
     const expandableRowIds = useMemo(() => {
         return categories.filter(c => categories.some(ch => ch.parentId === c.id)).map(c => c.id);
     }, [categories]);
 
-    const isAnyExpanded = expandedGroups.size > 0 || expandedRows.size > 0;
+    const isAnyExpanded = expandedRows.size > 0;
 
     const handleToggleAll = () => {
         if (isAnyExpanded) {
-            setExpandedGroups(new Set());
             setExpandedRows(new Set());
         } else {
-            setExpandedGroups(new Set(allGroupKeys));
             setExpandedRows(new Set(expandableRowIds));
         }
     };
@@ -4473,7 +4467,6 @@ export default function BudgetGrid({
 
         return (
             <tr 
-                onClick={() => groupId && toggleGroup(groupId)}
                 className={
                     isLucroLiquido 
                         ? 'spreadsheet-net-profit-row' 
@@ -4481,7 +4474,7 @@ export default function BudgetGrid({
                             ? 'spreadsheet-parent-row spreadsheet-parent-row-level-0' 
                             : 'spreadsheet-summary-row'
                 }
-                style={{ cursor: groupId ? 'pointer' : 'default' }}
+                style={{ cursor: 'default' }}
             >
                 <td 
                     className="sticky-col" 
@@ -4495,12 +4488,7 @@ export default function BudgetGrid({
                     }}
                 >
                     <div style={{ display: 'flex', alignItems: 'center', opacity: 1, visibility: 'visible' }}>
-                        {groupId && (
-                            <span className="bi-tree-btn">
-                                {isGroupExpanded ? '−' : '+'}
-                            </span>
-                        )}
-                        {!groupId && <span style={{ display: 'inline-block', width: '20px' }}></span>}
+                        <span style={{ display: 'inline-block', width: '20px' }}></span>
                         <span style={{ color: 'inherit' }}>{label}</span>
                     </div>
                 </td>

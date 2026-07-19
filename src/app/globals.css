@@ -771,7 +771,7 @@ select.premium-select:focus {
 /* Degradê Neutro Slate de acordo com o nível na árvore DRE */
 .dre-compact-table tbody tr.spreadsheet-parent-row-level-0,
 .dre-compact-table tbody tr.spreadsheet-parent-row-level-0 .sticky-col {
-  background-color: #e2e8f0 !important; /* Slate-200 (Cinza médio-suave) */
+  background-color: #e2e8f0 !important; /* Slate-200 (Cinza médio) */
 }
 .dre-compact-table tbody tr.spreadsheet-parent-row-level-0 .sticky-col {
   box-shadow: 2px 0 0 0 #e2e8f0, 2px 0 4px -2px rgba(0,0,0,0.05) !important;
@@ -816,11 +816,24 @@ select.premium-select:focus {
 /* Destaque para Linhas de Resumos (01. Receita Bruta, Receita Líquida, etc) */
 .dre-compact-table tbody tr.spreadsheet-summary-row,
 .dre-compact-table tbody tr.spreadsheet-summary-row .sticky-col {
-  background-color: #cbd5e1 !important; /* Slate-300 (Cinza sólido corporativo) */
+  background-color: #cbd5e1 !important; /* Slate-300 (Cinza sólido corporativo - Mais Escuro) */
   color: #0f172a !important; /* Texto escuro padrão */
   font-weight: 700 !important;
 }
 .dre-compact-table tbody tr.spreadsheet-summary-row .sticky-col {
+  box-shadow: 2px 0 0 0 #cbd5e1, 2px 0 4px -2px rgba(0,0,0,0.05) !important;
+}
+
+/* Lucro Líquido - Alinhado ao degradê neutro */
+.dre-compact-table tbody tr.spreadsheet-net-profit-row,
+.dre-compact-table tbody tr.spreadsheet-net-profit-row td,
+.dre-compact-table tbody tr.spreadsheet-net-profit-row .sticky-col {
+  background-color: #cbd5e1 !important; /* Slate-300 (Cinza sólido corporativo) */
+  background-image: none !important;
+  color: #0f172a !important; /* Texto escuro */
+  font-weight: 800 !important;
+}
+.dre-compact-table tbody tr.spreadsheet-net-profit-row .sticky-col {
   box-shadow: 2px 0 0 0 #cbd5e1, 2px 0 4px -2px rgba(0,0,0,0.05) !important;
 }
 

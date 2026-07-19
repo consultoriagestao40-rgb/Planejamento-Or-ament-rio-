@@ -139,7 +139,7 @@ export default function ClientLayoutWrapper({ children }: { children: React.Reac
     };
 
     return (
-        <div style={{ display: 'flex', minHeight: '100vh', width: '100vw', overflowX: 'hidden' }}>
+        <div style={{ display: 'flex', minHeight: '100vh', width: '100%', overflowX: 'hidden' }}>
             {/* Sidebar */}
             <aside 
                 className="sidebar"
@@ -150,7 +150,9 @@ export default function ClientLayoutWrapper({ children }: { children: React.Reac
                     left: 0,
                     top: 0,
                     height: '100vh',
-                    zIndex: 100
+                    zIndex: 100,
+                    backgroundColor: pathname === '/cfo-virtual' ? '#111827' : '#0f62ac',
+                    borderRight: pathname === '/cfo-virtual' ? '1px solid #1f2937' : '1px solid #0b579f'
                 }}
             >
                 {/* Floating Collapse/Expand Button */}
@@ -199,7 +201,8 @@ export default function ClientLayoutWrapper({ children }: { children: React.Reac
                     style={{
                         justifyContent: isCollapsed ? 'center' : 'flex-start',
                         padding: isCollapsed ? '1.2rem 0' : '1.2rem 1.2rem',
-                        transition: 'padding 0.3s'
+                        transition: 'padding 0.3s',
+                        borderBottom: pathname === '/cfo-virtual' ? '1px solid #1f2937' : '1px solid rgba(255, 255, 255, 0.15)'
                     }}
                 >
                     {isCollapsed ? (
@@ -258,7 +261,10 @@ export default function ClientLayoutWrapper({ children }: { children: React.Reac
                                             justifyContent: isCollapsed ? 'center' : 'flex-start',
                                             padding: isCollapsed ? '0.45rem 0' : '0.45rem 1rem',
                                             gap: isCollapsed ? '0' : '0.85rem',
-                                            transition: 'padding 0.3s, gap 0.3s'
+                                            transition: 'padding 0.3s, gap 0.3s',
+                                            backgroundColor: isSelected 
+                                                ? (pathname === '/cfo-virtual' ? '#1f2937' : '#0b579f') 
+                                                : 'transparent'
                                         }}
                                     >
                                         <span style={{ display: 'flex', alignItems: 'center' }}>{item.icon}</span>
@@ -277,7 +283,15 @@ export default function ClientLayoutWrapper({ children }: { children: React.Reac
                         })}
                     </ul>
                 </nav>
-                <div className="sidebar-footer" style={{ padding: isCollapsed ? '0.8rem 0.4rem' : '0.8rem 1rem', transition: 'padding 0.3s' }}>
+                <div 
+                    className="sidebar-footer" 
+                    style={{ 
+                        padding: isCollapsed ? '0.8rem 0.4rem' : '0.8rem 1rem', 
+                        transition: 'padding 0.3s',
+                        backgroundColor: pathname === '/cfo-virtual' ? '#0b0f19' : '#094e8a',
+                        borderTop: pathname === '/cfo-virtual' ? '1px solid #1f2937' : '1px solid rgba(255, 255, 255, 0.15)'
+                    }}
+                >
                     <button 
                         onClick={handleLogout}
                         className="sidebar-item" 
@@ -324,7 +338,7 @@ export default function ClientLayoutWrapper({ children }: { children: React.Reac
                 className="main-content"
                 style={{ 
                     marginLeft: isCollapsed ? '72px' : '260px',
-                    width: isCollapsed ? 'calc(100vw - 72px)' : 'calc(100vw - 260px)',
+                    width: isCollapsed ? 'calc(100% - 72px)' : 'calc(100% - 260px)',
                     transition: 'margin-left 0.3s cubic-bezier(0.4, 0, 0.2, 1), width 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
                     boxSizing: 'border-box'
                 }}

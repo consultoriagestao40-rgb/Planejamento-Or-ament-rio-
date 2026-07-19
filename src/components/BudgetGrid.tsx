@@ -7710,13 +7710,13 @@ export default function BudgetGrid({
                         </div>
                     )}
 
-                    {/* Container Único do Grid (BI Matrix) */}
                     <div 
                         ref={bodyScrollRef}
                         onScroll={handleScrollSync}
                         className="spreadsheet-container" 
                         style={{ 
                             minHeight: '300px', 
+                            maxHeight: 'calc(100vh - 290px)',
                             overflow: 'auto', 
                             position: 'relative',
                             width: '100%',

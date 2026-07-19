@@ -4076,7 +4076,7 @@ export default function BudgetGrid({
 
         return (
             <React.Fragment key={node.id}>
-                <tr className={isInteractiveTree ? `spreadsheet-parent-row spreadsheet-parent-row-level-${node.level}` : ''}>
+                <tr className={isInteractiveTree ? `spreadsheet-parent-row spreadsheet-parent-row-level-${node.level + 1}` : ''}>
                     <td 
                         className="sticky-col"
                         onClick={() => isInteractiveTree && toggleRow(node.id)}
@@ -4421,11 +4421,16 @@ export default function BudgetGrid({
     const renderSummaryRow = (label: string, validx: keyof ReturnType<typeof dreStructure.calculateTotals>, isBold = false, groupId?: string) => {
         const isGroupExpanded = groupId ? expandedGroups.has(groupId) : true;
         const isLucroLiquido = validx === 'vNetProfit';
-
         return (
             <tr 
-                onClick={() => groupId && toggleGroup(groupId)} 
-                className={isLucroLiquido ? 'spreadsheet-net-profit-row' : 'spreadsheet-summary-row'}
+                onClick={() => groupId && toggleGroup(groupId)}
+                className={
+                    isLucroLiquido 
+                        ? 'spreadsheet-net-profit-row' 
+                        : groupId 
+                            ? 'spreadsheet-parent-row spreadsheet-parent-row-level-0' 
+                            : 'spreadsheet-summary-row'
+                }
                 style={{ cursor: groupId ? 'pointer' : 'default' }}
             >
                 <td 

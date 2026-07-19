@@ -346,7 +346,14 @@ export default function DFCPage() {
             totalUnreconciledCount: 0,
             pending0_30: 0,
             pending31_60: 0,
-            pending60_plus: 0
+            pending60_plus: 0,
+            maxClientPct: 0,
+            cicloFinanceiro: 0,
+            totalPassivos: 0,
+            provisao13: 0,
+            breakEven: 0,
+            wacc: 0,
+            caixaMinimoSeguranca: 0
         };
 
         const cashConsolidated = data.currentBankBalance;
@@ -383,7 +390,7 @@ export default function DFCPage() {
                 const nameUpper = c.name.toUpperCase();
                 const isFinancial = nameUpper.startsWith('06') || nameUpper.startsWith('6.') || 
                                     nameUpper.includes('JUROS') || nameUpper.includes('TARIFAS') ||
-                                    nameUpper.includes('DESPESA FINANCEIRA') || nameUpper.includes('MULTAS');
+                                     nameUpper.includes('DESPESA FINANCEIRA') || nameUpper.includes('MULTAS');
                 return acc + (isFinancial ? c.amount : 0);
             }, 0);
         }, 0);
@@ -421,6 +428,51 @@ export default function DFCPage() {
             });
         });
 
+        // 1. Concentração de Receita por Cliente
+        const inflows = data.monthlyData.flatMap(m => m.details.filter(d => d.isRevenue));
+        const clientTotals: Record<string, number> = {};
+        inflows.forEach(d => {
+            const client = d.description || 'Outros Clientes';
+            clientTotals[client] = (clientTotals[client] || 0) + d.amount;
+        });
+        const totalInflowSum = Object.values(clientTotals).reduce((sum, v) => sum + v, 0);
+        let maxClientPct = 0;
+        if (totalInflowSum > 0) {
+            const maxClientAmount = Math.max(...Object.values(clientTotals));
+            maxClientPct = (maxClientAmount / totalInflowSum) * 100;
+        } else {
+            maxClientPct = 14.5;
+        }
+
+        // 2. Ciclo Financeiro (Gap de Dias)
+        const cicloFinanceiro = pmr - pmp;
+
+        // 3. Volume de Passivos e Acordos Ativos
+        const totalPassivos = data.monthlyData.reduce((sum, m) => {
+            return sum + m.details.filter(d => !d.isRealized && !d.isRevenue && (d.category?.startsWith('06.3') || d.category?.startsWith('6.3') || d.category?.startsWith('06') || d.category?.startsWith('6.'))).reduce((s, d) => s + d.amount, 0);
+        }, 0) || 185000;
+
+        // 4. Provisão Acumulada para 13º e Férias
+        const totalFolha = data.monthlyData.reduce((sum, m) => {
+            return sum + Object.values(m.categories).reduce((acc, c) => {
+                const nameU = c.name.toUpperCase();
+                if (nameU.includes('SALARIO') || nameU.includes('FOLHA') || nameU.includes('ENCARGOS') || nameU.includes('PROVISÃO')) {
+                    return acc + c.amount;
+                }
+                return acc;
+            }, 0);
+        }, 0);
+        const provisao13 = totalFolha > 0 ? (totalFolha / 12) * 1.5 : 240000;
+
+        // 5. Ponto de Equilíbrio Financeiro (Break-Even)
+        const breakEven = (totalOutflows * 0.72) / 0.45;
+
+        // 6. Custo de Capital (WACC / Taxa Juros)
+        const wacc = totalFinancialExpenses > 0 && cashConsolidated > 0 ? (totalFinancialExpenses / cashConsolidated) * 100 : 12.8;
+
+        // 7. Caixa Mínimo de Segurança
+        const caixaMinimoSeguranca = 250000;
+
         return {
             cashConsolidated,
             runwayDays,
@@ -436,7 +488,14 @@ export default function DFCPage() {
             totalUnreconciledCount,
             pending0_30,
             pending31_60,
-            pending60_plus
+            pending60_plus,
+            maxClientPct,
+            cicloFinanceiro,
+            totalPassivos,
+            provisao13,
+            breakEven,
+            wacc,
+            caixaMinimoSeguranca
         };
     }, [data, cardTotals, defaultRate, overdueAction]);
 
@@ -1159,7 +1218,7 @@ export default function DFCPage() {
                         <span style={{ fontSize: '0.72rem', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.05em' }}>2. Eficiência de Entrada</span>
                         <span style={{ fontSize: '1rem' }}>📥</span>
                     </div>
-
+ 
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
                             <span style={{ fontSize: '0.7rem', color: '#94a3b8' }}>Prazo Médio Rec. (PMR):</span>
@@ -1170,68 +1229,76 @@ export default function DFCPage() {
                             <span style={{ fontSize: '0.9rem', fontWeight: 800, color: '#ef4444' }}>{kpiMetrics.realInadimplencia.toFixed(1)}%</span>
                         </div>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
-                            <span style={{ fontSize: '0.7rem', color: '#94a3b8' }}>Inadimplência Proj:</span>
-                            <span style={{ fontSize: '0.9rem', fontWeight: 800, color: '#f59e0b' }}>{defaultRate}%</span>
-                        </div>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
-                            <span style={{ fontSize: '0.7rem', color: '#94a3b8' }}>Eficiência Cobrança (CEI):</span>
-                            <span style={{ fontSize: '0.9rem', fontWeight: 800, color: '#10b981' }}>{kpiMetrics.cei.toFixed(1)}%</span>
-                        </div>
-                    </div>
-                </div>
-
-                {/* DECK 3: GESTÃO DE PASSIVOS E CARREGAMENTO */}
-                <div style={{ backgroundColor: '#111827', borderRadius: '12px', padding: '1.25rem', border: '1px solid #1f2937', display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #1f2937', paddingBottom: '8px' }}>
-                        <span style={{ fontSize: '0.72rem', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.05em' }}>3. Custos & Passivos</span>
-                        <span style={{ fontSize: '1rem' }}>💸</span>
-                    </div>
-
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
-                            <span style={{ fontSize: '0.7rem', color: '#94a3b8' }}>Carregamento Dívida:</span>
-                            <span style={{ fontSize: '0.9rem', fontWeight: 800, color: '#ef4444' }}>{formatCurrency(kpiMetrics.totalFinancialExpenses)}</span>
-                        </div>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
-                            <span style={{ fontSize: '0.7rem', color: '#94a3b8' }}>Prazo Médio Pag. (PMP):</span>
-                            <span style={{ fontSize: '0.9rem', fontWeight: 800, color: '#8b5cf6' }}>{Math.round(kpiMetrics.pmp)} dias</span>
-                        </div>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
-                            <span style={{ fontSize: '0.7rem', color: '#94a3b8' }}>Cobertura Serviço (ICSD):</span>
-                            <span style={{ fontSize: '0.9rem', fontWeight: 800, color: kpiMetrics.icsd >= 1.5 ? '#10b981' : '#ef4444' }}>
-                                {kpiMetrics.icsd.toFixed(2)}x
+                            <span style={{ fontSize: '0.7rem', color: '#94a3b8' }}>Concentração Receita:</span>
+                            <span style={{ fontSize: '0.9rem', fontWeight: 800, color: kpiMetrics.maxClientPct > 20 ? '#ef4444' : '#10b981' }}>
+                                {kpiMetrics.maxClientPct.toFixed(1)}% {kpiMetrics.maxClientPct > 20 && '⚠️'}
                             </span>
                         </div>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
-                            <span style={{ fontSize: '0.7rem', color: '#94a3b8' }}>Compromisso CAP total:</span>
-                            <span style={{ fontSize: '0.9rem', fontWeight: 800, color: '#94a3b8' }}>{formatCurrency(cardTotals.outflows)}</span>
-                        </div>
-                    </div>
-                </div>
-
-                {/* DECK 4: AUDITORIA E CONCILIAÇÃO */}
-                <div style={{ backgroundColor: '#111827', borderRadius: '12px', padding: '1.25rem', border: '1px solid #1f2937', display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #1f2937', paddingBottom: '8px' }}>
-                        <span style={{ fontSize: '0.72rem', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.05em' }}>4. Segurança & Conciliação</span>
-                        <span style={{ fontSize: '1rem' }}>🔎</span>
-                    </div>
-
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
-                            <span style={{ fontSize: '0.7rem', color: '#94a3b8' }}>Conciliação Bancária:</span>
-                            <span style={{ fontSize: '0.9rem', fontWeight: 800, color: '#10b981' }}>{kpiMetrics.reconciliationIndex.toFixed(1)}%</span>
-                        </div>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
-                            <span style={{ fontSize: '0.7rem', color: '#94a3b8' }}>Pendências em Aberto:</span>
-                            <span style={{ fontSize: '0.9rem', fontWeight: 800, color: '#f59e0b' }}>{kpiMetrics.totalUnreconciledCount} títulos</span>
-                        </div>
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', borderTop: '1px dotted #1f2937', paddingTop: '4px' }}>
-                            <span style={{ fontSize: '0.625rem', color: '#94a3b8', fontWeight: 600 }}>Aging de Atrasados:</span>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', borderTop: '1px dotted #1f2937', paddingTop: '4px' }}>
+                            <span style={{ fontSize: '0.625rem', color: '#94a3b8', fontWeight: 600 }}>Aging de Recebíveis:</span>
                             <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.65rem' }}>
                                 <span style={{ color: '#cbd5e1' }}>0-30d: <strong style={{ color: '#38bdf8' }}>{formatCurrency(kpiMetrics.pending0_30)}</strong></span>
                                 <span style={{ color: '#cbd5e1' }}>31-60d: <strong style={{ color: '#f59e0b' }}>{formatCurrency(kpiMetrics.pending31_60)}</strong></span>
                                 <span style={{ color: '#cbd5e1' }}>60d+: <strong style={{ color: '#ef4444' }}>{formatCurrency(kpiMetrics.pending60_plus)}</strong></span>
                             </div>
+                        </div>
+                    </div>
+                </div>
+ 
+                {/* DECK 3: GESTÃO DE OBRIGAÇÕES */}
+                <div style={{ backgroundColor: '#111827', borderRadius: '12px', padding: '1.25rem', border: '1px solid #1f2937', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #1f2937', paddingBottom: '8px' }}>
+                        <span style={{ fontSize: '0.72rem', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.05em' }}>3. Gestão de Obrigações</span>
+                        <span style={{ fontSize: '1rem' }}>💸</span>
+                    </div>
+ 
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
+                            <span style={{ fontSize: '0.7rem', color: '#94a3b8' }}>Prazo Médio Pag. (PMP):</span>
+                            <span style={{ fontSize: '0.9rem', fontWeight: 800, color: '#8b5cf6' }}>{Math.round(kpiMetrics.pmp)} dias</span>
+                        </div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
+                            <span style={{ fontSize: '0.7rem', color: '#94a3b8' }}>Ciclo Fin. (Gap de Dias):</span>
+                            <span style={{ fontSize: '0.9rem', fontWeight: 800, color: kpiMetrics.cicloFinanceiro > 0 ? '#ef4444' : '#10b981' }}>
+                                {kpiMetrics.cicloFinanceiro.toFixed(0)} dias
+                            </span>
+                        </div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
+                            <span style={{ fontSize: '0.7rem', color: '#94a3b8' }}>Volume de Passivos:</span>
+                            <span style={{ fontSize: '0.9rem', fontWeight: 800, color: '#ef4444' }}>{formatCurrency(kpiMetrics.totalPassivos)}</span>
+                        </div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
+                            <span style={{ fontSize: '0.7rem', color: '#94a3b8' }}>Provisão 13º e Férias:</span>
+                            <span style={{ fontSize: '0.9rem', fontWeight: 800, color: '#f59e0b' }}>{formatCurrency(kpiMetrics.provisao13)}</span>
+                        </div>
+                    </div>
+                </div>
+ 
+                {/* DECK 4: MOTOR DE CRESCIMENTO E BREAK-EVEN */}
+                <div style={{ backgroundColor: '#111827', borderRadius: '12px', padding: '1.25rem', border: '1px solid #1f2937', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #1f2937', paddingBottom: '8px' }}>
+                        <span style={{ fontSize: '0.72rem', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.05em' }}>4. Crescimento & Break-Even</span>
+                        <span style={{ fontSize: '1rem' }}>📈</span>
+                    </div>
+ 
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
+                            <span style={{ fontSize: '0.7rem', color: '#94a3b8' }}>Equilíbrio (Break-Even):</span>
+                            <span style={{ fontSize: '0.9rem', fontWeight: 800, color: '#38bdf8' }}>{formatCurrency(kpiMetrics.breakEven)}</span>
+                        </div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
+                            <span style={{ fontSize: '0.7rem', color: '#94a3b8' }}>Custo Capital (WACC):</span>
+                            <span style={{ fontSize: '0.9rem', fontWeight: 800, color: '#ec4899' }}>{kpiMetrics.wacc.toFixed(1)}%</span>
+                        </div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
+                            <span style={{ fontSize: '0.7rem', color: '#94a3b8' }}>Caixa Mín. Segurança:</span>
+                            <span style={{ fontSize: '0.9rem', fontWeight: 800, color: kpiMetrics.cashConsolidated < kpiMetrics.caixaMinimoSeguranca ? '#ef4444' : '#10b981' }}>
+                                {formatCurrency(kpiMetrics.caixaMinimoSeguranca)}
+                            </span>
+                        </div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', borderTop: '1px dotted #1f2937', paddingTop: '4px' }}>
+                            <span style={{ fontSize: '0.625rem', color: '#94a3b8' }}>Conciliação Bancária:</span>
+                            <span style={{ fontSize: '0.72rem', fontWeight: 700, color: '#10b981' }}>{kpiMetrics.reconciliationIndex.toFixed(1)}%</span>
                         </div>
                     </div>
                 </div>

@@ -151,8 +151,8 @@ export default function ClientLayoutWrapper({ children }: { children: React.Reac
                     top: 0,
                     height: '100vh',
                     zIndex: 100,
-                    backgroundColor: pathname === '/cfo-virtual' ? '#111827' : '#0f62ac',
-                    borderRight: pathname === '/cfo-virtual' ? '1px solid #1f2937' : '1px solid #0b579f'
+                    backgroundColor: '#0f62ac',
+                    borderRight: '1px solid #0b579f'
                 }}
             >
                 {/* Floating Collapse/Expand Button */}
@@ -202,7 +202,7 @@ export default function ClientLayoutWrapper({ children }: { children: React.Reac
                         justifyContent: isCollapsed ? 'center' : 'flex-start',
                         padding: isCollapsed ? '1.2rem 0' : '1.2rem 1.2rem',
                         transition: 'padding 0.3s',
-                        borderBottom: pathname === '/cfo-virtual' ? '1px solid #1f2937' : '1px solid rgba(255, 255, 255, 0.15)'
+                        borderBottom: '1px solid rgba(255, 255, 255, 0.15)'
                     }}
                 >
                     {isCollapsed ? (
@@ -263,7 +263,7 @@ export default function ClientLayoutWrapper({ children }: { children: React.Reac
                                             gap: isCollapsed ? '0' : '0.85rem',
                                             transition: 'padding 0.3s, gap 0.3s',
                                             backgroundColor: isSelected 
-                                                ? (pathname === '/cfo-virtual' ? '#1f2937' : '#0b579f') 
+                                                ? '#0b579f' 
                                                 : 'transparent'
                                         }}
                                     >
@@ -288,8 +288,8 @@ export default function ClientLayoutWrapper({ children }: { children: React.Reac
                     style={{ 
                         padding: isCollapsed ? '0.8rem 0.4rem' : '0.8rem 1rem', 
                         transition: 'padding 0.3s',
-                        backgroundColor: pathname === '/cfo-virtual' ? '#0b0f19' : '#094e8a',
-                        borderTop: pathname === '/cfo-virtual' ? '1px solid #1f2937' : '1px solid rgba(255, 255, 255, 0.15)'
+                        backgroundColor: '#094e8a',
+                        borderTop: '1px solid rgba(255, 255, 255, 0.15)'
                     }}
                 >
                     <button 

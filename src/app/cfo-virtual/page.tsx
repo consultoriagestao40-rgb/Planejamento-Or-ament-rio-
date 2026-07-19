@@ -21,25 +21,26 @@ export default function CFOVirtualPage() {
     const [actionSavedIds, setActionSavedIds] = useState<Set<string>>(new Set());
 
     // Chat History and Sidebar States
+    const [isSidebarOpen, setIsSidebarOpen] = useState(true);
     const [sessions, setSessions] = useState<any[]>([]);
     const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
-    const [isChatOpen, setIsChatOpen] = useState(false); // Controls the AI Chat Advisor drawer!
-    const [expiredTenants, setExpiredTenants] = useState<string[]>([]);
+    const [editingSessionId, setEditingSessionId] = useState<string | null>(null);
+    const [editTitleInput, setEditTitleInput] = useState('');
 
-    // Dashboard Data
-    const [dashboardData, setDashboardData] = useState<any>(null);
-    const [loadingDashboard, setLoadingDashboard] = useState<boolean>(true);
-
-    // Growth Simulator State (Card 4)
-    const [simMetaVendas, setSimMetaVendas] = useState(500000);
-    const [simPMR, setSimPMR] = useState(90);
-    const [simCusto, setSimCusto] = useState(180000);
- 
-    // Chart Hover States
-    const [hoveredPoint, setHoveredPoint] = useState<any | null>(null);
-    const [hoveredSimPoint, setHoveredSimPoint] = useState<any | null>(null);
- 
     const messagesEndRef = useRef<HTMLDivElement>(null);
+
+    // Carregar lista de conversas salvas
+    const loadSessions = async () => {
+        try {
+            const res = await fetch('/api/chat/sessions');
+            const data = await res.json();
+            if (data.success && data.sessions) {
+                setSessions(data.sessions);
+            }
+        } catch (err) {
+            console.error('Erro ao carregar sessões de chat:', err);
+        }
+    };
 
     // Load tenants and chat sessions on mount
     useEffect(() => {
@@ -57,16 +58,6 @@ export default function CFOVirtualPage() {
                         setSelectedTenant('all'); // Default to consolidated/all
                     }
                 }
-
-                // Verificar conexões expiradas
-                const compRes = await fetch('/api/companies');
-                const compData = await compRes.json();
-                if (compData.success && compData.companies) {
-                    const expired = compData.companies
-                        .filter((t: any) => !t.tokenExpiresAt || new Date(t.tokenExpiresAt) < new Date())
-                        .map((t: any) => t.name);
-                    setExpiredTenants(expired);
-                }
             } catch (err) {
                 console.error('Erro ao carregar tenants:', err);
             }
@@ -74,26 +65,6 @@ export default function CFOVirtualPage() {
         loadSetup();
         loadSessions();
     }, []);
-
-    // Fetch Dashboard Data whenever tenant changes
-    useEffect(() => {
-        const fetchDashboard = async () => {
-            if (!selectedTenant) return;
-            setLoadingDashboard(true);
-            try {
-                const res = await fetch(`/api/dfc?tenantId=${selectedTenant}&year=2026`);
-                const json = await res.json();
-                if (json.success) {
-                    setDashboardData(json);
-                }
-            } catch (err) {
-                console.error('Erro ao carregar dados do dashboard:', err);
-            } finally {
-                setLoadingDashboard(false);
-            }
-        };
-        fetchDashboard();
-    }, [selectedTenant]);
 
     // Save tenant back to localStorage when changed
     useEffect(() => {
@@ -107,20 +78,7 @@ export default function CFOVirtualPage() {
         if (messagesEndRef.current) {
             messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
         }
-    }, [messages, isLoading, isChatOpen]);
-
-    // Load sessions
-    const loadSessions = async () => {
-        try {
-            const res = await fetch('/api/chat/sessions');
-            const data = await res.json();
-            if (data.success && data.sessions) {
-                setSessions(data.sessions);
-            }
-        } catch (err) {
-            console.error('Erro ao carregar sessões de chat:', err);
-        }
-    };
+    }, [messages, isLoading]);
 
     // Initial greeting
     useEffect(() => {
@@ -171,8 +129,52 @@ export default function CFOVirtualPage() {
             }
         } catch (err) {
             console.error('Erro ao carregar detalhes da sessão:', err);
+            alert('Erro ao carregar o histórico deste chat.');
         } finally {
             setIsLoading(false);
+        }
+    };
+
+    // Renomear uma sessão
+    const renameSession = async (sessionId: string, newTitle: string) => {
+        if (!newTitle.trim()) {
+            setEditingSessionId(null);
+            return;
+        }
+        try {
+            const res = await fetch(`/api/chat/sessions/${sessionId}`, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ title: newTitle.trim() })
+            });
+            const data = await res.json();
+            if (data.success) {
+                setSessions(prev => prev.map(s => s.id === sessionId ? { ...s, title: newTitle.trim() } : s));
+                setEditingSessionId(null);
+            }
+        } catch (err) {
+            console.error('Erro ao renomear sessão:', err);
+        }
+    };
+
+    // Excluir uma sessão
+    const deleteSession = async (sessionId: string, e: React.MouseEvent) => {
+        e.stopPropagation();
+        if (!confirm('Deseja realmente excluir esta conversa?')) return;
+        
+        try {
+            const res = await fetch(`/api/chat/sessions/${sessionId}`, {
+                method: 'DELETE'
+            });
+            const data = await res.json();
+            if (data.success) {
+                setSessions(prev => prev.filter(s => s.id !== sessionId));
+                if (activeSessionId === sessionId) {
+                    createNewChat();
+                }
+            }
+        } catch (err) {
+            console.error('Erro ao excluir sessão:', err);
         }
     };
 
@@ -188,7 +190,6 @@ export default function CFOVirtualPage() {
         setMessages(prev => [...prev, userMsg]);
         setInput('');
         setIsLoading(true);
-        setIsChatOpen(true); // Open AI Chat Drawer when a message is sent
 
         try {
             const response = await fetch('/api/chat', {
@@ -268,6 +269,13 @@ export default function CFOVirtualPage() {
         }
     };
 
+    const quickChips = [
+        { label: '🔎 Desvios de orçamento (Junho)', text: 'Auditar principais desvios de orçamento de junho de 2026' },
+        { label: '💸 Onde estamos perdendo dinheiro?', text: 'Identifique quais contas estão com maiores estouros de orçamento até o momento' },
+        { label: '📊 Saúde do fluxo de caixa', text: 'Analise a saúde do fluxo de caixa (DFC) para este ano de 2026' },
+        { label: '🔮 Previsão de caixa e runway', text: 'Faça uma projeção de saldo de caixa para os próximos meses com base nas médias' }
+    ];
+
     // Helper formatting functions
     const formatBRL = (val: number) => {
         return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val);
@@ -288,15 +296,15 @@ export default function CFOVirtualPage() {
 
         return matches.map((part, index) => {
             if (part.startsWith('**') && part.endsWith('**')) {
-                return <strong key={index} style={{ fontWeight: 700, color: '#f8fafc' }}>{part.slice(2, -2)}</strong>;
+                return <strong key={index} style={{ fontWeight: 700, color: '#0f172a' }}>{part.slice(2, -2)}</strong>;
             }
             if (part.startsWith('`') && part.endsWith('`')) {
-                return <code key={index} style={{ fontFamily: 'monospace', backgroundColor: '#1f2937', padding: '2px 4px', borderRadius: '4px', fontSize: '0.8rem', color: '#f43f5e' }}>{part.slice(1, -1)}</code>;
+                return <code key={index} style={{ fontFamily: 'monospace', backgroundColor: '#e2e8f0', padding: '2px 4px', borderRadius: '4px', fontSize: '0.8rem', color: '#be123c' }}>{part.slice(1, -1)}</code>;
             }
             if (part.startsWith('[') && part.includes('](')) {
                 const label = part.slice(1, part.indexOf(']'));
                 const url = part.slice(part.indexOf('](') + 2, -1);
-                return <a key={index} href={url} target="_blank" rel="noopener noreferrer" style={{ color: '#38bdf8', textDecoration: 'underline' }}>{label}</a>;
+                return <a key={index} href={url} target="_blank" rel="noopener noreferrer" style={{ color: '#3b82f6', textDecoration: 'underline' }}>{label}</a>;
             }
             return part;
         });
@@ -305,6 +313,8 @@ export default function CFOVirtualPage() {
     // Markdown block parser
     const parseMarkdown = (text: string) => {
         if (!text) return null;
+        
+        // Strip out the json block so it isn't rendered in the text bubble
         const cleanText = text.replace(/```json[\s\S]*?```/g, '').trim();
 
         const lines = cleanText.split('\n');
@@ -321,7 +331,7 @@ export default function CFOVirtualPage() {
                 elements.push(
                     <ul key={`ul-${key}`} style={{ paddingLeft: '20px', margin: '8px 0', listStyleType: 'disc' }}>
                         {listItems.map((item, idx) => (
-                            <li key={idx} style={{ marginBottom: '4px', fontSize: '0.85rem', color: '#94a3b8' }}>
+                            <li key={idx} style={{ marginBottom: '4px', fontSize: '0.85rem', color: '#334155' }}>
                                 {parseInlineStyles(item)}
                             </li>
                         ))}
@@ -335,20 +345,20 @@ export default function CFOVirtualPage() {
         const flushTable = (key: string) => {
             if (tableHeaders.length > 0 || tableRows.length > 0) {
                 elements.push(
-                    <div key={`table-wrapper-${key}`} style={{ overflowX: 'auto', margin: '12px 0', borderRadius: '8px', border: '1px solid #1f2937', boxShadow: '0 1px 3px rgba(0,0,0,0.02)' }}>
+                    <div key={`table-wrapper-${key}`} style={{ overflowX: 'auto', margin: '12px 0', borderRadius: '8px', border: '1px solid #cbd5e1', boxShadow: '0 1px 3px rgba(0,0,0,0.02)' }}>
                         <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8rem', textAlign: 'left' }}>
                             <thead>
-                                <tr style={{ backgroundColor: '#1f2937', borderBottom: '1px solid #374151' }}>
+                                <tr style={{ backgroundColor: '#f1f5f9', borderBottom: '1px solid #cbd5e1' }}>
                                     {tableHeaders.map((h, idx) => (
-                                        <th key={idx} style={{ padding: '8px 12px', fontWeight: 600, color: '#94a3b8' }}>{h.trim()}</th>
+                                        <th key={idx} style={{ padding: '8px 12px', fontWeight: 600, color: '#475569' }}>{h.trim()}</th>
                                     ))}
                                 </tr>
                             </thead>
                             <tbody>
                                 {tableRows.map((row, rIdx) => (
-                                    <tr key={rIdx} style={{ borderBottom: rIdx === tableRows.length - 1 ? 'none' : '1px solid #1f2937', backgroundColor: rIdx % 2 === 0 ? '#111827' : '#1f2937' }}>
+                                    <tr key={rIdx} style={{ borderBottom: rIdx === tableRows.length - 1 ? 'none' : '1px solid #f1f5f9', backgroundColor: rIdx % 2 === 0 ? '#ffffff' : '#f8fafc' }}>
                                         {row.map((cell, cIdx) => (
-                                            <td key={cIdx} style={{ padding: '8px 12px', color: '#94a3b8' }}>
+                                            <td key={cIdx} style={{ padding: '8px 12px', color: '#334155' }}>
                                                 {parseInlineStyles(cell.trim())}
                                             </td>
                                         ))}
@@ -396,15 +406,15 @@ export default function CFOVirtualPage() {
             }
 
             if (line.startsWith('### ')) {
-                elements.push(<h4 key={i} style={{ margin: '12px 0 6px 0', fontSize: '0.9rem', fontWeight: 700, color: '#f8fafc' }}>{parseInlineStyles(line.substring(4))}</h4>);
+                elements.push(<h4 key={i} style={{ margin: '12px 0 6px 0', fontSize: '0.9rem', fontWeight: 700, color: '#0f172a' }}>{parseInlineStyles(line.substring(4))}</h4>);
                 continue;
             }
             if (line.startsWith('## ')) {
-                elements.push(<h3 key={i} style={{ margin: '16px 0 8px 0', fontSize: '1rem', fontWeight: 700, color: '#f8fafc', borderBottom: '1px solid #1f2937', paddingBottom: '4px' }}>{parseInlineStyles(line.substring(3))}</h3>);
+                elements.push(<h3 key={i} style={{ margin: '16px 0 8px 0', fontSize: '1rem', fontWeight: 700, color: '#0f172a', borderBottom: '1px solid #e2e8f0', paddingBottom: '4px' }}>{parseInlineStyles(line.substring(3))}</h3>);
                 continue;
             }
             if (line.startsWith('# ')) {
-                elements.push(<h2 key={i} style={{ margin: '18px 0 8px 0', fontSize: '1.1rem', fontWeight: 800, color: '#f8fafc' }}>{parseInlineStyles(line.substring(2))}</h2>);
+                elements.push(<h2 key={i} style={{ margin: '18px 0 8px 0', fontSize: '1.1rem', fontWeight: 800, color: '#0f172a' }}>{parseInlineStyles(line.substring(2))}</h2>);
                 continue;
             }
 
@@ -412,7 +422,7 @@ export default function CFOVirtualPage() {
                 continue;
             }
 
-            elements.push(<p key={i} style={{ margin: '6px 0', fontSize: '0.85rem', lineHeight: 1.5, color: '#94a3b8' }}>{parseInlineStyles(line)}</p>);
+            elements.push(<p key={i} style={{ margin: '6px 0', fontSize: '0.85rem', lineHeight: 1.5, color: '#334155' }}>{parseInlineStyles(line)}</p>);
         }
 
         flushList('final');
@@ -421,635 +431,863 @@ export default function CFOVirtualPage() {
         return elements;
     };
 
-    // Calculate Dashboard Variables dynamically
-    const cashConsolidated = dashboardData?.currentBankBalance || 0;
-    const totalOutflows = dashboardData?.monthlyData.reduce((sum: number, m: any) => sum + m.pagamentosOperacionais, 0) || 0;
-    const dailyBurnVal = totalOutflows / 365;
-    const runwayDays = dailyBurnVal > 0 ? Math.round(cashConsolidated / dailyBurnVal) : 0;
+    // Parse visual payload JSON directly from message content to render inline charts
+    const getVisualPayload = (content: string) => {
+        try {
+            if (!content) return null;
+            // 1. Try to extract content inside ```json ... ```
+            const jsonRegex = /```json\s*([\s\S]*?)\s*```/;
+            const match = jsonRegex.exec(content);
+            let jsonText = "";
+            if (match) {
+                jsonText = match[1].trim();
+            } else {
+                // If not enclosed in ```json, find the first '{' and last '}'
+                const firstBrace = content.indexOf('{');
+                const lastBrace = content.lastIndexOf('}');
+                if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
+                    jsonText = content.substring(firstBrace, lastBrace + 1).trim();
+                }
+            }
 
-    const totalCAR = dashboardData?.monthlyData.flatMap((m: any) => m.details).filter((d: any) => !d.isRealized && d.isRevenue).reduce((sum: number, d: any) => sum + d.amount, 0) || 0;
-    const totalCAP = dashboardData?.monthlyData.flatMap((m: any) => m.details).filter((d: any) => !d.isRealized && !d.isRevenue).reduce((sum: number, d: any) => sum + d.amount, 0) || 0;
-    const workingCapitalNeed = Math.max(0, totalCAP - totalCAR);
-
-    // Main Chart Projeção Variables
-    const projectionPoints = dashboardData?.dailyProjection.slice(0, 90) || [];
-    const balances = projectionPoints.map((p: any) => p.balance);
-    const maxBal = Math.max(...balances, 500000);
-    const minBal = Math.min(...balances, 0);
-    const range = maxBal - minBal || 1;
-    const getY = (val: number) => 180 - ((val - minBal) / range) * 130;
-    const getX = (idx: number) => (idx / (projectionPoints.length - 1)) * 550;
-
-    let pathD = '';
-    projectionPoints.forEach((p: any, idx: number) => {
-        if (idx === 0) pathD += `M ${getX(idx)} ${getY(p.balance)}`;
-        else pathD += ` L ${getX(idx)} ${getY(p.balance)}`;
-    });
-
-    // Aging List (Card 1)
-    const pendingInflows = dashboardData?.monthlyData
-        .flatMap((m: any) => m.details)
-        .filter((d: any) => !d.isRealized && d.isRevenue) || [];
-
-    let totalReceivables = 0;
-    let aging = { overdue: 0, t1_15: 0, t16_30: 0, t31_60: 0, t61_plus: 0 };
-    pendingInflows.forEach((d: any) => {
-        const amt = d.amount;
-        totalReceivables += amt;
-        const dueDate = new Date(d.originalDate || d.date);
-        const today = new Date();
-        const diffTime = dueDate.getTime() - today.getTime();
-        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-
-        if (diffDays < 0) {
-            aging.overdue += amt;
-        } else if (diffDays <= 15) {
-            aging.t1_15 += amt;
-        } else if (diffDays <= 30) {
-            aging.t16_30 += amt;
-        } else if (diffDays <= 60) {
-            aging.t31_60 += amt;
-        } else {
-            aging.t61_plus += amt;
+            if (jsonText) {
+                // Remove javascript single-line and multi-line comments
+                jsonText = jsonText.replace(/\/\*[\s\S]*?\*\/|([^\\:]|^)\/\/.*$/gm, '$1');
+                
+                // Remove trailing commas before closing braces/brackets
+                jsonText = jsonText.replace(/,(\s*[\]}])/g, '$1');
+                
+                // Attempt parsing
+                try {
+                    const parsed = JSON.parse(jsonText);
+                    if (parsed && typeof parsed === 'object' && parsed.type) {
+                        const validTypes = ['CASH_FLOW', 'DEVIATIONS', 'MONTHLY_BREAKDOWN', 'OVERDUE_COMMITMENTS', 'SHORT_TERM_PROJECTION'];
+                        if (validTypes.includes(parsed.type)) {
+                            return parsed;
+                        }
+                    }
+                } catch (e) {
+                    // Try to clean single quotes or unquoted keys if JSON.parse failed
+                    console.warn('CFO: Standard JSON parsing failed, applying cleanup replacements...', e);
+                    let cleaned = jsonText
+                        .replace(/'([^'\n]+)'\s*:/g, '"$1":')
+                        .replace(/:\s*'([^'\n]+)'/g, ': "$1"');
+                    const parsed = JSON.parse(cleaned);
+                    if (parsed && typeof parsed === 'object' && parsed.type) {
+                        return parsed;
+                    }
+                }
+            }
+        } catch (err) {
+            console.error('Erro ao analisar payload do gráfico:', err, content);
         }
-    });
+        return null;
+    };
 
-    // Gestão de Passivos (Card 3)
-    const passivos = dashboardData?.monthlyData
-        .flatMap((m: any) => m.details)
-        .filter((d: any) => !d.isRealized && !d.isRevenue && (d.category.startsWith('06.3') || d.category.startsWith('6.3'))) || [];
+    // Renders the Cash Flow chart directly inline in the message bubble
+    const renderCashFlowChart = (payload: any) => {
+        if (!payload || !payload.monthlyCashFlow || payload.monthlyCashFlow.length === 0) return null;
+        
+        return (
+            <div className="glass-card" style={{ marginTop: '1rem', padding: '1.5rem', backgroundColor: '#ffffff', borderRadius: '12px', border: '1px solid rgba(15,23,42,0.08)', animation: 'fade-in 0.3s ease-out' }}>
+                <h3 style={{ fontSize: '0.95rem', fontWeight: 800, color: '#1e293b', marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <span>📈 Fluxo de Caixa Mensal (DFC Base Caixa)</span>
+                </h3>
 
-    const quickChips = [
-        { label: '🔎 Desvios de orçamento (Junho)', text: 'Auditar principais desvios de orçamento de junho de 2026' },
-        { label: '💸 Onde estamos perdendo dinheiro?', text: 'Identifique quais contas estão com maiores estouros de orçamento até o momento' },
-        { label: '📊 Saúde do fluxo de caixa', text: 'Analise a saúde do fluxo de caixa (DFC) para este ano de 2026' },
-        { label: '🔮 Previsão de caixa e runway', text: 'Faça uma projeção de saldo de caixa para os próximos meses com base nas médias' }
-    ];
+                {/* SVG Columns Bar Chart */}
+                <div style={{ height: '180px', position: 'relative', display: 'flex', flexDirection: 'column', justifyContent: 'flex-end', borderBottom: '1px solid rgba(15, 23, 42, 0.08)', paddingBottom: '1rem', marginBottom: '1.25rem' }}>
+                    <div style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: '1rem', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', zIndex: 0, pointerEvents: 'none' }}>
+                        <div style={{ borderBottom: '1px dashed rgba(15, 23, 42, 0.03)', width: '100%', height: '0' }} />
+                        <div style={{ borderBottom: '1px dashed rgba(15, 23, 42, 0.03)', width: '100%', height: '0' }} />
+                        <div style={{ borderBottom: '1px dashed rgba(15, 23, 42, 0.03)', width: '100%', height: '0' }} />
+                    </div>
+
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', height: '100%', zIndex: 1, padding: '0 4px' }}>
+                        {payload.monthlyCashFlow.map((item: any) => {
+                            const maxAmount = Math.max(1, ...payload.monthlyCashFlow.map((i: any) => Math.max(i.inflow, i.outflow)));
+                            const inflowHeight = (item.inflow / maxAmount) * 100;
+                            const outflowHeight = (item.outflow / maxAmount) * 100;
+
+                            return (
+                                <div key={item.month} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', flex: 1, maxWidth: '45px' }}>
+                                    <div style={{ display: 'flex', gap: '3px', alignItems: 'flex-end', height: '120px', width: '100%' }}>
+                                        {/* Inflow */}
+                                        <div 
+                                            style={{ flex: 1, height: `${inflowHeight}%`, backgroundColor: '#10b981', borderRadius: '3px 3px 0 0', minHeight: '1px', cursor: 'pointer', position: 'relative' }}
+                                            className="dfc-bar"
+                                            title={`Entradas: ${formatBRL(item.inflow)}`}
+                                        >
+                                            <div className="dfc-tooltip">{formatBRL(item.inflow)}</div>
+                                        </div>
+                                        {/* Outflow */}
+                                        <div 
+                                            style={{ flex: 1, height: `${outflowHeight}%`, backgroundColor: '#ef4444', borderRadius: '3px 3px 0 0', minHeight: '1px', cursor: 'pointer', position: 'relative' }}
+                                            className="dfc-bar"
+                                            title={`Saídas: ${formatBRL(item.outflow)}`}
+                                        >
+                                            <div className="dfc-tooltip">{formatBRL(item.outflow)}</div>
+                                        </div>
+                                    </div>
+                                    <span style={{ fontSize: '0.7rem', color: '#64748b', fontWeight: 700, marginTop: '6px' }}>
+                                        {getMonthName(item.month)}
+                                    </span>
+                                </div>
+                            );
+                        })}
+                    </div>
+                </div>
+
+                {/* Summary Metrics */}
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '0.75rem', marginBottom: '1rem' }}>
+                    <div style={{ padding: '8px 10px', borderRadius: '8px', backgroundColor: '#f0fdf4', border: '1px solid #dcfce7', textAlign: 'center' }}>
+                        <span style={{ fontSize: '0.65rem', color: '#16a34a', fontWeight: 700 }}>Total Receitas</span>
+                        <h4 style={{ fontSize: '0.85rem', fontWeight: 800, color: '#14532d', marginTop: '2px' }}>
+                            {formatBRL(payload.monthlyCashFlow.reduce((sum: number, item: any) => sum + item.inflow, 0))}
+                        </h4>
+                    </div>
+                    <div style={{ padding: '8px 10px', borderRadius: '8px', backgroundColor: '#fef2f2', border: '1px solid #fee2e2', textAlign: 'center' }}>
+                        <span style={{ fontSize: '0.65rem', color: '#dc2626', fontWeight: 700 }}>Total Despesas</span>
+                        <h4 style={{ fontSize: '0.85rem', fontWeight: 800, color: '#7f1d1d', marginTop: '2px' }}>
+                            {formatBRL(payload.monthlyCashFlow.reduce((sum: number, item: any) => sum + item.outflow, 0))}
+                        </h4>
+                    </div>
+                    <div style={{ padding: '8px 10px', borderRadius: '8px', backgroundColor: '#eff6ff', border: '1px solid #dbeafe', textAlign: 'center' }}>
+                        <span style={{ fontSize: '0.65rem', color: '#2563eb', fontWeight: 700 }}>Líquido Net</span>
+                        <h4 style={{ fontSize: '0.85rem', fontWeight: 800, color: '#1e3a8a', marginTop: '2px' }}>
+                            {formatBRL(
+                                payload.monthlyCashFlow.reduce((sum: number, item: any) => sum + item.inflow, 0) -
+                                payload.monthlyCashFlow.reduce((sum: number, item: any) => sum + item.outflow, 0)
+                            )}
+                        </h4>
+                    </div>
+                </div>
+
+                {/* Table details */}
+                <div style={{ border: '1px solid rgba(15, 23, 42, 0.08)', borderRadius: '8px', overflow: 'hidden' }}>
+                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.75rem', textAlign: 'left' }}>
+                        <thead>
+                            <tr style={{ backgroundColor: '#f8fafc', borderBottom: '1px solid rgba(15, 23, 42, 0.08)' }}>
+                                <th style={{ padding: '6px 10px', fontWeight: 600, color: '#475569' }}>Mês</th>
+                                <th style={{ padding: '6px 10px', fontWeight: 600, color: '#10b981', textAlign: 'right' }}>Entradas</th>
+                                <th style={{ padding: '6px 10px', fontWeight: 600, color: '#ef4444', textAlign: 'right' }}>Saídas</th>
+                                <th style={{ padding: '6px 10px', fontWeight: 600, color: '#3b82f6', textAlign: 'right' }}>Saldo</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {payload.monthlyCashFlow.map((item: any) => (
+                                <tr key={item.month} style={{ borderBottom: '1px solid rgba(15, 23, 42, 0.04)', backgroundColor: '#ffffff' }}>
+                                    <td style={{ padding: '6px 10px', fontWeight: 700, color: '#334155' }}>{getMonthName(item.month)}</td>
+                                    <td style={{ padding: '6px 10px', color: '#10b981', textAlign: 'right' }}>{formatBRL(item.inflow)}</td>
+                                    <td style={{ padding: '6px 10px', color: '#ef4444', textAlign: 'right' }}>{formatBRL(item.outflow)}</td>
+                                    <td style={{ padding: '6px 10px', color: '#475569', textAlign: 'right', fontWeight: 600 }}>{formatBRL(item.projectedBalance)}</td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        );
+    };
+
+    // Renders the Deviations progress list inline in the message bubble
+    const renderDeviationsChart = (payload: any) => {
+        if (!payload || !payload.deviations) return null;
+
+        return (
+            <div className="glass-card" style={{ marginTop: '1rem', padding: '1.5rem', backgroundColor: '#ffffff', borderRadius: '12px', border: '1px solid rgba(15,23,42,0.08)', animation: 'fade-in 0.3s ease-out' }}>
+                <h3 style={{ fontSize: '0.95rem', fontWeight: 800, color: '#1e293b', marginBottom: '0.75rem', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <span>🎯 Desvios de Orçamento: {getMonthName(payload.month)}/{payload.year}</span>
+                </h3>
+                <p style={{ fontSize: '0.75rem', color: '#64748b', marginBottom: '1.25rem' }}>Dica: Clique em qualquer categoria para detalhar suas transações do mês.</p>
+
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
+                    {payload.deviations.map((item: any, idx: number) => {
+                        const isRevenue = item.type === 'REVENUE';
+                        const isNegativeDeviation = item.deviation < 0;
+
+                        const progressVal = Math.min(Math.max(item.percentage, 0), 155);
+                        const progressBarColor = isRevenue
+                            ? (item.percentage >= 100 ? '#10b981' : '#f59e0b')
+                            : (item.percentage > 100 ? '#ef4444' : '#10b981');
+
+                        return (
+                            <div 
+                                key={item.categoryId || idx} 
+                                onClick={() => sendMessage(`Quero ver os detalhes das transações de ${item.categoryName} em ${getMonthName(payload.month)} de ${payload.year}`)}
+                                style={{
+                                    padding: '10px 12px',
+                                    borderRadius: '10px',
+                                    border: '1px solid rgba(15, 23, 42, 0.04)',
+                                    backgroundColor: '#f8fafc',
+                                    cursor: 'pointer',
+                                    transition: 'transform 0.15s ease, background-color 0.15s ease'
+                                }}
+                                className="deviation-row"
+                            >
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                                    <div>
+                                        <span style={{ fontSize: '0.8rem', fontWeight: 700, color: '#1e293b' }}>{item.categoryName}</span>
+                                        <span style={{ fontSize: '0.65rem', color: '#64748b', marginLeft: '6px', padding: '2px 4px', borderRadius: '4px', backgroundColor: '#e2e8f0', fontWeight: 700 }}>
+                                            {isRevenue ? 'Rec' : 'Desp'}
+                                        </span>
+                                    </div>
+                                    
+                                    <div style={{
+                                        padding: '3px 6px',
+                                        borderRadius: '4px',
+                                        fontSize: '0.7rem',
+                                        fontWeight: 700,
+                                        backgroundColor: isNegativeDeviation ? '#fef2f2' : '#f0fdf4',
+                                        border: `1px solid ${isNegativeDeviation ? '#fca5a5' : '#86efac'}`,
+                                        color: isNegativeDeviation ? '#b91c1c' : '#15803d'
+                                    }}>
+                                        {isNegativeDeviation ? 'Estouro: ' : 'Economia: '}{formatBRL(Math.abs(item.deviation))}
+                                    </div>
+                                </div>
+
+                                <div style={{ display: 'flex', gap: '1rem', fontSize: '0.7rem', color: '#64748b', marginBottom: '6px' }}>
+                                    <span><strong>Orçado:</strong> {formatBRL(item.budget)}</span>
+                                    <span><strong>Realizado:</strong> {formatBRL(item.realized)}</span>
+                                    <span><strong>Atingido:</strong> {item.percentage.toFixed(1)}%</span>
+                                </div>
+
+                                <div style={{ height: '6px', width: '100%', backgroundColor: '#e2e8f0', borderRadius: '99px', overflow: 'hidden', position: 'relative' }}>
+                                    <div style={{ height: '100%', width: `${progressVal}%`, backgroundColor: progressBarColor, borderRadius: '99px', transition: 'width 0.4s ease-out' }} />
+                                    {progressVal > 100 && (
+                                        <div style={{ position: 'absolute', top: 0, left: '100%', width: '1.5px', height: '100%', backgroundColor: '#000', opacity: 0.2 }} />
+                                    )}
+                                </div>
+                            </div>
+                        );
+                    })}
+                </div>
+            </div>
+        );
+    };
+
+    // Renders side-by-side comparative SVG column chart (Orçado vs Realizado)
+    const renderMonthlyBreakdownChart = (payload: any) => {
+        if (!payload || !payload.values || payload.values.length === 0) return null;
+
+        const titleText = payload.title || payload.titulo || 'Evolução Mensal';
+        const viewModeText = payload.viewMode === 'caixa' ? 'Regime de Caixa' : 'Regime de Competência';
+
+        const maxAmount = Math.max(1, ...payload.values.map((i: any) => Math.max(Math.abs(i.budget || 0), Math.abs(i.realized || 0))));
+        const totalBudget = payload.values.reduce((sum: number, item: any) => sum + (item.budget || 0), 0);
+        const totalRealized = payload.values.reduce((sum: number, item: any) => sum + (item.realized || 0), 0);
+        
+        const isRevenue = titleText.toUpperCase().includes('FATURAMENTO') || 
+                          titleText.toUpperCase().includes('RECEITA') || 
+                          titleText.toUpperCase().includes('ENTRADA');
+        
+        const finalDeviation = isRevenue ? (totalRealized - totalBudget) : (totalBudget - totalRealized);
+        const isDeviationPositive = finalDeviation >= 0;
+
+        return (
+            <div className="glass-card" style={{ marginTop: '1rem', padding: '1.5rem', backgroundColor: '#ffffff', borderRadius: '12px', border: '1px solid rgba(15,23,42,0.08)', animation: 'fade-in 0.3s ease-out' }}>
+                <h3 style={{ fontSize: '0.95rem', fontWeight: 800, color: '#1e293b', marginBottom: '0.5rem', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <span>📊 {titleText} ({viewModeText})</span>
+                </h3>
+                <p style={{ fontSize: '0.75rem', color: '#64748b', marginBottom: '1.25rem' }}>Evolução mensal comparativa de Orçado vs Realizado.</p>
+
+                {/* SVG Side-by-side Bar Chart */}
+                <div style={{ height: '180px', position: 'relative', display: 'flex', flexDirection: 'column', justifyContent: 'flex-end', borderBottom: '1px solid rgba(15, 23, 42, 0.08)', paddingBottom: '1rem', marginBottom: '1.25rem' }}>
+                    <div style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: '1rem', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', zIndex: 0, pointerEvents: 'none' }}>
+                        <div style={{ borderBottom: '1px dashed rgba(15, 23, 42, 0.03)', width: '100%', height: '0' }} />
+                        <div style={{ borderBottom: '1px dashed rgba(15, 23, 42, 0.03)', width: '100%', height: '0' }} />
+                        <div style={{ borderBottom: '1px dashed rgba(15, 23, 42, 0.03)', width: '100%', height: '0' }} />
+                    </div>
+
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', height: '100%', zIndex: 1, padding: '0 4px' }}>
+                        {payload.values.map((item: any) => {
+                            const budgetHeight = (Math.abs(item.budget) / maxAmount) * 100;
+                            const realizedHeight = (Math.abs(item.realized) / maxAmount) * 100;
+
+                            return (
+                                <div key={item.month} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', flex: 1, maxWidth: '50px' }}>
+                                    <div style={{ display: 'flex', gap: '4px', alignItems: 'flex-end', height: '120px', width: '100%', justifyContent: 'center' }}>
+                                        {/* Budget Bar */}
+                                        <div 
+                                            style={{ width: '12px', height: `${budgetHeight}%`, backgroundColor: '#cbd5e1', borderRadius: '3px 3px 0 0', minHeight: '1px', cursor: 'pointer', position: 'relative' }}
+                                            className="dfc-bar"
+                                            title={`Orçado: ${formatBRL(item.budget)}`}
+                                        >
+                                            <div className="dfc-tooltip">Orçado: {formatBRL(item.budget)}</div>
+                                        </div>
+                                        {/* Realized Bar */}
+                                        <div 
+                                            style={{ 
+                                                width: '12px', 
+                                                height: `${realizedHeight}%`, 
+                                                backgroundColor: isRevenue 
+                                                    ? (item.realized >= item.budget ? '#10b981' : '#f59e0b') 
+                                                    : (item.realized <= item.budget ? '#10b981' : '#ef4444'), 
+                                                borderRadius: '3px 3px 0 0', 
+                                                minHeight: '1px', 
+                                                cursor: 'pointer', 
+                                                position: 'relative' 
+                                            }}
+                                            className="dfc-bar"
+                                            title={`Realizado: ${formatBRL(item.realized)}`}
+                                        >
+                                            <div className="dfc-tooltip">Realizado: {formatBRL(item.realized)}</div>
+                                        </div>
+                                    </div>
+                                    <span style={{ fontSize: '0.7rem', color: '#64748b', fontWeight: 700, marginTop: '6px' }}>
+                                        {getMonthName(item.month)}
+                                    </span>
+                                </div>
+                            );
+                        })}
+                    </div>
+                </div>
+
+                {/* Summary Metrics */}
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '0.75rem', marginBottom: '1rem' }}>
+                    <div style={{ padding: '8px 10px', borderRadius: '8px', backgroundColor: '#f8fafc', border: '1px solid #e2e8f0', textAlign: 'center' }}>
+                        <span style={{ fontSize: '0.65rem', color: '#64748b', fontWeight: 700 }}>Total Orçado</span>
+                        <h4 style={{ fontSize: '0.85rem', fontWeight: 800, color: '#334155', marginTop: '2px' }}>
+                            {formatBRL(totalBudget)}
+                        </h4>
+                    </div>
+                    <div style={{ padding: '8px 10px', borderRadius: '8px', backgroundColor: '#eff6ff', border: '1px solid #dbeafe', textAlign: 'center' }}>
+                        <span style={{ fontSize: '0.65rem', color: '#2563eb', fontWeight: 700 }}>Total Realizado</span>
+                        <h4 style={{ fontSize: '0.85rem', fontWeight: 800, color: '#1e3a8a', marginTop: '2px' }}>
+                            {formatBRL(totalRealized)}
+                        </h4>
+                    </div>
+                    <div style={{ 
+                        padding: '8px 10px', 
+                        borderRadius: '8px', 
+                        backgroundColor: isDeviationPositive ? '#f0fdf4' : '#fef2f2', 
+                        border: `1px solid ${isDeviationPositive ? '#dcfce7' : '#fee2e2'}`, 
+                        textAlign: 'center' 
+                    }}>
+                        <span style={{ fontSize: '0.65rem', color: isDeviationPositive ? '#16a34a' : '#dc2626', fontWeight: 700 }}>
+                            {isDeviationPositive ? 'Desvio (Economia)' : 'Desvio (Estouro/Frustração)'}
+                        </span>
+                        <h4 style={{ fontSize: '0.85rem', fontWeight: 800, color: isDeviationPositive ? '#14532d' : '#7f1d1d', marginTop: '2px' }}>
+                            {formatBRL(Math.abs(finalDeviation))} ({totalBudget > 0 ? `${((totalRealized / totalBudget) * 100).toFixed(1)}%` : '0%'})
+                        </h4>
+                    </div>
+                </div>
+
+                {/* Table details */}
+                <div style={{ border: '1px solid rgba(15, 23, 42, 0.08)', borderRadius: '8px', overflow: 'hidden' }}>
+                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.75rem', textAlign: 'left' }}>
+                        <thead>
+                            <tr style={{ backgroundColor: '#f8fafc', borderBottom: '1px solid rgba(15, 23, 42, 0.08)' }}>
+                                <th style={{ padding: '6px 10px', fontWeight: 600, color: '#475569' }}>Mês</th>
+                                <th style={{ padding: '6px 10px', fontWeight: 600, color: '#64748b', textAlign: 'right' }}>Orçado</th>
+                                <th style={{ padding: '6px 10px', fontWeight: 600, color: '#2563eb', textAlign: 'right' }}>Realizado</th>
+                                <th style={{ padding: '6px 10px', fontWeight: 600, color: '#475569', textAlign: 'right' }}>Desvio</th>
+                                <th style={{ padding: '6px 10px', fontWeight: 600, color: '#475569', textAlign: 'right' }}>%</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {payload.values.map((item: any) => {
+                                const realizedVal = item.realized || 0;
+                                const budgetVal = item.budget || 0;
+                                const itemDev = isRevenue ? (realizedVal - budgetVal) : (budgetVal - realizedVal);
+                                const isItemPos = itemDev >= 0;
+                                const itemPct = budgetVal > 0 ? (realizedVal / budgetVal) * 100 : 0;
+                                return (
+                                    <tr key={item.month} style={{ borderBottom: '1px solid rgba(15, 23, 42, 0.04)', backgroundColor: '#ffffff' }}>
+                                        <td style={{ padding: '6px 10px', fontWeight: 700, color: '#334155' }}>{getMonthName(item.month)}</td>
+                                        <td style={{ padding: '6px 10px', color: '#64748b', textAlign: 'right' }}>{formatBRL(item.budget)}</td>
+                                        <td style={{ padding: '6px 10px', color: '#1e293b', textAlign: 'right', fontWeight: 600 }}>{formatBRL(item.realized)}</td>
+                                        <td style={{ padding: '6px 10px', color: isItemPos ? '#16a34a' : '#dc2626', textAlign: 'right', fontWeight: 600 }}>
+                                            {isItemPos ? '+' : '-'}{formatBRL(Math.abs(itemDev))}
+                                        </td>
+                                        <td style={{ padding: '6px 10px', color: '#475569', textAlign: 'right' }}>{itemPct.toFixed(0)}%</td>
+                                    </tr>
+                                );
+                            })}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        );
+    };
+
+    // Renders list of overdue receivables/payables
+    const renderOverdueCommitments = (payload: any) => {
+        if (!payload || !payload.values) return null;
+
+        const totalPayable = payload.values
+            .filter((item: any) => item.type === 'PAYABLE')
+            .reduce((sum: number, item: any) => sum + item.amount, 0);
+        
+        const totalReceivable = payload.values
+            .filter((item: any) => item.type === 'RECEIVABLE')
+            .reduce((sum: number, item: any) => sum + item.amount, 0);
+
+        return (
+            <div className="glass-card" style={{ marginTop: '1rem', padding: '1.5rem', backgroundColor: '#ffffff', borderRadius: '12px', border: '1px solid rgba(15,23,42,0.08)', animation: 'fade-in 0.3s ease-out' }}>
+                <h3 style={{ fontSize: '0.95rem', fontWeight: 800, color: '#1e293b', marginBottom: '0.5rem', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <span>⚠️ Relatório de Contas Atrasadas (Vencidas)</span>
+                </h3>
+                <p style={{ fontSize: '0.75rem', color: '#64748b', marginBottom: '1.25rem' }}>Lista de compromissos vencidos e pendentes de pagamento.</p>
+
+                {/* Resumo Rápido */}
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '0.75rem', marginBottom: '1.25rem' }}>
+                    <div style={{ padding: '8px 10px', borderRadius: '8px', backgroundColor: '#fef2f2', border: '1px solid #fee2e2', textAlign: 'center' }}>
+                        <span style={{ fontSize: '0.65rem', color: '#dc2626', fontWeight: 700 }}>Total a Pagar Atrasado</span>
+                        <h4 style={{ fontSize: '0.85rem', fontWeight: 800, color: '#7f1d1d', marginTop: '2px' }}>
+                            {formatBRL(totalPayable)}
+                        </h4>
+                    </div>
+                    <div style={{ padding: '8px 10px', borderRadius: '8px', backgroundColor: '#eff6ff', border: '1px solid #dbeafe', textAlign: 'center' }}>
+                        <span style={{ fontSize: '0.65rem', color: '#2563eb', fontWeight: 700 }}>Total a Receber Atrasado</span>
+                        <h4 style={{ fontSize: '0.85rem', fontWeight: 800, color: '#1e3a8a', marginTop: '2px' }}>
+                            {formatBRL(totalReceivable)}
+                        </h4>
+                    </div>
+                </div>
+
+                {/* Tabela de Contas */}
+                <div style={{ border: '1px solid rgba(15, 23, 42, 0.08)', borderRadius: '8px', overflow: 'hidden' }}>
+                    <div style={{ maxHeight: '250px', overflowY: 'auto' }}>
+                        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.75rem', textAlign: 'left' }}>
+                            <thead>
+                                <tr style={{ backgroundColor: '#f8fafc', borderBottom: '1px solid rgba(15, 23, 42, 0.08)', position: 'sticky', top: 0, zIndex: 1 }}>
+                                    <th style={{ padding: '8px 10px', fontWeight: 600, color: '#475569' }}>Vencimento</th>
+                                    <th style={{ padding: '8px 10px', fontWeight: 600, color: '#475569' }}>Tipo</th>
+                                    <th style={{ padding: '8px 10px', fontWeight: 600, color: '#475569' }}>Cliente/Fornecedor</th>
+                                    <th style={{ padding: '8px 10px', fontWeight: 600, color: '#475569' }}>Categoria/Descrição</th>
+                                    <th style={{ padding: '8px 10px', fontWeight: 600, color: '#475569', textAlign: 'right' }}>Valor</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {payload.values.length === 0 ? (
+                                    <tr>
+                                        <td colSpan={5} style={{ padding: '12px', textAlign: 'center', color: '#64748b' }}>Sem contas vencidas no período selecionado. 🎉</td>
+                                    </tr>
+                                ) : (
+                                    payload.values.map((item: any, idx: number) => {
+                                        const isPayable = item.type === 'PAYABLE';
+                                        return (
+                                            <tr key={item.id || idx} style={{ borderBottom: '1px solid rgba(15, 23, 42, 0.04)', backgroundColor: '#ffffff' }}>
+                                                <td style={{ padding: '8px 10px', whiteSpace: 'nowrap', color: '#64748b' }}>{item.date}</td>
+                                                <td style={{ padding: '8px 10px' }}>
+                                                    <span style={{ 
+                                                        padding: '2px 6px', 
+                                                        borderRadius: '4px', 
+                                                        fontSize: '0.65rem', 
+                                                        fontWeight: 700,
+                                                        backgroundColor: isPayable ? '#fef2f2' : '#eff6ff',
+                                                        color: isPayable ? '#991b1b' : '#1e40af'
+                                                    }}>
+                                                        {isPayable ? 'Pagar' : 'Receber'}
+                                                    </span>
+                                                </td>
+                                                <td style={{ padding: '8px 10px', fontWeight: 600, color: '#334155' }}>{item.customer}</td>
+                                                <td style={{ padding: '8px 10px', color: '#64748b' }}>
+                                                    <div style={{ fontWeight: 600, color: '#475569' }}>{item.categoryName}</div>
+                                                    <div style={{ fontSize: '0.65rem' }}>{item.description}</div>
+                                                </td>
+                                                <td style={{ padding: '8px 10px', textAlign: 'right', fontWeight: 700, color: isPayable ? '#dc2626' : '#16a34a' }}>
+                                                    {formatBRL(item.amount)}
+                                                </td>
+                                            </tr>
+                                        );
+                                    })
+                                )}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        );
+    };
+
+    // Renders short term cash flow projection daily
+    const renderShortTermProjection = (payload: any) => {
+        if (!payload || !payload.projection || payload.projection.length === 0) return null;
+
+        const startBal = payload.startBalance || 0;
+        const list = payload.projection;
+
+        const totalIn = list.reduce((sum: number, item: any) => sum + item.inflow, 0);
+        const totalOut = list.reduce((sum: number, item: any) => sum + item.outflow, 0);
+        const endBal = list.length > 0 ? list[list.length - 1].endingBalance : startBal;
+        const netFlow = totalIn - totalOut;
+        const isNetPositive = netFlow >= 0;
+
+        return (
+            <div className="glass-card" style={{ marginTop: '1rem', padding: '1.5rem', backgroundColor: '#ffffff', borderRadius: '12px', border: '1px solid rgba(15,23,42,0.08)', animation: 'fade-in 0.3s ease-out' }}>
+                <h3 style={{ fontSize: '0.95rem', fontWeight: 800, color: '#1e293b', marginBottom: '0.5rem', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <span>🔮 Projeção de Fluxo de Caixa (Próximos {payload.days || 7} Dias)</span>
+                </h3>
+                <p style={{ fontSize: '0.75rem', color: '#64748b', marginBottom: '1.25rem' }}>Planejamento de liquidez diário com base em contas a pagar e receber previstas.</p>
+
+                {/* Métricas de Curto Prazo */}
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '0.5rem', marginBottom: '1.25rem' }}>
+                    <div style={{ padding: '6px 8px', borderRadius: '8px', backgroundColor: '#f8fafc', border: '1px solid #e2e8f0', textAlign: 'center' }}>
+                        <span style={{ fontSize: '0.6rem', color: '#64748b', fontWeight: 700 }}>Saldo Atual</span>
+                        <h4 style={{ fontSize: '0.8rem', fontWeight: 800, color: '#334155', marginTop: '2px' }}>{formatBRL(startBal)}</h4>
+                    </div>
+                    <div style={{ padding: '6px 8px', borderRadius: '8px', backgroundColor: '#f0fdf4', border: '1px solid #dcfce7', textAlign: 'center' }}>
+                        <span style={{ fontSize: '0.6rem', color: '#16a34a', fontWeight: 700 }}>Entradas Previstas</span>
+                        <h4 style={{ fontSize: '0.8rem', fontWeight: 800, color: '#14532d', marginTop: '2px' }}>{formatBRL(totalIn)}</h4>
+                    </div>
+                    <div style={{ padding: '6px 8px', borderRadius: '8px', backgroundColor: '#fef2f2', border: '1px solid #fee2e2', textAlign: 'center' }}>
+                        <span style={{ fontSize: '0.6rem', color: '#dc2626', fontWeight: 700 }}>Saídas Previstas</span>
+                        <h4 style={{ fontSize: '0.8rem', fontWeight: 800, color: '#7f1d1d', marginTop: '2px' }}>{formatBRL(totalOut)}</h4>
+                    </div>
+                    <div style={{ padding: '6px 8px', borderRadius: '8px', backgroundColor: isNetPositive ? '#f0fdf4' : '#fef2f2', border: `1px solid ${isNetPositive ? '#dcfce7' : '#fee2e2'}`, textAlign: 'center' }}>
+                        <span style={{ fontSize: '0.6rem', color: isNetPositive ? '#16a34a' : '#dc2626', fontWeight: 700 }}>Saldo Final</span>
+                        <h4 style={{ fontSize: '0.8rem', fontWeight: 800, color: isNetPositive ? '#14532d' : '#7f1d1d', marginTop: '2px' }}>{formatBRL(endBal)}</h4>
+                    </div>
+                </div>
+
+                {/* SVG Trendline do Saldo Diário */}
+                <div style={{ marginBottom: '1.25rem', border: '1px solid rgba(15, 23, 42, 0.05)', padding: '10px', borderRadius: '8px', backgroundColor: '#fafafa' }}>
+                    <div style={{ fontSize: '0.65rem', fontWeight: 700, color: '#64748b', marginBottom: '8px' }}>Evolução Projetada do Saldo Bancário:</div>
+                    <div style={{ height: '80px', width: '100%', position: 'relative' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', height: '100%', padding: '0 10px' }}>
+                            {list.map((item: any, idx: number) => {
+                                const maxBalance = Math.max(1, ...list.map((i: any) => Math.max(i.endingBalance, startBal)));
+                                const minBalance = Math.min(0, ...list.map((i: any) => i.endingBalance));
+                                const balanceRange = maxBalance - minBalance || 1;
+                                const heightPercent = ((item.endingBalance - minBalance) / balanceRange) * 80 + 10;
+                                
+                                return (
+                                    <div key={idx} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', flex: 1 }}>
+                                        <div 
+                                            style={{ 
+                                                width: '6px', 
+                                                height: `${heightPercent}%`, 
+                                                backgroundColor: item.endingBalance >= startBal ? '#4f46e5' : '#f59e0b', 
+                                                borderRadius: '3px 3px 0 0',
+                                                cursor: 'pointer',
+                                                position: 'relative'
+                                            }}
+                                            className="dfc-bar"
+                                            title={`Saldo em ${item.date.split('-')[2]}: ${formatBRL(item.endingBalance)}`}
+                                        >
+                                            <div className="dfc-tooltip">{formatBRL(item.endingBalance)}</div>
+                                        </div>
+                                        <span style={{ fontSize: '0.6rem', color: '#64748b', marginTop: '4px', fontWeight: 600 }}>
+                                            {item.date.split('-')[2]}
+                                        </span>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    </div>
+                </div>
+
+                {/* Detalhes Diários */}
+                <div style={{ border: '1px solid rgba(15, 23, 42, 0.08)', borderRadius: '8px', overflow: 'hidden' }}>
+                    <div style={{ maxHeight: '180px', overflowY: 'auto' }}>
+                        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.75rem', textAlign: 'left' }}>
+                            <thead>
+                                <tr style={{ backgroundColor: '#f8fafc', borderBottom: '1px solid rgba(15, 23, 42, 0.08)' }}>
+                                    <th style={{ padding: '6px 10px', fontWeight: 600, color: '#475569' }}>Data</th>
+                                    <th style={{ padding: '6px 10px', fontWeight: 600, color: '#10b981', textAlign: 'right' }}>Entradas</th>
+                                    <th style={{ padding: '6px 10px', fontWeight: 600, color: '#ef4444', textAlign: 'right' }}>Saídas</th>
+                                    <th style={{ padding: '6px 10px', fontWeight: 600, color: '#475569', textAlign: 'right' }}>Saldo Projetado</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {list.map((item: any, idx: number) => {
+                                    const parts = item.date.split('-');
+                                    const dateLabel = `${parts[2]}/${parts[1]}`;
+                                    return (
+                                        <tr key={idx} style={{ borderBottom: '1px solid rgba(15, 23, 42, 0.04)', backgroundColor: '#ffffff' }}>
+                                            <td style={{ padding: '6px 10px', fontWeight: 700, color: '#334155' }}>{dateLabel}</td>
+                                            <td style={{ padding: '6px 10px', color: '#10b981', textAlign: 'right' }}>{item.inflow > 0 ? formatBRL(item.inflow) : '-'}</td>
+                                            <td style={{ padding: '6px 10px', color: '#ef4444', textAlign: 'right' }}>{item.outflow > 0 ? formatBRL(item.outflow) : '-'}</td>
+                                            <td style={{ padding: '6px 10px', color: '#1e293b', textAlign: 'right', fontWeight: 700 }}>{formatBRL(item.endingBalance)}</td>
+                                        </tr>
+                                    );
+                                })}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        );
+    };
 
     return (
-        <div style={{ backgroundColor: '#0b0f19', minHeight: '100vh', width: '100%', color: '#f8fafc', fontFamily: 'Inter, system-ui, sans-serif', padding: '1.5rem', boxSizing: 'border-box', overflowX: 'hidden', position: 'relative' }}>
-            
-            {/* Warning Banner for Expired Connections */}
-            {expiredTenants.length > 0 && (
-                <div style={{
-                    backgroundColor: '#7f1d1d',
-                    border: '1px solid #b91c1c',
-                    borderRadius: '12px',
-                    padding: '1rem 1.25rem',
-                    marginBottom: '1.5rem',
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                    alignItems: 'center',
-                    fontSize: '0.85rem',
-                    color: '#fca5a5',
-                    fontWeight: 600,
-                    boxShadow: '0 2px 4px rgba(220, 38, 38, 0.05)'
-                }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                        <span style={{ fontSize: '1.2rem' }}>⚠️</span>
-                        <span>
-                            Conexão expirada com o Conta Azul para: <strong>{expiredTenants.join(', ')}</strong>. Os dados de fluxo de caixa estão desatualizados e os títulos pagos/recebidos recentemente não foram processados.
-                        </span>
-                    </div>
-                    <a href="/sync" style={{
-                        backgroundColor: '#dc2626',
-                        color: '#ffffff',
-                        padding: '0.5rem 1rem',
-                        borderRadius: '8px',
-                        textDecoration: 'none',
-                        fontSize: '0.8rem',
-                        fontWeight: 700,
-                        transition: 'background-color 0.2s',
-                        whiteSpace: 'nowrap'
-                    }}>
-                        Reconectar Conta Azul
-                    </a>
-                </div>
-            )}
-            
-            {/* 1. TOP HEADER & FILTERS */}
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #1f2937', paddingBottom: '1rem', marginBottom: '1.5rem', flexWrap: 'wrap', gap: '1rem' }}>
+        <div style={{ height: 'calc(100vh - 20px)', width: '100%', display: 'flex', flexDirection: 'column', padding: '1rem 1.5rem', boxSizing: 'border-box' }}>
+            {/* Header */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingBottom: '0.75rem', borderBottom: '1px solid rgba(15, 23, 42, 0.08)', marginBottom: '1rem' }}>
                 <div>
-                    <h1 style={{ fontSize: '1.35rem', fontWeight: 800, margin: 0, letterSpacing: '-0.02em', color: '#f8fafc', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                        <span>🛡️ PAINEL DE FLUXO DE CAIXA PREDITIVO</span>
+                    <h1 style={{ fontSize: '1.4rem', fontWeight: 800, background: 'linear-gradient(135deg, #1e293b 0%, #4f46e5 100%)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <span>✨ CFO Virtual de IA</span>
                     </h1>
-                    <p style={{ fontSize: '0.78rem', color: '#94a3b8', marginTop: '2px' }}>
-                        {selectedTenant === 'all' 
-                            ? 'CFO view for your company group: Spot Facilities, JVS Tratamentos, Clean Tech'
-                            : `Visualização individual: ${tenants.find(t => t.id === selectedTenant)?.name || ''}`}
-                    </p>
+                    <p style={{ fontSize: '0.8rem', color: '#64748b', marginTop: '1px' }}>Auditoria, previsões e planos de ação consolidados</p>
                 </div>
-
-                <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                        <span style={{ fontSize: '0.72rem', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase' }}>Período:</span>
-                        <select style={{ backgroundColor: '#111827', color: '#f8fafc', border: '1px solid #1f2937', padding: '4px 8px', borderRadius: '6px', fontSize: '0.72rem', fontWeight: 700, outline: 'none' }}>
-                            <option>90 Dias</option>
-                            <option>180 Dias</option>
-                        </select>
-                    </div>
-
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                        <span style={{ fontSize: '0.72rem', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase' }}>Grupo:</span>
-                        <select 
-                            value={selectedTenant} 
-                            onChange={(e) => setSelectedTenant(e.target.value)} 
-                            style={{ backgroundColor: '#111827', color: '#f8fafc', border: '1px solid #1f2937', padding: '4px 8px', borderRadius: '6px', fontSize: '0.72rem', fontWeight: 700, outline: 'none', cursor: 'pointer' }}
-                        >
-                            <option value="all">Consol.</option>
-                            {tenants.map(t => (
-                                <option key={t.id} value={t.id}>{t.name.split(' ')[0]}</option>
-                            ))}
-                        </select>
-                    </div>
-
-                    <button 
-                        onClick={() => setIsChatOpen(true)}
-                        style={{ backgroundColor: '#4f46e5', color: '#ffffff', border: 'none', padding: '6px 12px', borderRadius: '6px', fontSize: '0.72rem', fontWeight: 700, cursor: 'pointer', transition: 'background-color 0.2s' }}
-                        onMouseEnter={e => e.currentTarget.style.backgroundColor = '#4338ca'}
-                        onMouseLeave={e => e.currentTarget.style.backgroundColor = '#4f46e5'}
+                
+                {/* Unified Tenant Selector with Consolidated Option */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <span style={{ fontSize: '0.8rem', fontWeight: 700, color: '#475569' }}>Filtro:</span>
+                    <select
+                        value={selectedTenant}
+                        onChange={(e) => setSelectedTenant(e.target.value)}
+                        style={{
+                            padding: '6px 12px',
+                            borderRadius: '8px',
+                            border: '1px solid rgba(15, 23, 42, 0.1)',
+                            fontSize: '0.8rem',
+                            fontWeight: 700,
+                            color: '#1e293b',
+                            backgroundColor: '#ffffff',
+                            boxShadow: '0 1px 2px rgba(0,0,0,0.04)',
+                            outline: 'none',
+                            cursor: 'pointer'
+                        }}
                     >
-                        💬 Consultar IA
-                    </button>
+                        <option value="all">Consolidado (Todas as Empresas)</option>
+                        {tenants.map(t => (
+                            <option key={t.id} value={t.id}>{t.name}</option>
+                        ))}
+                    </select>
                 </div>
             </div>
 
-            {loadingDashboard ? (
-                <div style={{ height: '60vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '1rem', color: '#94a3b8' }}>
-                    <div style={{ width: '32px', height: '32px', border: '3px solid #1f2937', borderTopColor: '#38bdf8', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
-                    <span style={{ fontSize: '0.85rem', fontWeight: 600 }}>Carregando dados preditivos do caixa...</span>
-                </div>
-            ) : (
-                <>
-                    {/* 2. TOP KPI CARDS */}
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '1.25rem', marginBottom: '1.5rem' }}>
-                        {/* POSIÇÃO DE CAIXA CONSOLIDADA */}
-                        <div style={{ backgroundColor: '#111827', borderRadius: '12px', padding: '1.25rem', border: '1px solid #1f2937', display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                <span style={{ fontSize: '0.72rem', color: '#94a3b8', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Posição de Caixa Consolidada</span>
-                                <span style={{ fontSize: '1rem' }}>💼</span>
-                            </div>
-                            <h2 style={{ fontSize: '1.5rem', fontWeight: 800, color: '#10b981', margin: 0 }}>{formatBRL(cashConsolidated)}</h2>
-                            <span style={{ fontSize: '0.65rem', color: '#94a3b8' }}>Saldo em conta consolidado do grupo</span>
-                        </div>
-
-                        {/* PISTA DE CAIXA (RUNWAY) */}
-                        <div style={{ backgroundColor: '#111827', borderRadius: '12px', padding: '1.25rem', border: '1px solid #1f2937', display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                <span style={{ fontSize: '0.72rem', color: '#94a3b8', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Pista de Caixa (Runway)</span>
-                                <span style={{ fontSize: '1rem' }}>⏳</span>
-                            </div>
-                            <div style={{ display: 'flex', alignItems: 'baseline', gap: '8px' }}>
-                                <h2 style={{ fontSize: '1.5rem', fontWeight: 800, color: '#38bdf8', margin: 0 }}>{runwayDays}</h2>
-                                <span style={{ fontSize: '0.8rem', color: '#38bdf8', fontWeight: 700 }}>Dias</span>
-                            </div>
-                            <span style={{ fontSize: '0.65rem', color: '#94a3b8' }}>Autonomia estimada do caixa atual</span>
-                        </div>
-
-                        {/* QUEIMA DE CAIXA DIÁRIA */}
-                        <div style={{ backgroundColor: '#111827', borderRadius: '12px', padding: '1.25rem', border: '1px solid #1f2937', display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                <span style={{ fontSize: '0.72rem', color: '#94a3b8', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Queima de Caixa Diária</span>
-                                <span style={{ fontSize: '1rem' }}>🔥</span>
-                            </div>
-                            <h2 style={{ fontSize: '1.5rem', fontWeight: 800, color: '#ef4444', margin: 0 }}>{formatBRL(dailyBurnVal)}</h2>
-                            <span style={{ fontSize: '0.65rem', color: '#94a3b8' }}>Média de saídas diárias operacionais</span>
-                        </div>
-
-                        {/* NECESSIDADE DE CAPITAL DE GIRO */}
-                        <div style={{ backgroundColor: '#111827', borderRadius: '12px', padding: '1.25rem', border: '1px solid #1f2937', display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                <span style={{ fontSize: '0.72rem', color: '#94a3b8', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Necessidade de Capital de Giro</span>
-                                <span style={{ fontSize: '1rem' }}>🛡️</span>
-                            </div>
-                            <h2 style={{ fontSize: '1.5rem', fontWeight: 800, color: '#f59e0b', margin: 0 }}>{formatBRL(workingCapitalNeed)}</h2>
-                            <span style={{ fontSize: '0.65rem', color: '#94a3b8' }}>Capital livre necessário para cobrir compromissos</span>
-                        </div>
-                    </div>
-
-                    {/* 3. MAIN PROJECTION LINE CHART & VISÃO MULTIEMPRESAS */}
-                    <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 70%) 30%', gap: '1.5rem', marginBottom: '1.5rem' }}>
-                        {/* PROJEÇÃO DE SALDO BANCÁRIO */}
-                        <div style={{ backgroundColor: '#111827', borderRadius: '12px', padding: '1.5rem', border: '1px solid #1f2937', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                <span style={{ fontSize: '0.85rem', fontWeight: 800, color: '#f8fafc', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Projeção de Saldo Bancário (90 Dias)</span>
-                                <span style={{ fontSize: '0.7rem', color: '#94a3b8', fontWeight: 600 }}>Linha de Tendência de Liquidez</span>
-                            </div>
-
-                            <div style={{ height: '220px', width: '100%', position: 'relative' }}>
-                                {projectionPoints.length === 0 ? (
-                                    <div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#94a3b8', fontSize: '0.8rem' }}>
-                                        Carregando projeção diária...
-                                    </div>
-                                ) : (
-                                    <svg width="100%" height="220" viewBox="0 0 550 220" style={{ overflow: 'visible' }}>
-                                        {/* Highlight if balance drops below safety limit */}
-                                        {(() => {
-                                            const safetyLimit = 250000;
-                                            const dipPoints = projectionPoints.map((p: any, idx: number) => ({ idx, val: p.balance })).filter((p: any) => p.val < safetyLimit);
-                                            if (dipPoints.length === 0) return null;
-                                            const startX = getX(dipPoints[0].idx);
-                                            const endX = getX(dipPoints[dipPoints.length - 1].idx);
-                                            return (
-                                                <g>
-                                                    <rect x={startX} y="10" width={Math.max(15, endX - startX)} height="170" fill="rgba(239, 68, 68, 0.08)" rx="4" />
-                                                    <line x1={(startX + endX)/2} y1="10" x2={(startX + endX)/2} y2="180" stroke="#ef4444" strokeWidth="1" strokeDasharray="2,2" />
-                                                    <text x={(startX + endX)/2} y="196" textAnchor="middle" fill="#ef4444" fontSize="7" fontWeight="800">13º Salário / Encargos</text>
-                                                </g>
-                                            );
-                                        })()}
-
-                                        {/* Horizontal Safety limit line */}
-                                        <line x1="0" y1={getY(250000)} x2="550" y2={getY(250000)} stroke="#ef4444" strokeWidth="1.5" strokeDasharray="4,4" opacity="0.8" />
-                                        <text x="540" y={getY(250000) - 6} textAnchor="end" fill="#ef4444" fontSize="8" fontWeight="800" opacity="0.9">
-                                            CAIXA MÍNIMO DE SEGURANÇA R$ 250.000
-                                        </text>
-
-                                        {/* Area below curve */}
-                                        {(() => {
-                                            let areaD = `M 0 180`;
-                                            projectionPoints.forEach((p: any, idx: number) => {
-                                                areaD += ` L ${getX(idx)} ${getY(p.balance)}`;
-                                            });
-                                            areaD += ` L 550 180 Z`;
-                                            return <path d={areaD} fill="rgba(56, 189, 248, 0.05)" />;
-                                        })()}
-
-                                        {/* Trend line */}
-                                        <path d={pathD} fill="none" stroke="#38bdf8" strokeWidth="2.5" strokeLinecap="round" />
-
-                                        {/* Start / End dots and values */}
-                                        <circle cx="0" cy={getY(balances[0])} r="4" fill="#38bdf8" stroke="#0b0f19" strokeWidth="1.5" />
-                                        <text x="8" y={getY(balances[0]) + 12} fill="#94a3b8" fontSize="8" fontWeight="700">{formatBRL(balances[0])}</text>
-
-                                        <circle cx="550" cy={getY(balances[balances.length - 1])} r="4" fill="#38bdf8" stroke="#0b0f19" strokeWidth="1.5" />
-                                        <text x="542" y={getY(balances[balances.length - 1]) - 10} textAnchor="end" fill="#38bdf8" fontSize="9" fontWeight="800">{formatBRL(balances[balances.length - 1])}</text>
-
-                                        {/* Hover detectors */}
-                                        {projectionPoints.map((p: any, idx: number) => {
-                                            const x = getX(idx);
-                                            const sliceWidth = 550 / (projectionPoints.length - 1 || 1);
-                                            return (
-                                                <rect
-                                                    key={idx}
-                                                    x={x - sliceWidth / 2}
-                                                    y={10}
-                                                    width={sliceWidth}
-                                                    height={170}
-                                                    fill={hoveredPoint?.date === p.date ? 'rgba(56, 189, 248, 0.03)' : 'transparent'}
-                                                    style={{ cursor: 'crosshair' }}
-                                                    onMouseEnter={() => setHoveredPoint({
-                                                        x: x,
-                                                        y: getY(p.balance),
-                                                        date: p.date,
-                                                        balance: p.balance
-                                                    })}
-                                                    onMouseLeave={() => setHoveredPoint(null)}
-                                                />
-                                            );
-                                        })}
-
-                                        {/* Hover line and tooltip */}
-                                        {hoveredPoint && (
-                                            <g pointerEvents="none">
-                                                <line x1={hoveredPoint.x} y1="10" x2={hoveredPoint.x} y2="180" stroke="#38bdf8" strokeWidth="1.2" strokeDasharray="3,3" />
-                                                <circle cx={hoveredPoint.x} cy={hoveredPoint.y} r="5.5" fill="#38bdf8" stroke="#ffffff" strokeWidth="2" />
-                                                {(() => {
-                                                    const tooltipW = 125;
-                                                    const tooltipH = 38;
-                                                    const tx = hoveredPoint.x > 400 ? hoveredPoint.x - tooltipW - 12 : hoveredPoint.x + 12;
-                                                    const ty = Math.max(15, Math.min(130, hoveredPoint.y - 45));
-                                                    return (
-                                                        <g>
-                                                            <rect x={tx} y={ty} width={tooltipW} height={tooltipH} fill="#1f2937" stroke="#38bdf8" strokeWidth="1.5" rx="6" />
-                                                            <text x={tx + 8} y={ty + 13} fill="#94a3b8" fontSize="7.5" fontWeight="700">
-                                                                {new Date(hoveredPoint.date).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', year: 'numeric' })}
-                                                            </text>
-                                                            <text x={tx + 8} y={ty + 26} fill="#f8fafc" fontSize="8.5" fontWeight="800">
-                                                                {formatBRL(hoveredPoint.balance)}
-                                                            </text>
-                                                        </g>
-                                                    );
-                                                })()}
-                                            </g>
-                                        )}
-                                    </svg>
-                                )}
-                            </div>
-                        </div>
-
-                        {/* VISÃO MULTIEMPRESAS (SALDO ATUAL) */}
-                        <div style={{ backgroundColor: '#111827', borderRadius: '12px', padding: '1.5rem', border: '1px solid #1f2937', display: 'flex', flexDirection: 'column', gap: '1rem', boxSizing: 'border-box' }}>
-                            <span style={{ fontSize: '0.85rem', fontWeight: 800, color: '#f8fafc', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Visão Multiempresas</span>
-                            
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: '1.1rem', marginTop: '0.5rem' }}>
-                                {(() => {
-                                    const accounts = dashboardData?.bankAccounts || [];
-                                    const totalCash = accounts.reduce((sum: number, acc: any) => sum + acc.balance, 0) || 1;
-                                    const colors = ['#3b82f6', '#10b981', '#f59e0b', '#ec4899', '#8b5cf6'];
-                                    return accounts.map((acc: any, idx: number) => {
-                                        const pct = (acc.balance / totalCash) * 100;
-                                        return (
-                                            <div key={acc.id} style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
-                                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.75rem' }}>
-                                                    <span style={{ fontWeight: 700, color: '#e2e8f0' }}>{acc.name}</span>
-                                                    <span style={{ fontWeight: 800, color: acc.balance >= 0 ? '#10b981' : '#ef4444' }}>{formatBRL(acc.balance)}</span>
-                                                </div>
-                                                <div style={{ height: '6px', width: '100%', backgroundColor: '#1f2937', borderRadius: '3px', overflow: 'hidden' }}>
-                                                    <div style={{ height: '100%', width: `${Math.max(1, Math.min(100, pct))}%`, backgroundColor: colors[idx % colors.length], borderRadius: '3px' }} />
-                                                </div>
-                                            </div>
-                                        );
-                                    });
-                                })()}
-                                {(!dashboardData?.bankAccounts || dashboardData?.bankAccounts.length === 0) && (
-                                    <div style={{ fontSize: '0.75rem', color: '#94a3b8', textAlign: 'center', padding: '2rem 0' }}>
-                                        Sem contas bancárias carregadas.
-                                    </div>
-                                )}
-                            </div>
-                        </div>
-                    </div>
-
-                    {/* 4. BOTTOM CARDS ROW */}
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '1.25rem' }}>
-                        {/* 1. AGING LIST RECEBÍVEIS */}
-                        <div style={{ backgroundColor: '#111827', borderRadius: '12px', padding: '1.25rem', border: '1px solid #1f2937', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                <span style={{ fontSize: '0.75rem', fontWeight: 800, color: '#f8fafc', textTransform: 'uppercase', letterSpacing: '0.05em' }}>1. Aging List Recebíveis</span>
-                                <span style={{ fontSize: '0.65rem', color: '#94a3b8', fontWeight: 700 }}>{formatBRL(totalReceivables)} Totais</span>
-                            </div>
-
-                            <div style={{ display: 'flex', gap: '8px', alignItems: 'flex-end', height: '100px', padding: '0 4px', borderBottom: '1px solid #1f2937', paddingBottom: '8px' }}>
-                                {/* A Vencer */}
-                                <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-                                    <div style={{ width: '100%', height: `${Math.max(2, (aging.t1_15 + aging.t16_30 + aging.t31_60 + aging.t61_plus) / (totalReceivables || 1) * 80)}px`, backgroundColor: '#10b981', borderRadius: '2px' }} />
-                                    <span style={{ fontSize: '0.55rem', color: '#94a3b8', marginTop: '4px', textAlign: 'center', whiteSpace: 'nowrap' }}>A Vencer</span>
-                                </div>
-                                {/* 1-15 */}
-                                <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-                                    <div style={{ width: '100%', height: `${Math.max(2, aging.t1_15 / (totalReceivables || 1) * 80)}px`, backgroundColor: '#3b82f6', borderRadius: '2px' }} />
-                                    <span style={{ fontSize: '0.55rem', color: '#94a3b8', marginTop: '4px', textAlign: 'center' }}>1-15</span>
-                                </div>
-                                {/* 16-30 */}
-                                <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-                                    <div style={{ width: '100%', height: `${Math.max(2, aging.t16_30 / (totalReceivables || 1) * 80)}px`, backgroundColor: '#f59e0b', borderRadius: '2px' }} />
-                                    <span style={{ fontSize: '0.55rem', color: '#94a3b8', marginTop: '4px', textAlign: 'center' }}>16-30</span>
-                                </div>
-                                {/* 31-60 */}
-                                <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-                                    <div style={{ width: '100%', height: `${Math.max(2, aging.t31_60 / (totalReceivables || 1) * 80)}px`, backgroundColor: '#ec4899', borderRadius: '2px' }} />
-                                    <span style={{ fontSize: '0.55rem', color: '#94a3b8', marginTop: '4px', textAlign: 'center' }}>31-60</span>
-                                </div>
-                                {/* 61+ */}
-                                <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-                                    <div style={{ width: '100%', height: `${Math.max(2, aging.overdue / (totalReceivables || 1) * 80)}px`, backgroundColor: '#ef4444', borderRadius: '2px' }} />
-                                    <span style={{ fontSize: '0.55rem', color: '#ef4444', marginTop: '4px', textAlign: 'center', fontWeight: 700 }}>61+ Dias</span>
-                                </div>
-                            </div>
-                        </div>
-
-                        {/* 2. CONTAS A PAGAR */}
-                        <div style={{ backgroundColor: '#111827', borderRadius: '12px', padding: '1.25rem', border: '1px solid #1f2937', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                <span style={{ fontSize: '0.75rem', fontWeight: 800, color: '#f8fafc', textTransform: 'uppercase', letterSpacing: '0.05em' }}>2. Contas a Pagar</span>
-                                <span style={{ fontSize: '0.65rem', color: '#ef4444', fontWeight: 700 }}>⚠️ ALERT</span>
-                            </div>
-                            <span style={{ fontSize: '0.65rem', color: '#94a3b8', fontWeight: 600 }}>PMP (Prazo Médio Pgto) vs PMR (Prazo Médio Rec)</span>
-                            
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginTop: '4px' }}>
-                                <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
-                                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.65rem' }}>
-                                        <span style={{ color: '#94a3b8' }}>PMP (Média pagamento)</span>
-                                        <span style={{ fontWeight: 700, color: '#38bdf8' }}>42 Dias</span>
-                                    </div>
-                                    <div style={{ height: '6px', width: '100%', backgroundColor: '#1f2937', borderRadius: '3px' }}>
-                                        <div style={{ height: '100%', width: '42%', backgroundColor: '#38bdf8', borderRadius: '3px' }} />
-                                    </div>
-                                </div>
-                                <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
-                                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.65rem' }}>
-                                        <span style={{ color: '#94a3b8' }}>PMR (Média recebimento)</span>
-                                        <span style={{ fontWeight: 700, color: '#f59e0b' }}>52 Dias</span>
-                                    </div>
-                                    <div style={{ height: '6px', width: '100%', backgroundColor: '#1f2937', borderRadius: '3px' }}>
-                                        <div style={{ height: '100%', width: '52%', backgroundColor: '#f59e0b', borderRadius: '3px' }} />
-                                    </div>
-                                </div>
-                            </div>
-                            <div style={{ marginTop: 'auto', backgroundColor: 'rgba(239, 68, 68, 0.06)', border: '1px solid rgba(239, 68, 68, 0.15)', borderRadius: '6px', padding: '6px', textAlign: 'center', fontSize: '0.65rem', color: '#fca5a5', fontWeight: 700 }}>
-                                Ciclo Financeiro Gap: 10 Dias
-                            </div>
-                        </div>
-
-                        {/* 3. GESTÃO DE PASSIVOS/ACORDOS */}
-                        <div style={{ backgroundColor: '#111827', borderRadius: '12px', padding: '1.25rem', border: '1px solid #1f2937', display: 'flex', flexDirection: 'column', gap: '0.75rem', boxSizing: 'border-box' }}>
-                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                <span style={{ fontSize: '0.75rem', fontWeight: 800, color: '#f8fafc', textTransform: 'uppercase', letterSpacing: '0.05em' }}>3. Gestão de Passivos/Acordos</span>
-                                <span style={{ fontSize: '0.65rem', color: '#94a3b8', fontWeight: 700 }}>{formatBRL(passivos.reduce((sum: number, d: any) => sum + d.amount, 0))} Totais</span>
-                            </div>
-
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', overflowY: 'auto', maxHeight: '100px', paddingRight: '2px' }}>
-                                {passivos.slice(0, 3).map((p: any, idx: number) => (
-                                    <div key={p.id || idx} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.65rem', borderBottom: '1px solid #1f2937', paddingBottom: '4px' }}>
-                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-                                            <span style={{ fontWeight: 700, color: '#e2e8f0', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '120px', overflow: 'hidden' }}>{p.description || 'Acordo Bancário'}</span>
-                                            <span style={{ color: '#94a3b8', fontSize: '0.6rem' }}>{new Date(p.date).toLocaleDateString('pt-BR')}</span>
-                                        </div>
-                                        <span style={{ fontWeight: 800, color: '#ef4444' }}>{formatBRL(p.amount)}</span>
-                                    </div>
-                                ))}
-                                {passivos.length === 0 && (
-                                    <div style={{ fontSize: '0.65rem', color: '#94a3b8', textAlign: 'center', padding: '1.5rem 0' }}>
-                                        Sem acordos ou passivos bancários previstos.
-                                    </div>
-                                )}
-                            </div>
-                        </div>
-
-                        {/* 4. SIMULADOR DE CRESCIMENTO */}
-                        <div style={{ backgroundColor: '#111827', borderRadius: '12px', padding: '1.25rem', border: '1px solid #1f2937', display: 'flex', flexDirection: 'column', gap: '0.5rem', boxSizing: 'border-box' }}>
-                            <span style={{ fontSize: '0.75rem', fontWeight: 800, color: '#f8fafc', textTransform: 'uppercase', letterSpacing: '0.05em' }}>4. Simulador de Crescimento</span>
-                            
-                            {/* Inputs */}
-                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '4px' }}>
-                                <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-                                    <span style={{ fontSize: '0.55rem', color: '#94a3b8' }}>Meta Vendas</span>
-                                    <input 
-                                        type="number" 
-                                        value={simMetaVendas} 
-                                        onChange={(e) => setSimMetaVendas(Number(e.target.value))}
-                                        style={{ width: '100%', background: '#1f2937', border: '1px solid #374151', color: '#f8fafc', fontSize: '0.65rem', padding: '2px 4px', borderRadius: '4px', outline: 'none' }} 
-                                    />
-                                </div>
-                                <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-                                    <span style={{ fontSize: '0.55rem', color: '#94a3b8' }}>PMR (Dias)</span>
-                                    <input 
-                                        type="number" 
-                                        value={simPMR} 
-                                        onChange={(e) => setSimPMR(Number(e.target.value))}
-                                        style={{ width: '100%', background: '#1f2937', border: '1px solid #374151', color: '#f8fafc', fontSize: '0.65rem', padding: '2px 4px', borderRadius: '4px', outline: 'none' }} 
-                                    />
-                                </div>
-                                <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-                                    <span style={{ fontSize: '0.55rem', color: '#94a3b8' }}>Custo (Fixo)</span>
-                                    <input 
-                                        type="number" 
-                                        value={simCusto} 
-                                        onChange={(e) => setSimCusto(Number(e.target.value))}
-                                        style={{ width: '100%', background: '#1f2937', border: '1px solid #374151', color: '#f8fafc', fontSize: '0.65rem', padding: '2px 4px', borderRadius: '4px', outline: 'none' }} 
-                                    />
-                                </div>
-                            </div>
-
-                            {/* Result SVG Curve */}
-                            <div style={{ height: '45px', width: '100%', border: '1px solid #1f2937', borderRadius: '6px', backgroundColor: '#111827', position: 'relative', marginTop: '4px', overflow: 'hidden' }}>
-                                <svg width="100%" height="45" viewBox="0 0 150 45">
-                                    {(() => {
-                                        const days = [0, 30, 60, 90, 120, 150];
-                                        const maxVal = (simMetaVendas * (simPMR / 365)) + simCusto;
-                                        const getXSim = (idx: number) => (idx / (days.length - 1)) * 150;
-                                        const getYSim = (val: number) => 40 - (val / (maxVal || 1)) * 30;
-                                        
-                                        let simPath = 'M 0 40';
-                                        days.forEach((d, idx) => {
-                                            const val = (simMetaVendas * (d / 360) * (simPMR / 365)) + (simCusto * (idx / 5));
-                                            simPath += ` L ${getXSim(idx)} ${getYSim(val)}`;
-                                        });
-                                        return (
-                                            <g>
-                                                <path d={simPath} fill="none" stroke="#10b981" strokeWidth="1.5" />
-                                                <text x="5" y="12" fill="#94a3b8" fontSize="6">Nec. Caixa:</text>
-                                                <text x="145" y="12" textAnchor="end" fill="#10b981" fontSize="7" fontWeight="800">
-                                                    {formatBRL(maxVal)}
-                                                </text>
- 
-                                                {/* Hover detectors for simulator */}
-                                                {days.map((d, idx) => {
-                                                    const x = getXSim(idx);
-                                                    const val = (simMetaVendas * (d / 360) * (simPMR / 365)) + (simCusto * (idx / 5));
-                                                    const sliceWidth = 150 / (days.length - 1 || 1);
-                                                    return (
-                                                        <rect
-                                                            key={idx}
-                                                            x={x - sliceWidth / 2}
-                                                            y={0}
-                                                            width={sliceWidth}
-                                                            height={45}
-                                                            fill="transparent"
-                                                            style={{ cursor: 'crosshair' }}
-                                                            onMouseEnter={() => setHoveredSimPoint({
-                                                                x: x,
-                                                                y: getYSim(val),
-                                                                day: d,
-                                                                val: val
-                                                            })}
-                                                            onMouseLeave={() => setHoveredSimPoint(null)}
-                                                        />
-                                                    );
-                                                })}
- 
-                                                {/* Simulation Hover line and tooltip */}
-                                                {hoveredSimPoint && (
-                                                    <g pointerEvents="none">
-                                                        <line x1={hoveredSimPoint.x} y1="0" x2={hoveredSimPoint.x} y2="40" stroke="#10b981" strokeWidth="0.5" strokeDasharray="2,2" />
-                                                        <circle cx={hoveredSimPoint.x} cy={hoveredSimPoint.y} r="3" fill="#10b981" stroke="#ffffff" strokeWidth="1" />
-                                                        {(() => {
-                                                            const tooltipW = 75;
-                                                            const tooltipH = 22;
-                                                            const tx = hoveredSimPoint.x > 100 ? hoveredSimPoint.x - tooltipW - 4 : hoveredSimPoint.x + 4;
-                                                            const ty = Math.max(2, Math.min(20, hoveredSimPoint.y - 11));
-                                                            return (
-                                                                <g>
-                                                                    <rect x={tx} y={ty} width={tooltipW} height={tooltipH} fill="#1f2937" stroke="#10b981" strokeWidth="1" rx="4" />
-                                                                    <text x={tx + 4} y={ty + 8} fill="#94a3b8" fontSize="5" fontWeight="700">Dia {hoveredSimPoint.day}</text>
-                                                                    <text x={tx + 4} y={ty + 17} fill="#f8fafc" fontSize="5.5" fontWeight="800">{formatBRL(hoveredSimPoint.val)}</text>
-                                                                </g>
-                                                            );
-                                                        })()}
-                                                    </g>
-                                                )}
-                                            </g>
-                                        );
-                                    })()}
-                                </svg>
-                            </div>
-                        </div>
-                    </div>
-                </>
-            )}
-
-            {/* 5. FLOATING AI CHAT DRAWER */}
-            {isChatOpen && (
-                <div 
-                    style={{
-                        position: 'fixed',
-                        top: 0,
-                        right: 0,
-                        width: '420px',
-                        height: '100vh',
-                        backgroundColor: '#111827',
-                        borderLeft: '1px solid #1f2937',
-                        boxShadow: '-10px 0 30px rgba(0,0,0,0.5)',
-                        zIndex: 1000,
-                        display: 'flex',
-                        flexDirection: 'column',
-                        animation: 'slide-in 0.3s cubic-bezier(0.16, 1, 0.3, 1)'
-                    }}
-                >
-                    {/* Drawer Header */}
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '1rem', borderBottom: '1px solid #1f2937', backgroundColor: '#0b0f19' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                            <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
-                                <span style={{ display: 'block', width: '6px', height: '6px', borderRadius: '50%', backgroundColor: '#10b981' }} />
-                                <span style={{ position: 'absolute', width: '6px', height: '6px', borderRadius: '50%', backgroundColor: '#10b981', animation: 'ping 1.5s infinite', opacity: 0.7 }} />
-                            </div>
-                            <span style={{ fontSize: '0.85rem', fontWeight: 800, color: '#f8fafc' }}>CFO Virtual AI Advisor</span>
-                        </div>
-                        <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-                            <button 
+            {/* Main Layout Area: Sidebar + Chat Area */}
+            <div style={{ flex: 1, display: 'flex', gap: '1rem', overflow: 'hidden', width: '100%', maxWidth: '1200px', margin: '0 auto' }}>
+                
+                {/* Sidebar */}
+                {isSidebarOpen && (
+                    <div 
+                        style={{ 
+                            width: '260px', 
+                            backgroundColor: '#ffffff', 
+                            borderRadius: '16px', 
+                            border: '1px solid rgba(15, 23, 42, 0.06)',
+                            display: 'flex', 
+                            flexDirection: 'column', 
+                            overflow: 'hidden',
+                            boxShadow: '0 4px 6px -1px rgba(0,0,0,0.02), 0 2px 4px -1px rgba(0,0,0,0.01)',
+                            animation: 'fade-in 0.2s ease-out'
+                        }}
+                    >
+                        {/* Novo Chat button */}
+                        <div style={{ padding: '12px' }}>
+                            <button
                                 onClick={createNewChat}
-                                style={{ background: 'none', border: 'none', color: '#38bdf8', fontSize: '0.72rem', fontWeight: 700, cursor: 'pointer' }}
+                                style={{
+                                    width: '100%',
+                                    padding: '10px 14px',
+                                    borderRadius: '10px',
+                                    backgroundColor: '#4f46e5',
+                                    color: '#ffffff',
+                                    border: 'none',
+                                    fontSize: '0.8rem',
+                                    fontWeight: 700,
+                                    cursor: 'pointer',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    gap: '8px',
+                                    boxShadow: '0 2px 4px rgba(79, 70, 229, 0.2)',
+                                    transition: 'all 0.2s'
+                                }}
+                                onMouseEnter={e => e.currentTarget.style.backgroundColor = '#4338ca'}
+                                onMouseLeave={e => e.currentTarget.style.backgroundColor = '#4f46e5'}
                             >
-                                Limpar
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                                    <line x1="12" y1="5" x2="12" y2="19"></line>
+                                    <line x1="5" y1="12" x2="19" y2="12"></line>
+                                </svg>
+                                Novo Chat
                             </button>
-                            <button 
-                                onClick={() => setIsChatOpen(false)}
-                                style={{ background: 'none', border: 'none', color: '#94a3b8', fontSize: '1.2rem', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-                            >
-                                &times;
-                            </button>
+                        </div>
+
+                        {/* List of Sessions */}
+                        <div style={{ flex: 1, overflowY: 'auto', padding: '0 12px 12px 12px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                            <span style={{ fontSize: '0.65rem', color: '#94a3b8', fontWeight: 800, padding: '4px 6px', letterSpacing: '0.05em' }}>CONVERSAS SALVAS</span>
+                            {sessions.length === 0 ? (
+                                <div style={{ padding: '20px 10px', textAlign: 'center', color: '#94a3b8', fontSize: '0.75rem', border: '1.5px dashed rgba(15, 23, 42, 0.04)', borderRadius: '8px' }}>
+                                    Nenhuma conversa salva
+                                </div>
+                            ) : (
+                                sessions.map(s => {
+                                    const isActive = s.id === activeSessionId;
+                                    const isEditing = s.id === editingSessionId;
+
+                                    return (
+                                        <div
+                                            key={s.id}
+                                            onClick={() => !isEditing && loadSessionDetails(s.id)}
+                                            style={{
+                                                padding: '8px 10px',
+                                                borderRadius: '8px',
+                                                backgroundColor: isActive ? 'rgba(79, 70, 229, 0.06)' : 'transparent',
+                                                border: isActive ? '1px solid rgba(79, 70, 229, 0.12)' : '1px solid transparent',
+                                                color: isActive ? '#4f46e5' : '#475569',
+                                                fontSize: '0.8rem',
+                                                fontWeight: isActive ? 700 : 500,
+                                                cursor: isEditing ? 'default' : 'pointer',
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                justifyContent: 'space-between',
+                                                gap: '8px',
+                                                transition: 'all 0.2s',
+                                            }}
+                                            className="sidebar-chat-item"
+                                        >
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flex: 1, minWidth: 0 }}>
+                                                <span style={{ opacity: isActive ? 1 : 0.6, flexShrink: 0 }}>💬</span>
+                                                {isEditing ? (
+                                                    <input
+                                                        type="text"
+                                                        value={editTitleInput}
+                                                        onChange={e => setEditTitleInput(e.target.value)}
+                                                        onKeyDown={e => {
+                                                            if (e.key === 'Enter') renameSession(s.id, editTitleInput);
+                                                            if (e.key === 'Escape') setEditingSessionId(null);
+                                                        }}
+                                                        onBlur={() => renameSession(s.id, editTitleInput)}
+                                                        autoFocus
+                                                        style={{
+                                                            width: '100%',
+                                                            padding: '2px 4px',
+                                                            fontSize: '0.75rem',
+                                                            border: '1px solid #4f46e5',
+                                                            borderRadius: '4px',
+                                                            outline: 'none',
+                                                            color: '#1e293b'
+                                                        }}
+                                                        onClick={e => e.stopPropagation()}
+                                                    />
+                                                ) : (
+                                                    <span style={{ textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap' }}>
+                                                        {s.title}
+                                                    </span>
+                                                )}
+                                            </div>
+
+                                            {/* Actions */}
+                                            {!isEditing && (
+                                                <div className="sidebar-chat-actions" style={{ display: 'flex', alignItems: 'center', gap: '4px', flexShrink: 0 }}>
+                                                    <button
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            setEditingSessionId(s.id);
+                                                            setEditTitleInput(s.title);
+                                                        }}
+                                                        title="Renomear"
+                                                        style={{
+                                                            background: 'none',
+                                                            border: 'none',
+                                                            cursor: 'pointer',
+                                                            color: '#94a3b8',
+                                                            padding: '2px',
+                                                            borderRadius: '4px',
+                                                            display: 'flex',
+                                                            alignItems: 'center',
+                                                            justifyContent: 'center'
+                                                        }}
+                                                        onMouseEnter={e => e.currentTarget.style.color = '#4f46e5'}
+                                                        onMouseLeave={e => e.currentTarget.style.color = '#94a3b8'}
+                                                    >
+                                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                                                            <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+                                                            <path d="M18.5 2.5a2.121 2.121 0 1 1 3 3L12 15l-4 1 1-4Z"></path>
+                                                        </svg>
+                                                    </button>
+                                                    <button
+                                                        onClick={(e) => deleteSession(s.id, e)}
+                                                        title="Excluir"
+                                                        style={{
+                                                            background: 'none',
+                                                            border: 'none',
+                                                            cursor: 'pointer',
+                                                            color: '#94a3b8',
+                                                            padding: '2px',
+                                                            borderRadius: '4px',
+                                                            display: 'flex',
+                                                            alignItems: 'center',
+                                                            justifyContent: 'center'
+                                                        }}
+                                                        onMouseEnter={e => e.currentTarget.style.color = '#ef4444'}
+                                                        onMouseLeave={e => e.currentTarget.style.color = '#94a3b8'}
+                                                    >
+                                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                                                            <polyline points="3 6 5 6 21 6"></polyline>
+                                                            <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                                                            <line x1="10" y1="11" x2="10" y2="17"></line>
+                                                            <line x1="14" y1="11" x2="14" y2="17"></line>
+                                                        </svg>
+                                                    </button>
+                                                </div>
+                                            )}
+                                        </div>
+                                    );
+                                })
+                            )}
                         </div>
                     </div>
+                )}
 
-                    {/* Chat Sessions list inside Drawer */}
-                    {sessions.length > 0 && (
-                        <div style={{ display: 'flex', gap: '6px', overflowX: 'auto', padding: '8px 12px', borderBottom: '1px solid #1f2937', backgroundColor: '#111827', whiteSpace: 'nowrap' }}>
-                            {sessions.map(s => (
-                                <button
-                                    key={s.id}
-                                    onClick={() => loadSessionDetails(s.id)}
-                                    style={{
-                                        border: '1px solid #1f2937',
-                                        background: s.id === activeSessionId ? 'rgba(79, 70, 229, 0.1)' : '#0b0f19',
-                                        color: s.id === activeSessionId ? '#38bdf8' : '#94a3b8',
-                                        fontSize: '0.7rem',
-                                        padding: '4px 8px',
-                                        borderRadius: '6px',
-                                        cursor: 'pointer',
-                                        fontWeight: s.id === activeSessionId ? 700 : 500
-                                    }}
-                                >
-                                    💬 {s.title}
-                                </button>
-                            ))}
+                {/* Chat Area */}
+                <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }} className="glass-card">
+                    
+                    {/* Chat Header Status */}
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 16px', borderBottom: '1px solid rgba(15, 23, 42, 0.05)', backgroundColor: 'rgba(248, 250, 252, 0.5)' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                            {/* Toggle Sidebar Button */}
+                            <button
+                                onClick={() => setIsSidebarOpen(!isSidebarOpen)}
+                                title={isSidebarOpen ? "Ocultar histórico" : "Mostrar histórico"}
+                                style={{
+                                    background: 'none',
+                                    border: 'none',
+                                    cursor: 'pointer',
+                                    color: '#64748b',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    padding: '6px',
+                                    borderRadius: '8px',
+                                    transition: 'all 0.2s',
+                                    marginRight: '4px'
+                                }}
+                                onMouseEnter={e => {
+                                    e.currentTarget.style.backgroundColor = '#f1f5f9';
+                                    e.currentTarget.style.color = '#1e293b';
+                                }}
+                                onMouseLeave={e => {
+                                    e.currentTarget.style.backgroundColor = 'transparent';
+                                    e.currentTarget.style.color = '#64748b';
+                                }}
+                            >
+                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                    <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+                                    <line x1="9" y1="3" x2="9" y2="21"></line>
+                                </svg>
+                            </button>
+
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+                                    <span style={{ display: 'block', width: '6px', height: '6px', borderRadius: '50%', backgroundColor: '#10b981' }} />
+                                    <span style={{ position: 'absolute', width: '6px', height: '6px', borderRadius: '50%', backgroundColor: '#10b981', animation: 'ping 1.5s infinite', opacity: 0.7 }} />
+                                </div>
+                                <span style={{ fontSize: '0.75rem', fontWeight: 700, color: '#475569' }}>CFO Online</span>
+                            </div>
                         </div>
-                    )}
+                        <button 
+                            onClick={createNewChat}
+                            style={{ background: 'none', border: 'none', color: '#4f46e5', fontSize: '0.75rem', fontWeight: 700, cursor: 'pointer', padding: '2px 4px' }}
+                            onMouseEnter={e => e.currentTarget.style.textDecoration = 'underline'}
+                            onMouseLeave={e => e.currentTarget.style.textDecoration = 'none'}
+                        >
+                            Novo Chat
+                        </button>
+                    </div>
 
                     {/* Conversation Feed */}
-                    <div style={{ flex: 1, overflowY: 'auto', padding: '1.25rem', display: 'flex', flexDirection: 'column', gap: '1.25rem', backgroundColor: '#0b0f19' }}>
+                    <div style={{ flex: 1, overflowY: 'auto', padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1.5rem', backgroundColor: '#f8fafc' }}>
                         {messages.map((msg) => {
                             const isModel = msg.role === 'model';
+                            const visualPayload = isModel ? getVisualPayload(msg.content) : null;
+
                             return (
                                 <div 
                                     key={msg.id} 
@@ -1057,25 +1295,37 @@ export default function CFOVirtualPage() {
                                         display: 'flex', 
                                         flexDirection: 'column', 
                                         alignSelf: isModel ? 'flex-start' : 'flex-end', 
-                                        maxWidth: '90%'
+                                        maxWidth: '85%',
+                                        width: isModel && visualPayload ? '100%' : 'auto'
                                     }}
                                 >
                                     {/* Text Bubble */}
                                     <div
                                         style={{
-                                            padding: '10px 14px',
+                                            padding: '12px 16px',
                                             borderRadius: isModel ? '16px 16px 16px 4px' : '16px 16px 4px 16px',
-                                            backgroundColor: isModel ? '#111827' : '#2563eb',
-                                            color: isModel ? '#94a3b8' : '#ffffff',
-                                            boxShadow: '0 2px 4px rgba(0,0,0,0.05)',
-                                            border: isModel ? '1px solid #1f2937' : 'none',
-                                            fontSize: '0.8rem',
-                                            lineHeight: 1.45
+                                            backgroundColor: isModel ? '#ffffff' : '#3b82f6',
+                                            color: isModel ? '#1e293b' : '#ffffff',
+                                            boxShadow: '0 2px 4px rgba(0,0,0,0.02)',
+                                            border: isModel ? '1px solid rgba(15, 23, 42, 0.06)' : 'none',
+                                            fontSize: '0.85rem',
+                                            lineHeight: 1.5
                                         }}
                                     >
                                         {parseMarkdown(msg.content)}
                                     </div>
                                     
+                                    {/* Inline Chart rendering */}
+                                    {isModel && visualPayload && (
+                                        <>
+                                            {visualPayload.type === 'CASH_FLOW' && renderCashFlowChart(visualPayload)}
+                                            {visualPayload.type === 'DEVIATIONS' && renderDeviationsChart(visualPayload)}
+                                            {visualPayload.type === 'MONTHLY_BREAKDOWN' && renderMonthlyBreakdownChart(visualPayload)}
+                                            {visualPayload.type === 'OVERDUE_COMMITMENTS' && renderOverdueCommitments(visualPayload)}
+                                            {visualPayload.type === 'SHORT_TERM_PROJECTION' && renderShortTermProjection(visualPayload)}
+                                        </>
+                                    )}
+
                                     {/* Action plan card rendering below the bubble */}
                                     {isModel && msg.suggestedAction && (
                                         <div
@@ -1083,19 +1333,19 @@ export default function CFOVirtualPage() {
                                                 marginTop: '10px',
                                                 padding: '12px 14px',
                                                 borderRadius: '12px',
-                                                backgroundColor: 'rgba(79, 70, 229, 0.08)',
-                                                border: '1px dashed #4f46e5',
+                                                backgroundColor: '#eff6ff',
+                                                border: '1px dashed #3b82f6',
                                                 boxShadow: '0 2px 4px rgba(0,0,0,0.01)'
                                             }}
                                         >
                                             <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '6px' }}>
                                                 <span style={{ fontSize: '1rem' }}>💡</span>
-                                                <strong style={{ fontSize: '0.8rem', color: '#38bdf8', fontWeight: 700 }}>Plano de Ação Sugerido</strong>
+                                                <strong style={{ fontSize: '0.8rem', color: '#1d4ed8', fontWeight: 700 }}>Plano de Ação Sugerido</strong>
                                             </div>
-                                            <p style={{ margin: '4px 0', fontSize: '0.75rem', color: '#94a3b8', lineHeight: 1.4 }}>
+                                            <p style={{ margin: '4px 0', fontSize: '0.75rem', color: '#475569', lineHeight: 1.4 }}>
                                                 <strong>Problema:</strong> {msg.suggestedAction.description}
                                             </p>
-                                            <p style={{ margin: '4px 0 8px 0', fontSize: '0.75rem', color: '#94a3b8', lineHeight: 1.4 }}>
+                                            <p style={{ margin: '4px 0 8px 0', fontSize: '0.75rem', color: '#475569', lineHeight: 1.4 }}>
                                                 <strong>Ação Corretiva:</strong> {msg.suggestedAction.actionText}
                                             </p>
                                             <button
@@ -1105,7 +1355,7 @@ export default function CFOVirtualPage() {
                                                     width: '100%',
                                                     padding: '8px',
                                                     borderRadius: '8px',
-                                                    backgroundColor: actionSavedIds.has(msg.id) ? '#10b981' : '#4f46e5',
+                                                    backgroundColor: actionSavedIds.has(msg.id) ? '#10b981' : '#3b82f6',
                                                     color: '#ffffff',
                                                     border: 'none',
                                                     fontSize: '0.75rem',
@@ -1116,6 +1366,12 @@ export default function CFOVirtualPage() {
                                                     justifyContent: 'center',
                                                     gap: '6px',
                                                     transition: 'background-color 0.2s'
+                                                }}
+                                                onMouseEnter={e => {
+                                                    if (!actionSavedIds.has(msg.id)) e.currentTarget.style.backgroundColor = '#2563eb';
+                                                }}
+                                                onMouseLeave={e => {
+                                                    if (!actionSavedIds.has(msg.id)) e.currentTarget.style.backgroundColor = '#3b82f6';
                                                 }}
                                             >
                                                 {actionSavingId === msg.id ? (
@@ -1139,7 +1395,7 @@ export default function CFOVirtualPage() {
 
                         {/* Loading Typing Indicator */}
                         {isLoading && (
-                            <div style={{ alignSelf: 'flex-start', padding: '12px 16px', borderRadius: '16px 16px 16px 4px', backgroundColor: '#111827', border: '1px solid #1f2937', display: 'flex', gap: '4px', alignItems: 'center' }}>
+                            <div style={{ alignSelf: 'flex-start', padding: '12px 16px', borderRadius: '16px 16px 16px 4px', backgroundColor: '#ffffff', border: '1px solid rgba(15, 23, 42, 0.05)', display: 'flex', gap: '4px', alignItems: 'center' }}>
                                 <span style={{ width: '5px', height: '5px', borderRadius: '50%', backgroundColor: '#94a3b8', display: 'inline-block', animation: 'typing-pulse 1.2s infinite' }} />
                                 <span style={{ width: '5px', height: '5px', borderRadius: '50%', backgroundColor: '#94a3b8', display: 'inline-block', animation: 'typing-pulse 1.2s infinite 0.2s' }} />
                                 <span style={{ width: '5px', height: '5px', borderRadius: '50%', backgroundColor: '#94a3b8', display: 'inline-block', animation: 'typing-pulse 1.2s infinite 0.4s' }} />
@@ -1150,8 +1406,8 @@ export default function CFOVirtualPage() {
 
                     {/* Topics Suggestion chips at bottom of feed */}
                     {messages.length <= 1 && !isLoading && (
-                        <div style={{ padding: '12px', display: 'flex', flexDirection: 'column', gap: '6px', backgroundColor: '#111827', borderTop: '1px solid #1f2937' }}>
-                            <span style={{ fontSize: '0.65rem', color: '#94a3b8', fontWeight: 700, letterSpacing: '0.04em' }}>TÓPICOS RÁPIDOS SUGERIDOS:</span>
+                        <div style={{ padding: '12px 16px', display: 'flex', flexDirection: 'column', gap: '6px', backgroundColor: '#f8fafc', borderTop: '1px solid rgba(15, 23, 42, 0.05)' }}>
+                            <span style={{ fontSize: '0.65rem', color: '#64748b', fontWeight: 700, letterSpacing: '0.04em' }}>TÓPICOS RÁPIDOS SUGERIDOS:</span>
                             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '6px' }}>
                                 {quickChips.map((chip, idx) => (
                                     <button
@@ -1159,22 +1415,23 @@ export default function CFOVirtualPage() {
                                         onClick={() => sendMessage(chip.text)}
                                         style={{
                                             textAlign: 'left',
-                                            padding: '6px 8px',
-                                            borderRadius: '6px',
-                                            backgroundColor: '#0b0f19',
-                                            border: '1px solid #1f2937',
-                                            fontSize: '0.72rem',
-                                            color: '#94a3b8',
+                                            padding: '8px 10px',
+                                            borderRadius: '8px',
+                                            backgroundColor: '#ffffff',
+                                            border: '1px solid rgba(15, 23, 42, 0.05)',
+                                            fontSize: '0.75rem',
+                                            color: '#475569',
                                             cursor: 'pointer',
+                                            boxShadow: '0 1px 2px rgba(0,0,0,0.01)',
                                             transition: 'all 0.2s'
                                         }}
                                         onMouseEnter={(e) => {
-                                            e.currentTarget.style.backgroundColor = '#1f2937';
-                                            e.currentTarget.style.color = '#f8fafc';
+                                            e.currentTarget.style.backgroundColor = '#f1f5f9';
+                                            e.currentTarget.style.borderColor = 'rgba(15, 23, 42, 0.1)';
                                         }}
                                         onMouseLeave={(e) => {
-                                            e.currentTarget.style.backgroundColor = '#0b0f19';
-                                            e.currentTarget.style.color = '#94a3b8';
+                                            e.currentTarget.style.backgroundColor = '#ffffff';
+                                            e.currentTarget.style.borderColor = 'rgba(15, 23, 42, 0.05)';
                                         }}
                                     >
                                         {chip.label}
@@ -1190,24 +1447,31 @@ export default function CFOVirtualPage() {
                             e.preventDefault();
                             sendMessage(input);
                         }}
-                        style={{ padding: '1rem', backgroundColor: '#111827', borderTop: '1px solid #1f2937', display: 'flex', gap: '8px', alignItems: 'center' }}
+                        style={{ padding: '1rem', backgroundColor: '#ffffff', borderTop: '1px solid rgba(15, 23, 42, 0.05)', display: 'flex', gap: '8px', alignItems: 'center' }}
                     >
                         <input
                             type="text"
                             value={input}
                             onChange={(e) => setInput(e.target.value)}
                             disabled={isLoading}
-                            placeholder="Pergunte ao CFO virtual de IA..."
+                            placeholder="Pergunte ao CFO (ex: 'Auditar desvios de orçamento de junho')..."
                             style={{
                                 flex: 1,
                                 padding: '10px 14px',
                                 borderRadius: '10px',
-                                border: '1px solid #1f2937',
-                                fontSize: '0.82rem',
+                                border: '1px solid rgba(15, 23, 42, 0.1)',
+                                fontSize: '0.85rem',
                                 outline: 'none',
                                 transition: 'all 0.2s',
-                                color: '#f8fafc',
-                                backgroundColor: '#0b0f19'
+                                color: '#1e293b'
+                            }}
+                            onFocus={e => {
+                                e.currentTarget.style.borderColor = '#4f46e5';
+                                e.currentTarget.style.boxShadow = '0 0 0 3px rgba(79, 70, 229, 0.12)';
+                            }}
+                            onBlur={e => {
+                                e.currentTarget.style.borderColor = 'rgba(15, 23, 42, 0.1)';
+                                e.currentTarget.style.boxShadow = 'none';
                             }}
                         />
                         <button
@@ -1228,6 +1492,12 @@ export default function CFOVirtualPage() {
                                 transition: 'opacity 0.2s, background-color 0.2s',
                                 padding: 0
                             }}
+                            onMouseEnter={e => {
+                                if (input.trim() && !isLoading) e.currentTarget.style.backgroundColor = '#4338ca';
+                            }}
+                            onMouseLeave={e => {
+                                if (input.trim() && !isLoading) e.currentTarget.style.backgroundColor = '#4f46e5';
+                            }}
                         >
                             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                                 <line x1="22" y1="2" x2="11" y2="13" />
@@ -1236,51 +1506,10 @@ export default function CFOVirtualPage() {
                         </button>
                     </form>
                 </div>
-            )}
-
-            {/* FLOATING ACTION AI CHAT BUBBLE BUTTON */}
-            {!isChatOpen && (
-                <button
-                    onClick={() => setIsChatOpen(true)}
-                    style={{
-                        position: 'fixed',
-                        bottom: '24px',
-                        right: '24px',
-                        width: '56px',
-                        height: '56px',
-                        borderRadius: '50%',
-                        backgroundColor: '#4f46e5',
-                        border: 'none',
-                        boxShadow: '0 8px 24px rgba(79, 70, 229, 0.4)',
-                        color: '#ffffff',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        cursor: 'pointer',
-                        zIndex: 999,
-                        fontSize: '1.5rem',
-                        transition: 'all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275)'
-                    }}
-                    onMouseEnter={e => {
-                        e.currentTarget.style.transform = 'scale(1.1) translateY(-3px)';
-                        e.currentTarget.style.boxShadow = '0 12px 28px rgba(79, 70, 229, 0.5)';
-                    }}
-                    onMouseLeave={e => {
-                        e.currentTarget.style.transform = 'none';
-                        e.currentTarget.style.boxShadow = '0 8px 24px rgba(79, 70, 229, 0.4)';
-                    }}
-                    title="Conversar com CFO de IA"
-                >
-                    💬
-                </button>
-            )}
+            </div>
 
             {/* CSS styles for animations */}
             <style>{`
-                @keyframes spin {
-                    from { transform: rotate(0deg); }
-                    to { transform: rotate(360deg); }
-                }
                 @keyframes typing-pulse {
                     0%, 100% { transform: scale(1); opacity: 0.4; }
                     50% { transform: scale(1.3); opacity: 1; }
@@ -1289,13 +1518,52 @@ export default function CFOVirtualPage() {
                     from { opacity: 0; transform: translateY(8px); }
                     to { opacity: 1; transform: translateY(0); }
                 }
-                @keyframes slide-in {
-                    from { transform: translateX(100%); }
-                    to { transform: translateX(0); }
+                
+                .dfc-bar:hover {
+                    opacity: 0.85;
                 }
-                @keyframes ping {
-                    0% { transform: scale(1); opacity: 1; }
-                    70%, 100% { transform: scale(2.5); opacity: 0; }
+                
+                .dfc-bar .dfc-tooltip {
+                    visibility: hidden;
+                    background-color: #0f172a;
+                    color: #fff;
+                    text-align: center;
+                    border-radius: 4px;
+                    padding: 3px 6px;
+                    position: absolute;
+                    z-index: 10;
+                    bottom: 105%;
+                    left: 50%;
+                    transform: translateX(-50%);
+                    white-space: nowrap;
+                    font-size: 0.65rem;
+                    box-shadow: 0 2px 4px rgba(0,0,0,0.15);
+                    opacity: 0;
+                    transition: opacity 0.1s ease, visibility 0.1s ease;
+                    pointer-events: none;
+                }
+                
+                .dfc-bar:hover .dfc-tooltip {
+                    visibility: visible;
+                    opacity: 1;
+                }
+                
+                .deviation-row:hover {
+                    transform: translateY(-1.5px);
+                    border-color: rgba(79, 70, 229, 0.2) !important;
+                    background-color: #ffffff !important;
+                    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.02);
+                }
+
+                .sidebar-chat-item:hover {
+                    background-color: rgba(15, 23, 42, 0.03) !important;
+                }
+                .sidebar-chat-item .sidebar-chat-actions {
+                    opacity: 0;
+                    transition: opacity 0.15s ease-in-out;
+                }
+                .sidebar-chat-item:hover .sidebar-chat-actions {
+                    opacity: 1;
                 }
             `}</style>
         </div>

@@ -4304,7 +4304,7 @@ export default function BudgetGrid({
                                             maxWidth: '90px',
                                             fontWeight: isInteractiveTree ? 700 : 400
                                         }}>
-                                            {rVal - bVal === 0 ? 'R$ 0,00' : formatCurrency(rVal - bVal)}
+                                            {rVal - bVal === 0 ? 'R$ 0,00' : `${rVal - bVal > 0 ? '▲ ' : '▼ '}${formatCurrency(Math.abs(rVal - bVal))}`}
                                         </td>
                                         <td className="spreadsheet-value" style={{ 
                                             color: (() => {
@@ -4321,7 +4321,7 @@ export default function BudgetGrid({
                                             maxWidth: '70px',
                                             fontWeight: isInteractiveTree ? 700 : 400
                                         }}>
-                                            {getAH(rVal, bVal).toFixed(1)}%
+                                            {getAH(rVal, bVal) === 0 ? '0,0%' : `${getAH(rVal, bVal) > 0 ? '▲ ' : '▼ '}${Math.abs(getAH(rVal, bVal)).toFixed(1)}%`}
                                         </td>
                                     </>
                                 )}
@@ -4343,7 +4343,7 @@ export default function BudgetGrid({
                                             maxWidth: '90px',
                                             fontWeight: isInteractiveTree ? 700 : 400
                                         }}>
-                                            {i === 0 ? '-' : (getMoMAbs() === 0 ? 'R$ 0,00' : formatCurrency(getMoMAbs()))}
+                                            {i === 0 ? '-' : (getMoMAbs() === 0 ? 'R$ 0,00' : `${getMoMAbs() > 0 ? '▲ ' : '▼ '}${formatCurrency(Math.abs(getMoMAbs()))}`)}
                                         </td>
                                         <td className="spreadsheet-value" style={{ 
                                             color: (() => {
@@ -4360,7 +4360,7 @@ export default function BudgetGrid({
                                             maxWidth: '70px',
                                             fontWeight: isInteractiveTree ? 700 : 400
                                         }}>
-                                            {i === 0 ? '-' : `${getMoMPercent().toFixed(1)}%`}
+                                            {i === 0 ? '-' : (getMoMPercent() === 0 ? '0,0%' : `${getMoMPercent() > 0 ? '▲ ' : '▼ '}${Math.abs(getMoMPercent()).toFixed(1)}%`)}
                                         </td>
                                     </>
                                 )}
@@ -4650,7 +4650,7 @@ export default function BudgetGrid({
                                         maxWidth: '90px',
                                         fontWeight: 700
                                     }}>
-                                        {(realizedVal || 0) - (budgetVal || 0) === 0 ? 'R$ 0,00' : formatCurrency((realizedVal || 0) - (budgetVal || 0))}
+                                        {(realizedVal || 0) - (budgetVal || 0) === 0 ? 'R$ 0,00' : `${(realizedVal || 0) - (budgetVal || 0) > 0 ? '▲ ' : '▼ '}${formatCurrency(Math.abs((realizedVal || 0) - (budgetVal || 0)))}`}
                                     </td>
                                     <td className="spreadsheet-value" style={{ 
                                         color: (() => {
@@ -4667,7 +4667,7 @@ export default function BudgetGrid({
                                         maxWidth: '70px',
                                         fontWeight: 700
                                     }}>
-                                        {getAH(realizedVal, budgetVal).toFixed(1)}%
+                                        {getAH(realizedVal, budgetVal) === 0 ? '0,0%' : `${getAH(realizedVal, budgetVal) > 0 ? '▲ ' : '▼ '}${Math.abs(getAH(realizedVal, budgetVal)).toFixed(1)}%`}
                                     </td>
                                 </>
                             )}
@@ -4689,7 +4689,7 @@ export default function BudgetGrid({
                                         maxWidth: '90px',
                                         fontWeight: 700
                                     }}>
-                                        {i === 0 ? '-' : (getMoMAbs() === 0 ? 'R$ 0,00' : formatCurrency(getMoMAbs()))}
+                                        {i === 0 ? '-' : (getMoMAbs() === 0 ? 'R$ 0,00' : `${getMoMAbs() > 0 ? '▲ ' : '▼ '}${formatCurrency(Math.abs(getMoMAbs()))}`)}
                                     </td>
                                     <td className="spreadsheet-value" style={{ 
                                         color: (() => {
@@ -4706,7 +4706,7 @@ export default function BudgetGrid({
                                         maxWidth: '70px',
                                         fontWeight: 700
                                     }}>
-                                        {i === 0 ? '-' : `${getMoMPercent().toFixed(1)}%`}
+                                        {i === 0 ? '-' : (getMoMPercent() === 0 ? '0,0%' : `${getMoMPercent() > 0 ? '▲ ' : '▼ '}${Math.abs(getMoMPercent()).toFixed(1)}%`)}
                                     </td>
                                 </>
                             )}

@@ -7719,15 +7719,19 @@ export default function BudgetGrid({
                         <table className="spreadsheet-table dre-compact-table" style={{ width: 'max-content', tableLayout: 'fixed', borderCollapse: 'collapse' }}>
                             <thead>
                                 <tr>
-                                    <th className="sticky-col" style={{ width: '400px', minWidth: '400px', maxWidth: '400px', backgroundColor: '#f1f5f9', color: '#1e293b' }}>
-                                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', padding: '0 0.5rem' }}>
-                                            <button
-                                                onClick={handleToggleAll}
-                                                className="spreadsheet-btn-expand bi-tree-btn"
-                                                style={{ background: '#fff', border: '1px solid #cbd5e1', color: '#475569', fontSize: '0.7rem', width: '16px', height: '16px', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}
-                                            >
-                                                {isAnyExpanded ? '−' : '+'}
-                                            </button>
+                                    <th 
+                                        rowSpan={2} 
+                                        className="sticky-col" 
+                                        style={{ 
+                                            width: '400px', 
+                                            minWidth: '400px', 
+                                            maxWidth: '400px', 
+                                            padding: '0 0.5rem',
+                                            textAlign: 'center',
+                                            verticalAlign: 'middle'
+                                        }}
+                                    >
+                                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '100%', height: '100%' }}>
                                             <span style={{ fontSize: '0.8rem', fontWeight: 700 }}>ESTRUTURA DRE — {selectedYear}</span>
                                         </div>
                                     </th>
@@ -7761,7 +7765,6 @@ export default function BudgetGrid({
                                     })}
                                 </tr>
                                 <tr>
-                                    <th className="sticky-col" style={{ width: '400px', minWidth: '400px', maxWidth: '400px', backgroundColor: '#f1f5f9' }}></th>
                                     {(viewPeriod === 'month' ? MONTHS.slice(startMonth, endMonth + 1) : [1, 2, 3, 4]).map((_, idx) => {
                                         const i = viewPeriod === 'month' ? (startMonth + idx) : idx;
                                         const isHighlighted = viewPeriod === 'month' && i === highlightedMonth;

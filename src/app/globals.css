@@ -765,11 +765,52 @@ select.premium-select:focus {
 /* Destaque para Contas Pais (Categorias que possuem filhos) */
 .dre-compact-table tbody tr.spreadsheet-parent-row,
 .dre-compact-table tbody tr.spreadsheet-parent-row .sticky-col {
-  background-color: #f8fafc !important; /* Cinza claro suave */
   font-weight: 700 !important;
 }
-.dre-compact-table tbody tr.spreadsheet-parent-row .sticky-col {
+
+/* Degradê Azul de acordo com o nível na árvore DRE */
+.dre-compact-table tbody tr.spreadsheet-parent-row-level-0,
+.dre-compact-table tbody tr.spreadsheet-parent-row-level-0 .sticky-col {
+  background-color: #cbe2fc !important; /* Azul médio/escuro suave */
+}
+.dre-compact-table tbody tr.spreadsheet-parent-row-level-0 .sticky-col {
+  box-shadow: 2px 0 0 0 #cbe2fc, 2px 0 4px -2px rgba(0,0,0,0.05) !important;
+}
+
+.dre-compact-table tbody tr.spreadsheet-parent-row-level-1,
+.dre-compact-table tbody tr.spreadsheet-parent-row-level-1 .sticky-col {
+  background-color: #e0edfe !important; /* Azul claro */
+}
+.dre-compact-table tbody tr.spreadsheet-parent-row-level-1 .sticky-col {
+  box-shadow: 2px 0 0 0 #e0edfe, 2px 0 4px -2px rgba(0,0,0,0.05) !important;
+}
+
+.dre-compact-table tbody tr.spreadsheet-parent-row-level-2,
+.dre-compact-table tbody tr.spreadsheet-parent-row-level-2 .sticky-col {
+  background-color: #f1f7ff !important; /* Azul muito claro */
+}
+.dre-compact-table tbody tr.spreadsheet-parent-row-level-2 .sticky-col {
+  box-shadow: 2px 0 0 0 #f1f7ff, 2px 0 4px -2px rgba(0,0,0,0.05) !important;
+}
+
+.dre-compact-table tbody tr.spreadsheet-parent-row-level-3,
+.dre-compact-table tbody tr.spreadsheet-parent-row-level-3 .sticky-col {
+  background-color: #f8fafc !important; /* Quase branco com tom frio */
+}
+.dre-compact-table tbody tr.spreadsheet-parent-row-level-3 .sticky-col {
   box-shadow: 2px 0 0 0 #f8fafc, 2px 0 4px -2px rgba(0,0,0,0.05) !important;
+}
+
+/* Fallback ou níveis muito profundos */
+.dre-compact-table tbody tr.spreadsheet-parent-row-level-4,
+.dre-compact-table tbody tr.spreadsheet-parent-row-level-4 .sticky-col,
+.dre-compact-table tbody tr.spreadsheet-parent-row-level-5,
+.dre-compact-table tbody tr.spreadsheet-parent-row-level-5 .sticky-col {
+  background-color: #ffffff !important;
+}
+.dre-compact-table tbody tr.spreadsheet-parent-row-level-4 .sticky-col,
+.dre-compact-table tbody tr.spreadsheet-parent-row-level-5 .sticky-col {
+  box-shadow: 2px 0 0 0 #ffffff, 2px 0 4px -2px rgba(0,0,0,0.05) !important;
 }
 
 /* Destaque para Linhas de Resumos (01. Receita Bruta, Receita Líquida, etc) */

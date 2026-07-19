@@ -4076,7 +4076,7 @@ export default function BudgetGrid({
 
         return (
             <React.Fragment key={node.id}>
-                <tr className={isInteractiveTree ? 'spreadsheet-parent-row' : ''}>
+                <tr className={isInteractiveTree ? `spreadsheet-parent-row spreadsheet-parent-row-level-${node.level}` : ''}>
                     <td 
                         className="sticky-col"
                         onClick={() => isInteractiveTree && toggleRow(node.id)}

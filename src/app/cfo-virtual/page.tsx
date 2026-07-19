@@ -34,7 +34,11 @@ export default function CFOVirtualPage() {
     const [simMetaVendas, setSimMetaVendas] = useState(500000);
     const [simPMR, setSimPMR] = useState(90);
     const [simCusto, setSimCusto] = useState(180000);
-
+ 
+    // Chart Hover States
+    const [hoveredPoint, setHoveredPoint] = useState<any | null>(null);
+    const [hoveredSimPoint, setHoveredSimPoint] = useState<any | null>(null);
+ 
     const messagesEndRef = useRef<HTMLDivElement>(null);
 
     // Load tenants and chat sessions on mount
@@ -680,6 +684,55 @@ export default function CFOVirtualPage() {
 
                                         <circle cx="550" cy={getY(balances[balances.length - 1])} r="4" fill="#38bdf8" stroke="#0b0f19" strokeWidth="1.5" />
                                         <text x="542" y={getY(balances[balances.length - 1]) - 10} textAnchor="end" fill="#38bdf8" fontSize="9" fontWeight="800">{formatBRL(balances[balances.length - 1])}</text>
+
+                                        {/* Hover detectors */}
+                                        {projectionPoints.map((p: any, idx: number) => {
+                                            const x = getX(idx);
+                                            const sliceWidth = 550 / (projectionPoints.length - 1 || 1);
+                                            return (
+                                                <rect
+                                                    key={idx}
+                                                    x={x - sliceWidth / 2}
+                                                    y={10}
+                                                    width={sliceWidth}
+                                                    height={170}
+                                                    fill={hoveredPoint?.date === p.date ? 'rgba(56, 189, 248, 0.03)' : 'transparent'}
+                                                    style={{ cursor: 'crosshair' }}
+                                                    onMouseEnter={() => setHoveredPoint({
+                                                        x: x,
+                                                        y: getY(p.balance),
+                                                        date: p.date,
+                                                        balance: p.balance
+                                                    })}
+                                                    onMouseLeave={() => setHoveredPoint(null)}
+                                                />
+                                            );
+                                        })}
+
+                                        {/* Hover line and tooltip */}
+                                        {hoveredPoint && (
+                                            <g pointerEvents="none">
+                                                <line x1={hoveredPoint.x} y1="10" x2={hoveredPoint.x} y2="180" stroke="#38bdf8" strokeWidth="1.2" strokeDasharray="3,3" />
+                                                <circle cx={hoveredPoint.x} cy={hoveredPoint.y} r="5.5" fill="#38bdf8" stroke="#ffffff" strokeWidth="2" />
+                                                {(() => {
+                                                    const tooltipW = 125;
+                                                    const tooltipH = 38;
+                                                    const tx = hoveredPoint.x > 400 ? hoveredPoint.x - tooltipW - 12 : hoveredPoint.x + 12;
+                                                    const ty = Math.max(15, Math.min(130, hoveredPoint.y - 45));
+                                                    return (
+                                                        <g>
+                                                            <rect x={tx} y={ty} width={tooltipW} height={tooltipH} fill="#1f2937" stroke="#38bdf8" strokeWidth="1.5" rx="6" />
+                                                            <text x={tx + 8} y={ty + 13} fill="#94a3b8" fontSize="7.5" fontWeight="700">
+                                                                {new Date(hoveredPoint.date).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', year: 'numeric' })}
+                                                            </text>
+                                                            <text x={tx + 8} y={ty + 26} fill="#f8fafc" fontSize="8.5" fontWeight="800">
+                                                                {formatBRL(hoveredPoint.balance)}
+                                                            </text>
+                                                        </g>
+                                                    );
+                                                })()}
+                                            </g>
+                                        )}
                                     </svg>
                                 )}
                             </div>
@@ -870,6 +923,52 @@ export default function CFOVirtualPage() {
                                                 <text x="145" y="12" textAnchor="end" fill="#10b981" fontSize="7" fontWeight="800">
                                                     {formatBRL(maxVal)}
                                                 </text>
+ 
+                                                {/* Hover detectors for simulator */}
+                                                {days.map((d, idx) => {
+                                                    const x = getXSim(idx);
+                                                    const val = (simMetaVendas * (d / 360) * (simPMR / 365)) + (simCusto * (idx / 5));
+                                                    const sliceWidth = 150 / (days.length - 1 || 1);
+                                                    return (
+                                                        <rect
+                                                            key={idx}
+                                                            x={x - sliceWidth / 2}
+                                                            y={0}
+                                                            width={sliceWidth}
+                                                            height={45}
+                                                            fill="transparent"
+                                                            style={{ cursor: 'crosshair' }}
+                                                            onMouseEnter={() => setHoveredSimPoint({
+                                                                x: x,
+                                                                y: getYSim(val),
+                                                                day: d,
+                                                                val: val
+                                                            })}
+                                                            onMouseLeave={() => setHoveredSimPoint(null)}
+                                                        />
+                                                    );
+                                                })}
+ 
+                                                {/* Simulation Hover line and tooltip */}
+                                                {hoveredSimPoint && (
+                                                    <g pointerEvents="none">
+                                                        <line x1={hoveredSimPoint.x} y1="0" x2={hoveredSimPoint.x} y2="40" stroke="#10b981" strokeWidth="0.5" strokeDasharray="2,2" />
+                                                        <circle cx={hoveredSimPoint.x} cy={hoveredSimPoint.y} r="3" fill="#10b981" stroke="#ffffff" strokeWidth="1" />
+                                                        {(() => {
+                                                            const tooltipW = 75;
+                                                            const tooltipH = 22;
+                                                            const tx = hoveredSimPoint.x > 100 ? hoveredSimPoint.x - tooltipW - 4 : hoveredSimPoint.x + 4;
+                                                            const ty = Math.max(2, Math.min(20, hoveredSimPoint.y - 11));
+                                                            return (
+                                                                <g>
+                                                                    <rect x={tx} y={ty} width={tooltipW} height={tooltipH} fill="#1f2937" stroke="#10b981" strokeWidth="1" rx="4" />
+                                                                    <text x={tx + 4} y={ty + 8} fill="#94a3b8" fontSize="5" fontWeight="700">Dia {hoveredSimPoint.day}</text>
+                                                                    <text x={tx + 4} y={ty + 17} fill="#f8fafc" fontSize="5.5" fontWeight="800">{formatBRL(hoveredSimPoint.val)}</text>
+                                                                </g>
+                                                            );
+                                                        })()}
+                                                    </g>
+                                                )}
                                             </g>
                                         );
                                     })()}

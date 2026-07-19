@@ -58,6 +58,7 @@ export default function DFCPage() {
     // UI active tab
     const [activeTab, setActiveTab] = useState<'projection' | 'table' | 'audit' | 'car' | 'cap'>('projection');
     const [hoveredPoint, setHoveredPoint] = useState<any | null>(null);
+    const [hoveredBar, setHoveredBar] = useState<any | null>(null);
     const [chartView, setChartView] = useState<'day' | 'week' | 'quinzena' | 'month'>('week');
     const [sidebarTab, setSidebarTab] = useState<'faturamento' | 'deducoes'>('faturamento');
 
@@ -735,21 +736,62 @@ export default function DFCPage() {
                                             const outY = 120 - outH;
                                             return (
                                                 <g key={m.month}>
+                                                    {/* Background highlight on hover */}
+                                                    {hoveredBar?.month === m.month && (
+                                                        <rect x={idx * colWidth} y="5" width={colWidth} height={130} fill="rgba(255, 255, 255, 0.02)" rx="4" />
+                                                    )}
                                                     {/* Faturamento Bar (Green) */}
                                                     <rect x={x - barW - 1} y={inY} width={barW} height={inH} fill="#10b981" rx="2" />
                                                     {/* Despesas Bar (Red) */}
                                                     <rect x={x + 1} y={outY} width={barW} height={outH} fill="#ef4444" rx="2" />
                                                     {/* Month label */}
                                                     <text x={x} y="138" textAnchor="middle" fontSize="9" fill="#94a3b8" fontWeight="600">{m.name}</text>
+                                                    {/* Hover Detector Area */}
+                                                    <rect 
+                                                        x={idx * colWidth} 
+                                                        y={5} 
+                                                        width={colWidth} 
+                                                        height={130} 
+                                                        fill="transparent" 
+                                                        style={{ cursor: 'pointer' }}
+                                                        onMouseEnter={() => setHoveredBar({
+                                                            month: m.month,
+                                                            name: m.name,
+                                                            x: x,
+                                                            inflow: m.recebimentosOperacionais,
+                                                            outflow: m.pagamentosOperacionais
+                                                        })}
+                                                        onMouseLeave={() => setHoveredBar(null)}
+                                                    />
                                                 </g>
                                             );
                                         });
                                     })()}
                                     <line x1="0" y1="120" x2="600" y2="120" stroke="#1f2937" strokeWidth="1.5" />
+ 
+                                    {/* Bar Chart Tooltip */}
+                                    {hoveredBar && (
+                                        <g pointerEvents="none">
+                                            {(() => {
+                                                const tooltipW = 145;
+                                                const tooltipH = 46;
+                                                const tx = hoveredBar.x > 430 ? hoveredBar.x - tooltipW - 15 : hoveredBar.x + 15;
+                                                const ty = 20;
+                                                return (
+                                                    <g>
+                                                        <rect x={tx} y={ty} width={tooltipW} height={tooltipH} fill="#1f2937" stroke="#3b82f6" strokeWidth="1.5" rx="6" />
+                                                        <text x={tx + 8} y={ty + 12} fill="#94a3b8" fontSize="8" fontWeight="800">{hoveredBar.name} - 2026</text>
+                                                        <text x={tx + 8} y={ty + 25} fill="#10b981" fontSize="7.5" fontWeight="700">Faturamento: {formatCurrency(hoveredBar.inflow)}</text>
+                                                        <text x={tx + 8} y={ty + 37} fill="#ef4444" fontSize="7.5" fontWeight="700">Despesas: {formatCurrency(hoveredBar.outflow)}</text>
+                                                    </g>
+                                                );
+                                            })()}
+                                        </g>
+                                    )}
                                 </svg>
                             </div>
                         </div>
-
+ 
                         {/* Chart 2: Saldo por dia (Line Chart) */}
                         <div style={{ backgroundColor: '#111827', borderRadius: '12px', padding: '1.5rem', border: '1px solid #1f2937' }}>
                             <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '1.25rem', alignItems: 'center' }}>
@@ -794,7 +836,7 @@ export default function DFCPage() {
                                         const range = maxBal - minBal || 1;
                                         const getX = (idx: number) => (idx / (chartPoints.length - 1)) * 600;
                                         const getY = (val: number) => 120 - ((val - minBal) / range) * 100;
-
+ 
                                         let dPath = '';
                                         let areaPath = `M 0 120`;
                                         chartPoints.forEach((p, idx) => {
@@ -809,7 +851,7 @@ export default function DFCPage() {
                                             }
                                         });
                                         areaPath += ` L ${getX(chartPoints.length - 1)} 120 Z`;
-
+ 
                                         return (
                                             <g>
                                                 {/* Gradient fill */}
@@ -821,6 +863,55 @@ export default function DFCPage() {
                                                 {/* Start/End labels */}
                                                 <text x="5" y={getY(balances[0]) - 8} fontSize="8" fontWeight="700" fill="#38bdf8">{formatCurrency(balances[0])}</text>
                                                 <text x="595" y={getY(balances[balances.length - 1]) - 8} textAnchor="end" fontSize="8" fontWeight="700" fill="#38bdf8">{formatCurrency(balances[balances.length - 1])}</text>
+ 
+                                                {/* Hover detectors */}
+                                                {chartPoints.map((p, idx) => {
+                                                    const x = getX(idx);
+                                                    const sliceWidth = 600 / (chartPoints.length - 1 || 1);
+                                                    return (
+                                                        <rect
+                                                            key={idx}
+                                                            x={x - sliceWidth / 2}
+                                                            y={10}
+                                                            width={sliceWidth}
+                                                            height={110}
+                                                            fill={hoveredPoint?.date === p.date ? 'rgba(56, 189, 248, 0.03)' : 'transparent'}
+                                                            style={{ cursor: 'crosshair' }}
+                                                            onMouseEnter={() => setHoveredPoint({
+                                                                x: x,
+                                                                y: getY(p.balance),
+                                                                date: p.date,
+                                                                balance: p.balance
+                                                            })}
+                                                            onMouseLeave={() => setHoveredPoint(null)}
+                                                        />
+                                                    );
+                                                })}
+ 
+                                                {/* Tooltip render */}
+                                                {hoveredPoint && (
+                                                    <g pointerEvents="none">
+                                                        <line x1={hoveredPoint.x} y1="10" x2={hoveredPoint.x} y2="120" stroke="#38bdf8" strokeWidth="1.2" strokeDasharray="3,3" />
+                                                        <circle cx={hoveredPoint.x} cy={hoveredPoint.y} r="5" fill="#38bdf8" stroke="#ffffff" strokeWidth="1.5" />
+                                                        {(() => {
+                                                            const tooltipW = 120;
+                                                            const tooltipH = 36;
+                                                            const tx = hoveredPoint.x > 460 ? hoveredPoint.x - tooltipW - 10 : hoveredPoint.x + 10;
+                                                            const ty = Math.max(10, Math.min(80, hoveredPoint.y - 40));
+                                                            return (
+                                                                <g>
+                                                                    <rect x={tx} y={ty} width={tooltipW} height={tooltipH} fill="#1f2937" stroke="#38bdf8" strokeWidth="1.5" rx="6" />
+                                                                    <text x={tx + 8} y={ty + 12} fill="#94a3b8" fontSize="7.5" fontWeight="700">
+                                                                        {new Date(hoveredPoint.date).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', year: 'numeric' })}
+                                                                    </text>
+                                                                    <text x={tx + 8} y={ty + 25} fill="#f8fafc" fontSize="8.5" fontWeight="800">
+                                                                        {formatCurrency(hoveredPoint.balance)}
+                                                                    </text>
+                                                                </g>
+                                                            );
+                                                        })()}
+                                                    </g>
+                                                )}
                                             </g>
                                         );
                                     })()}

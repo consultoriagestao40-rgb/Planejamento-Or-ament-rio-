@@ -10,7 +10,7 @@ function classifyCategory(
 ): 'OPERATIONAL_IN' | 'OPERATIONAL_OUT' | 'CAPEX' | 'FINANCING' | 'TRANSFER' {
     const name = categoryName.toUpperCase().trim();
     
-    // Verificar Tributos/Deduções (Grupo 02, DAS, Simples Nacional, etc.) -> Sempre saídas operacionais (OPERATIONAL_OUT)
+    // Verificar Tributos/Deduções (Grupo 02, DAS, Simples Nacional, etc.) -> Sempre saídas operacionais (OPERATIONAL_OUT) [Forced Redeploy]
     const isTax = 
         name.startsWith('02') || name.startsWith('2.') || 
         name.includes('SIMPLES NACIONAL') || name.includes(' DAS') || name.includes('- DAS') ||

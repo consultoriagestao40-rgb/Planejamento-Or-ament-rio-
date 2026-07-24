@@ -271,8 +271,7 @@ async function collectDetailedTransactions(
                 const isLoss = item.status === 'LOST' || item.status === 'PERDIDO';
                 const cats = item.categorias || (item.categoria ? [item.categoria] : []);
                 const hasMultipleCats = cats.length > 1;
-                const isCaixaAcquitted = viewMode === 'caixa' && (item.status === 'ACQUITTED' || item.status === 'QUITADO');
-                return isLoss || hasMultipleCats || isCaixaAcquitted;
+                return isLoss || hasMultipleCats;
             })
             .map((item: any) => item.id);
 
@@ -382,27 +381,28 @@ async function collectDetailedTransactions(
             // Se for regime de caixa, a data principal é a data de pagamento/baixa.
             // Se for regime de competência, a data principal é a data de competência/emissão.
             let dateStr = null;
+            let dateObj = null;
+            
             if (viewMode === 'caixa') {
-                const detail = parcelDetailsMap.get(item.id);
-                if (detail && detail.baixas && detail.baixas.length > 0) {
-                    dateStr = detail.baixas[0].data_pagamento;
-                }
-                if (!dateStr && detail) {
-                    dateStr = detail.data_pagamento_previsto;
-                }
-                if (!dateStr) {
-                    dateStr = item.data_pagamento || item.data_baixa || item.data_competencia || item.data_emissao || item.data;
+                dateStr = item.data_pagamento || item.data_baixa || item.data_vencimento || item.data_competencia || item.data;
+                dateObj = dateStr ? new Date(dateStr) : new Date(targetYear, targetMonth - 1, 15);
+                
+                // Forçar o ano e o mês para corresponder ao targetYear/targetMonth do filtro do Conta Azul
+                // (Isso impede descarte incorreto de lançamentos retornados pela API)
+                if (dateObj.getFullYear() !== targetYear || dateObj.getMonth() + 1 !== targetMonth) {
+                    const originalDay = dateObj.getDate() || 15;
+                    dateObj = new Date(targetYear, targetMonth - 1, originalDay);
                 }
             } else {
                 dateStr = hasPDD
                     ? (item.data_baixa || item.data_pagamento || item.data_competencia || item.data_emissao || item.data)
                     : (item.data_competencia || item.data_emissao || item.venda_em || item.data_pagamento || item.data);
+                    
+                if (!dateStr) continue;
+                dateObj = new Date(dateStr);
+                if (dateObj.getFullYear() !== targetYear) continue;
+                if (dateObj.getMonth() + 1 !== targetMonth) continue;
             }
-
-            if (!dateStr) continue;
-            const dateObj = new Date(dateStr);
-            if (dateObj.getFullYear() !== targetYear) continue;
-            if (dateObj.getMonth() + 1 !== targetMonth) continue;
 
             const ccs = item.centros_de_custo || [];
             

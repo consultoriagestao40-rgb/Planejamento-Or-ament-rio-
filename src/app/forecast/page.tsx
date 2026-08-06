@@ -251,6 +251,10 @@ export default function ForecastPage() {
     };
 
     const handleSaveCurrentCashFlowConfig = async () => {
+        if (currentUser?.role === 'EXTERNO') {
+            alert('Acesso de visualização: Você não tem permissão para alterar configurações.');
+            return;
+        }
         if (selectedCashFlowContractId === 'CONSOLIDADO') return;
         const contract = contracts.find(c => c.id === selectedCashFlowContractId);
         if (!contract) return;
@@ -1131,6 +1135,10 @@ export default function ForecastPage() {
     };
 
     const handleSaveContract = async () => {
+        if (currentUser?.role === 'EXTERNO') {
+            alert('Acesso de visualização: Você não tem permissão para salvar contratos.');
+            return;
+        }
         let currentSplit = { ...contractRevenueSplit };
         
         // Auto-add typed revenue if not added yet
@@ -1203,6 +1211,10 @@ export default function ForecastPage() {
     };
 
     const handleDeleteContract = async (id: string) => {
+        if (currentUser?.role === 'EXTERNO') {
+            alert('Acesso de visualização: Você não tem permissão para excluir contratos.');
+            return;
+        }
         if (!confirm('Deseja excluir esta projeção de venda?')) return;
         try {
             const res = await fetch(`/api/kpi/forecast/contracts?id=${id}`, { method: 'DELETE' });
@@ -1216,6 +1228,10 @@ export default function ForecastPage() {
     };
 
     const handleSaveCoefficientOverride = async (categoryId: string, val: number) => {
+        if (currentUser?.role === 'EXTERNO') {
+            alert('Acesso de visualização: Você não tem permissão para alterar coeficientes.');
+            return;
+        }
         try {
             const res = await fetch('/api/kpi/forecast/coefficients', {
                 method: 'POST',
@@ -2229,7 +2245,7 @@ export default function ForecastPage() {
                                     })}
                                 </select>
                             </div>
-                            {selectedCashFlowContractId !== 'CONSOLIDADO' && (
+                            {selectedCashFlowContractId !== 'CONSOLIDADO' && currentUser?.role !== 'EXTERNO' && (
                                 <button
                                     onClick={handleSaveCurrentCashFlowConfig}
                                     className="btn"
@@ -2282,7 +2298,7 @@ export default function ForecastPage() {
                                 <h5 style={{ margin: 0, fontSize: '0.85rem', fontWeight: 800, borderBottom: '1px solid var(--border-subtle)', paddingBottom: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
                                     📋 Área de Premissas
                                 </h5>
-                                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem', fontSize: '0.75rem' }}>
+                                <fieldset disabled={currentUser?.role === 'EXTERNO'} style={{ border: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: '0.85rem', fontSize: '0.75rem', width: '100%' }}>
                                     {/* Início & Faturamento */}
                                     <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
                                         <label style={{ fontWeight: 700, color: 'var(--text-primary)' }}>📅 Início dos Serviços (Dia do Mês)</label>
@@ -2428,7 +2444,7 @@ export default function ForecastPage() {
                                             </label>
                                         </div>
                                     </div>
-                                </div>
+                                </fieldset>
                             </div>
                         )}
 
@@ -2802,39 +2818,41 @@ export default function ForecastPage() {
                                                     Projete o faturamento mensal de novas vendas e vincule os respectivos vendedores. Os faturamentos e os custos projetados refletirão automaticamente no Forecast.
                                                 </p>
                                             </div>
-                                            <button
-                                                onClick={() => {
-                                                    setEditingContractId(null);
-                                                    setContractName('');
-                                                    setContractValue(0);
-                                                    setContractStartMonth(activeMonth + 1 > 12 ? 12 : activeMonth + 1);
-                                                    setContractProbability(100);
-                                                    setContractStatus('PIPELINE');
-                                                    setContractTenantId(companies[0]?.id || '');
-                                                    const loggedInUserObj = systemUsers.find(u => u.id === currentUser?.id);
-                                                    setContractSeller(loggedInUserObj ? loggedInUserObj.name : '');
-                                                    setContractRevenueSplit({});
-                                                    setSelectedRevenueCode('');
-                                                    setTypedRevenueValue('');
-                                                    setIsContractModalOpen(true);
-                                                }}
-                                                style={{
-                                                    padding: '0.5rem 1rem',
-                                                    background: 'var(--gradient-brand)',
-                                                    color: '#ffffff',
-                                                    border: 'none',
-                                                    borderRadius: '8px',
-                                                    fontSize: '0.8rem',
-                                                    fontWeight: 700,
-                                                    cursor: 'pointer',
-                                                    display: 'flex',
-                                                    alignItems: 'center',
-                                                    gap: '0.25rem',
-                                                    boxShadow: '0 4px 12px rgba(99, 102, 241, 0.2)'
-                                                }}
-                                            >
-                                                ➕ Adicionar Nova Venda
-                                            </button>
+                                            {currentUser?.role !== 'EXTERNO' && (
+                                                <button
+                                                    onClick={() => {
+                                                        setEditingContractId(null);
+                                                        setContractName('');
+                                                        setContractValue(0);
+                                                        setContractStartMonth(activeMonth + 1 > 12 ? 12 : activeMonth + 1);
+                                                        setContractProbability(100);
+                                                        setContractStatus('PIPELINE');
+                                                        setContractTenantId(companies[0]?.id || '');
+                                                        const loggedInUserObj = systemUsers.find(u => u.id === currentUser?.id);
+                                                        setContractSeller(loggedInUserObj ? loggedInUserObj.name : '');
+                                                        setContractRevenueSplit({});
+                                                        setSelectedRevenueCode('');
+                                                        setTypedRevenueValue('');
+                                                        setIsContractModalOpen(true);
+                                                    }}
+                                                    style={{
+                                                        padding: '0.5rem 1rem',
+                                                        background: 'var(--gradient-brand)',
+                                                        color: '#ffffff',
+                                                        border: 'none',
+                                                        borderRadius: '8px',
+                                                        fontSize: '0.8rem',
+                                                        fontWeight: 700,
+                                                        cursor: 'pointer',
+                                                        display: 'flex',
+                                                        alignItems: 'center',
+                                                        gap: '0.25rem',
+                                                        boxShadow: '0 4px 12px rgba(99, 102, 241, 0.2)'
+                                                    }}
+                                                >
+                                                    ➕ Adicionar Nova Venda
+                                                </button>
+                                            )}
                                         </div>
             
                                         <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.75rem', textAlign: 'left', minWidth: '1000px' }}>
@@ -2907,32 +2925,36 @@ export default function ForecastPage() {
                                                                         >
                                                                             👁️
                                                                         </button>
-                                                                        <button
-                                                                            onClick={() => {
-                                                                                const { name: nameOnly, split: splitObj, seller: sellerStr } = parseContractName(contract.name);
-                                                                                setEditingContractId(contract.id);
-                                                                                setContractName(nameOnly);
-                                                                                setContractValue(contract.value);
-                                                                                setContractStartMonth(contract.startMonth);
-                                                                                setContractProbability(contract.probability);
-                                                                                setContractStatus(contract.status);
-                                                                                setContractTenantId(contract.tenantId);
-                                                                                setContractSeller(sellerStr);
-                                                                                setContractRevenueSplit(splitObj);
-                                                                                setIsContractModalOpen(true);
-                                                                            }}
-                                                                            title="Editar Venda"
-                                                                            style={{ border: 'none', background: 'transparent', cursor: 'pointer', fontSize: '0.85rem', padding: 0 }}
-                                                                        >
-                                                                            ✏️
-                                                                        </button>
-                                                                        <button
-                                                                            onClick={() => handleDeleteContract(contract.id)}
-                                                                            title="Excluir Venda"
-                                                                            style={{ border: 'none', background: 'transparent', cursor: 'pointer', fontSize: '0.85rem', padding: 0 }}
-                                                                        >
-                                                                            🗑️
-                                                                        </button>
+                                                                        {currentUser?.role !== 'EXTERNO' && (
+                                                                             <button
+                                                                                 onClick={() => {
+                                                                                     const { name: nameOnly, split: splitObj, seller: sellerStr } = parseContractName(contract.name);
+                                                                                     setEditingContractId(contract.id);
+                                                                                     setContractName(nameOnly);
+                                                                                     setContractValue(contract.value);
+                                                                                     setContractStartMonth(contract.startMonth);
+                                                                                     setContractProbability(contract.probability);
+                                                                                     setContractStatus(contract.status);
+                                                                                     setContractTenantId(contract.tenantId);
+                                                                                     setContractSeller(sellerStr);
+                                                                                     setContractRevenueSplit(splitObj);
+                                                                                     setIsContractModalOpen(true);
+                                                                                 }}
+                                                                                 title="Editar Venda"
+                                                                                 style={{ border: 'none', background: 'transparent', cursor: 'pointer', fontSize: '0.85rem', padding: 0 }}
+                                                                             >
+                                                                                 ✏️
+                                                                             </button>
+                                                                         )}
+                                                                         {currentUser?.role !== 'EXTERNO' && (
+                                                                             <button
+                                                                                 onClick={() => handleDeleteContract(contract.id)}
+                                                                                 title="Excluir Venda"
+                                                                                 style={{ border: 'none', background: 'transparent', cursor: 'pointer', fontSize: '0.85rem', padding: 0 }}
+                                                                             >
+                                                                                 🗑️
+                                                                             </button>
+                                                                         )}
                                                                     </div>
                                                                 </td>
                                                             </tr>
@@ -3415,7 +3437,7 @@ export default function ForecastPage() {
                     <div className="glass-card" style={{ width: '680px', padding: '1.75rem', background: 'var(--bg-surface)', borderRadius: '16px', border: '1px solid var(--border-default)', display: 'flex', flexDirection: 'column', gap: '1.25rem', boxShadow: '0 20px 25px -5px rgba(0,0,0,0.3), 0 10px 10px -5px rgba(0,0,0,0.3)' }}>
                         <h4 style={{ margin: 0, fontSize: '1.15rem', fontWeight: 800 }}>{editingContractId ? '✏️ Editar Projeção' : '➕ Nova Projeção de Venda'}</h4>
                         
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                        <fieldset disabled={currentUser?.role === 'EXTERNO'} style={{ border: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: '1rem', width: '100%' }}>
                             {/* Row 1: Empresa & Cliente */}
                             <div style={{ display: 'grid', gridTemplateColumns: selectedTenant === 'ALL' ? '1fr 1fr' : '1fr', gap: '1rem' }}>
                                 {selectedTenant === 'ALL' && (
@@ -3585,7 +3607,7 @@ export default function ForecastPage() {
                                     </div>
                                 </div>
                             </div>
-                        </div>
+                        </fieldset>
 
                         <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'flex-end', marginTop: '0.5rem' }}>
                             <button
@@ -3594,12 +3616,14 @@ export default function ForecastPage() {
                             >
                                 Cancelar
                             </button>
-                            <button
-                                onClick={handleSaveContract}
-                                style={{ padding: '0.45rem 1rem', borderRadius: '6px', border: 'none', background: 'var(--accent-indigo)', color: '#ffffff', cursor: 'pointer', fontWeight: 700 }}
-                            >
-                                Salvar
-                            </button>
+                            {currentUser?.role !== 'EXTERNO' && (
+                                <button
+                                    onClick={handleSaveContract}
+                                    style={{ padding: '0.45rem 1rem', borderRadius: '6px', border: 'none', background: 'var(--accent-indigo)', color: '#ffffff', cursor: 'pointer', fontWeight: 700 }}
+                                >
+                                    Salvar
+                                </button>
+                            )}
                         </div>
                     </div>
                 </div>

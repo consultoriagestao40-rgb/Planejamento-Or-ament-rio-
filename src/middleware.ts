@@ -1,7 +1,8 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
+import { verifyToken } from './lib/auth';
 
-export function middleware(request: NextRequest) {
+export async function middleware(request: NextRequest) {
     const { pathname } = request.nextUrl;
 
     // Public paths
@@ -45,6 +46,36 @@ export function middleware(request: NextRequest) {
     if (!token) {
         const loginUrl = new URL('/login', request.url);
         return NextResponse.redirect(loginUrl);
+    }
+
+    const user: any = await verifyToken(token);
+    if (!user) {
+        const loginUrl = new URL('/login', request.url);
+        return NextResponse.redirect(loginUrl);
+    }
+
+    if (user.role === 'EXTERNO') {
+        // Block modifying API requests (POST/PUT/DELETE/PATCH)
+        if (pathname.startsWith('/api/') && request.method !== 'GET') {
+            return NextResponse.json(
+                { success: false, error: 'Acesso negado: Visualizadores não têm permissão de alteração.' },
+                { status: 403 }
+            );
+        }
+
+        // Only allow Home (DRE), summary/orcamento (Budgets), forecast (Forecast), and GET APIs
+        const isPageAllowed =
+            pathname === '/' ||
+            pathname.startsWith('/orcamento') ||
+            pathname.startsWith('/summary') ||
+            pathname.startsWith('/forecast');
+
+        const isApiAllowed = pathname.startsWith('/api/');
+
+        if (!isPageAllowed && !isApiAllowed) {
+            const homeUrl = new URL('/', request.url);
+            return NextResponse.redirect(homeUrl);
+        }
     }
 
     return NextResponse.next();

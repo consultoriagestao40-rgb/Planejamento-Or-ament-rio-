@@ -23,8 +23,8 @@ interface BudgetGridProps {
     setShowAH_MoM: (val: boolean) => void;
     showAR: boolean;
     setShowAR: (val: boolean) => void;
-    userRole: 'MASTER' | 'GESTOR';
-    setUserRole: (val: 'MASTER' | 'GESTOR') => void;
+    userRole: 'MASTER' | 'GESTOR' | 'EXTERNO';
+    setUserRole: (val: 'MASTER' | 'GESTOR' | 'EXTERNO') => void;
     companies: any[];
     externalYear?: number;
     searchQuery?: string;
@@ -3468,6 +3468,10 @@ export default function BudgetGrid({
     };
 
     const openBudgetModal = (nodeId: string, nodeName: string, monthIndex: number, type: 'budget' | 'radar') => {
+        if (userRole === 'EXTERNO') {
+            alert("Acesso de visualização: Você não tem permissão para editar valores.");
+            return;
+        }
         if (selectedCostCenter.includes('DEFAULT') || selectedCostCenter.length !== 1) {
             alert("Selecione um único centro de custo para lançar um valor");
             return;
@@ -6968,47 +6972,49 @@ export default function BudgetGrid({
                             </div>
                         )}
 
-                        <button
-                            onClick={() => {
-                                setIsTransferModalOpen(true);
-                                const initialSource = selectedCompany.includes('DEFAULT') ? companies[0]?.id : selectedCompany[0];
-                                setTransferSourceTenantId(initialSource || '');
-                                const initialTarget = companies.find(c => c.id !== initialSource)?.id || '';
-                                setTransferTargetTenantId(initialTarget);
-                                setTransferMonth(new Date().getMonth() + 1);
-                                setTransferYear(selectedYear);
-                                setTransferAmount('');
-                                setTransferReason('');
-                            }}
-                            className="premium-btn"
-                            style={{
-                                display: 'flex',
-                                alignItems: 'center',
-                                gap: '6px',
-                                padding: '0.4rem 0.85rem',
-                                height: '32px',
-                                background: 'linear-gradient(135deg, #4f46e5 0%, #3730a3 100%)',
-                                color: '#ffffff',
-                                borderRadius: '8px',
-                                fontSize: '0.72rem',
-                                fontWeight: 700,
-                                border: 'none',
-                                cursor: 'pointer',
-                                transition: 'all 0.2s',
-                                boxShadow: '0 2px 4px rgba(79, 70, 229, 0.2)'
-                            }}
-                            onMouseOver={(e) => {
-                                e.currentTarget.style.transform = 'translateY(-1px)';
-                                e.currentTarget.style.boxShadow = '0 4px 8px rgba(79, 70, 229, 0.3)';
-                            }}
-                            onMouseOut={(e) => {
-                                e.currentTarget.style.transform = 'none';
-                                e.currentTarget.style.boxShadow = '0 2px 4px rgba(79, 70, 229, 0.2)';
-                            }}
-                        >
-                            <span>💸</span>
-                            <span>Transf. Gerencial</span>
-                        </button>
+                        {userRole !== 'EXTERNO' && (
+                            <button
+                                onClick={() => {
+                                    setIsTransferModalOpen(true);
+                                    const initialSource = selectedCompany.includes('DEFAULT') ? companies[0]?.id : selectedCompany[0];
+                                    setTransferSourceTenantId(initialSource || '');
+                                    const initialTarget = companies.find(c => c.id !== initialSource)?.id || '';
+                                    setTransferTargetTenantId(initialTarget);
+                                    setTransferMonth(new Date().getMonth() + 1);
+                                    setTransferYear(selectedYear);
+                                    setTransferAmount('');
+                                    setTransferReason('');
+                                }}
+                                className="premium-btn"
+                                style={{
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: '6px',
+                                    padding: '0.4rem 0.85rem',
+                                    height: '32px',
+                                    background: 'linear-gradient(135deg, #4f46e5 0%, #3730a3 100%)',
+                                    color: '#ffffff',
+                                    borderRadius: '8px',
+                                    fontSize: '0.72rem',
+                                    fontWeight: 700,
+                                    border: 'none',
+                                    cursor: 'pointer',
+                                    transition: 'all 0.2s',
+                                    boxShadow: '0 2px 4px rgba(79, 70, 229, 0.2)'
+                                }}
+                                onMouseOver={(e) => {
+                                    e.currentTarget.style.transform = 'translateY(-1px)';
+                                    e.currentTarget.style.boxShadow = '0 4px 8px rgba(79, 70, 229, 0.3)';
+                                }}
+                                onMouseOut={(e) => {
+                                    e.currentTarget.style.transform = 'none';
+                                    e.currentTarget.style.boxShadow = '0 2px 4px rgba(79, 70, 229, 0.2)';
+                                }}
+                            >
+                                <span>💸</span>
+                                <span>Transf. Gerencial</span>
+                            </button>
+                        )}
                     </div>
 
 
@@ -9649,7 +9655,7 @@ export default function BudgetGrid({
                                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: '1rem', marginBottom: '2rem', backgroundColor: '#f8fafc', padding: '1.5rem', borderRadius: '20px', border: '1px solid #f1f5f9' }}>
                                     {MONTHS.map((month, idx) => {
                                         const isLocked = lockedMonths[idx];
-                                        const canEdit = !isLocked || userRole === 'MASTER';
+                                        const canEdit = (!isLocked || userRole === 'MASTER') && userRole !== 'EXTERNO';
                                         const hasItems = modalCompositionRows.some(r => r.values[idx] && r.values[idx].trim() !== '');
                                         
                                         return (
@@ -9903,7 +9909,8 @@ export default function BudgetGrid({
                                         </div>
                                     ) : (
                                         <>
-                                            <div style={{ marginBottom: '1.5rem', backgroundColor: '#f0f9ff', padding: '1rem', borderRadius: '12px', border: '1px solid #bae6fd' }}>
+                                            {userRole !== 'EXTERNO' && (
+                                                <div style={{ marginBottom: '1.5rem', backgroundColor: '#f0f9ff', padding: '1rem', borderRadius: '12px', border: '1px solid #bae6fd' }}>
                                                 <label style={{ display: 'block', fontSize: '0.7rem', fontWeight: 800, color: '#0369a1', marginBottom: '0.5rem', textTransform: 'uppercase' }}>Nova Justificativa / Análise</label>
                                                 <textarea
                                                     value={newJustification}
@@ -9939,6 +9946,7 @@ export default function BudgetGrid({
                                                     </button>
                                                 </div>
                                             </div>
+                                            )}
 
                                             <div style={{ borderTop: '1px solid #f1f5f9', paddingTop: '1.5rem' }}>
                                                 <h4 style={{ fontSize: '0.75rem', fontWeight: 800, color: '#64748b', marginBottom: '1rem', textTransform: 'uppercase' }}>Histórico de Análises</h4>

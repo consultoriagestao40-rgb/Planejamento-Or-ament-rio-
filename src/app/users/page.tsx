@@ -168,7 +168,7 @@ export default function UsersPage() {
                                 <td style={{ padding: '1rem', color: '#334155' }}>{u.name}</td>
                                 <td style={{ padding: '1rem', color: '#64748b' }}>{u.email}</td>
                                 <td style={{ padding: '1rem' }}>
-                                    <span style={{ padding: '0.2rem 0.6rem', backgroundColor: u.role === 'MASTER' ? '#dbeafe' : '#f1f5f9', color: u.role === 'MASTER' ? '#1d4ed8' : '#475569', borderRadius: '12px', fontSize: '0.75rem', fontWeight: 600 }}>{u.role}</span>
+                                    <span style={{ padding: '0.2rem 0.6rem', backgroundColor: u.role === 'MASTER' ? '#dbeafe' : (u.role === 'EXTERNO' ? '#fef3c7' : '#f1f5f9'), color: u.role === 'MASTER' ? '#1d4ed8' : (u.role === 'EXTERNO' ? '#d97706' : '#475569'), borderRadius: '12px', fontSize: '0.75rem', fontWeight: 600 }}>{u.role}</span>
                                 </td>
                                 <td style={{ padding: '1rem', color: '#64748b', fontSize: '0.875rem' }}>
                                     {u.role === 'MASTER' ? 'Todos' : `${u.costCenterAccess?.length || 0} centro(s)`}
@@ -199,6 +199,7 @@ export default function UsersPage() {
                                     <select value={form.role} onChange={e => setForm({ ...form, role: e.target.value })} style={{ width: '100%', padding: '0.5rem', borderRadius: '6px', border: '1px solid #cbd5e1' }}>
                                         <option value="GESTOR">GESTOR (Acesso Restrito)</option>
                                         <option value="MASTER">MASTER (Acesso Total)</option>
+                                        <option value="EXTERNO">EXTERNO (Visualizador Total)</option>
                                     </select>
                                 </div>
                             </div>

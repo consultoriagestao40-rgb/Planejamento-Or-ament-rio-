@@ -49,7 +49,7 @@ export default function BudgetEntryGrid({ costCenterId, year, taxRate = 0 }: Bud
     const [categories, setCategories] = useState<any[]>([]);
     const [tenantId, setTenantId] = useState<string>('');
     const [loading, setLoading] = useState(true);
-    const [userRole, setUserRole] = useState<'MASTER' | 'GESTOR' | null>(null);
+    const [userRole, setUserRole] = useState<'MASTER' | 'GESTOR' | 'EXTERNO' | null>(null);
 
     const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
     const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
@@ -545,6 +545,10 @@ export default function BudgetEntryGrid({ costCenterId, year, taxRate = 0 }: Bud
 
     // ─── OPEN BUDGET MODAL ────────────────────────────────────────────
     const openBudgetModal = (nodeId: string, nodeName: string, monthIndex: number) => {
+        if (userRole === 'EXTERNO') {
+            alert("Acesso de visualização: Você não tem permissão para editar orçamentos.");
+            return;
+        }
         if (isCCLocked && userRole !== 'MASTER') {
             alert('Este orçamento está travado. Solicite a reabertura ao aprovador.');
             return;
@@ -1350,7 +1354,7 @@ export default function BudgetEntryGrid({ costCenterId, year, taxRate = 0 }: Bud
                             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '1rem', marginBottom: '1.5rem' }}>
                                 {MONTHS.map((month, idx) => {
                                     const isLocked = lockedMonths[idx];
-                                    const canEdit = !isLocked || userRole === 'MASTER';
+                                    const canEdit = (!isLocked || userRole === 'MASTER') && userRole !== 'EXTERNO';
                                     return (
                                         <div key={idx} style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem', opacity: !canEdit ? 0.6 : 1, border: activeMonth === idx ? '1px solid #2563eb' : '1px solid transparent', padding: '0.5rem', borderRadius: '12px', backgroundColor: activeMonth === idx ? '#eff6ff' : 'transparent', transition: 'all 0.2s' }}>
                                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -1506,20 +1510,24 @@ export default function BudgetEntryGrid({ costCenterId, year, taxRate = 0 }: Bud
                             </div>
 
                             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '1rem', borderTop: '1px solid #f1f5f9', paddingTop: '1.5rem' }}>
-                                <button
-                                    onClick={() => setModalValues(new Array(12).fill('0'))}
-                                    style={{ padding: '0.75rem 1.5rem', backgroundColor: '#fef2f2', color: '#ef4444', border: 'none', borderRadius: '8px', fontWeight: 600, cursor: 'pointer', fontSize: '0.95rem' }}
-                                >
-                                    Limpar Tudo
-                                </button>
-                                <button onClick={() => setBudgetModal(null)} style={{ padding: '0.75rem 1.5rem', backgroundColor: 'transparent', color: '#64748b', border: 'none', borderRadius: '8px', fontWeight: 600, cursor: 'pointer', fontSize: '0.95rem' }}>Cancelar</button>
-                                <button
-                                    disabled={isSavingBudget || (lockedMonths.every(l => l) && userRole !== 'MASTER')}
-                                    onClick={handleSaveBudget}
-                                    style={{ padding: '0.75rem 2rem', backgroundColor: (lockedMonths.every(l => l) && userRole !== 'MASTER') ? '#94a3b8' : '#2563eb', color: '#fff', border: 'none', borderRadius: '8px', fontWeight: 700, cursor: (isSavingBudget || (lockedMonths.every(l => l) && userRole !== 'MASTER')) ? 'default' : 'pointer', fontSize: '0.95rem', minWidth: '120px', opacity: isSavingBudget ? 0.7 : 1 }}
-                                >
-                                    {isSavingBudget ? 'Salvando...' : 'Salvar'}
-                                </button>
+                                {userRole !== 'EXTERNO' && (
+                                    <button
+                                        onClick={() => setModalValues(new Array(12).fill('0'))}
+                                        style={{ padding: '0.75rem 1.5rem', backgroundColor: '#fef2f2', color: '#ef4444', border: 'none', borderRadius: '8px', fontWeight: 600, cursor: 'pointer', fontSize: '0.95rem' }}
+                                    >
+                                        Limpar Tudo
+                                    </button>
+                                )}
+                                <button onClick={() => setBudgetModal(null)} style={{ padding: '0.75rem 1.5rem', backgroundColor: 'transparent', color: '#64748b', border: 'none', borderRadius: '8px', fontWeight: 600, cursor: 'pointer', fontSize: '0.95rem' }}>{userRole === 'EXTERNO' ? 'Fechar' : 'Cancelar'}</button>
+                                {userRole !== 'EXTERNO' && (
+                                    <button
+                                        disabled={isSavingBudget || (lockedMonths.every(l => l) && userRole !== 'MASTER')}
+                                        onClick={handleSaveBudget}
+                                        style={{ padding: '0.75rem 2rem', backgroundColor: (lockedMonths.every(l => l) && userRole !== 'MASTER') ? '#94a3b8' : '#2563eb', color: '#fff', border: 'none', borderRadius: '8px', fontWeight: 700, cursor: (isSavingBudget || (lockedMonths.every(l => l) && userRole !== 'MASTER')) ? 'default' : 'pointer', fontSize: '0.95rem', minWidth: '120px', opacity: isSavingBudget ? 0.7 : 1 }}
+                                    >
+                                        {isSavingBudget ? 'Salvando...' : 'Salvar'}
+                                    </button>
+                                )}
                             </div>
                         </div>
                     </div>

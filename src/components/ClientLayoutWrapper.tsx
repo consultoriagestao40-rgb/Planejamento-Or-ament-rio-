@@ -8,12 +8,23 @@ export default function ClientLayoutWrapper({ children }: { children: React.Reac
     const pathname = usePathname();
     const isLoginPage = pathname === '/login';
     const [isCollapsed, setIsCollapsed] = useState(false);
+    const [userRole, setUserRole] = useState<string | null>(null);
 
     useEffect(() => {
         const stored = localStorage.getItem('sidebar-collapsed');
         if (stored !== null) {
             setIsCollapsed(stored === 'true');
         }
+
+        // Fetch logged-in user details to get role
+        fetch('/api/auth/me')
+            .then(res => res.json())
+            .then(data => {
+                if (data.success && data.user) {
+                    setUserRole(data.user.role);
+                }
+            })
+            .catch(() => {});
     }, []);
 
     const toggleCollapse = () => {
@@ -219,7 +230,12 @@ export default function ClientLayoutWrapper({ children }: { children: React.Reac
                 </div>
                 <nav style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
                     <ul className="sidebar-menu" style={{ padding: isCollapsed ? '0.8rem 0.4rem' : '0.8rem 0.8rem', transition: 'padding 0.3s' }}>
-                        {menuItems.map((item, idx) => {
+                        {menuItems.filter(item => {
+                            if (userRole === 'EXTERNO') {
+                                return item.path === '/' || item.path === '/summary' || item.path === '/forecast';
+                            }
+                            return true;
+                        }).map((item, idx) => {
                             const isSelected = item.path === '/' 
                                 ? pathname === '/' 
                                 : pathname.startsWith(item.path);

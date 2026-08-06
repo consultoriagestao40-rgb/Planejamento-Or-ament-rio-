@@ -233,6 +233,7 @@ model RealizedJustification {
 enum Role {
   MASTER
   GESTOR
+  EXTERNO
 }
 
 model BankAccount {

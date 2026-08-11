@@ -711,6 +711,26 @@ export default function ForecastPage() {
             th.removeAttribute('style');
         });
 
+        // Set dynamic widths for 100% fit on A4 Landscape
+        const firstBodyRow = bodyTable.rows[0];
+        const colCount = firstBodyRow ? firstBodyRow.cells.length : 16;
+        const valueColWidth = `calc(80% / ${colCount - 1})`;
+
+        newTable.querySelectorAll('tr').forEach(row => {
+            Array.from(row.cells).forEach((cell, idx) => {
+                if (cell.getAttribute('colspan')) return;
+                if (idx === 0) {
+                    cell.style.width = '20%';
+                    cell.style.minWidth = '20%';
+                    cell.style.maxWidth = '20%';
+                } else {
+                    cell.style.width = valueColWidth;
+                    cell.style.minWidth = valueColWidth;
+                    cell.style.maxWidth = valueColWidth;
+                }
+            });
+        });
+
         const printWindow = window.open('', '_blank');
         if (!printWindow) {
             alert('Por favor, permita pop-ups para exportar o PDF.');
@@ -726,21 +746,26 @@ export default function ForecastPage() {
                 <style>
                     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
                     
+                    @page {
+                        size: A4 landscape;
+                        margin: 0.5cm;
+                    }
+                    
                     body {
                         font-family: 'Inter', system-ui, -apple-system, sans-serif;
                         color: #0f172a;
                         background-color: #ffffff;
-                        margin: 20px;
+                        margin: 10px;
                         padding: 0;
-                        font-size: 8.5px;
+                        font-size: 7px;
                         -webkit-print-color-adjust: exact;
                         print-color-adjust: exact;
                     }
                     
                     .report-header {
-                        margin-bottom: 20px;
+                        margin-bottom: 12px;
                         border-bottom: 2px solid #cbd5e1;
-                        padding-bottom: 12px;
+                        padding-bottom: 8px;
                     }
                     
                     .report-title-container {
@@ -750,16 +775,16 @@ export default function ForecastPage() {
                     }
                     
                     .report-title {
-                        font-size: 16px;
+                        font-size: 13px;
                         font-weight: 800;
                         color: #4f46e5;
-                        margin: 0 0 4px 0;
+                        margin: 0 0 3px 0;
                         text-transform: uppercase;
                         letter-spacing: 0.5px;
                     }
                     
                     .report-subtitle {
-                        font-size: 10px;
+                        font-size: 8px;
                         font-weight: 600;
                         color: #64748b;
                         margin: 0;
@@ -768,16 +793,16 @@ export default function ForecastPage() {
                     .filter-badge-container {
                         display: flex;
                         flex-wrap: wrap;
-                        gap: 12px;
-                        margin-top: 10px;
+                        gap: 8px;
+                        margin-top: 6px;
                     }
                     
                     .filter-badge {
                         background-color: #f1f5f9;
                         border: 1px solid #e2e8f0;
-                        padding: 3px 6px;
+                        padding: 2px 5px;
                         border-radius: 4px;
-                        font-size: 8px;
+                        font-size: 7.5px;
                         font-weight: 600;
                         color: #475569;
                     }
@@ -788,10 +813,12 @@ export default function ForecastPage() {
                     }
                     
                     table {
-                        width: 100%;
+                        width: 100% !important;
+                        max-width: 100% !important;
+                        table-layout: fixed !important;
                         border-collapse: collapse;
+                        margin-top: 8px;
                         page-break-inside: auto;
-                        margin-top: 10px;
                     }
                     
                     tr {
@@ -808,10 +835,13 @@ export default function ForecastPage() {
                         color: #334155 !important;
                         font-weight: 700 !important;
                         text-align: center;
-                        padding: 6px 8px;
+                        padding: 3px 4px !important;
                         border: 1px solid #cbd5e1;
-                        font-size: 8px;
+                        font-size: 7px;
                         text-transform: uppercase;
+                        overflow: hidden;
+                        text-overflow: ellipsis;
+                        white-space: nowrap;
                     }
                     
                     th.sticky-col, td.sticky-col {
@@ -819,16 +849,22 @@ export default function ForecastPage() {
                         font-weight: 600;
                         position: static !important;
                         background-color: inherit !important;
-                        width: auto !important;
-                        min-width: auto !important;
-                        max-width: auto !important;
                     }
                     
                     td {
-                        padding: 5px 8px;
+                        padding: 3px 4px !important;
                         border: 1px solid #e2e8f0;
-                        font-size: 8.5px;
+                        font-size: 7px;
                         color: #334155;
+                        overflow: hidden;
+                        text-overflow: ellipsis;
+                        white-space: nowrap;
+                    }
+                    
+                    td:first-child {
+                        white-space: normal !important;
+                        word-break: break-all !important;
+                        text-align: left;
                     }
                     
                     tr.spreadsheet-parent-row {
@@ -871,10 +907,6 @@ export default function ForecastPage() {
                     }
                     
                     @media print {
-                        @page {
-                            size: A4 landscape;
-                            margin: 1cm;
-                        }
                         body {
                             margin: 0;
                         }
@@ -889,19 +921,19 @@ export default function ForecastPage() {
                             <p class="report-subtitle">Demonstrativo do Resultado do Exercício com Projeções</p>
                         </div>
                         <div style="text-align: right; font-size: 8px; color: #64748b; font-weight: 600;">
-                            Gerado em: ${new Date().toLocaleDateString('pt-BR')} ${new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
+                            Gerado em: \${new Date().toLocaleDateString('pt-BR')} \${new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
                         </div>
                     </div>
                     
                     <div class="filter-badge-container">
-                        <div class="filter-badge">Empresa: <span>${companyName}</span></div>
-                        <div class="filter-badge">Ano: <span>${selectedYear}</span></div>
-                        <div class="filter-badge">Corte de Realizado: <span>Real até ${corteMonthName}</span></div>
-                        <div class="filter-badge">Visualização: <span>${displayMode === 'complete' ? 'DRE Completo (Orçado + Projeção)' : 'Apenas Forecast (Realizado + Projeções)'}</span></div>
+                        <div class="filter-badge">Empresa: <span>\${companyName}</span></div>
+                        <div class="filter-badge">Ano: <span>\${selectedYear}</span></div>
+                        <div class="filter-badge">Corte de Realizado: <span>Real até \${corteMonthName}</span></div>
+                        <div class="filter-badge">Visualização: <span>\${displayMode === 'complete' ? 'DRE Completo (Orçado + Projeção)' : 'Apenas Forecast (Realizado + Projeções)'}</span></div>
                     </div>
                 </div>
                 
-                ${newTable.outerHTML}
+                \${newTable.outerHTML}
                 
                 <script>
                     window.addEventListener('DOMContentLoaded', () => {
@@ -915,6 +947,7 @@ export default function ForecastPage() {
         `);
         printWindow.document.close();
     };
+
 
     const toggleContractRow = (id: string) => {
         setExpandedContractRows(prev => {

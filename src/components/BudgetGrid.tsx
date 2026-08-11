@@ -3560,6 +3560,276 @@ export default function BudgetGrid({
         setInitialCompositionRows(JSON.parse(JSON.stringify(initialRows)));
     };
 
+    const handleExportPDF = () => {
+        const tables = document.querySelectorAll('.spreadsheet-table');
+        if (tables.length < 2) {
+            alert('Tabela DRE não encontrada.');
+            return;
+        }
+
+        const headerTable = tables[0];
+        const bodyTable = tables[1];
+
+        // Resolve company names
+        const companyNames = selectedCompany.includes('DEFAULT')
+            ? 'Todas as Empresas'
+            : selectedCompany.map(id => companies.find(c => c.id === id)?.name || id).join(', ');
+
+        // Resolve cost center names
+        const ccNames = selectedCostCenter.includes('DEFAULT')
+            ? 'Todos os Centros de Custos'
+            : selectedCostCenter.map(id => filteredCostCenters.find(cc => cc.id === id)?.name || id).join(', ');
+
+        const startMonthName = MONTHS[startMonth];
+        const endMonthName = MONTHS[endMonth];
+        const periodStr = viewPeriod === 'month'
+            ? `${startMonthName} a ${endMonthName} ${selectedYear}`
+            : `Trimestres (${selectedYear})`;
+
+        // Create temporary container to construct the merged table
+        const tempContainer = document.createElement('div');
+        tempContainer.innerHTML = `
+            <table class="spreadsheet-table dre-compact-table print-table">
+                <thead>
+                    ${headerTable.querySelector('thead')?.innerHTML || ''}
+                </thead>
+                <tbody></tbody>
+            </table>
+        `;
+
+        const newTable = tempContainer.querySelector('table');
+        const newTbody = newTable.querySelector('tbody');
+
+        // Copy body rows up to EBITDA
+        let ebitdaReached = false;
+        for (let i = 0; i < bodyTable.rows.length; i++) {
+            const originalRow = bodyTable.rows[i];
+            const firstCellText = originalRow.cells[0]?.textContent || '';
+            const clonedRow = originalRow.cloneNode(true);
+
+            // Strip style attribute from row and cells to let print CSS handle them
+            clonedRow.removeAttribute('style');
+            Array.from(clonedRow.cells).forEach(cell => {
+                cell.removeAttribute('style');
+            });
+
+            if (firstCellText.includes('(=) EBITDA')) {
+                clonedRow.classList.add('ebitda-row-highlight');
+                newTbody.appendChild(clonedRow);
+                ebitdaReached = true;
+                break;
+            }
+
+            newTbody.appendChild(clonedRow);
+        }
+
+        // Strip style attributes from header cells
+        newTable.querySelectorAll('th').forEach(th => {
+            th.removeAttribute('style');
+        });
+
+        const printWindow = window.open('', '_blank');
+        if (!printWindow) {
+            alert('Por favor, permita pop-ups para exportar o PDF.');
+            return;
+        }
+
+        printWindow.document.write(`
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <meta charset="utf-8" />
+                <title>Relatório DRE - ${companyNames}</title>
+                <style>
+                    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+                    
+                    body {
+                        font-family: 'Inter', system-ui, -apple-system, sans-serif;
+                        color: #0f172a;
+                        background-color: #ffffff;
+                        margin: 20px;
+                        padding: 0;
+                        font-size: 8.5px;
+                        -webkit-print-color-adjust: exact;
+                        print-color-adjust: exact;
+                    }
+                    
+                    .report-header {
+                        margin-bottom: 20px;
+                        border-bottom: 2px solid #cbd5e1;
+                        padding-bottom: 12px;
+                    }
+                    
+                    .report-title-container {
+                        display: flex;
+                        justify-content: space-between;
+                        align-items: flex-end;
+                    }
+                    
+                    .report-title {
+                        font-size: 16px;
+                        font-weight: 800;
+                        color: #0f62ac;
+                        margin: 0 0 4px 0;
+                        text-transform: uppercase;
+                        letter-spacing: 0.5px;
+                    }
+                    
+                    .report-subtitle {
+                        font-size: 10px;
+                        font-weight: 600;
+                        color: #64748b;
+                        margin: 0;
+                    }
+                    
+                    .filter-badge-container {
+                        display: flex;
+                        flex-wrap: wrap;
+                        gap: 12px;
+                        margin-top: 10px;
+                    }
+                    
+                    .filter-badge {
+                        background-color: #f1f5f9;
+                        border: 1px solid #e2e8f0;
+                        padding: 3px 6px;
+                        border-radius: 4px;
+                        font-size: 8px;
+                        font-weight: 600;
+                        color: #475569;
+                    }
+                    
+                    .filter-badge span {
+                        color: #0f62ac;
+                        font-weight: 700;
+                    }
+                    
+                    table {
+                        width: 100%;
+                        border-collapse: collapse;
+                        page-break-inside: auto;
+                        margin-top: 10px;
+                    }
+                    
+                    tr {
+                        page-break-inside: avoid;
+                        page-break-after: auto;
+                    }
+                    
+                    thead {
+                        display: table-header-group;
+                    }
+                    
+                    th {
+                        background-color: #f1f5f9 !important;
+                        color: #334155 !important;
+                        font-weight: 700 !important;
+                        text-align: center;
+                        padding: 6px 8px;
+                        border: 1px solid #cbd5e1;
+                        font-size: 8px;
+                        text-transform: uppercase;
+                    }
+                    
+                    th.sticky-col, td.sticky-col {
+                        text-align: left;
+                        font-weight: 600;
+                        position: static !important;
+                        background-color: inherit !important;
+                        width: auto !important;
+                        min-width: auto !important;
+                        max-width: auto !important;
+                    }
+                    
+                    td {
+                        padding: 5px 8px;
+                        border: 1px solid #e2e8f0;
+                        font-size: 8.5px;
+                        color: #334155;
+                    }
+                    
+                    tr.spreadsheet-parent-row {
+                        background-color: #f8fafc !important;
+                        font-weight: 700 !important;
+                    }
+                    
+                    tr.spreadsheet-summary-row {
+                        background-color: #f0f7ff !important;
+                        font-weight: 700 !important;
+                    }
+                    
+                    tr.spreadsheet-group-header {
+                        background-color: #e2e8f0 !important;
+                        font-weight: 800 !important;
+                        color: #1e293b !important;
+                    }
+                    
+                    tr.ebitda-row-highlight {
+                        background-color: #0f62ac !important;
+                        color: #ffffff !important;
+                        font-weight: 800 !important;
+                    }
+                    
+                    tr.ebitda-row-highlight td {
+                        color: #ffffff !important;
+                        font-weight: 800 !important;
+                    }
+                    
+                    /* Hide interactive and empty visual elements in print */
+                    .bi-tree-btn, button, select, input {
+                        display: none !important;
+                    }
+                    
+                    /* Align numbers to right */
+                    td:not(:first-child), th:not(:first-child) {
+                        text-align: right;
+                    }
+                    
+                    @media print {
+                        @page {
+                            size: A4 landscape;
+                            margin: 1cm;
+                        }
+                        body {
+                            margin: 0;
+                        }
+                    }
+                </style>
+            </head>
+            <body>
+                <div class="report-header">
+                    <div class="report-title-container">
+                        <div>
+                            <h1 class="report-title">Relatório de Planejamento Financeiro (DRE)</h1>
+                            <p class="report-subtitle">Demonstrativo do Resultado do Exercício</p>
+                        </div>
+                        <div style="text-align: right; font-size: 8px; color: #64748b; font-weight: 600;">
+                            Gerado em: ${new Date().toLocaleDateString('pt-BR')} ${new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
+                        </div>
+                    </div>
+                    
+                    <div class="filter-badge-container">
+                        <div class="filter-badge">Empresa: <span>${companyNames}</span></div>
+                        <div class="filter-badge">Centro de Custo: <span>${ccNames}</span></div>
+                        <div class="filter-badge">Período: <span>${periodStr}</span></div>
+                    </div>
+                </div>
+                
+                ${newTable.outerHTML}
+                
+                <script>
+                    window.addEventListener('DOMContentLoaded', () => {
+                        setTimeout(() => {
+                            window.print();
+                        }, 500);
+                    });
+                </script>
+            </body>
+            </html>
+        `);
+        printWindow.document.close();
+    };
+
 
     const replicateValue = () => {
         if (!budgetModal) return;
@@ -7015,6 +7285,38 @@ export default function BudgetGrid({
                                 <span>Transf. Gerencial</span>
                             </button>
                         )}
+
+                        <button
+                            onClick={handleExportPDF}
+                            className="premium-btn"
+                            style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '6px',
+                                padding: '0.4rem 0.85rem',
+                                height: '32px',
+                                background: 'linear-gradient(135deg, #e11d48 0%, #be123c 100%)',
+                                color: '#ffffff',
+                                borderRadius: '8px',
+                                fontSize: '0.72rem',
+                                fontWeight: 700,
+                                border: 'none',
+                                cursor: 'pointer',
+                                transition: 'all 0.2s',
+                                boxShadow: '0 2px 4px rgba(225, 29, 72, 0.2)'
+                            }}
+                            onMouseOver={(e) => {
+                                e.currentTarget.style.transform = 'translateY(-1px)';
+                                e.currentTarget.style.boxShadow = '0 4px 8px rgba(225, 29, 72, 0.3)';
+                            }}
+                            onMouseOut={(e) => {
+                                e.currentTarget.style.transform = 'none';
+                                e.currentTarget.style.boxShadow = '0 2px 4px rgba(225, 29, 72, 0.2)';
+                            }}
+                        >
+                            <span>📥</span>
+                            <span>Exportar PDF</span>
+                        </button>
                     </div>
 
 

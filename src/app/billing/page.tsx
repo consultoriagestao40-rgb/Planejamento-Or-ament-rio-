@@ -50,6 +50,7 @@ export default function BillingPage() {
     const [contracts, setContracts] = useState<BillingContract[]>([]);
     const [costCenters, setCostCenters] = useState<any[]>([]);
     const [loading, setLoading] = useState<boolean>(true);
+    const [showEndedContracts, setShowEndedContracts] = useState<boolean>(false);
 
     // Modals
     const [isCreateModalOpen, setIsCreateModalOpen] = useState<boolean>(false);
@@ -255,12 +256,32 @@ export default function BillingPage() {
         });
     }, [contracts, selectedMonth, selectedYear, activeView]);
 
+    const isContractEnded = (contract: BillingContract) => {
+        if (!contract.isActive) return true;
+        if (contract.endYear !== null && contract.endMonth !== null) {
+            if (selectedYear > contract.endYear || (selectedYear === contract.endYear && selectedMonth > contract.endMonth)) {
+                return true;
+            }
+        }
+        return false;
+    };
+
+    const filteredGridData = useMemo(() => {
+        return gridData.filter(({ contract }) => {
+            const ended = isContractEnded(contract);
+            if (ended && !showEndedContracts) {
+                return false;
+            }
+            return true;
+        });
+    }, [gridData, selectedMonth, selectedYear, showEndedContracts]);
+
     // Calculate column totals
     const columnTotals = useMemo(() => {
         const totals: { [day: number]: number } = {};
         for (let d = 1; d <= daysInMonth; d++) {
             let sum = 0;
-            gridData.forEach(row => {
+            filteredGridData.forEach(row => {
                 if (row.dayValues[d]) {
                     sum += row.dayValues[d].value;
                 }
@@ -268,7 +289,7 @@ export default function BillingPage() {
             totals[d] = sum;
         }
         return totals;
-    }, [gridData, daysInMonth]);
+    }, [filteredGridData, daysInMonth]);
 
     const handleCreateContract = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -552,6 +573,19 @@ export default function BillingPage() {
                                 {MONTH_NAMES.map((m, idx) => <option key={idx} value={idx + 1}>{m}</option>)}
                             </select>
                         </div>
+
+                        {/* Mostrar Encerrados Checkbox */}
+                        <div style={{ display: 'flex', alignItems: 'center', height: '36px', marginTop: '1.1rem', marginLeft: '0.5rem' }}>
+                            <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-primary)', cursor: 'pointer' }}>
+                                <input
+                                    type="checkbox"
+                                    checked={showEndedContracts}
+                                    onChange={(e) => setShowEndedContracts(e.target.checked)}
+                                    style={{ accentColor: '#0f62ac', width: '15px', height: '15px' }}
+                                />
+                                <span>Mostrar Encerrados</span>
+                            </label>
+                        </div>
                     </div>
 
                     {/* View mode toggle */}
@@ -603,7 +637,7 @@ export default function BillingPage() {
                             <div className="spinner" />
                             <span style={{ marginTop: '1rem', fontWeight: 700, color: 'var(--text-secondary)', fontSize: '0.85rem' }}>Carregando Cronograma...</span>
                         </div>
-                    ) : contracts.length === 0 ? (
+                    ) : filteredGridData.length === 0 ? (
                         <div style={{ padding: '5rem', textAlign: 'center' }}>
                             <span style={{ fontSize: '2.5rem' }}>📑</span>
                             <h3 style={{ margin: '1rem 0 0.5rem 0', color: 'var(--text-primary)' }}>Nenhum contrato ou centro de custo ativo</h3>
@@ -627,7 +661,7 @@ export default function BillingPage() {
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    {gridData.map(({ contract, dayValues }) => {
+                                    {filteredGridData.map(({ contract, dayValues }) => {
                                         const currentMonthBudget = contract.monthlyBudgets[selectedMonth - 1] || 0;
                                         return (
                                             <tr key={contract.id} style={{ borderBottom: '1px solid var(--border-subtle)', height: '42px' }} className="hover-row">
@@ -721,7 +755,7 @@ export default function BillingPage() {
                                         <td style={{ padding: '0.75rem 1rem', color: 'var(--text-primary)' }}>TOTAL DO DIA</td>
                                         <td style={{ padding: '0.75rem 1rem', textAlign: 'right', color: 'var(--text-primary)' }}>
                                             {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(
-                                                contracts.reduce((acc, c) => acc + (getBillingDetailsForMonth(c, selectedMonth, selectedYear)?.value || 0), 0)
+                                                filteredGridData.reduce((acc, { contract }) => acc + (getBillingDetailsForMonth(contract, selectedMonth, selectedYear)?.value || 0), 0)
                                             )}
                                         </td>
                                         {Array.from({ length: daysInMonth }, (_, i) => i + 1).map(day => {

@@ -502,8 +502,7 @@ export default function BillingPage() {
     };
 
     return (
-        <ClientLayoutWrapper>
-            <main style={{ padding: '2rem 1.5rem', minHeight: '100vh', backgroundColor: 'var(--bg-base)' }}>
+        <div style={{ padding: '2rem 1.5rem', minHeight: '100vh', backgroundColor: 'var(--bg-base)', width: '100%', boxSizing: 'border-box' }}>
                 {/* Header Section */}
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem', flexWrap: 'wrap', gap: '1rem' }}>
                     <div>
@@ -1062,7 +1061,6 @@ export default function BillingPage() {
                         </div>
                     </div>
                 )}
-            </main>
-        </ClientLayoutWrapper>
+        </div>
     );
 }

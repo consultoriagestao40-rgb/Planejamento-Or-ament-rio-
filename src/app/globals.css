@@ -957,3 +957,22 @@ select.premium-select:focus {
   background-color: #0f62ac !important;
   box-shadow: 2px 0 0 0 #0f62ac, 2px 0 4px -2px rgba(0,0,0,0.05) !important;
 }
+
+/* Ocultar avisos de INP e Overlays de DevTools da Vercel */
+div[class*="INP"],
+div[id*="INP"],
+div[class*="inp"],
+div[id*="inp"],
+[data-nextjs-toast-wrapper],
+[data-nextjs-toast],
+.nextjs-toast-errors-parent,
+iframe#next-dev-overlay,
+#next-logo-wrapper,
+nextjs-portal,
+div[style*="z-index: 99999"],
+div[style*="z-index: 2147483647"] {
+  display: none !important;
+  visibility: hidden !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+}

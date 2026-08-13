@@ -847,14 +847,15 @@ export default function BillingPage() {
 
                                 <div style={{ display: 'flex', gap: '1rem' }}>
                                     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
-                                        <label style={{ fontSize: '0.72rem', fontWeight: 700, color: 'var(--text-secondary)' }}>DIA DE FATURAMENTO (1-31) *</label>
+                                        <label style={{ fontSize: '0.72rem', fontWeight: 700, color: 'var(--text-secondary)' }}>DIA DE FATURAMENTO / EMISSÃO (1-31) *</label>
                                         <input type="number" min="1" max="31" value={newBillingDay} onChange={(e) => setNewBillingDay(parseInt(e.target.value))} required style={{ height: '36px', padding: '0 0.75rem', borderRadius: '8px', border: '1px solid var(--border-default)', background: 'var(--bg-surface)', color: 'var(--text-primary)' }} />
                                     </div>
                                     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
-                                        <label style={{ fontSize: '0.72rem', fontWeight: 700, color: 'var(--text-secondary)' }}>PRAZO DE VENCIMENTO (DIAS) *</label>
-                                        <input type="number" min="0" value={newPaymentTermDays} onChange={(e) => setNewPaymentTermDays(parseInt(e.target.value))} required style={{ height: '36px', padding: '0 0.75rem', borderRadius: '8px', border: '1px solid var(--border-default)', background: 'var(--bg-surface)', color: 'var(--text-primary)' }} />
+                                        <label style={{ fontSize: '0.72rem', fontWeight: 700, color: 'var(--text-secondary)' }}>VENCIMENTO (DIAS OU DIA DO MÊS) *</label>
+                                        <input type="number" min="1" max="31" value={newPaymentTermDays} onChange={(e) => setNewPaymentTermDays(parseInt(e.target.value))} required placeholder="Ex: 10 (10 dias ou dia 10)" style={{ height: '36px', padding: '0 0.75rem', borderRadius: '8px', border: '1px solid var(--border-default)', background: 'var(--bg-surface)', color: 'var(--text-primary)' }} />
                                     </div>
                                 </div>
+
 
                                 <div style={{ display: 'flex', gap: '1rem' }}>
                                     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
@@ -951,10 +952,11 @@ export default function BillingPage() {
                                         <input type="number" min="1" max="31" value={cfgBillingDay} onChange={(e) => setCfgBillingDay(parseInt(e.target.value))} required style={{ height: '36px', padding: '0 0.75rem', borderRadius: '8px', border: '1px solid var(--border-default)', background: 'var(--bg-surface)', color: 'var(--text-primary)' }} />
                                     </div>
                                     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
-                                        <label style={{ fontSize: '0.72rem', fontWeight: 700, color: 'var(--text-secondary)' }}>PRAZO DE VENCIMENTO (DIAS)</label>
-                                        <input type="number" min="0" value={cfgPaymentTermDays} onChange={(e) => setCfgPaymentTermDays(parseInt(e.target.value))} required style={{ height: '36px', padding: '0 0.75rem', borderRadius: '8px', border: '1px solid var(--border-default)', background: 'var(--bg-surface)', color: 'var(--text-primary)' }} />
+                                        <label style={{ fontSize: '0.72rem', fontWeight: 700, color: 'var(--text-secondary)' }}>VENCIMENTO (DIAS OU DIA DO MÊS)</label>
+                                        <input type="number" min="1" max="31" value={cfgPaymentTermDays} onChange={(e) => setCfgPaymentTermDays(parseInt(e.target.value))} required style={{ height: '36px', padding: '0 0.75rem', borderRadius: '8px', border: '1px solid var(--border-default)', background: 'var(--bg-surface)', color: 'var(--text-primary)' }} />
                                     </div>
                                 </div>
+
 
                                 <div style={{ display: 'flex', gap: '1rem' }}>
                                     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>

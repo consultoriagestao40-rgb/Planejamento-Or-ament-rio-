@@ -6,6 +6,9 @@ import ClientLayoutWrapper from '@/components/ClientLayoutWrapper';
 interface BillingContract {
     id: string;
     tenantId: string;
+    tenantName: string;
+    costCenterId: string | null;
+    costCenterName: string | null;
     name: string;
     clientData: string | null;
     paymentMethod: string;
@@ -19,6 +22,7 @@ interface BillingContract {
     isRecurring: boolean;
     isActive: boolean;
     overrides?: BillingOverride[];
+    monthlyBudgets: number[];
 }
 
 interface BillingOverride {
@@ -44,6 +48,7 @@ export default function BillingPage() {
     const [selectedMonth, setSelectedMonth] = useState<number>(new Date().getMonth() + 1);
     const [activeView, setActiveView] = useState<'billing' | 'payment'>('billing');
     const [contracts, setContracts] = useState<BillingContract[]>([]);
+    const [costCenters, setCostCenters] = useState<any[]>([]);
     const [loading, setLoading] = useState<boolean>(true);
 
     // Modals
@@ -52,6 +57,7 @@ export default function BillingPage() {
     const [isCellModalOpen, setIsCellModalOpen] = useState<{ contract: BillingContract; day: number; value: number; isOverride: boolean } | null>(null);
 
     // Form states
+    const [linkCostCenter, setLinkCostCenter] = useState<string>('NEW'); // "NEW" or cost center ID
     const [newName, setNewName] = useState('');
     const [newClientData, setNewClientData] = useState('');
     const [newPaymentMethod, setNewPaymentMethod] = useState('Boleto');
@@ -63,6 +69,7 @@ export default function BillingPage() {
     const [newEndMonth, setNewEndMonth] = useState('');
     const [newEndYear, setNewEndYear] = useState('');
     const [newIsRecurring, setNewIsRecurring] = useState(true);
+    const [newTenantId, setNewTenantId] = useState('');
 
     // Config form states
     const [cfgName, setCfgName] = useState('');
@@ -87,10 +94,11 @@ export default function BillingPage() {
                 if (data.success && data.companies) {
                     setCompanies(data.companies);
                     const savedTenant = localStorage.getItem('selectedTenantId');
-                    if (savedTenant && data.companies.find((c: any) => c.id === savedTenant)) {
+                    if (savedTenant && (savedTenant === 'ALL' || data.companies.find((c: any) => c.id === savedTenant))) {
                         setSelectedTenant(savedTenant);
                     } else if (data.companies.length > 0) {
                         setSelectedTenant(data.companies[0].id);
+                        localStorage.setItem('selectedTenantId', data.companies[0].id);
                     }
                 }
             })
@@ -117,6 +125,35 @@ export default function BillingPage() {
     useEffect(() => {
         fetchContracts();
     }, [selectedTenant, selectedYear]);
+
+    // Fetch cost centers for the active tenant to link them
+    useEffect(() => {
+        const tenantForCC = isCreateModalOpen ? (newTenantId || (selectedTenant !== 'ALL' ? selectedTenant : '')) : '';
+        if (!tenantForCC) {
+            setCostCenters([]);
+            return;
+        }
+
+        fetch(`/api/cost-centers?tenantId=${tenantForCC}`)
+            .then(res => res.json())
+            .then(data => {
+                if (data.success && data.data) {
+                    // Filter out cost centers already linked to an active contract in memory
+                    const linkedIds = contracts.map(c => c.costCenterId).filter(Boolean);
+                    const unlinked = data.data.filter((cc: any) => !linkedIds.includes(cc.id));
+                    setCostCenters(unlinked);
+                }
+            })
+            .catch(console.error);
+    }, [isCreateModalOpen, newTenantId, selectedTenant, contracts]);
+
+    useEffect(() => {
+        if (selectedTenant && selectedTenant !== 'ALL') {
+            setNewTenantId(selectedTenant);
+        } else if (companies.length > 0) {
+            setNewTenantId(companies[0].id);
+        }
+    }, [selectedTenant, companies]);
 
     const handleTenantChange = (id: string) => {
         setSelectedTenant(id);
@@ -151,7 +188,9 @@ export default function BillingPage() {
             return null;
         }
 
-        const value = override?.value !== null && override?.value !== undefined ? override.value : contract.value;
+        const value = override?.value !== null && override?.value !== undefined ? override.value : contract.monthlyBudgets[m - 1];
+        if (value === 0) return null; // No budget to bill this month
+
         const billingDay = override?.billingDay !== null && override?.billingDay !== undefined ? override.billingDay : contract.billingDay;
 
         let dueDate: Date;
@@ -202,7 +241,6 @@ export default function BillingPage() {
                 if (prevDetails && prevDetails.dueDate.getMonth() === selectedMonth - 1 && prevDetails.dueDate.getFullYear() === selectedYear) {
                     const override = contract.overrides?.find(o => o.month === prevMonth && o.year === prevYear);
                     const day = prevDetails.dueDate.getDate();
-                    // Sum up in case there are multiple billing rollovers to the same day (rare but mathematically correct)
                     dayValues[day] = {
                         value: (dayValues[day]?.value || 0) + prevDetails.value,
                         isOverride: override?.value !== null && override?.value !== undefined
@@ -234,15 +272,31 @@ export default function BillingPage() {
 
     const handleCreateContract = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (!selectedTenant || !newName || !newValue) return;
+        if (!newTenantId || !newValue) return;
+
+        let finalName = newName;
+        let finalCCId = linkCostCenter;
+
+        if (linkCostCenter !== 'NEW') {
+            const ccObj = costCenters.find(cc => cc.id === linkCostCenter);
+            if (ccObj) {
+                finalName = ccObj.name;
+            }
+        } else {
+            if (!newName) {
+                alert('Nome do Cliente é obrigatório ao criar novo Centro de Custo');
+                return;
+            }
+            finalCCId = '';
+        }
 
         try {
             const res = await fetch('/api/billing', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                    tenantId: selectedTenant,
-                    name: newName,
+                    tenantId: newTenantId,
+                    name: finalName,
                     clientData: newClientData || null,
                     paymentMethod: newPaymentMethod,
                     billingDay: newBillingDay,
@@ -252,7 +306,8 @@ export default function BillingPage() {
                     startYear: newStartYear,
                     endMonth: newEndMonth ? parseInt(newEndMonth) : null,
                     endYear: newEndYear ? parseInt(newEndYear) : null,
-                    isRecurring: newIsRecurring
+                    isRecurring: newIsRecurring,
+                    costCenterId: finalCCId !== 'NEW' ? finalCCId : undefined
                 })
             });
 
@@ -263,6 +318,7 @@ export default function BillingPage() {
                 setNewName('');
                 setNewClientData('');
                 setNewValue('');
+                setLinkCostCenter('NEW');
             } else {
                 alert(`Erro: ${data.error}`);
             }
@@ -279,7 +335,7 @@ export default function BillingPage() {
         setCfgPaymentMethod(contract.paymentMethod);
         setCfgBillingDay(contract.billingDay);
         setCfgPaymentTermDays(contract.paymentTermDays);
-        setCfgValue(contract.value.toString());
+        setCfgValue((contract.monthlyBudgets[selectedMonth - 1] || contract.value).toString());
         setCfgEndMonth(contract.endMonth ? contract.endMonth.toString() : '');
         setCfgEndYear(contract.endYear ? contract.endYear.toString() : '');
         setCfgIsRecurring(contract.isRecurring);
@@ -320,7 +376,7 @@ export default function BillingPage() {
     };
 
     const handleDeleteContract = async (id: string) => {
-        if (!confirm('Deseja realmente excluir este contrato e todos os seus históricos permanentemente?')) return;
+        if (!confirm('Deseja realmente excluir este contrato e todos os seus orçamentos associados permanentemente?')) return;
 
         try {
             const res = await fetch(`/api/billing/${id}`, { method: 'DELETE' });
@@ -356,7 +412,7 @@ export default function BillingPage() {
                 const res = await fetch(`/api/billing/${contract.id}`, {
                     method: 'PUT',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ value: val })
+                    body: JSON.stringify({ value: val, startYear: selectedYear })
                 });
                 const data = await res.json();
                 if (!data.success) {
@@ -419,7 +475,6 @@ export default function BillingPage() {
         }
     };
 
-    // Format currency helper
     const fmt = (v: number) => {
         if (v === 0) return '';
         return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(v);
@@ -469,6 +524,7 @@ export default function BillingPage() {
                                 onChange={(e) => handleTenantChange(e.target.value)}
                                 style={{ height: '36px', padding: '0 0.75rem', borderRadius: '8px', border: '1px solid var(--border-default)', background: 'var(--bg-surface)', color: 'var(--text-primary)', fontWeight: 600 }}
                             >
+                                <option value="ALL">Todas as Empresas (Consolidado)</option>
                                 {companies.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
                             </select>
                         </div>
@@ -550,18 +606,18 @@ export default function BillingPage() {
                     ) : contracts.length === 0 ? (
                         <div style={{ padding: '5rem', textAlign: 'center' }}>
                             <span style={{ fontSize: '2.5rem' }}>📑</span>
-                            <h3 style={{ margin: '1rem 0 0.5rem 0', color: 'var(--text-primary)' }}>Nenhum contrato ativo</h3>
+                            <h3 style={{ margin: '1rem 0 0.5rem 0', color: 'var(--text-primary)' }}>Nenhum contrato ou centro de custo ativo</h3>
                             <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', margin: 0 }}>
-                                Clique em "Novo Faturamento" para adicionar o primeiro contrato recorrente ou faturamento avulso.
+                                Clique em "Novo Faturamento" para adicionar um cliente ou associar um orçamento.
                             </p>
                         </div>
                     ) : (
                         <div style={{ overflowX: 'auto', width: '100%' }}>
-                            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.75rem', textAlign: 'left', minWidth: '1300px' }}>
+                            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.75rem', textAlign: 'left', minWidth: '1350px' }}>
                                 <thead>
                                     <tr style={{ background: 'var(--bg-elevated)', borderBottom: '2px solid var(--border-default)' }}>
-                                        <th style={{ padding: '0.75rem 1rem', width: '220px', minWidth: '220px', fontWeight: 700, color: 'var(--text-primary)' }}>Cliente / Contrato</th>
-                                        <th style={{ padding: '0.75rem 1.25rem', width: '90px', minWidth: '90px', fontWeight: 700, color: 'var(--text-primary)', textAlign: 'right' }}>Valor Base</th>
+                                        <th style={{ padding: '0.75rem 1rem', width: '250px', minWidth: '250px', fontWeight: 700, color: 'var(--text-primary)' }}>Cliente / Centro de Custo</th>
+                                        <th style={{ padding: '0.75rem 1.25rem', width: '95px', minWidth: '95px', fontWeight: 700, color: 'var(--text-primary)', textAlign: 'right' }}>Orçado Mês</th>
                                         {Array.from({ length: daysInMonth }, (_, i) => i + 1).map(day => (
                                             <th key={day} style={{ padding: '0.75rem 0.25rem', textAlign: 'center', width: '36px', minWidth: '36px', fontWeight: 700, color: 'var(--text-primary)' }}>
                                                 {day}
@@ -571,78 +627,96 @@ export default function BillingPage() {
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    {gridData.map(({ contract, dayValues }) => (
-                                        <tr key={contract.id} style={{ borderBottom: '1px solid var(--border-subtle)', height: '42px' }} className="hover-row">
-                                            {/* Name & recurrring badge */}
-                                            <td style={{ padding: '0.5rem 1rem', fontWeight: 600, color: 'var(--text-primary)' }}>
-                                                <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-                                                    <span style={{ fontSize: '0.8rem' }}>{contract.name}</span>
-                                                    <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
-                                                        <span style={{
-                                                            fontSize: '0.55rem',
-                                                            padding: '1px 4px',
-                                                            borderRadius: '4px',
-                                                            fontWeight: 800,
-                                                            color: contract.isRecurring ? 'var(--accent-blue)' : '#ea580c',
-                                                            background: contract.isRecurring ? 'rgba(15, 98, 172, 0.08)' : 'rgba(234, 88, 12, 0.08)'
-                                                        }}>
-                                                            {contract.isRecurring ? 'RECORRENTE' : 'AVULSO'}
-                                                        </span>
-                                                        <span style={{ fontSize: '0.58rem', color: 'var(--text-secondary)' }}>
-                                                            {contract.paymentMethod}
-                                                        </span>
+                                    {gridData.map(({ contract, dayValues }) => {
+                                        const currentMonthBudget = contract.monthlyBudgets[selectedMonth - 1] || 0;
+                                        return (
+                                            <tr key={contract.id} style={{ borderBottom: '1px solid var(--border-subtle)', height: '42px' }} className="hover-row">
+                                                {/* Name, Company & Recurrence badge */}
+                                                <td style={{ padding: '0.5rem 1rem', fontWeight: 600, color: 'var(--text-primary)' }}>
+                                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                                                        <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap', alignItems: 'center' }}>
+                                                            {selectedTenant === 'ALL' && (
+                                                                <span style={{
+                                                                    fontSize: '0.62rem',
+                                                                    color: '#0f62ac',
+                                                                    fontWeight: 800,
+                                                                    background: 'rgba(15, 98, 172, 0.08)',
+                                                                    padding: '1px 4px',
+                                                                    borderRadius: '4px',
+                                                                    textTransform: 'uppercase'
+                                                                }}>
+                                                                    {contract.tenantName}
+                                                                </span>
+                                                            )}
+                                                            <span style={{ fontSize: '0.8rem' }}>{contract.name}</span>
+                                                        </div>
+                                                        <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
+                                                            <span style={{
+                                                                fontSize: '0.55rem',
+                                                                padding: '1px 4px',
+                                                                borderRadius: '4px',
+                                                                fontWeight: 800,
+                                                                color: contract.isRecurring ? 'var(--accent-blue)' : '#ea580c',
+                                                                background: contract.isRecurring ? 'rgba(15, 98, 172, 0.08)' : 'rgba(234, 88, 12, 0.08)'
+                                                            }}>
+                                                                {contract.isRecurring ? 'RECORRENTE' : 'AVULSO'}
+                                                            </span>
+                                                            <span style={{ fontSize: '0.58rem', color: 'var(--text-secondary)' }}>
+                                                                {contract.paymentMethod}
+                                                            </span>
+                                                        </div>
                                                     </div>
-                                                </div>
-                                            </td>
+                                                </td>
 
-                                            {/* Base value */}
-                                            <td style={{ padding: '0.5rem 1rem', textAlign: 'right', fontWeight: 600, color: 'var(--text-primary)' }}>
-                                                {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(contract.value)}
-                                            </td>
+                                                {/* Budgeted amount this month */}
+                                                <td style={{ padding: '0.5rem 1rem', textAlign: 'right', fontWeight: 600, color: currentMonthBudget > 0 ? 'var(--text-primary)' : 'var(--text-secondary)' }}>
+                                                    {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(currentMonthBudget)}
+                                                </td>
 
-                                            {/* Timeline Days */}
-                                            {Array.from({ length: daysInMonth }, (_, i) => i + 1).map(day => {
-                                                const hasVal = dayValues[day];
-                                                return (
-                                                    <td
-                                                        key={day}
-                                                        onClick={() => handleOpenCell(contract, day, hasVal ? hasVal.value : contract.value, !!hasVal?.isOverride)}
-                                                        style={{
-                                                            padding: '0.25rem',
-                                                            textAlign: 'center',
-                                                            cursor: 'pointer',
-                                                            background: hasVal ? (hasVal.isOverride ? 'rgba(224, 242, 254, 0.4)' : 'rgba(15, 98, 172, 0.05)') : 'transparent',
-                                                            fontWeight: 700,
-                                                            color: hasVal ? (hasVal.isOverride ? '#0369a1' : 'var(--text-primary)') : 'transparent',
-                                                            transition: 'background 0.2s',
-                                                            borderLeft: '1px dashed var(--border-subtle)',
-                                                            borderRight: '1px dashed var(--border-subtle)'
-                                                        }}
-                                                        className="hover-cell"
+                                                {/* Timeline grid cells */}
+                                                {Array.from({ length: daysInMonth }, (_, i) => i + 1).map(day => {
+                                                    const hasVal = dayValues[day];
+                                                    return (
+                                                        <td
+                                                            key={day}
+                                                            onClick={() => handleOpenCell(contract, day, hasVal ? hasVal.value : currentMonthBudget, !!hasVal?.isOverride)}
+                                                            style={{
+                                                                padding: '0.25rem',
+                                                                textAlign: 'center',
+                                                                cursor: 'pointer',
+                                                                background: hasVal ? (hasVal.isOverride ? 'rgba(224, 242, 254, 0.4)' : 'rgba(15, 98, 172, 0.05)') : 'transparent',
+                                                                fontWeight: 700,
+                                                                color: hasVal ? (hasVal.isOverride ? '#0369a1' : 'var(--text-primary)') : 'transparent',
+                                                                transition: 'background 0.2s',
+                                                                borderLeft: '1px dashed var(--border-subtle)',
+                                                                borderRight: '1px dashed var(--border-subtle)'
+                                                            }}
+                                                            className="hover-cell"
+                                                        >
+                                                            {hasVal ? (
+                                                                <div style={{ display: 'inline-block', padding: '2px 4px', borderRadius: '4px' }} title={fmt(hasVal.value)}>
+                                                                    {hasVal.value >= 1000 ? `${(hasVal.value / 1000).toFixed(1)}k` : hasVal.value}
+                                                                </div>
+                                                            ) : '-'}
+                                                        </td>
+                                                    );
+                                                })}
+
+                                                {/* Actions */}
+                                                <td style={{ padding: '0.5rem', textAlign: 'center' }}>
+                                                    <button
+                                                        onClick={() => handleOpenConfig(contract)}
+                                                        style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '1rem', color: 'var(--text-secondary)', padding: '4px' }}
+                                                        title="Configurações da linha"
                                                     >
-                                                        {hasVal ? (
-                                                            <div style={{ display: 'inline-block', padding: '2px 4px', borderRadius: '4px' }} title={fmt(hasVal.value)}>
-                                                                {hasVal.value >= 1000 ? `${(hasVal.value / 1000).toFixed(1)}k` : hasVal.value}
-                                                            </div>
-                                                        ) : '-'}
-                                                    </td>
-                                                );
-                                            })}
+                                                        ⚙️
+                                                    </button>
+                                                </td>
+                                            </tr>
+                                        );
+                                    })}
 
-                                            {/* Action cog */}
-                                            <td style={{ padding: '0.5rem', textAlign: 'center' }}>
-                                                <button
-                                                    onClick={() => handleOpenConfig(contract)}
-                                                    style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '1rem', color: 'var(--text-secondary)', padding: '4px' }}
-                                                    title="Configurações da linha"
-                                                >
-                                                    ⚙️
-                                                </button>
-                                            </td>
-                                        </tr>
-                                    ))}
-
-                                    {/* Consolidated Total Row */}
+                                    {/* Column Total Consolidation */}
                                     <tr style={{ background: 'var(--bg-elevated)', borderTop: '2px solid var(--border-default)', fontWeight: 800 }}>
                                         <td style={{ padding: '0.75rem 1rem', color: 'var(--text-primary)' }}>TOTAL DO DIA</td>
                                         <td style={{ padding: '0.75rem 1rem', textAlign: 'right', color: 'var(--text-primary)' }}>
@@ -687,14 +761,46 @@ export default function BillingPage() {
                             </div>
 
                             <form onSubmit={handleCreateContract} style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
-                                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
-                                    <label style={{ fontSize: '0.72rem', fontWeight: 700, color: 'var(--text-secondary)' }}>NOME DO CLIENTE / CONTRATO *</label>
-                                    <input type="text" value={newName} onChange={(e) => setNewName(e.target.value)} required placeholder="Ex: Clean Tech Matriz" style={{ height: '36px', padding: '0 0.75rem', borderRadius: '8px', border: '1px solid var(--border-default)', background: 'var(--bg-surface)', color: 'var(--text-primary)' }} />
-                                </div>
+                                {/* Company selector inside creation if consolidated view is active */}
+                                {selectedTenant === 'ALL' && (
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
+                                        <label style={{ fontSize: '0.72rem', fontWeight: 700, color: 'var(--text-secondary)' }}>EMPRESA DO CONTRATO *</label>
+                                        <select
+                                            value={newTenantId}
+                                            onChange={(e) => setNewTenantId(e.target.value)}
+                                            style={{ height: '36px', padding: '0 0.75rem', borderRadius: '8px', border: '1px solid var(--border-default)', background: 'var(--bg-surface)', color: 'var(--text-primary)', fontWeight: 600 }}
+                                        >
+                                            {companies.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                                        </select>
+                                    </div>
+                                )}
 
                                 <div style={{ display: 'flex', gap: '1rem' }}>
                                     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
-                                        <label style={{ fontSize: '0.72rem', fontWeight: 700, color: 'var(--text-secondary)' }}>VALOR MENSAL (R$) *</label>
+                                        <label style={{ fontSize: '0.72rem', fontWeight: 700, color: 'var(--text-secondary)' }}>CENTRO DE CUSTO *</label>
+                                        <select
+                                            value={linkCostCenter}
+                                            onChange={(e) => setLinkCostCenter(e.target.value)}
+                                            style={{ height: '36px', padding: '0 0.75rem', borderRadius: '8px', border: '1px solid var(--border-default)', background: 'var(--bg-surface)', color: 'var(--text-primary)', fontWeight: 600 }}
+                                        >
+                                            <option value="NEW">➕ Criar Novo Centro de Custo/Cliente</option>
+                                            {costCenters.map(cc => (
+                                                <option key={cc.id} value={cc.id}>{cc.name}</option>
+                                            ))}
+                                        </select>
+                                    </div>
+                                </div>
+
+                                {linkCostCenter === 'NEW' && (
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
+                                        <label style={{ fontSize: '0.72rem', fontWeight: 700, color: 'var(--text-secondary)' }}>NOME DO NOVO CLIENTE / CONTRATO *</label>
+                                        <input type="text" value={newName} onChange={(e) => setNewName(e.target.value)} placeholder="Ex: Clean Tech Matriz" style={{ height: '36px', padding: '0 0.75rem', borderRadius: '8px', border: '1px solid var(--border-default)', background: 'var(--bg-surface)', color: 'var(--text-primary)' }} />
+                                    </div>
+                                )}
+
+                                <div style={{ display: 'flex', gap: '1rem' }}>
+                                    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
+                                        <label style={{ fontSize: '0.72rem', fontWeight: 700, color: 'var(--text-secondary)' }}>VALOR ORÇADO MENSAL (R$) *</label>
                                         <input type="number" step="0.01" value={newValue} onChange={(e) => setNewValue(e.target.value)} required placeholder="10000" style={{ height: '36px', padding: '0 0.75rem', borderRadius: '8px', border: '1px solid var(--border-default)', background: 'var(--bg-surface)', color: 'var(--text-primary)' }} />
                                     </div>
                                     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>

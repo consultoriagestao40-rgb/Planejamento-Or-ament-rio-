@@ -106,14 +106,14 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
         // 2. Propagate value/cancel to BudgetEntry for this month/year/costCenter
         if (contract.costCenterId) {
             const category = await prisma.category.findFirst({
-                where: { tenantId: contract.tenantId, type: 'REVENUE', parentId: null }
+                where: { tenantId: contract.tenantId, type: { in: ['REVENUE', 'RECEITA'] }, parentId: null }
             }) || await prisma.category.findFirst({
-                where: { tenantId: contract.tenantId, type: 'REVENUE' }
+                where: { tenantId: contract.tenantId, type: { in: ['REVENUE', 'RECEITA'] } }
             });
 
             if (category) {
                 const revenueCats = await prisma.category.findMany({
-                    where: { tenantId: contract.tenantId, type: 'REVENUE' },
+                    where: { tenantId: contract.tenantId, type: { in: ['REVENUE', 'RECEITA'] } },
                     select: { id: true }
                 });
                 const revenueCatIds = revenueCats.map(c => c.id);

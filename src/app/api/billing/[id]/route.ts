@@ -101,14 +101,14 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
         // If value was modified, propagate it to BudgetEntries for revenue
         if (value !== undefined && contract.costCenterId) {
             const category = await prisma.category.findFirst({
-                where: { tenantId: contract.tenantId, type: 'REVENUE', parentId: null }
+                where: { tenantId: contract.tenantId, type: { in: ['REVENUE', 'RECEITA'] }, parentId: null }
             }) || await prisma.category.findFirst({
-                where: { tenantId: contract.tenantId, type: 'REVENUE' }
+                where: { tenantId: contract.tenantId, type: { in: ['REVENUE', 'RECEITA'] } }
             });
 
             if (category) {
                 const revenueCats = await prisma.category.findMany({
-                    where: { tenantId: contract.tenantId, type: 'REVENUE' },
+                    where: { tenantId: contract.tenantId, type: { in: ['REVENUE', 'RECEITA'] } },
                     select: { id: true }
                 });
                 const revenueCatIds = revenueCats.map(c => c.id);
@@ -163,7 +163,7 @@ export async function DELETE(request: Request, { params }: { params: Promise<{ i
             });
             if (cc) {
                 const revenueCats = await prisma.category.findMany({
-                    where: { tenantId: cc.tenantId, type: 'REVENUE' },
+                    where: { tenantId: cc.tenantId, type: { in: ['REVENUE', 'RECEITA'] } },
                     select: { id: true }
                 });
                 const revenueCatIds = revenueCats.map(c => c.id);
@@ -182,7 +182,7 @@ export async function DELETE(request: Request, { params }: { params: Promise<{ i
 
             if (contract && contract.costCenterId) {
                 const revenueCats = await prisma.category.findMany({
-                    where: { tenantId: contract.tenantId, type: 'REVENUE' },
+                    where: { tenantId: contract.tenantId, type: { in: ['REVENUE', 'RECEITA'] } },
                     select: { id: true }
                 });
                 const revenueCatIds = revenueCats.map(c => c.id);

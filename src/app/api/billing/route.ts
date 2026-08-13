@@ -46,7 +46,7 @@ export async function GET(request: Request) {
         const revenueCategories = await prisma.category.findMany({
             where: {
                 tenantId: { in: targetTenantIds },
-                type: 'REVENUE'
+                type: { in: ['REVENUE', 'RECEITA'] }
             },
             select: { id: true }
         });
@@ -198,14 +198,14 @@ export async function POST(request: Request) {
 
         // 3. Populate budgets in BudgetEntry for revenue
         const category = await prisma.category.findFirst({
-            where: { tenantId, type: 'REVENUE', parentId: null }
+            where: { tenantId, type: { in: ['REVENUE', 'RECEITA'] }, parentId: null }
         }) || await prisma.category.findFirst({
-            where: { tenantId, type: 'REVENUE' }
+            where: { tenantId, type: { in: ['REVENUE', 'RECEITA'] } }
         });
 
         if (category) {
             const revenueCats = await prisma.category.findMany({
-                where: { tenantId, type: 'REVENUE' },
+                where: { tenantId, type: { in: ['REVENUE', 'RECEITA'] } },
                 select: { id: true }
             });
             const revenueCatIds = revenueCats.map(c => c.id);

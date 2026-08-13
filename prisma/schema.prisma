@@ -33,6 +33,7 @@ model Tenant {
   deviations        DeviationAnalysis[]
   forecastContracts ForecastContract[]
   forecastCoefficients ForecastCoefficient[]
+  billingContracts BillingContract[]
 }
 
 model RadarLock {
@@ -393,4 +394,45 @@ model ForecastCoefficient {
   category   Category @relation(fields: [categoryId], references: [id], onDelete: Cascade)
 
   @@unique([tenantId, categoryId, year])
+}
+
+model BillingContract {
+  id              String             @id @default(uuid())
+  tenantId        String
+  name            String             // Nome do cliente / contrato
+  clientData      String?            // Dados do cliente para faturamento (CNPJ, Endereço, etc.)
+  paymentMethod   String             // Forma de pagamento (Boleto, Pix, Cartão, Transferência, etc.)
+  billingDay      Int                // Dia do mês que deve ser faturado (1-31)
+  paymentTermDays Int                // Dias para o vencimento após faturamento (ex: 5 dias, 10 dias)
+  value           Float              // Valor contratual mensal base (orçado)
+  startMonth      Int                // Mês de início (1-12)
+  startYear       Int                // Ano de início
+  endMonth        Int?               // Mês de encerramento (opcional)
+  endYear         Int?               // Ano de encerramento (opcional)
+  isRecurring     Boolean            @default(true) // Se é recorrente ou avulso
+  isActive        Boolean            @default(true) // Se o contrato está ativo
+  createdAt       DateTime           @default(now())
+  updatedAt       DateTime           @updatedAt
+
+  tenant          Tenant             @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  overrides       BillingOverride[]
+
+  @@index([tenantId])
+}
+
+model BillingOverride {
+  id                String          @id @default(uuid())
+  billingContractId String
+  month             Int             // Mês do override (1-12)
+  year              Int             // Ano do override
+  value             Float?          // Novo valor se editado (se nulo, mantém o base)
+  billingDay        Int?            // Dia de faturamento alterado (se nulo, mantém o base)
+  dueDay            Int?            // Dia de vencimento alterado (se nulo, mantém o base)
+  isCancelled       Boolean         @default(false) // Se o faturamento foi suspenso neste mês
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
+
+  contract          BillingContract @relation(fields: [billingContractId], references: [id], onDelete: Cascade)
+
+  @@unique([billingContractId, month, year])
 }

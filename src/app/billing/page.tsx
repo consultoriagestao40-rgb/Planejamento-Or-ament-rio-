@@ -754,57 +754,59 @@ export default function BillingPage() {
                                             <tr key={contract.id} style={{ borderBottom: '1px solid var(--border-subtle)', height: '44px' }} className="hover-row">
                                                 {/* Name, Company & Recurrence badge */}
                                                 <td style={{ padding: '0.5rem 1rem', fontWeight: 600, color: 'var(--text-primary)', position: 'sticky', left: 0, background: 'var(--bg-surface)', zIndex: 5 }}>
-                                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-                                                        <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', alignItems: 'center' }}>
-                                                            {selectedTenant === 'ALL' && (
+                                                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                                        <button
+                                                            onClick={() => handleOpenConfig(contract)}
+                                                            style={{
+                                                                background: 'rgba(15, 98, 172, 0.06)',
+                                                                border: '1px solid rgba(15, 98, 172, 0.18)',
+                                                                borderRadius: '6px',
+                                                                cursor: 'pointer',
+                                                                fontSize: '0.8rem',
+                                                                color: '#0f62ac',
+                                                                padding: '4px 6px',
+                                                                display: 'inline-flex',
+                                                                alignItems: 'center',
+                                                                justifyContent: 'center',
+                                                                transition: 'all 0.15s ease',
+                                                                flexShrink: 0
+                                                            }}
+                                                            title="Editar / Configurar Contrato"
+                                                        >
+                                                            ✏️
+                                                        </button>
+                                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', minWidth: 0 }}>
+                                                            <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap', alignItems: 'center' }}>
+                                                                {selectedTenant === 'ALL' && (
+                                                                    <span style={{
+                                                                        fontSize: '0.62rem',
+                                                                        color: '#0f62ac',
+                                                                        fontWeight: 800,
+                                                                        background: 'rgba(15, 98, 172, 0.08)',
+                                                                        padding: '1px 4px',
+                                                                        borderRadius: '4px',
+                                                                        textTransform: 'uppercase'
+                                                                    }}>
+                                                                        {contract.tenantName}
+                                                                    </span>
+                                                                )}
+                                                                <span style={{ fontSize: '0.8rem', fontWeight: 700 }}>{contract.name}</span>
+                                                            </div>
+                                                            <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
                                                                 <span style={{
-                                                                    fontSize: '0.62rem',
-                                                                    color: '#0f62ac',
-                                                                    fontWeight: 800,
-                                                                    background: 'rgba(15, 98, 172, 0.08)',
+                                                                    fontSize: '0.55rem',
                                                                     padding: '1px 4px',
                                                                     borderRadius: '4px',
-                                                                    textTransform: 'uppercase'
+                                                                    fontWeight: 800,
+                                                                    color: contract.isRecurring ? 'var(--accent-blue)' : '#ea580c',
+                                                                    background: contract.isRecurring ? 'rgba(15, 98, 172, 0.08)' : 'rgba(234, 88, 12, 0.08)'
                                                                 }}>
-                                                                    {contract.tenantName}
+                                                                    {contract.isRecurring ? 'RECORRENTE' : 'AVULSO'}
                                                                 </span>
-                                                            )}
-                                                            <span style={{ fontSize: '0.8rem', fontWeight: 700 }}>{contract.name}</span>
-                                                            <button
-                                                                onClick={() => handleOpenConfig(contract)}
-                                                                style={{
-                                                                    background: 'rgba(15, 98, 172, 0.06)',
-                                                                    border: '1px solid rgba(15, 98, 172, 0.15)',
-                                                                    borderRadius: '6px',
-                                                                    cursor: 'pointer',
-                                                                    fontSize: '0.75rem',
-                                                                    color: '#0f62ac',
-                                                                    padding: '2px 5px',
-                                                                    display: 'inline-flex',
-                                                                    alignItems: 'center',
-                                                                    justifyContent: 'center',
-                                                                    transition: 'all 0.15s ease',
-                                                                    lineHeight: 1
-                                                                }}
-                                                                title="Configurações do Contrato"
-                                                            >
-                                                                ✏️
-                                                            </button>
-                                                        </div>
-                                                        <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
-                                                            <span style={{
-                                                                fontSize: '0.55rem',
-                                                                padding: '1px 4px',
-                                                                borderRadius: '4px',
-                                                                fontWeight: 800,
-                                                                color: contract.isRecurring ? 'var(--accent-blue)' : '#ea580c',
-                                                                background: contract.isRecurring ? 'rgba(15, 98, 172, 0.08)' : 'rgba(234, 88, 12, 0.08)'
-                                                            }}>
-                                                                {contract.isRecurring ? 'RECORRENTE' : 'AVULSO'}
-                                                            </span>
-                                                            <span style={{ fontSize: '0.58rem', color: 'var(--text-secondary)' }}>
-                                                                {contract.paymentMethod}
-                                                            </span>
+                                                                <span style={{ fontSize: '0.58rem', color: 'var(--text-secondary)' }}>
+                                                                    {contract.paymentMethod}
+                                                                </span>
+                                                            </div>
                                                         </div>
                                                     </div>
                                                 </td>

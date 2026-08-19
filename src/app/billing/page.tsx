@@ -709,12 +709,12 @@ export default function BillingPage() {
                             </p>
                         </div>
                     ) : (
-                        <div style={{ overflowX: 'auto', width: '100%' }}>
-                            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.75rem', textAlign: 'left', minWidth: `${360 + daysInMonth * 92}px` }}>
+                        <div style={{ width: '100%', overflowX: 'auto' }}>
+                            <table style={{ width: '100%', tableLayout: 'fixed', borderCollapse: 'collapse', fontSize: '0.72rem', textAlign: 'left' }}>
                                 <thead>
                                     <tr style={{ background: 'var(--bg-elevated)', borderBottom: '2px solid var(--border-default)' }}>
-                                        <th style={{ padding: '0.75rem 1rem', width: '270px', minWidth: '270px', fontWeight: 700, color: 'var(--text-primary)', position: 'sticky', left: 0, background: 'var(--bg-elevated)', zIndex: 10 }}>Cliente / Centro de Custo</th>
-                                        <th style={{ padding: '0.75rem 1.25rem', width: '110px', minWidth: '110px', fontWeight: 700, color: 'var(--text-primary)', textAlign: 'right' }}>Orçado Mês</th>
+                                        <th style={{ padding: '0.6rem 0.5rem', width: '200px', fontWeight: 700, color: 'var(--text-primary)', position: 'sticky', left: 0, background: 'var(--bg-elevated)', zIndex: 10 }}>Cliente / Centro de Custo</th>
+                                        <th style={{ padding: '0.6rem 0.4rem', width: '75px', fontWeight: 700, color: 'var(--text-primary)', textAlign: 'right', fontSize: '0.7rem' }}>Orçado Mês</th>
                                         {Array.from({ length: daysInMonth }, (_, i) => i + 1).map(day => {
                                             const isSorted = sortDay === day;
                                             return (
@@ -722,11 +722,10 @@ export default function BillingPage() {
                                                     key={day}
                                                     onClick={() => setSortDay(prev => prev === day ? null : day)}
                                                     style={{
-                                                        padding: '0.65rem 0.25rem',
+                                                        padding: '0.5rem 0',
                                                         textAlign: 'center',
-                                                        width: '92px',
-                                                        minWidth: '92px',
                                                         fontWeight: 800,
+                                                        fontSize: '0.68rem',
                                                         color: isSorted ? '#ffffff' : 'var(--text-primary)',
                                                         background: isSorted ? '#0f62ac' : 'transparent',
                                                         cursor: 'pointer',
@@ -736,11 +735,9 @@ export default function BillingPage() {
                                                     }}
                                                     title={isSorted ? `Dia ${day} ordenado no topo. Clique para limpar ordenação.` : `Clique para classificar e subir faturamentos do Dia ${day} para o topo`}
                                                 >
-                                                    <div style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '4px' }}>
+                                                    <div style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '1px' }}>
                                                         <span>{day}</span>
-                                                        <span style={{ fontSize: '0.65rem', opacity: isSorted ? 1 : 0.4 }}>
-                                                            {isSorted ? '▲' : '⇅'}
-                                                        </span>
+                                                        {isSorted && <span style={{ fontSize: '0.55rem' }}>▲</span>}
                                                     </div>
                                                 </th>
                                             );
@@ -751,39 +748,43 @@ export default function BillingPage() {
                                     {filteredGridData.map(({ contract, dayValues }) => {
                                         const currentMonthBudget = contract.monthlyBudgets[selectedMonth - 1] || 0;
                                         return (
-                                            <tr key={contract.id} style={{ borderBottom: '1px solid var(--border-subtle)', height: '44px' }} className="hover-row">
+                                            <tr key={contract.id} style={{ borderBottom: '1px solid var(--border-subtle)', height: '40px' }} className="hover-row">
                                                 {/* Name, Company & Recurrence badge */}
-                                                <td style={{ padding: '0.5rem 1rem', fontWeight: 600, color: 'var(--text-primary)', position: 'sticky', left: 0, background: 'var(--bg-surface)', zIndex: 5 }}>
-                                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '8px' }}>
-                                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', minWidth: 0, flex: 1 }}>
-                                                            <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap', alignItems: 'center' }}>
+                                                <td style={{ padding: '0.4rem 0.5rem', fontWeight: 600, color: 'var(--text-primary)', position: 'sticky', left: 0, background: 'var(--bg-surface)', zIndex: 5, overflow: 'hidden' }}>
+                                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '4px' }}>
+                                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '1px', minWidth: 0, flex: 1, overflow: 'hidden' }}>
+                                                            <div style={{ display: 'flex', gap: '4px', alignItems: 'center', overflow: 'hidden' }}>
                                                                 {selectedTenant === 'ALL' && (
                                                                     <span style={{
-                                                                        fontSize: '0.62rem',
+                                                                        fontSize: '0.55rem',
                                                                         color: '#0f62ac',
                                                                         fontWeight: 800,
                                                                         background: 'rgba(15, 98, 172, 0.08)',
-                                                                        padding: '1px 4px',
-                                                                        borderRadius: '4px',
-                                                                        textTransform: 'uppercase'
+                                                                        padding: '1px 3px',
+                                                                        borderRadius: '3px',
+                                                                        textTransform: 'uppercase',
+                                                                        flexShrink: 0
                                                                     }}>
                                                                         {contract.tenantName}
                                                                     </span>
                                                                 )}
-                                                                <span style={{ fontSize: '0.8rem', fontWeight: 700 }}>{contract.name}</span>
+                                                                <span style={{ fontSize: '0.72rem', fontWeight: 700, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }} title={contract.name}>
+                                                                    {contract.name}
+                                                                </span>
                                                             </div>
-                                                            <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
+                                                            <div style={{ display: 'flex', gap: '3px', alignItems: 'center' }}>
                                                                 <span style={{
-                                                                    fontSize: '0.55rem',
-                                                                    padding: '1px 4px',
-                                                                    borderRadius: '4px',
+                                                                    fontSize: '0.52rem',
+                                                                    padding: '0 3px',
+                                                                    borderRadius: '3px',
                                                                     fontWeight: 800,
                                                                     color: contract.isRecurring ? 'var(--accent-blue)' : '#ea580c',
-                                                                    background: contract.isRecurring ? 'rgba(15, 98, 172, 0.08)' : 'rgba(234, 88, 12, 0.08)'
+                                                                    background: contract.isRecurring ? 'rgba(15, 98, 172, 0.08)' : 'rgba(234, 88, 12, 0.08)',
+                                                                    flexShrink: 0
                                                                 }}>
-                                                                    {contract.isRecurring ? 'RECORRENTE' : 'AVULSO'}
+                                                                    {contract.isRecurring ? 'REC' : 'AVULSO'}
                                                                 </span>
-                                                                <span style={{ fontSize: '0.58rem', color: 'var(--text-secondary)' }}>
+                                                                <span style={{ fontSize: '0.55rem', color: 'var(--text-secondary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                                                                     {contract.paymentMethod}
                                                                 </span>
                                                             </div>
@@ -793,11 +794,11 @@ export default function BillingPage() {
                                                             style={{
                                                                 background: 'rgba(15, 98, 172, 0.06)',
                                                                 border: '1px solid rgba(15, 98, 172, 0.18)',
-                                                                borderRadius: '6px',
+                                                                borderRadius: '4px',
                                                                 cursor: 'pointer',
-                                                                fontSize: '0.8rem',
+                                                                fontSize: '0.68rem',
                                                                 color: '#0f62ac',
-                                                                padding: '4px 6px',
+                                                                padding: '2px 4px',
                                                                 display: 'inline-flex',
                                                                 alignItems: 'center',
                                                                 justifyContent: 'center',
@@ -812,8 +813,8 @@ export default function BillingPage() {
                                                 </td>
 
                                                 {/* Budgeted amount this month */}
-                                                <td style={{ padding: '0.5rem 1rem', textAlign: 'right', fontWeight: 600, color: currentMonthBudget > 0 ? 'var(--text-primary)' : 'var(--text-secondary)', whiteSpace: 'nowrap' }}>
-                                                    {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(currentMonthBudget)}
+                                                <td style={{ padding: '0.4rem 0.3rem', textAlign: 'right', fontWeight: 600, color: currentMonthBudget > 0 ? 'var(--text-primary)' : 'var(--text-secondary)', whiteSpace: 'nowrap', fontSize: '0.68rem' }} title={fmt(currentMonthBudget)}>
+                                                    {formatNumber(currentMonthBudget)}
                                                 </td>
 
                                                 {/* Timeline grid cells */}
@@ -825,15 +826,14 @@ export default function BillingPage() {
                                                                 key={day}
                                                                 onClick={() => handleOpenCell(contract, day, currentMonthBudget, false, false)}
                                                                 style={{
-                                                                    padding: '0.35rem 0.25rem',
+                                                                    padding: '0.2rem 0',
                                                                     textAlign: 'center',
                                                                     cursor: 'pointer',
                                                                     background: sortDay === day ? 'rgba(15, 98, 172, 0.03)' : 'transparent',
                                                                     color: 'var(--text-secondary)',
                                                                     borderLeft: '1px dashed var(--border-subtle)',
                                                                     borderRight: '1px dashed var(--border-subtle)',
-                                                                    minWidth: '92px',
-                                                                    width: '92px'
+                                                                    fontSize: '0.65rem'
                                                                 }}
                                                                 className="hover-cell"
                                                             >
@@ -868,41 +868,42 @@ export default function BillingPage() {
                                                             key={day}
                                                             onClick={() => handleOpenCell(contract, day, hasVal.value, !!hasVal.isOverride, !!hasVal.isBilled)}
                                                             style={{
-                                                                padding: '0.35rem 0.25rem',
+                                                                padding: '0.15rem 1px',
                                                                 textAlign: 'center',
                                                                 cursor: 'pointer',
                                                                 background: sortDay === day ? 'rgba(15, 98, 172, 0.04)' : 'transparent',
                                                                 transition: 'background 0.2s',
                                                                 borderLeft: '1px dashed var(--border-subtle)',
-                                                                borderRight: '1px dashed var(--border-subtle)',
-                                                                minWidth: '92px',
-                                                                width: '92px'
+                                                                borderRight: '1px dashed var(--border-subtle)'
                                                             }}
                                                             className="hover-cell"
                                                         >
                                                             <div
                                                                 style={{
-                                                                    display: 'inline-flex',
+                                                                    display: 'flex',
                                                                     alignItems: 'center',
                                                                     justifyContent: 'center',
-                                                                    gap: '3px',
-                                                                    padding: '3px 6px',
-                                                                    borderRadius: '6px',
+                                                                    gap: '1px',
+                                                                    padding: '2px 1px',
+                                                                    borderRadius: '4px',
                                                                     background: cellBg,
                                                                     color: cellColor,
                                                                     border: cellBorder,
-                                                                    fontWeight: 700,
-                                                                    fontSize: '0.72rem',
+                                                                    fontWeight: 800,
+                                                                    fontSize: '0.6rem',
+                                                                    lineHeight: 1.1,
+                                                                    letterSpacing: '-0.3px',
                                                                     whiteSpace: 'nowrap',
                                                                     boxSizing: 'border-box',
                                                                     width: '100%',
-                                                                    maxWidth: '88px',
+                                                                    overflow: 'hidden',
+                                                                    textOverflow: 'ellipsis',
                                                                     boxShadow: hasVal.isBilled ? '0 1px 2px rgba(22, 163, 74, 0.1)' : 'none'
                                                                 }}
                                                                 title={`${hasVal.isBilled ? '✓ FATURADO' : overdue ? '⚠️ PENDENTE / VENCIDO' : 'PREVISTO'}: ${fmt(hasVal.value)}`}
                                                             >
-                                                                {hasVal.isBilled && <span style={{ fontSize: '0.75rem', fontWeight: 800 }}>✓</span>}
-                                                                <span>{formatNumber(hasVal.value)}</span>
+                                                                {hasVal.isBilled && <span style={{ fontSize: '0.62rem', fontWeight: 800 }}>✓</span>}
+                                                                <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{formatNumber(hasVal.value)}</span>
                                                             </div>
                                                         </td>
                                                     );
@@ -913,9 +914,9 @@ export default function BillingPage() {
 
                                     {/* Column Total Consolidation */}
                                     <tr style={{ background: 'var(--bg-elevated)', borderTop: '2px solid var(--border-default)', fontWeight: 800 }}>
-                                        <td style={{ padding: '0.75rem 1rem', color: 'var(--text-primary)', position: 'sticky', left: 0, background: 'var(--bg-elevated)', zIndex: 10 }}>TOTAL DO DIA</td>
-                                        <td style={{ padding: '0.75rem 1rem', textAlign: 'right', color: 'var(--text-primary)', whiteSpace: 'nowrap' }}>
-                                            {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(
+                                        <td style={{ padding: '0.5rem', color: 'var(--text-primary)', position: 'sticky', left: 0, background: 'var(--bg-elevated)', zIndex: 10, fontSize: '0.7rem' }}>TOTAL DO DIA</td>
+                                        <td style={{ padding: '0.5rem 0.3rem', textAlign: 'right', color: 'var(--text-primary)', whiteSpace: 'nowrap', fontSize: '0.68rem' }}>
+                                            {formatNumber(
                                                 filteredGridData.reduce((acc, { contract }) => acc + (getBillingDetailsForMonth(contract, selectedMonth, selectedYear)?.value || 0), 0)
                                             )}
                                         </td>
@@ -925,16 +926,16 @@ export default function BillingPage() {
                                                 <td
                                                     key={day}
                                                     style={{
-                                                        padding: '0.5rem 0.25rem',
+                                                        padding: '0.4rem 1px',
                                                         textAlign: 'center',
                                                         color: daySum > 0 ? '#0f62ac' : 'var(--text-secondary)',
                                                         background: daySum > 0 ? 'rgba(15, 98, 172, 0.08)' : (sortDay === day ? 'rgba(15, 98, 172, 0.04)' : 'transparent'),
                                                         borderLeft: '1px dashed var(--border-subtle)',
                                                         borderRight: '1px dashed var(--border-subtle)',
-                                                        minWidth: '92px',
-                                                        width: '92px',
-                                                        fontSize: '0.72rem',
+                                                        fontSize: '0.58rem',
                                                         whiteSpace: 'nowrap',
+                                                        overflow: 'hidden',
+                                                        textOverflow: 'ellipsis',
                                                         fontWeight: 800
                                                     }}
                                                     title={`Total Dia ${day}: ${fmt(daySum)}`}

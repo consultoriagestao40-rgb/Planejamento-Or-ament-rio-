@@ -754,28 +754,8 @@ export default function BillingPage() {
                                             <tr key={contract.id} style={{ borderBottom: '1px solid var(--border-subtle)', height: '44px' }} className="hover-row">
                                                 {/* Name, Company & Recurrence badge */}
                                                 <td style={{ padding: '0.5rem 1rem', fontWeight: 600, color: 'var(--text-primary)', position: 'sticky', left: 0, background: 'var(--bg-surface)', zIndex: 5 }}>
-                                                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                                        <button
-                                                            onClick={() => handleOpenConfig(contract)}
-                                                            style={{
-                                                                background: 'rgba(15, 98, 172, 0.06)',
-                                                                border: '1px solid rgba(15, 98, 172, 0.18)',
-                                                                borderRadius: '6px',
-                                                                cursor: 'pointer',
-                                                                fontSize: '0.8rem',
-                                                                color: '#0f62ac',
-                                                                padding: '4px 6px',
-                                                                display: 'inline-flex',
-                                                                alignItems: 'center',
-                                                                justifyContent: 'center',
-                                                                transition: 'all 0.15s ease',
-                                                                flexShrink: 0
-                                                            }}
-                                                            title="Editar / Configurar Contrato"
-                                                        >
-                                                            ✏️
-                                                        </button>
-                                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', minWidth: 0 }}>
+                                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '8px' }}>
+                                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', minWidth: 0, flex: 1 }}>
                                                             <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap', alignItems: 'center' }}>
                                                                 {selectedTenant === 'ALL' && (
                                                                     <span style={{
@@ -808,6 +788,26 @@ export default function BillingPage() {
                                                                 </span>
                                                             </div>
                                                         </div>
+                                                        <button
+                                                            onClick={() => handleOpenConfig(contract)}
+                                                            style={{
+                                                                background: 'rgba(15, 98, 172, 0.06)',
+                                                                border: '1px solid rgba(15, 98, 172, 0.18)',
+                                                                borderRadius: '6px',
+                                                                cursor: 'pointer',
+                                                                fontSize: '0.8rem',
+                                                                color: '#0f62ac',
+                                                                padding: '4px 6px',
+                                                                display: 'inline-flex',
+                                                                alignItems: 'center',
+                                                                justifyContent: 'center',
+                                                                transition: 'all 0.15s ease',
+                                                                flexShrink: 0
+                                                            }}
+                                                            title="Editar / Configurar Contrato"
+                                                        >
+                                                            ✏️
+                                                        </button>
                                                     </div>
                                                 </td>
 

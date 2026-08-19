@@ -432,6 +432,7 @@ model BillingOverride {
   billingDay        Int?            // Dia de faturamento alterado (se nulo, mantém o base)
   dueDay            Int?            // Dia de vencimento alterado (se nulo, mantém o base)
   isCancelled       Boolean         @default(false) // Se o faturamento foi suspenso neste mês
+  isBilled          Boolean         @default(false) // Se o faturamento do mês foi marcado como faturado
   createdAt         DateTime        @default(now())
   updatedAt         DateTime        @updatedAt
 

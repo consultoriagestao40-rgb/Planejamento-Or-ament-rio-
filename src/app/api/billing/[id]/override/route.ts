@@ -64,7 +64,8 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
             value,
             billingDay,
             dueDay,
-            isCancelled
+            isCancelled,
+            isBilled
         } = body;
 
         if (month === undefined || year === undefined) {
@@ -77,7 +78,25 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
             return NextResponse.json({ success: false, error: 'Contrato não encontrado' }, { status: 404 });
         }
 
-        // 1. Create/update override
+        // 1. Build update and create objects
+        const updateData: any = {};
+        if (value !== undefined) updateData.value = value !== null ? parseFloat(value) : null;
+        if (billingDay !== undefined) updateData.billingDay = billingDay !== null ? parseInt(billingDay) : null;
+        if (dueDay !== undefined) updateData.dueDay = dueDay !== null ? parseInt(dueDay) : null;
+        if (isCancelled !== undefined) updateData.isCancelled = !!isCancelled;
+        if (isBilled !== undefined) updateData.isBilled = !!isBilled;
+
+        const createData: any = {
+            billingContractId: contract.id,
+            month: parseInt(month),
+            year: parseInt(year),
+            value: value !== undefined && value !== null ? parseFloat(value) : null,
+            billingDay: billingDay !== undefined && billingDay !== null ? parseInt(billingDay) : null,
+            dueDay: dueDay !== undefined && dueDay !== null ? parseInt(dueDay) : null,
+            isCancelled: isCancelled !== undefined ? !!isCancelled : false,
+            isBilled: isBilled !== undefined ? !!isBilled : false
+        };
+
         const override = await prisma.billingOverride.upsert({
             where: {
                 billingContractId_month_year: {
@@ -86,21 +105,8 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
                     year: parseInt(year)
                 }
             },
-            update: {
-                value: value !== undefined && value !== null ? parseFloat(value) : null,
-                billingDay: billingDay !== undefined && billingDay !== null ? parseInt(billingDay) : null,
-                dueDay: dueDay !== undefined && dueDay !== null ? parseInt(dueDay) : null,
-                isCancelled: isCancelled !== undefined ? !!isCancelled : false
-            },
-            create: {
-                billingContractId: contract.id,
-                month: parseInt(month),
-                year: parseInt(year),
-                value: value !== undefined && value !== null ? parseFloat(value) : null,
-                billingDay: billingDay !== undefined && billingDay !== null ? parseInt(billingDay) : null,
-                dueDay: dueDay !== undefined && dueDay !== null ? parseInt(dueDay) : null,
-                isCancelled: isCancelled !== undefined ? !!isCancelled : false
-            }
+            update: updateData,
+            create: createData
         });
 
         // 2. Propagate value/cancel to BudgetEntry for this month/year/costCenter

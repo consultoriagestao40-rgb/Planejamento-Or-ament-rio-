@@ -34,6 +34,7 @@ interface BillingOverride {
     billingDay: number | null;
     dueDay: number | null;
     isCancelled: boolean;
+    isBilled?: boolean;
 }
 
 const MONTH_NAMES = [
@@ -51,11 +52,18 @@ export default function BillingPage() {
     const [costCenters, setCostCenters] = useState<any[]>([]);
     const [loading, setLoading] = useState<boolean>(true);
     const [showEndedContracts, setShowEndedContracts] = useState<boolean>(false);
+    const [sortDay, setSortDay] = useState<number | null>(null);
 
     // Modals
     const [isCreateModalOpen, setIsCreateModalOpen] = useState<boolean>(false);
     const [isConfigModalOpen, setIsConfigModalOpen] = useState<BillingContract | null>(null);
-    const [isCellModalOpen, setIsCellModalOpen] = useState<{ contract: BillingContract; day: number; value: number; isOverride: boolean } | null>(null);
+    const [isCellModalOpen, setIsCellModalOpen] = useState<{
+        contract: BillingContract;
+        day: number;
+        value: number;
+        isOverride: boolean;
+        isBilled: boolean;
+    } | null>(null);
 
     // Form states
     const [linkCostCenter, setLinkCostCenter] = useState<string>('NEW'); // "NEW" or cost center ID
@@ -86,6 +94,8 @@ export default function BillingPage() {
     // Cell Override states
     const [cellOverrideValue, setCellOverrideValue] = useState('');
     const [cellApplyRecurring, setCellApplyRecurring] = useState(false);
+    const [cellIsBilled, setCellIsBilled] = useState(false);
+    const [isSavingCell, setIsSavingCell] = useState(false);
 
     useEffect(() => {
         // Load companies
@@ -204,14 +214,15 @@ export default function BillingPage() {
         return {
             value,
             billingDay,
-            dueDate
+            dueDate,
+            isBilled: !!override?.isBilled
         };
     };
 
     // Computes rows mapping contract value to active days on the timeline
     const gridData = useMemo(() => {
         return contracts.map(contract => {
-            const dayValues: { [day: number]: { value: number; isOverride: boolean } } = {};
+            const dayValues: { [day: number]: { value: number; isOverride: boolean; isBilled: boolean } } = {};
 
             if (activeView === 'billing') {
                 const details = getBillingDetailsForMonth(contract, selectedMonth, selectedYear);
@@ -219,7 +230,8 @@ export default function BillingPage() {
                     const override = contract.overrides?.find(o => o.month === selectedMonth && o.year === selectedYear);
                     dayValues[details.billingDay] = {
                         value: details.value,
-                        isOverride: override?.value !== null && override?.value !== undefined
+                        isOverride: override?.value !== null && override?.value !== undefined,
+                        isBilled: !!override?.isBilled
                     };
                 }
             } else {
@@ -231,7 +243,8 @@ export default function BillingPage() {
                     const day = currentDetails.dueDate.getDate();
                     dayValues[day] = {
                         value: currentDetails.value,
-                        isOverride: override?.value !== null && override?.value !== undefined
+                        isOverride: override?.value !== null && override?.value !== undefined,
+                        isBilled: !!override?.isBilled
                     };
                 }
 
@@ -244,7 +257,8 @@ export default function BillingPage() {
                     const day = prevDetails.dueDate.getDate();
                     dayValues[day] = {
                         value: (dayValues[day]?.value || 0) + prevDetails.value,
-                        isOverride: override?.value !== null && override?.value !== undefined
+                        isOverride: override?.value !== null && override?.value !== undefined,
+                        isBilled: !!override?.isBilled
                     };
                 }
             }
@@ -267,14 +281,25 @@ export default function BillingPage() {
     };
 
     const filteredGridData = useMemo(() => {
-        return gridData.filter(({ contract }) => {
+        const list = gridData.filter(({ contract }) => {
             const ended = isContractEnded(contract);
             if (ended && !showEndedContracts) {
                 return false;
             }
             return true;
         });
-    }, [gridData, selectedMonth, selectedYear, showEndedContracts]);
+
+        if (sortDay === null) return list;
+
+        return [...list].sort((a, b) => {
+            const valA = a.dayValues[sortDay]?.value || 0;
+            const valB = b.dayValues[sortDay]?.value || 0;
+            if (valA > 0 && valB === 0) return -1;
+            if (valA === 0 && valB > 0) return 1;
+            if (valA > 0 && valB > 0) return valB - valA; // highest value first
+            return a.contract.name.localeCompare(b.contract.name);
+        });
+    }, [gridData, selectedMonth, selectedYear, showEndedContracts, sortDay]);
 
     // Calculate column totals
     const columnTotals = useMemo(() => {
@@ -414,10 +439,11 @@ export default function BillingPage() {
         }
     };
 
-    const handleOpenCell = (contract: BillingContract, day: number, currentVal: number, isOverride: boolean) => {
-        setIsCellModalOpen({ contract, day, value: currentVal, isOverride });
+    const handleOpenCell = (contract: BillingContract, day: number, currentVal: number, isOverride: boolean, isBilled: boolean) => {
+        setIsCellModalOpen({ contract, day, value: currentVal, isOverride, isBilled });
         setCellOverrideValue(currentVal.toString());
         setCellApplyRecurring(false);
+        setCellIsBilled(isBilled);
     };
 
     const handleSaveCellOverride = async (e: React.FormEvent) => {
@@ -426,6 +452,7 @@ export default function BillingPage() {
 
         const { contract } = isCellModalOpen;
         const val = parseFloat(cellOverrideValue);
+        setIsSavingCell(true);
 
         try {
             if (cellApplyRecurring) {
@@ -438,25 +465,28 @@ export default function BillingPage() {
                 const data = await res.json();
                 if (!data.success) {
                     alert(`Erro: ${data.error}`);
+                    setIsSavingCell(false);
                     return;
                 }
-            } else {
-                // Set override for this specific month/year
-                const res = await fetch(`/api/billing/${contract.id}/override`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        month: selectedMonth,
-                        year: selectedYear,
-                        value: val,
-                        isCancelled: false
-                    })
-                });
-                const data = await res.json();
-                if (!data.success) {
-                    alert(`Erro: ${data.error}`);
-                    return;
-                }
+            }
+
+            // Set override for this specific month/year with value and isBilled
+            const res = await fetch(`/api/billing/${contract.id}/override`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    month: selectedMonth,
+                    year: selectedYear,
+                    value: val,
+                    isCancelled: false,
+                    isBilled: cellIsBilled
+                })
+            });
+            const data = await res.json();
+            if (!data.success) {
+                alert(`Erro: ${data.error}`);
+                setIsSavingCell(false);
+                return;
             }
 
             fetchContracts();
@@ -464,6 +494,8 @@ export default function BillingPage() {
         } catch (err) {
             console.error(err);
             alert('Erro ao salvar alteração de valor');
+        } finally {
+            setIsSavingCell(false);
         }
     };
 
@@ -497,8 +529,27 @@ export default function BillingPage() {
     };
 
     const fmt = (v: number) => {
-        if (v === 0) return '';
+        if (!v && v !== 0) return '';
         return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(v);
+    };
+
+    const formatNumber = (v: number) => {
+        if (!v && v !== 0) return '';
+        return new Intl.NumberFormat('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(v);
+    };
+
+    const isOverdue = (day: number, isBilled: boolean) => {
+        if (isBilled) return false;
+        const today = new Date();
+        const currentYear = today.getFullYear();
+        const currentMonth = today.getMonth() + 1;
+        const currentDay = today.getDate();
+
+        if (selectedYear < currentYear) return true;
+        if (selectedYear === currentYear && selectedMonth < currentMonth) return true;
+        if (selectedYear === currentYear && selectedMonth === currentMonth && day < currentDay) return true;
+
+        return false;
     };
 
     return (
@@ -535,7 +586,7 @@ export default function BillingPage() {
 
                 {/* Filters and View Toggles Section */}
                 <div className="glass-card" style={{ padding: '1.25rem', background: 'var(--bg-surface)', borderRadius: '12px', border: '1px solid var(--border-default)', marginBottom: '1.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
-                    <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
+                    <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap', alignItems: 'center' }}>
                         {/* Company */}
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
                             <span style={{ fontSize: '0.65rem', fontWeight: 800, color: 'var(--text-secondary)', textTransform: 'uppercase' }}>Empresa</span>
@@ -584,6 +635,19 @@ export default function BillingPage() {
                                 />
                                 <span>Mostrar Encerrados</span>
                             </label>
+                        </div>
+
+                        {/* Visual Status Legend */}
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginTop: '1.1rem', marginLeft: '1rem', flexWrap: 'wrap' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.72rem', fontWeight: 700, color: '#15803d', background: '#dcfce7', padding: '2px 8px', borderRadius: '6px', border: '1px solid rgba(22,163,74,0.3)' }}>
+                                <span>✓</span> Faturado
+                            </div>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.72rem', fontWeight: 700, color: '#b91c1c', background: '#fee2e2', padding: '2px 8px', borderRadius: '6px', border: '1px solid rgba(239,68,68,0.3)' }}>
+                                <span>⚠️</span> Pendente / Vencido
+                            </div>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.72rem', fontWeight: 700, color: '#0f62ac', background: 'rgba(15,98,172,0.08)', padding: '2px 8px', borderRadius: '6px', border: '1px solid rgba(15,98,172,0.2)' }}>
+                                <span>📅</span> A Faturar (Previsto)
+                            </div>
                         </div>
                     </div>
 
@@ -646,16 +710,41 @@ export default function BillingPage() {
                         </div>
                     ) : (
                         <div style={{ overflowX: 'auto', width: '100%' }}>
-                            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.75rem', textAlign: 'left', minWidth: '1350px' }}>
+                            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.75rem', textAlign: 'left', minWidth: `${360 + daysInMonth * 92}px` }}>
                                 <thead>
                                     <tr style={{ background: 'var(--bg-elevated)', borderBottom: '2px solid var(--border-default)' }}>
-                                        <th style={{ padding: '0.75rem 1rem', width: '250px', minWidth: '250px', fontWeight: 700, color: 'var(--text-primary)' }}>Cliente / Centro de Custo</th>
-                                        <th style={{ padding: '0.75rem 1.25rem', width: '95px', minWidth: '95px', fontWeight: 700, color: 'var(--text-primary)', textAlign: 'right' }}>Orçado Mês</th>
-                                        {Array.from({ length: daysInMonth }, (_, i) => i + 1).map(day => (
-                                            <th key={day} style={{ padding: '0.75rem 0.25rem', textAlign: 'center', width: '36px', minWidth: '36px', fontWeight: 700, color: 'var(--text-primary)' }}>
-                                                {day}
-                                            </th>
-                                        ))}
+                                        <th style={{ padding: '0.75rem 1rem', width: '250px', minWidth: '250px', fontWeight: 700, color: 'var(--text-primary)', position: 'sticky', left: 0, background: 'var(--bg-elevated)', zIndex: 10 }}>Cliente / Centro de Custo</th>
+                                        <th style={{ padding: '0.75rem 1.25rem', width: '110px', minWidth: '110px', fontWeight: 700, color: 'var(--text-primary)', textAlign: 'right' }}>Orçado Mês</th>
+                                        {Array.from({ length: daysInMonth }, (_, i) => i + 1).map(day => {
+                                            const isSorted = sortDay === day;
+                                            return (
+                                                <th
+                                                    key={day}
+                                                    onClick={() => setSortDay(prev => prev === day ? null : day)}
+                                                    style={{
+                                                        padding: '0.65rem 0.25rem',
+                                                        textAlign: 'center',
+                                                        width: '92px',
+                                                        minWidth: '92px',
+                                                        fontWeight: 800,
+                                                        color: isSorted ? '#ffffff' : 'var(--text-primary)',
+                                                        background: isSorted ? '#0f62ac' : 'transparent',
+                                                        cursor: 'pointer',
+                                                        userSelect: 'none',
+                                                        transition: 'all 0.15s ease',
+                                                        borderRight: '1px solid var(--border-subtle)'
+                                                    }}
+                                                    title={isSorted ? `Dia ${day} ordenado no topo. Clique para limpar ordenação.` : `Clique para classificar e subir faturamentos do Dia ${day} para o topo`}
+                                                >
+                                                    <div style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '4px' }}>
+                                                        <span>{day}</span>
+                                                        <span style={{ fontSize: '0.65rem', opacity: isSorted ? 1 : 0.4 }}>
+                                                            {isSorted ? '▲' : '⇅'}
+                                                        </span>
+                                                    </div>
+                                                </th>
+                                            );
+                                        })}
                                         <th style={{ padding: '0.75rem 0.5rem', width: '50px', minWidth: '50px', textAlign: 'center' }}></th>
                                     </tr>
                                 </thead>
@@ -663,9 +752,9 @@ export default function BillingPage() {
                                     {filteredGridData.map(({ contract, dayValues }) => {
                                         const currentMonthBudget = contract.monthlyBudgets[selectedMonth - 1] || 0;
                                         return (
-                                            <tr key={contract.id} style={{ borderBottom: '1px solid var(--border-subtle)', height: '42px' }} className="hover-row">
+                                            <tr key={contract.id} style={{ borderBottom: '1px solid var(--border-subtle)', height: '44px' }} className="hover-row">
                                                 {/* Name, Company & Recurrence badge */}
-                                                <td style={{ padding: '0.5rem 1rem', fontWeight: 600, color: 'var(--text-primary)' }}>
+                                                <td style={{ padding: '0.5rem 1rem', fontWeight: 600, color: 'var(--text-primary)', position: 'sticky', left: 0, background: 'var(--bg-surface)', zIndex: 5 }}>
                                                     <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
                                                         <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap', alignItems: 'center' }}>
                                                             {selectedTenant === 'ALL' && (
@@ -702,35 +791,98 @@ export default function BillingPage() {
                                                 </td>
 
                                                 {/* Budgeted amount this month */}
-                                                <td style={{ padding: '0.5rem 1rem', textAlign: 'right', fontWeight: 600, color: currentMonthBudget > 0 ? 'var(--text-primary)' : 'var(--text-secondary)' }}>
+                                                <td style={{ padding: '0.5rem 1rem', textAlign: 'right', fontWeight: 600, color: currentMonthBudget > 0 ? 'var(--text-primary)' : 'var(--text-secondary)', whiteSpace: 'nowrap' }}>
                                                     {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(currentMonthBudget)}
                                                 </td>
 
                                                 {/* Timeline grid cells */}
                                                 {Array.from({ length: daysInMonth }, (_, i) => i + 1).map(day => {
                                                     const hasVal = dayValues[day];
+                                                    if (!hasVal) {
+                                                        return (
+                                                            <td
+                                                                key={day}
+                                                                onClick={() => handleOpenCell(contract, day, currentMonthBudget, false, false)}
+                                                                style={{
+                                                                    padding: '0.35rem 0.25rem',
+                                                                    textAlign: 'center',
+                                                                    cursor: 'pointer',
+                                                                    background: sortDay === day ? 'rgba(15, 98, 172, 0.03)' : 'transparent',
+                                                                    color: 'var(--text-secondary)',
+                                                                    borderLeft: '1px dashed var(--border-subtle)',
+                                                                    borderRight: '1px dashed var(--border-subtle)',
+                                                                    minWidth: '92px',
+                                                                    width: '92px'
+                                                                }}
+                                                                className="hover-cell"
+                                                            >
+                                                                -
+                                                            </td>
+                                                        );
+                                                    }
+
+                                                    const overdue = isOverdue(day, hasVal.isBilled);
+
+                                                    // Visual styling states
+                                                    let cellBg = 'rgba(15, 98, 172, 0.06)';
+                                                    let cellColor = 'var(--text-primary)';
+                                                    let cellBorder = '1px solid rgba(15, 98, 172, 0.12)';
+
+                                                    if (hasVal.isBilled) {
+                                                        cellBg = '#dcfce7'; // Light green
+                                                        cellColor = '#15803d';
+                                                        cellBorder = '1px solid rgba(22, 163, 74, 0.35)';
+                                                    } else if (overdue) {
+                                                        cellBg = '#fee2e2'; // Light soft red/alert
+                                                        cellColor = '#b91c1c';
+                                                        cellBorder = '1px solid rgba(239, 68, 68, 0.3)';
+                                                    } else if (hasVal.isOverride) {
+                                                        cellBg = 'rgba(224, 242, 254, 0.7)';
+                                                        cellColor = '#0369a1';
+                                                        cellBorder = '1px solid rgba(2, 132, 199, 0.3)';
+                                                    }
+
                                                     return (
                                                         <td
                                                             key={day}
-                                                            onClick={() => handleOpenCell(contract, day, hasVal ? hasVal.value : currentMonthBudget, !!hasVal?.isOverride)}
+                                                            onClick={() => handleOpenCell(contract, day, hasVal.value, !!hasVal.isOverride, !!hasVal.isBilled)}
                                                             style={{
-                                                                padding: '0.25rem',
+                                                                padding: '0.35rem 0.25rem',
                                                                 textAlign: 'center',
                                                                 cursor: 'pointer',
-                                                                background: hasVal ? (hasVal.isOverride ? 'rgba(224, 242, 254, 0.4)' : 'rgba(15, 98, 172, 0.05)') : 'transparent',
-                                                                fontWeight: 700,
-                                                                color: hasVal ? (hasVal.isOverride ? '#0369a1' : 'var(--text-primary)') : 'transparent',
+                                                                background: sortDay === day ? 'rgba(15, 98, 172, 0.04)' : 'transparent',
                                                                 transition: 'background 0.2s',
                                                                 borderLeft: '1px dashed var(--border-subtle)',
-                                                                borderRight: '1px dashed var(--border-subtle)'
+                                                                borderRight: '1px dashed var(--border-subtle)',
+                                                                minWidth: '92px',
+                                                                width: '92px'
                                                             }}
                                                             className="hover-cell"
                                                         >
-                                                            {hasVal ? (
-                                                                <div style={{ display: 'inline-block', padding: '2px 4px', borderRadius: '4px' }} title={fmt(hasVal.value)}>
-                                                                    {hasVal.value >= 1000 ? `${(hasVal.value / 1000).toFixed(1)}k` : hasVal.value}
-                                                                </div>
-                                                            ) : '-'}
+                                                            <div
+                                                                style={{
+                                                                    display: 'inline-flex',
+                                                                    alignItems: 'center',
+                                                                    justifyContent: 'center',
+                                                                    gap: '3px',
+                                                                    padding: '3px 6px',
+                                                                    borderRadius: '6px',
+                                                                    background: cellBg,
+                                                                    color: cellColor,
+                                                                    border: cellBorder,
+                                                                    fontWeight: 700,
+                                                                    fontSize: '0.72rem',
+                                                                    whiteSpace: 'nowrap',
+                                                                    boxSizing: 'border-box',
+                                                                    width: '100%',
+                                                                    maxWidth: '88px',
+                                                                    boxShadow: hasVal.isBilled ? '0 1px 2px rgba(22, 163, 74, 0.1)' : 'none'
+                                                                }}
+                                                                title={`${hasVal.isBilled ? '✓ FATURADO' : overdue ? '⚠️ PENDENTE / VENCIDO' : 'PREVISTO'}: ${fmt(hasVal.value)}`}
+                                                            >
+                                                                {hasVal.isBilled && <span style={{ fontSize: '0.75rem', fontWeight: 800 }}>✓</span>}
+                                                                <span>{formatNumber(hasVal.value)}</span>
+                                                            </div>
                                                         </td>
                                                     );
                                                 })}
@@ -751,8 +903,8 @@ export default function BillingPage() {
 
                                     {/* Column Total Consolidation */}
                                     <tr style={{ background: 'var(--bg-elevated)', borderTop: '2px solid var(--border-default)', fontWeight: 800 }}>
-                                        <td style={{ padding: '0.75rem 1rem', color: 'var(--text-primary)' }}>TOTAL DO DIA</td>
-                                        <td style={{ padding: '0.75rem 1rem', textAlign: 'right', color: 'var(--text-primary)' }}>
+                                        <td style={{ padding: '0.75rem 1rem', color: 'var(--text-primary)', position: 'sticky', left: 0, background: 'var(--bg-elevated)', zIndex: 10 }}>TOTAL DO DIA</td>
+                                        <td style={{ padding: '0.75rem 1rem', textAlign: 'right', color: 'var(--text-primary)', whiteSpace: 'nowrap' }}>
                                             {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(
                                                 filteredGridData.reduce((acc, { contract }) => acc + (getBillingDetailsForMonth(contract, selectedMonth, selectedYear)?.value || 0), 0)
                                             )}
@@ -766,13 +918,18 @@ export default function BillingPage() {
                                                         padding: '0.5rem 0.25rem',
                                                         textAlign: 'center',
                                                         color: daySum > 0 ? '#0f62ac' : 'var(--text-secondary)',
-                                                        background: daySum > 0 ? 'rgba(15, 98, 172, 0.08)' : 'transparent',
+                                                        background: daySum > 0 ? 'rgba(15, 98, 172, 0.08)' : (sortDay === day ? 'rgba(15, 98, 172, 0.04)' : 'transparent'),
                                                         borderLeft: '1px dashed var(--border-subtle)',
-                                                        borderRight: '1px dashed var(--border-subtle)'
+                                                        borderRight: '1px dashed var(--border-subtle)',
+                                                        minWidth: '92px',
+                                                        width: '92px',
+                                                        fontSize: '0.72rem',
+                                                        whiteSpace: 'nowrap',
+                                                        fontWeight: 800
                                                     }}
-                                                    title={`Total: ${fmt(daySum)}`}
+                                                    title={`Total Dia ${day}: ${fmt(daySum)}`}
                                                 >
-                                                    {daySum > 0 ? (daySum >= 1000 ? `${(daySum / 1000).toFixed(1)}k` : daySum) : '-'}
+                                                    {daySum > 0 ? formatNumber(daySum) : '-'}
                                                 </td>
                                             );
                                         })}
@@ -1012,17 +1169,71 @@ export default function BillingPage() {
                 {/* MODAL: AJUSTE / EDICAO DE CÉLULA (OVERRIDE DO MÊS) */}
                 {isCellModalOpen && (
                     <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', zIndex: 1000, display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
-                        <div className="glass-card" style={{ width: '420px', background: 'var(--bg-surface)', padding: '1.75rem', borderRadius: '16px', border: '1px solid var(--border-default)', display: 'flex', flexDirection: 'column', gap: '1.25rem', boxShadow: '0 20px 25px -5px rgba(0,0,0,0.3)' }}>
+                        <div className="glass-card" style={{ width: '460px', background: 'var(--bg-surface)', padding: '1.75rem', borderRadius: '16px', border: '1px solid var(--border-default)', display: 'flex', flexDirection: 'column', gap: '1.25rem', boxShadow: '0 20px 25px -5px rgba(0,0,0,0.3)' }}>
                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                <h3 style={{ margin: 0, fontSize: '1.15rem', fontWeight: 800 }}>✏️ Ajustar Valor de Faturamento</h3>
+                                <h3 style={{ margin: 0, fontSize: '1.15rem', fontWeight: 800 }}>✏️ Detalhes do Faturamento</h3>
                                 <button onClick={() => setIsCellModalOpen(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '1.25rem', color: 'var(--text-secondary)' }}>✕</button>
                             </div>
 
-                            <p style={{ margin: 0, fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
-                                Editando faturamento de <strong>{isCellModalOpen.contract.name}</strong> para o mês de <strong>{MONTH_NAMES[selectedMonth - 1]} / {selectedYear}</strong>.
-                            </p>
+                            <div style={{ background: 'var(--bg-elevated)', padding: '0.85rem', borderRadius: '10px', display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                                <span style={{ fontSize: '0.9rem', fontWeight: 700, color: 'var(--text-primary)' }}>{isCellModalOpen.contract.name}</span>
+                                <span style={{ fontSize: '0.78rem', color: 'var(--text-secondary)' }}>
+                                    Referência: <strong>{MONTH_NAMES[selectedMonth - 1]} / {selectedYear}</strong> • Dia de Emissão: <strong>Dia {isCellModalOpen.day}</strong>
+                                </span>
+                            </div>
 
-                            <form onSubmit={handleSaveCellOverride} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                            <form onSubmit={handleSaveCellOverride} style={{ display: 'flex', flexDirection: 'column', gap: '1.15rem' }}>
+                                {/* Status Toggle Box */}
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
+                                    <label style={{ fontSize: '0.72rem', fontWeight: 800, color: 'var(--text-secondary)', textTransform: 'uppercase' }}>
+                                        Status do Faturamento no Mês
+                                    </label>
+                                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem' }}>
+                                        <button
+                                            type="button"
+                                            onClick={() => setCellIsBilled(true)}
+                                            style={{
+                                                padding: '0.65rem 0.75rem',
+                                                borderRadius: '8px',
+                                                border: cellIsBilled ? '2px solid #16a34a' : '1px solid var(--border-default)',
+                                                background: cellIsBilled ? '#dcfce7' : 'var(--bg-elevated)',
+                                                color: cellIsBilled ? '#15803d' : 'var(--text-secondary)',
+                                                fontWeight: 800,
+                                                fontSize: '0.82rem',
+                                                cursor: 'pointer',
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                justifyContent: 'center',
+                                                gap: '6px',
+                                                transition: 'all 0.15s ease'
+                                            }}
+                                        >
+                                            <span>✓</span> Faturado
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={() => setCellIsBilled(false)}
+                                            style={{
+                                                padding: '0.65rem 0.75rem',
+                                                borderRadius: '8px',
+                                                border: !cellIsBilled ? '2px solid #0f62ac' : '1px solid var(--border-default)',
+                                                background: !cellIsBilled ? 'rgba(15, 98, 172, 0.08)' : 'var(--bg-elevated)',
+                                                color: !cellIsBilled ? '#0f62ac' : 'var(--text-secondary)',
+                                                fontWeight: 800,
+                                                fontSize: '0.82rem',
+                                                cursor: 'pointer',
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                justifyContent: 'center',
+                                                gap: '6px',
+                                                transition: 'all 0.15s ease'
+                                            }}
+                                        >
+                                            <span>⏳</span> Pendente
+                                        </button>
+                                    </div>
+                                </div>
+
                                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
                                     <label style={{ fontSize: '0.72rem', fontWeight: 700, color: 'var(--text-secondary)' }}>VALOR DO FATURAMENTO (R$)</label>
                                     <input
@@ -1031,7 +1242,7 @@ export default function BillingPage() {
                                         value={cellOverrideValue}
                                         onChange={(e) => setCellOverrideValue(e.target.value)}
                                         required
-                                        style={{ height: '38px', padding: '0 0.75rem', borderRadius: '8px', border: '1px solid var(--border-default)', background: 'var(--bg-surface)', color: 'var(--text-primary)', fontSize: '0.9rem', fontWeight: 600 }}
+                                        style={{ height: '38px', padding: '0 0.75rem', borderRadius: '8px', border: '1px solid var(--border-default)', background: 'var(--bg-surface)', color: 'var(--text-primary)', fontSize: '0.95rem', fontWeight: 700 }}
                                     />
                                 </div>
 
@@ -1045,7 +1256,7 @@ export default function BillingPage() {
                                     <span>Alterar valor recorrente (todos os meses futuros)</span>
                                 </label>
 
-                                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginTop: '0.5rem' }}>
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
                                     <button
                                         type="button"
                                         onClick={handleSuspendBilling}
@@ -1055,9 +1266,11 @@ export default function BillingPage() {
                                     </button>
                                 </div>
 
-                                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem', marginTop: '0.75rem' }}>
+                                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem', marginTop: '0.5rem' }}>
                                     <button type="button" onClick={() => setIsCellModalOpen(null)} style={{ height: '38px', padding: '0 1.25rem', borderRadius: '8px', border: '1px solid var(--border-default)', background: 'transparent', color: 'var(--text-secondary)', cursor: 'pointer', fontWeight: 700 }}>Cancelar</button>
-                                    <button type="submit" style={{ height: '38px', padding: '0 1.5rem', borderRadius: '8px', border: 'none', background: 'linear-gradient(135deg, #0f62ac 0%, #0b579f 100%)', color: '#ffffff', cursor: 'pointer', fontWeight: 700 }}>Salvar</button>
+                                    <button type="submit" disabled={isSavingCell} style={{ height: '38px', padding: '0 1.5rem', borderRadius: '8px', border: 'none', background: 'linear-gradient(135deg, #0f62ac 0%, #0b579f 100%)', color: '#ffffff', cursor: 'pointer', fontWeight: 700 }}>
+                                        {isSavingCell ? 'Salvando...' : 'Salvar'}
+                                    </button>
                                 </div>
                             </form>
                         </div>

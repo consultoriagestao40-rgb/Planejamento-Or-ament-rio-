@@ -713,7 +713,7 @@ export default function BillingPage() {
                             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.75rem', textAlign: 'left', minWidth: `${360 + daysInMonth * 92}px` }}>
                                 <thead>
                                     <tr style={{ background: 'var(--bg-elevated)', borderBottom: '2px solid var(--border-default)' }}>
-                                        <th style={{ padding: '0.75rem 1rem', width: '250px', minWidth: '250px', fontWeight: 700, color: 'var(--text-primary)', position: 'sticky', left: 0, background: 'var(--bg-elevated)', zIndex: 10 }}>Cliente / Centro de Custo</th>
+                                        <th style={{ padding: '0.75rem 1rem', width: '270px', minWidth: '270px', fontWeight: 700, color: 'var(--text-primary)', position: 'sticky', left: 0, background: 'var(--bg-elevated)', zIndex: 10 }}>Cliente / Centro de Custo</th>
                                         <th style={{ padding: '0.75rem 1.25rem', width: '110px', minWidth: '110px', fontWeight: 700, color: 'var(--text-primary)', textAlign: 'right' }}>Orçado Mês</th>
                                         {Array.from({ length: daysInMonth }, (_, i) => i + 1).map(day => {
                                             const isSorted = sortDay === day;
@@ -745,7 +745,6 @@ export default function BillingPage() {
                                                 </th>
                                             );
                                         })}
-                                        <th style={{ padding: '0.75rem 0.5rem', width: '50px', minWidth: '50px', textAlign: 'center' }}></th>
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -756,7 +755,7 @@ export default function BillingPage() {
                                                 {/* Name, Company & Recurrence badge */}
                                                 <td style={{ padding: '0.5rem 1rem', fontWeight: 600, color: 'var(--text-primary)', position: 'sticky', left: 0, background: 'var(--bg-surface)', zIndex: 5 }}>
                                                     <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-                                                        <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap', alignItems: 'center' }}>
+                                                        <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', alignItems: 'center' }}>
                                                             {selectedTenant === 'ALL' && (
                                                                 <span style={{
                                                                     fontSize: '0.62rem',
@@ -770,7 +769,27 @@ export default function BillingPage() {
                                                                     {contract.tenantName}
                                                                 </span>
                                                             )}
-                                                            <span style={{ fontSize: '0.8rem' }}>{contract.name}</span>
+                                                            <span style={{ fontSize: '0.8rem', fontWeight: 700 }}>{contract.name}</span>
+                                                            <button
+                                                                onClick={() => handleOpenConfig(contract)}
+                                                                style={{
+                                                                    background: 'rgba(15, 98, 172, 0.06)',
+                                                                    border: '1px solid rgba(15, 98, 172, 0.15)',
+                                                                    borderRadius: '6px',
+                                                                    cursor: 'pointer',
+                                                                    fontSize: '0.75rem',
+                                                                    color: '#0f62ac',
+                                                                    padding: '2px 5px',
+                                                                    display: 'inline-flex',
+                                                                    alignItems: 'center',
+                                                                    justifyContent: 'center',
+                                                                    transition: 'all 0.15s ease',
+                                                                    lineHeight: 1
+                                                                }}
+                                                                title="Configurações do Contrato"
+                                                            >
+                                                                ✏️
+                                                            </button>
                                                         </div>
                                                         <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
                                                             <span style={{
@@ -886,17 +905,6 @@ export default function BillingPage() {
                                                         </td>
                                                     );
                                                 })}
-
-                                                {/* Actions */}
-                                                <td style={{ padding: '0.5rem', textAlign: 'center' }}>
-                                                    <button
-                                                        onClick={() => handleOpenConfig(contract)}
-                                                        style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '1rem', color: 'var(--text-secondary)', padding: '4px' }}
-                                                        title="Configurações da linha"
-                                                    >
-                                                        ⚙️
-                                                    </button>
-                                                </td>
                                             </tr>
                                         );
                                     })}
@@ -933,7 +941,6 @@ export default function BillingPage() {
                                                 </td>
                                             );
                                         })}
-                                        <td></td>
                                     </tr>
                                 </tbody>
                             </table>
